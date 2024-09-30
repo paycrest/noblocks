@@ -2,7 +2,7 @@ import Rive from "@rive-app/react-canvas";
 
 export const HeroAnimation = () => {
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full max-h-[1110px]">
       {/* dark theme */}
       <div className="w-full h-full hidden dark:block">
         <Rive src="/rive/flashed-dots_dark.riv" />

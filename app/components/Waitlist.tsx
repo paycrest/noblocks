@@ -69,13 +69,12 @@ export const Waitlist = ({
         delay={1}
         className="text-neutral-900 dark:text-white/80 font-light"
       >
-        Supports
+        Supported networks
         <div className="inline-flex align-middle mx-2">
           {networks.map(({ name, Icon }, index) => (
             <NetworkIcon key={name} Icon={Icon} index={index} />
           ))}
         </div>
-        networks
       </AnimatedComponent>
 
       <AnimatedComponent variant={fadeInOut} delay={1.2}>

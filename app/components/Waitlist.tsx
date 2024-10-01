@@ -1,4 +1,4 @@
-import Image from "next/image";
+// import Image from "next/image";
 import { AnimatedComponent, fadeInOut, slideInOut } from "./AnimatedComponents";
 import {
   ArbitrumIcon,
@@ -7,7 +7,7 @@ import {
   PolygonIcon,
   ZapIcon,
 } from "./ImageAssets";
-import { VideoDialog } from "./VideoDialog";
+// import { VideoDialog } from "./VideoDialog";
 import { WaitlistForm } from "./WaitlistForm";
 
 const networks = [
@@ -56,8 +56,8 @@ export const Waitlist = ({
         delay={0.6}
         className="leading-normal text-neutral-900 dark:text-white/80 font-light"
       >
-        Convert your crypto to fiat at lightening speed. <br />
-        Transfer them seamlessly to any bank account or mobile wallet.
+        Decentralized swaps. Real-world convenience. <br />
+        To any bank account or mobile wallet, powered by a distributed network of liquidity provision nodes.
       </AnimatedComponent>
 
       <AnimatedComponent variant={fadeInOut} delay={0.8}>
@@ -77,7 +77,7 @@ export const Waitlist = ({
         </div>
       </AnimatedComponent>
 
-      <AnimatedComponent variant={fadeInOut} delay={1.2}>
+      {/* <AnimatedComponent variant={fadeInOut} delay={1.2}>
         <>
           <button
             type="button"
@@ -103,7 +103,7 @@ export const Waitlist = ({
             onClose={() => setIsModalOpen(false)}
           />
         </>
-      </AnimatedComponent>
+      </AnimatedComponent> */}
     </>
   );
 };

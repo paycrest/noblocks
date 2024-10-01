@@ -9,16 +9,16 @@ import Providers from "./providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "noblocks • Waitlist",
+  title: "Noblocks • Waitlist",
   description: "Crypto-to-fiat payments with no blocks.",
   publisher: "Paycrest",
   authors: [{ name: "Paycrest", url: "https://paycrest.io" }],
   metadataBase: new URL("https://noblocks.xyz"),
   openGraph: {
-    title: "noblocks",
-    description: "Crypto-to-fiat payments with no blocks.",
+    title: "Noblocks",
+    description: "Decentralized payments with real-world convenience. To any bank account or mobile wallet, powered by a distributed network of liquidity provision nodes.",
     url: "https://noblocks.xyz",
-    siteName: "noblocks",
+    siteName: "Noblocks",
     images: [
       {
         url: "/images/og-image.png",
@@ -32,9 +32,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "noblocks",
-    description: "Crypto-to-fiat payments with no blocks.",
-    creator: "@paycrest",
+    title: "Noblocks",
+    description: "Decentralized payments with real-world convenience. To any bank account or mobile wallet, powered by a distributed network of liquidity provision nodes.",
+    creator: "@noblocks_xyz",
     images: ["/images/og-image.png"],
   },
 };

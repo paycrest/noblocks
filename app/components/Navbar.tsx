@@ -3,16 +3,17 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRive } from "@rive-app/react-canvas";
 
+import { NoblocksLogo } from "./ImageAssets";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
 
-  const { rive, RiveComponent } = useRive({
-    src: "/rive/noblocks-logo.riv",
-    autoplay: false,
-    animations: "both spin",
-  });
+  // const { rive, RiveComponent } = useRive({
+  //   src: "/rive/noblocks-logo.riv",
+  //   autoplay: false,
+  //   animations: "both spin",
+  // });
 
   useEffect(() => setMounted(true), []);
 
@@ -26,10 +27,11 @@ export const Navbar = () => {
           aria-label="Navbar"
         >
           <Link href="/" className="w-full max-w-32 h-10">
-            <RiveComponent
+            {/* <RiveComponent
               onMouseEnter={() => rive?.play()}
               onMouseLeave={() => rive?.reset()}
-            />
+            /> */}
+            <NoblocksLogo />
           </Link>
         </nav>
       </AnimatedComponent>

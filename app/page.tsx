@@ -22,6 +22,7 @@ import type {
   RecipientDetails,
   StateProps,
 } from "./types";
+import { usePrivy } from "@privy-io/react-auth";
 
 const STEPS = {
   FORM: "form",
@@ -45,8 +46,6 @@ export default function Home() {
 
   const [currentStep, setCurrentStep] = useState(STEPS.FORM);
 
-  const [userLocation, setUserLocation] = useState<string>("NGN");
-
   const [selectedRecipient, setSelectedRecipient] =
     useState<RecipientDetails | null>(null);
 
@@ -62,10 +61,12 @@ export default function Home() {
   const [createdAt, setCreatedAt] = useState<string>("");
   const [orderId, setOrderId] = useState<string>("");
 
+  const { authenticated } = usePrivy();
+
   // Form methods and watch
   const formMethods = useForm<FormData>({ mode: "onChange" });
-  const { watch } = formMethods;
-  const { currency, token } = watch();
+  const { watch, setValue } = formMethods;
+  const { currency, token, amountSent } = watch();
 
   // Get account information using custom hook
   const account = useAccount();
@@ -114,106 +115,72 @@ export default function Home() {
 
     selectedRecipient,
     setSelectedRecipient,
-
-    defaultCurrency: userLocation,
   };
 
   // * START: USE EFFECTS * //
 
-  // Detect user location
   useEffect(() => {
-    const detectUserLocation = async () => {
-      try {
-        const response = await fetch("https://ipapi.co/json/");
-        const data = await response.json();
-        setUserLocation(data.country_code);
-      } catch (error) {
-        console.error("Error detecting user location:", error);
-        setUserLocation("");
-      }
-    };
+    setIsPageLoading(false);
+  }, []);
 
-    detectUserLocation();
-  }, [userLocation]);
-
-  // Fetch supported institutions based on currency
   useEffect(() => {
-    const getInstitutions = async () => {
-      if (!currency) return;
-      console.log("Fetching institutions for", currency);
-      setIsFetchingInstitutions(true);
-
-      try {
-        const institutions = await fetchSupportedInstitutions(currency);
-        setInstitutions(
-          institutions.filter((institution) => institution.type === "bank"),
-        );
-        setIsFetchingInstitutions(false);
-      } catch (error) {
-        console.log(error);
-      }
-    };
-
-    getInstitutions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currency]);
-
-  // Reset transaction status and form values when account status changes
-  useEffect(() => {
-    if (account.status !== "connected" && account.status !== "connecting") {
+    if (!authenticated) {
       setCurrentStep(STEPS.FORM);
       setFormValues({} as FormData);
     }
+  }, [authenticated]);
 
-    if (account.status === "connected" && account.chainId) {
-      if (
-        process.env.NEXT_PUBLIC_ENVIRONMENT === "testnet" &&
-        account.chainId === 8453
-      ) {
-        switchChain({ chainId: 84532 });
-        toast.error("Kindly switch to Base Sepolia to continue.");
-      } else if (
-        process.env.NEXT_PUBLIC_ENVIRONMENT === "mainnet" &&
-        account.chainId === 84532
-      ) {
-        switchChain({ chainId: 8453 });
-        toast.error("Kindly switch to Base Mainnet to continue.");
-      }
+  // Fetch supported institutions based on currency
+  useEffect(() => {
+    const getInstitutions = async (currencyValue: string) => {
+      console.log(currencyValue);
+      setIsFetchingInstitutions(true);
+
+      const institutions = await fetchSupportedInstitutions(currencyValue);
+      setInstitutions(
+        institutions.filter((institution) => institution.type === "bank"),
+      );
+
+      setIsFetchingInstitutions(false);
+    };
+
+    if (!currency) {
+      setValue("currency", "KES");
+      getInstitutions("KES");
+    } else {
+      getInstitutions(currency);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account.status, account.chainId]);
+  }, [currency]);
 
   // Fetch rate based on currency, amount, and token
   useEffect(() => {
-    // let timeoutId: NodeJS.Timeout;
+    let timeoutId: NodeJS.Timeout;
+
     const getRate = async () => {
-      // if (!currency || !amount || !token) return;
+      if (!currency || !amountSent || !token || !authenticated) return;
       setIsFetchingRate(true);
-      try {
-        const rate = await fetchRate({
-          token: "USDT",
-          amount: 0,
-          currency: currency,
-        });
-        setRate(rate.data);
-        setIsFetchingRate(false);
-      } catch (error) {
-        console.log(error);
-      }
+      const rate = await fetchRate({
+        token: "USDT",
+        amount: amountSent,
+        currency: currency,
+      });
+      setRate(rate.data);
+      setIsFetchingRate(false);
     };
 
     getRate();
 
-    // const debounceFetchRate = () => {
-    //   clearTimeout(timeoutId);
-    //   timeoutId = setTimeout(getRate, 1000);
-    // };
+    const debounceFetchRate = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(getRate, 1000);
+    };
 
-    // debounceFetchRate();
+    debounceFetchRate();
 
-    // return () => {
-    //   clearTimeout(timeoutId);
-    // };
+    return () => {
+      clearTimeout(timeoutId);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currency]);
 
@@ -234,11 +201,6 @@ export default function Home() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokenBalanceInWei, smartTokenBalanceInWei]);
-
-  // Set page loading state to false after initial render
-  useEffect(() => {
-    setIsPageLoading(false);
-  }, []);
 
   // * END: USE EFFECTS * //
 

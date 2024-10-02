@@ -381,7 +381,7 @@ export const VerifyIDModal = ({
 
     fetchStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, walletAddress]);
+  }, [walletAddress]);
 
   return (
     <>

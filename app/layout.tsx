@@ -13,7 +13,7 @@ import MainContent from "./mainContent";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "noblocks",
+  title: "Noblocks",
   description: "Crypto-to-fiat payments with no blocks.",
 };
 

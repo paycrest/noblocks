@@ -98,7 +98,9 @@ export const VerifyIDModal = ({
         setStep(STEPS.LOADING);
 
         const response = await initiateKYC({
-          signature,
+          signature: signature.startsWith("0x")
+            ? signature.slice(2)
+            : signature,
           walletAddress: walletAddress || "",
           nonce,
         });

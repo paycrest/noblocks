@@ -48,6 +48,9 @@ export const TransactionForm = ({
   // Get values of currency, amount, and token from form
   const { amountSent, amountReceived, token, currency } = watch();
 
+  const [isUserVerified, setIsUserVerified] = useState(
+    localStorage.getItem("isVerified") === "true",
+  );
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
 
   const handleMaxClick = () => {
@@ -221,12 +224,23 @@ export const TransactionForm = ({
           {/* {errors.memo && <InputError message={errors.memo.message} />} */}
         </div>
 
-        {/* Submit button */}
-        {ready && authenticated ? (
-          <VerifyIDModal />
-        ) : (
+        {ready && authenticated && !isUserVerified && (
+          <VerifyIDModal setIsUserVerified={setIsUserVerified} />
+        )}
+
+        {ready && !authenticated && (
           <button type="button" className={primaryBtnClasses} onClick={login}>
             Get Started
+          </button>
+        )}
+
+        {isUserVerified && (
+          <button
+            type="submit"
+            className={primaryBtnClasses}
+            disabled={!isDirty || !isValid}
+          >
+            Swap
           </button>
         )}
 

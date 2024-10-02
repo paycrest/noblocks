@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { QRCode } from "react-qrcode-logo";
 import {
   Checkbox,
@@ -14,13 +14,18 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import {
   CheckIcon,
-  CopyIcon,
   SadFaceIcon,
   UserDetailsIcon,
   VerificationPendingIcon,
 } from "./ImageAssets";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
-import { PiCaretLeft, PiCheck } from "react-icons/pi";
+import { PiCaretLeft } from "react-icons/pi";
+import { usePrivy } from "@privy-io/react-auth";
+import { FiExternalLink } from "react-icons/fi";
+import { toast } from "react-toastify";
+import { generateTimeBasedNonce } from "../utils";
+import { fetchKYCStatus, initiateKYC } from "../api/aggregator";
+import { fadeInOut } from "./AnimatedComponents";
 
 const STEPS = {
   TERMS: "terms",
@@ -30,11 +35,13 @@ const STEPS = {
     SUCCESS: "success",
     FAILED: "failed",
   },
+  LOADING: "loading",
 } as const;
 
 type Step =
   | typeof STEPS.TERMS
   | typeof STEPS.QR_CODE
+  | typeof STEPS.LOADING
   | (typeof STEPS.STATUS)[keyof typeof STEPS.STATUS];
 
 const terms = [
@@ -55,17 +62,17 @@ const terms = [
   },
 ] as const;
 
-const fadeInOut = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1 },
-  exit: { opacity: 0 },
-  transition: { duration: 0.3 },
-};
+export const VerifyIDModal = ({
+  setIsUserVerified,
+}: {
+  setIsUserVerified: (value: boolean) => void;
+}) => {
+  const { user, signMessage } = usePrivy();
+  const walletAddress = user?.wallet?.address;
 
-export const VerifyIDModal = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [step, setStep] = useState<Step>(STEPS.STATUS.FAILED);
-  const [isUrlCopied, setIsUrlCopied] = useState(false);
+  const [step, setStep] = useState<Step>(STEPS.TERMS);
+  const [kycUrl, setKycUrl] = useState("");
   const [termsAccepted, setTermsAccepted] = useState<Record<string, boolean>>(
     Object.fromEntries(terms.map((term) => [term.id, false])),
   );
@@ -76,17 +83,48 @@ export const VerifyIDModal = () => {
 
   const isAllTermsAccepted = Object.values(termsAccepted).every(Boolean);
 
-  const handleCopyUrl = useCallback(() => {
-    navigator.clipboard.writeText("https://paycrest.io/");
-    setIsUrlCopied(true);
-    setTimeout(() => setIsUrlCopied(false), 2000);
-  }, []);
+  const handleSignAndContinue = async () => {
+    const nonce = generateTimeBasedNonce({ length: 16 });
+    const message = `I accept the KYC Policy and hereby request an identity verification check for ${walletAddress} with nonce ${nonce}`;
+    const uiConfig = {
+      buttonText: "Sign",
+    };
+
+    try {
+      setIsOpen(false);
+      const signature = await signMessage(message, uiConfig);
+      if (signature) {
+        setIsOpen(true);
+        setStep(STEPS.LOADING);
+
+        const response = await initiateKYC({
+          signature,
+          walletAddress: walletAddress || "",
+          nonce,
+        });
+
+        if (response.status === "success") {
+          setStep(STEPS.QR_CODE);
+          setKycUrl(response.data.url);
+          toast.success(response.message);
+        } else {
+          setStep(STEPS.STATUS.FAILED);
+        }
+
+        console.log({ response });
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+      setIsOpen(false);
+      setStep(STEPS.TERMS);
+    }
+  };
 
   const QRCodeComponent = useCallback(
     () => (
       <div className="w-full">
         <QRCode
-          value="https://www.jeremy0x.codes"
+          value={kycUrl}
           qrStyle="dots"
           eyeRadius={20}
           logoImage="/images/user-qr-logo.png"
@@ -105,7 +143,7 @@ export const VerifyIDModal = () => {
         />
       </div>
     ),
-    [],
+    [kycUrl],
   );
 
   const renderTerms = () => (
@@ -187,7 +225,7 @@ export const VerifyIDModal = () => {
           type="button"
           className={`${primaryBtnClasses} w-full`}
           disabled={!isAllTermsAccepted}
-          onClick={() => setStep(STEPS.QR_CODE)}
+          onClick={handleSignAndContinue}
         >
           Sign and continue
         </button>
@@ -199,6 +237,7 @@ export const VerifyIDModal = () => {
     <motion.div key="qr_code" {...fadeInOut} className="space-y-4">
       <div className="relative">
         <button
+          title="Go back"
           type="button"
           onClick={() => setStep(STEPS.TERMS)}
           className="absolute left-1 top-1.5"
@@ -212,7 +251,7 @@ export const VerifyIDModal = () => {
 
       <p className="mx-auto text-center text-gray-500 dark:text-white/50">
         Scan with your phone to have the best verification experience. You can
-        also copy the url below
+        also open the URL below
       </p>
 
       <QRCodeComponent />
@@ -226,10 +265,9 @@ export const VerifyIDModal = () => {
       <button
         type="button"
         className={`${secondaryBtnClasses} flex w-full items-center justify-center gap-2`}
-        onClick={handleCopyUrl}
+        onClick={() => window.open(kycUrl, "_blank")}
       >
-        {isUrlCopied ? <PiCheck className="text-lg" /> : <CopyIcon />}
-        {isUrlCopied ? "URL Copied" : "Copy URL"}
+        Open URL <FiExternalLink className="text-lg" />
       </button>
     </motion.div>
   );
@@ -309,6 +347,42 @@ export const VerifyIDModal = () => {
     </motion.div>
   );
 
+  const renderLoadingStatus = () => (
+    <motion.div
+      key="loading"
+      {...fadeInOut}
+      className="flex h-full items-center justify-center py-40"
+    >
+      <div className="h-24 w-24 animate-spin rounded-full border-4 border-t-4 border-primary border-t-white"></div>
+    </motion.div>
+  );
+
+  // fetch the KYC status
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const response = await fetchKYCStatus(walletAddress || "");
+        const statusMap = {
+          success: STEPS.STATUS.SUCCESS,
+          failed: STEPS.STATUS.FAILED,
+          pending: STEPS.STATUS.PENDING,
+        };
+
+        // set the step based on the status from the response
+        const newStatus =
+          statusMap[response.data.status as keyof typeof statusMap] ||
+          STEPS.STATUS.PENDING;
+        if (newStatus === STEPS.STATUS.SUCCESS) setIsUserVerified(true);
+        setStep(newStatus);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : String(error));
+      }
+    };
+
+    fetchStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, walletAddress]);
+
   return (
     <>
       <button
@@ -337,6 +411,7 @@ export const VerifyIDModal = () => {
                   [STEPS.STATUS.PENDING]: renderPendingStatus(),
                   [STEPS.STATUS.SUCCESS]: renderSuccessStatus(),
                   [STEPS.STATUS.FAILED]: renderFailedStatus(),
+                  [STEPS.LOADING]: renderLoadingStatus(),
                 }[step]
               }
             </AnimatePresence>

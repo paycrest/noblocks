@@ -6,6 +6,9 @@ import type {
   PubkeyResponse,
   VerifyAccountPayload,
   OrderStatusResponse,
+  InitiateKYCPayload,
+  InitiateKYCResponse,
+  KYCStatusResponse,
 } from "../types";
 
 const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
@@ -74,6 +77,30 @@ export const fetchOrderStatus = async (
     return response.data;
   } catch (error) {
     console.error("Error fetching order status:", error);
+    throw error;
+  }
+};
+
+export const initiateKYC = async (
+  payload: InitiateKYCPayload,
+): Promise<InitiateKYCResponse> => {
+  try {
+    const response = await axios.post(`${AGGREGATOR_URL}/kyc`, payload);
+    return response.data;
+  } catch (error) {
+    console.error("Error initiating KYC:", error);
+    throw error;
+  }
+};
+
+export const fetchKYCStatus = async (
+  walletAddress: string,
+): Promise<KYCStatusResponse> => {
+  try {
+    const response = await axios.get(`${AGGREGATOR_URL}/kyc/${walletAddress}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching KYC status:", error);
     throw error;
   }
 };

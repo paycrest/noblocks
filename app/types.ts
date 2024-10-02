@@ -191,3 +191,26 @@ export type Token = {
   decimals: number;
   address: string;
 };
+
+export type InitiateKYCPayload = {
+  signature: string;
+  walletAddress: string;
+  nonce: string;
+};
+
+export type InitiateKYCResponse = {
+  status: string;
+  message: string;
+  data: {
+    url: string;
+    expiresAt: string;
+  };
+};
+
+export type KYCStatusResponse = {
+  status: string;
+  message: string;
+  data: {
+    status: string;
+  };
+};

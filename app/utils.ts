@@ -170,6 +170,15 @@ export function getGatewayContractAddress(network = ""): string | undefined {
   }[network];
 }
 
+/**
+ * An array of mobile money options available in Kenya.
+ * Each option includes the name of the institution, a code, and the type.
+ *
+ * @constant {InstitutionProps[]} kenyaMobileMoneyOptions
+ * @property {string} name - The name of the mobile money institution.
+ * @property {string} code - The code representing the mobile money institution.
+ * @property {string} type - The type of institution, which is "mobile-money" for all entries.
+ */
 export const kenyaMobileMoneyOptions: InstitutionProps[] = [
   {
     name: "SAFARICOM (MPESA)",
@@ -182,3 +191,25 @@ export const kenyaMobileMoneyOptions: InstitutionProps[] = [
     type: "mobile-money",
   },
 ];
+
+/**
+ * Generates a time-based nonce string.
+ *
+ * The nonce is composed of a time component based on the current timestamp
+ * and a random component. The length of the random component can be specified.
+ *
+ * @param {Object} [options] - Options for generating the nonce.
+ * @param {number} [options.length=16] - The length of the random component of the nonce.
+ * @returns {string} A nonce string composed of a time component and a random component.
+ */
+export function generateTimeBasedNonce({
+  length = 16,
+}: {
+  length?: number;
+}): string {
+  const timeComponent = Date.now().toString(36);
+  const randomComponent = Math.random()
+    .toString(36)
+    .substring(2, 2 + length);
+  return timeComponent + randomComponent;
+}

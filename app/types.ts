@@ -160,7 +160,6 @@ export type StateProps = {
   ) => void;
   selectedRecipient: RecipientDetails | null;
   setSelectedRecipient: (recipient: RecipientDetails | null) => void;
-  defaultCurrency: string;
 };
 
 export type NetworkButtonProps = {

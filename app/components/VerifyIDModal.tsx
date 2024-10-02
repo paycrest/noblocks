@@ -113,8 +113,19 @@ export const VerifyIDModal = ({
 
         console.log({ response });
       }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
+    } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        (error as any).response &&
+        (error as any).response.data
+      ) {
+        // backend error response
+        const { status, message, data } = (error as any).response.data;
+        toast.error(`${message}: ${data}`);
+      } else {
+        // unexpected errors
+        toast.error(error instanceof Error ? error.message : String(error));
+      }
       setIsOpen(false);
       setStep(STEPS.TERMS);
     }
@@ -375,7 +386,18 @@ export const VerifyIDModal = ({
         if (newStatus === STEPS.STATUS.SUCCESS) setIsUserVerified(true);
         setStep(newStatus);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : String(error));
+        if (
+          error instanceof Error &&
+          (error as any).response &&
+          (error as any).response.data
+        ) {
+          // backend error response
+          const { message } = (error as any).response.data;
+          toast.error(message);
+        } else {
+          // unexpected errors
+          toast.error(error instanceof Error ? error.message : String(error));
+        }
       }
     };
 

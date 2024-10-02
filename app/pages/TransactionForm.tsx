@@ -32,7 +32,8 @@ export const TransactionForm = ({
   stateProps,
 }: TransactionFormProps) => {
   // Destructure stateProps
-  const { tokenBalance, rate, isFetchingRate, defaultCurrency } = stateProps;
+  const { authenticated, ready, login } = usePrivy();
+  const { tokenBalance, rate, isFetchingRate } = stateProps;
 
   // Destructure formMethods from react-hook-form
   const {
@@ -43,9 +44,6 @@ export const TransactionForm = ({
     formState: { errors, isValid, isDirty },
   } = formMethods;
 
-  const { user, authenticated, ready, login } = usePrivy();
-
-  // Get values of currency, amount, and token from form
   const { amountSent, amountReceived, token, currency } = watch();
 
   const [isUserVerified, setIsUserVerified] = useState(false);
@@ -73,6 +71,7 @@ export const TransactionForm = ({
   // set the default value of the token and network
   useEffect(() => {
     register("token", { value: tokens[0].name });
+    register("currency", { value: "KES" });
     register("network", { value: networks[0].name });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -243,21 +242,33 @@ export const TransactionForm = ({
         )}
 
         <AnimatePresence>
-          {rate > 0 && Number(amountSent) > 0.5 && authenticated && (
+          {isFetchingRate ? (
             <AnimatedComponent
               variant={slideInOut}
-              className="flex w-full flex-col justify-between gap-2 text-xs text-gray-500 transition-all dark:text-white/30 sm:flex-row sm:items-center"
+              className="flex w-full flex-col items-center justify-center gap-2 text-xs text-gray-500 transition-all dark:text-white/30 sm:flex-row sm:items-center"
             >
-              <div className="min-w-fit">
-                1 {token} ~ {rate} {currency}
-              </div>
-              <div className="ml-auto flex w-full flex-col justify-end gap-2 sm:flex-row sm:items-center">
-                <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
-                <p className="min-w-fit">
-                  Swap usually completes in 15s or less
-                </p>
-              </div>
+              <div className="h-6 w-6 animate-spin rounded-full border-4 border-t-4 border-gray-300 border-t-white"></div>
+              <p>Loading rate...</p>
             </AnimatedComponent>
+          ) : (
+            rate > 0 &&
+            Number(amountSent) > 0.5 &&
+            authenticated && (
+              <AnimatedComponent
+                variant={slideInOut}
+                className="flex w-full flex-col justify-between gap-2 text-xs text-gray-500 transition-all dark:text-white/30 sm:flex-row sm:items-center"
+              >
+                <div className="min-w-fit">
+                  1 {token} ~ {rate} {currency}
+                </div>
+                <div className="ml-auto flex w-full flex-col justify-end gap-2 sm:flex-row sm:items-center">
+                  <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
+                  <p className="min-w-fit">
+                    Swap usually completes in 15s or less
+                  </p>
+                </div>
+              </AnimatedComponent>
+            )
           )}
         </AnimatePresence>
       </form>

@@ -104,3 +104,13 @@ export const fetchKYCStatus = async (
     throw error;
   }
 };
+
+export const detectUserLocation = async (): Promise<string> => {
+  try {
+    const response = await axios.get("https://ipapi.co/json/");
+    return response.data.country_code;
+  } catch (error) {
+    console.error("Error detecting user location:", error);
+    return "";
+  }
+};

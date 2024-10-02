@@ -1,7 +1,6 @@
 export { Navbar } from "./Navbar";
 export { Footer } from "./Footer";
 export { Preloader } from "./Preloader";
-export { LogoOutlineBg } from "./LogoOutlineBg";
 
 export { ThemeSwitch } from "./ThemeSwitch";
 export { WalletDetails } from "./WalletDetails";

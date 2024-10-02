@@ -2,17 +2,17 @@ export const tokens = [
   {
     id: "1",
     name: "USDC",
-    imageUrl: "/usdc-logo.svg",
+    imageUrl: "/logos/usdc-logo.svg",
   },
   {
     id: "2",
     name: "USDT",
-    imageUrl: "/usdt-logo.svg",
+    imageUrl: "/logos/usdt-logo.svg",
   },
   {
     id: "3",
     name: "DAI",
-    imageUrl: "/dai-logo.svg",
+    imageUrl: "/logos/dai-logo.svg",
   },
 ];
 
@@ -20,17 +20,17 @@ export const currencies = [
   {
     id: "1",
     name: "KES",
-    imageUrl: "/kes-logo.svg",
+    imageUrl: "/logos/kes-logo.svg",
   },
   {
     id: "2",
     name: "NGN",
-    imageUrl: "/ngn-logo.svg",
+    imageUrl: "/logos/ngn-logo.svg",
   },
   {
     id: "3",
     name: "GHS",
-    imageUrl: "/ngn-logo.svg",
+    imageUrl: "/logos/ghs-logo.svg",
   },
 ];
 
@@ -38,22 +38,22 @@ export const networks = [
   {
     id: "1",
     name: "Base",
-    imageUrl: "/base-logo.svg",
+    imageUrl: "/logos/base-logo.svg",
   },
   {
     id: "2",
     name: "Binance",
-    imageUrl: "/binance-logo.svg",
+    imageUrl: "/logos/binance-logo.svg",
   },
   {
     id: "3",
     name: "Arbitrum",
-    imageUrl: "/arbitrum-logo.svg",
+    imageUrl: "/logos/arbitrum-logo.svg",
   },
   {
     id: "4",
     name: "Tron",
-    imageUrl: "/tron-logo.svg",
+    imageUrl: "/logos/tron-logo.svg",
   },
 ];
 

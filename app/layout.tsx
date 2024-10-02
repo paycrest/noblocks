@@ -1,4 +1,5 @@
 import "./globals.css";
+import React from "react";
 import "@rainbow-me/rainbowkit/styles.css";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -6,10 +7,10 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 
 import Providers from "./providers";
-import { Footer, LogoOutlineBg, Navbar } from "./components";
-import { ToastContainer } from "react-toastify";
-import React from "react";
 import MainContent from "./mainContent";
+import { Footer, Navbar } from "./components";
+import { ToastContainer } from "react-toastify";
+
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -22,7 +23,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
@@ -33,7 +33,6 @@ export default function RootLayout({
               <MainContent>{children}</MainContent>
               <Footer />
             </div>
-            <LogoOutlineBg />
           </div>
           <ToastContainer
             position="bottom-right"

@@ -249,14 +249,6 @@ export const VerifyIDModal = ({
   const renderQRCode = () => (
     <motion.div key="qr_code" {...fadeInOut} className="space-y-4">
       <div className="relative">
-        <button
-          title="Go back"
-          type="button"
-          onClick={() => setStep(STEPS.TERMS)}
-          className="absolute left-1 top-1.5"
-        >
-          <PiCaretLeft className="text-lg text-gray-500 dark:text-white/50" />
-        </button>
         <DialogTitle className="mx-auto text-center text-lg font-semibold">
           Verify with your phone or URL
         </DialogTitle>

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useLogin, usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 
 import { ArrowDownIcon, NoblocksLogo } from "./ImageAssets";
 import { primaryBtnClasses } from "./Styles";
@@ -54,7 +54,7 @@ export const Navbar = () => {
 
               <NetworksDropdown
                 selectedId="1"
-                // onSelect={handleSelect}
+              // onSelect={handleSelect}
               />
 
               <SettingsDropdown />

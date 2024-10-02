@@ -8,7 +8,6 @@ import { PiCaretDown } from "react-icons/pi";
 
 import { classNames } from "../utils";
 import { useOutsideClick } from "../hooks";
-import { PaycrestLogo } from "./ImageAssets";
 import { FundWalletModal } from "./FundWalletModal";
 import { dropdownVariants } from "./AnimatedComponents";
 

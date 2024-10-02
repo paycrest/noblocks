@@ -66,6 +66,7 @@ export const WalletDetails = () => {
               <p>Smart Wallet</p>
 
               <a
+                title="Learn more about smart wallets"
                 href="https://paycrest.io" // TODO: replace with link to more info about smart wallets
                 target="_blank"
                 rel="noopener noreferrer"

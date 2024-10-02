@@ -17,6 +17,7 @@ import {
   primaryBtnClasses,
   TransactionReceipt,
 } from "../components";
+import "../status/page.css";
 import { useRouter } from "next/navigation";
 import { Checkbox, Field, Label } from "@headlessui/react";
 import {
@@ -66,8 +67,8 @@ export default function TransactionStatus() {
     const base = !["validated", "settled", "refunded", "fulfilled"].includes(
       transactionStatus,
     )
-      ? "/stepper"
-      : "/stepper-long";
+      ? "/images/stepper"
+      : "/images/stepper-long";
     const themeSuffix = resolvedTheme === "dark" ? "-dark.svg" : ".svg";
     return base + themeSuffix;
   };
@@ -446,8 +447,7 @@ export default function TransactionStatus() {
         </div>
       </AnimatedComponent>
 
-      {/* Hidden receipt component for PDF generation */}
-      <div style={{ position: "absolute", left: "-9999px", top: "-9999px" }}>
+      <div className="absolute left-[-9999px] top-[-9999px]">
         <div ref={receiptRef}>
           <TransactionReceipt transaction={mockData} />
         </div>

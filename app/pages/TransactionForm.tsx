@@ -48,9 +48,7 @@ export const TransactionForm = ({
   // Get values of currency, amount, and token from form
   const { amountSent, amountReceived, token, currency } = watch();
 
-  const [isUserVerified, setIsUserVerified] = useState(
-    localStorage.getItem("isVerified") === "true",
-  );
+  const [isUserVerified, setIsUserVerified] = useState(false);
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
 
   const handleMaxClick = () => {

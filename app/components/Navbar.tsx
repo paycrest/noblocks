@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRive } from "@rive-app/react-canvas";
+// import { useRive } from "@rive-app/react-canvas";
 
 import { NoblocksLogo } from "./ImageAssets";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";

@@ -56,8 +56,7 @@ export const Waitlist = ({
         delay={0.6}
         className="leading-normal text-neutral-900 dark:text-white/80 font-light"
       >
-        Decentralized payments with real-world convenience. <br />
-        To any bank account or mobile wallet, powered by a distributed network of liquidity provision nodes.
+        The first interface for decentralized payments <br />to any bank or mobile wallet, powered by a distributed network of liquidity nodes.
       </AnimatedComponent>
 
       <AnimatedComponent variant={fadeInOut} delay={0.8}>

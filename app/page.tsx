@@ -9,13 +9,11 @@ import { useAccount, useReadContract, useSwitchChain } from "wagmi";
 
 import {
   AnimatedPage,
-  Disclaimer,
   Preloader,
   TransactionForm,
   TransactionPreview,
 } from "./components";
 import { erc20Abi } from "./api/abi";
-import { currencies } from "./mocks";
 import { fetchSupportedTokens } from "./utils";
 import { fetchRate, fetchSupportedInstitutions } from "./api/aggregator";
 import type {
@@ -66,7 +64,7 @@ export default function Home() {
 
   // Form methods and watch
   const formMethods = useForm<FormData>({ mode: "onChange" });
-  const { watch} = formMethods;
+  const { watch } = formMethods;
   const { currency, token } = watch();
 
   // Get account information using custom hook
@@ -147,7 +145,9 @@ export default function Home() {
 
       try {
         const institutions = await fetchSupportedInstitutions(currency);
-        setInstitutions(institutions.filter((institution) => institution.type === "bank"));
+        setInstitutions(
+          institutions.filter((institution) => institution.type === "bank"),
+        );
         setIsFetchingInstitutions(false);
       } catch (error) {
         console.log(error);
@@ -276,7 +276,6 @@ export default function Home() {
   return (
     <>
       <Preloader isLoading={isPageLoading} />
-      <Disclaimer />
       <AnimatePresence mode="wait">
         <AnimatedPage componentKey={currentStep}>{renderStep()}</AnimatedPage>
       </AnimatePresence>

@@ -12,7 +12,7 @@ export const HeroAnimation = () => {
       <iframe
         title="Hero Animation"
         className="w-full h-full block dark:hidden"
-        src="https://rive.app/s/ZFjBkptlY0__QMMRaNHCJA/embed"
+        src="https://rive.app/s/G0gplRsliEeLVAe3vbZ88w/embed"
         allow="autoplay"
       />
     </div>

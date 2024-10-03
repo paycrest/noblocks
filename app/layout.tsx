@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://noblocks.xyz"),
   openGraph: {
     title: "Noblocks",
-    description: "Decentralized payments with real-world convenience. To any bank account or mobile wallet, powered by a distributed network of liquidity provision nodes.",
+    description: "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
     url: "https://noblocks.xyz",
     siteName: "Noblocks",
     images: [
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Noblocks",
-    description: "Decentralized payments with real-world convenience. To any bank account or mobile wallet, powered by a distributed network of liquidity provision nodes.",
+    description: "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
     creator: "@noblocks_xyz",
     images: ["/images/og-image.png"],
   },

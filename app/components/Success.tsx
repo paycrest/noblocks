@@ -50,8 +50,8 @@ export const Success = ({ onDone }: { onDone: () => void }) => {
           delay={0.4}
           className="text-neutral-900 dark:text-white/80 font-light"
         >
-          Hey champ, your email has been received. We will notify your inbox
-          when we launch
+        Hey champ! you've secured your spot for early access. We'll ping your inbox as soon as we launch.<br/><br/>
+        Want to move up the list? Share with your friends and be among the first to try it out.
         </AnimatedComponent>
 
         <AnimatedComponent variant={fadeInOut} delay={0.6}>

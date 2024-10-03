@@ -5,6 +5,8 @@ import {
   BNBIcon,
   BaseIcon,
   PolygonIcon,
+  OptimismIcon,
+  ScrollIcon,
   ZapIcon,
 } from "./ImageAssets";
 // import { VideoDialog } from "./VideoDialog";
@@ -15,6 +17,8 @@ const networks = [
   { name: "Arbitrum", Icon: ArbitrumIcon },
   { name: "Polygon", Icon: PolygonIcon },
   { name: "BNB", Icon: BNBIcon },
+  { name: "Optimism", Icon: OptimismIcon },
+  { name: "Scroll", Icon: ScrollIcon },
 ];
 
 const NetworkIcon = ({

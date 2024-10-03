@@ -29,7 +29,9 @@ const NetworkIcon = ({
   index: number;
 }) => (
   <Icon
-    className={`size-7 border-2 border-white bg-white transition dark:bg-neutral-900 dark:border-neutral-900 rounded-full ${index > 0 ? "-ml-2" : ""}`}
+    className={`size-7 border-2 border-white bg-white transition dark:bg-neutral-900 dark:border-neutral-900 rounded-full ${
+      index > 0 ? "-ml-2" : ""
+    }`}
   />
 );
 
@@ -60,7 +62,9 @@ export const Waitlist = ({
         delay={0.6}
         className="leading-normal text-neutral-900 dark:text-white/80 font-light"
       >
-        The first interface for decentralized payments <br />to any bank or mobile wallet, powered by a distributed network of liquidity nodes.
+        The first interface for decentralized payments <br />
+        to any bank or mobile wallet, powered by a distributed network of
+        liquidity nodes.
       </AnimatedComponent>
 
       <AnimatedComponent variant={fadeInOut} delay={0.8}>
@@ -72,12 +76,13 @@ export const Waitlist = ({
         delay={1}
         className="text-neutral-900 dark:text-white/80 font-light"
       >
-        Supported networks
+        Supports
         <div className="inline-flex align-middle mx-2">
           {networks.map(({ name, Icon }, index) => (
             <NetworkIcon key={name} Icon={Icon} index={index} />
           ))}
         </div>
+        networks
       </AnimatedComponent>
 
       {/* <AnimatedComponent variant={fadeInOut} delay={1.2}>

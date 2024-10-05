@@ -15,7 +15,7 @@ export interface DropdownItem {
 
 interface FlexibleDropdownProps {
   data: DropdownItem[];
-  defaultSelectedId?: string;
+  defaultSelectedItem?: string;
   onSelect?: (name: string) => void;
   children: (props: {
     selectedItem: DropdownItem | undefined;
@@ -29,15 +29,15 @@ function classNames(...classes: string[]) {
 }
 
 export const FlexibleDropdown = ({
-  defaultSelectedId,
+  defaultSelectedItem,
   onSelect,
   data,
   children,
 }: FlexibleDropdownProps) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [selectedItem, setSelectedItem] = useState<DropdownItem | undefined>(
-    defaultSelectedId
-      ? data?.find((item) => item.id === defaultSelectedId)
+    defaultSelectedItem
+      ? data?.find((item) => item.name === defaultSelectedItem)
       : undefined,
   );
 
@@ -48,15 +48,15 @@ export const FlexibleDropdown = ({
   };
 
   useEffect(() => {
-    if (defaultSelectedId && data) {
+    if (defaultSelectedItem && data) {
       const newSelectedItem = data.find(
-        (item) => item.id === defaultSelectedId,
+        (item) => item.name === defaultSelectedItem,
       );
       newSelectedItem && setSelectedItem(newSelectedItem);
     } else {
       setSelectedItem(undefined);
     }
-  }, [defaultSelectedId, data]);
+  }, [defaultSelectedItem, data]);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({
@@ -80,11 +80,7 @@ export const FlexibleDropdown = ({
           aria-label="Dropdown menu"
           className="absolute right-0 z-10 mt-2 max-h-52 min-w-40 max-w-full overflow-y-auto rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800"
         >
-          <ul
-            role="menu"
-            aria-labelledby="networks-dropdown"
-            aria-orientation="vertical"
-          >
+          <ul role="list" aria-labelledby="networks-dropdown">
             {data?.map((item) => (
               <li
                 key={item.id}

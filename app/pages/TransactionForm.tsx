@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { ImSpinner3 } from "react-icons/im";
 import { BsArrowDown } from "react-icons/bs";
 import { usePrivy } from "@privy-io/react-auth";
 import { AnimatePresence } from "framer-motion";
@@ -11,6 +12,7 @@ import {
   FormDropdown,
   RecipientDetailsForm,
   KycModal,
+  NetworksDropdown,
 } from "../components";
 import type { TransactionFormProps } from "../types";
 import { currencies, networks, tokens } from "../mocks";
@@ -56,7 +58,7 @@ export const TransactionForm = ({
 
   // Effect to calculate receive amount based on send amount and rate
   useEffect(() => {
-    if (rate) {
+    if (rate && (amountSent || amountReceived)) {
       if (isReceiveInputActive) {
         setValue(
           "amountSent",
@@ -66,13 +68,14 @@ export const TransactionForm = ({
         setValue("amountReceived", Number((rate * amountSent).toFixed(4)));
       }
     }
-  }, [amountSent, amountReceived, rate, isReceiveInputActive, setValue]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amountSent, amountReceived, rate]);
 
   // set the default value of the token and network
   useEffect(() => {
-    register("token", { value: tokens[0].name });
+    register("token", { value: "USDT" });
     register("currency", { value: "KES" });
-    register("network", { value: networks[0].name });
+    register("network", { value: "Base" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -84,7 +87,10 @@ export const TransactionForm = ({
         noValidate
       >
         <div className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800">
-          <h3 className="px-2 font-medium">Swap</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="px-2 font-medium">Swap</h3>
+            <NetworksDropdown iconOnly />
+          </div>
 
           {/* Amount to send & Token w/ wallet balance */}
           <div className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-neutral-900">
@@ -140,7 +146,7 @@ export const TransactionForm = ({
               <FormDropdown
                 defaultTitle="Select token"
                 data={tokens}
-                defaultSelectedId="2"
+                defaultSelectedItem="USDT"
                 onSelect={(selectedToken) => setValue("token", selectedToken)}
               />
             </div>
@@ -151,7 +157,11 @@ export const TransactionForm = ({
             {/* Arrow showing swap direction */}
             <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-gray-50 bg-gray-50 dark:border-neutral-800 dark:bg-neutral-800">
               <div className="rounded-lg bg-white p-1 dark:bg-neutral-900">
-                <BsArrowDown className="text-xl text-gray-500 dark:text-white/80" />
+                {isFetchingRate ? (
+                  <ImSpinner3 className="animate-spin text-xl text-gray-500 dark:text-white/50" />
+                ) : (
+                  <BsArrowDown className="text-xl text-gray-500 dark:text-white/80" />
+                )}
               </div>
             </div>
           </div>
@@ -182,10 +192,7 @@ export const TransactionForm = ({
               <FormDropdown
                 defaultTitle="Select currency"
                 data={currencies}
-                defaultSelectedId={
-                  currencies.find((currency) => currency.name === "KES")?.id ||
-                  "1"
-                }
+                defaultSelectedItem="KES"
                 onSelect={(selectedCurrency) =>
                   setValue("currency", selectedCurrency)
                 }
@@ -242,18 +249,17 @@ export const TransactionForm = ({
         )}
 
         <AnimatePresence>
-          {isFetchingRate ? (
-            <AnimatedComponent
-              variant={slideInOut}
-              className="flex w-full flex-col items-center justify-center gap-2 text-xs text-gray-500 transition-all dark:text-white/30 sm:flex-row sm:items-center"
-            >
-              <div className="h-6 w-6 animate-spin rounded-full border-4 border-t-4 border-gray-300 border-t-white"></div>
-              <p>Loading rate...</p>
-            </AnimatedComponent>
-          ) : (
-            rate > 0 &&
-            Number(amountSent) > 0.5 &&
-            authenticated && (
+          {
+            // isFetchingRate ? (
+            // <AnimatedComponent
+            //   variant={slideInOut}
+            //   className="flex items-center gap-2 text-xs text-gray-500 transition-all dark:text-white/30"
+            // >
+            //   <ImSpinner3 className="animate-spin text-base text-gray-500 dark:text-white/30" />
+            //   <p>Fetching rate...</p>
+            // </AnimatedComponent>
+            // ) :
+            rate > 0 && (
               <AnimatedComponent
                 variant={slideInOut}
                 className="flex w-full flex-col justify-between gap-2 text-xs text-gray-500 transition-all dark:text-white/30 sm:flex-row sm:items-center"
@@ -269,7 +275,7 @@ export const TransactionForm = ({
                 </div>
               </AnimatedComponent>
             )
-          )}
+          }
         </AnimatePresence>
       </form>
     </>

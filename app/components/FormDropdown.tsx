@@ -5,21 +5,21 @@ import { classNames } from "../utils";
 
 interface FormDropdownProps {
   defaultTitle: string;
-  defaultSelectedId: string;
+  defaultSelectedItem: string;
   onSelect?: (name: string) => void;
   data: DropdownItem[];
 }
 
 export const FormDropdown = ({
   defaultTitle,
-  defaultSelectedId,
+  defaultSelectedItem,
   onSelect,
   data,
 }: FormDropdownProps) => {
   return (
     <FlexibleDropdown
       data={data}
-      defaultSelectedId={defaultSelectedId}
+      defaultSelectedItem={defaultSelectedItem}
       onSelect={onSelect}
     >
       {({ selectedItem, isOpen, toggleDropdown }) => (

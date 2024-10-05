@@ -47,7 +47,7 @@ export default function Home() {
   // Form methods and watch
   const formMethods = useForm<FormData>({ mode: "onChange" });
   const { watch, setValue } = formMethods;
-  const { currency, token, amountSent } = watch();
+  const { currency, amountSent } = watch();
 
   // State props for child components
   const stateProps: StateProps = {
@@ -79,7 +79,9 @@ export default function Home() {
     const getInstitutions = async (currencyValue: string) => {
       setIsFetchingInstitutions(true);
 
-      const institutions = await fetchSupportedInstitutions(currencyValue);
+      const institutions = await fetchSupportedInstitutions(
+        currencyValue || "KES",
+      );
       setInstitutions(
         institutions.filter((institution) => institution.type === "bank"),
       );
@@ -87,12 +89,7 @@ export default function Home() {
       setIsFetchingInstitutions(false);
     };
 
-    if (!currency) {
-      setValue("currency", "KES");
-      getInstitutions("KES");
-    } else {
-      getInstitutions(currency);
-    }
+    getInstitutions(currency);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currency]);
 
@@ -101,18 +98,15 @@ export default function Home() {
     let timeoutId: NodeJS.Timeout;
 
     const getRate = async () => {
-      if (!currency || !amountSent || !token || !authenticated) return;
       setIsFetchingRate(true);
       const rate = await fetchRate({
-        token: "USDT",
-        amount: amountSent,
-        currency: currency,
+        token: "usdt", // only USDT is supported
+        amount: amountSent || 1,
+        currency: currency || "KES",
       });
       setRate(rate.data);
       setIsFetchingRate(false);
     };
-
-    getRate();
 
     const debounceFetchRate = () => {
       clearTimeout(timeoutId);
@@ -124,8 +118,7 @@ export default function Home() {
     return () => {
       clearTimeout(timeoutId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currency]);
+  }, [amountSent, currency]);
 
   const handleFormSubmit = (data: FormData) => {
     setFormValues(data);

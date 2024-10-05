@@ -108,7 +108,6 @@ export const KycModal = ({
         if (response.status === "success") {
           setStep(STEPS.QR_CODE);
           setKycUrl(response.data.url);
-          toast.success(response.message);
         } else {
           setStep(STEPS.STATUS.FAILED);
         }

@@ -36,13 +36,16 @@ export const Navbar = () => {
             onMouseLeave={() => setIsHovered(false)}
           >
             {isHovered && (
-              <AnimatedComponent className="ml-4 mr-4 flex items-center gap-4 text-sm font-normal dark:text-white/80" delay={0.1}>
+              <AnimatedComponent
+                className="ml-4 mr-4 flex items-center gap-4 text-sm font-normal dark:text-white/80"
+                delay={0.1}
+              >
                 <Link href="/terms">Terms</Link>
                 <Link href="/privacy_policy">Privacy Policy</Link>
               </AnimatedComponent>
             )}
             <ArrowDownIcon
-              className={`cursor-pointer transition-transform text-gray-400 dark:text-white/50 ${isHovered ? "rotate-90" : "-rotate-90"}`}
+              className={`cursor-pointer text-gray-400 transition-transform dark:text-white/50 ${isHovered ? "rotate-90" : "-rotate-90"}`}
             />
           </div>
         </div>
@@ -53,7 +56,6 @@ export const Navbar = () => {
               <WalletDetails />
 
               <NetworksDropdown
-                selectedId="1"
               // onSelect={handleSelect}
               />
 

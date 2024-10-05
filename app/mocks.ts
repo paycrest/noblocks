@@ -1,13 +1,13 @@
 export const tokens = [
   {
     id: "1",
-    name: "USDC",
-    imageUrl: "/logos/usdc-logo.svg",
+    name: "USDT",
+    imageUrl: "/logos/usdt-logo.svg",
   },
   {
     id: "2",
-    name: "USDT",
-    imageUrl: "/logos/usdt-logo.svg",
+    name: "USDC",
+    imageUrl: "/logos/usdc-logo.svg",
   },
   {
     id: "3",

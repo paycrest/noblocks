@@ -1,6 +1,4 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
-import { QRCode } from "react-qrcode-logo";
 import {
   Checkbox,
   Dialog,
@@ -10,7 +8,12 @@ import {
   Field,
   Label,
 } from "@headlessui/react";
+import { toast } from "react-toastify";
+import { QRCode } from "react-qrcode-logo";
+import { usePrivy } from "@privy-io/react-auth";
+import { FiExternalLink } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
+import { useState, useCallback, useEffect } from "react";
 
 import {
   CheckIcon,
@@ -19,14 +22,10 @@ import {
   UserDetailsIcon,
   VerificationPendingIcon,
 } from "./ImageAssets";
-import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
-import { PiCaretLeft, PiQrCodeLight } from "react-icons/pi";
-import { usePrivy } from "@privy-io/react-auth";
-import { FiExternalLink } from "react-icons/fi";
-import { toast } from "react-toastify";
+import { fadeInOut } from "./AnimatedComponents";
 import { generateTimeBasedNonce } from "../utils";
 import { fetchKYCStatus, initiateKYC } from "../api/aggregator";
-import { fadeInOut } from "./AnimatedComponents";
+import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 
 const STEPS = {
   TERMS: "terms",
@@ -63,7 +62,7 @@ const terms = [
   },
 ] as const;
 
-export const VerifyIDModal = ({
+export const KycModal = ({
   setIsUserVerified,
 }: {
   setIsUserVerified: (value: boolean) => void;
@@ -238,7 +237,7 @@ export const VerifyIDModal = ({
           disabled={!isAllTermsAccepted}
           onClick={handleSignAndContinue}
         >
-          Sign and continue
+          Accept
         </button>
       </div>
     </motion.div>

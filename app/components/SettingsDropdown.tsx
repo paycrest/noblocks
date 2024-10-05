@@ -1,7 +1,10 @@
 "use client";
-
 import { motion } from "framer-motion";
 import { useRef, useState } from "react";
+import { useFundWallet, usePrivy } from "@privy-io/react-auth";
+
+import { PiCheck } from "react-icons/pi";
+import { RiMoneyDollarCircleLine } from "react-icons/ri";
 
 import { useOutsideClick } from "../hooks";
 import {
@@ -12,14 +15,15 @@ import {
   WalletIcon,
 } from "./ImageAssets";
 import { dropdownVariants } from "./AnimatedComponents";
-import { usePrivy } from "@privy-io/react-auth";
-import { shortenAddress } from "../utils";
-import { PiCheck } from "react-icons/pi";
 
 export const SettingsDropdown = () => {
   const { user, logout, exportWallet } = usePrivy();
+
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
+
+  const { fundWallet } = useFundWallet();
+  const handleFundWallet = async (address: string) => await fundWallet(address);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({
@@ -43,7 +47,7 @@ export const SettingsDropdown = () => {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900"
       >
-        <SettingsIcon className="fill-gray-500 dark:fill-none" />
+        <SettingsIcon />
       </button>
 
       {/* Dropdown menu */}
@@ -54,7 +58,7 @@ export const SettingsDropdown = () => {
           exit="closed"
           variants={dropdownVariants}
           aria-label="Dropdown menu"
-          className="absolute right-0 z-10 mt-4 min-w-48 max-w-full space-y-4 overflow-hidden rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800"
+          className="absolute right-0 z-10 mt-4 w-fit space-y-4 overflow-hidden rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800"
         >
           <ul
             role="menu"
@@ -64,11 +68,13 @@ export const SettingsDropdown = () => {
           >
             <li
               role="menuitem"
-              className="flex cursor-pointer items-center justify-between px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
+              className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
             >
               <div className="flex items-center gap-2.5">
                 <WalletIcon />
-                <p>{shortenAddress(user?.wallet?.address ?? "")}</p>
+                <p className="max-w-60 break-words">
+                  {user?.wallet?.address ?? ""}
+                </p>
               </div>
 
               <button
@@ -79,9 +85,17 @@ export const SettingsDropdown = () => {
                 {isAddressCopied ? (
                   <PiCheck className="size-4" />
                 ) : (
-                  <CopyIcon className="size-4 transition hover:fill-white/20" />
+                  <CopyIcon className="size-4 transition hover:text-black dark:hover:text-white" />
                 )}
               </button>
+            </li>
+            <li
+              role="menuitem"
+              className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
+              onClick={() => handleFundWallet(user?.wallet?.address ?? "")}
+            >
+              <RiMoneyDollarCircleLine className="text-lg text-gray-500 dark:text-white/40" />
+              <p>Fund Account</p>
             </li>
             <li
               role="menuitem"
@@ -89,7 +103,7 @@ export const SettingsDropdown = () => {
               onClick={exportWallet}
             >
               <PrivateKeyIcon />
-              <p>Export Private Key</p>
+              <p>Export Wallet</p>
             </li>
             <li
               role="menuitem"
@@ -97,7 +111,7 @@ export const SettingsDropdown = () => {
               onClick={logout}
             >
               <LogoutIcon />
-              <p>Disconnect</p>
+              <p>Sign out</p>
             </li>
           </ul>
         </motion.div>

@@ -18,7 +18,7 @@ export {
 } from "./AnimatedComponents";
 
 export { Tooltip } from "./Tooltip";
-export { VerifyIDModal } from "./VerifyIDModal";
+export { KycModal } from "./KycModal";
 export { FundWalletModal } from "./FundWalletModal";
 
 export { TransactionReceipt } from "./TransactionReceipt";

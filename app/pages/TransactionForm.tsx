@@ -6,12 +6,11 @@ import { AnimatePresence } from "framer-motion";
 
 import {
   AnimatedComponent,
-  InputError,
   primaryBtnClasses,
   slideInOut,
   FormDropdown,
   RecipientDetailsForm,
-  VerifyIDModal,
+  KycModal,
 } from "../components";
 import type { TransactionFormProps } from "../types";
 import { currencies, networks, tokens } from "../mocks";
@@ -98,7 +97,7 @@ export const TransactionForm = ({
               </label>
               {authenticated && token && (
                 <div className="flex items-center gap-2">
-                  <WalletIcon className="fill-gray-500 dark:fill-none" />
+                  <WalletIcon />
                   <p>{testBalance}</p>
                   <button
                     type="button"
@@ -223,7 +222,7 @@ export const TransactionForm = ({
         </div>
 
         {ready && authenticated && !isUserVerified && (
-          <VerifyIDModal setIsUserVerified={setIsUserVerified} />
+          <KycModal setIsUserVerified={setIsUserVerified} />
         )}
 
         {ready && !authenticated && (

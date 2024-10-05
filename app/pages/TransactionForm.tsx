@@ -33,7 +33,7 @@ export const TransactionForm = ({
 }: TransactionFormProps) => {
   // Destructure stateProps
   const { authenticated, ready, login } = usePrivy();
-  const { tokenBalance, rate, isFetchingRate } = stateProps;
+  const { rate, isFetchingRate } = stateProps;
 
   // Destructure formMethods from react-hook-form
   const {
@@ -49,8 +49,9 @@ export const TransactionForm = ({
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
 
-  const handleMaxClick = () => {
-    setValue("amountSent", tokenBalance);
+  const testBalance = 1000;
+  const handleBalanceMaxClick = () => {
+    setValue("amountSent", testBalance);
     setIsReceiveInputActive(false);
   };
 
@@ -98,10 +99,10 @@ export const TransactionForm = ({
               {authenticated && token && (
                 <div className="flex items-center gap-2">
                   <WalletIcon className="fill-gray-500 dark:fill-none" />
-                  <p>{Math.round(tokenBalance * 100) / 100}</p>
+                  <p>{testBalance}</p>
                   <button
                     type="button"
-                    onClick={handleMaxClick}
+                    onClick={handleBalanceMaxClick}
                     className="font-medium text-primary dark:text-primary"
                   >
                     Max
@@ -117,7 +118,7 @@ export const TransactionForm = ({
                 step="0.0001"
                 {...register("amountSent", {
                   required: { value: true, message: "Amount is required" },
-                  disabled: !authenticated || token === "",
+                  disabled: !token,
                   min: {
                     value: 0.5,
                     message: `Min. amount is 0.5`,
@@ -171,7 +172,7 @@ export const TransactionForm = ({
                 type="number"
                 step="0.0001"
                 {...register("amountReceived", {
-                  disabled: !authenticated || token === "",
+                  disabled: !token,
                   onChange: () => setIsReceiveInputActive(true),
                 })}
                 className="w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl text-neutral-900 outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30"

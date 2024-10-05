@@ -106,7 +106,13 @@ export type PubkeyResponse = {
   message: string;
 };
 
-type OrderStatusData = {
+export type OrderDetailsResponse = {
+  status: string;
+  message: string;
+  data: OrderDetailsData;
+};
+
+export type OrderDetailsData = {
   orderId: string;
   amount: string;
   token: string;
@@ -130,12 +136,6 @@ type TxReceipt = {
   status: string;
   txHash: string;
   timestamp: string;
-};
-
-export type OrderStatusResponse = {
-  status: string;
-  message: string;
-  data: OrderStatusData;
 };
 
 export type StateProps = {

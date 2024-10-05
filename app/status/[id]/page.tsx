@@ -16,9 +16,8 @@ import {
   Preloader,
   primaryBtnClasses,
   TransactionReceipt,
-} from "../components";
-import { useRouter } from "next/navigation";
-import { Checkbox, Field, Label } from "@headlessui/react";
+} from "../../components";
+import { usePathname, useRouter } from "next/navigation";
 import {
   CheckIcon,
   FarcasterIconDarkTheme,
@@ -28,27 +27,21 @@ import {
   XIconDarkTheme,
   XIconLightTheme,
   YellowHeart,
-} from "../components/ImageAssets";
-import { classNames } from "../utils";
+} from "../../components/ImageAssets";
+import { classNames } from "../../utils";
+import { fetchOrderDetails } from "../../api/aggregator";
+import { OrderDetailsResponse } from "../../types";
 
-// Mock data
-const mockData = {
-  recipientName: "John Doe",
-  orderId: "23afb1caffcc0fcd29f1fedbf87f4ac8f7319a06084699cf3a135bb4bc958da9",
-  createdAt: "2024-09-16T10:00:00Z",
-  token: "USDT",
-  amount: "13.5",
-  completedAt: "2024-09-16T10:05:00Z",
-  createdHash: "0x1234567890abcdef",
-  currency: "GHS",
-  accountIdentifier: "1234567890",
-  institution: "Bank of Ghana",
-  description: "Payment for goods",
-};
+const testId =
+  "0xb52d38153715eff7a4eb41b71907e1383f1172ebb2662fec300d0742ab323f52";
 
 export default function TransactionStatus() {
+  const pathname = usePathname();
+  const orderId = pathname.split("/").pop() ?? testId;
+
   const router = useRouter();
   const { resolvedTheme } = useTheme();
+
   const [transactionStatus, setTransactionStatus] = useState<
     | "idle"
     | "pending"
@@ -58,7 +51,9 @@ export default function TransactionStatus() {
     | "settled"
     | "refunded"
   >("idle");
-  const [enabled, setEnabled] = useState(false);
+  const [orderDetails, setOrderDetails] = useState<OrderDetailsResponse>();
+  const [createdHash, setCreatedHash] = useState("");
+
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isGettingReceipt, setIsGettingReceipt] = useState(false);
 
@@ -100,25 +95,73 @@ export default function TransactionStatus() {
     setIsPageLoading(false);
   }, []);
 
+  // useEffect(() => {
+  //   const timer = setInterval(() => {
+  //     setTransactionStatus((prevStatus) => {
+  //       switch (prevStatus) {
+  //         case "pending":
+  //           return "processing";
+  //         case "processing":
+  //           return "fulfilled";
+  //         case "fulfilled":
+  //           return "refunded";
+  //         case "refunded":
+  //           return "pending";
+  //         default:
+  //           return "pending";
+  //       }
+  //     });
+  //   }, 3000);
+  //   return () => clearInterval(timer);
+  // }, []);
+
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTransactionStatus((prevStatus) => {
-        switch (prevStatus) {
-          case "pending":
-            return "processing";
-          case "processing":
-            return "fulfilled";
-          case "fulfilled":
-            return "refunded";
-          case "refunded":
-            return "pending";
-          default:
-            return "pending";
+    let intervalId: NodeJS.Timeout;
+
+    if (!orderId || ["validated", "settled"].includes(transactionStatus))
+      return;
+
+    const getOrderDetails = async () => {
+      try {
+        const orderDetailsResponse = await fetchOrderDetails(orderId);
+        setOrderDetails(orderDetails);
+
+        if (orderDetailsResponse.data.status !== "pending") {
+          if (
+            ["validated", "settled", "fulfilled"].includes(transactionStatus)
+          ) {
+            // If order is completed, we can stop polling
+            clearInterval(intervalId);
+          }
+
+          setTransactionStatus(
+            orderDetailsResponse.data.status as
+              | "processing"
+              | "fulfilled"
+              | "validated"
+              | "settled"
+              | "refunded",
+          );
+
+          if (orderDetailsResponse.data.status === "processing") {
+            const createdReceipt = orderDetailsResponse.data.txReceipts.find(
+              (txReceipt) => txReceipt.status === "pending",
+            );
+            setCreatedHash(createdReceipt?.txHash!);
+          }
         }
-      });
-    }, 3000);
-    return () => clearInterval(timer);
-  }, []);
+      } catch (error) {
+        console.error("Error fetching order status:", error);
+      }
+    };
+
+    getOrderDetails();
+    intervalId = setInterval(getOrderDetails, 2000);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [orderDetails, transactionStatus]);
 
   const StatusIndicator = () => (
     <AnimatePresence mode="wait">
@@ -155,9 +198,9 @@ export default function TransactionStatus() {
         <>
           Your transfer of{" "}
           <span className="text-neutral-900 dark:text-white">
-            {mockData.amount} {mockData.token}
+            {orderDetails?.data.amount} {orderDetails?.data.token}
           </span>{" "}
-          to {mockData.recipientName} was unsuccessful
+          to Jane Chris was unsuccessful
           <br />
           Token will be refunded to your account
         </>
@@ -165,19 +208,33 @@ export default function TransactionStatus() {
     } else if (
       !["validated", "settled", "fulfilled"].includes(transactionStatus)
     ) {
-      return `Processing payment to ${mockData.recipientName}. Hang on, this will only take a few seconds.`;
+      return `Processing payment to Jane Chris. Hang on, this will only take a few seconds.`;
     } else {
       return (
         <>
           Your transfer of{" "}
           <span className="text-neutral-900 dark:text-white">
-            {mockData.amount} {mockData.token}
+            {orderDetails?.data.amount} {orderDetails?.data.token}
           </span>{" "}
-          to {mockData.recipientName} has been completed successfully.
+          to Jane Chris has been completed successfully.
         </>
       );
     }
   };
+
+  if (!orderId) {
+    return (
+      <>
+        <Preloader isLoading={isPageLoading} />
+
+        <div className="flex h-screen items-center justify-center">
+          <p className="text-gray-500 dark:text-white/50">
+            Transaction ID not found
+          </p>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -195,13 +252,13 @@ export default function TransactionStatus() {
               className="flex items-center gap-1 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5"
             >
               <Image
-                src={`/${mockData.token.toLowerCase()}-logo.svg`}
-                alt={`${mockData.token} logo`}
+                src={`/logos/${orderDetails?.data.token.toLowerCase()}-logo.svg`}
+                alt={`${orderDetails?.data.token} logo`}
                 width={14}
                 height={14}
               />
               <p className="whitespace-nowrap pr-4 font-medium">
-                {mockData.amount} {mockData.token}
+                {orderDetails?.data.amount} {orderDetails?.data.token}
               </p>
             </AnimatedComponent>
             <Image
@@ -216,7 +273,7 @@ export default function TransactionStatus() {
               delay={0.4}
               className="whitespace-nowrap rounded-full bg-gray-50 px-2 py-1 capitalize dark:bg-white/5"
             >
-              {mockData.recipientName.toLowerCase().split(" ")[0]}
+              {"Jane Chris".toLowerCase().split(" ")[0]}
             </AnimatedComponent>
           </div>
         </div>
@@ -262,20 +319,21 @@ export default function TransactionStatus() {
                   delay={0.5}
                   className="flex w-full gap-3"
                 >
-                  {["validated", "settled", "fulfilled"].includes(
-                    transactionStatus,
-                  ) && (
-                    <button
-                      type="button"
-                      onClick={handleGetReceipt}
-                      className={`w-fit ${secondaryBtnClasses}`}
-                      disabled={isGettingReceipt}
-                    >
-                      {isGettingReceipt
-                        ? "Generating receipt..."
-                        : "Get receipt"}
-                    </button>
-                  )}
+                  {orderDetails?.data &&
+                    ["validated", "settled", "fulfilled"].includes(
+                      transactionStatus,
+                    ) && (
+                      <button
+                        type="button"
+                        onClick={handleGetReceipt}
+                        className={`w-fit ${secondaryBtnClasses}`}
+                        disabled={isGettingReceipt}
+                      >
+                        {isGettingReceipt
+                          ? "Generating receipt..."
+                          : "Get receipt"}
+                      </button>
+                    )}
 
                   <button
                     type="button"
@@ -286,41 +344,6 @@ export default function TransactionStatus() {
                       ? "Retry transaction"
                       : "New payment"}
                   </button>
-                </AnimatedComponent>
-
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.6}
-                  className="flex w-full gap-3"
-                >
-                  {["validated", "settled", "fulfilled"].includes(
-                    transactionStatus,
-                  ) && (
-                    <Field className="flex items-center gap-2">
-                      <Checkbox
-                        checked={enabled}
-                        onChange={setEnabled}
-                        className="group block size-4 rounded bg-gray-200 data-[checked]:bg-primary dark:bg-neutral-800 dark:data-[checked]:bg-primary"
-                      >
-                        <svg
-                          className="stroke-white opacity-0 group-data-[checked]:opacity-100"
-                          viewBox="0 0 14 14"
-                          fill="none"
-                        >
-                          <path
-                            d="M3 8L6 11L11 3.5"
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </Checkbox>
-                      <Label className="text-gray-500 dark:text-white/50">
-                        Add {mockData.recipientName.split(" ")[0]} to your
-                        beneficiaries
-                      </Label>
-                    </Field>
-                  )}
                 </AnimatedComponent>
               </>
             )}
@@ -375,7 +398,7 @@ export default function TransactionStatus() {
                   <p className="flex-1">Onchain receipt</p>
                   <p className="flex-1">
                     <a
-                      href={`https://basescan.io/tx/${mockData.createdHash}`}
+                      href={`https://basescan.io/tx/${createdHash}`}
                       className="text-primary hover:underline dark:text-primary"
                       target="_blank"
                       rel="noreferrer"
@@ -448,7 +471,9 @@ export default function TransactionStatus() {
 
       <div className="absolute left-[-9999px] top-[-9999px]">
         <div ref={receiptRef}>
-          <TransactionReceipt transaction={mockData} />
+          {orderDetails?.data && (
+            <TransactionReceipt data={orderDetails.data} />
+          )}
         </div>
       </div>
     </>

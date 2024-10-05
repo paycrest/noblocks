@@ -5,10 +5,10 @@ import type {
   InstitutionProps,
   PubkeyResponse,
   VerifyAccountPayload,
-  OrderStatusResponse,
   InitiateKYCPayload,
   InitiateKYCResponse,
   KYCStatusResponse,
+  OrderDetailsResponse,
 } from "../types";
 
 const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
@@ -69,14 +69,14 @@ export const fetchAccountName = async (
   }
 };
 
-export const fetchOrderStatus = async (
+export const fetchOrderDetails = async (
   orderId: string,
-): Promise<OrderStatusResponse> => {
+): Promise<OrderDetailsResponse> => {
   try {
     const response = await axios.get(`${AGGREGATOR_URL}/orders/${orderId}`);
     return response.data;
   } catch (error) {
-    console.error("Error fetching order status:", error);
+    console.error("Error fetching order details:", error);
     throw error;
   }
 };

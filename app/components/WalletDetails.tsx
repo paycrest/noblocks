@@ -1,6 +1,5 @@
 "use client";
 import Image from "next/image";
-import { useAccount } from "wagmi";
 import { motion } from "framer-motion";
 import { useRef, useState } from "react";
 import { GoQuestion } from "react-icons/go";
@@ -12,7 +11,6 @@ import { FundWalletModal } from "./FundWalletModal";
 import { dropdownVariants } from "./AnimatedComponents";
 
 export const WalletDetails = () => {
-  const account = useAccount();
   const [isOpen, setIsOpen] = useState<boolean>(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -79,7 +77,7 @@ export const WalletDetails = () => {
           </div>
           <div className="flex items-center gap-1">
             <Image
-              src="/usdc-logo.svg"
+              src="/logos/usdc-logo.svg"
               alt="USDC logo"
               width={14}
               height={14}
@@ -89,17 +87,15 @@ export const WalletDetails = () => {
 
           <hr className="w-full border border-dashed border-gray-200 dark:border-white/10" />
 
-          <p className="text-gray-500 dark:text-white/50">
-            {account.connector?.name}
-          </p>
+          <p className="text-gray-500 dark:text-white/50">Privy</p>
           <div className="flex items-center gap-1">
             <Image
-              src="/usdc-logo.svg"
+              src="/logos/usdt-logo.svg"
               alt="USDC logo"
               width={14}
               height={14}
             />
-            <p>62.8974028 USDC</p>
+            <p>62.8974028 USDT</p>
           </div>
         </motion.div>
       )}

@@ -17,7 +17,6 @@ import {
   primaryBtnClasses,
   TransactionReceipt,
 } from "../components";
-import "../status/page.css";
 import { useRouter } from "next/navigation";
 import { Checkbox, Field, Label } from "@headlessui/react";
 import {

@@ -325,9 +325,9 @@ export const RecipientDetailsForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountIdentifier, institution]);
 
-  useEffect(()=> {
-    setSelectedTab("bank-transfer")
-  },[currency])
+  useEffect(() => {
+    setSelectedTab("bank-transfer");
+  }, [currency]);
 
   return (
     <>
@@ -491,9 +491,8 @@ export const RecipientDetailsForm = ({
                               </div>
                               {/* Banks list */}
                               <ul
-                                role="menu"
+                                role="list"
                                 aria-labelledby="networks-dropdown"
-                                aria-orientation="vertical"
                                 className="px-2 pb-2"
                               >
                                 {filteredInstitutions.length > 0 ? (
@@ -807,7 +806,7 @@ export const RecipientDetailsForm = ({
                                 }}
                                 transition={{ duration: 0.3 }}
                               >
-                                <Button
+                                <div
                                   className={`group flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 ${
                                     recipientToDelete === recipient
                                       ? "bg-red-100 dark:bg-red-900/30"
@@ -854,7 +853,7 @@ export const RecipientDetailsForm = ({
                                   >
                                     <TrashIcon className="size-4 stroke-gray-500 dark:stroke-white/50" />
                                   </Button>
-                                </Button>
+                                </div>
                               </motion.div>
                             ))
                           ) : (

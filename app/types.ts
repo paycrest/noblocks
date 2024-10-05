@@ -140,24 +140,10 @@ export type OrderStatusResponse = {
 
 export type StateProps = {
   formValues: FormData;
-  tokenBalance: number;
-  smartTokenBalance: number;
   rate: number;
   isFetchingRate: boolean;
   institutions: InstitutionProps[];
   isFetchingInstitutions: boolean;
-  setCreatedAt: (createdAt: string) => void;
-  setOrderId: (orderId: string) => void;
-  setTransactionStatus: (
-    status:
-      | "idle"
-      | "pending"
-      | "processing"
-      | "fulfilled"
-      | "validated"
-      | "settled"
-      | "refunded",
-  ) => void;
   selectedRecipient: RecipientDetails | null;
   setSelectedRecipient: (recipient: RecipientDetails | null) => void;
 };

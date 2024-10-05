@@ -197,5 +197,6 @@ export type KYCStatusResponse = {
   message: string;
   data: {
     status: string;
+    url: string;
   };
 };

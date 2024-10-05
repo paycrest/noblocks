@@ -14,12 +14,13 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import {
   CheckIcon,
+  QrCodeIcon,
   SadFaceIcon,
   UserDetailsIcon,
   VerificationPendingIcon,
 } from "./ImageAssets";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
-import { PiCaretLeft } from "react-icons/pi";
+import { PiCaretLeft, PiQrCodeLight } from "react-icons/pi";
 import { usePrivy } from "@privy-io/react-auth";
 import { FiExternalLink } from "react-icons/fi";
 import { toast } from "react-toastify";
@@ -112,8 +113,6 @@ export const VerifyIDModal = ({
         } else {
           setStep(STEPS.STATUS.FAILED);
         }
-
-        console.log({ response });
       }
     } catch (error: unknown) {
       if (
@@ -150,7 +149,6 @@ export const VerifyIDModal = ({
             objectFit: "contain",
             height: "auto",
           }}
-          removeQrCodeBehindLogo
           quietZone={16}
           size={256}
         />
@@ -292,13 +290,23 @@ export const VerifyIDModal = ({
         </p>
       </div>
 
-      <button
-        type="button"
-        className={`${primaryBtnClasses} w-full`}
-        onClick={() => setIsOpen(false)}
-      >
-        Got it
-      </button>
+      <div className="flex w-full items-center gap-2">
+        <button
+          type="button"
+          title="View QR Code"
+          className={`${secondaryBtnClasses}`}
+          onClick={() => setStep(STEPS.QR_CODE)}
+        >
+          <QrCodeIcon className="size-6 p-0.5 text-gray-300" />
+        </button>
+        <button
+          type="button"
+          className={`${primaryBtnClasses} w-full`}
+          onClick={() => setIsOpen(false)}
+        >
+          Got it
+        </button>
+      </div>
     </motion.div>
   );
 
@@ -377,8 +385,12 @@ export const VerifyIDModal = ({
         const newStatus =
           statusMap[response.data.status as keyof typeof statusMap] ||
           STEPS.STATUS.PENDING;
-        if (newStatus === STEPS.STATUS.SUCCESS) setIsUserVerified(true);
         setStep(newStatus);
+
+        if (newStatus === STEPS.STATUS.SUCCESS) setIsUserVerified(true);
+        if (newStatus === STEPS.STATUS.PENDING) setKycUrl(response.data.url);
+
+        setIsOpen(true);
       } catch (error) {
         if (
           error instanceof Error &&
@@ -387,10 +399,10 @@ export const VerifyIDModal = ({
         ) {
           // backend error response
           const { message } = (error as any).response.data;
-          toast.error(message);
+          console.error(message);
         } else {
           // unexpected errors
-          toast.error(error instanceof Error ? error.message : String(error));
+          console.error(error instanceof Error ? error.message : String(error));
         }
       }
     };

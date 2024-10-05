@@ -196,6 +196,7 @@ export const TransactionForm = ({
                 onSelect={(selectedCurrency) =>
                   setValue("currency", selectedCurrency)
                 }
+                className="min-w-52"
               />
             </div>
             {/* {errors.amountReceived && (

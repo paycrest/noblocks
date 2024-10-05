@@ -3,12 +3,13 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
+import { MdOutlineLockClock } from "react-icons/md";
 import { dropdownVariants } from "./AnimatedComponents";
 import { useEffect, useRef, useState, ReactNode } from "react";
 
 export interface DropdownItem {
-  id: string;
   name: string;
+  label?: string;
   imageUrl?: string;
   disabled?: boolean;
 }
@@ -22,6 +23,7 @@ interface FlexibleDropdownProps {
     isOpen: boolean;
     toggleDropdown: () => void;
   }) => ReactNode;
+  className?: string;
 }
 
 function classNames(...classes: string[]) {
@@ -33,6 +35,7 @@ export const FlexibleDropdown = ({
   onSelect,
   data,
   children,
+  className,
 }: FlexibleDropdownProps) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [selectedItem, setSelectedItem] = useState<DropdownItem | undefined>(
@@ -78,13 +81,16 @@ export const FlexibleDropdown = ({
           exit="closed"
           variants={dropdownVariants}
           aria-label="Dropdown menu"
-          className="absolute right-0 z-10 mt-2 max-h-52 min-w-40 max-w-full overflow-y-auto rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800"
+          className={classNames(
+            "absolute right-0 z-10 mt-2 max-h-52 max-w-full overflow-y-auto rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800",
+            className ?? "min-w-40",
+          )}
         >
           <ul role="list" aria-labelledby="networks-dropdown">
             {data?.map((item) => (
               <li
-                key={item.id}
-                onClick={() => handleChange(item)}
+                key={item.name}
+                onClick={() => !item.disabled && handleChange(item)}
                 className={classNames(
                   "flex items-center justify-between gap-2 px-3 py-2 transition-all hover:bg-gray-200 dark:hover:bg-neutral-700",
                   item?.disabled
@@ -92,27 +98,33 @@ export const FlexibleDropdown = ({
                     : "cursor-pointer",
                 )}
               >
-                <div className="flex items-center gap-2">
-                  <Image
-                    src={item.imageUrl ?? ""}
-                    alt="image"
-                    loading="lazy"
-                    width={20}
-                    height={20}
-                    className="me-2 h-5 w-5 rounded-full object-cover"
-                  />
+                <div className="flex items-center gap-1">
+                  {item.imageUrl && (
+                    <Image
+                      src={item.imageUrl ?? ""}
+                      alt="image"
+                      loading="lazy"
+                      width={20}
+                      height={20}
+                      className="me-2 h-5 w-5 rounded-full object-cover"
+                    />
+                  )}
 
                   <span className="text-neutral-900 dark:text-white/80">
-                    {item.name}
+                    {item.label ?? item.name}
                   </span>
                 </div>
 
-                <PiCheck
-                  className={classNames(
-                    "text-lg text-gray-400 transition-transform dark:text-white/50",
-                    selectedItem?.id === item.id ? "" : "hidden",
-                  )}
-                />
+                {item.disabled ? (
+                  <MdOutlineLockClock className="text-lg text-gray-400 dark:text-white/50" />
+                ) : (
+                  <PiCheck
+                    className={classNames(
+                      "text-lg text-gray-400 transition-transform dark:text-white/50",
+                      selectedItem?.name === item.name ? "" : "hidden",
+                    )}
+                  />
+                )}
               </li>
             ))}
           </ul>

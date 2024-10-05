@@ -8,6 +8,7 @@ interface FormDropdownProps {
   defaultSelectedItem: string;
   onSelect?: (name: string) => void;
   data: DropdownItem[];
+  className?: string;
 }
 
 export const FormDropdown = ({
@@ -15,12 +16,14 @@ export const FormDropdown = ({
   defaultSelectedItem,
   onSelect,
   data,
+  className,
 }: FormDropdownProps) => {
   return (
     <FlexibleDropdown
       data={data}
       defaultSelectedItem={defaultSelectedItem}
       onSelect={onSelect}
+      className={className}
     >
       {({ selectedItem, isOpen, toggleDropdown }) => (
         <button

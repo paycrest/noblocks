@@ -1,11 +1,9 @@
 export const tokens = [
   {
-    id: "1",
     name: "USDT",
     imageUrl: "/logos/usdt-logo.svg",
   },
   {
-    id: "2",
     name: "USDC",
     imageUrl: "/logos/usdc-logo.svg",
   },
@@ -18,40 +16,49 @@ export const tokens = [
 
 export const currencies = [
   {
-    id: "1",
     name: "KES",
+    label: "Kenyan Shilling",
     imageUrl: "/logos/kes-logo.svg",
   },
   {
-    id: "2",
     name: "NGN",
+    label: "Nigerian Naira",
     imageUrl: "/logos/ngn-logo.svg",
   },
   {
-    id: "3",
     name: "GHS",
+    label: "Ghanaian Cedi",
     imageUrl: "/logos/ghs-logo.svg",
+    disabled: true,
+  },
+  {
+    name: "ARS",
+    label: "Argentine Peso",
+    imageUrl: "/logos/ars-logo.png",
+    disabled: true,
+  },
+  {
+    name: "BRL",
+    label: "Brazilian Real",
+    imageUrl: "/logos/brl-logo.png",
+    disabled: true,
   },
 ];
 
 export const networks = [
   {
-    id: "1",
     name: "Base",
     imageUrl: "/logos/base-logo.svg",
   },
   {
-    id: "2",
     name: "Binance",
     imageUrl: "/logos/binance-logo.svg",
   },
   {
-    id: "3",
     name: "Arbitrum",
     imageUrl: "/logos/arbitrum-logo.svg",
   },
   {
-    id: "4",
     name: "Tron",
     imageUrl: "/logos/tron-logo.svg",
   },

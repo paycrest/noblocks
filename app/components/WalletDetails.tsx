@@ -59,35 +59,7 @@ export const WalletDetails = () => {
           aria-label="Dropdown menu"
           className="absolute right-0 z-10 mt-4 max-h-52 min-w-64 max-w-full space-y-4 overflow-y-auto rounded-xl bg-gray-50 p-4 shadow-xl dark:bg-neutral-800"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1 text-gray-500 dark:text-white/50">
-              <p>Smart Wallet</p>
-
-              <a
-                title="Learn more about smart wallets"
-                href="https://paycrest.io" // TODO: replace with link to more info about smart wallets
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <GoQuestion className="text-base transition-colors hover:text-neutral-900 dark:hover:text-white" />
-              </a>
-            </div>
-
-            <FundWalletModal address="0xb1...48e7" />
-          </div>
-          <div className="flex items-center gap-1">
-            <Image
-              src="/logos/usdc-logo.svg"
-              alt="USDC logo"
-              width={14}
-              height={14}
-            />
-            <p>293 USDC</p>
-          </div>
-
-          <hr className="w-full border border-dashed border-gray-200 dark:border-white/10" />
-
-          <p className="text-gray-500 dark:text-white/50">Privy</p>
+          <p className="text-gray-500 dark:text-white/50">Privy wallet</p>
           <div className="flex items-center gap-1">
             <Image
               src="/logos/usdt-logo.svg"

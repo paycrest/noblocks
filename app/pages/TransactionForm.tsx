@@ -89,7 +89,7 @@ export const TransactionForm = ({
         <div className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800">
           <div className="flex items-center justify-between">
             <h3 className="px-2 font-medium">Swap</h3>
-            <NetworksDropdown iconOnly />
+            {authenticated && <NetworksDropdown iconOnly />}
           </div>
 
           {/* Amount to send & Token w/ wallet balance */}

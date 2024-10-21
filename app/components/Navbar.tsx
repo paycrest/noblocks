@@ -55,9 +55,7 @@ export const Navbar = () => {
             <>
               <WalletDetails />
 
-              <NetworksDropdown
-              // onSelect={handleSelect}
-              />
+              <NetworksDropdown />
 
               <SettingsDropdown />
             </>

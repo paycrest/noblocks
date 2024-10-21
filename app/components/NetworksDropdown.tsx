@@ -1,23 +1,49 @@
-import { FlexibleDropdown } from "./FlexibleDropdown";
-import { PiCaretDown } from "react-icons/pi";
+"use client";
 import Image from "next/image";
+import { toast } from "sonner";
+import { PiCaretDown } from "react-icons/pi";
+import { getEmbeddedConnectedWallet, useWallets } from "@privy-io/react-auth";
+
 import { networks } from "../mocks";
 import { classNames } from "../utils";
+import { FlexibleDropdown } from "./FlexibleDropdown";
+import { useNetwork } from "../context/NetworksContext";
 
 interface NetworksDropdownProps {
-  onSelect?: (name: string) => void;
   iconOnly?: boolean;
 }
 
 export const NetworksDropdown = ({
-  onSelect,
   iconOnly = false,
 }: NetworksDropdownProps) => {
+  const { wallets } = useWallets();
+  const wallet = getEmbeddedConnectedWallet(wallets);
+  const { selectedNetwork, setSelectedNetwork } = useNetwork();
+
+  const handleNetworkSelect = async (networkName: string) => {
+    const newNetwork = networks.find((net) => net.name === networkName);
+    if (newNetwork && wallet) {
+      try {
+        await wallet.switchChain(newNetwork.chainId);
+        toast.success(`Network switched to ${newNetwork.name}`);
+        setSelectedNetwork(newNetwork);
+      } catch (error) {
+        console.error("Failed to switch network:", error);
+        toast.error("Error switching network", {
+          description: (error as Error).message,
+        });
+      }
+
+      console.log(wallets);
+    }
+  };
+
   return (
     <FlexibleDropdown
       data={networks}
-      defaultSelectedItem="Base"
-      onSelect={onSelect}
+      selectedItem={selectedNetwork?.name}
+      onSelect={handleNetworkSelect}
+      className="max-h-max min-w-52"
     >
       {({ selectedItem, isOpen, toggleDropdown }) => (
         <button

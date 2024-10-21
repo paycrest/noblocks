@@ -75,7 +75,6 @@ export const TransactionForm = ({
   useEffect(() => {
     register("token", { value: "USDT" });
     register("currency", { value: "KES" });
-    register("network", { value: "Base" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -148,14 +148,19 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
 /**
  * Shortens the given address by replacing the middle characters with ellipsis.
  * @param address - The address to be shortened.
- * @param chars - The number of characters to keep at the beginning and end of the address. Default is 4.
+ * @param startChars - The number of characters to keep at the beginning of the address. Default is 4.
+ * @param endChars - The number of characters to keep at the end of the address. Default is the same as startChars.
  * @returns The shortened address.
  */
-export function shortenAddress(address: string, chars = 4): string {
-  if (address.length <= 2 * chars) {
-    return address;
-  }
-  return `${address.slice(0, chars)}...${address.slice(-chars)}`;
+export function shortenAddress(
+	address: string,
+	startChars = 4,
+	endChars = startChars,
+): string {
+	if (address.length <= startChars + endChars) {
+		return address;
+	}
+	return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
 }
 
 /**

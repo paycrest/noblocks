@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import { toast } from "sonner";
+import { useState } from "react";
 import { PiCaretDown } from "react-icons/pi";
 import { getEmbeddedConnectedWallet, useWallets } from "@privy-io/react-auth";
 
@@ -19,6 +20,9 @@ export const NetworksDropdown = ({
   const { wallets } = useWallets();
   const wallet = getEmbeddedConnectedWallet(wallets);
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
+  const [dropdownSelectedItem, setDropdownSelectedItem] = useState<string>(
+    selectedNetwork.name,
+  );
 
   const handleNetworkSelect = async (networkName: string) => {
     const newNetwork = networks.find((net) => net.name === networkName);
@@ -27,25 +31,25 @@ export const NetworksDropdown = ({
         await wallet.switchChain(newNetwork.chainId);
         toast.success(`Network switched to ${newNetwork.name}`);
         setSelectedNetwork(newNetwork);
+        setDropdownSelectedItem(newNetwork.name);
       } catch (error) {
         console.error("Failed to switch network:", error);
         toast.error("Error switching network", {
           description: (error as Error).message,
         });
+        setDropdownSelectedItem(selectedNetwork.name);
       }
-
-      console.log(wallets);
     }
   };
 
   return (
     <FlexibleDropdown
       data={networks}
-      selectedItem={selectedNetwork?.name}
+      selectedItem={dropdownSelectedItem}
       onSelect={handleNetworkSelect}
       className="max-h-max min-w-52"
     >
-      {({ selectedItem, isOpen, toggleDropdown }) => (
+      {({ isOpen, toggleDropdown }) => (
         <button
           id="networks-dropdown"
           aria-label="Toggle dropdown"
@@ -59,16 +63,16 @@ export const NetworksDropdown = ({
           )}
         >
           <span>
-            {selectedItem?.name ? (
+            {selectedNetwork ? (
               <div className="flex items-center gap-2">
                 <Image
-                  alt={selectedItem?.name}
-                  src={selectedItem?.imageUrl ?? ""}
+                  alt={selectedNetwork.name}
+                  src={selectedNetwork.imageUrl ?? ""}
                   width={20}
                   height={20}
                 />
                 {!iconOnly && (
-                  <p className="hidden sm:block">{selectedItem?.name}</p>
+                  <p className="hidden sm:block">{selectedNetwork.name}</p>
                 )}
               </div>
             ) : (

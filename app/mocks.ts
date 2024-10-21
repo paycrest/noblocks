@@ -49,19 +49,33 @@ export const networks = [
   {
     name: "Base",
     imageUrl: "/logos/base-logo.svg",
+    chainId: 8453,
   },
   {
-    name: "Binance",
+    name: "BNB Smart Chain",
     imageUrl: "/logos/binance-logo.svg",
+    chainId: 56,
   },
   {
-    name: "Arbitrum",
+    name: "Arbitrum One",
     imageUrl: "/logos/arbitrum-logo.svg",
+    chainId: 42161,
   },
   {
-    name: "Tron",
-    imageUrl: "/logos/tron-logo.svg",
+    name: "Polygon",
+    imageUrl: "/logos/polygon-logo.svg",
+    chainId: 137,
   },
+  {
+    name: "Scroll",
+    imageUrl: "/logos/scroll-logo.svg",
+    chainId: 534352,
+  },
+  {
+    name: "Optimism",
+    imageUrl: "/logos/optimism-logo.svg",
+    chainId: 10,
+  }
 ];
 
 export const colors = [

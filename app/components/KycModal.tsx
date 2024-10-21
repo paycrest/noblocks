@@ -36,6 +36,7 @@ const STEPS = {
     FAILED: "failed",
   },
   LOADING: "loading",
+  EXPIRED: "expired",
 } as const;
 
 type Step =
@@ -375,8 +376,9 @@ export const KycModal = ({
         const response = await fetchKYCStatus(walletAddress || "");
         const statusMap = {
           success: STEPS.STATUS.SUCCESS,
-          failed: STEPS.STATUS.FAILED,
           pending: STEPS.STATUS.PENDING,
+          failed: STEPS.STATUS.FAILED,
+          expired: STEPS.TERMS,
         };
 
         // set the step based on the status from the response

@@ -14,6 +14,7 @@ import {
   SettingsIcon,
   WalletIcon,
 } from "./ImageAssets";
+import { shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 
 export const SettingsDropdown = () => {
@@ -70,22 +71,21 @@ export const SettingsDropdown = () => {
               role="menuitem"
               className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
             >
-              <div className="flex items-center gap-2.5">
-                <WalletIcon />
-                <p className="max-w-60 break-words">
-                  {user?.wallet?.address ?? ""}
-                </p>
-              </div>
-
               <button
                 type="button"
+                className="group flex w-full items-center justify-between gap-2.5"
                 onClick={handleCopyAddress}
-                title="Copy wallet address"
               >
+                <div className="flex items-center gap-2.5">
+                  <WalletIcon />
+                  <p className="max-w-60 break-words">
+                    {shortenAddress(user?.wallet?.address ?? "", 6)}
+                  </p>
+                </div>
                 {isAddressCopied ? (
                   <PiCheck className="size-4" />
                 ) : (
-                  <CopyIcon className="size-4 transition hover:text-black dark:hover:text-white" />
+                  <CopyIcon className="size-4 transition group-hover:text-primary dark:hover:text-white" />
                 )}
               </button>
             </li>

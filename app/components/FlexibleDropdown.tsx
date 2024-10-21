@@ -17,6 +17,7 @@ export interface DropdownItem {
 interface FlexibleDropdownProps {
   data: DropdownItem[];
   defaultSelectedItem?: string;
+  selectedItem?: string;
   onSelect?: (name: string) => void;
   children: (props: {
     selectedItem: DropdownItem | undefined;
@@ -32,6 +33,7 @@ function classNames(...classes: string[]) {
 
 export const FlexibleDropdown = ({
   defaultSelectedItem,
+  selectedItem: controlledSelectedItem,
   onSelect,
   data,
   children,
@@ -51,7 +53,12 @@ export const FlexibleDropdown = ({
   };
 
   useEffect(() => {
-    if (defaultSelectedItem && data) {
+    if (controlledSelectedItem) {
+      const newSelectedItem = data.find(
+        (item) => item.name === controlledSelectedItem,
+      );
+      newSelectedItem && setSelectedItem(newSelectedItem);
+    } else if (defaultSelectedItem) {
       const newSelectedItem = data.find(
         (item) => item.name === defaultSelectedItem,
       );
@@ -59,7 +66,7 @@ export const FlexibleDropdown = ({
     } else {
       setSelectedItem(undefined);
     }
-  }, [defaultSelectedItem, data]);
+  }, [controlledSelectedItem, defaultSelectedItem, data]);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({
@@ -83,7 +90,9 @@ export const FlexibleDropdown = ({
           aria-label="Dropdown menu"
           className={classNames(
             "absolute right-0 z-10 mt-2 max-h-52 max-w-full overflow-y-auto rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800",
-            className ?? "min-w-40",
+            className?.includes("min-w") ? "" : "min-w-40",
+            className?.includes("max-h") ? "" : "max-h-52",
+            className ?? "",
           )}
         >
           <ul role="list" aria-labelledby="networks-dropdown">

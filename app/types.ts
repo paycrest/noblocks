@@ -8,7 +8,6 @@ export type InstitutionProps = {
 };
 
 export type FormData = {
-  network: string;
   token: string;
   currency: string;
   institution: string;

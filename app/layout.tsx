@@ -1,20 +1,46 @@
 import "./globals.css";
 import React from "react";
-import "react-toastify/dist/ReactToastify.css";
-
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 
 import Providers from "./providers";
 import MainContent from "./mainContent";
 import { Footer, Navbar } from "./components";
-import { ToastContainer } from "react-toastify";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Noblocks",
-  description: "Crypto-to-fiat payments with no blocks.",
+  title: 'Noblocks',
+  description:
+    'The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.',
+  publisher: 'Paycrest',
+  authors: [{ name: 'Paycrest', url: 'https://paycrest.io' }],
+  metadataBase: new URL('https://noblocks.xyz'),
+  openGraph: {
+    title: 'Noblocks',
+    description:
+      'The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.',
+    url: 'https://noblocks.xyz',
+    siteName: 'Noblocks',
+    images: [
+      {
+        url: '/images/og-image.png',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  icons: {
+    icon: '/favicon.ico',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Noblocks',
+    description:
+      'The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.',
+    creator: '@noblocks_xyz',
+    images: ['/images/og-image.png'],
+  },
 };
 
 export default function RootLayout({
@@ -33,15 +59,6 @@ export default function RootLayout({
               <Footer />
             </div>
           </div>
-          <ToastContainer
-            position="bottom-right"
-            theme="dark"
-            stacked
-            pauseOnHover
-            pauseOnFocusLoss
-            draggable
-            bodyClassName="font-sans"
-          />
         </Providers>
       </body>
     </html>

@@ -8,7 +8,7 @@ import {
   Field,
   Label,
 } from "@headlessui/react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { QRCode } from "react-qrcode-logo";
 import { usePrivy } from "@privy-io/react-auth";
 import { FiExternalLink } from "react-icons/fi";

@@ -1,4 +1,5 @@
 "use client";
+import { Toaster } from "sonner";
 import { ThemeProvider } from "next-themes";
 import { PrivyProvider } from "@privy-io/react-auth";
 
@@ -22,9 +23,16 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           embeddedWallets: {
             createOnLogin: "all-users",
           },
+          externalWallets: { 
+            coinbaseWallet: { 
+              connectionOptions: 'smartWalletOnly', 
+            }, 
+          }, 
         }}
       >
         {children}
+
+        <Toaster position="bottom-right" richColors />
       </PrivyProvider>
     </ThemeProvider>
   );

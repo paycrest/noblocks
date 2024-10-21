@@ -14,10 +14,13 @@ type NetworkContextType = {
 
 const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
 
+const defaultNetwork =
+  networks.find((network) => network.name === "Base") || networks[0];
+
 export const NetworkProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [selectedNetwork, setSelectedNetwork] = useState(networks[0]);
+  const [selectedNetwork, setSelectedNetwork] = useState(defaultNetwork);
 
   return (
     <NetworkContext.Provider value={{ selectedNetwork, setSelectedNetwork }}>

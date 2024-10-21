@@ -29,7 +29,7 @@ export const TransactionPreview = ({
     institution,
     recipientName,
     memo,
-    network,
+
     amountReceived,
   } = formValues;
 
@@ -44,7 +44,6 @@ export const TransactionPreview = ({
       .join(" "),
     account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
     description: memo,
-    network: network,
   };
   return (
     <div className="grid gap-6 py-10 text-sm">

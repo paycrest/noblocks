@@ -91,14 +91,18 @@ export const RecipientDetailsForm = ({
     handler: () => setIsInstitutionsDropdownOpen(false),
   });
 
-  /**
-   * Array of institutions filtered based on the bank search term.
+   /**
+   * Array of institutions filtered and sorted alphabetically based on the bank search term.
    *
    * @type {Array<InstitutionProps>}
    */
-  const filteredInstitutions: Array<InstitutionProps> = institutions?.filter(
-    (item) => item.name.toLowerCase().includes(bankSearchTerm.toLowerCase()),
-  );
+   const filteredInstitutions: Array<InstitutionProps> = useMemo(() => {
+    return institutions
+      ?.filter((item) =>
+        item.name.toLowerCase().includes(bankSearchTerm.toLowerCase())
+      )
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [institutions, bankSearchTerm]);
 
   const isRecipientFormValid = useCallback(() => {
     const institution = watch("institution");

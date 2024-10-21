@@ -250,33 +250,22 @@ export const TransactionForm = ({
         )}
 
         <AnimatePresence>
-          {
-            // isFetchingRate ? (
-            // <AnimatedComponent
-            //   variant={slideInOut}
-            //   className="flex items-center gap-2 text-xs text-gray-500 transition-all dark:text-white/30"
-            // >
-            //   <ImSpinner3 className="animate-spin text-base text-gray-500 dark:text-white/30" />
-            //   <p>Fetching rate...</p>
-            // </AnimatedComponent>
-            // ) :
-            rate > 0 && (
-              <AnimatedComponent
-                variant={slideInOut}
-                className="flex w-full flex-col justify-between gap-2 text-xs text-gray-500 transition-all dark:text-white/30 sm:flex-row sm:items-center"
-              >
-                <div className="min-w-fit">
-                  1 {token} ~ {rate} {currency}
-                </div>
-                <div className="ml-auto flex w-full flex-col justify-end gap-2 sm:flex-row sm:items-center">
-                  <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
-                  <p className="min-w-fit">
-                    Swap usually completes in 15s or less
-                  </p>
-                </div>
-              </AnimatedComponent>
-            )
-          }
+          {rate > 0 && (
+            <AnimatedComponent
+              variant={slideInOut}
+              className="flex w-full flex-col justify-between gap-2 text-xs text-gray-500 transition-all dark:text-white/30 sm:flex-row sm:items-center"
+            >
+              <div className="min-w-fit">
+                1 {token} ~ {isFetchingRate ? "..." : rate} {currency}
+              </div>
+              <div className="ml-auto flex w-full flex-col justify-end gap-2 sm:flex-row sm:items-center">
+                <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
+                <p className="min-w-fit">
+                  Swap usually completes in 15s or less
+                </p>
+              </div>
+            </AnimatedComponent>
+          )}
         </AnimatePresence>
       </form>
     </>

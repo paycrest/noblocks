@@ -12,7 +12,6 @@ import {
   FormDropdown,
   RecipientDetailsForm,
   KycModal,
-  NetworksDropdown,
 } from "../components";
 import type { TransactionFormProps } from "../types";
 import { currencies, networks, tokens } from "../mocks";
@@ -86,9 +85,9 @@ export const TransactionForm = ({
         noValidate
       >
         <div className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between py-1">
             <h3 className="px-2 font-medium">Swap</h3>
-            {authenticated && <NetworksDropdown iconOnly />}
+            {/* {authenticated && <NetworksDropdown iconOnly />} */}
           </div>
 
           {/* Amount to send & Token w/ wallet balance */}

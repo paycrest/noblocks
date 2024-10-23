@@ -29,7 +29,9 @@ export const NetworksDropdown = ({
     if (newNetwork && wallet) {
       try {
         await wallet.switchChain(newNetwork.chainId);
-        toast.success(`Network switched to ${newNetwork.name}`);
+        toast.success(`Network switched successfully`, {
+          description: `You are now connected to ${newNetwork.name}`,
+        });
         setSelectedNetwork(newNetwork);
         setDropdownSelectedItem(newNetwork.name);
       } catch (error) {

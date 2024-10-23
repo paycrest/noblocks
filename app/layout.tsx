@@ -10,36 +10,36 @@ import { Footer, Navbar } from "./components";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Noblocks',
+  title: "Noblocks",
   description:
-    'The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.',
-  publisher: 'Paycrest',
-  authors: [{ name: 'Paycrest', url: 'https://paycrest.io' }],
-  metadataBase: new URL('https://noblocks.xyz'),
+    "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
+  publisher: "Paycrest",
+  authors: [{ name: "Paycrest", url: "https://paycrest.io" }],
+  metadataBase: new URL("https://noblocks.xyz"),
   openGraph: {
-    title: 'Noblocks',
+    title: "Noblocks",
     description:
-      'The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.',
-    url: 'https://noblocks.xyz',
-    siteName: 'Noblocks',
+      "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
+    url: "https://noblocks.xyz",
+    siteName: "Noblocks",
     images: [
       {
-        url: '/images/og-image.png',
+        url: "/images/og-image.png",
       },
     ],
-    locale: 'en_US',
-    type: 'website',
+    locale: "en_US",
+    type: "website",
   },
   icons: {
-    icon: '/favicon.ico',
+    icon: "/favicon.ico",
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'Noblocks',
+    card: "summary_large_image",
+    title: "Noblocks",
     description:
-      'The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.',
-    creator: '@noblocks_xyz',
-    images: ['/images/og-image.png'],
+      "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
+    creator: "@noblocks_xyz",
+    images: ["/images/og-image.png"],
   },
 };
 
@@ -54,7 +54,7 @@ export default function RootLayout({
         <Providers>
           <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
             <Navbar />
-            <div className="relative z-10 mx-auto flex min-h-screen flex-col items-center px-4 pt-20 transition-all">
+            <div className="relative mx-auto flex min-h-screen flex-col items-center px-4 pt-20 transition-all">
               <MainContent>{children}</MainContent>
               <Footer />
             </div>

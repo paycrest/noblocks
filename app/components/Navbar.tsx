@@ -2,12 +2,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { UserPill } from "@privy-io/react-auth/ui";
 
 import { ArrowDownIcon, NoblocksLogo } from "./ImageAssets";
 import { primaryBtnClasses } from "./Styles";
 import { WalletDetails } from "./WalletDetails";
 import { NetworksDropdown } from "./NetworksDropdown";
-import { SettingsDropdown } from "./SettingsDropdown";
+// import { SettingsDropdown } from "./SettingsDropdown";
 import { AnimatedComponent } from "./AnimatedComponents";
 
 export const Navbar = () => {
@@ -53,11 +54,13 @@ export const Navbar = () => {
         <div className="flex gap-4 text-sm font-medium">
           {ready && authenticated ? (
             <>
-              <WalletDetails />
+              {/* <WalletDetails /> */}
 
               <NetworksDropdown />
 
-              <SettingsDropdown />
+              {/* <SettingsDropdown /> */}
+
+              <UserPill size={40} />
             </>
           ) : (
             <>

@@ -100,7 +100,7 @@ export const TransactionForm = ({
                 Send
               </label>
               {authenticated && token && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" hidden>
                   <WalletIcon />
                   <p>{testBalance}</p>
                   <button

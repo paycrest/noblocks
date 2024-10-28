@@ -100,7 +100,7 @@ export const TransactionForm = ({
                 Send
               </label>
               {authenticated && token && (
-                <div className="flex items-center gap-2" hidden>
+                <div className="hidden items-center gap-2">
                   <WalletIcon />
                   <p>{testBalance}</p>
                   <button
@@ -227,9 +227,9 @@ export const TransactionForm = ({
           {/* {errors.memo && <InputError message={errors.memo.message} />} */}
         </div>
 
-        {ready && authenticated && !isUserVerified && (
+        {/* {ready && authenticated && !isUserVerified && (
           <KycModal setIsUserVerified={setIsUserVerified} />
-        )}
+        )} */}
 
         {ready && !authenticated && (
           <button type="button" className={primaryBtnClasses} onClick={login}>
@@ -237,15 +237,15 @@ export const TransactionForm = ({
           </button>
         )}
 
-        {isUserVerified && (
-          <button
-            type="submit"
-            className={primaryBtnClasses}
-            disabled={!isDirty || !isValid}
-          >
-            Swap
-          </button>
-        )}
+        {/* {isUserVerified && ( */}
+        <button
+          type="submit"
+          className={primaryBtnClasses}
+          disabled={!isDirty || !isValid}
+        >
+          Swap
+        </button>
+        {/* )} */}
 
         <AnimatePresence>
           {rate > 0 && (

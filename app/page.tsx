@@ -11,18 +11,14 @@ import {
 } from "./components";
 import { fetchRate, fetchSupportedInstitutions } from "./api/aggregator";
 import type {
+  TransactionStatus,
   FormData,
   InstitutionProps,
   RecipientDetails,
   StateProps,
 } from "./types";
 import { usePrivy } from "@privy-io/react-auth";
-
-const STEPS = {
-  FORM: "form",
-  PREVIEW: "preview",
-  STATUS: "status",
-};
+import { STEPS, useStep } from "./context/StepContext";
 
 /**
  * Represents the Home component.
@@ -30,6 +26,7 @@ const STEPS = {
  */
 export default function Home() {
   const { authenticated } = usePrivy();
+  const { currentStep, setCurrentStep } = useStep();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -39,10 +36,13 @@ export default function Home() {
   const [formValues, setFormValues] = useState<FormData>({} as FormData);
   const [institutions, setInstitutions] = useState<InstitutionProps[]>([]);
 
-  const [currentStep, setCurrentStep] = useState(STEPS.FORM);
-
   const [selectedRecipient, setSelectedRecipient] =
     useState<RecipientDetails | null>(null);
+
+  const [transactionStatus, setTransactionStatus] =
+    useState<TransactionStatus>("idle");
+  const [createdAt, setCreatedAt] = useState<string>("");
+  const [orderId, setOrderId] = useState<string>("");
 
   // Form methods and watch
   const formMethods = useForm<FormData>({ mode: "onChange" });
@@ -61,6 +61,10 @@ export default function Home() {
 
     selectedRecipient,
     setSelectedRecipient,
+
+    setOrderId,
+    setCreatedAt,
+    setTransactionStatus,
   };
 
   useEffect(() => {
@@ -72,6 +76,8 @@ export default function Home() {
       setCurrentStep(STEPS.FORM);
       setFormValues({} as FormData);
     }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated]);
 
   // Fetch supported institutions based on currency

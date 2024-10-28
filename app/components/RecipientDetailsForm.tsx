@@ -91,15 +91,15 @@ export const RecipientDetailsForm = ({
     handler: () => setIsInstitutionsDropdownOpen(false),
   });
 
-   /**
+  /**
    * Array of institutions filtered and sorted alphabetically based on the bank search term.
    *
    * @type {Array<InstitutionProps>}
    */
-   const filteredInstitutions: Array<InstitutionProps> = useMemo(() => {
+  const filteredInstitutions: Array<InstitutionProps> = useMemo(() => {
     return institutions
       ?.filter((item) =>
-        item.name.toLowerCase().includes(bankSearchTerm.toLowerCase())
+        item.name.toLowerCase().includes(bankSearchTerm.toLowerCase()),
       )
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [institutions, bankSearchTerm]);
@@ -810,7 +810,7 @@ export const RecipientDetailsForm = ({
                                 }}
                                 transition={{ duration: 0.3 }}
                               >
-                                <div
+                                <Button
                                   className={`group flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 ${
                                     recipientToDelete === recipient
                                       ? "bg-red-100 dark:bg-red-900/30"
@@ -857,7 +857,7 @@ export const RecipientDetailsForm = ({
                                   >
                                     <TrashIcon className="size-4 stroke-gray-500 dark:stroke-white/50" />
                                   </Button>
-                                </div>
+                                </Button>
                               </motion.div>
                             ))
                           ) : (

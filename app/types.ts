@@ -42,30 +42,23 @@ export type RecipientDetails = {
   accountIdentifier: string;
 };
 
+export type TransactionStatus =
+  | "idle"
+  | "pending"
+  | "processing"
+  | "fulfilled"
+  | "validated"
+  | "settled"
+  | "refunded";
+
 export type TransactionStatusProps = {
-  transactionStatus:
-    | "idle"
-    | "pending"
-    | "processing"
-    | "fulfilled"
-    | "validated"
-    | "settled"
-    | "refunded";
+  transactionStatus: TransactionStatus;
   recipientName: string;
   orderId: string;
   createdAt: string;
   clearForm: () => void;
   clearTransactionStatus: () => void;
-  setTransactionStatus: (
-    status:
-      | "idle"
-      | "pending"
-      | "processing"
-      | "fulfilled"
-      | "validated"
-      | "settled"
-      | "refunded",
-  ) => void;
+  setTransactionStatus: (status: TransactionStatus) => void;
   formMethods: UseFormReturn<FormData, any, undefined>;
 };
 
@@ -145,6 +138,9 @@ export type StateProps = {
   isFetchingInstitutions: boolean;
   selectedRecipient: RecipientDetails | null;
   setSelectedRecipient: (recipient: RecipientDetails | null) => void;
+  setCreatedAt: (createdAt: string) => void;
+  setOrderId: (orderId: string) => void;
+  setTransactionStatus: (status: TransactionStatus) => void;
 };
 
 export type NetworkButtonProps = {

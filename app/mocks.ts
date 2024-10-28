@@ -2,15 +2,14 @@ export const tokens = [
   {
     name: "USDT",
     imageUrl: "/logos/usdt-logo.svg",
+    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+    decimals: 6,
   },
   {
     name: "USDC",
     imageUrl: "/logos/usdc-logo.svg",
-  },
-  {
-    id: "3",
-    name: "DAI",
-    imageUrl: "/logos/dai-logo.svg",
+    address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+    decimals: 6,
   },
 ];
 
@@ -50,32 +49,38 @@ export const networks = [
     name: "Base",
     imageUrl: "/logos/base-logo.svg",
     chainId: 8453,
+    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
   },
   {
     name: "BNB Smart Chain",
     imageUrl: "/logos/binance-logo.svg",
     chainId: 56,
+    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
   },
   {
     name: "Arbitrum One",
     imageUrl: "/logos/arbitrum-logo.svg",
     chainId: 42161,
+    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
   },
   {
-    name: "Polygon",
+    name: "Polygon Mumbai",
     imageUrl: "/logos/polygon-logo.svg",
     chainId: 137,
+    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
   },
   {
     name: "Scroll",
     imageUrl: "/logos/scroll-logo.svg",
     chainId: 534352,
+    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
   },
   {
     name: "Optimism",
     imageUrl: "/logos/optimism-logo.svg",
     chainId: 10,
-  }
+    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+  },
 ];
 
 export const colors = [

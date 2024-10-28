@@ -119,29 +119,57 @@ export const calculateDuration = (
 export function fetchSupportedTokens(network = ""): Token[] | undefined {
   let tokens: { [key: string]: Token[] };
 
-  if (process.env.NEXT_PUBLIC_ENVIRONMENT === "mainnet") {
-    tokens = {
-      Base: [
-        {
-          name: "USD Coin",
-          symbol: "USDC",
-          decimals: 6,
-          address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
-        },
-      ],
-    };
-  } else {
-    tokens = {
-      "Base Sepolia": [
-        {
-          name: "Dai",
-          symbol: "DAI",
-          decimals: 18,
-          address: "0x7683022d84f726a96c4a6611cd31dbf5409c0ac9",
-        },
-      ],
-    };
-  }
+  tokens = {
+    Base: [
+      {
+        name: "USD Coin",
+        symbol: "USDC",
+        decimals: 6,
+        address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      },
+    ],
+    "Arbitrum One": [
+      {
+        name: "USD Coin",
+        symbol: "USDC",
+        decimals: 6,
+        address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      },
+    ],
+    "BNB Smart Chain": [
+      {
+        name: "USD Coin",
+        symbol: "USDC",
+        decimals: 6,
+        address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      },
+    ],
+    "Polygon Mumbai": [
+      {
+        name: "USD Coin",
+        symbol: "USDC",
+        decimals: 6,
+        address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      },
+    ],
+    Scroll: [
+      {
+        name: "USD Coin",
+        symbol: "USDC",
+        decimals: 6,
+        address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      },
+    ],
+    Optimism: [
+      {
+        name: "USD Coin",
+        symbol: "USDC",
+        decimals: 6,
+        address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      },
+    ],
+  };
+
   return tokens[network];
 }
 
@@ -153,14 +181,14 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
  * @returns The shortened address.
  */
 export function shortenAddress(
-	address: string,
-	startChars = 4,
-	endChars = startChars,
+  address: string,
+  startChars = 4,
+  endChars = startChars,
 ): string {
-	if (address.length <= startChars + endChars) {
-		return address;
-	}
-	return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
+  if (address.length <= startChars + endChars) {
+    return address;
+  }
+  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
 }
 
 /**
@@ -171,7 +199,11 @@ export function shortenAddress(
 export function getGatewayContractAddress(network = ""): string | undefined {
   return {
     Base: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
-    "Base Sepolia": "0x847dfdaa218f9137229cf8424378871a1da8f625",
+    "Arbitrum One": "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+    "BNB Smart Chain": "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+    "Polygon Mumbai": "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+    Scroll: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+    Optimism: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
   }[network];
 }
 
@@ -217,4 +249,15 @@ export function generateTimeBasedNonce({
     .toString(36)
     .substring(2, 2 + length);
   return timeComponent + randomComponent;
+}
+
+/**
+ * Parses a chain ID from the CAIP-2 format and returns it as a number.
+ *
+ * @param chainId - The chain ID in CAIP-2 format (e.g., 'eip155:1').
+ * @returns The numeric chain ID.
+ */
+export function parsePrivyChainId(chainId: string): number {
+  // Privy returns chain IDs in CAIP-2 format: 'eip155:1'
+  return Number(chainId.split(":")[1]);
 }

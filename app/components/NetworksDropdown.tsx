@@ -8,6 +8,7 @@ import { getEmbeddedConnectedWallet, useWallets } from "@privy-io/react-auth";
 import { networks } from "../mocks";
 import { classNames } from "../utils";
 import { FlexibleDropdown } from "./FlexibleDropdown";
+import { useStep } from "../context/StepContext";
 import { useNetwork } from "../context/NetworksContext";
 
 interface NetworksDropdownProps {
@@ -19,6 +20,10 @@ export const NetworksDropdown = ({
 }: NetworksDropdownProps) => {
   const { wallets } = useWallets();
   const wallet = getEmbeddedConnectedWallet(wallets);
+
+  const { isFormStep } = useStep();
+  iconOnly = !isFormStep;
+
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const [dropdownSelectedItem, setDropdownSelectedItem] = useState<string>(
     selectedNetwork.name,
@@ -30,7 +35,7 @@ export const NetworksDropdown = ({
       try {
         await wallet.switchChain(newNetwork.chainId);
         toast.success(`Network switched successfully`, {
-          description: `You are now connected to ${newNetwork.name}`,
+          description: `You are now swapping on ${newNetwork.name} network`,
         });
         setSelectedNetwork(newNetwork);
         setDropdownSelectedItem(newNetwork.name);

@@ -30,9 +30,7 @@ const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
 const defaultNetwork =
   networks.find((network) => network.name === "Base") || networks[0];
 
-export const NetworkProvider: React.FC<{ children: ReactNode }> = ({
-  children,
-}) => {
+export function NetworkProvider({ children }: { children: React.ReactNode }) {
   const [selectedNetwork, setSelectedNetwork] = useState(defaultNetwork);
   const [smartWallet, setSmartWallet] = useState<any>();
 
@@ -79,7 +77,7 @@ export const NetworkProvider: React.FC<{ children: ReactNode }> = ({
       {children}
     </NetworkContext.Provider>
   );
-};
+}
 
 export const useNetwork = () => {
   const context = useContext(NetworkContext);

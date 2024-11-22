@@ -1,8 +1,8 @@
 "use client";
 import { Toaster } from "sonner";
+import { type ReactNode } from "react";
 import { ThemeProvider } from "next-themes";
-import { PrivyProvider } from "@privy-io/react-auth";
-import { NetworkProvider } from "./context/NetworksContext";
+
 import {
   arbitrum,
   base,
@@ -12,22 +12,18 @@ import {
   polygon,
   scroll,
 } from "viem/chains";
-import { StepProvider } from "./context/StepContext";
-import { createConfig, http, WagmiProvider } from "wagmi";
-import { type ReactNode } from "react";
 import { BiconomyProvider } from "@biconomy/use-aa";
+import { PrivyProvider } from "@privy-io/react-auth";
+import { createConfig, http, WagmiProvider } from "wagmi";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 
-if (!process.env.NEXT_PUBLIC_PRIVY_APP_ID)
-  throw new Error("One or more environment variables are not set");
+import config from "./lib/config";
+import { NetworkProvider, SmartAccountProvider, StepProvider } from "./context";
 
-export default function Providers({ children }: { children: ReactNode }) {
-  const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "";
-  const biconomyPaymasterApiKey =
-    process.env.NEXT_PUBLIC_PAYMASTER_API_KEY || "";
-  const bundlerUrl = process.env.NEXT_PUBLIC_BUNDLER_URL || "";
+function Providers({ children }: { children: ReactNode }) {
+  const { bundlerUrl, privyAppId, paymasterApiKey } = config;
 
-  const config = createConfig({
+  const wagmiConfig = createConfig({
     chains: [mainnet],
     transports: {
       [mainnet.id]: http(),
@@ -39,10 +35,10 @@ export default function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
-        <WagmiProvider config={config}>
+        <WagmiProvider config={wagmiConfig}>
           <BiconomyProvider
             config={{
-              biconomyPaymasterApiKey,
+              biconomyPaymasterApiKey: paymasterApiKey,
               bundlerUrl,
             }}
             queryClient={queryClient}
@@ -75,13 +71,7 @@ export default function Providers({ children }: { children: ReactNode }) {
                 ],
               }}
             >
-              <NetworkProvider>
-                <StepProvider>
-                  {children}
-
-                  <Toaster position="bottom-right" theme="dark" />
-                </StepProvider>
-              </NetworkProvider>
+              <ContextProviders>{children}</ContextProviders>
             </PrivyProvider>
           </BiconomyProvider>
         </WagmiProvider>
@@ -89,3 +79,18 @@ export default function Providers({ children }: { children: ReactNode }) {
     </ThemeProvider>
   );
 }
+
+function ContextProviders({ children }: { children: ReactNode }) {
+  return (
+    <NetworkProvider>
+      <SmartAccountProvider>
+        <StepProvider>
+          {children}
+          <Toaster position="bottom-right" theme="dark" />
+        </StepProvider>
+      </SmartAccountProvider>
+    </NetworkProvider>
+  );
+}
+
+export default Providers;

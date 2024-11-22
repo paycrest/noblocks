@@ -195,3 +195,11 @@ export type KYCStatusResponse = {
     url: string;
   };
 };
+
+export type Config = {
+  aggregatorUrl: string;
+  paymasterApiKey: string;
+  paymasterUrl: string;
+  bundlerUrl: string;
+  privyAppId: string;
+};

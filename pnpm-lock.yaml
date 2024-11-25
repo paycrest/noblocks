@@ -54,6 +54,9 @@ importers:
       '@biomejs/biome':
         specifier: 1.8.3
         version: 1.8.3
+      '@types/mixpanel-browser':
+        specifier: ^2.50.2
+        version: 2.50.2
       '@types/node':
         specifier: ^20
         version: 20.14.2
@@ -322,6 +325,9 @@ packages:
 
   '@types/css-font-loading-module@0.0.7':
     resolution: {integrity: sha512-nl09VhutdjINdWyXxHWN/w9zlNCfr60JUqJbd24YXUuCwgeL0TpFSdElCwb6cxfB6ybE19Gjj4g0jsgkXxKv1Q==}
+
+  '@types/mixpanel-browser@2.50.2':
+    resolution: {integrity: sha512-Iw8cBzplUPfHoeYuasqeYwdbGTNXhN+5kFT9kU+C7zm0NtaiPpKoiuzITr2ZH9KgBsWi2MbG0FOzIg9sQepauQ==}
 
   '@types/node@20.14.2':
     resolution: {integrity: sha512-xyu6WAMVwv6AKFLB+e/7ySZVr/0zLCzOa7rSpq6jNwpqOrUbcACDWC+53d4n2QHOnDou0fbIsg8wZu/sxrnI4Q==}
@@ -1138,6 +1144,8 @@ snapshots:
   '@tanstack/virtual-core@3.5.0': {}
 
   '@types/css-font-loading-module@0.0.7': {}
+
+  '@types/mixpanel-browser@2.50.2': {}
 
   '@types/node@20.14.2':
     dependencies:

@@ -11,6 +11,9 @@ importers:
       '@headlessui/react':
         specifier: ^2.1.1
         version: 2.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@hotjar/browser':
+        specifier: ^1.0.9
+        version: 1.0.9
       '@rive-app/react-canvas':
         specifier: ^4.14.2
         version: 4.14.2(react@18.3.1)
@@ -162,6 +165,9 @@ packages:
     peerDependencies:
       react: ^18
       react-dom: ^18
+
+  '@hotjar/browser@1.0.9':
+    resolution: {integrity: sha512-n9akDMod8BLGpYEQCrHwlYWWd63c1HlhUSXNIDfClZtKYXbUjIUOFlNZNNcUxgHTCsi4l2i+SWKsGsO0t93S8w==}
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -995,6 +1001,8 @@ snapshots:
       '@tanstack/react-virtual': 3.5.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
+
+  '@hotjar/browser@1.0.9': {}
 
   '@isaacs/cliui@8.0.2':
     dependencies:

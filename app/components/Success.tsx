@@ -5,7 +5,6 @@ import Confetti from "../json/confetti.json";
 import { buttonStyles } from "./WaitlistForm";
 import { AnimatedComponent, fadeInOut, slideInOut } from "./AnimatedComponents";
 import { CheckmarkCircleIcon, CheckmarkCircleIconDark } from "./ImageAssets";
-import { useMixpanelPageView } from "../hooks/analytics";
 
 export const Success = ({ onDone }: { onDone: () => void }) => {
   const { resolvedTheme } = useTheme();

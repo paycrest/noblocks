@@ -2,6 +2,7 @@ import { toast } from "react-toastify";
 import { useForm } from "react-hook-form";
 import { InputError } from "./InputError";
 import axios from "axios";
+import { trackFormSubmission } from "../hooks/useMixpanel";
 
 export const buttonStyles =
   "min-w-fit rounded-full bg-primary px-5 py-2.5 font-medium text-white transition-colors hover:bg-opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-white dark:focus-visible:ring-offset-neutral-900 dark:disabled:bg-zinc-800 dark:disabled:text-white/50";
@@ -17,6 +18,7 @@ export const WaitlistForm = ({ onSuccess }: { onSuccess: () => void }) => {
 
   const onSubmit = async () => {
     const email = watch("email");
+    trackFormSubmission("Newsletter", { email });
 
     try {
       const response = await axios.post("/api/waitlist", { email });
@@ -29,7 +31,7 @@ export const WaitlistForm = ({ onSuccess }: { onSuccess: () => void }) => {
       }
     } catch (error) {
       toast.error(
-        "Failed to add to waitlist. Please contact support for help.",
+        "Failed to add to waitlist. Please contact support for help."
       );
     }
   };

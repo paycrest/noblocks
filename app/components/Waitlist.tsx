@@ -1,5 +1,5 @@
 // import Image from "next/image";
-import { useMixpanelPageView } from "../hooks/useMixpanel";
+import { useMixpanelPageView } from "../hooks/analytics";
 import { AnimatedComponent, fadeInOut, slideInOut } from "./AnimatedComponents";
 import {
   ArbitrumIcon,

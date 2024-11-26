@@ -13,14 +13,17 @@ import {
   Waitlist,
 } from "./components";
 import { HeroAnimation } from "./components/HeroAnimation";
+import { updateHotjarState, useHotjar } from "./hooks/analytics";
 
 export default function Home() {
+  useHotjar();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   useEffect(() => {
     setIsPageLoading(false);
+    updateHotjarState(window.location.pathname);
   }, []);
 
   return (

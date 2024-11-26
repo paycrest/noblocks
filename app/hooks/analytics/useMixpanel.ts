@@ -1,6 +1,6 @@
 import mixpanel from "mixpanel-browser";
 import { useEffect } from "react";
-import config from "../lib/config";
+import config from "../../lib/config";
 
 const { env, mixpanelToken } = config;
 

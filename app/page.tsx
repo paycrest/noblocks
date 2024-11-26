@@ -13,10 +13,11 @@ import {
   Waitlist,
 } from "./components";
 import { HeroAnimation } from "./components/HeroAnimation";
-import { updateHotjarState, useHotjar } from "./hooks/analytics";
+import { trackEvent, updateHotjarState, useHotjar } from "./hooks/analytics";
 
 export default function Home() {
   useHotjar();
+  trackEvent("waitlist_page_viewed");
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);

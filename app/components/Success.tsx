@@ -8,7 +8,6 @@ import { CheckmarkCircleIcon, CheckmarkCircleIconDark } from "./ImageAssets";
 import { useMixpanelPageView } from "../hooks/analytics";
 
 export const Success = ({ onDone }: { onDone: () => void }) => {
-  useMixpanelPageView("Success");
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 

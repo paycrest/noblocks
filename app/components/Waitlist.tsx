@@ -1,4 +1,5 @@
 // import Image from "next/image";
+import { useMixpanelPageView } from "../hooks/useMixpanel";
 import { AnimatedComponent, fadeInOut, slideInOut } from "./AnimatedComponents";
 import {
   ArbitrumIcon,
@@ -44,6 +45,8 @@ export const Waitlist = ({
   setIsModalOpen: (value: boolean) => void;
   setIsSubmitted: (value: boolean) => void;
 }) => {
+  useMixpanelPageView("Home");
+
   return (
     <>
       <AnimatedComponent variant={slideInOut} delay={0.4}>

@@ -45,8 +45,6 @@ export const Waitlist = ({
   setIsModalOpen: (value: boolean) => void;
   setIsSubmitted: (value: boolean) => void;
 }) => {
-  useMixpanelPageView("Home");
-
   return (
     <>
       <AnimatedComponent variant={slideInOut} delay={0.4}>

@@ -1,6 +1,7 @@
 import { useTheme } from "next-themes";
 import { FiSun, FiMoon } from "react-icons/fi";
 import { useState, useEffect, type ReactElement } from "react";
+import { trackEvent } from "../hooks/analytics";
 
 type IconButtonProps = {
   icon: ReactElement;
@@ -21,9 +22,21 @@ const IconButton = ({ icon, onClick, isActive }: IconButtonProps) => (
   </button>
 );
 
+const useThemeSwitchIgnored = () => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      trackEvent("theme_switch_ignored");
+    }, 30000); // 30 seconds
+
+    return () => clearTimeout(timer);
+  }, []);
+};
+
 export const ThemeSwitch = () => {
   const [mounted, setMounted] = useState(false);
   const { setTheme, resolvedTheme } = useTheme();
+
+  useThemeSwitchIgnored();
 
   useEffect(() => setMounted(true), []);
 

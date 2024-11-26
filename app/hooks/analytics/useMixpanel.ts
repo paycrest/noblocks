@@ -24,19 +24,3 @@ export const trackEvent = (
     mixpanel.track(eventName, properties);
   }
 };
-
-export const useMixpanelPageView = (pageName: string) => {
-  useEffect(() => {
-    trackEvent("Page View", { page: pageName });
-  }, [pageName]);
-};
-
-export const trackFormSubmission = (
-  formName: string,
-  formData: Record<string, unknown>
-) => {
-  trackEvent("Form Submission", {
-    form: formName,
-    ...formData,
-  });
-};

@@ -2,7 +2,7 @@ import { toast } from "react-toastify";
 import { useForm } from "react-hook-form";
 import { InputError } from "./InputError";
 import axios from "axios";
-import { trackEvent, triggerHotjarEvent } from "../hooks/analytics";
+import { trackEvent } from "../hooks/analytics";
 import { useEffect, useState } from "react";
 
 export const buttonStyles =
@@ -56,7 +56,6 @@ export const WaitlistForm = ({ onSuccess }: { onSuccess: () => void }) => {
     const email = watch("email");
 
     trackTimeToJoin();
-    triggerHotjarEvent("newsletter_signup");
 
     try {
       const response = await axios.post("/api/waitlist", { email });

@@ -13,7 +13,7 @@ import {
   Waitlist,
 } from "./components";
 import { HeroAnimation } from "./components/HeroAnimation";
-import { trackEvent, updateHotjarState, useHotjar } from "./hooks/analytics";
+import { trackEvent, useHotjar } from "./hooks/analytics";
 
 export default function Home() {
   useHotjar();
@@ -24,7 +24,6 @@ export default function Home() {
 
   useEffect(() => {
     setIsPageLoading(false);
-    updateHotjarState(window.location.pathname);
   }, []);
 
   return (

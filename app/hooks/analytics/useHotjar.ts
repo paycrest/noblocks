@@ -14,24 +14,7 @@ export const useHotjar = () => {
     } else {
       console.warn("Hotjar ID is not defined");
     }
+
+    console.log("Hotjar initialized");
   }, [hotjarSiteId, env]);
-};
-
-export const identifyHotjarUser = (
-  userId: string,
-  userProperties?: Record<string, string | number | boolean>
-) => {
-  if (userProperties) {
-    Hotjar.identify(userId, userProperties);
-  } else {
-    Hotjar.identify(userId, {});
-  }
-};
-
-export const triggerHotjarEvent = (eventName: string) => {
-  Hotjar.event(eventName);
-};
-
-export const updateHotjarState = (newPath: string) => {
-  Hotjar.stateChange(newPath);
 };

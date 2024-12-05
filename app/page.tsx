@@ -8,17 +8,30 @@ import {
   Preloader,
   TransactionForm,
   TransactionPreview,
+  TransactionStatus,
 } from "./components";
 import { fetchRate, fetchSupportedInstitutions } from "./api/aggregator";
 import type {
-  TransactionStatus,
   FormData,
   InstitutionProps,
   RecipientDetails,
   StateProps,
+  TransactionStatusType,
 } from "./types";
 import { usePrivy } from "@privy-io/react-auth";
 import { STEPS, useStep } from "./context/StepContext";
+
+const INITIAL_FORM_STATE: FormData = {
+  network: "",
+  token: "",
+  amountSent: 0,
+  amountReceived: 0,
+  currency: "",
+  institution: "",
+  accountIdentifier: "",
+  recipientName: "",
+  memo: "",
+};
 
 /**
  * Represents the Home component.
@@ -33,6 +46,7 @@ export default function Home() {
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
 
   const [rate, setRate] = useState<number>(0);
+  const [recipientName, setRecipientName] = useState<string>("");
   const [formValues, setFormValues] = useState<FormData>({} as FormData);
   const [institutions, setInstitutions] = useState<InstitutionProps[]>([]);
 
@@ -40,13 +54,13 @@ export default function Home() {
     useState<RecipientDetails | null>(null);
 
   const [transactionStatus, setTransactionStatus] =
-    useState<TransactionStatus>("idle");
+    useState<TransactionStatusType>("idle");
   const [createdAt, setCreatedAt] = useState<string>("");
   const [orderId, setOrderId] = useState<string>("");
 
   // Form methods and watch
   const formMethods = useForm<FormData>({ mode: "onChange" });
-  const { watch, setValue } = formMethods;
+  const { watch } = formMethods;
   const { currency, amountSent } = watch();
 
   // State props for child components
@@ -58,6 +72,9 @@ export default function Home() {
 
     institutions,
     isFetchingInstitutions,
+
+    recipientName,
+    setRecipientName,
 
     selectedRecipient,
     setSelectedRecipient,
@@ -150,6 +167,21 @@ export default function Home() {
           <TransactionPreview
             handleBackButtonClick={handleBackToForm}
             stateProps={stateProps}
+          />
+        );
+      case STEPS.STATUS:
+        return (
+          <TransactionStatus
+            formMethods={formMethods}
+            transactionStatus={transactionStatus}
+            createdAt={createdAt}
+            orderId={orderId}
+            recipientName={stateProps.recipientName}
+            clearForm={() => setFormValues(INITIAL_FORM_STATE)}
+            clearTransactionStatus={() => {
+              setTransactionStatus("idle");
+            }}
+            setTransactionStatus={setTransactionStatus}
           />
         );
       default:

@@ -38,6 +38,8 @@ export const RecipientDetailsForm = ({
   stateProps: {
     isFetchingInstitutions,
     institutions,
+    recipientName,
+    setRecipientName,
     selectedRecipient,
     setSelectedRecipient,
   },
@@ -65,7 +67,6 @@ export const RecipientDetailsForm = ({
     useState<InstitutionProps | null>(null);
 
   const [isFetchingRecipientName, setIsFetchingRecipientName] = useState(false);
-  const [recipientName, setRecipientName] = useState("");
   const [recipientNameError, setRecipientNameError] = useState("");
 
   const [savedBankTransferRecipients, setSavedBankTransferRecipients] =

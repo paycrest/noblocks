@@ -170,6 +170,7 @@ export type Token = {
   symbol: string;
   decimals: number;
   address: string;
+  imageUrl?: string;
 };
 
 export type InitiateKYCPayload = {
@@ -198,8 +199,5 @@ export type KYCStatusResponse = {
 
 export type Config = {
   aggregatorUrl: string;
-  paymasterApiKey: string;
-  paymasterUrl: string;
-  bundlerUrl: string;
   privyAppId: string;
 };

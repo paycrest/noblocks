@@ -1,5 +1,7 @@
 import JSEncrypt from "jsencrypt";
 import type { InstitutionProps, Token } from "./types";
+import { publicClient } from "./client";
+import { erc20Abi } from "viem";
 
 /**
  * Concatenates and returns a string of class names.
@@ -126,6 +128,7 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         symbol: "USDC",
         decimals: 6,
         address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        imageUrl: "/logos/usdc-logo.svg",
       },
     ],
     "Arbitrum One": [
@@ -133,23 +136,26 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         name: "USD Coin",
         symbol: "USDC",
         decimals: 6,
-        address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+        imageUrl: "/logos/usdc-logo.svg",
       },
     ],
     "BNB Smart Chain": [
       {
         name: "USD Coin",
         symbol: "USDC",
-        decimals: 6,
-        address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        decimals: 18,
+        address: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+        imageUrl: "/logos/usdc-logo.svg",
       },
     ],
-    "Polygon Mumbai": [
+    "Polygon": [
       {
         name: "USD Coin",
         symbol: "USDC",
         decimals: 6,
-        address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        address: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
+        imageUrl: "/logos/usdc-logo.svg",
       },
     ],
     Scroll: [
@@ -157,7 +163,8 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         name: "USD Coin",
         symbol: "USDC",
         decimals: 6,
-        address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        address: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4",
+        imageUrl: "/logos/usdc-logo.svg",
       },
     ],
     Optimism: [
@@ -165,12 +172,44 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         name: "USD Coin",
         symbol: "USDC",
         decimals: 6,
-        address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+        imageUrl: "/logos/usdc-logo.svg",
       },
     ],
   };
 
   return tokens[network];
+}
+
+/**
+ * Fetches the wallet balance for the specified network and address.
+ *
+ * @param network - The network name.
+ * @param address - The wallet address.
+ * @returns The wallet balance.
+ */
+export async function fetchWalletBalance(network: string, address: string): Promise<number> {
+  const supportedTokens = fetchSupportedTokens(network);
+  if (!supportedTokens) return 0;
+
+  let balance: number = 0;
+
+  // Fetch balances in parallel
+  const balancePromises = supportedTokens.map(async (token) => {
+    const balanceInWei = await publicClient.readContract({
+      address: token.address as `0x${string}`,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [address as `0x${string}`],
+    });
+    return Number(balanceInWei) / Math.pow(10, token.decimals);
+  });
+
+  // Wait for all promises to resolve
+  const balances = await Promise.all(balancePromises);
+  balance = balances.reduce((acc, curr) => acc + curr, 0); // Sum all balances
+
+  return balance;
 }
 
 /**
@@ -201,7 +240,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Base: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
     "Arbitrum One": "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
     "BNB Smart Chain": "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
-    "Polygon Mumbai": "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+    "Polygon": "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
     Scroll: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
     Optimism: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
   }[network];

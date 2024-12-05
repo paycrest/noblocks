@@ -11,11 +11,12 @@ import {
   slideInOut,
   FormDropdown,
   RecipientDetailsForm,
-  KycModal,
 } from "../components";
-import type { TransactionFormProps } from "../types";
-import { currencies, networks, tokens } from "../mocks";
+import type { TransactionFormProps, Token } from "../types";
+import { currencies } from "../mocks";
 import { NoteIcon, WalletIcon } from "../components/ImageAssets";
+import { fetchSupportedTokens } from "../utils";
+import { useNetwork } from "../context/NetworksContext";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -33,6 +34,7 @@ export const TransactionForm = ({
 }: TransactionFormProps) => {
   // Destructure stateProps
   const { authenticated, ready, login } = usePrivy();
+  const { selectedNetwork } = useNetwork();
   const { rate, isFetchingRate } = stateProps;
 
   // Destructure formMethods from react-hook-form
@@ -45,9 +47,18 @@ export const TransactionForm = ({
   } = formMethods;
 
   const { amountSent, amountReceived, token, currency } = watch();
-
-  const [isUserVerified, setIsUserVerified] = useState(false);
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
+
+  const tokens = [];
+
+  const fetchedTokens: Token[] =
+    fetchSupportedTokens(selectedNetwork.name) || [];
+  for (const token of fetchedTokens) {
+    tokens.push({
+      name: token.symbol,
+      imageUrl: token.imageUrl,
+    });
+  }
 
   const testBalance = 1000;
   const handleBalanceMaxClick = () => {
@@ -72,7 +83,7 @@ export const TransactionForm = ({
 
   // set the default value of the token and network
   useEffect(() => {
-    register("token", { value: "USDT" });
+    register("token", { value: "USDC" });
     register("currency", { value: "KES" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -144,7 +155,7 @@ export const TransactionForm = ({
               <FormDropdown
                 defaultTitle="Select token"
                 data={tokens}
-                defaultSelectedItem="USDT"
+                defaultSelectedItem="USDC"
                 onSelect={(selectedToken) => setValue("token", selectedToken)}
               />
             </div>

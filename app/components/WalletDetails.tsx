@@ -2,14 +2,19 @@
 import Image from "next/image";
 import { useRef, useState, useEffect } from "react";
 import { useOutsideClick } from "../hooks";
-import { publicClient } from "../client";
-import { formatEther } from "viem";
 import { usePrivy } from "@privy-io/react-auth";
+import { useNetwork } from "../context/NetworksContext";
+import {
+  fetchSupportedTokens,
+  fetchWalletBalance,
+  formatCurrency,
+} from "../utils";
 
 export const WalletDetails = () => {
   const { ready, user } = usePrivy();
+  const { selectedNetwork } = useNetwork();
   const [isOpen, setIsOpen] = useState<boolean>(false);
-  const [balance, setBalance] = useState<string>("");
+  const [balance, setBalance] = useState<number>(0);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({
@@ -17,13 +22,20 @@ export const WalletDetails = () => {
     handler: () => setIsOpen(false),
   });
 
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet",
+  );
+
   useEffect(() => {
     const fetchBalance = async () => {
-      if (!ready || !user?.wallet?.address) return;
-      const balance = await publicClient.getBalance({
-        address: user?.wallet?.address as `0x${string}`,
-      });
-      setBalance(parseFloat(formatEther(balance)).toFixed(4));
+      if (!ready || !smartWallet?.address) return;
+
+      const balance = await fetchWalletBalance(
+        selectedNetwork.name,
+        smartWallet.address,
+      );
+
+      setBalance(balance);
     };
 
     fetchBalance();
@@ -56,7 +68,7 @@ export const WalletDetails = () => {
         </div>
         <div className="h-10 w-px border-r border-dashed border-gray-100 dark:border-white/10" />
         <div className="flex items-center gap-2 py-2.5 dark:text-white/80">
-          <p className="pr-1">{balance} ETH</p>
+          <p className="pr-1">{formatCurrency(balance, "USD", "en-US")}</p>
         </div>
       </button>
     </div>

@@ -12,16 +12,16 @@ import {
   polygon,
   scroll,
 } from "viem/chains";
-import { BiconomyProvider } from "@biconomy/use-aa";
 import { PrivyProvider } from "@privy-io/react-auth";
+import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { createConfig, http, WagmiProvider } from "wagmi";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 
 import config from "./lib/config";
-import { NetworkProvider, SmartAccountProvider, StepProvider } from "./context";
+import { NetworkProvider, StepProvider } from "./context";
 
 function Providers({ children }: { children: ReactNode }) {
-  const { bundlerUrl, privyAppId, paymasterApiKey } = config;
+  const { privyAppId } = config;
 
   const wagmiConfig = createConfig({
     chains: [mainnet],
@@ -36,44 +36,46 @@ function Providers({ children }: { children: ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={wagmiConfig}>
-          <BiconomyProvider
+          <PrivyProvider
+            appId={privyAppId}
             config={{
-              biconomyPaymasterApiKey: paymasterApiKey,
-              bundlerUrl,
+              appearance: {
+                theme: "dark",
+                accentColor: "#8B85F4",
+                landingHeader: "Connect",
+                logo: "/logos/noblocks-logo.svg",
+              },
+              embeddedWallets: {
+                createOnLogin: "all-users",
+              },
+              externalWallets: {
+                coinbaseWallet: {
+                  connectionOptions: "smartWalletOnly",
+                },
+              },
+              defaultChain: base,
+              supportedChains: [base, bsc, arbitrum, polygon, scroll, optimism],
             }}
-            queryClient={queryClient}
           >
-            <PrivyProvider
-              appId={privyAppId}
+            <SmartWalletsProvider
               config={{
-                appearance: {
-                  theme: "dark",
-                  accentColor: "#8B85F4",
-                  landingHeader: "Connect",
-                  logo: "/logos/noblocks-logo.svg",
-                },
-                embeddedWallets: {
-                  createOnLogin: "all-users",
-                },
-                externalWallets: {
-                  coinbaseWallet: {
-                    connectionOptions: "smartWalletOnly",
+                paymasterContext: {
+                  mode: "SPONSORED",
+                  calculateGasLimits: true,
+                  expiryDuration: 300,
+                  sponsorshipInfo: {
+                    webhookData: {},
+                    smartAccountInfo: {
+                      name: "BICONOMY",
+                      version: "2.0.0",
+                    },
                   },
                 },
-                defaultChain: base,
-                supportedChains: [
-                  base,
-                  bsc,
-                  arbitrum,
-                  polygon,
-                  scroll,
-                  optimism,
-                ],
               }}
             >
               <ContextProviders>{children}</ContextProviders>
-            </PrivyProvider>
-          </BiconomyProvider>
+            </SmartWalletsProvider>
+          </PrivyProvider>
         </WagmiProvider>
       </QueryClientProvider>
     </ThemeProvider>
@@ -83,12 +85,10 @@ function Providers({ children }: { children: ReactNode }) {
 function ContextProviders({ children }: { children: ReactNode }) {
   return (
     <NetworkProvider>
-      <SmartAccountProvider>
-        <StepProvider>
-          {children}
-          <Toaster position="bottom-right" theme="dark" />
-        </StepProvider>
-      </SmartAccountProvider>
+      <StepProvider>
+        {children}
+        <Toaster position="bottom-right" theme="dark" />
+      </StepProvider>
     </NetworkProvider>
   );
 }

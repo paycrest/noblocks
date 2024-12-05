@@ -6,6 +6,7 @@ import { useWriteContract, useReadContract, usePublicClient } from "wagmi";
 import { useSendSponsoredTransaction, useUserOpWait } from "@biconomy/use-aa";
 
 import {
+  fetchSupportedTokens,
   formatCurrency,
   formatNumberWithCommas,
   getGatewayContractAddress,
@@ -13,17 +14,18 @@ import {
   publicKeyEncrypt,
 } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
-import type { TransactionPreviewProps } from "../types";
+import type { Token, TransactionPreviewProps } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components";
-import { tokens } from "../mocks";
-import { erc20Abi, gatewayAbi } from "../api/abi";
+import { gatewayAbi } from "../api/abi";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
   BaseError,
   decodeEventLog,
-  formatUnits,
+  encodeFunctionData,
   getAddress,
   parseUnits,
+  erc20Abi,
 } from "viem";
 import { useEffect, useState } from "react";
 import { fetchAggregatorPublicKey } from "../api/aggregator";
@@ -33,7 +35,6 @@ import { toast } from "sonner";
  * Renders a preview of a transaction with the provided details.
  *
  * @param handleBackButtonClick - Function to handle the back button click event.
- * @param handlePaymentConfirmation - Function to handle the payment confirmation button click event.
  * @param stateProps - Object containing the form values, rate, institutions, and loading states.
  */
 export const TransactionPreview = ({
@@ -41,8 +42,9 @@ export const TransactionPreview = ({
   stateProps,
 }: TransactionPreviewProps) => {
   const { user } = usePrivy();
-  const client = usePublicClient();
+  const { client } = useSmartWallets();
   const { selectedNetwork } = useNetwork();
+  const publicClient = usePublicClient();
 
   const {
     rate,
@@ -67,14 +69,6 @@ export const TransactionPreview = ({
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0); // Used to trigger toast
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
-  const [gatewayAllowance, setGatewayAllowance] = useState<number>(0);
-  const [smartGatewayAllowance, setSmartGatewayAllowance] = useState<number>(0);
-  const [paymasterAllowance, setPaymasterAllowance] = useState<number>(0);
-
-  const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
-  const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
-  const [isApprovalLogsFetched, setIsApprovalLogsFetched] =
-    useState<boolean>(false);
   const [isOrderCreatedLogsFetched, setIsOrderCreatedLogsFetched] =
     useState<boolean>(false);
 
@@ -92,185 +86,134 @@ export const TransactionPreview = ({
     network: selectedNetwork.name,
   };
 
-  // User operation hooks
-  const {
-    mutate,
-    data: userOpResponse,
-    error: userOpError,
-    isPending: useropIsPending,
-  } = useSendSponsoredTransaction();
+  const fetchedTokens: Token[] =
+    fetchSupportedTokens(selectedNetwork.name) || [];
 
-  const { isLoading: waitIsLoading, error: waitError } =
-    useUserOpWait(userOpResponse);
+  const tokenAddress = fetchedTokens.find(
+    (t) => t.symbol.toUpperCase() === token,
+  )?.address as `0x${string}`;
 
-  const tokenAddress = tokens.find((t) => t.name.toUpperCase() === token)
-    ?.address as `0x${string}`;
-
-  const tokenDecimals = tokens.find(
-    (t) => t.name.toUpperCase() === token,
+  const tokenDecimals = fetchedTokens.find(
+    (t) => t.symbol.toUpperCase() === token,
   )?.decimals;
 
-  // Get allowance given to gateway contract
-  const { data: gatewayAllowanceInWei } = useReadContract({
-    abi: erc20Abi,
-    address: tokenAddress,
-    functionName: "allowance",
-    args: [
-      user?.wallet?.address as `0x${string}`,
-      getGatewayContractAddress(selectedNetwork.name) as `0x${string}`,
-    ],
-  });
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet",
+  );
 
-  const { data: smartGatewayAllowanceInWei } = useReadContract({
-    abi: erc20Abi,
-    address: tokenAddress,
-    functionName: "allowance",
-    args: [
-      user?.wallet?.address as `0x${string}`,
-      getGatewayContractAddress(selectedNetwork.name) as `0x${string}`,
-    ],
-  });
+  const prepareCreateOrderParams = async () => {
+    // Prepare recipient data
+    const recipient = {
+      accountIdentifier: formValues.accountIdentifier,
+      accountName: recipientName,
+      institution: formValues.institution,
+      memo: formValues.memo,
+    };
 
-  // Get allowance given to paymaster contract
-  const { data: paymasterAllowanceInWei } = useReadContract({
-    abi: erc20Abi,
-    address: tokenAddress,
-    functionName: "allowance",
-    args: [
-      getAddress("0x00000f79b7faf42eebadba19acc07cd08af44789"),
-      getGatewayContractAddress(selectedNetwork.name) as `0x${string}`,
-    ],
-  });
+    // Fetch aggregator public key
+    const publicKey = await fetchAggregatorPublicKey();
+    const encryptedRecipient = publicKeyEncrypt(recipient, publicKey.data);
 
-  const {
-    data: hash,
-    error,
-    isPending,
-    writeContractAsync,
-  } = useWriteContract();
+    // Prepare transaction parameters
+    const params = {
+      token: tokenAddress,
+      amount: parseUnits(amountSent.toString(), tokenDecimals!),
+      rate: parseUnits(rate.toString(), 0),
+      senderFeeRecipient: getAddress(
+        "0x0000000000000000000000000000000000000000",
+      ),
+      senderFee: BigInt(0),
+      refundAddress: smartWallet?.address as `0x${string}`,
+      messageHash: encryptedRecipient,
+    };
 
-  // Update token balance when token balance is available
-  useEffect(() => {
-    if (gatewayAllowanceInWei && tokenDecimals) {
-      setGatewayAllowance(
-        Number(formatUnits(gatewayAllowanceInWei, tokenDecimals)),
-      );
-    }
+    return params;
+  };
 
-    if (smartGatewayAllowanceInWei && tokenDecimals) {
-      setSmartGatewayAllowance(
-        Number(formatUnits(smartGatewayAllowanceInWei, tokenDecimals)),
-      );
-    }
+  const createOrder = async () => {
+    try {
+      if (!client) {
+        throw new Error("Smart wallet not found");
+      }
 
-    if (paymasterAllowanceInWei && tokenDecimals) {
-      setPaymasterAllowance(
-        Number(formatUnits(paymasterAllowanceInWei, tokenDecimals)),
-      );
-    }
+      await client.switchChain({
+        id: selectedNetwork.chainId,
+      });
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    gatewayAllowanceInWei,
-    smartGatewayAllowanceInWei,
-    paymasterAllowanceInWei,
-    tokenDecimals,
-  ]);
+      const params = await prepareCreateOrderParams();
+      setCreatedAt(new Date().toISOString());
 
-  // Update confirmation state and hash based on transaction status
-  useEffect(() => {
-    if (isPending || useropIsPending || waitIsLoading) {
-      setIsConfirming(true);
-    }
-
-    if (errorMessage || userOpError || waitError) {
-      setIsConfirming(false);
-    }
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    isPending,
-    errorMessage,
-    useropIsPending,
-    userOpError,
-    waitIsLoading,
-    waitError,
-    hash,
-  ]);
-
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-
-    if (!client || isApprovalLogsFetched || !isConfirming) return;
-
-    const getApprovalLogs = async () => {
-      try {
-        const toBlock = await client.getBlockNumber();
-        const logs = await client.getContractEvents({
-          address: tokenAddress,
-          abi: erc20Abi,
-          eventName: "Approval",
-          args: {
-            owner: user?.wallet?.address as `0x${string}`,
-            spender: getGatewayContractAddress(
+      const hash = await client?.sendTransaction({
+        calls: [
+          // Approve gateway contract to spend token
+          {
+            to: tokenAddress,
+            data: encodeFunctionData({
+              abi: erc20Abi,
+              functionName: "approve",
+              args: [
+                getAddress(
+                  getGatewayContractAddress(selectedNetwork.name) || "",
+                ),
+                parseUnits(amountSent.toString(), tokenDecimals!),
+              ],
+            }),
+          },
+          // Create order
+          {
+            to: getGatewayContractAddress(
               selectedNetwork.name,
             ) as `0x${string}`,
+            data: encodeFunctionData({
+              abi: gatewayAbi,
+              functionName: "createOrder",
+              args: [
+                params.token,
+                params.amount,
+                params.rate,
+                params.senderFeeRecipient,
+                params.senderFee,
+                params.refundAddress!,
+                params.messageHash,
+              ],
+            }),
           },
-          fromBlock: toBlock - BigInt(10),
-          toBlock: toBlock,
-        });
+        ],
+      });
+    } catch (e: any) {
+      setErrorMessage((e as BaseError).shortMessage);
+      setIsConfirming(false);
+    }
+  };
 
-        if (logs.length > 0) {
-          const decodedLog = decodeEventLog({
-            abi: erc20Abi,
-            eventName: "Approval",
-            data: logs[0].data,
-            topics: logs[0].topics,
-          });
-
-          if (
-            decodedLog.args.value ===
-            parseUnits(amountSent.toString(), tokenDecimals!)
-          ) {
-            clearInterval(intervalId);
-            setIsApprovalLogsFetched(true);
-            await createOrder();
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching Approval logs:", error);
-      }
-    };
-
-    // Initial call
-    getApprovalLogs();
-
-    // Set up polling
-    intervalId = setInterval(getApprovalLogs, 2000);
-
-    // Cleanup function
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, isApprovalLogsFetched, isConfirming]);
+  const handlePaymentConfirmation = async () => {
+    try {
+      setIsConfirming(true);
+      await createOrder();
+    } catch (e: any) {
+      setErrorMessage((e as BaseError).shortMessage);
+      setErrorCount((prevCount) => prevCount + 1);
+      setIsConfirming(false);
+    }
+  };
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
 
-    if (!client || isOrderCreatedLogsFetched || !isConfirming) return;
+    if (!publicClient || !isConfirming || !user || isOrderCreatedLogsFetched)
+      return;
 
     const getOrderCreatedLogs = async () => {
       try {
-        const toBlock = await client.getBlockNumber();
-        const logs = await client.getContractEvents({
+        const toBlock = await publicClient.getBlockNumber();
+        const logs = await publicClient.getContractEvents({
           address: getGatewayContractAddress(
             selectedNetwork.name,
           ) as `0x${string}`,
           abi: gatewayAbi,
           eventName: "OrderCreated",
           args: {
-            sender: user?.wallet?.address as `0x${string}`,
+            sender: smartWallet?.address as `0x${string}`,
             token: tokenAddress,
           },
           fromBlock: toBlock - BigInt(10),
@@ -306,102 +249,7 @@ export const TransactionPreview = ({
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, isOrderCreatedLogsFetched, isConfirming]);
-
-  const prepareCreateOrderParams = async () => {
-    // Prepare recipient data
-    const recipient = {
-      accountIdentifier: formValues.accountIdentifier,
-      accountName: recipientName,
-      institution: formValues.institution,
-      // providerId: currency === "NGN" ? NGN_PROVIDER_ID : KES_PROVIDER_ID,
-      memo: formValues.memo,
-    };
-
-    // Fetch aggregator public key
-    const publicKey = await fetchAggregatorPublicKey();
-    const encryptedRecipient = publicKeyEncrypt(recipient, publicKey.data);
-
-    // Prepare transaction parameters
-    const params = {
-      token: tokenAddress,
-      amount: parseUnits(amountSent.toString(), tokenDecimals!),
-      rate: parseUnits(rate.toString(), 0),
-      senderFeeRecipient: getAddress(
-        "0x0000000000000000000000000000000000000000",
-      ),
-      senderFee: BigInt(0),
-      refundAddress: user?.wallet?.address as `0x${string}`,
-      messageHash: encryptedRecipient,
-    };
-
-    return params;
-  };
-
-  const createOrder = async () => {
-    try {
-      const params = await prepareCreateOrderParams();
-      setCreatedAt(new Date().toISOString());
-      // Create order
-      await writeContractAsync({
-        abi: gatewayAbi,
-        address: getGatewayContractAddress(
-          selectedNetwork.name,
-        ) as `0x${string}`,
-        functionName: "createOrder",
-        args: [
-          params.token,
-          params.amount,
-          params.rate,
-          params.senderFeeRecipient,
-          params.senderFee,
-          params.refundAddress!,
-          params.messageHash,
-        ],
-      });
-
-      setIsOrderCreated(true);
-    } catch (e: any) {
-      if (error) {
-        setErrorMessage((error as BaseError).shortMessage || error!.message);
-      } else {
-        setErrorMessage((e as BaseError).shortMessage);
-      }
-      setIsConfirming(false);
-    }
-  };
-
-  const handlePaymentConfirmation = async () => {
-    try {
-      setIsConfirming(true);
-
-      // Approve gateway contract to spend token
-      if (gatewayAllowance < amountSent) {
-        await writeContractAsync({
-          address: tokenAddress,
-          abi: erc20Abi,
-          functionName: "approve",
-          args: [
-            getAddress(getGatewayContractAddress(selectedNetwork.name) || ""),
-            parseUnits(amountSent.toString(), tokenDecimals!),
-          ],
-        });
-
-        setIsGatewayApproved(true);
-      } else {
-        await createOrder();
-      }
-    } catch (e: any) {
-      if (error) {
-        setErrorMessage((error as BaseError).shortMessage || error!.message);
-      } else {
-        setErrorMessage((e as BaseError).shortMessage);
-      }
-      setErrorCount((prevCount) => prevCount + 1);
-      setIsConfirming(false);
-    }
-  };
+  }, [client, isConfirming]);
 
   useEffect(() => {
     if (errorMessage) {
@@ -465,43 +313,6 @@ export const TransactionPreview = ({
 
       <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
 
-      {/* Confirm and Approve */}
-
-      <p className="text-gray-500 dark:text-white/50">
-        To confirm order, you&apos;ll be required to approve these two
-        permissions from your wallet
-      </p>
-
-      <div className="flex flex-wrap items-center justify-between gap-y-4 text-gray-500 dark:text-white/50">
-        <p>
-          {/* replace 1 with 2 when the approve state is set to complete */}
-          <span>{/* {isGatewayApproved ? 2 : 1} */} 1</span> of 2
-        </p>
-        <div className="flex flex-wrap gap-4">
-          <div className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5">
-            {/* {isGatewayApproved ? (
-                <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
-              ) : ( */}
-            <TbCircleDashed className="text-lg" />
-            {/* )} */}
-            <p className="pr-1">Approve Gateway</p>
-          </div>
-          <div className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5">
-            {/* {isOrderCreated ? (
-                <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
-              ) : ( */}
-            <TbCircleDashed
-              className="text-lg"
-              // className={`text-lg ${
-              // isGatewayApproved ? "animate-spin" : ""
-              // }`}
-            />
-            {/* )} */}
-            <p className="pr-1">Create Order</p>
-          </div>
-        </div>
-      </div>
-
       {/* CTAs */}
       <div className="flex gap-6">
         <button
@@ -514,10 +325,10 @@ export const TransactionPreview = ({
         <button
           type="submit"
           className={`w-full ${primaryBtnClasses}`}
-          // disabled={isConfirming}
+          onClick={handlePaymentConfirmation}
+          disabled={isConfirming}
         >
-          {/* {isConfirming ? "Confirming..." : "Confirm payment"} */}
-          Confirm payment
+          {isConfirming ? "Confirming..." : "Confirm payment"}
         </button>
       </div>
     </div>

@@ -32,8 +32,12 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet",
+  );
+
   const handleCopyAddress = () => {
-    navigator.clipboard.writeText(user?.wallet?.address ?? "");
+    navigator.clipboard.writeText(smartWallet?.address ?? "");
     setIsAddressCopied(true);
     setTimeout(() => setIsAddressCopied(false), 2000);
   };
@@ -79,7 +83,7 @@ export const SettingsDropdown = () => {
                 <div className="flex items-center gap-2.5">
                   <WalletIcon />
                   <p className="max-w-60 break-words">
-                    {shortenAddress(user?.wallet?.address ?? "", 6)}
+                    {shortenAddress(smartWallet?.address ?? "", 6)}
                   </p>
                 </div>
                 {isAddressCopied ? (
@@ -92,7 +96,7 @@ export const SettingsDropdown = () => {
             <li
               role="menuitem"
               className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
-              onClick={() => handleFundWallet(user?.wallet?.address ?? "")}
+              onClick={() => handleFundWallet(smartWallet?.address ?? "")}
             >
               <RiMoneyDollarCircleLine className="text-lg text-gray-500 dark:text-white/40" />
               <p>Fund Account</p>

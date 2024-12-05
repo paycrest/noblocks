@@ -1,18 +1,3 @@
-export const tokens = [
-  {
-    name: "USDT",
-    imageUrl: "/logos/usdt-logo.svg",
-    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
-    decimals: 6,
-  },
-  {
-    name: "USDC",
-    imageUrl: "/logos/usdc-logo.svg",
-    address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
-    decimals: 6,
-  },
-];
-
 export const currencies = [
   {
     name: "KES",

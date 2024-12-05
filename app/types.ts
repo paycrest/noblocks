@@ -1,5 +1,11 @@
 import type { ReactNode } from "react";
-import type { UseFormReturn } from "react-hook-form";
+
+import type {
+  FieldErrors,
+  UseFormRegister,
+  UseFormHandleSubmit,
+  UseFormReturn,
+} from "react-hook-form";
 
 export type InstitutionProps = {
   name: string;
@@ -8,13 +14,13 @@ export type InstitutionProps = {
 };
 
 export type FormData = {
+  network: string;
   token: string;
   currency: string;
   institution: string;
   accountIdentifier: string;
   recipientName: string;
   memo: string;
-
   amountSent: number;
   amountReceived: number;
 };
@@ -42,7 +48,19 @@ export type RecipientDetails = {
   accountIdentifier: string;
 };
 
-export type TransactionStatus =
+export type FormMethods = {
+  handleSubmit: UseFormHandleSubmit<FormData, undefined>;
+  register: UseFormRegister<FormData>;
+  watch: (name: string) => string | number | undefined;
+  formState: {
+    errors: FieldErrors<FormData>;
+    isValid: boolean;
+    isDirty: boolean;
+    isSubmitting: boolean;
+  };
+};
+
+export type TransactionStatusType =
   | "idle"
   | "pending"
   | "processing"
@@ -52,14 +70,14 @@ export type TransactionStatus =
   | "refunded";
 
 export type TransactionStatusProps = {
-  transactionStatus: TransactionStatus;
+  transactionStatus: TransactionStatusType;
   recipientName: string;
   orderId: string;
   createdAt: string;
   clearForm: () => void;
   clearTransactionStatus: () => void;
-  setTransactionStatus: (status: TransactionStatus) => void;
-  formMethods: UseFormReturn<FormData, any, undefined>;
+  setTransactionStatus: (status: TransactionStatusType) => void;
+  formMethods: FormMethods;
 };
 
 export type SelectFieldProps = {
@@ -133,14 +151,16 @@ type TxReceipt = {
 export type StateProps = {
   formValues: FormData;
   rate: number;
+  recipientName: string;
   isFetchingRate: boolean;
   institutions: InstitutionProps[];
   isFetchingInstitutions: boolean;
   selectedRecipient: RecipientDetails | null;
+  setRecipientName: (name: string) => void;
   setSelectedRecipient: (recipient: RecipientDetails | null) => void;
   setCreatedAt: (createdAt: string) => void;
   setOrderId: (orderId: string) => void;
-  setTransactionStatus: (status: TransactionStatus) => void;
+  setTransactionStatus: (status: TransactionStatusType) => void;
 };
 
 export type NetworkButtonProps = {

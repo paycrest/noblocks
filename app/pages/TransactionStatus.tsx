@@ -16,8 +16,7 @@ import {
   Preloader,
   primaryBtnClasses,
   TransactionReceipt,
-} from "../../components";
-import { usePathname, useRouter } from "next/navigation";
+} from "../components";
 import {
   CheckIcon,
   FarcasterIconDarkTheme,
@@ -27,38 +26,175 @@ import {
   XIconDarkTheme,
   XIconLightTheme,
   YellowHeart,
-} from "../../components/ImageAssets";
-import { classNames } from "../../utils";
-import { fetchOrderDetails } from "../../api/aggregator";
-import { OrderDetailsResponse } from "../../types";
+} from "../components/ImageAssets";
+import { calculateDuration, classNames } from "../utils";
+import { fetchOrderDetails } from "../api/aggregator";
+import { OrderDetailsResponse, TransactionStatusProps } from "../types";
 
-const testId =
-  "0xb52d38153715eff7a4eb41b71907e1383f1172ebb2662fec300d0742ab323f52";
-
-export default function TransactionStatus() {
-  const pathname = usePathname();
-  const orderId = pathname.split("/").pop() ?? testId;
-
-  const router = useRouter();
+/**
+ * Renders the transaction status component.
+ *
+ * @param transactionStatus - The status of the transaction.
+ * @param recipientName - The name of the recipient.
+ * @param errorMessage - The error message, if any.
+ * @param createdAt - The creation date of the transaction.
+ * @param clearForm - Function to clear the form.
+ * @param clearTransactionStatus - Function to clear the transaction status.
+ * @param formMethods - The form methods.
+ */
+export function TransactionStatus({
+  transactionStatus,
+  recipientName,
+  orderId,
+  createdAt,
+  clearForm,
+  clearTransactionStatus,
+  setTransactionStatus,
+  formMethods,
+}: TransactionStatusProps) {
   const { resolvedTheme } = useTheme();
-
-  const [transactionStatus, setTransactionStatus] = useState<
-    | "idle"
-    | "pending"
-    | "processing"
-    | "fulfilled"
-    | "validated"
-    | "settled"
-    | "refunded"
-  >("idle");
   const [orderDetails, setOrderDetails] = useState<OrderDetailsResponse>();
+  const [completedAt, setCompletedAt] = useState<string>("");
   const [createdHash, setCreatedHash] = useState("");
 
-  const [isPageLoading, setIsPageLoading] = useState(true);
   const [isGettingReceipt, setIsGettingReceipt] = useState(false);
 
+  const { watch } = formMethods;
+  const token = watch("token");
+  const amount = watch("amountSent");
+
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    if (!orderId || ["validated", "settled"].includes(transactionStatus))
+      return;
+
+    const getOrderDetails = async () => {
+      try {
+        const orderDetailsResponse = await fetchOrderDetails(orderId);
+        setOrderDetails(orderDetails);
+
+        if (orderDetailsResponse.data.status !== "pending") {
+          if (["validated", "settled"].includes(transactionStatus)) {
+            // If order is completed, we can stop polling
+            clearInterval(intervalId);
+          }
+
+          setTransactionStatus(
+            orderDetailsResponse.data.status as
+              | "processing"
+              | "fulfilled"
+              | "validated"
+              | "settled"
+              | "refunded",
+          );
+
+          setCompletedAt(orderDetailsResponse.data.updatedAt);
+
+          if (orderDetailsResponse.data.status === "processing") {
+            const createdReceipt = orderDetailsResponse.data.txReceipts.find(
+              (txReceipt) => txReceipt.status === "pending",
+            );
+            setCreatedHash(createdReceipt?.txHash!);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching order status:", error);
+      }
+    };
+
+    getOrderDetails();
+    intervalId = setInterval(getOrderDetails, 2000);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [orderDetails, transactionStatus]);
+
+  const StatusIndicator = () => (
+    <AnimatePresence mode="wait">
+      {["validated", "settled"].includes(transactionStatus) ? (
+        <AnimatedComponent variant={scaleInOut} key="settled">
+          <CheckIcon className="size-10" />
+        </AnimatedComponent>
+      ) : transactionStatus === "refunded" ? (
+        <AnimatedComponent variant={scaleInOut} key="refunded">
+          <XFailIcon className="size-10" />
+        </AnimatedComponent>
+      ) : (
+        <AnimatedComponent
+          variant={fadeInOut}
+          key="pending"
+          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${
+            transactionStatus === "pending"
+              ? "bg-orange-50 text-orange-400"
+              : transactionStatus === "processing"
+                ? "bg-yellow-50 text-yellow-400"
+                : "bg-gray-50"
+          }`}
+        >
+          <PiSpinnerBold className="animate-spin" />
+          <p>{transactionStatus}</p>
+        </AnimatedComponent>
+      )}
+    </AnimatePresence>
+  );
+
+  /**
+   * Handles the back button click event.
+   * Clears the transaction status if it's refunded, otherwise clears the form and transaction status.
+   */
+  const handleBackButtonClick = () => {
+    if (transactionStatus === "refunded") {
+      clearTransactionStatus();
+    } else {
+      clearForm();
+      clearTransactionStatus();
+    }
+  };
+
+  const getPaymentMessage = () => {
+    if (transactionStatus === "refunded") {
+      return (
+        <>
+          Your transfer of{" "}
+          <span className="text-neutral-900 dark:text-white">
+            {orderDetails?.data.amount} {orderDetails?.data.token}
+          </span>{" "}
+          to {recipientName} was unsuccessful
+          <br />
+          Token will be refunded to your account
+        </>
+      );
+    } else if (!["validated", "settled"].includes(transactionStatus)) {
+      return `Processing payment to ${recipientName}. Hang on, this will only take a few seconds.`;
+    } else {
+      return (
+        <>
+          Your transfer of{" "}
+          <span className="text-neutral-900 dark:text-white">
+            {orderDetails?.data.amount} {orderDetails?.data.token}
+          </span>{" "}
+          to {recipientName} has been completed successfully.
+        </>
+      );
+    }
+  };
+
+  if (!orderId) {
+    return (
+      <>
+        <div className="flex h-screen items-center justify-center">
+          <p className="text-gray-500 dark:text-white/50">
+            Transaction ID not found
+          </p>
+        </div>
+      </>
+    );
+  }
+
   const getImageSrc = () => {
-    const base = !["validated", "settled", "refunded", "fulfilled"].includes(
+    const base = !["validated", "settled", "refunded"].includes(
       transactionStatus,
     )
       ? "/images/stepper"
@@ -91,155 +227,8 @@ export default function TransactionStatus() {
     setIsGettingReceipt(false);
   };
 
-  useEffect(() => {
-    setIsPageLoading(false);
-  }, []);
-
-  // useEffect(() => {
-  //   const timer = setInterval(() => {
-  //     setTransactionStatus((prevStatus) => {
-  //       switch (prevStatus) {
-  //         case "pending":
-  //           return "processing";
-  //         case "processing":
-  //           return "fulfilled";
-  //         case "fulfilled":
-  //           return "refunded";
-  //         case "refunded":
-  //           return "pending";
-  //         default:
-  //           return "pending";
-  //       }
-  //     });
-  //   }, 3000);
-  //   return () => clearInterval(timer);
-  // }, []);
-
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-
-    if (!orderId || ["validated", "settled"].includes(transactionStatus))
-      return;
-
-    const getOrderDetails = async () => {
-      try {
-        const orderDetailsResponse = await fetchOrderDetails(orderId);
-        setOrderDetails(orderDetails);
-
-        if (orderDetailsResponse.data.status !== "pending") {
-          if (
-            ["validated", "settled", "fulfilled"].includes(transactionStatus)
-          ) {
-            // If order is completed, we can stop polling
-            clearInterval(intervalId);
-          }
-
-          setTransactionStatus(
-            orderDetailsResponse.data.status as
-              | "processing"
-              | "fulfilled"
-              | "validated"
-              | "settled"
-              | "refunded",
-          );
-
-          if (orderDetailsResponse.data.status === "processing") {
-            const createdReceipt = orderDetailsResponse.data.txReceipts.find(
-              (txReceipt) => txReceipt.status === "pending",
-            );
-            setCreatedHash(createdReceipt?.txHash!);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching order status:", error);
-      }
-    };
-
-    getOrderDetails();
-    intervalId = setInterval(getOrderDetails, 2000);
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [orderDetails, transactionStatus]);
-
-  const StatusIndicator = () => (
-    <AnimatePresence mode="wait">
-      {["validated", "settled", "fulfilled"].includes(transactionStatus) ? (
-        <AnimatedComponent variant={scaleInOut} key="settled">
-          <CheckIcon className="size-10" />
-        </AnimatedComponent>
-      ) : transactionStatus === "refunded" ? (
-        <AnimatedComponent variant={scaleInOut} key="refunded">
-          <XFailIcon className="size-10" />
-        </AnimatedComponent>
-      ) : (
-        <AnimatedComponent
-          variant={fadeInOut}
-          key="pending"
-          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${
-            transactionStatus === "pending"
-              ? "bg-orange-50 text-orange-400"
-              : transactionStatus === "processing"
-                ? "bg-yellow-50 text-yellow-400"
-                : "bg-gray-50"
-          }`}
-        >
-          <PiSpinnerBold className="animate-spin" />
-          <p>{transactionStatus}</p>
-        </AnimatedComponent>
-      )}
-    </AnimatePresence>
-  );
-
-  const getPaymentMessage = () => {
-    if (transactionStatus === "refunded") {
-      return (
-        <>
-          Your transfer of{" "}
-          <span className="text-neutral-900 dark:text-white">
-            {orderDetails?.data.amount} {orderDetails?.data.token}
-          </span>{" "}
-          to Jane Chris was unsuccessful
-          <br />
-          Token will be refunded to your account
-        </>
-      );
-    } else if (
-      !["validated", "settled", "fulfilled"].includes(transactionStatus)
-    ) {
-      return `Processing payment to Jane Chris. Hang on, this will only take a few seconds.`;
-    } else {
-      return (
-        <>
-          Your transfer of{" "}
-          <span className="text-neutral-900 dark:text-white">
-            {orderDetails?.data.amount} {orderDetails?.data.token}
-          </span>{" "}
-          to Jane Chris has been completed successfully.
-        </>
-      );
-    }
-  };
-
-  if (!orderId) {
-    return (
-      <>
-        <Preloader isLoading={isPageLoading} />
-
-        <div className="flex h-screen items-center justify-center">
-          <p className="text-gray-500 dark:text-white/50">
-            Transaction ID not found
-          </p>
-        </div>
-      </>
-    );
-  }
-
   return (
     <>
-      <Preloader isLoading={isPageLoading} />
-
       <AnimatedComponent
         variant={slideInOut}
         className="flex w-full justify-between gap-10 text-sm"
@@ -252,17 +241,17 @@ export default function TransactionStatus() {
               className="flex items-center gap-1 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5"
             >
               <Image
-                src={`/logos/${orderDetails?.data.token.toLowerCase()}-logo.svg`}
-                alt={`${orderDetails?.data.token} logo`}
+                src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
+                alt={`${token} logo`}
                 width={14}
                 height={14}
               />
               <p className="whitespace-nowrap pr-4 font-medium">
-                {orderDetails?.data.amount} {orderDetails?.data.token}
+                {amount} {token}
               </p>
             </AnimatedComponent>
             <Image
-              src={isPageLoading ? "" : getImageSrc()}
+              src={getImageSrc()}
               alt="Progress"
               width={200}
               height={200}
@@ -273,7 +262,7 @@ export default function TransactionStatus() {
               delay={0.4}
               className="whitespace-nowrap rounded-full bg-gray-50 px-2 py-1 capitalize dark:bg-white/5"
             >
-              {"Jane Chris".toLowerCase().split(" ")[0]}
+              {recipientName.toLowerCase().split(" ")[0]}
             </AnimatedComponent>
           </div>
         </div>
@@ -288,16 +277,12 @@ export default function TransactionStatus() {
           >
             {transactionStatus === "refunded"
               ? "Oops! Transaction failed"
-              : !["validated", "settled", "fulfilled"].includes(
-                    transactionStatus,
-                  )
+              : !["validated", "settled"].includes(transactionStatus)
                 ? "Processing payment..."
                 : "Transaction successful"}
           </AnimatedComponent>
 
-          {!["validated", "settled", "fulfilled"].includes(
-            transactionStatus,
-          ) && (
+          {!["validated", "settled"].includes(transactionStatus) && (
             <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
           )}
 
@@ -320,9 +305,7 @@ export default function TransactionStatus() {
                   className="flex w-full gap-3"
                 >
                   {orderDetails?.data &&
-                    ["validated", "settled", "fulfilled"].includes(
-                      transactionStatus,
-                    ) && (
+                    ["validated", "settled"].includes(transactionStatus) && (
                       <button
                         type="button"
                         onClick={handleGetReceipt}
@@ -337,7 +320,7 @@ export default function TransactionStatus() {
 
                   <button
                     type="button"
-                    onClick={() => router.push("/")}
+                    onClick={handleBackButtonClick}
                     className={`w-fit ${primaryBtnClasses}`}
                   >
                     {transactionStatus === "refunded"
@@ -349,9 +332,7 @@ export default function TransactionStatus() {
             )}
           </AnimatePresence>
 
-          {["validated", "settled", "fulfilled"].includes(
-            transactionStatus,
-          ) && (
+          {["validated", "settled"].includes(transactionStatus) && (
             <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
           )}
 
@@ -392,7 +373,9 @@ export default function TransactionStatus() {
                 </div>
                 <div className="flex items-center justify-between gap-1">
                   <p className="flex-1">Time spent</p>
-                  <p className="flex-1">12 seconds</p>
+                  <p className="flex-1">
+                    {calculateDuration(createdAt, completedAt)}
+                  </p>
                 </div>
                 <div className="flex items-center justify-between gap-1">
                   <p className="flex-1">Onchain receipt</p>
@@ -412,9 +395,7 @@ export default function TransactionStatus() {
           </AnimatePresence>
 
           <AnimatePresence>
-            {["validated", "settled", "fulfilled"].includes(
-              transactionStatus,
-            ) && (
+            {["validated", "settled"].includes(transactionStatus) && (
               <AnimatedComponent
                 variant={slideInOut}
                 delay={0.8}
@@ -427,8 +408,8 @@ export default function TransactionStatus() {
                 <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
                   <YellowHeart className="size-8 flex-shrink-0" />
                   <p>
-                    Yay! I just sent crypto to a bank account in 12 sec on
-                    noblocks.xyz
+                    Yay! I just sent crypto to a bank account in{" "}
+                    {calculateDuration(createdAt, completedAt)} on noblocks.xyz
                   </p>
                   <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
                 </div>
@@ -441,7 +422,7 @@ export default function TransactionStatus() {
                     href="https://x.com/intent/tweet?text=I%20just%20sent%20crypto%20to%20a%20bank%20account%20in%2012%20sec%20on%20noblocks.xyz"
                     className={`!rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                   >
-                    {!isPageLoading && resolvedTheme === "dark" ? (
+                    {resolvedTheme === "dark" ? (
                       <XIconDarkTheme className="size-5" />
                     ) : (
                       <XIconLightTheme className="size-5" />
@@ -455,7 +436,7 @@ export default function TransactionStatus() {
                     href="https://warpcast.com/compose?text=Yay%21%20I%20just%20sent%20crypto%20to%20a%20bank%20account%20in%2012%20sec%20on%20noblocks.xyz"
                     className={`!rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                   >
-                    {!isPageLoading && resolvedTheme === "dark" ? (
+                    {resolvedTheme === "dark" ? (
                       <FarcasterIconDarkTheme className="size-5" />
                     ) : (
                       <FarcasterIconLightTheme className="size-5" />

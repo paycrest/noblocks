@@ -24,6 +24,7 @@ export { FundWalletModal } from "./FundWalletModal";
 export { TransactionReceipt } from "./TransactionReceipt";
 export { TransactionForm } from "../pages/TransactionForm";
 export { TransactionPreview } from "../pages/TransactionPreview";
+export { TransactionStatus } from "../pages/TransactionStatus";
 
 export { InputError } from "./InputError";
 export { FormDropdown } from "./FormDropdown";

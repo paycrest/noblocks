@@ -5,7 +5,6 @@ import { useOutsideClick } from "../hooks";
 import { usePrivy } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import {
-  fetchSupportedTokens,
   fetchWalletBalance,
   formatCurrency,
 } from "../utils";

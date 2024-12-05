@@ -1,9 +1,8 @@
 "use client";
 import Image from "next/image";
-import { TbCircleDashed, TbInfoSquareRounded } from "react-icons/tb";
+import { TbInfoSquareRounded } from "react-icons/tb";
 
-import { useWriteContract, useReadContract, usePublicClient } from "wagmi";
-import { useSendSponsoredTransaction, useUserOpWait } from "@biconomy/use-aa";
+import { usePublicClient } from "wagmi";
 
 import {
   fetchSupportedTokens,
@@ -30,6 +29,7 @@ import {
 import { useEffect, useState } from "react";
 import { fetchAggregatorPublicKey } from "../api/aggregator";
 import { toast } from "sonner";
+import { useStep } from "../context/StepContext";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -45,6 +45,7 @@ export const TransactionPreview = ({
   const { client } = useSmartWallets();
   const { selectedNetwork } = useNetwork();
   const publicClient = usePublicClient();
+  const { setCurrentStep } = useStep();
 
   const {
     rate,
@@ -82,7 +83,7 @@ export const TransactionPreview = ({
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" "),
     account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
-    description: memo,
+    description: memo || "N/A",
     network: selectedNetwork.name,
   };
 
@@ -180,6 +181,9 @@ export const TransactionPreview = ({
           },
         ],
       });
+
+      console.log("hash", hash);
+      await getOrderId();
     } catch (e: any) {
       setErrorMessage((e as BaseError).shortMessage);
       setIsConfirming(false);
@@ -197,11 +201,18 @@ export const TransactionPreview = ({
     }
   };
 
-  useEffect(() => {
+  const getOrderId = async () => {
     let intervalId: NodeJS.Timeout;
 
-    if (!publicClient || !isConfirming || !user || isOrderCreatedLogsFetched)
-      return;
+    console.log(
+      publicClient,
+      isConfirming,
+      user,
+      isOrderCreatedLogsFetched,
+      selectedNetwork.name,
+    );
+
+    if (!publicClient || !user || isOrderCreatedLogsFetched) return;
 
     const getOrderCreatedLogs = async () => {
       try {
@@ -220,6 +231,8 @@ export const TransactionPreview = ({
           toBlock: toBlock,
         });
 
+        console.log("logs", logs);
+
         if (logs.length > 0) {
           const decodedLog = decodeEventLog({
             abi: gatewayAbi,
@@ -228,11 +241,14 @@ export const TransactionPreview = ({
             topics: logs[0].topics,
           });
 
+          console.log("decodedLog", decodedLog);
+
           setIsOrderCreatedLogsFetched(true);
           clearInterval(intervalId);
           setOrderId(decodedLog.args.orderId);
           setCreatedAt(new Date().toISOString());
           setTransactionStatus("pending");
+          setCurrentStep("status");
         }
       } catch (error) {
         console.error("Error fetching OrderCreated logs:", error);
@@ -249,7 +265,7 @@ export const TransactionPreview = ({
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [client, isConfirming]);
+  };
 
   useEffect(() => {
     if (errorMessage) {

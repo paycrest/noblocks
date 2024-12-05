@@ -101,7 +101,7 @@ export const TransactionForm = ({
             {/* {authenticated && <NetworksDropdown iconOnly />} */}
           </div>
 
-          {/* Amount to send & Token w/ wallet balance */}
+          {/* Amount to send & token with wallet balance */}
           <div className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-neutral-900">
             <div className="flex items-center justify-between">
               <label
@@ -228,7 +228,7 @@ export const TransactionForm = ({
               type="text"
               id="memo"
               {...register("memo", {
-                required: { value: true, message: "Add description" },
+                required: { value: false, message: "Add description" },
               })}
               className="w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm text-neutral-900 transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900"
               placeholder="Add description"

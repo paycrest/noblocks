@@ -153,7 +153,7 @@ export const CookieConsent = () => {
                   href="https://www.paycrest.io/privacy-policy#third-party-applications-and-services"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-text-link no-underline hover:underline"
+                  className="text-text-link-light no-underline hover:underline dark:text-text-link-dark"
                 >
                   Learn more
                 </Link>
@@ -210,7 +210,7 @@ export const CookieConsent = () => {
                       href="https://www.paycrest.io/privacy-policy#third-party-applications-and-services"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-text-link no-underline hover:underline"
+                      className="text-text-link-light no-underline hover:underline dark:text-text-link-dark"
                     >
                       Learn more
                     </Link>

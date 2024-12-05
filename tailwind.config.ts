@@ -24,7 +24,10 @@ const config: Config = {
         text: {
           primary: "#121217",
           secondary: "#6C6C89",
-          link: "#0065F5",
+          link: {
+            light: "#0065F5",
+            dark: "#3384f7",
+          },
         },
         surface: {
           overlay: "#202020",

@@ -144,7 +144,7 @@ export const TransactionPreview = ({
       const params = await prepareCreateOrderParams();
       setCreatedAt(new Date().toISOString());
 
-      const hash = await client?.sendTransaction({
+      await client?.sendTransaction({
         calls: [
           // Approve gateway contract to spend token
           {
@@ -182,7 +182,6 @@ export const TransactionPreview = ({
         ],
       });
 
-      console.log("hash", hash);
       await getOrderId();
     } catch (e: any) {
       setErrorMessage((e as BaseError).shortMessage);
@@ -234,8 +233,6 @@ export const TransactionPreview = ({
           toBlock: toBlock,
         });
 
-        console.log("logs", logs);
-
         if (logs.length > 0) {
           const decodedLog = decodeEventLog({
             abi: gatewayAbi,
@@ -243,8 +240,6 @@ export const TransactionPreview = ({
             data: logs[0].data,
             topics: logs[0].topics,
           });
-
-          console.log("decodedLog", decodedLog);
 
           setIsOrderCreatedLogsFetched(true);
           clearInterval(intervalId);

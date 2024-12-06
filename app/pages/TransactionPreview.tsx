@@ -2,8 +2,6 @@
 import Image from "next/image";
 import { TbInfoSquareRounded } from "react-icons/tb";
 
-import { usePublicClient } from "wagmi";
-
 import {
   fetchSupportedTokens,
   formatCurrency,
@@ -25,7 +23,10 @@ import {
   getAddress,
   parseUnits,
   erc20Abi,
+  createPublicClient,
+  http,
 } from "viem";
+
 import { useEffect, useState } from "react";
 import { fetchAggregatorPublicKey } from "../api/aggregator";
 import { toast } from "sonner";
@@ -44,8 +45,7 @@ export const TransactionPreview = ({
   const { user } = usePrivy();
   const { client } = useSmartWallets();
   const { selectedNetwork } = useNetwork();
-  const publicClient = usePublicClient();
-  const { setCurrentStep } = useStep();
+  const { currentStep, setCurrentStep } = useStep();
 
   const {
     rate,
@@ -204,18 +204,21 @@ export const TransactionPreview = ({
   const getOrderId = async () => {
     let intervalId: NodeJS.Timeout;
 
-    console.log(
-      publicClient,
-      isConfirming,
-      user,
-      isOrderCreatedLogsFetched,
-      selectedNetwork.name,
-    );
+    const publicClient = createPublicClient({
+      chain: client?.chain,
+      transport: http(),
+    });
 
     if (!publicClient || !user || isOrderCreatedLogsFetched) return;
 
     const getOrderCreatedLogs = async () => {
       try {
+        if (currentStep !== "preview") {
+          return () => {
+            if (intervalId) clearInterval(intervalId);
+          };
+        }
+
         const toBlock = await publicClient.getBlockNumber();
         const logs = await publicClient.getContractEvents({
           address: getGatewayContractAddress(

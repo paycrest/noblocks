@@ -11,15 +11,16 @@ import {
   TransactionStatus,
 } from "./components";
 import { fetchRate, fetchSupportedInstitutions } from "./api/aggregator";
-import type {
-  FormData,
-  InstitutionProps,
-  RecipientDetails,
-  StateProps,
-  TransactionStatusType,
+import {
+  STEPS,
+  type FormData,
+  type InstitutionProps,
+  type RecipientDetails,
+  type StateProps,
+  type TransactionStatusType,
 } from "./types";
 import { usePrivy } from "@privy-io/react-auth";
-import { STEPS, useStep } from "./context/StepContext";
+import { useStep } from "./context/StepContext";
 
 const INITIAL_FORM_STATE: FormData = {
   network: "",
@@ -61,7 +62,7 @@ export default function Home() {
   // Form methods and watch
   const formMethods = useForm<FormData>({ mode: "onChange" });
   const { watch } = formMethods;
-  const { currency, amountSent } = watch();
+  const { currency, amountSent, token } = watch();
 
   // State props for child components
   const stateProps: StateProps = {
@@ -120,12 +121,14 @@ export default function Home() {
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
+    if (!currency) return;
+
     const getRate = async () => {
       setIsFetchingRate(true);
       const rate = await fetchRate({
-        token: "usdt", // only USDT is supported
+        token,
         amount: amountSent || 1,
-        currency: currency || "KES",
+        currency,
       });
       setRate(rate.data);
       setIsFetchingRate(false);
@@ -141,7 +144,7 @@ export default function Home() {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [amountSent, currency]);
+  }, [amountSent, currency, token]);
 
   const handleFormSubmit = (data: FormData) => {
     setFormValues(data);
@@ -182,6 +185,7 @@ export default function Home() {
               setTransactionStatus("idle");
             }}
             setTransactionStatus={setTransactionStatus}
+            setCurrentStep={setCurrentStep}
           />
         );
       default:

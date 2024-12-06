@@ -5,7 +5,7 @@ import { classNames } from "../utils";
 
 interface FormDropdownProps {
   defaultTitle: string;
-  defaultSelectedItem: string;
+  defaultSelectedItem?: string;
   onSelect?: (name: string) => void;
   data: DropdownItem[];
   className?: string;

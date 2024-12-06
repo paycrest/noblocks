@@ -1,12 +1,5 @@
-import { createContext, useContext, useState } from "react";
-
-export const STEPS = {
-  FORM: "form",
-  PREVIEW: "preview",
-  STATUS: "status",
-} as const;
-
-type Step = (typeof STEPS)[keyof typeof STEPS];
+import React, { createContext, useContext, useState } from "react";
+import { Step, STEPS } from "../types";
 
 interface StepContextType {
   currentStep: Step;

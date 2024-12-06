@@ -25,6 +25,14 @@ export type FormData = {
   amountReceived: number;
 };
 
+export const STEPS = {
+  FORM: "form",
+  PREVIEW: "preview",
+  STATUS: "status",
+} as const;
+
+export type Step = (typeof STEPS)[keyof typeof STEPS];
+
 export type TransactionFormProps = {
   onSubmit: any;
   formMethods: UseFormReturn<FormData, any, undefined>;
@@ -77,6 +85,7 @@ export type TransactionStatusProps = {
   clearForm: () => void;
   clearTransactionStatus: () => void;
   setTransactionStatus: (status: TransactionStatusType) => void;
+  setCurrentStep: (step: Step) => void;
   formMethods: FormMethods;
 };
 

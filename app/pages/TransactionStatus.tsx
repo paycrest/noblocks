@@ -13,7 +13,6 @@ import {
   secondaryBtnClasses,
   fadeInOut,
   slideInOut,
-  Preloader,
   primaryBtnClasses,
   TransactionReceipt,
 } from "../components";
@@ -27,9 +26,10 @@ import {
   XIconLightTheme,
   YellowHeart,
 } from "../components/ImageAssets";
-import { calculateDuration, classNames } from "../utils";
+import { calculateDuration, classNames, getExplorerLink } from "../utils";
 import { fetchOrderDetails } from "../api/aggregator";
 import { OrderDetailsResponse, TransactionStatusProps } from "../types";
+import { useNetwork } from "../context/NetworksContext";
 
 /**
  * Renders the transaction status component.
@@ -40,6 +40,8 @@ import { OrderDetailsResponse, TransactionStatusProps } from "../types";
  * @param createdAt - The creation date of the transaction.
  * @param clearForm - Function to clear the form.
  * @param clearTransactionStatus - Function to clear the transaction status.
+ * @param setTransactionStatus - Function to set the transaction status.
+ * @param setCurrentStep - Function to set the current step.
  * @param formMethods - The form methods.
  */
 export function TransactionStatus({
@@ -50,9 +52,11 @@ export function TransactionStatus({
   clearForm,
   clearTransactionStatus,
   setTransactionStatus,
+  setCurrentStep,
   formMethods,
 }: TransactionStatusProps) {
   const { resolvedTheme } = useTheme();
+  const { selectedNetwork } = useNetwork();
   const [orderDetails, setOrderDetails] = useState<OrderDetailsResponse>();
   const [completedAt, setCompletedAt] = useState<string>("");
   const [createdHash, setCreatedHash] = useState("");
@@ -61,12 +65,16 @@ export function TransactionStatus({
 
   const { watch } = formMethods;
   const token = watch("token");
+  const currency = watch("currency");
   const amount = watch("amountSent");
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
 
-    if (!orderId || ["validated", "settled"].includes(transactionStatus))
+    if (
+      !orderId ||
+      ["validated", "settled", "refunded"].includes(transactionStatus)
+    )
       return;
 
     const getOrderDetails = async () => {
@@ -75,9 +83,13 @@ export function TransactionStatus({
         setOrderDetails(orderDetails);
 
         if (orderDetailsResponse.data.status !== "pending") {
-          if (["validated", "settled"].includes(transactionStatus)) {
-            // If order is completed, we can stop polling
-            clearInterval(intervalId);
+          if (
+            ["validated", "settled", "refunded"].includes(transactionStatus)
+          ) {
+            // If order is completed or refunded, we can stop polling
+            return () => {
+              if (intervalId) clearInterval(intervalId);
+            };
           }
 
           setTransactionStatus(
@@ -151,6 +163,7 @@ export function TransactionStatus({
       clearForm();
       clearTransactionStatus();
     }
+    setCurrentStep("form");
   };
 
   const getPaymentMessage = () => {
@@ -159,11 +172,12 @@ export function TransactionStatus({
         <>
           Your transfer of{" "}
           <span className="text-neutral-900 dark:text-white">
-            {orderDetails?.data.amount} {orderDetails?.data.token}
+            {amount} {token}
           </span>{" "}
-          to {recipientName} was unsuccessful
+          to {recipientName} was unsuccessful.
           <br />
-          Token will be refunded to your account
+          <br />
+          The stablecoin has been refunded to your account.
         </>
       );
     } else if (!["validated", "settled"].includes(transactionStatus)) {
@@ -173,25 +187,13 @@ export function TransactionStatus({
         <>
           Your transfer of{" "}
           <span className="text-neutral-900 dark:text-white">
-            {orderDetails?.data.amount} {orderDetails?.data.token}
+            {amount} {token}
           </span>{" "}
           to {recipientName} has been completed successfully.
         </>
       );
     }
   };
-
-  if (!orderId) {
-    return (
-      <>
-        <div className="flex h-screen items-center justify-center">
-          <p className="text-gray-500 dark:text-white/50">
-            Transaction ID not found
-          </p>
-        </div>
-      </>
-    );
-  }
 
   const getImageSrc = () => {
     const base = !["validated", "settled", "refunded"].includes(
@@ -295,7 +297,7 @@ export function TransactionStatus({
           </AnimatedComponent>
 
           <AnimatePresence>
-            {["validated", "settled", "refunded", "fulfilled"].includes(
+            {["validated", "settled", "refunded"].includes(
               transactionStatus,
             ) && (
               <>
@@ -304,19 +306,18 @@ export function TransactionStatus({
                   delay={0.5}
                   className="flex w-full gap-3"
                 >
-                  {orderDetails?.data &&
-                    ["validated", "settled"].includes(transactionStatus) && (
-                      <button
-                        type="button"
-                        onClick={handleGetReceipt}
-                        className={`w-fit ${secondaryBtnClasses}`}
-                        disabled={isGettingReceipt}
-                      >
-                        {isGettingReceipt
-                          ? "Generating receipt..."
-                          : "Get receipt"}
-                      </button>
-                    )}
+                  {["validated", "settled"].includes(transactionStatus) && (
+                    <button
+                      type="button"
+                      onClick={handleGetReceipt}
+                      className={`w-fit ${secondaryBtnClasses}`}
+                      disabled={isGettingReceipt}
+                    >
+                      {isGettingReceipt
+                        ? "Generating receipt..."
+                        : "Get receipt"}
+                    </button>
+                  )}
 
                   <button
                     type="button"
@@ -337,7 +338,7 @@ export function TransactionStatus({
           )}
 
           <AnimatePresence>
-            {["validated", "settled", "fulfilled", "refunded"].includes(
+            {["validated", "settled", "refunded"].includes(
               transactionStatus,
             ) && (
               <AnimatedComponent
@@ -366,7 +367,7 @@ export function TransactionStatus({
                       )}
                     >
                       {transactionStatus === "refunded"
-                        ? "Refunded"
+                        ? "Failed"
                         : "Completed"}
                     </p>
                   </div>
@@ -381,7 +382,10 @@ export function TransactionStatus({
                   <p className="flex-1">Onchain receipt</p>
                   <p className="flex-1">
                     <a
-                      href={`https://basescan.io/tx/${createdHash}`}
+                      href={getExplorerLink(
+                        selectedNetwork.name,
+                        `${createdHash ? createdHash : orderDetails?.data.txHash}`,
+                      )}
                       className="text-primary hover:underline dark:text-primary"
                       target="_blank"
                       rel="noreferrer"
@@ -408,7 +412,7 @@ export function TransactionStatus({
                 <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
                   <YellowHeart className="size-8 flex-shrink-0" />
                   <p>
-                    Yay! I just sent crypto to a bank account in{" "}
+                    Yay! I just swapped {token} for {currency} in{" "}
                     {calculateDuration(createdAt, completedAt)} on noblocks.xyz
                   </p>
                   <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
@@ -419,7 +423,7 @@ export function TransactionStatus({
                     aria-label="Share on Twitter"
                     rel="noopener noreferrer"
                     target="_blank"
-                    href="https://x.com/intent/tweet?text=I%20just%20sent%20crypto%20to%20a%20bank%20account%20in%2012%20sec%20on%20noblocks.xyz"
+                    href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
                     className={`!rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                   >
                     {resolvedTheme === "dark" ? (
@@ -433,7 +437,7 @@ export function TransactionStatus({
                     aria-label="Share on Warpcast"
                     rel="noopener noreferrer"
                     target="_blank"
-                    href="https://warpcast.com/compose?text=Yay%21%20I%20just%20sent%20crypto%20to%20a%20bank%20account%20in%2012%20sec%20on%20noblocks.xyz"
+                    href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
                     className={`!rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                   >
                     {resolvedTheme === "dark" ? (

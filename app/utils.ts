@@ -113,6 +113,29 @@ export const calculateDuration = (
 };
 
 /**
+ * Returns the explorer link for a given transaction hash based on the network and status.
+ * @param network - The network name.
+ * @param txHash - The transaction hash.
+ * @param status - The status of the transaction.
+ * @returns The explorer link for the transaction.
+ */
+export const getExplorerLink = (network: string, txHash: string) => {
+  if (network === 'Polygon') {
+    return `https://polygonscan.com/tx/${txHash}`;
+  } else if (network === 'BNB Smart Chain') {
+    return `https://bscscan.com/tx/${txHash}`;
+  } else if (network === 'Base') {
+    return `https://basescan.org/tx/${txHash}`;
+  } else if (network === 'Arbitrum One') {
+    return `https://arbiscan.io/tx/${txHash}`;
+  } else if (network === 'Optimism') {
+    return `https://optimistic.etherscan.io/tx/${txHash}`;
+  } else if (network === 'Scroll') {
+    return `https://scrollscan.com/tx/${txHash}`;
+  }
+};
+
+/**
  * Fetches the supported tokens for the specified network.
  *
  * @param network - The network name.
@@ -149,7 +172,7 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         imageUrl: "/logos/usdc-logo.svg",
       },
     ],
-    "Polygon": [
+    Polygon: [
       {
         name: "USD Coin",
         symbol: "USDC",
@@ -182,17 +205,21 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
 }
 
 /**
- * Fetches the wallet balance for the specified network and address.
+ * Fetches the wallet balances for the specified network and address.
  *
  * @param network - The network name.
  * @param address - The wallet address.
- * @returns The wallet balance.
+ * @returns An object containing the total balance and individual token balances.
  */
-export async function fetchWalletBalance(network: string, address: string): Promise<number> {
+export async function fetchWalletBalance(
+  network: string,
+  address: string,
+): Promise<{ total: number; balances: Record<string, number> }> {
   const supportedTokens = fetchSupportedTokens(network);
-  if (!supportedTokens) return 0;
+  if (!supportedTokens) return { total: 0, balances: {} };
 
-  let balance: number = 0;
+  let totalBalance: number = 0;
+  const balances: Record<string, number> = {};
 
   // Fetch balances in parallel
   const balancePromises = supportedTokens.map(async (token) => {
@@ -202,14 +229,16 @@ export async function fetchWalletBalance(network: string, address: string): Prom
       functionName: "balanceOf",
       args: [address as `0x${string}`],
     });
-    return Number(balanceInWei) / Math.pow(10, token.decimals);
+    const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+    balances[token.symbol] = balance; // Store the balance for the token
+    return balance;
   });
 
   // Wait for all promises to resolve
-  const balances = await Promise.all(balancePromises);
-  balance = balances.reduce((acc, curr) => acc + curr, 0); // Sum all balances
+  const tokenBalances = await Promise.all(balancePromises);
+  totalBalance = tokenBalances.reduce((acc, curr) => acc + curr, 0); // Sum all balances
 
-  return balance;
+  return { total: totalBalance, balances };
 }
 
 /**
@@ -240,7 +269,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Base: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
     "Arbitrum One": "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
     "BNB Smart Chain": "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
-    "Polygon": "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+    Polygon: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
     Scroll: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
     Optimism: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
   }[network];

@@ -15,7 +15,7 @@ import {
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
 import { NoteIcon, WalletIcon } from "../components/ImageAssets";
-import { fetchSupportedTokens } from "../utils";
+import { fetchSupportedTokens, fetchWalletBalance } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 
 /**
@@ -33,7 +33,7 @@ export const TransactionForm = ({
   stateProps,
 }: TransactionFormProps) => {
   // Destructure stateProps
-  const { authenticated, ready, login } = usePrivy();
+  const { authenticated, ready, user, login } = usePrivy();
   const { selectedNetwork } = useNetwork();
   const { rate, isFetchingRate } = stateProps;
 
@@ -48,6 +48,7 @@ export const TransactionForm = ({
 
   const { amountSent, amountReceived, token, currency } = watch();
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
+  const [tokenBalance, setTokenBalance] = useState<number>(0);
 
   const tokens = [];
 
@@ -60,11 +61,32 @@ export const TransactionForm = ({
     });
   }
 
-  const testBalance = 1000;
   const handleBalanceMaxClick = () => {
-    setValue("amountSent", testBalance);
+    setValue("amountSent", tokenBalance);
     setIsReceiveInputActive(false);
   };
+
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (authenticated && ready) {
+        const smartWallet = user?.linkedAccounts.find(
+          (account) => account.type === "smart_wallet",
+        );
+
+        if (!smartWallet) return;
+
+        // fetch token balance
+        const result = await fetchWalletBalance(
+          selectedNetwork.name,
+          smartWallet.address,
+        );
+
+        setTokenBalance(result.balances[token]);
+      }
+    };
+
+    fetchBalance();
+  }, [amountSent]);
 
   // Effect to calculate receive amount based on send amount and rate
   useEffect(() => {
@@ -83,8 +105,30 @@ export const TransactionForm = ({
 
   // set the default value of the token and network
   useEffect(() => {
-    register("token", { value: "USDC" });
-    register("currency", { value: "KES" });
+    if (!token || !currency) {
+      register("token", { value: "USDC" });
+      // register("currency", { value: "KES" });
+
+      const fetchBalance = async () => {
+        if (authenticated && ready) {
+          const smartWallet = user?.linkedAccounts.find(
+            (account) => account.type === "smart_wallet",
+          );
+
+          if (!smartWallet) return;
+
+          // fetch token balance
+          const result = await fetchWalletBalance(
+            selectedNetwork.name,
+            smartWallet.address,
+          );
+
+          setTokenBalance(result.balances[token]);
+        }
+      };
+
+      fetchBalance();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -111,9 +155,13 @@ export const TransactionForm = ({
                 Send
               </label>
               {authenticated && token && (
-                <div className="hidden items-center gap-2">
-                  <WalletIcon />
-                  <p>{testBalance}</p>
+                <div className="flex items-center gap-2">
+                  <span className="inline">
+                    <WalletIcon />
+                  </span>
+                  <span>
+                    {tokenBalance} {token}
+                  </span>
                   <button
                     type="button"
                     onClick={handleBalanceMaxClick}
@@ -138,8 +186,8 @@ export const TransactionForm = ({
                     message: `Min. amount is 0.5`,
                   },
                   max: {
-                    value: 500,
-                    message: `Max. amount is 500`,
+                    value: 10000,
+                    message: `Max. amount is 10,000`,
                   },
                   pattern: {
                     value: /^\d+(\.\d{1,4})?$/,
@@ -188,9 +236,9 @@ export const TransactionForm = ({
               <input
                 id="amount-received"
                 type="number"
-                step="0.0001"
+                step="0.01"
                 {...register("amountReceived", {
-                  disabled: !token,
+                  disabled: !token || !currency,
                   onChange: () => setIsReceiveInputActive(true),
                 })}
                 className="w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl text-neutral-900 outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30"
@@ -201,7 +249,7 @@ export const TransactionForm = ({
               <FormDropdown
                 defaultTitle="Select currency"
                 data={currencies}
-                defaultSelectedItem="KES"
+                // defaultSelectedItem="KES"
                 onSelect={(selectedCurrency) =>
                   setValue("currency", selectedCurrency)
                 }
@@ -264,9 +312,11 @@ export const TransactionForm = ({
               variant={slideInOut}
               className="flex w-full flex-col justify-between gap-2 text-xs text-gray-500 transition-all dark:text-white/30 sm:flex-row sm:items-center"
             >
-              <div className="min-w-fit">
-                1 {token} ~ {isFetchingRate ? "..." : rate} {currency}
-              </div>
+              {currency && (
+                <div className="min-w-fit">
+                  1 {token} ~ {isFetchingRate ? "..." : rate} {currency}
+                </div>
+              )}
               <div className="ml-auto flex w-full flex-col justify-end gap-2 sm:flex-row sm:items-center">
                 <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
                 <p className="min-w-fit">

@@ -94,10 +94,10 @@ export const TransactionForm = ({
       if (isReceiveInputActive) {
         setValue(
           "amountSent",
-          Number((Number(amountReceived) / rate).toFixed(4)),
+          Number((Number(amountReceived) / rate).toFixed(2)),
         );
       } else {
-        setValue("amountReceived", Number((rate * amountSent).toFixed(4)));
+        setValue("amountReceived", Number((rate * amountSent).toFixed(2)));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -156,9 +156,6 @@ export const TransactionForm = ({
               </label>
               {authenticated && token && (
                 <div className="flex items-center gap-2">
-                  <span className="inline">
-                    <WalletIcon />
-                  </span>
                   <span>
                     {tokenBalance} {token}
                   </span>
@@ -296,15 +293,15 @@ export const TransactionForm = ({
           </button>
         )}
 
-        {/* {isUserVerified && ( */}
-        <button
-          type="submit"
-          className={primaryBtnClasses}
-          disabled={!isDirty || !isValid}
-        >
-          Swap
-        </button>
-        {/* )} */}
+        {authenticated && (
+          <button
+            type="submit"
+            className={primaryBtnClasses}
+            disabled={!isDirty || !isValid}
+          >
+            Swap
+          </button>
+        )}
 
         <AnimatePresence>
           {rate > 0 && (

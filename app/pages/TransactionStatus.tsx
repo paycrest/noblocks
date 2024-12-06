@@ -28,7 +28,7 @@ import {
 } from "../components/ImageAssets";
 import { calculateDuration, classNames, getExplorerLink } from "../utils";
 import { fetchOrderDetails } from "../api/aggregator";
-import { OrderDetailsResponse, TransactionStatusProps } from "../types";
+import { OrderDetailsData, TransactionStatusProps } from "../types";
 import { useNetwork } from "../context/NetworksContext";
 
 /**
@@ -57,7 +57,7 @@ export function TransactionStatus({
 }: TransactionStatusProps) {
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
-  const [orderDetails, setOrderDetails] = useState<OrderDetailsResponse>();
+  const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
   const [createdHash, setCreatedHash] = useState("");
 
@@ -71,37 +71,33 @@ export function TransactionStatus({
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
 
-    if (
-      !orderId ||
-      ["validated", "settled", "refunded"].includes(transactionStatus)
-    )
+    if (["validated", "settled", "refunded"].includes(transactionStatus)) {
+      // If order is completed, we can stop polling
       return;
+    }
 
     const getOrderDetails = async () => {
       try {
         const orderDetailsResponse = await fetchOrderDetails(orderId);
-        setOrderDetails(orderDetails);
+        setOrderDetails(orderDetailsResponse.data);
 
         if (orderDetailsResponse.data.status !== "pending") {
-          if (
-            ["validated", "settled", "refunded"].includes(transactionStatus)
-          ) {
-            // If order is completed or refunded, we can stop polling
-            return () => {
-              if (intervalId) clearInterval(intervalId);
-            };
+          if (transactionStatus !== orderDetailsResponse.data.status) {
+            setTransactionStatus(
+              orderDetailsResponse.data.status as
+                | "processing"
+                | "fulfilled"
+                | "validated"
+                | "settled"
+                | "refunded",
+            );
           }
 
-          setTransactionStatus(
-            orderDetailsResponse.data.status as
-              | "processing"
-              | "fulfilled"
-              | "validated"
-              | "settled"
-              | "refunded",
-          );
-
-          setCompletedAt(orderDetailsResponse.data.updatedAt);
+          if (
+            ["validated", "settled"].includes(orderDetailsResponse.data.status)
+          ) {
+            setCompletedAt(orderDetailsResponse.data.updatedAt);
+          }
 
           if (orderDetailsResponse.data.status === "processing") {
             const createdReceipt = orderDetailsResponse.data.txReceipts.find(
@@ -116,12 +112,12 @@ export function TransactionStatus({
     };
 
     getOrderDetails();
-    intervalId = setInterval(getOrderDetails, 2000);
+    intervalId = setInterval(getOrderDetails, 3000);
 
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [orderDetails, transactionStatus]);
+  }, [orderId, transactionStatus]);
 
   const StatusIndicator = () => (
     <AnimatePresence mode="wait">
@@ -384,7 +380,7 @@ export function TransactionStatus({
                     <a
                       href={getExplorerLink(
                         selectedNetwork.name,
-                        `${createdHash ? createdHash : orderDetails?.data.txHash}`,
+                        `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
                       )}
                       className="text-primary hover:underline dark:text-primary"
                       target="_blank"
@@ -456,9 +452,7 @@ export function TransactionStatus({
 
       <div className="absolute left-[-9999px] top-[-9999px]">
         <div ref={receiptRef}>
-          {orderDetails?.data && (
-            <TransactionReceipt data={orderDetails.data} />
-          )}
+          {orderDetails && <TransactionReceipt data={orderDetails} />}
         </div>
       </div>
     </>

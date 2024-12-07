@@ -32,6 +32,7 @@ import { fetchOrderDetails } from "../api/aggregator";
 import { OrderDetailsData, TransactionStatusProps } from "../types";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
+import { toast } from "sonner";
 
 /**
  * Renders the transaction status component.
@@ -108,7 +109,10 @@ export function TransactionStatus({
             const createdReceipt = orderDetailsResponse.data.txReceipts.find(
               (txReceipt) => txReceipt.status === "pending",
             );
-            setCreatedHash(createdReceipt?.txHash!);
+
+            if (createdReceipt) {
+              setCreatedHash(createdReceipt.txHash);
+            }
           }
         }
       } catch (error) {
@@ -278,24 +282,38 @@ export function TransactionStatus({
 
   const handleGetReceipt = async () => {
     setIsGettingReceipt(true);
-    if (receiptRef.current) {
-      const canvas = await html2canvas(receiptRef.current);
-      const imgData = canvas.toDataURL("image/png");
+    try {
+      if (receiptRef.current) {
+        const canvas = await html2canvas(receiptRef.current, {
+          scale: 2,
+        });
+        const imgData = canvas.toDataURL("image/png");
 
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "px",
-        format: [canvas.width, canvas.height],
-      });
+        if (imgData.length <= 6) {
+          throw new Error(
+            "Image data URL is too short, indicating an empty canvas.",
+          );
+        }
 
-      pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
+        const pdf = new jsPDF({
+          orientation: "portrait",
+          unit: "px",
+          format: [canvas.width, canvas.height],
+        });
 
-      const pdfBlob = pdf.output("blob");
-      const pdfUrl = URL.createObjectURL(pdfBlob);
+        pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
 
-      window.open(pdfUrl, "_blank");
+        const pdfBlob = pdf.output("blob");
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+
+        window.open(pdfUrl, "_blank");
+      }
+    } catch (error) {
+      toast.error("Error generating receipt. Please try again.");
+      console.error("Error generating receipt:", error);
+    } finally {
+      setIsGettingReceipt(false);
     }
-    setIsGettingReceipt(false);
   };
 
   return (
@@ -311,12 +329,14 @@ export function TransactionStatus({
               delay={0.2}
               className="flex items-center gap-1 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5"
             >
-              <Image
-                src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
-                alt={`${token} logo`}
-                width={14}
-                height={14}
-              />
+              {token && (
+                <Image
+                  src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
+                  alt={`${token} logo`}
+                  width={14}
+                  height={14}
+                />
+              )}
               <p className="whitespace-nowrap pr-4 font-medium">
                 {amount} {token}
               </p>
@@ -549,11 +569,11 @@ export function TransactionStatus({
         </div>
       </AnimatedComponent>
 
-      <div className="absolute left-[-9999px] top-[-9999px]">
+      <div className="absolute left-[-9999px] top-[-9999px] w-full">
         <div ref={receiptRef}>
           {orderDetails && (
             <TransactionReceipt
-              data={orderDetails}
+              data={orderDetails as OrderDetailsData}
               formData={{
                 recipientName,
                 accountIdentifier: formMethods.watch(

@@ -9,7 +9,7 @@ import { OrderDetailsData } from "../types";
 const InfoItem = ({ label, value }: { label: string; value: string }) => (
   <div className="space-y-1">
     <p className="text-gray-400">{label}</p>
-    <p className="break-all font-normal">{value}</p>
+    <p className="break-all font-normal">{value || "N/A"}</p>
   </div>
 );
 
@@ -27,25 +27,36 @@ export const TransactionReceipt = ({
     currency: string;
   };
 }) => {
+  const {
+    recipientName,
+    accountIdentifier,
+    institution,
+    memo,
+    amountReceived,
+    currency,
+  } = formData;
+
   const formatDate = (dateString: string | number | Date) => {
     const date = new Date(dateString);
     return format(date, "dd MMM, yyyy HH:mm, 'UTC' xxx");
   };
 
   const infoItems = [
-    { label: "To", value: formData.recipientName },
-    { label: "Account number", value: formData.accountIdentifier },
-    { label: "Bank", value: formData.institution },
-    { label: "Description", value: formData.memo },
-    { label: "Transaction reference", value: data.orderId },
+    { label: "To", value: recipientName || "N/A" },
+    { label: "Account number", value: accountIdentifier || "N/A" },
+    { label: "Bank", value: institution || "N/A" },
+    { label: "Description", value: memo || "N/A" },
+    { label: "Transaction reference", value: data?.orderId || "N/A" },
   ];
 
   return (
-    <div className="mx-auto max-w-lg border-t-4 border-blue-400 bg-white text-sm text-neutral-900">
+    <div className="mx-auto w-full max-w-2xl border-t-4 border-blue-400 bg-white text-sm text-neutral-900">
       <div className="flex items-center justify-between bg-gray-50 p-4">
         <div className="space-y-2">
           <h1 className="text-base font-medium">Receipt</h1>
-          <p className="mb-8 text-gray-400">{formatDate(data.updatedAt)}</p>
+          <p className="mb-8 text-gray-400">
+            {formatDate(data?.updatedAt || new Date())}
+          </p>
         </div>
 
         <NoblocksLogo className="size-20" />
@@ -55,9 +66,9 @@ export const TransactionReceipt = ({
         <div className="mb-10 mt-5">
           <h2 className="mb-2 text-lg font-semibold">
             {formatCurrency(
-              Number(formData.amountReceived),
-              formData.currency,
-              `en-${formData.currency.slice(0, 2)}`,
+              Number(amountReceived || 0),
+              currency || "USD",
+              `en-${(currency || "USD").slice(0, 2)}`,
             )}
           </h2>
           <div className="flex items-center space-x-1 text-xs font-semibold text-green-700">

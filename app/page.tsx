@@ -13,17 +13,19 @@ import {
   Waitlist,
 } from "./components";
 import { HeroAnimation } from "./components/HeroAnimation";
-import { trackEvent, useHotjar } from "./hooks/analytics";
+import { trackEvent, useHotjar, useMixpanel } from "./hooks/analytics";
 
 export default function Home() {
   useHotjar();
-  trackEvent("waitlist_page_viewed");
+  useMixpanel();
+
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   useEffect(() => {
     setIsPageLoading(false);
+    trackEvent("waitlist_page_viewed");
   }, []);
 
   return (

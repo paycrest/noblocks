@@ -1,3 +1,4 @@
+"use client";
 import { toast } from "react-toastify";
 import { useForm } from "react-hook-form";
 import { InputError } from "./InputError";
@@ -6,7 +7,7 @@ import { trackEvent } from "../hooks/analytics";
 import { useEffect, useState } from "react";
 
 export const buttonStyles =
-  "min-w-fit rounded-full bg-primary px-5 py-2.5 font-medium text-white transition-colors hover:bg-opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-white dark:focus-visible:ring-offset-neutral-900 dark:disabled:bg-zinc-800 dark:disabled:text-white/50";
+  "min-w-fit rounded-full bg-lavender-blue-500 px-5 py-2.5 font-medium text-white transition-colors hover:bg-opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-white dark:focus-visible:ring-offset-neutral-900 dark:disabled:bg-zinc-800 dark:disabled:text-white/50";
 
 const useFormAbandonment = (isSubmitting: boolean) => {
   useEffect(() => {

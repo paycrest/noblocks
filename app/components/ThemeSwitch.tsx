@@ -1,3 +1,4 @@
+"use client";
 import { useTheme } from "next-themes";
 import { FiSun, FiMoon } from "react-icons/fi";
 import { useState, useEffect, type ReactElement } from "react";

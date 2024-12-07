@@ -40,31 +40,31 @@ export const networks = [
     name: "BNB Smart Chain",
     imageUrl: "/logos/binance-logo.svg",
     chainId: 56,
-    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
-  },
+    address: "0x1fa0ee7f9410f6fa49b7ad5da72cf01647090028",
+  }, 
   {
     name: "Arbitrum One",
     imageUrl: "/logos/arbitrum-logo.svg",
     chainId: 42161,
-    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+    address: "0xe8bc3b607cfe68f47000e3d200310d49041148fc",
   },
   {
-    name: "Polygon Mumbai",
+    name: "Polygon",
     imageUrl: "/logos/polygon-logo.svg",
     chainId: 137,
-    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+    address: "0xfb411cc6385af50a562afcb441864e9d541cda67",
   },
   {
     name: "Scroll",
     imageUrl: "/logos/scroll-logo.svg",
     chainId: 534352,
-    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+    address: "0x663c5bfe7d44ba946c2dd4b2d1cf9580319f9338",
   },
   {
     name: "Optimism",
     imageUrl: "/logos/optimism-logo.svg",
     chainId: 10,
-    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+    address: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
   },
 ];
 

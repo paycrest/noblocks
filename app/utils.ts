@@ -120,17 +120,17 @@ export const calculateDuration = (
  * @returns The explorer link for the transaction.
  */
 export const getExplorerLink = (network: string, txHash: string) => {
-  if (network === 'Polygon') {
+  if (network === "Polygon") {
     return `https://polygonscan.com/tx/${txHash}`;
-  } else if (network === 'BNB Smart Chain') {
+  } else if (network === "BNB Smart Chain") {
     return `https://bscscan.com/tx/${txHash}`;
-  } else if (network === 'Base') {
+  } else if (network === "Base") {
     return `https://basescan.org/tx/${txHash}`;
-  } else if (network === 'Arbitrum One') {
+  } else if (network === "Arbitrum One") {
     return `https://arbiscan.io/tx/${txHash}`;
-  } else if (network === 'Optimism') {
+  } else if (network === "Optimism") {
     return `https://optimistic.etherscan.io/tx/${txHash}`;
-  } else if (network === 'Scroll') {
+  } else if (network === "Scroll") {
     return `https://scrollscan.com/tx/${txHash}`;
   }
 };
@@ -267,11 +267,11 @@ export function shortenAddress(
 export function getGatewayContractAddress(network = ""): string | undefined {
   return {
     Base: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
-    "Arbitrum One": "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
-    "BNB Smart Chain": "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
-    Polygon: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
-    Scroll: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
-    Optimism: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
+    "Arbitrum One": "0xe8bc3b607cfe68f47000e3d200310d49041148fc",
+    "BNB Smart Chain": "0x1fa0ee7f9410f6fa49b7ad5da72cf01647090028",
+    Polygon: "0xfb411cc6385af50a562afcb441864e9d541cda67",
+    Scroll: "0x663c5bfe7d44ba946c2dd4b2d1cf9580319f9338",
+    Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
   }[network];
 }
 

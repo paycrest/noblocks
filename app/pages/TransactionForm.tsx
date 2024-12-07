@@ -205,7 +205,7 @@ export const TransactionForm = ({
               <FormDropdown
                 defaultTitle="Select currency"
                 data={currencies}
-                // defaultSelectedItem="KES"
+                defaultSelectedItem={currency}
                 onSelect={(selectedCurrency) =>
                   setValue("currency", selectedCurrency)
                 }

@@ -137,8 +137,7 @@ export const RecipientDetailsForm = ({
 
   const saveRecipient = () => {
     if (selectedTab === "bank-transfer" && isRecipientFormValid()) {
-      // Save bank transfer recipient
-      const newRecipient: RecipientDetails = {
+      const newRecipient = {
         name: recipientName,
         institution: selectedInstitution?.name || "",
         institutionCode: watch("institution")?.toString() || "",
@@ -148,22 +147,8 @@ export const RecipientDetailsForm = ({
       setSavedBankTransferRecipients(updatedRecipients);
       setSelectedRecipient(newRecipient);
       setIsModalOpen(false);
-
-      // Only save to localStorage if it's not a duplicate
-      const isDuplicate = savedBankTransferRecipients.some(
-        (r) =>
-          r.accountIdentifier === newRecipient.accountIdentifier &&
-          r.institutionCode === newRecipient.institutionCode,
-      );
-      if (!isDuplicate) {
-        localStorage.setItem(
-          "savedBankTransferRecipients",
-          JSON.stringify(updatedRecipients),
-        );
-      }
     } else if (selectedTab === "mobile-money" && isMobileMoneyFormValid()) {
-      // Save mobile money recipient
-      const newRecipient: RecipientDetails = {
+      const newRecipient = {
         name: recipientName,
         institution: selectedMobileMoneyInstitution?.name || "",
         institutionCode: selectedMobileMoneyInstitution?.code || "",
@@ -173,19 +158,6 @@ export const RecipientDetailsForm = ({
       setSavedMobileMoneyRecipients(updatedRecipients);
       setSelectedRecipient(newRecipient);
       setIsModalOpen(false);
-
-      // Only save to localStorage if it's not a duplicate
-      const isDuplicate = savedMobileMoneyRecipients.some(
-        (r) =>
-          r.accountIdentifier === newRecipient.accountIdentifier &&
-          r.institutionCode === newRecipient.institutionCode,
-      );
-      if (!isDuplicate) {
-        localStorage.setItem(
-          "savedMobileMoneyRecipients",
-          JSON.stringify(updatedRecipients),
-        );
-      }
     }
   };
 

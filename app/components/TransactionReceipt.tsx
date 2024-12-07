@@ -13,17 +13,30 @@ const InfoItem = ({ label, value }: { label: string; value: string }) => (
   </div>
 );
 
-export const TransactionReceipt = ({ data }: { data: OrderDetailsData }) => {
+export const TransactionReceipt = ({
+  data,
+  formData,
+}: {
+  data: OrderDetailsData;
+  formData: {
+    recipientName: string;
+    accountIdentifier: string;
+    institution: string;
+    memo: string;
+    amountReceived: number;
+    currency: string;
+  };
+}) => {
   const formatDate = (dateString: string | number | Date) => {
     const date = new Date(dateString);
     return format(date, "dd MMM, yyyy HH:mm, 'UTC' xxx");
   };
 
   const infoItems = [
-    { label: "To", value: "Jane Chris" },
-    { label: "Account number", value: "1234567890" },
-    { label: "Bank", value: "GTBank" },
-    { label: "Description", value: "Payment for goods" },
+    { label: "To", value: formData.recipientName },
+    { label: "Account number", value: formData.accountIdentifier },
+    { label: "Bank", value: formData.institution },
+    { label: "Description", value: formData.memo },
     { label: "Transaction reference", value: data.orderId },
   ];
 
@@ -42,15 +55,14 @@ export const TransactionReceipt = ({ data }: { data: OrderDetailsData }) => {
         <div className="mb-10 mt-5">
           <h2 className="mb-2 text-lg font-semibold">
             {formatCurrency(
-              Number(data.amount),
-              "KES",
-              `en-${"KES".slice(0, 2)}`,
+              Number(formData.amountReceived),
+              formData.currency,
+              `en-${formData.currency.slice(0, 2)}`,
             )}
           </h2>
           <div className="flex items-center space-x-1 text-xs font-semibold text-green-700">
             <GiCheckMark />
             <p className="pb-3">Success</p>
-            {/* nb: pb-5 is a fix for a misalignment issue after the component is converted to a pdf */}
           </div>
         </div>
 

@@ -6,6 +6,7 @@ import { AnimatePresence } from "framer-motion";
 import { PiSpinnerBold } from "react-icons/pi";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { Checkbox } from "@headlessui/react";
 
 import {
   AnimatedComponent,
@@ -64,6 +65,7 @@ export function TransactionStatus({
   const [createdHash, setCreatedHash] = useState("");
 
   const [isGettingReceipt, setIsGettingReceipt] = useState(false);
+  const [addToBeneficiaries, setAddToBeneficiaries] = useState(false);
 
   const { watch } = formMethods;
   const token = watch("token");
@@ -122,6 +124,18 @@ export function TransactionStatus({
     };
   }, [orderId, transactionStatus]);
 
+  useEffect(() => {
+    const savedRecipients = JSON.parse(
+      localStorage.getItem("savedRecipients") || "[]",
+    );
+    const isRecipientSaved = savedRecipients.some(
+      (r: { accountIdentifier: any; institutionCode: any }) =>
+        r.accountIdentifier === formMethods.watch("accountIdentifier") &&
+        r.institutionCode === formMethods.watch("institutionCode"),
+    );
+    setAddToBeneficiaries(isRecipientSaved);
+  }, [formMethods]);
+
   const StatusIndicator = () => (
     <AnimatePresence mode="wait">
       {["validated", "settled"].includes(transactionStatus) ? (
@@ -165,7 +179,63 @@ export function TransactionStatus({
     setCurrentStep("form");
   };
 
+  const handleAddToBeneficiariesChange = (checked: boolean) => {
+    setAddToBeneficiaries(checked);
+    if (checked) {
+      addBeneficiary();
+    } else {
+      removeRecipient();
+    }
+  };
+
+  const addBeneficiary = () => {
+    const newRecipient = {
+      name: recipientName,
+      institution: formMethods.watch("institution") || "",
+      institutionCode: formMethods.watch("institutionCode") || "",
+      accountIdentifier: formMethods.watch("accountIdentifier") || "",
+    };
+
+    const savedRecipients = JSON.parse(
+      localStorage.getItem("savedRecipients") || "[]",
+    );
+    const isDuplicate = savedRecipients.some(
+      (r: {
+        accountIdentifier: string | number;
+        institutionCode: string | number;
+      }) =>
+        r.accountIdentifier === newRecipient.accountIdentifier &&
+        r.institutionCode === newRecipient.institutionCode,
+    );
+
+    if (!isDuplicate) {
+      const updatedRecipients = [...savedRecipients, newRecipient];
+      localStorage.setItem(
+        "savedRecipients",
+        JSON.stringify(updatedRecipients),
+      );
+    }
+  };
+
+  const removeRecipient = () => {
+    const savedRecipients = JSON.parse(
+      localStorage.getItem("savedRecipients") || "[]",
+    );
+    const updatedRecipients = savedRecipients.filter(
+      (r: { accountIdentifier: any; institutionCode: any }) =>
+        r.accountIdentifier !== formMethods.watch("accountIdentifier") ||
+        r.institutionCode !== formMethods.watch("institutionCode"),
+    );
+    localStorage.setItem("savedRecipients", JSON.stringify(updatedRecipients));
+  };
+
   const getPaymentMessage = () => {
+    recipientName = recipientName
+      .toLowerCase()
+      .split(" ")
+      .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+      .join(" ");
+
     if (transactionStatus === "refunded") {
       return (
         <>
@@ -328,6 +398,32 @@ export function TransactionStatus({
                       : "New payment"}
                   </button>
                 </AnimatedComponent>
+                {["validated", "settled"].includes(transactionStatus) && (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={addToBeneficiaries}
+                      onChange={handleAddToBeneficiariesChange}
+                      className="group block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-primary data-[checked]:bg-primary dark:border-white/30 dark:data-[checked]:border-primary"
+                    >
+                      <svg
+                        className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
+                        viewBox="0 0 14 14"
+                        fill="none"
+                      >
+                        <path
+                          d="M3 8L6 11L11 3.5"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </Checkbox>
+                    <label className="text-gray-500 dark:text-white/50">
+                      Add {recipientName.toLowerCase().split(" ")[0]} to
+                      beneficiaries
+                    </label>
+                  </div>
+                )}
               </>
             )}
           </AnimatePresence>
@@ -455,7 +551,21 @@ export function TransactionStatus({
 
       <div className="absolute left-[-9999px] top-[-9999px]">
         <div ref={receiptRef}>
-          {orderDetails && <TransactionReceipt data={orderDetails} />}
+          {orderDetails && (
+            <TransactionReceipt
+              data={orderDetails}
+              formData={{
+                recipientName,
+                accountIdentifier: formMethods.watch(
+                  "accountIdentifier",
+                ) as string,
+                institution: formMethods.watch("institution") as string,
+                memo: formMethods.watch("memo") as string,
+                amountReceived: formMethods.watch("amountReceived") as number,
+                currency: formMethods.watch("currency") as string,
+              }}
+            />
+          )}
         </div>
       </div>
     </>

@@ -15,8 +15,9 @@ import {
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
 import { NoteIcon, WalletIcon } from "../components/ImageAssets";
-import { fetchSupportedTokens, fetchWalletBalance } from "../utils";
+import { fetchSupportedTokens } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
+import { useBalance } from "../context/BalanceContext";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -33,9 +34,10 @@ export const TransactionForm = ({
   stateProps,
 }: TransactionFormProps) => {
   // Destructure stateProps
-  const { authenticated, ready, user, login } = usePrivy();
+  const { authenticated, ready, login } = usePrivy();
   const { selectedNetwork } = useNetwork();
   const { rate, isFetchingRate } = stateProps;
+  const { smartWalletBalance } = useBalance();
 
   // Destructure formMethods from react-hook-form
   const {
@@ -48,7 +50,6 @@ export const TransactionForm = ({
 
   const { amountSent, amountReceived, token, currency } = watch();
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
-  const [tokenBalance, setTokenBalance] = useState<number>(0);
 
   const tokens = [];
 
@@ -62,31 +63,9 @@ export const TransactionForm = ({
   }
 
   const handleBalanceMaxClick = () => {
-    setValue("amountSent", tokenBalance);
+    setValue("amountSent", smartWalletBalance?.balances[token] ?? 0);
     setIsReceiveInputActive(false);
   };
-
-  useEffect(() => {
-    const fetchBalance = async () => {
-      if (authenticated && ready) {
-        const smartWallet = user?.linkedAccounts.find(
-          (account) => account.type === "smart_wallet",
-        );
-
-        if (!smartWallet) return;
-
-        // fetch token balance
-        const result = await fetchWalletBalance(
-          selectedNetwork.name,
-          smartWallet.address,
-        );
-
-        setTokenBalance(result.balances[token]);
-      }
-    };
-
-    fetchBalance();
-  }, [amountSent]);
 
   // Effect to calculate receive amount based on send amount and rate
   useEffect(() => {
@@ -108,26 +87,6 @@ export const TransactionForm = ({
     if (!token || !currency) {
       register("token", { value: "USDC" });
       // register("currency", { value: "KES" });
-
-      const fetchBalance = async () => {
-        if (authenticated && ready) {
-          const smartWallet = user?.linkedAccounts.find(
-            (account) => account.type === "smart_wallet",
-          );
-
-          if (!smartWallet) return;
-
-          // fetch token balance
-          const result = await fetchWalletBalance(
-            selectedNetwork.name,
-            smartWallet.address,
-          );
-
-          setTokenBalance(result.balances[token]);
-        }
-      };
-
-      fetchBalance();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -157,7 +116,7 @@ export const TransactionForm = ({
               {authenticated && token && (
                 <div className="flex items-center gap-2">
                   <span>
-                    {tokenBalance} {token}
+                    {smartWalletBalance?.balances[token]} {token}
                   </span>
                   <button
                     type="button"

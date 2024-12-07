@@ -1,5 +1,5 @@
 "use client";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useRef, useState } from "react";
 import { useFundWallet, usePrivy } from "@privy-io/react-auth";
 
@@ -56,70 +56,72 @@ export const SettingsDropdown = () => {
       </button>
 
       {/* Dropdown menu */}
-      {isOpen && (
-        <motion.div
-          initial="closed"
-          animate={isOpen ? "open" : "closed"}
-          exit="closed"
-          variants={dropdownVariants}
-          aria-label="Dropdown menu"
-          className="absolute right-0 z-10 mt-4 w-fit space-y-4 overflow-hidden rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800"
-        >
-          <ul
-            role="menu"
-            aria-labelledby="settings-dropdown"
-            aria-orientation="vertical"
-            className="text-sm font-light text-black dark:text-white/80"
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial="closed"
+            animate={isOpen ? "open" : "closed"}
+            exit="closed"
+            variants={dropdownVariants}
+            aria-label="Dropdown menu"
+            className="absolute right-0 z-10 mt-4 w-fit space-y-4 overflow-hidden rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800"
           >
-            <li
-              role="menuitem"
-              className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
+            <ul
+              role="menu"
+              aria-labelledby="settings-dropdown"
+              aria-orientation="vertical"
+              className="text-sm font-light text-black dark:text-white/80"
             >
-              <button
-                type="button"
-                className="group flex w-full items-center justify-between gap-2.5"
-                onClick={handleCopyAddress}
+              <li
+                role="menuitem"
+                className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
               >
-                <div className="flex items-center gap-2.5">
-                  <WalletIcon />
-                  <p className="max-w-60 break-words">
-                    {shortenAddress(smartWallet?.address ?? "", 6)}
-                  </p>
-                </div>
-                {isAddressCopied ? (
-                  <PiCheck className="size-4" />
-                ) : (
-                  <CopyIcon className="size-4 transition group-hover:text-primary dark:hover:text-white" />
-                )}
-              </button>
-            </li>
-            <li
-              role="menuitem"
-              className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
-              onClick={() => handleFundWallet(smartWallet?.address ?? "")}
-            >
-              <RiMoneyDollarCircleLine className="text-lg text-gray-500 dark:text-white/40" />
-              <p>Fund Account</p>
-            </li>
-            <li
-              role="menuitem"
-              className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
-              onClick={exportWallet}
-            >
-              <PrivateKeyIcon />
-              <p>Export Wallet</p>
-            </li>
-            <li
-              role="menuitem"
-              className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
-              onClick={logout}
-            >
-              <LogoutIcon />
-              <p>Sign out</p>
-            </li>
-          </ul>
-        </motion.div>
-      )}
+                <button
+                  type="button"
+                  className="group flex w-full items-center justify-between gap-2.5"
+                  onClick={handleCopyAddress}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <WalletIcon />
+                    <p className="max-w-60 break-words">
+                      {shortenAddress(smartWallet?.address ?? "", 6)}
+                    </p>
+                  </div>
+                  {isAddressCopied ? (
+                    <PiCheck className="size-4" />
+                  ) : (
+                    <CopyIcon className="size-4 transition group-hover:text-primary dark:hover:text-white" />
+                  )}
+                </button>
+              </li>
+              <li
+                role="menuitem"
+                className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
+                onClick={() => handleFundWallet(smartWallet?.address ?? "")}
+              >
+                <RiMoneyDollarCircleLine className="text-lg text-gray-500 dark:text-white/40" />
+                <p>Fund Account</p>
+              </li>
+              <li
+                role="menuitem"
+                className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
+                onClick={exportWallet}
+              >
+                <PrivateKeyIcon />
+                <p>Export Wallet</p>
+              </li>
+              <li
+                role="menuitem"
+                className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
+                onClick={logout}
+              >
+                <LogoutIcon />
+                <p>Sign out</p>
+              </li>
+            </ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

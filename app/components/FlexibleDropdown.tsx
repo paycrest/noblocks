@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
 import { MdOutlineLockClock } from "react-icons/md";
@@ -80,65 +80,66 @@ export const FlexibleDropdown = ({
     <div ref={dropdownRef} className="relative">
       {children({ selectedItem, isOpen, toggleDropdown })}
 
-      {/* Dropdown content */}
-      {isOpen && (
-        <motion.div
-          initial="closed"
-          animate={isOpen ? "open" : "closed"}
-          exit="closed"
-          variants={dropdownVariants}
-          aria-label="Dropdown menu"
-          className={classNames(
-            "absolute right-0 z-10 mt-2 max-h-52 max-w-full overflow-y-auto rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800",
-            className?.includes("min-w") ? "" : "min-w-40",
-            className?.includes("max-h") ? "" : "max-h-52",
-            className ?? "",
-          )}
-        >
-          <ul role="list" aria-labelledby="networks-dropdown">
-            {data?.map((item) => (
-              <li
-                key={item.name}
-                onClick={() => !item.disabled && handleChange(item)}
-                className={classNames(
-                  "flex items-center justify-between gap-2 px-3 py-2 transition-all hover:bg-gray-200 dark:hover:bg-neutral-700",
-                  item?.disabled
-                    ? "pointer-events-none cursor-not-allowed"
-                    : "cursor-pointer",
-                )}
-              >
-                <div className="flex items-center gap-1">
-                  {item.imageUrl && (
-                    <Image
-                      src={item.imageUrl ?? ""}
-                      alt="image"
-                      loading="lazy"
-                      width={20}
-                      height={20}
-                      className="me-2 h-5 w-5 rounded-full object-cover"
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial="closed"
+            animate="open"
+            exit="closed"
+            variants={dropdownVariants}
+            aria-label="Dropdown menu"
+            className={classNames(
+              "absolute right-0 z-10 mt-2 max-h-52 max-w-full overflow-y-auto rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800",
+              className?.includes("min-w") ? "" : "min-w-40",
+              className?.includes("max-h") ? "" : "max-h-52",
+              className ?? "",
+            )}
+          >
+            <ul role="list" aria-labelledby="networks-dropdown">
+              {data?.map((item) => (
+                <li
+                  key={item.name}
+                  onClick={() => !item.disabled && handleChange(item)}
+                  className={classNames(
+                    "flex items-center justify-between gap-2 px-3 py-2 transition-all hover:bg-gray-200 dark:hover:bg-neutral-700",
+                    item?.disabled
+                      ? "pointer-events-none cursor-not-allowed"
+                      : "cursor-pointer",
+                  )}
+                >
+                  <div className="flex items-center gap-1">
+                    {item.imageUrl && (
+                      <Image
+                        src={item.imageUrl ?? ""}
+                        alt="image"
+                        loading="lazy"
+                        width={20}
+                        height={20}
+                        className="me-2 h-5 w-5 rounded-full object-cover"
+                      />
+                    )}
+
+                    <span className="text-neutral-900 dark:text-white/80">
+                      {item.label ?? item.name}
+                    </span>
+                  </div>
+
+                  {item.disabled ? (
+                    <MdOutlineLockClock className="text-lg text-gray-400 dark:text-white/50" />
+                  ) : (
+                    <PiCheck
+                      className={classNames(
+                        "text-lg text-gray-400 transition-transform dark:text-white/50",
+                        selectedItem?.name === item.name ? "" : "hidden",
+                      )}
                     />
                   )}
-
-                  <span className="text-neutral-900 dark:text-white/80">
-                    {item.label ?? item.name}
-                  </span>
-                </div>
-
-                {item.disabled ? (
-                  <MdOutlineLockClock className="text-lg text-gray-400 dark:text-white/50" />
-                ) : (
-                  <PiCheck
-                    className={classNames(
-                      "text-lg text-gray-400 transition-transform dark:text-white/50",
-                      selectedItem?.name === item.name ? "" : "hidden",
-                    )}
-                  />
-                )}
-              </li>
-            ))}
-          </ul>
-        </motion.div>
-      )}
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

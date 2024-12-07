@@ -68,6 +68,19 @@ export const networks = [
   },
 ];
 
+export const tokens = [
+  {
+    name: "USDT",
+    label: "Tether",
+    imageUrl: "/logos/usdt-logo.svg",
+  },
+  {
+    name: "USDC",
+    label: "USD Coin",
+    imageUrl: "/logos/usdc-logo.svg",
+  },
+];
+
 export const colors = [
   "bg-blue-600",
   "bg-indigo-600",

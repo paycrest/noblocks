@@ -47,18 +47,19 @@ export const FormDropdown = ({
               <p className="">{selectedItem?.name}</p>
             </div>
           ) : (
-            <p className="whitespace-nowrap">
+            <p className="whitespace-nowrap pl-1">
               {defaultTitle ? defaultTitle : "Select an option"}
             </p>
           )}
 
-          <PiCaretDown
-            className={classNames(
-              "text-lg text-gray-400 transition-transform dark:text-white/50",
-              isOpen ? "rotate-180" : "",
-              selectedItem?.name ? "ml-5" : "",
-            )}
-          />
+          <div className={classNames(selectedItem?.name ? "ml-5" : "")}>
+            <PiCaretDown
+              className={classNames(
+                "text-base text-gray-400 transition-transform dark:text-white/50",
+                isOpen ? "rotate-180 transform" : "rotate-0",
+              )}
+            />
+          </div>
         </button>
       )}
     </FlexibleDropdown>

@@ -18,7 +18,7 @@ import { createConfig, http, WagmiProvider } from "wagmi";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 
 import config from "./lib/config";
-import { NetworkProvider, StepProvider } from "./context";
+import { BalanceProvider, NetworkProvider, StepProvider } from "./context";
 
 function Providers({ children }: { children: ReactNode }) {
   const { privyAppId } = config;
@@ -86,8 +86,10 @@ function ContextProviders({ children }: { children: ReactNode }) {
   return (
     <NetworkProvider>
       <StepProvider>
-        {children}
-        <Toaster position="bottom-right" theme="dark" />
+        <BalanceProvider>
+          {children}
+          <Toaster position="bottom-right" theme="dark" />
+        </BalanceProvider>
       </StepProvider>
     </NetworkProvider>
   );

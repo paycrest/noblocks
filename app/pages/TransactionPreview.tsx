@@ -26,6 +26,7 @@ import {
   createPublicClient,
   http,
 } from "viem";
+import { useBalance } from "../context/BalanceContext";
 
 import { useEffect, useState } from "react";
 import { fetchAggregatorPublicKey } from "../api/aggregator";
@@ -46,6 +47,7 @@ export const TransactionPreview = ({
   const { client } = useSmartWallets();
   const { selectedNetwork } = useNetwork();
   const { currentStep, setCurrentStep } = useStep();
+  const { refreshBalance } = useBalance();
 
   const {
     rate,
@@ -183,6 +185,7 @@ export const TransactionPreview = ({
       });
 
       await getOrderId();
+      refreshBalance(); // Refresh balance after order is created
     } catch (e: any) {
       setErrorMessage((e as BaseError).shortMessage);
       setIsConfirming(false);

@@ -30,6 +30,7 @@ import { calculateDuration, classNames, getExplorerLink } from "../utils";
 import { fetchOrderDetails } from "../api/aggregator";
 import { OrderDetailsData, TransactionStatusProps } from "../types";
 import { useNetwork } from "../context/NetworksContext";
+import { useBalance } from "../context/BalanceContext";
 
 /**
  * Renders the transaction status component.
@@ -57,6 +58,7 @@ export function TransactionStatus({
 }: TransactionStatusProps) {
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
+  const { refreshBalance } = useBalance();
   const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
   const [createdHash, setCreatedHash] = useState("");
@@ -72,6 +74,7 @@ export function TransactionStatus({
     let intervalId: NodeJS.Timeout;
 
     if (["validated", "settled", "refunded"].includes(transactionStatus)) {
+      refreshBalance(); // Refresh balance when order is refunded
       // If order is completed, we can stop polling
       return;
     }

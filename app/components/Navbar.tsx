@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-// import { UserPill } from "@privy-io/react-auth/ui";
 
 import { ArrowDownIcon, NoblocksLogo } from "./ImageAssets";
 import { primaryBtnClasses } from "./Styles";
@@ -59,8 +58,6 @@ export const Navbar = () => {
               <NetworksDropdown />
 
               <SettingsDropdown />
-
-              {/* <UserPill size={36} /> */}
             </>
           ) : (
             <>

@@ -97,29 +97,33 @@ export const WalletDetails = () => {
               </ul>
             </div>
 
-            <div className="border-t border-dashed border-gray-200 dark:border-white/10" />
+            {allBalances.externalWallet?.balances && (
+              <>
+                <div className="border-t border-dashed border-gray-200 dark:border-white/10" />
 
-            <div className="space-y-2">
-              <h3 className="text-gray-500 dark:text-white/50">
-                External Wallet
-              </h3>
-              <ul className="space-y-2 text-neutral-900 dark:text-white/80">
-                {Object.entries(allBalances.externalWallet?.balances || {}).map(
-                  ([token, balance]) => (
-                    <li key={token} className="flex items-center gap-1">
-                      <img
-                        src={getTokenImageUrl(token)}
-                        alt={token}
-                        className="size-3.5"
-                      />
-                      <span>
-                        {balance} {token}
-                      </span>
-                    </li>
-                  ),
-                )}
-              </ul>
-            </div>
+                <div className="space-y-2">
+                  <h3 className="text-gray-500 dark:text-white/50">
+                    External Wallet
+                  </h3>
+                  <ul className="space-y-2 text-neutral-900 dark:text-white/80">
+                    {Object.entries(allBalances.externalWallet.balances).map(
+                      ([token, balance]) => (
+                        <li key={token} className="flex items-center gap-1">
+                          <img
+                            src={getTokenImageUrl(token)}
+                            alt={token}
+                            className="size-3.5"
+                          />
+                          <span>
+                            {balance} {token}
+                          </span>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </div>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

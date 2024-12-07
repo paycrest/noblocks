@@ -77,7 +77,6 @@ export function TransactionStatus({
     let intervalId: NodeJS.Timeout;
 
     if (["validated", "settled", "refunded"].includes(transactionStatus)) {
-      refreshBalance(); // Refresh balance when order is refunded
       // If order is completed, we can stop polling
       return;
     }
@@ -103,6 +102,10 @@ export function TransactionStatus({
             ["validated", "settled"].includes(orderDetailsResponse.data.status)
           ) {
             setCompletedAt(orderDetailsResponse.data.updatedAt);
+          }
+
+          if (orderDetailsResponse.data.status === "refunded") {
+            refreshBalance();
           }
 
           if (orderDetailsResponse.data.status === "processing") {
@@ -498,7 +501,7 @@ export function TransactionStatus({
                   <p className="flex-1">
                     <a
                       href={getExplorerLink(
-                        selectedNetwork.name,
+                        selectedNetwork.chain.name,
                         `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
                       )}
                       className="text-primary hover:underline dark:text-primary"

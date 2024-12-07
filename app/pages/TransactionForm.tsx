@@ -54,7 +54,7 @@ export const TransactionForm = ({
   const tokens = [];
 
   const fetchedTokens: Token[] =
-    fetchSupportedTokens(selectedNetwork.name) || [];
+    fetchSupportedTokens(selectedNetwork.chain.name) || [];
   for (const token of fetchedTokens) {
     tokens.push({
       name: token.symbol,
@@ -113,20 +113,23 @@ export const TransactionForm = ({
               >
                 Send
               </label>
-              {authenticated && token && (
-                <div className="flex items-center gap-2">
-                  <span>
-                    {smartWalletBalance?.balances[token]} {token}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleBalanceMaxClick}
-                    className="font-medium text-primary dark:text-primary"
-                  >
-                    Max
-                  </button>
-                </div>
-              )}
+              {authenticated &&
+                token &&
+                smartWalletBalance &&
+                smartWalletBalance.balances[token] !== undefined && (
+                  <div className="flex items-center gap-2">
+                    <span>
+                      {smartWalletBalance.balances[token]} {token}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleBalanceMaxClick}
+                      className="font-medium text-primary dark:text-primary"
+                    >
+                      Max
+                    </button>
+                  </div>
+                )}
             </div>
 
             <div className="flex items-center justify-between gap-2">

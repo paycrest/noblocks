@@ -1,3 +1,5 @@
+import { arbitrum, base, bsc, optimism, polygon, scroll } from "viem/chains";
+
 export const currencies = [
   {
     name: "KES",
@@ -31,40 +33,28 @@ export const currencies = [
 
 export const networks = [
   {
-    name: "Base",
+    chain: base,
     imageUrl: "/logos/base-logo.svg",
-    chainId: 8453,
-    address: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
   },
   {
-    name: "BNB Smart Chain",
+    chain: bsc,
     imageUrl: "/logos/binance-logo.svg",
-    chainId: 56,
-    address: "0x1fa0ee7f9410f6fa49b7ad5da72cf01647090028",
-  }, 
+  },
   {
-    name: "Arbitrum One",
+    chain: arbitrum,
     imageUrl: "/logos/arbitrum-logo.svg",
-    chainId: 42161,
-    address: "0xe8bc3b607cfe68f47000e3d200310d49041148fc",
   },
   {
-    name: "Polygon",
+    chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
-    chainId: 137,
-    address: "0xfb411cc6385af50a562afcb441864e9d541cda67",
   },
   {
-    name: "Scroll",
+    chain: scroll,
     imageUrl: "/logos/scroll-logo.svg",
-    chainId: 534352,
-    address: "0x663c5bfe7d44ba946c2dd4b2d1cf9580319f9338",
   },
   {
-    name: "Optimism",
+    chain: optimism,
     imageUrl: "/logos/optimism-logo.svg",
-    chainId: 10,
-    address: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
   },
 ];
 

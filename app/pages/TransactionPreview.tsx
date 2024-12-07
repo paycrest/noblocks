@@ -86,11 +86,11 @@ export const TransactionPreview = ({
       .join(" "),
     account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
     description: memo || "N/A",
-    network: selectedNetwork.name,
+    network: selectedNetwork.chain.name,
   };
 
   const fetchedTokens: Token[] =
-    fetchSupportedTokens(selectedNetwork.name) || [];
+    fetchSupportedTokens(selectedNetwork.chain.name) || [];
 
   const tokenAddress = fetchedTokens.find(
     (t) => t.symbol.toUpperCase() === token,
@@ -140,7 +140,7 @@ export const TransactionPreview = ({
       }
 
       await client.switchChain({
-        id: selectedNetwork.chainId,
+        id: selectedNetwork.chain.id,
       });
 
       const params = await prepareCreateOrderParams();
@@ -157,7 +157,7 @@ export const TransactionPreview = ({
               functionName: "approve",
               args: [
                 getAddress(
-                  getGatewayContractAddress(selectedNetwork.name) || "",
+                  getGatewayContractAddress(selectedNetwork.chain.name) || "",
                 ),
                 parseUnits(amountSent.toString(), tokenDecimals!),
               ],
@@ -166,7 +166,7 @@ export const TransactionPreview = ({
           // Create order
           {
             to: getGatewayContractAddress(
-              selectedNetwork.name,
+              selectedNetwork.chain.name,
             ) as `0x${string}`,
             data: encodeFunctionData({
               abi: gatewayAbi,
@@ -225,7 +225,7 @@ export const TransactionPreview = ({
         const toBlock = await publicClient.getBlockNumber();
         const logs = await publicClient.getContractEvents({
           address: getGatewayContractAddress(
-            selectedNetwork.name,
+            selectedNetwork.chain.name,
           ) as `0x${string}`,
           abi: gatewayAbi,
           eventName: "OrderCreated",

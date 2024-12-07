@@ -9,6 +9,8 @@ import {
 import { fetchWalletBalance } from "../utils";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "./NetworksContext";
+import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+import { createPublicClient, http } from "viem";
 
 interface WalletBalances {
   total: number;
@@ -32,6 +34,7 @@ const BalanceContext = createContext<BalanceContextProps | undefined>(
 export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const { ready, user } = usePrivy();
   const { wallets } = useWallets();
+  const { client } = useSmartWallets();
   const { selectedNetwork } = useNetwork();
 
   const [smartWalletBalance, setSmartWalletBalance] =
@@ -40,7 +43,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     useState<WalletBalances | null>(null);
 
   const fetchBalances = async () => {
-    if (!ready || !user) return;
+    if (!ready || !user || !client) return;
 
     const smartWalletAccount = user.linkedAccounts.find(
       (account) => account.type === "smart_wallet",
@@ -49,9 +52,18 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       (account) => account.connectorType === "injected",
     );
 
+    await client.switchChain({
+      id: selectedNetwork.chain.id,
+    });
+
+    const publicClient = createPublicClient({
+      chain: selectedNetwork.chain,
+      transport: http(),
+    });
+
     if (smartWalletAccount) {
       const result = await fetchWalletBalance(
-        selectedNetwork.name,
+        publicClient,
         smartWalletAccount.address,
       );
       setSmartWalletBalance(result);
@@ -61,7 +73,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
     if (externalWalletAccount) {
       const result = await fetchWalletBalance(
-        selectedNetwork.name,
+        publicClient,
         externalWalletAccount.address,
       );
       setExternalWalletBalance(result);

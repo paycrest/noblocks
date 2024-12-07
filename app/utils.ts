@@ -212,10 +212,10 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
  * @returns An object containing the total balance and individual token balances.
  */
 export async function fetchWalletBalance(
-  network: string,
+  client: any,
   address: string,
 ): Promise<{ total: number; balances: Record<string, number> }> {
-  const supportedTokens = fetchSupportedTokens(network);
+  const supportedTokens = fetchSupportedTokens(client.chain?.name);
   if (!supportedTokens) return { total: 0, balances: {} };
 
   let totalBalance: number = 0;
@@ -223,7 +223,7 @@ export async function fetchWalletBalance(
 
   // Fetch balances in parallel
   const balancePromises = supportedTokens.map(async (token) => {
-    const balanceInWei = await publicClient.readContract({
+    const balanceInWei = await client.readContract({
       address: token.address as `0x${string}`,
       abi: erc20Abi,
       functionName: "balanceOf",

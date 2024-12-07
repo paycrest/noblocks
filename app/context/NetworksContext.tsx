@@ -2,10 +2,8 @@ import React, { createContext, useState, useContext } from "react";
 import { networks } from "../mocks";
 
 type Network = {
-  name: string;
-  chainId: number;
+  chain: any;
   imageUrl: string;
-  address: string;
 };
 
 type NetworkContextType = {
@@ -16,7 +14,7 @@ type NetworkContextType = {
 const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
 
 const defaultNetwork =
-  networks.find((network) => network.name === "Base") || networks[0];
+  networks.find((network) => network.chain.name === "Base") || networks[0];
 
 export function NetworkProvider({ children }: { children: React.ReactNode }) {
   const [selectedNetwork, setSelectedNetwork] = useState(defaultNetwork);

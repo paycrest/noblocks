@@ -8,7 +8,6 @@ import {
 } from "@headlessui/react";
 import { CiSearch } from "react-icons/ci";
 import { ImSpinner } from "react-icons/im";
-import { FaRegHourglass } from "react-icons/fa6";
 import { PiCaretDown, PiCheck, PiCheckCircleFill } from "react-icons/pi";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -191,8 +190,15 @@ export const RecipientDetailsForm = ({
 
   const selectSavedRecipient = (recipient: RecipientDetails) => {
     setSelectedRecipient(recipient);
-    register("institution", { value: recipient.institutionCode });
-    register("recipientName", { value: recipient.name });
+    setSelectedInstitution({
+      name: recipient.institution,
+      code: recipient.institutionCode,
+      type: recipient.institutionCode.startsWith("MPESA")
+        ? "mobile-money"
+        : "bank",
+    });
+    setValue("institution", recipient.institutionCode);
+    setValue("recipientName", recipient.name);
     setValue("accountIdentifier", recipient.accountIdentifier);
     setRecipientName(recipient.name);
     setIsModalOpen(false);
@@ -232,21 +238,31 @@ export const RecipientDetailsForm = ({
   };
 
   const filteredSavedRecipients = useMemo(() => {
+    if (!currency) return [];
     const allRecipients = [
       ...savedBankTransferRecipients,
       ...savedMobileMoneyRecipients,
     ];
-    return allRecipients.filter(
-      (recipient) =>
-        recipient.name
-          .toLowerCase()
-          .includes(beneficiarySearchTerm.toLowerCase()) ||
-        recipient.accountIdentifier.includes(beneficiarySearchTerm),
+    const currentBankCodes = institutions.map(
+      (institution) => institution.code,
     );
+    return allRecipients
+      .filter(
+        (recipient) =>
+          recipient.name
+            .toLowerCase()
+            .includes(beneficiarySearchTerm.toLowerCase()) ||
+          recipient.accountIdentifier.includes(beneficiarySearchTerm),
+      )
+      .filter((recipient) =>
+        currentBankCodes.includes(recipient.institutionCode),
+      );
   }, [
     savedBankTransferRecipients,
     savedMobileMoneyRecipients,
     beneficiarySearchTerm,
+    currency,
+    institutions,
   ]);
 
   const getRandomColor = (name: string) => {
@@ -433,7 +449,6 @@ export const RecipientDetailsForm = ({
                       <div className="relative flex flex-row items-start gap-4">
                         {/* Bank */}
                         <div ref={institutionsDropdownRef} className="flex-1">
-                          {/* Banks Dropdown Button */}
                           <Button
                             onClick={() =>
                               setIsInstitutionsDropdownOpen(
@@ -465,7 +480,6 @@ export const RecipientDetailsForm = ({
                             )}
                           </Button>
 
-                          {/* Banks Dropdown */}
                           {isInstitutionsDropdownOpen && (
                             <motion.div
                               initial="closed"
@@ -500,35 +514,41 @@ export const RecipientDetailsForm = ({
                                 aria-labelledby="networks-dropdown"
                                 className="px-2 pb-2"
                               >
-                                {filteredInstitutions.length > 0 ? (
-                                  filteredInstitutions.map((institution) => (
-                                    <li
-                                      key={institution.code}
-                                      onClick={() => {
-                                        setSelectedInstitution(institution);
-                                        setIsInstitutionsDropdownOpen(false);
-                                        register("institution", {
-                                          value: institution.code,
-                                          required: {
-                                            value: true,
-                                            message: "Select bank",
-                                          },
-                                        });
-                                      }}
-                                      className={classNames(
-                                        "flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-neutral-900 transition-all hover:bg-gray-200 dark:text-white/80 dark:hover:bg-white/5",
-                                        selectedInstitution?.code ===
-                                          institution.code
-                                          ? "bg-gray-200 dark:bg-white/5"
-                                          : "",
-                                      )}
-                                    >
-                                      {institution.name}
+                                {currency ? (
+                                  filteredInstitutions.length > 0 ? (
+                                    filteredInstitutions.map((institution) => (
+                                      <li
+                                        key={institution.code}
+                                        onClick={() => {
+                                          setSelectedInstitution(institution);
+                                          setIsInstitutionsDropdownOpen(false);
+                                          register("institution", {
+                                            value: institution.code,
+                                            required: {
+                                              value: true,
+                                              message: "Select bank",
+                                            },
+                                          });
+                                        }}
+                                        className={classNames(
+                                          "flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-neutral-900 transition-all hover:bg-gray-200 dark:text-white/80 dark:hover:bg-white/5",
+                                          selectedInstitution?.code ===
+                                            institution.code
+                                            ? "bg-gray-200 dark:bg-white/5"
+                                            : "",
+                                        )}
+                                      >
+                                        {institution.name}
+                                      </li>
+                                    ))
+                                  ) : (
+                                    <li className="flex items-center justify-center gap-2 py-4">
+                                      <p>No banks found</p>
                                     </li>
-                                  ))
+                                  )
                                 ) : (
                                   <li className="flex items-center justify-center gap-2 py-4">
-                                    <p>No banks found</p>
+                                    <p>Please select a currency first</p>
                                   </li>
                                 )}
                               </ul>
@@ -627,7 +647,8 @@ export const RecipientDetailsForm = ({
                           disabled={
                             !recipientName ||
                             isFetchingRecipientName ||
-                            !isRecipientFormValid()
+                            !isRecipientFormValid() ||
+                            !selectedInstitution
                           }
                         >
                           Add recipient
@@ -758,7 +779,8 @@ export const RecipientDetailsForm = ({
               </div>
 
               {selectedTab === "bank-transfer" &&
-                savedBankTransferRecipients.length > 0 && (
+                savedBankTransferRecipients.length > 0 &&
+                currency && (
                   <div className="rounded-2xl bg-white p-4 dark:bg-neutral-900">
                     <Button
                       className="flex w-full items-center justify-between"
@@ -878,7 +900,8 @@ export const RecipientDetailsForm = ({
                 )}
 
               {selectedTab === "mobile-money" &&
-                savedMobileMoneyRecipients.length > 0 && (
+                savedMobileMoneyRecipients.length > 0 &&
+                currency && (
                   <div className="rounded-2xl bg-white p-4 dark:bg-neutral-900">
                     <Button
                       className="flex w-full items-center justify-between"

@@ -99,13 +99,14 @@ export function TransactionStatus({
           }
 
           if (
-            ["validated", "settled"].includes(orderDetailsResponse.data.status)
+            ["validated", "settled", "refunded"].includes(
+              orderDetailsResponse.data.status,
+            )
           ) {
+            if (orderDetailsResponse.data.status === "refunded") {
+              refreshBalance();
+            }
             setCompletedAt(orderDetailsResponse.data.updatedAt);
-          }
-
-          if (orderDetailsResponse.data.status === "refunded") {
-            refreshBalance();
           }
 
           if (orderDetailsResponse.data.status === "processing") {

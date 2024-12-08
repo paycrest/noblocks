@@ -1,10 +1,9 @@
 "use client";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRef, useState } from "react";
-import { useFundWallet, usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 
 import { PiCheck } from "react-icons/pi";
-import { RiMoneyDollarCircleLine } from "react-icons/ri";
 
 import { useOutsideClick } from "../hooks";
 import {
@@ -22,9 +21,6 @@ export const SettingsDropdown = () => {
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
-
-  const { fundWallet } = useFundWallet();
-  const handleFundWallet = async (address: string) => await fundWallet(address);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({
@@ -93,14 +89,6 @@ export const SettingsDropdown = () => {
                     <CopyIcon className="size-4 transition group-hover:text-primary dark:hover:text-white" />
                   )}
                 </button>
-              </li>
-              <li
-                role="menuitem"
-                className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
-                onClick={() => handleFundWallet(smartWallet?.address ?? "")}
-              >
-                <RiMoneyDollarCircleLine className="text-lg text-gray-500 dark:text-white/40" />
-                <p>Fund Account</p>
               </li>
               <li
                 role="menuitem"

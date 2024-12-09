@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     siteName: "Noblocks",
     images: [
       {
-        url: '/images/og-image.gif',
+        url: "/images/og-image.jpg",
       },
     ],
     locale: "en_US",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     description:
       "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
     creator: "@noblocks_xyz",
-    images: ['/images/og-image.gif'],
+    images: ["/images/og-image.jpg"],
   },
 };
 

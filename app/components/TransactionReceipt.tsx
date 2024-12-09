@@ -1,10 +1,10 @@
 "use client";
 import { format } from "date-fns";
 import { NoblocksLogo } from "./ImageAssets";
-import { formatCurrency } from "../utils";
+import { formatCurrency, getInstitutionNameByCode } from "../utils";
 import { GiCheckMark } from "react-icons/gi";
 import { QRCode } from "react-qrcode-logo";
-import { OrderDetailsData } from "../types";
+import type { OrderDetailsData, InstitutionProps } from "../types";
 
 const InfoItem = ({ label, value }: { label: string; value: string }) => (
   <div className="space-y-1">
@@ -16,6 +16,7 @@ const InfoItem = ({ label, value }: { label: string; value: string }) => (
 export const TransactionReceipt = ({
   data,
   formData,
+  supportedInstitutions,
 }: {
   data: OrderDetailsData;
   formData: {
@@ -26,6 +27,7 @@ export const TransactionReceipt = ({
     amountReceived: number;
     currency: string;
   };
+  supportedInstitutions: InstitutionProps[];
 }) => {
   const {
     recipientName,
@@ -36,6 +38,11 @@ export const TransactionReceipt = ({
     currency,
   } = formData;
 
+  const institutionName = getInstitutionNameByCode(
+    institution,
+    supportedInstitutions,
+  );
+
   const formatDate = (dateString: string | number | Date) => {
     const date = new Date(dateString);
     return format(date, "dd MMM, yyyy HH:mm, 'UTC' xxx");
@@ -44,7 +51,7 @@ export const TransactionReceipt = ({
   const infoItems = [
     { label: "To", value: recipientName || "N/A" },
     { label: "Account number", value: accountIdentifier || "N/A" },
-    { label: "Bank", value: institution || "N/A" },
+    { label: "Bank", value: institutionName || "N/A" },
     { label: "Description", value: memo || "N/A" },
     { label: "Transaction reference", value: data?.orderId || "N/A" },
   ];

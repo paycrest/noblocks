@@ -186,6 +186,7 @@ export default function Home() {
             }}
             setTransactionStatus={setTransactionStatus}
             setCurrentStep={setCurrentStep}
+            supportedInstitutions={institutions}
           />
         );
       default:

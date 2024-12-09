@@ -29,7 +29,11 @@ import {
 } from "../components/ImageAssets";
 import { calculateDuration, classNames, getExplorerLink } from "../utils";
 import { fetchOrderDetails } from "../api/aggregator";
-import type { OrderDetailsData, TransactionStatusProps } from "../types";
+import type {
+  OrderDetailsData,
+  TransactionStatusProps,
+  InstitutionProps,
+} from "../types";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { toast } from "sonner";
@@ -57,7 +61,8 @@ export function TransactionStatus({
   setTransactionStatus,
   setCurrentStep,
   formMethods,
-}: TransactionStatusProps) {
+  supportedInstitutions,
+}: TransactionStatusProps & { supportedInstitutions: InstitutionProps[] }) {
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
   const { refreshBalance } = useBalance();
@@ -258,7 +263,7 @@ export function TransactionStatus({
         </>
       );
     }
-    
+
     if (!["validated", "settled"].includes(transactionStatus)) {
       return `Processing payment to ${recipientName}. Hang on, this will only take a few seconds.`;
     }
@@ -450,8 +455,10 @@ export function TransactionStatus({
                       </svg>
                     </Checkbox>
                     <label className="text-gray-500 dark:text-white/50">
-                      Add {recipientName.toLowerCase().split(" ")[0]} to
-                      beneficiaries
+                      Add{" "}
+                      {recipientName.split(" ")[0].charAt(0).toUpperCase() +
+                        recipientName.toLowerCase().split(" ")[0].slice(1)}{" "}
+                      to beneficiaries
                     </label>
                   </div>
                 )}
@@ -595,6 +602,7 @@ export function TransactionStatus({
                 amountReceived: formMethods.watch("amountReceived") as number,
                 currency: formMethods.watch("currency") as string,
               }}
+              supportedInstitutions={supportedInstitutions}
             />
           )}
         </div>

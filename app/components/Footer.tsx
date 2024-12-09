@@ -15,17 +15,17 @@ import { ThemeSwitch } from "./ThemeSwitch";
 
 const socialsDarkTheme = [
   {
-    href: "https://warpcast.com/~/channel/paycrest",
+    href: "https://warpcast.com/~/channel/noblocks",
     title: "Farcaster",
     LogoSvg: FarcasterIconDarkTheme,
   },
   {
-    href: "https://github.com/paycrest",
+    href: "https://github.com/paycrest/noblocks",
     title: "GitHub",
     LogoSvg: GithubIconDarkTheme,
   },
   {
-    href: "https://x.com/paycrest",
+    href: "https://x.com/noblocks_xyz",
     title: "X",
     LogoSvg: XIconDarkTheme,
   },
@@ -33,17 +33,17 @@ const socialsDarkTheme = [
 
 const socialsLightTheme = [
   {
-    href: "https://warpcast.com/~/channel/paycrest",
+    href: "https://warpcast.com/~/channel/noblocks",
     title: "Farcaster",
     LogoSvg: FarcasterIconLightTheme,
   },
   {
-    href: "https://github.com/paycrest",
+    href: "https://github.com/paycrest/noblocks",
     title: "GitHub",
     LogoSvg: GithubIconLightTheme,
   },
   {
-    href: "https://x.com/paycrest",
+    href: "https://x.com/noblocks_xyz",
     title: "X",
     LogoSvg: XIconLightTheme,
   },

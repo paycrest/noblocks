@@ -92,20 +92,22 @@ export const WalletDetails = () => {
                 <h3 className="text-gray-500 dark:text-white/50">
                   Noblocks Wallet
                 </h3>
-                <button
-                  type="button"
-                  onClick={() => handleFundWallet(smartWallet?.address ?? "")}
-                  className="font-semibold text-primary"
-                >
-                  Fund
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsWithdrawing(true)}
-                  className="font-semibold text-primary"
-                >
-                  Withdraw
-                </button>
+                <div className="flex flex-col space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleFundWallet(smartWallet?.address ?? "")}
+                    className="font-semibold text-primary"
+                  >
+                    Fund
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsWithdrawing(true)}
+                    className="font-semibold text-primary"
+                  >
+                    Withdraw
+                  </button>
+                </div>
               </div>
               <ul className="space-y-2 text-neutral-900 dark:text-white/80">
                 {Object.entries(allBalances.smartWallet?.balances || {}).map(
@@ -315,7 +317,7 @@ const WithdrawalModal = ({
               required: { value: true, message: "Receipient address" },
             })}
             className="w-full rounded-xl border-b border-transparent bg-transparent py-2 text-sm text-neutral-900 outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30"
-            placeholder="Wallet address"
+            placeholder="Recipient wallet address"
             maxLength={42}
           />
         </div>

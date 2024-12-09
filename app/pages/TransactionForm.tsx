@@ -11,6 +11,7 @@ import {
   slideInOut,
   FormDropdown,
   RecipientDetailsForm,
+  KycModal,
 } from "../components";
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
@@ -47,8 +48,9 @@ export const TransactionForm = ({
     setValue,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-
   const { amountSent, amountReceived, token, currency } = watch();
+
+  const [isUserVerified, setIsUserVerified] = useState(false);
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
 
   const tokens = [];
@@ -245,9 +247,15 @@ export const TransactionForm = ({
           {/* {errors.memo && <InputError message={errors.memo.message} />} */}
         </div>
 
-        {/* {ready && authenticated && !isUserVerified && (
+        {!ready && (
+          <button type="button" className={primaryBtnClasses} disabled>
+            Loading...
+          </button>
+        )}
+
+        {ready && authenticated && !isUserVerified && (
           <KycModal setIsUserVerified={setIsUserVerified} />
-        )} */}
+        )}
 
         {ready && !authenticated && (
           <button type="button" className={primaryBtnClasses} onClick={login}>
@@ -255,7 +263,7 @@ export const TransactionForm = ({
           </button>
         )}
 
-        {authenticated && (
+        {ready && authenticated && isUserVerified && (
           <button
             type="submit"
             className={primaryBtnClasses}

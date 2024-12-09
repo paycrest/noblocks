@@ -49,17 +49,17 @@ const terms = [
   {
     id: "privacyPolicy",
     label: "Privacy Policy",
-    url: "https://paycrest.io/",
+    url: "/privacy-policy",
   },
   {
     id: "antiMoneyLaunderingPolicy",
     label: "Anti Money Laundering Policy",
-    url: "https://paycrest.io/",
+    url: "https://www.paycrest.io/aml-notice",
   },
   {
     id: "termsAndConditions",
     label: "Terms and Conditions",
-    url: "https://paycrest.io/",
+    url: "/terms",
   },
 ] as const;
 

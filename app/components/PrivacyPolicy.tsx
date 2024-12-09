@@ -1,14 +1,14 @@
 import Link from "next/link";
 
 /* eslint-disable react/no-unescaped-entities */
-const PrivacyPolicy = () => {
+export const PrivacyPolicy = () => {
   return (
-    <div className="mt-10 space-y-4 text-sm font-normal leading-6 dark:text-[#FFFFFF80] text-justify">
+    <div className="mt-10 space-y-4 text-justify text-sm font-normal leading-6 dark:text-[#FFFFFF80]">
       <h3 className="text-base font-medium">1. Introduction</h3>
       <p>
         Welcome to Paycrest, Inc. (“The Company”"we," "our," or "us"), the
-        company behind noblocks.xyz and Paycrest Protocol ("the Services"). We are
-        committed to protecting the privacy and personal information of our
+        company behind noblocks.xyz and Paycrest Protocol ("the Services"). We
+        are committed to protecting the privacy and personal information of our
         users ("you," "your," or "user"). This Privacy Policy outlines how we
         collect, use, share, and protect your personal data when you use our
         Service, which allows for cryptocurrency payments that are converted and
@@ -221,7 +221,10 @@ const PrivacyPolicy = () => {
       <p>
         6.3 To exercise any of these rights or for any questions related to your
         personal information, please contact us at{" "}
-        <Link className="font-bold text-blue-500" href="https://legal@paycrest.io">
+        <Link
+          className="font-bold text-blue-500"
+          href="https://legal@paycrest.io"
+        >
           legal@paycrest.io
         </Link>
       </p>
@@ -330,7 +333,12 @@ const PrivacyPolicy = () => {
         information from a child without parental consent, we will take steps to
         delete such information from our records. If you believe that a child
         under 18 has provided us with personal information, please contact us at{" "}
-        <Link href="https://legal@paycrest.io" className="font-bold text-blue-500">legal@paycrest.io</Link>
+        <Link
+          href="https://legal@paycrest.io"
+          className="font-bold text-blue-500"
+        >
+          legal@paycrest.io
+        </Link>
       </p>
       <h3 className="text-base font-medium">
         11. Automated Decision-Making and Profiling
@@ -367,10 +375,13 @@ const PrivacyPolicy = () => {
       <p>
         If you have any questions or concerns about this Privacy Policy or our
         data practices, please contact us at{" "}
-        <Link href="https://legal@paycrest.io" className="font-bold text-blue-500">legal@paycrest.io</Link>
+        <Link
+          href="https://legal@paycrest.io"
+          className="font-bold text-blue-500"
+        >
+          legal@paycrest.io
+        </Link>
       </p>
     </div>
   );
 };
-
-export default PrivacyPolicy;

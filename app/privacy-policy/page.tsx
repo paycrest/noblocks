@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import PrivacyPolicy from "../components/PrivacyPolicy";
+import { PrivacyPolicy } from "../components/PrivacyPolicy";
 
 const Privacy = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -29,7 +29,7 @@ const Privacy = () => {
       <div ref={containerRef} className="no-scrollbar h-full overflow-auto">
         <h3 className="text-2xl font-semibold">Privacy Policy</h3>
         <div className="relative">
-          <PrivacyPolicy/>
+          <PrivacyPolicy />
         </div>
       </div>
       {showFade && (

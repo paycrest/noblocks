@@ -41,7 +41,7 @@ export const Navbar = () => {
                 delay={0.1}
               >
                 <Link href="/terms">Terms</Link>
-                <Link href="/privacy_policy">Privacy Policy</Link>
+                <Link href="/privacy-policy">Privacy Policy</Link>
               </AnimatedComponent>
             )}
             <ArrowDownIcon

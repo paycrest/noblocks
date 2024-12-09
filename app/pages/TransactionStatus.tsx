@@ -29,7 +29,7 @@ import {
 } from "../components/ImageAssets";
 import { calculateDuration, classNames, getExplorerLink } from "../utils";
 import { fetchOrderDetails } from "../api/aggregator";
-import { OrderDetailsData, TransactionStatusProps } from "../types";
+import type { OrderDetailsData, TransactionStatusProps } from "../types";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { toast } from "sonner";
@@ -137,7 +137,7 @@ export function TransactionStatus({
       localStorage.getItem("savedRecipients") || "[]",
     );
     const isRecipientSaved = savedRecipients.some(
-      (r: { accountIdentifier: any; institutionCode: any }) =>
+      (r: { accountIdentifier: string; institutionCode: string }) =>
         r.accountIdentifier === formMethods.watch("accountIdentifier") &&
         r.institutionCode === formMethods.watch("institutionCode"),
     );
@@ -230,7 +230,7 @@ export function TransactionStatus({
       localStorage.getItem("savedRecipients") || "[]",
     );
     const updatedRecipients = savedRecipients.filter(
-      (r: { accountIdentifier: any; institutionCode: any }) =>
+      (r: { accountIdentifier: string; institutionCode: string }) =>
         r.accountIdentifier !== formMethods.watch("accountIdentifier") ||
         r.institutionCode !== formMethods.watch("institutionCode"),
     );
@@ -257,19 +257,21 @@ export function TransactionStatus({
           The stablecoin has been refunded to your account.
         </>
       );
-    } else if (!["validated", "settled"].includes(transactionStatus)) {
-      return `Processing payment to ${recipientName}. Hang on, this will only take a few seconds.`;
-    } else {
-      return (
-        <>
-          Your transfer of{" "}
-          <span className="text-neutral-900 dark:text-white">
-            {amount} {token}
-          </span>{" "}
-          to {recipientName} has been completed successfully.
-        </>
-      );
     }
+    
+    if (!["validated", "settled"].includes(transactionStatus)) {
+      return `Processing payment to ${recipientName}. Hang on, this will only take a few seconds.`;
+    }
+
+    return (
+      <>
+        Your transfer of{" "}
+        <span className="text-neutral-900 dark:text-white">
+          {amount} {token}
+        </span>{" "}
+        to {recipientName} has been completed successfully.
+      </>
+    );
   };
 
   const getImageSrc = () => {
@@ -434,6 +436,11 @@ export function TransactionStatus({
                         viewBox="0 0 14 14"
                         fill="none"
                       >
+                        <title>
+                          {addToBeneficiaries
+                            ? "Remove from beneficiaries"
+                            : "Add to beneficiaries"}
+                        </title>
                         <path
                           d="M3 8L6 11L11 3.5"
                           strokeWidth={2}

@@ -17,7 +17,7 @@ import { gatewayAbi } from "../api/abi";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
-  BaseError,
+  type BaseError,
   decodeEventLog,
   encodeFunctionData,
   getAddress,
@@ -120,7 +120,7 @@ export const TransactionPreview = ({
     // Prepare transaction parameters
     const params = {
       token: tokenAddress,
-      amount: parseUnits(amountSent.toString(), tokenDecimals!),
+      amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
       rate: parseUnits(rate.toString(), 0),
       senderFeeRecipient: getAddress(
         "0x0000000000000000000000000000000000000000",
@@ -159,7 +159,7 @@ export const TransactionPreview = ({
                 getAddress(
                   getGatewayContractAddress(selectedNetwork.chain.name) || "",
                 ),
-                parseUnits(amountSent.toString(), tokenDecimals!),
+                parseUnits(amountSent.toString(), tokenDecimals ?? 18),
               ],
             }),
           },
@@ -177,7 +177,7 @@ export const TransactionPreview = ({
                 params.rate,
                 params.senderFeeRecipient,
                 params.senderFee,
-                params.refundAddress!,
+                params.refundAddress ?? "",
                 params.messageHash,
               ],
             }),
@@ -187,8 +187,9 @@ export const TransactionPreview = ({
 
       await getOrderId();
       refreshBalance(); // Refresh balance after order is created
-    } catch (e: any) {
-      setErrorMessage((e as BaseError).shortMessage);
+    } catch (e) {
+      const error = e as BaseError;
+      setErrorMessage(error.shortMessage);
       setIsConfirming(false);
     }
   };
@@ -197,9 +198,10 @@ export const TransactionPreview = ({
     try {
       setIsConfirming(true);
       await createOrder();
-    } catch (e: any) {
-      setErrorMessage((e as BaseError).shortMessage);
-      setErrorCount((prevCount) => prevCount + 1);
+    } catch (e) {
+      const error = e as BaseError;
+      setErrorMessage(error.shortMessage);
+      setErrorCount((prevCount: number) => prevCount + 1);
       setIsConfirming(false);
     }
   };

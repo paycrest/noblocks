@@ -832,6 +832,7 @@ export const RecipientDetailsForm = ({
                                     >
                                       {recipient.name
                                         .split(" ")
+                                        .filter((name) => name)
                                         .slice(0, 2)
                                         .map((name) => name[0].toUpperCase())
                                         .join("")}
@@ -953,6 +954,7 @@ export const RecipientDetailsForm = ({
                                     >
                                       {recipient.name
                                         .split(" ")
+                                        .filter((name) => name)
                                         .slice(0, 2)
                                         .map((name) => name[0].toUpperCase())
                                         .join("")}

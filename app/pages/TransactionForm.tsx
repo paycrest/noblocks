@@ -255,9 +255,9 @@ export const TransactionForm = ({
           </button>
         )}
 
-        {ready && authenticated && !isUserVerified && (
+        {/* {ready && authenticated && !isUserVerified && (
           <KycModal setIsUserVerified={setIsUserVerified} />
-        )}
+        )} */}
 
         {ready && !authenticated && (
           <button type="button" className={primaryBtnClasses} onClick={login}>
@@ -265,7 +265,7 @@ export const TransactionForm = ({
           </button>
         )}
 
-        {ready && authenticated && isUserVerified && (
+        {ready && authenticated && (
           <button
             type="submit"
             className={primaryBtnClasses}

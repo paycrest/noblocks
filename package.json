@@ -20,9 +20,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@biconomy/account": "^4.4.6",
-    "@biconomy/sdk": "^0.0.10",
-    "@biconomy/use-aa": "1.0.14",
     "@headlessui/react": "^2.1.1",
     "@privy-io/react-auth": "^1.87.0",
     "@tanstack/react-query": "^5.45.1",

@@ -53,13 +53,13 @@ const terms = [
     text: "I understand that my privacy is protected through self-custody, and only public wallet addresses and transaction details necessary for payments will be processed. Personal information will not be shared without my consent unless legally required.",
   },
   {
-    id: "antiMoneyLaunderingPolicy",
-    label: "Anti Money Laundering Policy",
-    url: "https://www.paycrest.io/aml-notice",
+    id: "termsAndConditions1",
+    label: "Terms and Conditions",
+    url: "/terms",
     text: "I understand that while I maintain control of my assets, I must complete KYC verification via a third-party provider to use the payment services. I confirm I am not in a restricted region or a Politically Exposed Person.",
   },
   {
-    id: "termsAndConditions",
+    id: "termsAndConditions2",
     label: "Terms and Conditions",
     url: "/terms",
     text: "I understand I am responsible for the security of my wallet and accuracy of payment details. I confirm I am at least 18 years old and will use this decentralized payment service in compliance with applicable laws.",

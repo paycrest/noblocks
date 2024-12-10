@@ -50,19 +50,19 @@ const terms = [
     id: "privacyPolicy",
     label: "Privacy Policy",
     url: "/privacy-policy",
-    text: "I understand that my privacy is protected through self-custody, and only public wallet addresses and transaction details necessary for payments will be processed. Personal information will not be shared without my consent unless legally required.",
+    text: "I understand my privacy is protected through self-custody wallets, and only essential transaction details will be processed. Personal data won't be shared without consent unless legally required.",
   },
   {
     id: "termsAndConditions1",
     label: "Terms and Conditions",
     url: "/terms",
-    text: "I understand that while I maintain control of my assets, I must complete KYC verification via a third-party provider to use the payment services. I confirm I am not in a restricted region or a Politically Exposed Person.",
+    text: "I understand I maintain control of my assets but must complete KYC verification through a third party. I confirm I'm not in a restricted region or a Politically Exposed Person.",
   },
   {
     id: "termsAndConditions2",
     label: "Terms and Conditions",
     url: "/terms",
-    text: "I understand I am responsible for the security of my wallet and accuracy of payment details. I confirm I am at least 18 years old and will use this decentralized payment service in compliance with applicable laws.",
+    text: "I understand I'm responsible for my wallet security and payment accuracy. I confirm I'm at least 18 years old and will use this service in compliance with applicable laws.",
   },
 ] as const;
 
@@ -416,10 +416,10 @@ export const KycModal = ({
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        aria-label="Verify your identity"
+        aria-label="Get started"
         className={`${primaryBtnClasses} w-full`}
       >
-        Verify your identity
+        Get started
       </button>
 
       <Dialog

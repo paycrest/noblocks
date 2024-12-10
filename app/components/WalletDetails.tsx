@@ -8,7 +8,7 @@ import { useOutsideClick } from "../hooks";
 import { classNames, fetchSupportedTokens, formatCurrency } from "../utils";
 import { WalletIcon } from "./ImageAssets";
 import { useBalance } from "../context/BalanceContext";
-import { dropdownVariants, fadeInOut } from "./AnimatedComponents";
+import { dropdownVariants } from "./AnimatedComponents";
 import { useFundWallet, usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { Token } from "../types";

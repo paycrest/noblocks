@@ -136,6 +136,7 @@ export const RecipientDetailsForm = ({
   ]);
 
   const saveRecipient = () => {
+    recipientName = recipientName.replace(/\s+/g, " ").trim();
     if (selectedTab === "bank-transfer" && isRecipientFormValid()) {
       const newRecipient = {
         name: recipientName,
@@ -173,6 +174,7 @@ export const RecipientDetailsForm = ({
     setValue("institution", recipient.institutionCode);
     setValue("recipientName", recipient.name);
     setValue("accountIdentifier", recipient.accountIdentifier);
+    recipient.name = recipient.name.replace(/\s+/g, " ").trim();
     setRecipientName(recipient.name);
     setIsModalOpen(false);
   };

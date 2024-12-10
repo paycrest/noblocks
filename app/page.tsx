@@ -103,9 +103,7 @@ export default function Home() {
     const getInstitutions = async (currencyValue: string) => {
       setIsFetchingInstitutions(true);
 
-      const institutions = await fetchSupportedInstitutions(
-        currencyValue || "KES",
-      );
+      const institutions = await fetchSupportedInstitutions(currencyValue);
       setInstitutions(
         institutions.filter((institution) => institution.type === "bank"),
       );

@@ -50,16 +50,19 @@ const terms = [
     id: "privacyPolicy",
     label: "Privacy Policy",
     url: "/privacy-policy",
+    text: "I understand that my privacy is protected through self-custody, and only public wallet addresses and transaction details necessary for payments will be processed. Personal information will not be shared without my consent unless legally required.",
   },
   {
     id: "antiMoneyLaunderingPolicy",
     label: "Anti Money Laundering Policy",
     url: "https://www.paycrest.io/aml-notice",
+    text: "I understand that while I maintain control of my assets, I must complete KYC verification via a third-party provider to use the payment services. I confirm I am not in a restricted region or a Politically Exposed Person.",
   },
   {
     id: "termsAndConditions",
     label: "Terms and Conditions",
     url: "/terms",
+    text: "I understand I am responsible for the security of my wallet and accuracy of payment details. I confirm I am at least 18 years old and will use this decentralized payment service in compliance with applicable laws.",
   },
 ] as const;
 
@@ -161,7 +164,7 @@ export const KycModal = ({
       <div className="space-y-3">
         <UserDetailsIcon />
         <DialogTitle className="text-lg font-bold">
-          Verify your identity in{" "}
+          Start sending money in just{" "}
           <span className="bg-gradient-to-br from-green-400 via-orange-400 to-orange-600 bg-clip-text text-transparent">
             2 minutes
           </span>
@@ -194,10 +197,7 @@ export const KycModal = ({
               </svg>
             </Checkbox>
             <Label className="grid cursor-pointer gap-2 text-gray-500 dark:text-white/50">
-              <p>
-                I understand we are committed to protecting your privacy and
-                will not share your personal information without
-              </p>
+              <p>{term.text}</p>
               <a
                 href={term.url}
                 target="_blank"
@@ -218,8 +218,8 @@ export const KycModal = ({
 
       <div className="rounded-2xl border border-gray-100 p-4 dark:border-white/10">
         <p className="text-xs text-gray-500 dark:text-white/50">
-          By clicking “sign and continue” below, you are agreeing to the terms
-          and policies above
+          By clicking “Accept” below, you are agreeing to the terms and policies
+          above
         </p>
       </div>
 

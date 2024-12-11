@@ -151,7 +151,7 @@ export function TransactionStatus({
     const isRecipientSaved = savedRecipients.some(
       (r: { accountIdentifier: string; institutionCode: string }) =>
         r.accountIdentifier === formMethods.watch("accountIdentifier") &&
-        r.institutionCode === formMethods.watch("institutionCode"),
+        r.institutionCode === formMethods.watch("institution"),
     );
     setAddToBeneficiaries(isRecipientSaved);
   }, [formMethods]);

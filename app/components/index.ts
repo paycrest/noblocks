@@ -20,6 +20,7 @@ export {
 export { Tooltip } from "./Tooltip";
 export { KycModal } from "./KycModal";
 export { FundWalletModal } from "./FundWalletModal";
+export { CookieConsent } from "./CookieConsent";
 
 export { TransactionReceipt } from "./TransactionReceipt";
 export { TransactionForm } from "../pages/TransactionForm";

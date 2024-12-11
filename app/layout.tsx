@@ -5,7 +5,7 @@ import { Inter } from "next/font/google";
 
 import Providers from "./providers";
 import MainContent from "./mainContent";
-import { Footer, Navbar } from "./components";
+import { CookieConsent, Footer, Navbar } from "./components";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -59,6 +59,8 @@ export default function RootLayout({
               <Footer />
             </div>
           </div>
+
+          <CookieConsent />
         </Providers>
       </body>
     </html>

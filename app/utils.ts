@@ -288,12 +288,12 @@ export const kenyaMobileMoneyOptions: InstitutionProps[] = [
   {
     name: "SAFARICOM (MPESA)",
     code: "MPESA",
-    type: "mobile-money",
+    type: "mobile_money",
   },
   {
     name: "AIRTEL",
     code: "AIRTEL",
-    type: "mobile-money",
+    type: "mobile_money",
   },
 ];
 
@@ -329,3 +329,14 @@ export function parsePrivyChainId(chainId: string): number {
   // Privy returns chain IDs in CAIP-2 format: 'eip155:1'
   return Number(chainId.split(":")[1]);
 }
+
+/**
+ * Utility function to get saved recipients from localStorage.
+ *
+ * @param key - The localStorage key to retrieve the saved recipients.
+ * @returns An array of saved recipients.
+ */
+export const getSavedRecipients = (key: string) => {
+  const savedRecipients = localStorage.getItem(key);
+  return savedRecipients ? JSON.parse(savedRecipients) : [];
+};

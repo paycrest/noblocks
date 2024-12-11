@@ -32,6 +32,7 @@ const INITIAL_FORM_STATE: FormData = {
   accountIdentifier: "",
   recipientName: "",
   memo: "",
+  accountType: "bank",
 };
 
 /**
@@ -101,6 +102,8 @@ export default function Home() {
   // Fetch supported institutions based on currency
   useEffect(() => {
     const getInstitutions = async (currencyValue: string) => {
+      if (!currencyValue) return;
+
       setIsFetchingInstitutions(true);
 
       const institutions = await fetchSupportedInstitutions(currencyValue);

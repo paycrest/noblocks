@@ -23,7 +23,11 @@ import {
   RecipientDetailsFormProps,
 } from "../types";
 import { colors } from "../mocks";
-import { classNames, kenyaMobileMoneyOptions } from "../utils";
+import {
+  classNames,
+  kenyaMobileMoneyOptions,
+  getSavedRecipients,
+} from "../utils";
 import { InputError } from "./InputError";
 import { useOutsideClick } from "../hooks";
 import { fetchAccountName } from "../api/aggregator";
@@ -31,6 +35,9 @@ import { AddUserIcon, TrashIcon } from "./ImageAssets";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import Image from "next/image";
 import { TbCircle } from "react-icons/tb";
+
+const LOCAL_STORAGE_KEY_BANK = "savedBankTransferRecipients";
+const LOCAL_STORAGE_KEY_MOBILE = "savedMobileMoneyRecipients";
 
 export const RecipientDetailsForm = ({
   formMethods,
@@ -82,7 +89,7 @@ export const RecipientDetailsForm = ({
     useState<InstitutionProps | null>({
       name: "SAFARICOM (MPESA)",
       code: "MPESA",
-      type: "mobile-money",
+      type: "mobile_money",
     });
 
   const institutionsDropdownRef = useRef<HTMLDivElement>(null);
@@ -137,26 +144,27 @@ export const RecipientDetailsForm = ({
 
   const saveRecipient = () => {
     recipientName = recipientName.replace(/\s+/g, " ").trim();
+
     if (selectedTab === "bank-transfer" && isRecipientFormValid()) {
       const newRecipient = {
         name: recipientName,
         institution: selectedInstitution?.name || "",
         institutionCode: watch("institution")?.toString() || "",
         accountIdentifier: watch("accountIdentifier")?.toString() || "",
+        type: selectedInstitution?.type || "bank",
       };
-      const updatedRecipients = [...savedBankTransferRecipients, newRecipient];
-      setSavedBankTransferRecipients(updatedRecipients);
+
       setSelectedRecipient(newRecipient);
       setIsModalOpen(false);
-    } else if (selectedTab === "mobile-money" && isMobileMoneyFormValid()) {
+    } else if (selectedTab === "mobile_money" && isMobileMoneyFormValid()) {
       const newRecipient = {
         name: recipientName,
         institution: selectedMobileMoneyInstitution?.name || "",
         institutionCode: selectedMobileMoneyInstitution?.code || "",
         accountIdentifier: watch("accountIdentifier")?.toString() || "",
+        type: selectedMobileMoneyInstitution?.type || "mobile_money",
       };
-      const updatedRecipients = [...savedMobileMoneyRecipients, newRecipient];
-      setSavedMobileMoneyRecipients(updatedRecipients);
+
       setSelectedRecipient(newRecipient);
       setIsModalOpen(false);
     }
@@ -168,12 +176,14 @@ export const RecipientDetailsForm = ({
       name: recipient.institution,
       code: recipient.institutionCode,
       type: recipient.institutionCode.startsWith("MPESA")
-        ? "mobile-money"
+        ? "mobile_money"
         : "bank",
     });
     setValue("institution", recipient.institutionCode);
     setValue("recipientName", recipient.name);
     setValue("accountIdentifier", recipient.accountIdentifier);
+    setValue("accountType", recipient.type);
+
     recipient.name = recipient.name.replace(/\s+/g, " ").trim();
     setRecipientName(recipient.name);
     setIsModalOpen(false);
@@ -187,21 +197,26 @@ export const RecipientDetailsForm = ({
           r.accountIdentifier !== recipientToDelete.accountIdentifier ||
           r.institution !== recipientToDelete.institution,
       );
+
       const updatedMobileMoneyRecipients = savedMobileMoneyRecipients.filter(
         (r) =>
           r.accountIdentifier !== recipientToDelete.accountIdentifier ||
           r.institution !== recipientToDelete.institution,
       );
+
       setSavedBankTransferRecipients(updatedBankTransferRecipients);
       setSavedMobileMoneyRecipients(updatedMobileMoneyRecipients);
+
       localStorage.setItem(
-        "savedBankTransferRecipients",
+        LOCAL_STORAGE_KEY_BANK,
         JSON.stringify(updatedBankTransferRecipients),
       );
+
       localStorage.setItem(
-        "savedMobileMoneyRecipients",
+        LOCAL_STORAGE_KEY_MOBILE,
         JSON.stringify(updatedMobileMoneyRecipients),
       );
+
       if (
         selectedRecipient?.accountIdentifier ===
         recipientToDelete.accountIdentifier
@@ -218,10 +233,22 @@ export const RecipientDetailsForm = ({
       ...savedBankTransferRecipients,
       ...savedMobileMoneyRecipients,
     ];
+
+    // just in case there are duplicates
+    const uniqueRecipients = allRecipients.filter(
+      (recipient, index, self) =>
+        index ===
+        self.findIndex(
+          (r) =>
+            r.accountIdentifier === recipient.accountIdentifier &&
+            r.institutionCode === recipient.institutionCode,
+        ),
+    );
+
     const currentBankCodes = institutions.map(
       (institution) => institution.code,
     );
-    return allRecipients
+    return uniqueRecipients
       .filter(
         (recipient) =>
           recipient.name
@@ -251,22 +278,8 @@ export const RecipientDetailsForm = ({
   // * USE EFFECTS
 
   useEffect(() => {
-    const savedBankTransferRecipientsFromStorage = localStorage.getItem(
-      "savedBankTransferRecipients",
-    );
-    if (savedBankTransferRecipientsFromStorage) {
-      setSavedBankTransferRecipients(
-        JSON.parse(savedBankTransferRecipientsFromStorage),
-      );
-    }
-    const savedMobileMoneyRecipientsFromStorage = localStorage.getItem(
-      "savedMobileMoneyRecipients",
-    );
-    if (savedMobileMoneyRecipientsFromStorage) {
-      setSavedMobileMoneyRecipients(
-        JSON.parse(savedMobileMoneyRecipientsFromStorage),
-      );
-    }
+    setSavedBankTransferRecipients(getSavedRecipients(LOCAL_STORAGE_KEY_BANK));
+    setSavedMobileMoneyRecipients(getSavedRecipients(LOCAL_STORAGE_KEY_MOBILE));
   }, []);
 
   useEffect(() => {
@@ -325,6 +338,20 @@ export const RecipientDetailsForm = ({
     setSelectedTab("bank-transfer");
   }, [currency]);
 
+  const renderRecipientDetails = (recipient: RecipientDetails) => (
+    <div className="flex flex-wrap items-center gap-2 font-light text-gray-700 dark:text-white/80">
+      <p className="rounded-lg bg-gray-100 px-3 py-1 text-center capitalize dark:bg-neutral-800">
+        {recipient.name.toLowerCase()}
+      </p>
+      <p className="rounded-lg bg-gray-100 px-3 py-1 text-center dark:bg-neutral-800">
+        {recipient.accountIdentifier}
+      </p>
+      <p className="rounded-lg bg-gray-100 px-3 py-1 text-center dark:bg-neutral-800">
+        {recipient.institution}
+      </p>
+    </div>
+  );
+
   return (
     <>
       {selectedRecipient ? (
@@ -339,17 +366,7 @@ export const RecipientDetailsForm = ({
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 font-light text-gray-700 dark:text-white/80">
-            <p className="rounded-lg bg-gray-100 px-3 py-1 text-center capitalize dark:bg-neutral-800">
-              {selectedRecipient.name.toLowerCase()}
-            </p>
-            <p className="rounded-lg bg-gray-100 px-3 py-1 text-center dark:bg-neutral-800">
-              {selectedRecipient.accountIdentifier}
-            </p>
-            <p className="rounded-lg bg-gray-100 px-3 py-1 text-center dark:bg-neutral-800">
-              {selectedRecipient.institution}
-            </p>
-          </div>
+          {renderRecipientDetails(selectedRecipient)}
         </div>
       ) : (
         <Button
@@ -397,12 +414,12 @@ export const RecipientDetailsForm = ({
                     <button
                       type="button"
                       className={`flex items-center gap-1 transition-all duration-300 disabled:cursor-not-allowed ${
-                        selectedTab === "mobile-money"
+                        selectedTab === "mobile_money"
                           ? "text-neutral-900 dark:text-white"
                           : "text-gray-400 dark:text-white/40"
                       }`}
                       disabled={currency !== "KES"}
-                      onClick={() => setSelectedTab("mobile-money")}
+                      onClick={() => setSelectedTab("mobile_money")}
                     >
                       Mobile money
                       {currency !== "KES" && (
@@ -640,9 +657,9 @@ export const RecipientDetailsForm = ({
                   )}
 
                   {/* Mobile Money Tab Contents */}
-                  {selectedTab === "mobile-money" && (
+                  {selectedTab === "mobile_money" && (
                     <motion.div
-                      key="mobile-money"
+                      key="mobile_money"
                       {...fadeInOut}
                       transition={{ duration: 0.3 }}
                       className="space-y-4"
@@ -652,12 +669,17 @@ export const RecipientDetailsForm = ({
                           <button
                             key={provider.code}
                             type="button"
-                            className={`flex items-center gap-2 rounded-lg border border-gray-300 p-1 pr-2 uppercase outline-none transition focus-within:border-gray-400 dark:border-white/10 dark:bg-white/5 dark:text-white/80 dark:focus-within:border-white/20 ${selectedMobileMoneyInstitution?.name === provider.code ? "bg-gray-200 dark:bg-white/5" : ""}`}
+                            className={`flex items-center gap-2 rounded-lg border border-gray-300 p-1 pr-2 uppercase outline-none transition focus-within:border-gray-400 dark:border-white/10 dark:bg-white/5 dark:text-white/80 dark:focus-within:border-white/20 ${
+                              selectedMobileMoneyInstitution?.name ===
+                              provider.code
+                                ? "bg-gray-200 dark:bg-white/5"
+                                : ""
+                            }`}
                             onClick={() => {
                               setSelectedMobileMoneyInstitution({
                                 name: provider.name,
                                 code: provider.code.toLowerCase(),
-                                type: "mobile-money",
+                                type: "mobile_money",
                               });
                               register("institution", {
                                 value: provider.code.toLowerCase(),
@@ -760,249 +782,237 @@ export const RecipientDetailsForm = ({
                 </div>
               </div>
 
-              {selectedTab === "bank-transfer" &&
-                savedBankTransferRecipients.length > 0 &&
-                currency && (
-                  <div className="rounded-2xl bg-white p-4 dark:bg-neutral-900">
-                    <Button
-                      className="flex w-full items-center justify-between"
-                      onClick={() =>
-                        setIsSavedRecipientsOpen(!isSavedRecipientsOpen)
-                      }
+              {selectedTab === "bank-transfer" && (
+                <div className="rounded-2xl bg-white p-4 dark:bg-neutral-900">
+                  <Button
+                    className="flex w-full items-center justify-between"
+                    onClick={() =>
+                      setIsSavedRecipientsOpen(!isSavedRecipientsOpen)
+                    }
+                  >
+                    <p>Saved bank transfer recipients</p>
+                    <PiCaretDown
+                      className={classNames(
+                        "text-base text-gray-400 transition-transform dark:text-white/50",
+                        isSavedRecipientsOpen ? "rotate-180" : "",
+                      )}
+                    />
+                  </Button>
+                  {isSavedRecipientsOpen && (
+                    <motion.div
+                      initial="closed"
+                      animate="open"
+                      exit="closed"
+                      variants={dropdownVariants}
+                      className="scrollbar-hide mt-4 max-h-80 space-y-2 overflow-y-auto"
                     >
-                      <p>Saved bank transfer recipients</p>
-                      <PiCaretDown
-                        className={classNames(
-                          "text-base text-gray-400 transition-transform dark:text-white/50",
-                          isSavedRecipientsOpen ? "rotate-180" : "",
-                        )}
-                      />
-                    </Button>
-                    {isSavedRecipientsOpen && (
-                      <motion.div
-                        initial="closed"
-                        animate="open"
-                        exit="closed"
-                        variants={dropdownVariants}
-                        className="scrollbar-hide mt-4 max-h-80 space-y-2 overflow-y-auto"
-                      >
-                        {/* Search beneficiaries */}
-                        <div className="sticky top-0 bg-white pb-2 dark:bg-neutral-900">
-                          <div className="relative">
-                            <CiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-gray-400" />
-                            <input
-                              type="search"
-                              placeholder="Search beneficiaries by name or account number"
-                              value={beneficiarySearchTerm}
-                              onChange={(e) =>
-                                setBeneficiarySearchTerm(e.target.value)
-                              }
-                              className="w-full rounded-xl border border-gray-300 bg-transparent py-2.5 pl-9 pr-3 text-sm outline-none transition-all duration-300 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none dark:border-white/20 dark:text-white/80 dark:placeholder:text-white/40 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900"
-                            />
-                          </div>
+                      {/* Search beneficiaries */}
+                      <div className="sticky top-0 bg-white pb-2 dark:bg-neutral-900">
+                        <div className="relative">
+                          <CiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-gray-400" />
+                          <input
+                            type="search"
+                            placeholder="Search beneficiaries by name or account number"
+                            value={beneficiarySearchTerm}
+                            onChange={(e) =>
+                              setBeneficiarySearchTerm(e.target.value)
+                            }
+                            className="w-full rounded-xl border border-gray-300 bg-transparent py-2.5 pl-9 pr-3 text-sm outline-none transition-all duration-300 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none dark:border-white/20 dark:text-white/80 dark:placeholder:text-white/40 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900"
+                          />
                         </div>
+                      </div>
 
-                        <AnimatePresence>
-                          {filteredSavedRecipients.length > 0 ? (
-                            filteredSavedRecipients.map((recipient, index) => (
-                              <motion.div
-                                key={`${recipient.accountIdentifier}-${index}`}
-                                initial={{ opacity: 1, height: "auto" }}
-                                exit={{
-                                  opacity: 0,
-                                  height: 0,
-                                  backgroundColor: "#4D2121",
-                                }}
-                                transition={{ duration: 0.3 }}
-                              >
-                                <Button
-                                  className={`group flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 ${
-                                    recipientToDelete === recipient
-                                      ? "bg-red-100 dark:bg-red-900/30"
-                                      : ""
-                                  }`}
-                                  onClick={() =>
-                                    selectSavedRecipient(recipient)
-                                  }
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <div
-                                      className={classNames(
-                                        "hidden size-11 rounded-xl p-2 text-base text-white sm:grid sm:place-content-center",
-                                        getRandomColor(recipient.name),
-                                      )}
-                                    >
-                                      {recipient.name
-                                        .split(" ")
-                                        .filter((name) => name)
-                                        .slice(0, 2)
-                                        .map((name) => name[0].toUpperCase())
-                                        .join("")}
-                                    </div>
-                                    <div>
-                                      <p className="capitalize text-neutral-900 dark:text-white/80">
-                                        {recipient.name.toLowerCase()}
-                                      </p>
-                                      <p className="flex flex-wrap items-center gap-x-1 text-gray-500 dark:text-white/50">
-                                        <span>
-                                          {recipient.accountIdentifier}
-                                        </span>
-                                        <span className="text-lg dark:text-white/5">
-                                          •
-                                        </span>
-                                        <span>{recipient.institution}</span>
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <Button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      deleteRecipient(recipient);
-                                    }}
-                                    className="group-hover:block sm:hidden"
-                                  >
-                                    <TrashIcon className="size-4 stroke-gray-500 dark:stroke-white/50" />
-                                  </Button>
-                                </Button>
-                              </motion.div>
-                            ))
-                          ) : (
+                      <AnimatePresence>
+                        {filteredSavedRecipients.length > 0 ? (
+                          filteredSavedRecipients.map((recipient, index) => (
                             <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="py-4 text-center text-gray-500 dark:text-white/50"
+                              key={`${recipient.accountIdentifier}-${index}`}
+                              initial={{ opacity: 1, height: "auto" }}
+                              exit={{
+                                opacity: 0,
+                                height: 0,
+                                backgroundColor: "#4D2121",
+                              }}
+                              transition={{ duration: 0.3 }}
                             >
-                              No recipients found
+                              <Button
+                                className={`group flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 ${
+                                  recipientToDelete === recipient
+                                    ? "bg-red-100 dark:bg-red-900/30"
+                                    : ""
+                                }`}
+                                onClick={() => selectSavedRecipient(recipient)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className={classNames(
+                                      "hidden size-11 rounded-xl p-2 text-base text-white sm:grid sm:place-content-center",
+                                      getRandomColor(recipient.name),
+                                    )}
+                                  >
+                                    {recipient.name
+                                      .split(" ")
+                                      .filter((name) => name)
+                                      .slice(0, 2)
+                                      .map((name) => name[0].toUpperCase())
+                                      .join("")}
+                                  </div>
+                                  <div>
+                                    <p className="capitalize text-neutral-900 dark:text-white/80">
+                                      {recipient.name.toLowerCase()}
+                                    </p>
+                                    <p className="flex flex-wrap items-center gap-x-1 text-gray-500 dark:text-white/50">
+                                      <span>{recipient.accountIdentifier}</span>
+                                      <span className="text-lg dark:text-white/5">
+                                        •
+                                      </span>
+                                      <span>{recipient.institution}</span>
+                                    </p>
+                                  </div>
+                                </div>
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteRecipient(recipient);
+                                  }}
+                                  className="group-hover:block sm:hidden"
+                                >
+                                  <TrashIcon className="size-4 stroke-gray-500 dark:stroke-white/50" />
+                                </Button>
+                              </Button>
                             </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.div>
-                    )}
-                  </div>
-                )}
+                          ))
+                        ) : (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="py-4 text-center text-gray-500 dark:text-white/50"
+                          >
+                            No recipients found
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  )}
+                </div>
+              )}
 
-              {selectedTab === "mobile-money" &&
-                savedMobileMoneyRecipients.length > 0 &&
-                currency && (
-                  <div className="rounded-2xl bg-white p-4 dark:bg-neutral-900">
-                    <Button
-                      className="flex w-full items-center justify-between"
-                      onClick={() =>
-                        setIsSavedRecipientsOpen(!isSavedRecipientsOpen)
-                      }
+              {selectedTab === "mobile_money" && (
+                <div className="rounded-2xl bg-white p-4 dark:bg-neutral-900">
+                  <Button
+                    className="flex w-full items-center justify-between"
+                    onClick={() =>
+                      setIsSavedRecipientsOpen(!isSavedRecipientsOpen)
+                    }
+                  >
+                    <p>Saved mobile money recipients</p>
+                    <PiCaretDown
+                      className={classNames(
+                        "text-base text-gray-400 transition-transform dark:text-white/50",
+                        isSavedRecipientsOpen ? "rotate-180" : "",
+                      )}
+                    />
+                  </Button>
+                  {isSavedRecipientsOpen && (
+                    <motion.div
+                      initial="closed"
+                      animate="open"
+                      exit="closed"
+                      variants={dropdownVariants}
+                      className="scrollbar-hide mt-4 max-h-80 space-y-2 overflow-y-auto"
                     >
-                      <p>Saved mobile money recipients</p>
-                      <PiCaretDown
-                        className={classNames(
-                          "text-base text-gray-400 transition-transform dark:text-white/50",
-                          isSavedRecipientsOpen ? "rotate-180" : "",
-                        )}
-                      />
-                    </Button>
-                    {isSavedRecipientsOpen && (
-                      <motion.div
-                        initial="closed"
-                        animate="open"
-                        exit="closed"
-                        variants={dropdownVariants}
-                        className="scrollbar-hide mt-4 max-h-80 space-y-2 overflow-y-auto"
-                      >
-                        {/* Search beneficiaries */}
-                        <div className="sticky top-0 bg-white pb-2 dark:bg-neutral-900">
-                          <div className="relative">
-                            <CiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-gray-400" />
-                            <input
-                              type="search"
-                              placeholder="Search beneficiaries by name or account number"
-                              value={beneficiarySearchTerm}
-                              onChange={(e) =>
-                                setBeneficiarySearchTerm(e.target.value)
-                              }
-                              className="w-full rounded-xl border border-gray-300 bg-transparent py-2.5 pl-9 pr-3 text-sm outline-none transition-all duration-300 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none dark:border-white/20 dark:text-white/80 dark:placeholder:text-white/40 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900"
-                            />
-                          </div>
+                      {/* Search beneficiaries */}
+                      <div className="sticky top-0 bg-white pb-2 dark:bg-neutral-900">
+                        <div className="relative">
+                          <CiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-gray-400" />
+                          <input
+                            type="search"
+                            placeholder="Search beneficiaries by name or account number"
+                            value={beneficiarySearchTerm}
+                            onChange={(e) =>
+                              setBeneficiarySearchTerm(e.target.value)
+                            }
+                            className="w-full rounded-xl border border-gray-300 bg-transparent py-2.5 pl-9 pr-3 text-sm outline-none transition-all duration-300 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none dark:border-white/20 dark:text-white/80 dark:placeholder:text-white/40 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900"
+                          />
                         </div>
+                      </div>
 
-                        <AnimatePresence>
-                          {filteredSavedRecipients.length > 0 ? (
-                            filteredSavedRecipients.map((recipient, index) => (
-                              <motion.div
-                                key={`${recipient.accountIdentifier}-${index}`}
-                                initial={{ opacity: 1, height: "auto" }}
-                                exit={{
-                                  opacity: 0,
-                                  height: 0,
-                                  backgroundColor: "#4D2121",
-                                }}
-                                transition={{ duration: 0.3 }}
-                              >
-                                <Button
-                                  className={`group flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 ${
-                                    recipientToDelete === recipient
-                                      ? "bg-red-100 dark:bg-red-900/30"
-                                      : ""
-                                  }`}
-                                  onClick={() =>
-                                    selectSavedRecipient(recipient)
-                                  }
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <div
-                                      className={classNames(
-                                        "hidden size-11 rounded-xl p-2 text-base text-white sm:grid sm:place-content-center",
-                                        getRandomColor(recipient.name),
-                                      )}
-                                    >
-                                      {recipient.name
-                                        .split(" ")
-                                        .filter((name) => name)
-                                        .slice(0, 2)
-                                        .map((name) => name[0].toUpperCase())
-                                        .join("")}
-                                    </div>
-                                    <div>
-                                      <p className="capitalize text-neutral-900 dark:text-white/80">
-                                        {recipient.name.toLowerCase()}
-                                      </p>
-                                      <p className="flex flex-wrap items-center gap-x-1 text-gray-500 dark:text-white/50">
-                                        <span>
-                                          {recipient.accountIdentifier}
-                                        </span>
-                                        <span className="text-lg dark:text-white/5">
-                                          •
-                                        </span>
-                                        <span>{recipient.institution}</span>
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <Button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      deleteRecipient(recipient);
-                                    }}
-                                    className="group-hover:block sm:hidden"
-                                  >
-                                    <TrashIcon className="size-4 stroke-gray-500 dark:stroke-white/50" />
-                                  </Button>
-                                </Button>
-                              </motion.div>
-                            ))
-                          ) : (
+                      <AnimatePresence>
+                        {filteredSavedRecipients.length > 0 ? (
+                          filteredSavedRecipients.map((recipient, index) => (
                             <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="py-4 text-center text-gray-500 dark:text-white/50"
+                              key={`${recipient.accountIdentifier}-${index}`}
+                              initial={{ opacity: 1, height: "auto" }}
+                              exit={{
+                                opacity: 0,
+                                height: 0,
+                                backgroundColor: "#4D2121",
+                              }}
+                              transition={{ duration: 0.3 }}
                             >
-                              No recipients found
+                              <Button
+                                className={`group flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 ${
+                                  recipientToDelete === recipient
+                                    ? "bg-red-100 dark:bg-red-900/30"
+                                    : ""
+                                }`}
+                                onClick={() => selectSavedRecipient(recipient)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className={classNames(
+                                      "hidden size-11 rounded-xl p-2 text-base text-white sm:grid sm:place-content-center",
+                                      getRandomColor(recipient.name),
+                                    )}
+                                  >
+                                    {recipient.name
+                                      .split(" ")
+                                      .filter((name) => name)
+                                      .slice(0, 2)
+                                      .map((name) => name[0].toUpperCase())
+                                      .join("")}
+                                  </div>
+                                  <div>
+                                    <p className="capitalize text-neutral-900 dark:text-white/80">
+                                      {recipient.name.toLowerCase()}
+                                    </p>
+                                    <p className="flex flex-wrap items-center gap-x-1 text-gray-500 dark:text-white/50">
+                                      <span>{recipient.accountIdentifier}</span>
+                                      <span className="text-lg dark:text-white/5">
+                                        •
+                                      </span>
+                                      <span>{recipient.institution}</span>
+                                    </p>
+                                  </div>
+                                </div>
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteRecipient(recipient);
+                                  }}
+                                  className="group-hover:block sm:hidden"
+                                >
+                                  <TrashIcon className="size-4 stroke-gray-500 dark:stroke-white/50" />
+                                </Button>
+                              </Button>
                             </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.div>
-                    )}
-                  </div>
-                )}
+                          ))
+                        ) : (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="py-4 text-center text-gray-500 dark:text-white/50"
+                          >
+                            No recipients found
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  )}
+                </div>
+              )}
             </DialogPanel>
           </div>
         </div>

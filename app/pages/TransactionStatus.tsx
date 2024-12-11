@@ -27,16 +27,21 @@ import {
   XIconLightTheme,
   YellowHeart,
 } from "../components/ImageAssets";
-import { calculateDuration, classNames, getExplorerLink } from "../utils";
+import {
+  calculateDuration,
+  classNames,
+  getExplorerLink,
+  getInstitutionNameByCode,
+  getSavedRecipients,
+} from "../utils";
 import { fetchOrderDetails } from "../api/aggregator";
-import type {
-  OrderDetailsData,
-  TransactionStatusProps,
-  InstitutionProps,
-} from "../types";
+import type { OrderDetailsData, TransactionStatusProps } from "../types";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { toast } from "sonner";
+
+const LOCAL_STORAGE_KEY_BANK = "savedBankTransferRecipients";
+const LOCAL_STORAGE_KEY_MOBILE = "savedMobileMoneyRecipients";
 
 /**
  * Renders the transaction status component.
@@ -62,7 +67,7 @@ export function TransactionStatus({
   setCurrentStep,
   formMethods,
   supportedInstitutions,
-}: TransactionStatusProps & { supportedInstitutions: InstitutionProps[] }) {
+}: TransactionStatusProps) {
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
   const { refreshBalance } = useBalance();
@@ -137,10 +142,12 @@ export function TransactionStatus({
     };
   }, [orderId, transactionStatus]);
 
+  // Check if the recipient is saved in the beneficiaries list
   useEffect(() => {
-    const savedRecipients = JSON.parse(
-      localStorage.getItem("savedRecipients") || "[]",
-    );
+    const savedRecipients = [
+      ...getSavedRecipients(LOCAL_STORAGE_KEY_BANK),
+      ...getSavedRecipients(LOCAL_STORAGE_KEY_MOBILE),
+    ];
     const isRecipientSaved = savedRecipients.some(
       (r: { accountIdentifier: string; institutionCode: string }) =>
         r.accountIdentifier === formMethods.watch("accountIdentifier") &&
@@ -192,6 +199,7 @@ export function TransactionStatus({
     setCurrentStep("form");
   };
 
+  // Add or remove the recipient from the beneficiaries list
   const handleAddToBeneficiariesChange = (checked: boolean) => {
     setAddToBeneficiaries(checked);
     if (checked) {
@@ -202,16 +210,25 @@ export function TransactionStatus({
   };
 
   const addBeneficiary = () => {
+    const institutionCode = formMethods.watch("institution");
+    if (!institutionCode) return;
+    const institutionName = getInstitutionNameByCode(
+      String(institutionCode),
+      supportedInstitutions,
+    );
+
     const newRecipient = {
       name: recipientName,
-      institution: formMethods.watch("institution") || "",
-      institutionCode: formMethods.watch("institutionCode") || "",
+      institution: institutionName,
+      institutionCode: institutionCode,
       accountIdentifier: formMethods.watch("accountIdentifier") || "",
+      type: formMethods.watch("accountType") || "bank",
     };
 
-    const savedRecipients = JSON.parse(
-      localStorage.getItem("savedRecipients") || "[]",
-    );
+    const savedRecipients = [
+      ...getSavedRecipients(LOCAL_STORAGE_KEY_BANK),
+      ...getSavedRecipients(LOCAL_STORAGE_KEY_MOBILE),
+    ];
     const isDuplicate = savedRecipients.some(
       (r: {
         accountIdentifier: string | number;
@@ -224,22 +241,45 @@ export function TransactionStatus({
     if (!isDuplicate) {
       const updatedRecipients = [...savedRecipients, newRecipient];
       localStorage.setItem(
-        "savedRecipients",
-        JSON.stringify(updatedRecipients),
+        LOCAL_STORAGE_KEY_BANK,
+        JSON.stringify(updatedRecipients.filter((r) => r.type === "bank")),
+      );
+      localStorage.setItem(
+        LOCAL_STORAGE_KEY_MOBILE,
+        JSON.stringify(
+          updatedRecipients.filter((r) => r.type === "mobile_money"),
+        ),
       );
     }
   };
 
   const removeRecipient = () => {
-    const savedRecipients = JSON.parse(
-      localStorage.getItem("savedRecipients") || "[]",
-    );
+    const accountIdentifier = formMethods.watch("accountIdentifier");
+    const institutionCode = formMethods.watch("institution");
+
+    const savedRecipients = [
+      ...getSavedRecipients(LOCAL_STORAGE_KEY_BANK),
+      ...getSavedRecipients(LOCAL_STORAGE_KEY_MOBILE),
+    ];
+
     const updatedRecipients = savedRecipients.filter(
       (r: { accountIdentifier: string; institutionCode: string }) =>
-        r.accountIdentifier !== formMethods.watch("accountIdentifier") ||
-        r.institutionCode !== formMethods.watch("institutionCode"),
+        !(
+          r.accountIdentifier === accountIdentifier &&
+          r.institutionCode === institutionCode
+        ),
     );
-    localStorage.setItem("savedRecipients", JSON.stringify(updatedRecipients));
+
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY_BANK,
+      JSON.stringify(updatedRecipients.filter((r) => r.type === "bank")),
+    );
+    localStorage.setItem(
+      LOCAL_STORAGE_KEY_MOBILE,
+      JSON.stringify(
+        updatedRecipients.filter((r) => r.type === "mobile_money"),
+      ),
+    );
   };
 
   const getPaymentMessage = () => {

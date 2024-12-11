@@ -10,7 +10,7 @@ import type {
 export type InstitutionProps = {
   name: string;
   code: string;
-  type: string;
+  type: "bank" | "mobile_money";
 };
 
 export type FormData = {
@@ -20,6 +20,7 @@ export type FormData = {
   institution: string;
   accountIdentifier: string;
   recipientName: string;
+  accountType: "bank" | "mobile_money";
   memo: string;
   amountSent: number;
   amountReceived: number;
@@ -54,6 +55,7 @@ export type RecipientDetails = {
   institution: string;
   institutionCode: string;
   accountIdentifier: string;
+  type: "bank" | "mobile_money";
 };
 
 export type FormMethods = {
@@ -87,6 +89,7 @@ export type TransactionStatusProps = {
   setTransactionStatus: (status: TransactionStatusType) => void;
   setCurrentStep: (step: Step) => void;
   formMethods: FormMethods;
+  supportedInstitutions: InstitutionProps[];
 };
 
 export type SelectFieldProps = {

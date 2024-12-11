@@ -340,3 +340,11 @@ export const getSavedRecipients = (key: string) => {
   const savedRecipients = localStorage.getItem(key);
   return savedRecipients ? JSON.parse(savedRecipients) : [];
 };
+
+/**
+ * Clears all form states.
+ * @param formMethods - The form methods from react-hook-form.
+ */
+export function clearFormState(formMethods: any) {
+  formMethods.reset();
+}

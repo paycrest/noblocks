@@ -21,6 +21,7 @@ import {
 } from "./types";
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "./context/StepContext";
+import { clearFormState } from "./utils";
 
 const INITIAL_FORM_STATE: FormData = {
   network: "",
@@ -181,7 +182,10 @@ export default function Home() {
             createdAt={createdAt}
             orderId={orderId}
             recipientName={stateProps.recipientName}
-            clearForm={() => setFormValues(INITIAL_FORM_STATE)}
+            clearForm={() => {
+              clearFormState(formMethods);
+              setSelectedRecipient(null);
+            }}
             clearTransactionStatus={() => {
               setTransactionStatus("idle");
             }}

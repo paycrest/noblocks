@@ -37,12 +37,14 @@ const STEPS = {
   },
   LOADING: "loading",
   EXPIRED: "expired",
+  REFRESH: "refresh",
 } as const;
 
 type Step =
   | typeof STEPS.TERMS
   | typeof STEPS.QR_CODE
   | typeof STEPS.LOADING
+  | typeof STEPS.REFRESH
   | (typeof STEPS.STATUS)[keyof typeof STEPS.STATUS];
 
 const terms = [
@@ -80,6 +82,7 @@ export const KycModal = ({
   const [termsAccepted, setTermsAccepted] = useState<Record<string, boolean>>(
     Object.fromEntries(terms.map((term) => [term.id, false])),
   );
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleTermChange = useCallback((termId: string, value: boolean) => {
     setTermsAccepted((prev) => ({ ...prev, [termId]: value }));
@@ -369,46 +372,100 @@ export const KycModal = ({
     </motion.div>
   );
 
+  const renderRefresh = () => (
+    <motion.div key="refresh" {...fadeInOut} className="space-y-6 pt-4">
+      <VerificationPendingIcon className="mx-auto" />
+
+      <div className="space-y-3 pb-5 text-center">
+        <DialogTitle className="text-lg font-semibold">
+          Refresh to Update KYC
+        </DialogTitle>
+
+        <p className="text-gray-500 dark:text-white/50">
+          If you have completed your KYC, click Refresh to update your KYC
+          status.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        className={`${primaryBtnClasses} w-full`}
+        onClick={handleRefresh}
+      >
+        {isRefreshing ? "Refreshing..." : "Refresh"}
+      </button>
+    </motion.div>
+  );
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchStatus();
+    setIsRefreshing(false);
+  };
+
   // fetch the KYC status
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const response = await fetchKYCStatus(walletAddress || "");
-        const statusMap = {
-          success: STEPS.STATUS.SUCCESS,
-          pending: STEPS.STATUS.PENDING,
-          failed: STEPS.STATUS.FAILED,
-          expired: STEPS.TERMS,
-        };
+  const fetchStatus = async () => {
+    if (!walletAddress) return;
 
-        // set the step based on the status from the response
-        const newStatus =
-          statusMap[response.data.status as keyof typeof statusMap] ||
-          STEPS.STATUS.PENDING;
-        setStep(newStatus);
+    try {
+      const response = await fetchKYCStatus(walletAddress);
+      const statusMap = {
+        success: STEPS.STATUS.SUCCESS,
+        pending: STEPS.STATUS.PENDING,
+        failed: STEPS.STATUS.FAILED,
+        expired: STEPS.TERMS,
+      };
 
-        if (newStatus === STEPS.STATUS.SUCCESS) setIsUserVerified(true);
-        if (newStatus === STEPS.STATUS.PENDING) setKycUrl(response.data.url);
+      // set the step based on the status from the response
+      const newStatus =
+        statusMap[response.data.status as keyof typeof statusMap] ||
+        STEPS.STATUS.PENDING;
+      setStep(newStatus);
 
-        setIsOpen(true);
-      } catch (error) {
-        if (
-          error instanceof Error &&
-          (error as any).response &&
-          (error as any).response.data
-        ) {
-          // backend error response
-          const { message } = (error as any).response.data;
-          console.error(message);
-        } else {
-          // unexpected errors
-          console.error(error instanceof Error ? error.message : String(error));
-        }
+      if (newStatus === STEPS.STATUS.SUCCESS) setIsUserVerified(true);
+      if (newStatus === STEPS.STATUS.PENDING) setKycUrl(response.data.url);
+
+      setIsOpen(true);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        (error as any).response &&
+        (error as any).response.data
+      ) {
+        // backend error response
+        const { message } = (error as any).response.data;
+        console.error(message);
+      } else {
+        // unexpected errors
+        console.error(error instanceof Error ? error.message : String(error));
       }
-    };
+    }
+  };
 
+  useEffect(() => {
     fetchStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    let intervalId: NodeJS.Timeout;
+    let elapsedTime = 0;
+
+    if (step === STEPS.STATUS.PENDING) {
+      intervalId = setInterval(() => {
+        elapsedTime += 30;
+        // stop polling after 10 minutes
+        if (elapsedTime >= 600) {
+          clearInterval(intervalId);
+          setStep(STEPS.REFRESH);
+          console.log("KYC verification refresh required");
+        } else {
+          fetchStatus();
+          console.log("Polling KYC status...");
+        }
+      }, 30000);
+    }
+
+    return () => {
+      clearInterval(intervalId);
+    };
   }, [walletAddress]);
 
   return (
@@ -440,6 +497,7 @@ export const KycModal = ({
                   [STEPS.STATUS.SUCCESS]: renderSuccessStatus(),
                   [STEPS.STATUS.FAILED]: renderFailedStatus(),
                   [STEPS.LOADING]: renderLoadingStatus(),
+                  [STEPS.REFRESH]: renderRefresh(),
                 }[step]
               }
             </AnimatePresence>

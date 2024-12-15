@@ -118,7 +118,7 @@ export const TransactionForm = ({
               {authenticated &&
                 token &&
                 smartWalletBalance &&
-                smartWalletBalance.balances[token] !== undefined && (
+                smartWalletBalance.balances[token] !== undefined && amountSent > 0 && (
                   <div className="flex items-center gap-2">
                     <span>
                       {smartWalletBalance.balances[token]} {token}
@@ -270,7 +270,7 @@ export const TransactionForm = ({
           <button
             type="submit"
             className={primaryBtnClasses}
-            disabled={!isDirty || !isValid}
+            disabled={!isDirty || !isValid || !currency}
           >
             Swap
           </button>

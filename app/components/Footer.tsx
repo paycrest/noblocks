@@ -12,6 +12,7 @@ import {
 } from "./ImageAssets";
 import { AnimatedComponent, fadeInOut } from "./AnimatedComponents";
 import { ThemeSwitch } from "./ThemeSwitch";
+import { trackEvent } from "../hooks/analytics";
 
 const socialsDarkTheme = [
   {
@@ -59,7 +60,15 @@ const SocialLink = ({
   LogoSvg: React.FC<React.SVGProps<SVGSVGElement>>;
 }) => {
   return (
-    <a href={href} title={title} target="_blank" rel="noopener noreferrer">
+    <a
+      href={href}
+      title={title}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={() => {
+        trackEvent("cta_clicked", { cta: `${title} social link` });
+      }}
+    >
       <LogoSvg className="size-5 transition-opacity hover:opacity-70" />
     </a>
   );
@@ -91,6 +100,11 @@ export const Footer = () => {
             target="_blank"
             rel="noopener noreferrer"
             className="text-neutral-900 hover:underline dark:text-white/80"
+            onClick={() => {
+              trackEvent("cta_clicked", {
+                cta: "Powered by Paycrest Protocol",
+              });
+            }}
           >
             Paycrest Protocol
           </a>

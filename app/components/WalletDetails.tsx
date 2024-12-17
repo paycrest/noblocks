@@ -17,6 +17,7 @@ import { primaryBtnClasses } from "./Styles";
 import { FormDropdown } from "./FormDropdown";
 import { useForm } from "react-hook-form";
 import { useNetwork } from "../context/NetworksContext";
+import { trackEvent } from "../hooks/analytics";
 
 export const WalletDetails = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -60,7 +61,10 @@ export const WalletDetails = () => {
       <button
         type="button"
         title="Wallet balance"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          setIsOpen(!isOpen);
+          trackEvent("cta_clicked", { cta: "Wallet Balance Dropdown" });
+        }}
         className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900"
       >
         <WalletIcon className="size-4" />

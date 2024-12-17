@@ -15,6 +15,7 @@ import {
 } from "./ImageAssets";
 import { shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
+import { trackEvent } from "../hooks/analytics";
 
 export const SettingsDropdown = () => {
   const { user, logout, exportWallet } = usePrivy();
@@ -45,7 +46,10 @@ export const SettingsDropdown = () => {
         aria-label="Wallet details"
         aria-expanded={isOpen}
         aria-haspopup="true"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          setIsOpen(!isOpen);
+          trackEvent("cta_clicked", { cta: "Settings Dropdown" });
+        }}
         className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900"
       >
         <SettingsIcon />

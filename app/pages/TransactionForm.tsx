@@ -15,10 +15,11 @@ import {
 } from "../components";
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
-import { NoteIcon, WalletIcon } from "../components/ImageAssets";
+import { NoteIcon } from "../components/ImageAssets";
 import { fetchSupportedTokens } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
+import { trackEvent } from "../hooks/analytics";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -67,6 +68,7 @@ export const TransactionForm = ({
   const handleBalanceMaxClick = () => {
     setValue("amountSent", smartWalletBalance?.balances[token] ?? 0);
     setIsReceiveInputActive(false);
+    trackEvent("cta_clicked", { cta: "Max balance" });
   };
 
   // Effect to calculate receive amount based on send amount and rate
@@ -118,7 +120,8 @@ export const TransactionForm = ({
               {authenticated &&
                 token &&
                 smartWalletBalance &&
-                smartWalletBalance.balances[token] !== undefined && amountSent > 0 && (
+                smartWalletBalance.balances[token] !== undefined &&
+                amountSent > 0 && (
                   <div className="flex items-center gap-2">
                     <span>
                       {smartWalletBalance.balances[token]} {token}
@@ -165,7 +168,13 @@ export const TransactionForm = ({
                 defaultTitle="Select token"
                 data={tokens}
                 defaultSelectedItem="USDC"
-                onSelect={(selectedToken) => setValue("token", selectedToken)}
+                onSelect={(selectedToken) => {
+                  setValue("token", selectedToken);
+                  trackEvent("token_selected", {
+                    token: selectedToken,
+                    network: selectedNetwork.chain.name,
+                  });
+                }}
               />
             </div>
             {/* {errors.amountSent && (

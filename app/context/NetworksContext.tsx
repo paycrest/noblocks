@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext } from "react";
 import { networks } from "../mocks";
+import { trackEvent } from "../hooks/analytics";
 
 type Network = {
   chain: any;
@@ -19,8 +20,15 @@ const defaultNetwork =
 export function NetworkProvider({ children }: { children: React.ReactNode }) {
   const [selectedNetwork, setSelectedNetwork] = useState(defaultNetwork);
 
+  const handleNetworkChange = (network: Network) => {
+    setSelectedNetwork(network);
+    trackEvent("network_switched", { network: network.chain.name });
+  };
+
   return (
-    <NetworkContext.Provider value={{ selectedNetwork, setSelectedNetwork }}>
+    <NetworkContext.Provider
+      value={{ selectedNetwork, setSelectedNetwork: handleNetworkChange }}
+    >
       {children}
     </NetworkContext.Provider>
   );

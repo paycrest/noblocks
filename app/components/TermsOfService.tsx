@@ -1,9 +1,21 @@
+"use client";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { trackEvent } from "../hooks/analytics";
 
 /* eslint-disable react/no-unescaped-entities */
 export const TermsOfService = () => {
+  const [tracked, setTracked] = useState(false);
+
+  useEffect(() => {
+    if (!tracked) {
+      trackEvent("page_viewed", { page: "Privacy Policy" });
+      setTracked(true);
+    }
+  }, [tracked]);
+
   return (
-    <div className="mt-10 space-y-4 text-sm font-normal leading-6 dark:text-[#FFFFFF80] text-justify">
+    <div className="mt-10 space-y-4 text-justify text-sm font-normal leading-6 dark:text-[#FFFFFF80]">
       <p>
         Welcome to Paycrest, Inc. ("the Company," "We," "Our"). These Terms of
         Use ("Terms") govern your access to and use of all products and services

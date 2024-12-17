@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { QRCode } from "react-qrcode-logo";
 import { usePrivy } from "@privy-io/react-auth";
 import { FiExternalLink } from "react-icons/fi";
+import { IoMdClose } from "react-icons/io";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useCallback, useEffect } from "react";
 
@@ -505,7 +506,15 @@ export const KycModal = ({
         <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-300 ease-out data-[state=closed]:opacity-0" />
 
         <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
-          <DialogPanel className="w-full max-w-md space-y-4 rounded-2xl bg-white p-5 text-sm shadow-xl transition-all duration-300 ease-out data-[state=closed]:scale-95 data-[state=closed]:opacity-0 dark:bg-neutral-800">
+          <DialogPanel className="relative max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-2xl bg-white p-5 text-sm shadow-xl transition-all duration-300 ease-out data-[state=closed]:scale-95 data-[state=closed]:opacity-0 dark:bg-neutral-800">
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="absolute right-5 top-9 rounded-full bg-gray-100 p-1 text-lg text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:bg-white/10 dark:text-white/40 dark:hover:bg-white/30 dark:hover:text-white/80"
+              title="Close"
+            >
+              <IoMdClose />
+            </button>
             <AnimatePresence mode="wait">
               {
                 {

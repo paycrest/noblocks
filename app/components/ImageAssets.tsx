@@ -49,6 +49,25 @@ export const NoblocksLogo = (props: ImageProps) => {
   );
 };
 
+export const NoblocksLogoIcon = (props: ImageProps) => {
+  return (
+    <svg
+      width="703"
+      height="693"
+      viewBox="0 0 703 693"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <title>Noblocks logo icon</title>
+      <path
+        d="M702.99 0V692.97H527.75V262.87C527.75 214.505 488.535 175.25 440.12 175.25C391.73 175.25 352.5 214.48 352.5 262.87V692.97H0V0H702.99Z"
+        fill="#43B9FB"
+      />
+    </svg>
+  );
+};
+
 export const PaycrestLogo = (props: ImageProps) => {
   return (
     <svg

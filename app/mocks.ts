@@ -38,11 +38,11 @@ export const networks = [
   },
   {
     chain: bsc,
-    imageUrl: "/logos/binance-logo.svg",
+    imageUrl: "/logos/bnb-smart-chain-logo.svg",
   },
   {
     chain: arbitrum,
-    imageUrl: "/logos/arbitrum-logo.svg",
+    imageUrl: "/logos/arbitrum-one-logo.svg",
   },
   {
     chain: polygon,
@@ -54,7 +54,7 @@ export const networks = [
   },
   {
     chain: optimism,
-    imageUrl: "/logos/optimism-logo.svg",
+    imageUrl: "/logos/op-mainnet-logo.svg",
   },
 ];
 

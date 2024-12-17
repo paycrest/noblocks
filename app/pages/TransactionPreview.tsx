@@ -14,7 +14,7 @@ import { useNetwork } from "../context/NetworksContext";
 import type { Token, TransactionPreviewProps } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components";
 import { gatewayAbi } from "../api/abi";
-import { usePrivy } from "@privy-io/react-auth";
+import { useFundWallet, usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
   type BaseError,
@@ -46,9 +46,11 @@ export const TransactionPreview = ({
 }: TransactionPreviewProps) => {
   const { user } = usePrivy();
   const { client } = useSmartWallets();
+  const { fundWallet } = useFundWallet();
+
   const { selectedNetwork } = useNetwork();
   const { currentStep, setCurrentStep } = useStep();
-  const { refreshBalance } = useBalance();
+  const { refreshBalance, smartWalletBalance } = useBalance();
 
   const {
     rate,
@@ -209,6 +211,13 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
+    if (amountSent > (smartWalletBalance?.balances[token] || 0)) {
+      toast.warning("Low balance. Fund your wallet.", {
+        description: "Insufficient funds. Please add money to continue.",
+      });
+      await fundWallet(smartWallet?.address ?? "");
+      return;
+    }
     try {
       setIsConfirming(true);
       await createOrder();

@@ -13,6 +13,7 @@ import {
   Label,
   Field,
 } from "@headlessui/react";
+import { useHotjar, useMixpanel } from "../hooks/analytics";
 
 const Button = ({
   onClick,
@@ -33,6 +34,9 @@ const Button = ({
 );
 
 export const CookieConsent = () => {
+  useHotjar();
+  useMixpanel();
+
   const [isBannerVisible, setIsBannerVisible] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [consent, setConsent] = useState({

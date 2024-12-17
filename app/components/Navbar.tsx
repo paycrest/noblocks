@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useLogin, usePrivy } from "@privy-io/react-auth";
 
 import { ArrowDownIcon, NoblocksLogo } from "./ImageAssets";
 import { primaryBtnClasses } from "./Styles";
@@ -9,12 +9,19 @@ import { WalletDetails } from "./WalletDetails";
 import { NetworksDropdown } from "./NetworksDropdown";
 import { SettingsDropdown } from "./SettingsDropdown";
 import { AnimatedComponent } from "./AnimatedComponents";
+import { trackEvent } from "../hooks/analytics";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
-  const { ready, authenticated, login } = usePrivy();
+  const { ready, authenticated } = usePrivy();
+
+  const { login } = useLogin({
+    onComplete: () => {
+      trackEvent("wallet_connected");
+    },
+  });
 
   useEffect(() => setMounted(true), []);
 
@@ -64,7 +71,7 @@ export const Navbar = () => {
               <button
                 type="button"
                 className={primaryBtnClasses}
-                onClick={login}
+                onClick={() => login()}
               >
                 Sign In
               </button>

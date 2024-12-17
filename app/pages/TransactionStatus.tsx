@@ -39,6 +39,7 @@ import type { OrderDetailsData, TransactionStatusProps } from "../types";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { toast } from "sonner";
+import { trackEvent } from "../hooks/analytics";
 
 const LOCAL_STORAGE_KEY_BANK = "savedBankTransferRecipients";
 const LOCAL_STORAGE_KEY_MOBILE = "savedMobileMoneyRecipients";
@@ -77,6 +78,7 @@ export function TransactionStatus({
 
   const [isGettingReceipt, setIsGettingReceipt] = useState(false);
   const [addToBeneficiaries, setAddToBeneficiaries] = useState(false);
+  const [isTracked, setIsTracked] = useState(false);
 
   const { watch } = formMethods;
   const token = watch("token");
@@ -156,6 +158,40 @@ export function TransactionStatus({
     setAddToBeneficiaries(isRecipientSaved);
   }, [formMethods]);
 
+  useEffect(() => {
+    if (!isTracked) {
+      if (["validated", "settled"].includes(transactionStatus)) {
+        trackEvent("swap_completed", {
+          recipient: recipientName,
+          amount,
+          token,
+          network: selectedNetwork.chain.name,
+        });
+
+        trackEvent("transaction_completed", {
+          recipient: recipientName,
+          amount,
+          token,
+          network: selectedNetwork.chain.name,
+        });
+      } else if (transactionStatus === "refunded") {
+        trackEvent("swap_failed", {
+          recipient: recipientName,
+          amount,
+          token,
+          network: selectedNetwork.chain.name,
+        });
+      }
+
+      trackEvent("transaction_status", {
+        status: transactionStatus,
+        timestamp: new Date().toISOString(),
+      });
+
+      setIsTracked(true);
+    }
+  }, [transactionStatus, isTracked]);
+
   const StatusIndicator = () => (
     <AnimatePresence mode="wait">
       {["validated", "settled"].includes(transactionStatus) ? (
@@ -192,9 +228,24 @@ export function TransactionStatus({
   const handleBackButtonClick = () => {
     if (transactionStatus === "refunded") {
       clearTransactionStatus();
+
+      trackEvent("retry_swap", {
+        recipient: recipientName,
+        amount,
+        token,
+        network: selectedNetwork.chain.name,
+      });
+
+      trackEvent("post_swap_action", {
+        action: "Retried transaction",
+      });
     } else {
       clearForm();
       clearTransactionStatus();
+
+      trackEvent("post_swap_action", {
+        action: "Returned to swap interface",
+      });
     }
     setCurrentStep("form");
   };
@@ -204,8 +255,22 @@ export function TransactionStatus({
     setAddToBeneficiaries(checked);
     if (checked) {
       addBeneficiary();
+
+      trackEvent("beneficiary_added", {
+        recipient: recipientName,
+      });
+      trackEvent("post_swap_action", {
+        action: "Added recipient to beneficiaries",
+      });
     } else {
       removeRecipient();
+
+      trackEvent("beneficiary_removed", {
+        recipient: recipientName,
+      });
+      trackEvent("post_swap_action", {
+        action: "Removed recipient from beneficiaries",
+      });
     }
   };
 
@@ -598,6 +663,14 @@ export function TransactionStatus({
                     target="_blank"
                     href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
                     className={`!rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                    onClick={() => {
+                      trackEvent("social_share_clicked", {
+                        platform: "Twitter",
+                      });
+                      trackEvent("post_swap_action", {
+                        action: "Shared transaction on Twitter",
+                      });
+                    }}
                   >
                     {resolvedTheme === "dark" ? (
                       <XIconDarkTheme className="size-5" />
@@ -612,6 +685,14 @@ export function TransactionStatus({
                     target="_blank"
                     href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
                     className={`!rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                    onClick={() => {
+                      trackEvent("social_share_clicked", {
+                        platform: "Warpcast",
+                      });
+                      trackEvent("post_swap_action", {
+                        action: "Shared transaction on Warpcast",
+                      });
+                    }}
                   >
                     {resolvedTheme === "dark" ? (
                       <FarcasterIconDarkTheme className="size-5" />

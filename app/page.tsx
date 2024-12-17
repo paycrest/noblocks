@@ -2,6 +2,7 @@
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
+import Cookies from "js-cookie";
 
 import {
   AnimatedPage,
@@ -22,6 +23,8 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "./context/StepContext";
 import { clearFormState } from "./utils";
+import { trackEvent } from "./hooks/analytics";
+import { useNetwork } from "./context/NetworksContext";
 
 const INITIAL_FORM_STATE: FormData = {
   network: "",
@@ -43,6 +46,7 @@ const INITIAL_FORM_STATE: FormData = {
 export default function Home() {
   const { authenticated } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
+  const { selectedNetwork } = useNetwork();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -88,6 +92,22 @@ export default function Home() {
   };
 
   useEffect(() => {
+    if (!isPageLoading) {
+      trackEvent("app_opened");
+      trackEvent("page_viewed", { page: "Swap Interface" });
+
+      const cookieConsent = Cookies.get("cookieConsent");
+      if (cookieConsent) {
+        try {
+          const consent = JSON.parse(cookieConsent);
+          if (consent && consent.essential) {
+            trackEvent("return_user");
+          }
+        } catch (error) {
+          console.error("Invalid cookie consent format", error);
+        }
+      }
+    }
     setIsPageLoading(false);
   }, []);
 
@@ -151,6 +171,11 @@ export default function Home() {
   const handleFormSubmit = (data: FormData) => {
     setFormValues(data);
     setCurrentStep(STEPS.PREVIEW);
+    trackEvent("form_submitted", {
+      token: data.token,
+      network: selectedNetwork.chain.name,
+      recipient: data.recipientName,
+    });
   };
 
   const handleBackToForm = () => {

@@ -12,6 +12,7 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { image } from "html2canvas/dist/types/css/types/image";
+import { trackEvent } from "../hooks/analytics";
 
 interface NetworksDropdownProps {
   iconOnly?: boolean;
@@ -35,7 +36,6 @@ export const NetworksDropdown = ({
     const newNetwork = networks.find((net) => net.chain.name === networkName);
     if (newNetwork && client) {
       try {
-        console.log(newNetwork.chain.name);
         setSelectedNetwork(newNetwork);
         // await client.switchChain({
         //   id: newNetwork.chainId,
@@ -76,7 +76,12 @@ export const NetworksDropdown = ({
           aria-haspopup="true"
           aria-expanded={isOpen}
           type="button"
-          onClick={toggleDropdown}
+          onClick={() => {
+            toggleDropdown();
+            trackEvent("cta_clicked", {
+              cta: "Networks Dropdown",
+            });
+          }}
           className={classNames(
             "flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900",
             iconOnly ? "pointer-events-none" : "",

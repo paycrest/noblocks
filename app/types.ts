@@ -232,4 +232,6 @@ export type KYCStatusResponse = {
 export type Config = {
   aggregatorUrl: string;
   privyAppId: string;
+  mixpanelToken: string;
+  hotjarSiteId: number;
 };

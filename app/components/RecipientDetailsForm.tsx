@@ -35,6 +35,7 @@ import { AddUserIcon, TrashIcon } from "./ImageAssets";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import Image from "next/image";
 import { TbCircle } from "react-icons/tb";
+import { trackEvent } from "../hooks/analytics";
 
 const LOCAL_STORAGE_KEY_BANK = "savedBankTransferRecipients";
 const LOCAL_STORAGE_KEY_MOBILE = "savedMobileMoneyRecipients";
@@ -144,6 +145,12 @@ export const RecipientDetailsForm = ({
 
   const saveRecipient = () => {
     recipientName = recipientName.replace(/\s+/g, " ").trim();
+
+    trackEvent("recipient_added", {
+      recipientType: selectedTab,
+      institution:
+        selectedInstitution?.name || selectedMobileMoneyInstitution?.name,
+    });
 
     if (selectedTab === "bank-transfer" && isRecipientFormValid()) {
       const newRecipient = {

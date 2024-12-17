@@ -32,6 +32,7 @@ import { useEffect, useState } from "react";
 import { fetchAggregatorPublicKey } from "../api/aggregator";
 import { toast } from "sonner";
 import { useStep } from "../context/StepContext";
+import { trackEvent } from "../hooks/analytics";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -187,10 +188,23 @@ export const TransactionPreview = ({
 
       await getOrderId();
       refreshBalance(); // Refresh balance after order is created
+      trackEvent("swap_initiated", {
+        token,
+        amount: amountSent,
+        recipient: recipientName,
+        network: selectedNetwork.chain.name,
+      });
     } catch (e) {
       const error = e as BaseError;
       setErrorMessage(error.shortMessage);
       setIsConfirming(false);
+      trackEvent("swap_failed", {
+        error: error.shortMessage,
+        token,
+        amount: amountSent,
+        recipient: recipientName,
+        network: selectedNetwork.chain.name,
+      });
     }
   };
 

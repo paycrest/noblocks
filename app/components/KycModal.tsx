@@ -26,6 +26,7 @@ import { fadeInOut } from "./AnimatedComponents";
 import { generateTimeBasedNonce } from "../utils";
 import { fetchKYCStatus, initiateKYC } from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
+import { trackEvent } from "../hooks/analytics";
 
 const STEPS = {
   TERMS: "terms",
@@ -115,8 +116,14 @@ export const KycModal = ({
         if (response.status === "success") {
           setStep(STEPS.QR_CODE);
           setKycUrl(response.data.url);
+          trackEvent("verification_initiated", {
+            walletAddress,
+          });
         } else {
           setStep(STEPS.STATUS.FAILED);
+          trackEvent("verification_initiation_failed", {
+            walletAddress,
+          });
         }
       }
     } catch (error: unknown) {
@@ -422,8 +429,18 @@ export const KycModal = ({
         STEPS.STATUS.PENDING;
       setStep(newStatus);
 
-      if (newStatus === STEPS.STATUS.SUCCESS) setIsUserVerified(true);
+      if (newStatus === STEPS.STATUS.SUCCESS) {
+        setIsUserVerified(true);
+        trackEvent("verification_completed", {
+          walletAddress,
+        });
+      }
       if (newStatus === STEPS.STATUS.PENDING) setKycUrl(response.data.url);
+      if (newStatus === STEPS.STATUS.FAILED) {
+        trackEvent("verification_failed", {
+          walletAddress,
+        });
+      }
 
       setIsOpen(true);
     } catch (error) {
@@ -455,10 +472,8 @@ export const KycModal = ({
         if (elapsedTime >= 600) {
           clearInterval(intervalId);
           setStep(STEPS.REFRESH);
-          console.log("KYC verification refresh required");
         } else {
           fetchStatus();
-          console.log("Polling KYC status...");
         }
       }, 30000);
     }
@@ -481,7 +496,10 @@ export const KycModal = ({
 
       <Dialog
         open={isOpen}
-        onClose={() => setIsOpen(false)}
+        onClose={() => {
+          setIsOpen(false);
+          trackEvent("dismissed_ui_element", { element: "KYC Modal" });
+        }}
         className="relative z-50"
       >
         <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-300 ease-out data-[state=closed]:opacity-0" />

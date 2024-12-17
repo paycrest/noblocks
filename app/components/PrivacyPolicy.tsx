@@ -1,7 +1,19 @@
+"use client";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { trackEvent } from "../hooks/analytics";
 
 /* eslint-disable react/no-unescaped-entities */
 export const PrivacyPolicy = () => {
+  const [tracked, setTracked] = useState(false);
+
+  useEffect(() => {
+    if (!tracked) {
+      trackEvent("page_viewed", { page: "Privacy Policy" });
+      setTracked(true);
+    }
+  }, [tracked]);
+
   return (
     <div className="mt-10 space-y-4 text-justify text-sm font-normal leading-6 dark:text-[#FFFFFF80]">
       <h3 className="text-base font-medium">1. Introduction</h3>

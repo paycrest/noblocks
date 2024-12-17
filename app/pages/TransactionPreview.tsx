@@ -324,7 +324,7 @@ export const TransactionPreview = ({
               {/* Render network logo for network */}
               {key === "network" && (
                 <Image
-                  src={`/logos/${value.toLowerCase()}-logo.svg`}
+                  src={`/logos/${value.toLowerCase().replace(/ /g, "-")}-logo.svg`}
                   alt={`${value} logo`}
                   width={14}
                   height={14}

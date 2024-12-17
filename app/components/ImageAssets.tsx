@@ -739,14 +739,14 @@ export const UserDetailsIcon = (props: ImageProps) => {
       <title>User details icon</title>
       <path
         d="M15.332 8.5H19.9987"
-        stroke="white"
+        stroke="currentColor"
         strokeOpacity="0.5"
         strokeWidth="2"
         strokeLinecap="round"
       />
       <path
         d="M15.332 12.584H18.832"
-        stroke="white"
+        stroke="currentColor"
         strokeOpacity="0.5"
         strokeWidth="1.5"
         strokeLinecap="round"
@@ -757,14 +757,14 @@ export const UserDetailsIcon = (props: ImageProps) => {
         width="23.3333"
         height="21"
         rx="5"
-        stroke="white"
+        stroke="currentColor"
         strokeOpacity="0.5"
         strokeWidth="1.5"
         strokeLinejoin="round"
       />
       <path
         d="M4.83203 16.6673C6.24173 13.6561 11.4962 13.4579 12.9987 16.6673"
-        stroke="white"
+        stroke="currentColor"
         strokeOpacity="0.5"
         strokeWidth="1.5"
         strokeLinecap="round"
@@ -772,7 +772,7 @@ export const UserDetailsIcon = (props: ImageProps) => {
       />
       <path
         d="M11.2487 8.49935C11.2487 9.78801 10.204 10.8327 8.91536 10.8327C7.6267 10.8327 6.58203 9.78801 6.58203 8.49935C6.58203 7.21068 7.6267 6.16602 8.91536 6.16602C10.204 6.16602 11.2487 7.21068 11.2487 8.49935Z"
-        stroke="white"
+        stroke="currentColor"
         strokeOpacity="0.5"
         strokeWidth="1.5"
       />

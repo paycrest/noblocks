@@ -1,6 +1,6 @@
 "use client";
 import { format } from "date-fns";
-import { NoblocksLogo } from "./ImageAssets";
+import { NoblocksLogo, NoblocksLogoIcon } from "./ImageAssets";
 import { formatCurrency, getInstitutionNameByCode } from "../utils";
 import { GiCheckMark } from "react-icons/gi";
 import { QRCode } from "react-qrcode-logo";
@@ -66,7 +66,7 @@ export const TransactionReceipt = ({
           </p>
         </div>
 
-        <NoblocksLogo className="size-20" />
+        <NoblocksLogoIcon className="size-10" />
       </div>
 
       <div className="p-4">

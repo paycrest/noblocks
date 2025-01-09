@@ -1,20 +1,34 @@
-Have you found a bug or issue? Create a bug report for us
+---
+name: Bug report
+about: Create a report to help us improve
+title: ''
+labels: ''
+assignees: ''
 
-By submitting a PR to this repository, you agree to the terms within the [Paycrest Code of Conduct](https://www.notion.so/paycrest/Contributor-Code-of-Conduct-1602482d45a2806bab75fd314b381f4c?pvs=4). Please see the [contributing guidelines](https://paycrest.notion.site/Contribution-Guide-1602482d45a2809a8930e6ad565c906a?pvs=4) for how to create and submit a high-quality PR for this repo.
+---
 
-### Description
+**User Story**
+> Add the details of this issue from the user's POV
 
-> Provide a clear and concise description of the issue, including what you expected to happen. For the benefit of the community, please do not assume prior context.
->
-> Provide details that support your chosen implementation, including: breaking changes, alternatives considered, changes to the API, etc.
->
-> If the UI is being changed, please provide screenshots.
+**Acceptance Criteria(s)**
+> 1. **GIVEN** Given that something happens
+> **WHEN** Under certain conditions
+> **THEN** Then we expect a particular result
+
+**Tech Details**
+>Technical changes that will happen include UI changes, styling updates, integration requirements
+* **UI State Changes:**
+    >  Changes to the frontend interface
+* **Styling Updates:**
+    >  CSS changes for the application
+* **Integration Requirements:**
+    >  Changes to the logic parts of the application or protocol 
 
 
-### Reproduction
+**Design Link**
+>* Link to the figma design file 
 
-> Detail the steps taken to reproduce this error, and whether this issue can be reproduced consistently or if it is intermittent.
+**Notes/Assumptions**
+>* Notes or assumption that has to remain constant. 
 
-### Additional context
-
-> Other libraries that might be involved, or any other relevant information you think would be useful.
+**Open Questions**

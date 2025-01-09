@@ -1,34 +1,31 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
-assignees: ''
-
+about: Report a bug to help us improve
+title: "[BUG] "
+labels: bug
+assignees: ""
 ---
 
-**User Story**
-> Add the details of this issue from the user's POV
+**Describe the bug**
+A clear and concise description of what the bug is.
 
-**Acceptance Criteria(s)**
-> 1. **GIVEN** Given that something happens
-> **WHEN** Under certain conditions
-> **THEN** Then we expect a particular result
+**To Reproduce**
+Steps to reproduce the behavior:
+1. Go to '...'
+2. Click on '...'
+3. Scroll down to '...'
+4. See error
 
-**Tech Details**
->Technical changes that will happen include UI changes, styling updates, integration requirements
-* **UI State Changes:**
-    >  Changes to the frontend interface
-* **Styling Updates:**
-    >  CSS changes for the application
-* **Integration Requirements:**
-    >  Changes to the logic parts of the application or protocol 
+**Expected behavior**
+A clear and concise description of what you expected to happen.
 
+**Screenshots**
+If applicable, add screenshots to help explain your problem.
 
-**Design Link**
->* Link to the figma design file 
+**Environment:**
+- OS: [e.g., Windows 10, macOS Ventura]
+- Browser: [e.g., Chrome 112]
+- Version: [e.g., 22.5]
 
-**Notes/Assumptions**
->* Notes or assumption that has to remain constant. 
-
-**Open Questions**
+**Additional context**
+Add any other context about the problem here.

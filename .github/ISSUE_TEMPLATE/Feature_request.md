@@ -6,10 +6,11 @@ labels: ''
 assignees: ''
 ---
 
+
 **User Story**
 > Add the details of this issue from the user's POV
 
-**Acceptance Criteria(s)**
+**Acceptance Criteria**
 > 1. **GIVEN** Given that something happens
 > **WHEN** Under certain conditions
 > **THEN** Then we expect a particular result

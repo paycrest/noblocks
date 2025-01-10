@@ -65,17 +65,18 @@ export const WalletDetails = () => {
           setIsOpen(!isOpen);
           trackEvent("cta_clicked", { cta: "Wallet Balance Dropdown" });
         }}
-        className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900"
+        className="focus-visible:ring-lavender-500 dark:bg-surface-overlay flex items-center justify-center gap-2 rounded-xl bg-gray-50 px-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-900"
       >
         <WalletIcon className="size-4" />
-        <div className="flex items-center gap-2 dark:text-white/80">
-          <p className="pr-1">
+        <div className="h-10 w-px border-r border-dashed border-gray-100 dark:border-white/10" />
+        <div className="flex items-center gap-1.5 dark:text-white/80">
+          <p>
             {formatCurrency(smartWalletBalance?.total ?? 0, "USD", "en-US")}
           </p>
           <PiCaretDown
             aria-label="Caret down"
             className={classNames(
-              "text-base text-gray-400 transition-transform dark:text-white/50",
+              "mx-1 size-4 text-gray-400 transition-transform duration-300 dark:text-white/50",
               isOpen ? "rotate-180" : "",
             )}
           />
@@ -89,74 +90,75 @@ export const WalletDetails = () => {
             animate="open"
             exit="closed"
             variants={dropdownVariants}
-            className="absolute right-0 mt-2 w-64 space-y-4 rounded-xl border border-neutral-100 bg-white p-4 shadow-lg dark:border-white/5 dark:bg-neutral-800"
+            className="dark:bg-surface-overlay absolute right-0 mt-3 w-[273px] space-y-2 rounded-xl border border-neutral-100 bg-white p-2 shadow-lg dark:border-white/5"
           >
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-gray-500 dark:text-white/50">
-                  Noblocks Wallet
-                </h3>
-                <div className="flex flex-col space-y-2">
+            {allBalances.smartWallet?.balances && (
+              <div className="space-y-3 rounded-xl p-3 dark:bg-white/5">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-light text-gray-500 dark:text-white/50">
+                    Noblocks Wallet
+                  </h3>
+                </div>
+
+                <ul className="space-y-2 text-neutral-900 dark:text-white/80">
+                  {Object.entries(allBalances.smartWallet?.balances || {}).map(
+                    ([token, balance]) => (
+                      <li key={token} className="flex items-center gap-1">
+                        <img
+                          src={getTokenImageUrl(token)}
+                          alt={token}
+                          className="size-3.5"
+                        />
+                        <span className="font-medium">
+                          {balance} {token}
+                        </span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+
+                <div className="flex items-center gap-3">
                   <button
                     type="button"
                     onClick={() => handleFundWallet(smartWallet?.address ?? "")}
-                    className="font-semibold text-primary"
+                    className="text-lavender-500 font-medium"
                   >
                     Fund
                   </button>
+                  <p className="text-[10px] dark:text-white/10">|</p>
                   <button
                     type="button"
                     onClick={() => setIsWithdrawing(true)}
-                    className="font-semibold text-primary"
+                    className="text-lavender-500 font-medium"
                   >
                     Withdraw
                   </button>
                 </div>
               </div>
-              <ul className="space-y-2 text-neutral-900 dark:text-white/80">
-                {Object.entries(allBalances.smartWallet?.balances || {}).map(
-                  ([token, balance]) => (
-                    <li key={token} className="flex items-center gap-1">
-                      <img
-                        src={getTokenImageUrl(token)}
-                        alt={token}
-                        className="size-3.5"
-                      />
-                      <span>
-                        {balance} {token}
-                      </span>
-                    </li>
-                  ),
-                )}
-              </ul>
-            </div>
+            )}
 
             {allBalances.externalWallet?.balances && (
-              <>
-                <div className="border-t border-dashed border-gray-200 dark:border-white/10" />
-
-                <div className="space-y-2">
-                  <h3 className="text-gray-500 dark:text-white/50">
-                    External Wallet
-                  </h3>
-                  <ul className="space-y-2 text-neutral-900 dark:text-white/80">
-                    {Object.entries(allBalances.externalWallet.balances).map(
-                      ([token, balance]) => (
-                        <li key={token} className="flex items-center gap-1">
-                          <img
-                            src={getTokenImageUrl(token)}
-                            alt={token}
-                            className="size-3.5"
-                          />
-                          <span>
-                            {balance} {token}
-                          </span>
-                        </li>
-                      ),
-                    )}
-                  </ul>
-                </div>
-              </>
+              <div className="space-y-3 rounded-xl p-3 dark:bg-white/5">
+                <h3 className="font-light text-gray-500 dark:text-white/50">
+                  External Wallet
+                </h3>
+                <ul className="space-y-2 text-neutral-900 dark:text-white/80">
+                  {Object.entries(allBalances.externalWallet.balances).map(
+                    ([token, balance]) => (
+                      <li key={token} className="flex items-center gap-1">
+                        <img
+                          src={getTokenImageUrl(token)}
+                          alt={token}
+                          className="size-3.5"
+                        />
+                        <span>
+                          {balance} {token}
+                        </span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </div>
             )}
           </motion.div>
         )}

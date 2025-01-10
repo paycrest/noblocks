@@ -539,7 +539,7 @@ export function TransactionStatus({
                     <Checkbox
                       checked={addToBeneficiaries}
                       onChange={handleAddToBeneficiariesChange}
-                      className="group block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-primary data-[checked]:bg-primary dark:border-white/30 dark:data-[checked]:border-primary"
+                      className="data-[checked]:bg-lavender-500 data-[checked]:border-lavender-500 dark:data-[checked]:border-lavender-500 group block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent dark:border-white/30"
                     >
                       <svg
                         className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
@@ -624,7 +624,7 @@ export function TransactionStatus({
                         selectedNetwork.chain.name,
                         `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
                       )}
-                      className="text-primary hover:underline dark:text-primary"
+                      className="text-lavender-500 dark:text-lavender-500 hover:underline"
                       target="_blank"
                       rel="noreferrer"
                     >

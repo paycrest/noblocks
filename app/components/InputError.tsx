@@ -9,7 +9,7 @@ export const InputError = ({ message }: { message: string | any }) => (
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.2 }}
-      className="flex gap-1 text-xs font-medium text-primary"
+      className="text-lavender-500 flex gap-1 text-xs font-medium"
     >
       <TiInfo className="text-sm" />
       <p>{message}</p>

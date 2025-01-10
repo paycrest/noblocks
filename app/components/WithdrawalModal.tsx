@@ -25,6 +25,7 @@ export const WithdrawalModal = ({
   const { selectedNetwork } = useNetwork();
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0);
+  const [inputValue, setInputValue] = useState<number>(0);
 
   const { smartWalletBalance, refreshBalance } = useBalance();
   const { client } = useSmartWallets();
@@ -90,6 +91,10 @@ export const WithdrawalModal = ({
 
   const handleBalanceMaxClick = () => {
     setValue("amount", smartWalletBalance?.balances[token] ?? 0);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(Number(e.target.value));
   };
 
   useEffect(() => {
@@ -224,6 +229,7 @@ export const WithdrawalModal = ({
                 className="w-full rounded-xl border border-gray-300 bg-transparent px-4 py-2.5 pr-16 outline-none transition-all duration-300 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none dark:border-white/20 dark:text-white/80 dark:placeholder:text-white/20 dark:focus:border-white/50 dark:focus:ring-offset-neutral-900"
                 placeholder="0"
                 title="Enter amount to send"
+                onChange={handleInputChange}
               />
               <span className="absolute right-4 text-neutral-900 dark:text-white/80">
                 {token}
@@ -235,13 +241,19 @@ export const WithdrawalModal = ({
         <div className="flex w-full items-center justify-between rounded-xl px-4 py-2.5 dark:bg-white/5">
           <p className="dark:text-white/50">Balance</p>
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleBalanceMaxClick}
-              className="text-lavender-500 font-medium"
-            >
-              Max
-            </button>
+            {inputValue >=
+            (Number(smartWalletBalance?.balances[token]) ||
+              Number(smartWalletBalance?.balances["USDC"])) ? (
+              <p className="dark:text-white/50">Maxed out</p>
+            ) : (
+              <button
+                type="button"
+                onClick={handleBalanceMaxClick}
+                className="text-lavender-500 font-medium"
+              >
+                Max
+              </button>
+            )}
             <p className="text-[10px] dark:text-white/10">|</p>
             <p className="text-neutral-900 dark:text-white/80">
               {smartWalletBalance?.balances[token]} {token}

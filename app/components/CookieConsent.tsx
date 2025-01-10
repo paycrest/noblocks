@@ -114,7 +114,7 @@ export const CookieConsent = () => {
       <Checkbox
         checked={checked}
         onChange={onChange}
-        className="group ml-auto mt-1 block size-5 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-gray-100 data-[checked]:border-primary data-[checked]:bg-primary dark:border-white/30 dark:bg-transparent dark:data-[checked]:border-primary dark:data-[checked]:bg-primary"
+        className="data-[checked]:bg-lavender-500 dark:data-[checked]:bg-lavender-500 data-[checked]:border-lavender-500 dark:data-[checked]:border-lavender-500 group ml-auto mt-1 block size-5 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-gray-100 dark:border-white/30 dark:bg-transparent"
       >
         <svg
           className="stroke-white opacity-0 group-data-[checked]:opacity-100"
@@ -149,7 +149,7 @@ export const CookieConsent = () => {
             exit={{ opacity: 0, y: 50 }}
             className="fixed bottom-5 right-5 z-[52] w-full max-w-[25.75rem] space-y-4 rounded-3xl border border-gray-100 bg-gray-50 p-5 shadow-lg transition-colors dark:border-white/10 dark:bg-neutral-800"
           >
-            <div className="text-text-primary space-y-3 dark:text-white">
+            <div className="text-text-lavender-500 space-y-3 dark:text-white">
               <h2 className="text-lg font-semibold">We use cookies</h2>
               <p className="text-sm dark:text-white/80">
                 Our website utilizes cookies to enhance your experience.{" "}
@@ -157,7 +157,7 @@ export const CookieConsent = () => {
                   href="https://www.paycrest.io/privacy-policy#third-party-applications-and-services"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary hover:underline"
+                  className="text-lavender-500 hover:underline"
                 >
                   Learn more
                 </Link>
@@ -167,19 +167,19 @@ export const CookieConsent = () => {
             <div className="flex space-x-4">
               <Button
                 onClick={handleCustomize}
-                className="text-text-primary bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                className="text-text-lavender-500 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
               >
                 Customize
               </Button>
               <Button
                 onClick={handleRejectNonEssential}
-                className="text-text-primary bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                className="text-text-lavender-500 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
               >
                 Reject all
               </Button>
               <Button
                 onClick={handleAcceptAll}
-                className="flex-1 bg-primary text-white hover:opacity-80"
+                className="bg-lavender-500 flex-1 text-white hover:opacity-80"
               >
                 Accept all
               </Button>
@@ -204,7 +204,7 @@ export const CookieConsent = () => {
                 variants={modalVariants}
                 className="dark:bg-surface-overlay w-full max-w-[25.75rem] space-y-4 rounded-3xl bg-gray-50 p-5 shadow-lg dark:border-white/10 dark:bg-neutral-800 dark:shadow-xl"
               >
-                <div className="text-text-primary space-y-3 dark:text-white">
+                <div className="text-text-lavender-500 space-y-3 dark:text-white">
                   <DialogTitle className="text-lg font-semibold">
                     We use cookies
                   </DialogTitle>
@@ -214,14 +214,14 @@ export const CookieConsent = () => {
                       href="https://www.paycrest.io/privacy-policy#third-party-applications-and-services"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-primary hover:underline"
+                      className="text-lavender-500 hover:underline"
                     >
                       Learn more
                     </Link>
                   </p>
                 </div>
 
-                <div className="text-text-primary space-y-4 rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm dark:border-white/10 dark:bg-neutral-800 dark:text-white/80">
+                <div className="text-text-lavender-500 space-y-4 rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm dark:border-white/10 dark:bg-neutral-800 dark:text-white/80">
                   <h3>Select preferred cookies</h3>
 
                   <CheckboxField
@@ -251,13 +251,13 @@ export const CookieConsent = () => {
                 <div className="flex space-x-2">
                   <Button
                     onClick={handleRejectNonEssential}
-                    className="text-text-primary flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                    className="text-text-lavender-500 flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
                   >
                     Reject all
                   </Button>
                   <Button
                     onClick={handleAcceptSelected}
-                    className="flex-1 bg-primary text-white"
+                    className="bg-lavender-500 flex-1 text-white"
                   >
                     Accept
                   </Button>

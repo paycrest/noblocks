@@ -367,7 +367,7 @@ export const RecipientDetailsForm = ({
             <p className="text-gray-500 dark:text-white/50">Recipient</p>
             <Button
               onClick={() => setIsModalOpen(true)}
-              className="text-primary dark:text-primary"
+              className="text-lavender-500 dark:text-lavender-500"
             >
               Edit
             </Button>
@@ -378,7 +378,7 @@ export const RecipientDetailsForm = ({
       ) : (
         <Button
           onClick={() => setIsModalOpen(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-transparent px-3 py-2.5 text-sm text-black outline-none transition-all hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/10 dark:text-white dark:hover:bg-white/5 dark:focus-visible:ring-offset-neutral-900"
+          className="focus:ring-lavender-500 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-transparent px-3 py-2.5 text-sm text-black outline-none transition-all hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/10 dark:text-white dark:hover:bg-white/5 dark:focus-visible:ring-offset-neutral-900"
         >
           <AddUserIcon className="text-outline-gray-200 dark:text-white/50" />
           <p>Add recipient</p>
@@ -461,7 +461,7 @@ export const RecipientDetailsForm = ({
                               }
                             }}
                             disabled={isFetchingInstitutions}
-                            className="flex w-full items-center justify-between gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-left text-base text-neutral-900 outline-none transition-all hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:text-white/80 dark:hover:bg-white/5 dark:focus:bg-neutral-950 dark:focus-visible:ring-offset-neutral-900"
+                            className="focus:ring-lavender-500 flex w-full items-center justify-between gap-2 rounded-xl border border-gray-200 px-3 py-2.5 text-left text-base text-neutral-900 outline-none transition-all hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:text-white/80 dark:hover:bg-white/5 dark:focus:bg-neutral-950 dark:focus-visible:ring-offset-neutral-900"
                           >
                             {selectedInstitution ? (
                               <p className="truncate">

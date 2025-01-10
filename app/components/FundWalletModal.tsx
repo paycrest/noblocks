@@ -39,7 +39,7 @@ export const FundWalletModal = ({ address }: { address: string }) => {
         type="button"
         onClick={openModal}
         aria-label="Fund smart wallet"
-        className="font-semibold text-primary dark:text-primary"
+        className="text-lavender-500 dark:text-lavender-500 font-semibold"
       >
         Fund
       </button>
@@ -114,7 +114,7 @@ export const FundWalletModal = ({ address }: { address: string }) => {
                             />
                           ) : (
                             <HiOutlineDuplicate
-                              className="h-5 w-5 cursor-pointer text-primary dark:text-primary"
+                              className="text-lavender-500 dark:text-lavender-500 h-5 w-5 cursor-pointer"
                               aria-hidden="true"
                             />
                           )}

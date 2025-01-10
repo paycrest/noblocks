@@ -50,7 +50,7 @@ export const SettingsDropdown = () => {
           setIsOpen(!isOpen);
           trackEvent("cta_clicked", { cta: "Settings Dropdown" });
         }}
-        className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900"
+        className="focus-visible:ring-lavender-500 flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900"
       >
         <SettingsIcon />
       </button>
@@ -90,7 +90,7 @@ export const SettingsDropdown = () => {
                   {isAddressCopied ? (
                     <PiCheck className="size-4" />
                   ) : (
-                    <CopyIcon className="size-4 transition group-hover:text-primary dark:hover:text-white" />
+                    <CopyIcon className="group-hover:text-lavender-500 size-4 transition dark:hover:text-white" />
                   )}
                 </button>
               </li>

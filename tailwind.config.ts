@@ -28,6 +28,7 @@ const config: Config = {
         },
         surface: {
           overlay: "#202020",
+          canvas: "#141414",
         },
       },
     },

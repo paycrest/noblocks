@@ -182,12 +182,14 @@ export const TransactionForm = ({
                   },
                   pattern: {
                     value: /^\d+(\.\d{1,4})?$/,
-                    message: "Max. of 4 decimal places + no leading dot",
+                    message: "Invalid amount",
                   },
                   onChange: () => setIsReceiveInputActive(false),
                 })}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl text-neutral-900 outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30 ${
-                  amountSent > balance ? "text-red-500 dark:text-red-500" : ""
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:placeholder:text-white/30 ${
+                  amountSent > balance || errors.amountSent
+                    ? "text-red-500 dark:text-red-500"
+                    : "text-neutral-900 dark:text-white/80"
                 }`}
                 placeholder="0"
                 title="Enter amount to send"
@@ -240,7 +242,11 @@ export const TransactionForm = ({
                   disabled: !token || !currency,
                   onChange: () => setIsReceiveInputActive(true),
                 })}
-                className="w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl text-neutral-900 outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30"
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:placeholder:text-white/30 ${
+                  errors.amountReceived
+                    ? "text-red-500 dark:text-red-500"
+                    : "text-neutral-900 dark:text-white/80"
+                }`}
                 placeholder="0"
                 title="Enter amount to receive"
               />
@@ -279,7 +285,11 @@ export const TransactionForm = ({
                 {...register("memo", {
                   required: { value: false, message: "Add description" },
                 })}
-                className="w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm text-neutral-900 transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900"
+                className={`w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900 ${
+                  errors.memo
+                    ? "text-red-500 dark:text-red-500"
+                    : "text-neutral-900 dark:text-white/80"
+                }`}
                 placeholder="Add description (optional)"
                 maxLength={25}
               />

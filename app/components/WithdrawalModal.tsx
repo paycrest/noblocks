@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
 
 import { IoMdClose } from "react-icons/io";
-import { PiCaretDown } from "react-icons/pi";
+import { ArrowDown01Icon } from "hugeicons-react";
 
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { BaseError, encodeFunctionData, erc20Abi, parseUnits } from "viem";
@@ -171,7 +171,7 @@ export const WithdrawalModal = ({
                   aria-expanded={isOpen}
                   type="button"
                   onClick={toggleDropdown}
-                  className="focus-visible:ring-lavender-500 flex w-full items-center justify-between gap-2 rounded-xl border border-gray-300 px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:border-white/20 dark:focus-visible:ring-offset-neutral-900"
+                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-gray-300 px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:border-white/20 dark:focus-visible:ring-offset-neutral-900"
                 >
                   {selectedItem?.name ? (
                     <div className="flex items-center gap-1.5">
@@ -189,7 +189,7 @@ export const WithdrawalModal = ({
                   )}
 
                   <div className={classNames(selectedItem?.name ? "ml-5" : "")}>
-                    <PiCaretDown
+                    <ArrowDown01Icon
                       className={classNames(
                         "text-base text-gray-400 transition-transform dark:text-white/50",
                         isOpen ? "rotate-180 transform" : "rotate-0",
@@ -238,8 +238,8 @@ export const WithdrawalModal = ({
           </div>
         </div>
 
-        <div className="flex w-full items-center justify-between rounded-xl px-4 py-2.5 dark:bg-white/5">
-          <p className="dark:text-white/50">Balance</p>
+        <div className="bg-accent-gray flex w-full items-center justify-between rounded-xl px-4 py-2.5 dark:bg-white/5">
+          <p className="text-text-secondary dark:text-white/50">Balance</p>
           <div className="flex items-center gap-3">
             {inputValue >=
             (Number(smartWalletBalance?.balances[token]) ||
@@ -249,13 +249,13 @@ export const WithdrawalModal = ({
               <button
                 type="button"
                 onClick={handleBalanceMaxClick}
-                className="text-lavender-500 font-medium"
+                className="font-medium text-lavender-500"
               >
                 Max
               </button>
             )}
-            <p className="text-[10px] dark:text-white/10">|</p>
-            <p className="text-neutral-900 dark:text-white/80">
+            <p className="text-[10px] text-gray-300 dark:text-white/10">|</p>
+            <p className="font-medium text-neutral-900 dark:text-white/80">
               {smartWalletBalance?.balances[token]} {token}
             </p>
           </div>

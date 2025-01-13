@@ -11,8 +11,8 @@ import { useStep } from "../context/StepContext";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-import { image } from "html2canvas/dist/types/css/types/image";
 import { trackEvent } from "../hooks/analytics";
+import { ArrowDown01Icon } from "hugeicons-react";
 
 interface NetworksDropdownProps {
   iconOnly?: boolean;
@@ -83,7 +83,7 @@ export const NetworksDropdown = ({
             });
           }}
           className={classNames(
-            "focus-visible:ring-lavender-500 flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900",
+            "flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900",
             iconOnly ? "pointer-events-none" : "",
           )}
         >
@@ -108,7 +108,7 @@ export const NetworksDropdown = ({
             )}
           </span>
           {!iconOnly && (
-            <PiCaretDown
+            <ArrowDown01Icon
               className={classNames(
                 "size-4 text-gray-400 transition-transform duration-300 dark:text-white/50",
                 isOpen ? "rotate-180" : "",

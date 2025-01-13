@@ -120,18 +120,21 @@ export const calculateDuration = (
  * @returns The explorer link for the transaction.
  */
 export const getExplorerLink = (network: string, txHash: string) => {
-  if (network === "Polygon") {
-    return `https://polygonscan.com/tx/${txHash}`;
-  } else if (network === "BNB Smart Chain") {
-    return `https://bscscan.com/tx/${txHash}`;
-  } else if (network === "Base") {
-    return `https://basescan.org/tx/${txHash}`;
-  } else if (network === "Arbitrum One") {
-    return `https://arbiscan.io/tx/${txHash}`;
-  } else if (network === "Optimism") {
-    return `https://optimistic.etherscan.io/tx/${txHash}`;
-  } else if (network === "Scroll") {
-    return `https://scrollscan.com/tx/${txHash}`;
+  switch (network) {
+    case "Polygon":
+      return `https://polygonscan.com/tx/${txHash}`;
+    case "BNB Smart Chain":
+      return `https://bscscan.com/tx/${txHash}`;
+    case "Base":
+      return `https://basescan.org/tx/${txHash}`;
+    case "Arbitrum One":
+      return `https://arbiscan.io/tx/${txHash}`;
+    case "Optimism":
+      return `https://optimistic.etherscan.io/tx/${txHash}`;
+    case "Scroll":
+      return `https://scrollscan.com/tx/${txHash}`;
+    default:
+      return "";
   }
 };
 

@@ -20,10 +20,14 @@ export const WalletDetails = () => {
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] =
     useState<boolean>(false);
 
-  const { smartWalletBalance, allBalances } = useBalance();
+  const { smartWalletBalance, allBalances, refreshBalance } = useBalance();
 
   const { user } = usePrivy();
-  const { fundWallet } = useFundWallet();
+  const { fundWallet } = useFundWallet({
+    onUserExited: () => {
+      refreshBalance();
+    },
+  });
   const handleFundWallet = async (address: string) => await fundWallet(address);
 
   const smartWallet = user?.linkedAccounts.find(
@@ -63,7 +67,7 @@ export const WalletDetails = () => {
             setIsOpen(!isOpen);
             trackEvent("cta_clicked", { cta: "Wallet Balance Dropdown" });
           }}
-          className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 px-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-surface-overlay dark:focus-visible:ring-offset-neutral-900"
+          className="focus-visible:ring-lavender-500 dark:bg-surface-overlay flex items-center justify-center gap-2 rounded-xl bg-gray-50 px-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-neutral-900"
         >
           <WalletIcon className="size-4" />
           <div className="h-10 w-px border-r border-dashed border-gray-100 dark:border-white/10" />
@@ -88,7 +92,7 @@ export const WalletDetails = () => {
               animate="open"
               exit="closed"
               variants={dropdownVariants}
-              className="absolute right-0 mt-3 w-[273px] space-y-2 rounded-xl border border-neutral-100 bg-white p-2 shadow-lg dark:border-white/5 dark:bg-surface-overlay"
+              className="dark:bg-surface-overlay absolute right-0 mt-3 w-[273px] space-y-2 rounded-xl border border-neutral-100 bg-white p-2 shadow-lg dark:border-white/5"
             >
               <AnimatePresence>
                 {allBalances.smartWallet?.balances && (
@@ -129,7 +133,7 @@ export const WalletDetails = () => {
                           handleFundWallet(smartWallet?.address ?? "");
                           setIsOpen(false);
                         }}
-                        className="font-medium text-lavender-500"
+                        className="text-lavender-500 font-medium"
                       >
                         Fund
                       </button>
@@ -142,7 +146,7 @@ export const WalletDetails = () => {
                           setIsWithdrawModalOpen(true);
                           setIsOpen(false);
                         }}
-                        className="font-medium text-lavender-500"
+                        className="text-lavender-500 font-medium"
                       >
                         Withdraw
                       </button>
@@ -200,7 +204,7 @@ export const WalletDetails = () => {
         <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
           <DialogPanel
             transition
-            className="relative max-h-[90vh] w-full max-w-[25.75rem] overflow-y-auto rounded-2xl bg-white p-5 text-sm shadow-xl transition-all duration-300 ease-out data-[closed]:scale-95 data-[closed]:opacity-0 dark:bg-surface-overlay"
+            className="dark:bg-surface-overlay relative max-h-[90vh] w-full max-w-[25.75rem] overflow-y-auto rounded-2xl bg-white p-5 text-sm shadow-xl transition-all duration-300 ease-out data-[closed]:scale-95 data-[closed]:opacity-0"
           >
             <WithdrawalModal setIsWithdrawModalOpen={setIsWithdrawModalOpen} />
           </DialogPanel>

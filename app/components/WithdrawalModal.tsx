@@ -216,10 +216,8 @@ export const WithdrawalModal = ({
                   required: { value: true, message: "Amount is required" },
                   disabled: !token,
                   max: {
-                    value:
-                      Number(smartWalletBalance?.balances[token]) ||
-                      Number(smartWalletBalance?.balances["USDC"]),
-                    message: `Max. amount is ${Number(smartWalletBalance?.balances[token]) || Number(smartWalletBalance?.balances["USDC"])}`,
+                    value: Number(smartWalletBalance?.balances[token]) || 0,
+                    message: `Max. amount is ${Number(smartWalletBalance?.balances[token]) || 0}`,
                   },
                   pattern: {
                     value: /^\d+(\.\d{1,4})?$/,
@@ -242,8 +240,7 @@ export const WithdrawalModal = ({
           <p className="text-text-secondary dark:text-white/50">Balance</p>
           <div className="flex items-center gap-3">
             {inputValue >=
-            (Number(smartWalletBalance?.balances[token]) ||
-              Number(smartWalletBalance?.balances["USDC"])) ? (
+            (Number(smartWalletBalance?.balances[token]) || 0) ? (
               <p className="dark:text-white/50">Maxed out</p>
             ) : (
               <button

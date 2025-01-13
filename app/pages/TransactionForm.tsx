@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { ImSpinner3 } from "react-icons/im";
 import { BsArrowDown } from "react-icons/bs";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useFundWallet } from "@privy-io/react-auth";
 import { AnimatePresence } from "framer-motion";
 
 import {
@@ -36,12 +36,14 @@ export const TransactionForm = ({
   stateProps,
 }: TransactionFormProps) => {
   // Destructure stateProps
-  const { authenticated, ready, login } = usePrivy();
-  const { selectedNetwork } = useNetwork();
   const { rate, isFetchingRate } = stateProps;
-  const { smartWalletBalance } = useBalance();
+  const { authenticated, ready, login, user } = usePrivy();
+  const { selectedNetwork } = useNetwork();
+  const { smartWalletBalance, refreshBalance } = useBalance();
 
-  // Destructure formMethods from react-hook-form
+  const [isUserVerified, setIsUserVerified] = useState(false);
+  const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
+
   const {
     handleSubmit,
     register,
@@ -51,8 +53,24 @@ export const TransactionForm = ({
   } = formMethods;
   const { amountSent, amountReceived, token, currency } = watch();
 
-  const [isUserVerified, setIsUserVerified] = useState(false);
-  const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
+  const balance = smartWalletBalance?.balances[token] ?? 0;
+
+  const { fundWallet } = useFundWallet({
+    onUserExited: () => {
+      refreshBalance();
+    },
+  });
+
+  const handleFundWallet = async (address: string) => {
+    const amountToFund = (amountSent - balance).toString();
+    await fundWallet(address, {
+      amount: amountToFund,
+    });
+  };
+
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet",
+  );
 
   const tokens = [];
 
@@ -66,12 +84,14 @@ export const TransactionForm = ({
   }
 
   const handleBalanceMaxClick = () => {
-    setValue("amountSent", smartWalletBalance?.balances[token] ?? 0);
-    setIsReceiveInputActive(false);
-    trackEvent("cta_clicked", { cta: "Max balance" });
+    if (balance > 0) {
+      setValue("amountSent", balance);
+      setIsReceiveInputActive(false);
+      trackEvent("cta_clicked", { cta: "Max balance" });
+    }
   };
 
-  // Effect to calculate receive amount based on send amount and rate
+  // calculate receive amount based on send amount and rate
   useEffect(() => {
     if (rate && (amountSent || amountReceived)) {
       if (isReceiveInputActive) {
@@ -86,13 +106,10 @@ export const TransactionForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amountSent, amountReceived, rate]);
 
-  // set the default value of the token and network
   useEffect(() => {
     if (!token || !currency) {
       register("token", { value: "USDC" });
-      // register("currency", { value: "KES" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -120,11 +137,12 @@ export const TransactionForm = ({
               {authenticated &&
                 token &&
                 smartWalletBalance &&
-                smartWalletBalance.balances[token] !== undefined &&
-                amountSent > 0 && (
+                balance !== undefined && (
                   <div className="flex items-center gap-2">
-                    <span>
-                      {smartWalletBalance.balances[token]} {token}
+                    <span
+                      className={amountSent > balance ? "text-red-500" : ""}
+                    >
+                      {balance} {token}
                     </span>
                     <button
                       type="button"
@@ -159,7 +177,9 @@ export const TransactionForm = ({
                   },
                   onChange: () => setIsReceiveInputActive(false),
                 })}
-                className="w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl text-neutral-900 outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30"
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl text-neutral-900 outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30 ${
+                  amountSent > balance ? "text-red-500 dark:text-red-500" : ""
+                }`}
                 placeholder="0"
                 title="Enter amount to send"
               />
@@ -277,11 +297,20 @@ export const TransactionForm = ({
 
         {ready && authenticated && (
           <button
-            type="submit"
+            type="button"
             className={primaryBtnClasses}
-            disabled={!isDirty || !isValid || !currency}
+            disabled={
+              (!isDirty || !isValid || !currency) && amountSent <= balance
+            }
+            onClick={() => {
+              if (amountSent > balance) {
+                handleFundWallet(smartWallet?.address ?? "");
+              } else {
+                handleSubmit(onSubmit)();
+              }
+            }}
           >
-            Swap
+            {amountSent > balance ? "Fund Wallet" : "Swap"}
           </button>
         )}
 

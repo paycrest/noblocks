@@ -30,6 +30,13 @@ const config: Config = {
           overlay: "#202020",
           canvas: "#141414",
         },
+        accent: {
+          gray: "#F7F7F8",
+        },
+        text: {
+          body: "#121217",
+          secondary: "#6C6C89",
+        },
       },
     },
   },

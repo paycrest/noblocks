@@ -109,6 +109,8 @@ export const WithdrawalModal = ({
     }
   }, []);
 
+  const tokenBalance = Number(smartWalletBalance?.balances[token]) || 0;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -144,7 +146,11 @@ export const WithdrawalModal = ({
                 message: "Recipient address is required",
               },
             })}
-            className="w-full rounded-xl border border-gray-300 bg-transparent px-4 py-2.5 outline-none transition-all duration-300 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none dark:border-white/20 dark:text-white/80 dark:placeholder:text-white/20 dark:focus:border-white/50 dark:focus:ring-offset-neutral-900"
+            className={`w-full rounded-xl border px-4 py-2.5 outline-none transition-all duration-300 placeholder:text-gray-400 focus:outline-none dark:text-white/80 dark:placeholder:text-white/20 ${
+              errors.recipientAddress
+                ? "border-red-500 text-red-500 dark:border-red-500 dark:text-red-500"
+                : "border-gray-300 bg-transparent focus:border-gray-400 dark:border-white/20 dark:focus:border-white/50 dark:focus:ring-offset-neutral-900"
+            }`}
             placeholder="0x..."
             maxLength={42}
           />
@@ -171,7 +177,7 @@ export const WithdrawalModal = ({
                   aria-expanded={isOpen}
                   type="button"
                   onClick={toggleDropdown}
-                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-gray-300 px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:border-white/20 dark:focus-visible:ring-offset-neutral-900"
+                  className="focus-visible:ring-lavender-500 flex w-full items-center justify-between gap-2 rounded-xl border border-gray-300 px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:border-white/20 dark:focus-visible:ring-offset-neutral-900"
                 >
                   {selectedItem?.name ? (
                     <div className="flex items-center gap-1.5">
@@ -216,15 +222,19 @@ export const WithdrawalModal = ({
                   required: { value: true, message: "Amount is required" },
                   disabled: !token,
                   max: {
-                    value: Number(smartWalletBalance?.balances[token]) || 0,
-                    message: `Max. amount is ${Number(smartWalletBalance?.balances[token]) || 0}`,
+                    value: tokenBalance,
+                    message: `Max. amount is ${tokenBalance}`,
                   },
                   pattern: {
                     value: /^\d+(\.\d{1,4})?$/,
                     message: "Invalid amount",
                   },
                 })}
-                className="w-full rounded-xl border border-gray-300 bg-transparent px-4 py-2.5 pr-16 outline-none transition-all duration-300 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none dark:border-white/20 dark:text-white/80 dark:placeholder:text-white/20 dark:focus:border-white/50 dark:focus:ring-offset-neutral-900"
+                className={`w-full rounded-xl border px-4 py-2.5 pr-16 outline-none transition-all duration-300 placeholder:text-gray-400 focus:outline-none dark:text-white/80 dark:placeholder:text-white/20 ${
+                  errors.amount || inputValue > tokenBalance
+                    ? "border-red-500 text-red-500 dark:border-red-500 dark:text-red-500"
+                    : "border-gray-300 bg-transparent focus:border-gray-400 dark:border-white/20 dark:focus:border-white/50 dark:focus:ring-offset-neutral-900"
+                }`}
                 placeholder="0"
                 title="Enter amount to send"
                 onChange={handleInputChange}
@@ -239,21 +249,20 @@ export const WithdrawalModal = ({
         <div className="bg-accent-gray flex w-full items-center justify-between rounded-xl px-4 py-2.5 dark:bg-white/5">
           <p className="text-text-secondary dark:text-white/50">Balance</p>
           <div className="flex items-center gap-3">
-            {inputValue >=
-            (Number(smartWalletBalance?.balances[token]) || 0) ? (
+            {inputValue >= tokenBalance ? (
               <p className="dark:text-white/50">Maxed out</p>
             ) : (
               <button
                 type="button"
                 onClick={handleBalanceMaxClick}
-                className="font-medium text-lavender-500"
+                className="text-lavender-500 font-medium"
               >
                 Max
               </button>
             )}
             <p className="text-[10px] text-gray-300 dark:text-white/10">|</p>
             <p className="font-medium text-neutral-900 dark:text-white/80">
-              {smartWalletBalance?.balances[token]} {token}
+              {tokenBalance} {token}
             </p>
           </div>
         </div>

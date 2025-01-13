@@ -62,9 +62,18 @@ export const TransactionForm = ({
   });
 
   const handleFundWallet = async (address: string) => {
-    const amountToFund = (amountSent - balance).toString();
+    const amountToFund = Number(
+      (Number(amountSent) - Number(balance)).toFixed(4),
+    ).toString();
+
+    const selectedToken = fetchSupportedTokens(
+      selectedNetwork.chain.name,
+    )?.find((t) => t.symbol === token);
+
     await fundWallet(address, {
       amount: amountToFund,
+      chain: selectedNetwork.chain,
+      asset: { erc20: selectedToken?.address as `0x${string}` },
     });
   };
 
@@ -270,7 +279,7 @@ export const TransactionForm = ({
                 {...register("memo", {
                   required: { value: false, message: "Add description" },
                 })}
-                className="focus:ring-lavender-500 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm text-neutral-900 transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900"
+                className="w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm text-neutral-900 transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900"
                 placeholder="Add description (optional)"
                 maxLength={25}
               />

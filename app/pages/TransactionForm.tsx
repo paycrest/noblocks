@@ -15,7 +15,7 @@ import {
 } from "../components";
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
-import { NoteIcon } from "../components/ImageAssets";
+import { NoteIcon, WalletIcon } from "../components/ImageAssets";
 import { fetchSupportedTokens } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
@@ -148,6 +148,7 @@ export const TransactionForm = ({
                 smartWalletBalance &&
                 balance !== undefined && (
                   <div className="flex items-center gap-2">
+                    <WalletIcon className="size-4" />
                     <span
                       className={amountSent > balance ? "text-red-500" : ""}
                     >
@@ -156,7 +157,7 @@ export const TransactionForm = ({
                     <button
                       type="button"
                       onClick={handleBalanceMaxClick}
-                      className="text-lavender-500 dark:text-lavender-500 font-medium"
+                      className="font-medium text-lavender-500 dark:text-lavender-500"
                     >
                       Max
                     </button>
@@ -285,7 +286,7 @@ export const TransactionForm = ({
                 {...register("memo", {
                   required: { value: false, message: "Add description" },
                 })}
-                className={`w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900 ${
+                className={`focus:ring-primary w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900 ${
                   errors.memo
                     ? "text-red-500 dark:text-red-500"
                     : "text-neutral-900 dark:text-white/80"

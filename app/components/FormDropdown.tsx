@@ -33,7 +33,13 @@ export const FormDropdown = ({
           aria-expanded={isOpen}
           type="button"
           onClick={toggleDropdown}
-          className="flex items-center gap-2 rounded-full bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900"
+          className={classNames(
+            "flex items-center gap-2 rounded-full p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95",
+            selectedItem?.name
+              ? "bg-gray-50 dark:bg-neutral-800"
+              : "bg-[#3384F7]",
+            "dark:focus-visible:ring-offset-neutral-900",
+          )}
         >
           {selectedItem?.name ? (
             <div className="flex items-center gap-1.5">

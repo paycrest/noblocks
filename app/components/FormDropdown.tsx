@@ -37,7 +37,7 @@ export const FormDropdown = ({
             "flex items-center gap-2 rounded-full p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95",
             selectedItem?.name
               ? "bg-gray-50 dark:bg-neutral-800"
-              : "bg-[#3384F7]",
+              : "bg-[#3384F7] text-white",
             "dark:focus-visible:ring-offset-neutral-900",
           )}
         >
@@ -61,8 +61,9 @@ export const FormDropdown = ({
           <div className={classNames(selectedItem?.name ? "ml-5" : "")}>
             <ArrowDown01Icon
               className={classNames(
-                "text-base text-gray-400 transition-transform dark:text-white/50",
+                "text-base text-gray-400 transition-transform",
                 isOpen ? "rotate-180 transform" : "rotate-0",
+                selectedItem?.name ? "dark:text-white/50" : "text-white",
               )}
             />
           </div>

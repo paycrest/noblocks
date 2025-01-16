@@ -1,7 +1,7 @@
 import JSEncrypt from "jsencrypt";
 import type { InstitutionProps, Token } from "./types";
-import { publicClient } from "./client";
 import { erc20Abi } from "viem";
+import { colors } from "./mocks";
 
 /**
  * Concatenates and returns a string of class names.
@@ -351,3 +351,16 @@ export const getSavedRecipients = (key: string) => {
 export function clearFormState(formMethods: any) {
   formMethods.reset();
 }
+
+/**
+ * Generates a random color based on the provided name.
+ *
+ * @param name - The name of the recipient to generate a color for.
+ * @returns A color string from the `colors` array.
+ */
+export const getRandomColor = (name: string) => {
+  const index = name
+    .split("")
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colors[index % colors.length];
+};

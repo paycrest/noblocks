@@ -11,7 +11,7 @@ export const InputError = ({ message }: { message: string | any }) => (
       transition={{ duration: 0.2 }}
       className="text-accent-red flex items-center justify-between"
     >
-      <p className="bg-background-accent-red rounded-lg px-3 py-2 text-sm dark:bg-white/10">
+      <p className="bg-background-accent-red rounded-lg px-3 py-1 text-sm dark:bg-white/10">
         {message}
       </p>
       <AlertCircleIcon className="size-4" />

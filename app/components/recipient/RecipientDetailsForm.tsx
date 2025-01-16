@@ -321,12 +321,8 @@ export const RecipientDetailsForm = ({
                             onClick={() => {
                               setSelectedInstitution(institution);
                               setIsInstitutionsDropdownOpen(false);
-                              register("institution", {
-                                value: institution.code,
-                                required: {
-                                  value: true,
-                                  message: "Select bank",
-                                },
+                              setValue("institution", institution.code, {
+                                shouldValidate: true,
                               });
                             }}
                             className={classNames(

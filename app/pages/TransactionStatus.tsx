@@ -30,6 +30,7 @@ import {
 import {
   calculateDuration,
   classNames,
+  formatCurrency,
   getExplorerLink,
   getInstitutionNameByCode,
   getSavedRecipients,
@@ -40,6 +41,9 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics";
+import { format } from "date-fns";
+import { PDFReceipt } from "../components/PDFReceipt";
+import { pdf } from "@react-pdf/renderer";
 
 const LOCAL_STORAGE_KEY_RECIPIENTS = "savedRecipients";
 
@@ -374,36 +378,27 @@ export function TransactionStatus({
     return base + themeSuffix;
   };
 
-  const receiptRef = useRef<HTMLDivElement | null>(null);
-
   const handleGetReceipt = async () => {
     setIsGettingReceipt(true);
     try {
-      if (receiptRef.current) {
-        const canvas = await html2canvas(receiptRef.current, {
-          scale: 2,
-        });
-        const imgData = canvas.toDataURL("image/png");
-
-        if (imgData.length <= 6) {
-          throw new Error(
-            "Image data URL is too short, indicating an empty canvas.",
-          );
-        }
-
-        const pdf = new jsPDF({
-          orientation: "portrait",
-          unit: "px",
-          format: [canvas.width, canvas.height],
-        });
-
-        pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
-
-        const pdfBlob = pdf.output("blob");
-        const pdfUrl = URL.createObjectURL(pdfBlob);
-
-        window.open(pdfUrl, "_blank");
-      }
+      // if (orderDetails) {
+      const blob = await pdf(
+        <PDFReceipt
+          data={orderDetails as OrderDetailsData}
+          formData={{
+            recipientName,
+            accountIdentifier: formMethods.watch("accountIdentifier") as string,
+            institution: formMethods.watch("institution") as string,
+            memo: formMethods.watch("memo") as string,
+            amountReceived: formMethods.watch("amountReceived") as number,
+            currency: formMethods.watch("currency") as string,
+          }}
+          supportedInstitutions={supportedInstitutions}
+        />,
+      ).toBlob();
+      const pdfUrl = URL.createObjectURL(blob);
+      window.open(pdfUrl, "_blank");
+      // }
     } catch (error) {
       toast.error("Error generating receipt. Please try again.");
       console.error("Error generating receipt:", error);
@@ -691,27 +686,6 @@ export function TransactionStatus({
           </AnimatePresence>
         </div>
       </AnimatedComponent>
-
-      <div className="absolute left-[-9999px] top-[-9999px] w-full">
-        <div ref={receiptRef}>
-          {orderDetails && (
-            <TransactionReceipt
-              data={orderDetails as OrderDetailsData}
-              formData={{
-                recipientName,
-                accountIdentifier: formMethods.watch(
-                  "accountIdentifier",
-                ) as string,
-                institution: formMethods.watch("institution") as string,
-                memo: formMethods.watch("memo") as string,
-                amountReceived: formMethods.watch("amountReceived") as number,
-                currency: formMethods.watch("currency") as string,
-              }}
-              supportedInstitutions={supportedInstitutions}
-            />
-          )}
-        </div>
-      </div>
     </>
   );
 }

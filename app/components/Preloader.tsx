@@ -1,7 +1,14 @@
 "use client";
+import Rive, { useRive } from "@rive-app/react-canvas";
 import { motion, AnimatePresence } from "framer-motion";
 
 export const Preloader = ({ isLoading }: { isLoading: boolean }) => {
+  const { RiveComponent } = useRive({
+    src: "/rive/noblocks-loader.riv",
+    stateMachines: "Looping rotation",
+    autoplay: true,
+  });
+
   return (
     <AnimatePresence>
       {isLoading && (
@@ -11,12 +18,9 @@ export const Preloader = ({ isLoading }: { isLoading: boolean }) => {
           transition={{ duration: 0.5 }}
           className="pointer-events-none fixed inset-0 z-50 grid min-h-screen cursor-progress place-items-center gap-4 bg-white dark:bg-neutral-900"
         >
-          <motion.div
-            initial={{ scale: 1 }}
-            exit={{ scale: 0 }}
-            transition={{ duration: 0.5 }}
-            className="loader"
-          />
+          <div className="size-80">
+            <RiveComponent />
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

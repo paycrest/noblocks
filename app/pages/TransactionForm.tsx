@@ -139,7 +139,7 @@ export const TransactionForm = ({
             <div className="flex items-center justify-between">
               <label
                 htmlFor="amount-sent"
-                className="text-gray-500 dark:text-white/80"
+                className="text-gray-500 dark:text-white/50"
               >
                 Send
               </label>
@@ -229,7 +229,7 @@ export const TransactionForm = ({
           <div className="space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-neutral-900">
             <label
               htmlFor="amount-received"
-              className="text-gray-500 dark:text-white/80"
+              className="text-gray-500 dark:text-white/50"
             >
               Receive
             </label>
@@ -269,35 +269,38 @@ export const TransactionForm = ({
         </div>
 
         {/* Recipient and memo */}
-
-        {currency && (
-          <div className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800">
-            <RecipientDetailsForm
-              formMethods={formMethods}
-              stateProps={stateProps}
-            />
-
-            {/* Memo */}
-            <div className="relative">
-              <NoteIcon className="absolute left-2 top-2.5 fill-white stroke-gray-300 dark:fill-transparent dark:stroke-none" />
-              <input
-                type="text"
-                id="memo"
-                {...register("memo", {
-                  required: { value: false, message: "Add description" },
-                })}
-                className={`focus:ring-primary w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900 ${
-                  errors.memo
-                    ? "text-red-500 dark:text-red-500"
-                    : "text-neutral-900 dark:text-white/80"
-                }`}
-                placeholder="Add description (optional)"
-                maxLength={25}
+        <AnimatePresence>
+          {currency && (
+            <AnimatedComponent
+              variant={slideInOut}
+              className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800"
+            >
+              <RecipientDetailsForm
+                formMethods={formMethods}
+                stateProps={stateProps}
               />
-            </div>
-            {/* {errors.memo && <InputError message={errors.memo.message} />} */}
-          </div>
-        )}
+
+              {/* Memo */}
+              <div className="relative">
+                <NoteIcon className="absolute left-2 top-2.5 fill-white stroke-gray-300 dark:fill-transparent dark:stroke-none" />
+                <input
+                  type="text"
+                  id="memo"
+                  {...register("memo", {
+                    required: { value: false, message: "Add description" },
+                  })}
+                  className={`focus:ring-primary w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900 ${
+                    errors.memo
+                      ? "text-red-500 dark:text-red-500"
+                      : "text-neutral-900 dark:text-white/80"
+                  }`}
+                  placeholder="Add description (optional)"
+                  maxLength={25}
+                />
+              </div>
+            </AnimatedComponent>
+          )}
+        </AnimatePresence>
 
         {!ready && (
           <button type="button" className={primaryBtnClasses} disabled>

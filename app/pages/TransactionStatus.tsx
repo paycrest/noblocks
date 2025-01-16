@@ -41,8 +41,7 @@ import { useBalance } from "../context/BalanceContext";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics";
 
-const LOCAL_STORAGE_KEY_BANK = "savedBankTransferRecipients";
-const LOCAL_STORAGE_KEY_MOBILE = "savedMobileMoneyRecipients";
+const LOCAL_STORAGE_KEY_RECIPIENTS = "savedRecipients";
 
 /**
  * Renders the transaction status component.
@@ -59,7 +58,6 @@ const LOCAL_STORAGE_KEY_MOBILE = "savedMobileMoneyRecipients";
  */
 export function TransactionStatus({
   transactionStatus,
-  recipientName,
   orderId,
   createdAt,
   clearForm,
@@ -84,6 +82,7 @@ export function TransactionStatus({
   const token = watch("token");
   const currency = watch("currency");
   const amount = watch("amountSent");
+  const recipientName = String(watch("recipientName"));
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -146,10 +145,7 @@ export function TransactionStatus({
 
   // Check if the recipient is saved in the beneficiaries list
   useEffect(() => {
-    const savedRecipients = [
-      ...getSavedRecipients(LOCAL_STORAGE_KEY_BANK),
-      ...getSavedRecipients(LOCAL_STORAGE_KEY_MOBILE),
-    ];
+    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
     const isRecipientSaved = savedRecipients.some(
       (r: { accountIdentifier: string; institutionCode: string }) =>
         r.accountIdentifier === formMethods.watch("accountIdentifier") &&
@@ -290,10 +286,7 @@ export function TransactionStatus({
       type: formMethods.watch("accountType") || "bank",
     };
 
-    const savedRecipients = [
-      ...getSavedRecipients(LOCAL_STORAGE_KEY_BANK),
-      ...getSavedRecipients(LOCAL_STORAGE_KEY_MOBILE),
-    ];
+    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
     const isDuplicate = savedRecipients.some(
       (r: {
         accountIdentifier: string | number;
@@ -306,14 +299,8 @@ export function TransactionStatus({
     if (!isDuplicate) {
       const updatedRecipients = [...savedRecipients, newRecipient];
       localStorage.setItem(
-        LOCAL_STORAGE_KEY_BANK,
-        JSON.stringify(updatedRecipients.filter((r) => r.type === "bank")),
-      );
-      localStorage.setItem(
-        LOCAL_STORAGE_KEY_MOBILE,
-        JSON.stringify(
-          updatedRecipients.filter((r) => r.type === "mobile_money"),
-        ),
+        LOCAL_STORAGE_KEY_RECIPIENTS,
+        JSON.stringify(updatedRecipients),
       );
     }
   };
@@ -322,10 +309,7 @@ export function TransactionStatus({
     const accountIdentifier = formMethods.watch("accountIdentifier");
     const institutionCode = formMethods.watch("institution");
 
-    const savedRecipients = [
-      ...getSavedRecipients(LOCAL_STORAGE_KEY_BANK),
-      ...getSavedRecipients(LOCAL_STORAGE_KEY_MOBILE),
-    ];
+    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
 
     const updatedRecipients = savedRecipients.filter(
       (r: { accountIdentifier: string; institutionCode: string }) =>
@@ -336,23 +320,19 @@ export function TransactionStatus({
     );
 
     localStorage.setItem(
-      LOCAL_STORAGE_KEY_BANK,
-      JSON.stringify(updatedRecipients.filter((r) => r.type === "bank")),
-    );
-    localStorage.setItem(
-      LOCAL_STORAGE_KEY_MOBILE,
-      JSON.stringify(
-        updatedRecipients.filter((r) => r.type === "mobile_money"),
-      ),
+      LOCAL_STORAGE_KEY_RECIPIENTS,
+      JSON.stringify(updatedRecipients),
     );
   };
 
   const getPaymentMessage = () => {
-    recipientName = recipientName
-      .toLowerCase()
-      .split(" ")
-      .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
-      .join(" ");
+    const formattedRecipientName =
+      recipientName ??
+      ""
+        .toLowerCase()
+        .split(" ")
+        .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+        .join(" ");
 
     if (transactionStatus === "refunded") {
       return (
@@ -361,7 +341,7 @@ export function TransactionStatus({
           <span className="text-neutral-900 dark:text-white">
             {amount} {token}
           </span>{" "}
-          to {recipientName} was unsuccessful.
+          to {formattedRecipientName} was unsuccessful.
           <br />
           <br />
           The stablecoin has been refunded to your account.
@@ -370,7 +350,7 @@ export function TransactionStatus({
     }
 
     if (!["validated", "settled"].includes(transactionStatus)) {
-      return `Processing payment to ${recipientName}. Hang on, this will only take a few seconds.`;
+      return `Processing payment to ${formattedRecipientName}. Hang on, this will only take a few seconds.`;
     }
 
     return (
@@ -379,7 +359,7 @@ export function TransactionStatus({
         <span className="text-neutral-900 dark:text-white">
           {amount} {token}
         </span>{" "}
-        to {recipientName} has been completed successfully.
+        to {formattedRecipientName} has been completed successfully.
       </>
     );
   };
@@ -469,7 +449,7 @@ export function TransactionStatus({
               delay={0.4}
               className="whitespace-nowrap rounded-full bg-gray-50 px-2 py-1 capitalize dark:bg-white/5"
             >
-              {recipientName.toLowerCase().split(" ")[0]}
+              {(recipientName ?? "").toLowerCase().split(" ")[0]}
             </AnimatedComponent>
           </div>
         </div>
@@ -539,7 +519,7 @@ export function TransactionStatus({
                     <Checkbox
                       checked={addToBeneficiaries}
                       onChange={handleAddToBeneficiariesChange}
-                      className="data-[checked]:bg-lavender-500 data-[checked]:border-lavender-500 dark:data-[checked]:border-lavender-500 group block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent dark:border-white/30"
+                      className="group block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
                     >
                       <svg
                         className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
@@ -561,8 +541,14 @@ export function TransactionStatus({
                     </Checkbox>
                     <label className="text-gray-500 dark:text-white/50">
                       Add{" "}
-                      {recipientName.split(" ")[0].charAt(0).toUpperCase() +
-                        recipientName.toLowerCase().split(" ")[0].slice(1)}{" "}
+                      {(recipientName ?? "")
+                        .split(" ")[0]
+                        .charAt(0)
+                        .toUpperCase() +
+                        (recipientName ?? "")
+                          .toLowerCase()
+                          .split(" ")[0]
+                          .slice(1)}{" "}
                       to beneficiaries
                     </label>
                   </div>
@@ -624,7 +610,7 @@ export function TransactionStatus({
                         selectedNetwork.chain.name,
                         `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
                       )}
-                      className="text-lavender-500 dark:text-lavender-500 hover:underline"
+                      className="text-lavender-500 hover:underline dark:text-lavender-500"
                       target="_blank"
                       rel="noreferrer"
                     >

@@ -32,10 +32,22 @@ const config: Config = {
         },
         accent: {
           gray: "#F7F7F8",
+          red: "#F53D6B",
+        },
+        background: {
+          accent: {
+            red: "#FEF0F4",
+          },
         },
         text: {
           body: "#121217",
           secondary: "#6C6C89",
+          accent: {
+            red: "#D50B3E",
+          },
+        },
+        input: {
+          destructive: "#F53D6B",
         },
       },
     },

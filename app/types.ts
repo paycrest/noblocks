@@ -81,7 +81,6 @@ export type TransactionStatusType =
 
 export type TransactionStatusProps = {
   transactionStatus: TransactionStatusType;
-  recipientName: string;
   orderId: string;
   createdAt: string;
   clearForm: () => void;
@@ -163,12 +162,10 @@ type TxReceipt = {
 export type StateProps = {
   formValues: FormData;
   rate: number;
-  recipientName: string;
   isFetchingRate: boolean;
   institutions: InstitutionProps[];
   isFetchingInstitutions: boolean;
   selectedRecipient: RecipientDetails | null;
-  setRecipientName: (name: string) => void;
   setSelectedRecipient: (recipient: RecipientDetails | null) => void;
   setCreatedAt: (createdAt: string) => void;
   setOrderId: (orderId: string) => void;

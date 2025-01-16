@@ -489,7 +489,7 @@ export function TransactionStatus({
                 <AnimatedComponent
                   variant={slideInOut}
                   delay={0.5}
-                  className="flex w-full gap-3"
+                  className="flex w-full flex-wrap gap-3"
                 >
                   {["validated", "settled"].includes(transactionStatus) && (
                     <button
@@ -498,9 +498,7 @@ export function TransactionStatus({
                       className={`w-fit ${secondaryBtnClasses}`}
                       disabled={isGettingReceipt}
                     >
-                      {isGettingReceipt
-                        ? "Generating receipt..."
-                        : "Get receipt"}
+                      {isGettingReceipt ? "Generating..." : "Get receipt"}
                     </button>
                   )}
 
@@ -642,7 +640,7 @@ export function TransactionStatus({
                   <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <a
                     aria-label="Share on Twitter"
                     rel="noopener noreferrer"

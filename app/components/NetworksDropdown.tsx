@@ -2,7 +2,6 @@
 import Image from "next/image";
 import { toast } from "sonner";
 import { useState } from "react";
-import { PiCaretDown } from "react-icons/pi";
 
 import { networks } from "../mocks";
 import { classNames } from "../utils";
@@ -11,6 +10,7 @@ import { useStep } from "../context/StepContext";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+import { useWallets } from "@privy-io/react-auth";
 import { trackEvent } from "../hooks/analytics";
 import { ArrowDown01Icon } from "hugeicons-react";
 
@@ -22,8 +22,6 @@ export const NetworksDropdown = ({
   iconOnly = false,
 }: NetworksDropdownProps) => {
   const { client } = useSmartWallets();
-  const { refreshBalance } = useBalance();
-
   const { isFormStep } = useStep();
   iconOnly = !isFormStep;
 
@@ -37,14 +35,10 @@ export const NetworksDropdown = ({
     if (newNetwork && client) {
       try {
         setSelectedNetwork(newNetwork);
-        // await client.switchChain({
-        //   id: newNetwork.chainId,
-        // });
         setDropdownSelectedItem(newNetwork.chain.name);
         toast.success(`Network switched successfully`, {
           description: `You are now swapping on ${newNetwork.chain.name} network`,
         });
-        refreshBalance();
       } catch (error) {
         console.error("Failed to switch network:", error);
         toast.error("Error switching network", {

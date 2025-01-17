@@ -14,7 +14,7 @@ import { useNetwork } from "../context/NetworksContext";
 import type { Token, TransactionPreviewProps } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components";
 import { gatewayAbi } from "../api/abi";
-import { useFundWallet, usePrivy } from "@privy-io/react-auth";
+import { useFundWallet, usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
   type BaseError,
@@ -46,6 +46,7 @@ export const TransactionPreview = ({
 }: TransactionPreviewProps) => {
   const { user } = usePrivy();
   const { client } = useSmartWallets();
+  const { wallets } = useWallets();
   const { fundWallet } = useFundWallet();
 
   const { selectedNetwork } = useNetwork();
@@ -142,9 +143,15 @@ export const TransactionPreview = ({
         throw new Error("Smart wallet not found");
       }
 
+      const externalWalletAccount = wallets.find(
+        (account) => account.connectorType === "injected",
+      );
+
       await client.switchChain({
         id: selectedNetwork.chain.id,
       });
+
+      await externalWalletAccount?.switchChain(selectedNetwork.chain.id);
 
       const params = await prepareCreateOrderParams();
       setCreatedAt(new Date().toISOString());
@@ -159,9 +166,9 @@ export const TransactionPreview = ({
               abi: erc20Abi,
               functionName: "approve",
               args: [
-                getAddress(
-                  getGatewayContractAddress(selectedNetwork.chain.name) || "",
-                ),
+                getGatewayContractAddress(
+                  selectedNetwork.chain.name,
+                ) as `0x${string}`,
                 parseUnits(amountSent.toString(), tokenDecimals ?? 18),
               ],
             }),

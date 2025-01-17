@@ -48,14 +48,14 @@ export const networks = [
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
   },
-  {
-    chain: scroll,
-    imageUrl: "/logos/scroll-logo.svg",
-  },
-  {
-    chain: optimism,
-    imageUrl: "/logos/op-mainnet-logo.svg",
-  },
+  // {
+  //   chain: scroll,
+  //   imageUrl: "/logos/scroll-logo.svg",
+  // },
+  // {
+  //   chain: optimism,
+  //   imageUrl: "/logos/op-mainnet-logo.svg",
+  // },
 ];
 
 export const tokens = [

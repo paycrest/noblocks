@@ -3,14 +3,7 @@ import { Toaster } from "sonner";
 import { type ReactNode } from "react";
 import { ThemeProvider } from "next-themes";
 
-import {
-  arbitrum,
-  base,
-  bsc,
-  optimism,
-  polygon,
-  scroll,
-} from "viem/chains";
+import { arbitrum, base, bsc, optimism, polygon, scroll } from "viem/chains";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
@@ -43,7 +36,6 @@ function Providers({ children }: { children: ReactNode }) {
                 connectionOptions: "smartWalletOnly",
               },
             },
-            defaultChain: base,
             supportedChains: [base, bsc, arbitrum, polygon, scroll, optimism],
           }}
         >

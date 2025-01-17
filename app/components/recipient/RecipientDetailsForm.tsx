@@ -186,8 +186,9 @@ export const RecipientDetailsForm = ({
   useEffect(() => {
     if (selectedInstitution) {
       register("institution", { value: selectedInstitution.code });
-      // Reset recipient name when bank changes
+      // Reset recipient name and account number when bank changes
       setValue("recipientName", "");
+      setValue("accountIdentifier", "");
       setRecipientNameError("");
     }
   }, [selectedInstitution, register, setValue]);

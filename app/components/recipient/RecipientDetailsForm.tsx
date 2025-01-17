@@ -74,6 +74,8 @@ export const RecipientDetailsForm = ({
     handler: () => setIsInstitutionsDropdownOpen(false),
   });
 
+  const [isManualEntry, setIsManualEntry] = useState(true);
+
   /**
    * Array of institutions filtered and sorted alphabetically based on the bank search term.
    *
@@ -116,6 +118,7 @@ export const RecipientDetailsForm = ({
     // Remove extra spaces from recipient name
     recipient.name = recipient.name.replace(/\s+/g, " ").trim();
     setValue("recipientName", recipient.name);
+    setIsManualEntry(false);
     setIsModalOpen(false);
   };
 
@@ -186,17 +189,21 @@ export const RecipientDetailsForm = ({
   useEffect(() => {
     if (selectedInstitution) {
       register("institution", { value: selectedInstitution.code });
-      // Reset recipient name and account number when bank changes
-      setValue("recipientName", "");
-      setValue("accountIdentifier", "");
-      setRecipientNameError("");
+      // Only reset fields if this is manual entry
+      if (isManualEntry) {
+        setValue("recipientName", "");
+        setValue("accountIdentifier", "");
+        setRecipientNameError("");
+      }
     }
-  }, [selectedInstitution, register, setValue]);
+  }, [selectedInstitution, register, setValue, isManualEntry]);
 
   // Fetch recipient name based on institution and account identifier
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     const getRecipientName = async () => {
+      if (!isManualEntry) return;
+
       if (
         !institution ||
         !accountIdentifier ||
@@ -230,8 +237,8 @@ export const RecipientDetailsForm = ({
     return () => {
       clearTimeout(timeoutId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountIdentifier, institution, setValue]);
+    // Add selectedRecipient to dependencies array
+  }, [accountIdentifier, institution, setValue, isManualEntry]);
 
   useEffect(() => {
     setSelectedInstitution(null);
@@ -240,6 +247,7 @@ export const RecipientDetailsForm = ({
     setValue("recipientName", "");
     setValue("accountIdentifier", "");
     setRecipientNameError("");
+    setIsManualEntry(true);
   }, [currency, setValue]);
 
   return (
@@ -326,6 +334,7 @@ export const RecipientDetailsForm = ({
                               setValue("institution", institution.code, {
                                 shouldValidate: true,
                               });
+                              setIsManualEntry(true);
                             }}
                             className={classNames(
                               "flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-neutral-900 transition-all hover:bg-gray-200 dark:text-white/80 dark:hover:bg-white/5",
@@ -372,6 +381,7 @@ export const RecipientDetailsForm = ({
                   value: 10,
                   message: "Account number is invalid",
                 },
+                onChange: () => setIsManualEntry(true),
               })}
               className={classNames(
                 "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-gray-400 focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",

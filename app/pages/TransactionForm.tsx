@@ -200,7 +200,7 @@ export const TransactionForm = ({
               <FormDropdown
                 defaultTitle="Select token"
                 data={tokens}
-                defaultSelectedItem="USDC"
+                defaultSelectedItem={token}
                 onSelect={(selectedToken) => {
                   setValue("token", selectedToken);
                   trackEvent("token_selected", {

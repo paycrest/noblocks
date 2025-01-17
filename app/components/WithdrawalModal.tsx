@@ -105,7 +105,7 @@ export const WithdrawalModal = ({
 
   useEffect(() => {
     if (!token) {
-      register("token", { value: "USDC" });
+      setValue("token", "USDC");
     }
   }, []);
 
@@ -177,7 +177,7 @@ export const WithdrawalModal = ({
                   aria-expanded={isOpen}
                   type="button"
                   onClick={toggleDropdown}
-                  className="focus-visible:ring-lavender-500 flex w-full items-center justify-between gap-2 rounded-xl border border-gray-300 px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:border-white/20 dark:focus-visible:ring-offset-neutral-900"
+                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-gray-300 px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:border-white/20 dark:focus-visible:ring-offset-neutral-900"
                 >
                   {selectedItem?.name ? (
                     <div className="flex items-center gap-1.5">
@@ -246,7 +246,7 @@ export const WithdrawalModal = ({
           </div>
         </div>
 
-        <div className="bg-accent-gray flex w-full items-center justify-between rounded-xl px-4 py-2.5 dark:bg-white/5">
+        <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">
           <p className="text-text-secondary dark:text-white/50">Balance</p>
           <div className="flex items-center gap-3">
             {inputValue >= tokenBalance ? (
@@ -255,7 +255,7 @@ export const WithdrawalModal = ({
               <button
                 type="button"
                 onClick={handleBalanceMaxClick}
-                className="text-lavender-500 font-medium"
+                className="font-medium text-lavender-500"
               >
                 Max
               </button>

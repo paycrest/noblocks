@@ -93,6 +93,7 @@ export const SavedBeneficiariesModal = ({
                     value={beneficiarySearchTerm}
                     onChange={setBeneficiarySearchTerm}
                     placeholder="Search beneficiaries by name or account number"
+                    autoFocus={isOpen}
                   />
                 </div>
 

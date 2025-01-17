@@ -304,6 +304,7 @@ export const RecipientDetailsForm = ({
                       value={bankSearchTerm}
                       onChange={setBankSearchTerm}
                       placeholder="Search banks..."
+                      autoFocus={isInstitutionsDropdownOpen}
                     />
                   </div>
 
@@ -374,7 +375,7 @@ export const RecipientDetailsForm = ({
               className={classNames(
                 "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-gray-400 focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
                 errors.accountIdentifier
-                  ? "border-input-destructive dark:border-input-destructive focus:border-gray-400"
+                  ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
                   : "border-gray-300 dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
               )}
             />

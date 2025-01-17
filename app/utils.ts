@@ -165,6 +165,13 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
         imageUrl: "/logos/usdc-logo.svg",
       },
+      {
+        name: "Tether USD",
+        symbol: "USDT",
+        decimals: 6,
+        address: "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+        imageUrl: "/logos/usdt-logo.svg",
+      },
     ],
     "BNB Smart Chain": [
       {
@@ -174,6 +181,13 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         address: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
         imageUrl: "/logos/usdc-logo.svg",
       },
+      {
+        name: "Tether USD",
+        symbol: "USDT",
+        decimals: 18,
+        address: "0x55d398326f99059ff775485246999027b3197955",
+        imageUrl: "/logos/usdt-logo.svg",
+      },
     ],
     Polygon: [
       {
@@ -182,6 +196,13 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         decimals: 6,
         address: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
         imageUrl: "/logos/usdc-logo.svg",
+      },
+      {
+        name: "Tether USD",
+        symbol: "USDT",
+        decimals: 6,
+        address: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
+        imageUrl: "/logos/usdt-logo.svg",
       },
     ],
     Scroll: [

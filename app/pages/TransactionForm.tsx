@@ -51,7 +51,8 @@ export const TransactionForm = ({
     setValue,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { amountSent, amountReceived, token, currency } = watch();
+  const { amountSent, amountReceived, token, currency, recipientName } =
+    watch();
 
   const balance = smartWalletBalance?.balances[token] ?? 0;
 
@@ -323,7 +324,8 @@ export const TransactionForm = ({
             type="button"
             className={primaryBtnClasses}
             disabled={
-              (!isDirty || !isValid || !currency) && amountSent <= balance
+              (!isDirty || !isValid || !currency || !recipientName) &&
+              amountSent <= balance
             }
             onClick={() => {
               if (amountSent > balance) {

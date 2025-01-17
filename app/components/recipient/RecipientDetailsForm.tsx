@@ -204,6 +204,7 @@ export const RecipientDetailsForm = ({
         return;
 
       setIsFetchingRecipientName(true);
+      setValue("recipientName", "");
 
       try {
         const accountName = await fetchAccountName({
@@ -213,7 +214,6 @@ export const RecipientDetailsForm = ({
         setValue("recipientName", accountName);
         setIsFetchingRecipientName(false);
       } catch (error) {
-        setValue("recipientName", "");
         setRecipientNameError("No recipient account found.");
         setIsFetchingRecipientName(false);
       }

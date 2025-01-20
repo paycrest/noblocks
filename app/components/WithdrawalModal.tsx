@@ -44,7 +44,21 @@ export const WithdrawalModal = ({
     watch,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { token } = watch();
+  const { token, amount, recipientAddress } = watch();
+
+  useEffect(() => {
+    console.log("token", token);
+    console.log("amount", amount);
+    console.log("recipientAddress", recipientAddress);
+  }, [token, amount, recipientAddress]);
+
+  useEffect(() => {
+    console.log("token", token);
+    console.log("smartWalletBalance", smartWalletBalance);
+    console.log("errors", errors);
+    console.log("isValid", isValid);
+    console.log("isDirty", isDirty);
+  }, [token, smartWalletBalance, errors, isValid, isDirty]);
 
   const tokens = [];
   const fetchedTokens: Token[] =
@@ -270,7 +284,6 @@ export const WithdrawalModal = ({
         <button
           type="submit"
           className={classNames(primaryBtnClasses, "w-full")}
-          disabled={!isDirty || !isValid}
         >
           Continue
         </button>

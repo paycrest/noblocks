@@ -125,11 +125,11 @@ export const FlexibleDropdown = ({
                   </div>
 
                   {item.disabled ? (
-                    <MdOutlineLockClock className="text-lg text-gray-400 dark:text-white/50" />
+                    <MdOutlineLockClock className="text-base text-gray-400 dark:text-white/50" />
                   ) : (
                     <Tick02Icon
                       className={classNames(
-                        "text-lg text-gray-400 transition-transform dark:text-white/50",
+                        "text-base text-gray-400 transition-transform dark:text-white/50",
                         selectedItem?.name === item.name ? "" : "hidden",
                       )}
                     />

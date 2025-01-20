@@ -25,7 +25,6 @@ export const WithdrawalModal = ({
   const { selectedNetwork } = useNetwork();
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0);
-  const [inputValue, setInputValue] = useState<number>(0);
 
   const { smartWalletBalance, refreshBalance } = useBalance();
   const { client } = useSmartWallets();
@@ -45,20 +44,6 @@ export const WithdrawalModal = ({
     formState: { errors, isValid, isDirty },
   } = formMethods;
   const { token, amount, recipientAddress } = watch();
-
-  useEffect(() => {
-    console.log("token", token);
-    console.log("amount", amount);
-    console.log("recipientAddress", recipientAddress);
-  }, [token, amount, recipientAddress]);
-
-  useEffect(() => {
-    console.log("token", token);
-    console.log("smartWalletBalance", smartWalletBalance);
-    console.log("errors", errors);
-    console.log("isValid", isValid);
-    console.log("isDirty", isDirty);
-  }, [token, smartWalletBalance, errors, isValid, isDirty]);
 
   const tokens = [];
   const fetchedTokens: Token[] =
@@ -105,10 +90,6 @@ export const WithdrawalModal = ({
 
   const handleBalanceMaxClick = () => {
     setValue("amount", smartWalletBalance?.balances[token] ?? 0);
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(Number(e.target.value));
   };
 
   useEffect(() => {
@@ -245,13 +226,12 @@ export const WithdrawalModal = ({
                   },
                 })}
                 className={`w-full rounded-xl border px-4 py-2.5 pr-16 outline-none transition-all duration-300 placeholder:text-gray-400 focus:outline-none dark:text-white/80 dark:placeholder:text-white/20 ${
-                  errors.amount || inputValue > tokenBalance
+                  errors.amount
                     ? "border-red-500 text-red-500 dark:border-red-500 dark:text-red-500"
                     : "border-gray-300 bg-transparent focus:border-gray-400 dark:border-white/20 dark:focus:border-white/50 dark:focus:ring-offset-neutral-900"
                 }`}
                 placeholder="0"
                 title="Enter amount to send"
-                onChange={handleInputChange}
               />
               <span className="absolute right-4 text-neutral-900 dark:text-white/80">
                 {token}
@@ -263,7 +243,7 @@ export const WithdrawalModal = ({
         <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">
           <p className="text-text-secondary dark:text-white/50">Balance</p>
           <div className="flex items-center gap-3">
-            {inputValue >= tokenBalance ? (
+            {Number(amount) >= tokenBalance ? (
               <p className="dark:text-white/50">Maxed out</p>
             ) : (
               <button
@@ -284,6 +264,7 @@ export const WithdrawalModal = ({
         <button
           type="submit"
           className={classNames(primaryBtnClasses, "w-full")}
+          disabled={!isValid || !isDirty}
         >
           Continue
         </button>

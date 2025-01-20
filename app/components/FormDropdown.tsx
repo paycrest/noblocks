@@ -9,6 +9,7 @@ interface FormDropdownProps {
   onSelect?: (name: string) => void;
   data: DropdownItem[];
   className?: string;
+  forceDark?: boolean;
 }
 
 export const FormDropdown = ({
@@ -17,6 +18,7 @@ export const FormDropdown = ({
   onSelect,
   data,
   className,
+  forceDark,
 }: FormDropdownProps) => {
   return (
     <FlexibleDropdown
@@ -35,7 +37,7 @@ export const FormDropdown = ({
           onClick={toggleDropdown}
           className={classNames(
             "flex items-center gap-2 rounded-full p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95",
-            selectedItem?.name
+            selectedItem?.name || forceDark
               ? "bg-gray-50 dark:bg-neutral-800"
               : "bg-lavender-500 text-white",
             "dark:focus-visible:ring-offset-neutral-900",
@@ -63,7 +65,9 @@ export const FormDropdown = ({
               className={classNames(
                 "text-base text-gray-400 transition-transform",
                 isOpen ? "rotate-180 transform" : "rotate-0",
-                selectedItem?.name ? "dark:text-white/50" : "text-white",
+                selectedItem?.name || forceDark
+                  ? "dark:text-white/50"
+                  : "text-white",
               )}
             />
           </div>

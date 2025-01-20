@@ -261,6 +261,7 @@ export const TransactionForm = ({
                   setValue("currency", selectedCurrency)
                 }
                 className="min-w-52"
+                forceDark={authenticated && amountSent > balance}
               />
             </div>
             {/* {errors.amountReceived && (

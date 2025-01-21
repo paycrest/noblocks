@@ -212,7 +212,9 @@ export function TransactionStatus({
               ? "bg-orange-50 text-orange-400"
               : transactionStatus === "processing"
                 ? "bg-yellow-50 text-yellow-400"
-                : "bg-gray-50"
+                : transactionStatus === "fulfilled"
+                  ? "bg-green-50 text-green-400"
+                  : "bg-gray-50"
           }`}
         >
           <PiSpinnerBold className="animate-spin" />

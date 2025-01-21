@@ -36,7 +36,11 @@ import {
   getSavedRecipients,
 } from "../utils";
 import { fetchOrderDetails } from "../api/aggregator";
-import type { OrderDetailsData, TransactionStatusProps } from "../types";
+import {
+  STEPS,
+  type OrderDetailsData,
+  type TransactionStatusProps,
+} from "../types";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { toast } from "sonner";
@@ -239,15 +243,15 @@ export function TransactionStatus({
       trackEvent("post_swap_action", {
         action: "Retried transaction",
       });
-    } else {
-      clearForm();
-      clearTransactionStatus();
 
+      setCurrentStep(STEPS.FORM);
+    } else {
       trackEvent("post_swap_action", {
-        action: "Returned to swap interface",
+        action: "Started new transaction",
       });
+
+      window.location.reload();
     }
-    setCurrentStep("form");
   };
 
   // Add or remove the recipient from the beneficiaries list

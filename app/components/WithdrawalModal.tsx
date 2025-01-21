@@ -16,6 +16,7 @@ import { classNames, fetchSupportedTokens } from "../utils";
 
 import { primaryBtnClasses } from "./Styles";
 import { FlexibleDropdown } from "./FlexibleDropdown";
+import { AnimatedFeedbackItem } from "./AnimatedComponents";
 
 export const WithdrawalModal = ({
   setIsWithdrawModalOpen,
@@ -139,6 +140,16 @@ export const WithdrawalModal = ({
                 value: true,
                 message: "Recipient address is required",
               },
+              pattern: {
+                value: /^0x[a-fA-F0-9]{40}$/,
+                message: "Invalid wallet address format",
+              },
+              validate: {
+                length: (value) =>
+                  value.length === 42 || "Address must be 42 characters long",
+                prefix: (value) =>
+                  value.startsWith("0x") || "Address must start with 0x",
+              },
             })}
             className={`w-full rounded-xl border px-4 py-2.5 outline-none transition-all duration-300 placeholder:text-gray-400 focus:outline-none dark:text-white/80 dark:placeholder:text-white/20 ${
               errors.recipientAddress
@@ -148,6 +159,11 @@ export const WithdrawalModal = ({
             placeholder="0x..."
             maxLength={42}
           />
+          {errors.recipientAddress && (
+            <AnimatedFeedbackItem className="text-xs text-red-500">
+              {errors.recipientAddress.message}
+            </AnimatedFeedbackItem>
+          )}
         </div>
 
         <div className="flex items-center gap-4 *:flex-1">

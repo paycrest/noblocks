@@ -107,10 +107,10 @@ export const TransactionForm = ({
       if (isReceiveInputActive) {
         setValue(
           "amountSent",
-          Number((Number(amountReceived) / rate).toFixed(2)),
+          Number((Number(amountReceived) / rate).toFixed(4)),
         );
       } else {
-        setValue("amountReceived", Number((rate * amountSent).toFixed(2)));
+        setValue("amountReceived", Number((rate * amountSent).toFixed(4)));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -239,7 +239,7 @@ export const TransactionForm = ({
               <input
                 id="amount-received"
                 type="number"
-                step="0.01"
+                step="0.0001"
                 {...register("amountReceived", {
                   disabled: !token || !currency,
                   onChange: () => setIsReceiveInputActive(true),

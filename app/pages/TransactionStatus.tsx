@@ -68,7 +68,6 @@ export function TransactionStatus({
   transactionStatus,
   orderId,
   createdAt,
-  clearForm,
   clearTransactionStatus,
   setTransactionStatus,
   setCurrentStep,
@@ -385,24 +384,26 @@ export function TransactionStatus({
   const handleGetReceipt = async () => {
     setIsGettingReceipt(true);
     try {
-      // if (orderDetails) {
-      const blob = await pdf(
-        <PDFReceipt
-          data={orderDetails as OrderDetailsData}
-          formData={{
-            recipientName,
-            accountIdentifier: formMethods.watch("accountIdentifier") as string,
-            institution: formMethods.watch("institution") as string,
-            memo: formMethods.watch("memo") as string,
-            amountReceived: formMethods.watch("amountReceived") as number,
-            currency: formMethods.watch("currency") as string,
-          }}
-          supportedInstitutions={supportedInstitutions}
-        />,
-      ).toBlob();
-      const pdfUrl = URL.createObjectURL(blob);
-      window.open(pdfUrl, "_blank");
-      // }
+      if (orderDetails) {
+        const blob = await pdf(
+          <PDFReceipt
+            data={orderDetails as OrderDetailsData}
+            formData={{
+              recipientName,
+              accountIdentifier: formMethods.watch(
+                "accountIdentifier",
+              ) as string,
+              institution: formMethods.watch("institution") as string,
+              memo: formMethods.watch("memo") as string,
+              amountReceived: formMethods.watch("amountReceived") as number,
+              currency: formMethods.watch("currency") as string,
+            }}
+            supportedInstitutions={supportedInstitutions}
+          />,
+        ).toBlob();
+        const pdfUrl = URL.createObjectURL(blob);
+        window.open(pdfUrl, "_blank");
+      }
     } catch (error) {
       toast.error("Error generating receipt. Please try again.");
       console.error("Error generating receipt:", error);

@@ -13,15 +13,32 @@ import { formatCurrency, getInstitutionNameByCode } from "../utils";
 import type { OrderDetailsData, InstitutionProps } from "../types";
 
 Font.register({
-  family: "Roboto",
-  src: "https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-light-webfont.ttf",
+  family: "Inter",
+  fonts: [
+    {
+      src: "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.8/files/inter-latin-300-normal.woff",
+      fontWeight: 300,
+    },
+    {
+      src: "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.8/files/inter-latin-400-normal.woff",
+      fontWeight: 400,
+    },
+    {
+      src: "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.8/files/inter-latin-500-normal.woff",
+      fontWeight: 500,
+    },
+    {
+      src: "https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.8/files/inter-latin-700-normal.woff",
+      fontWeight: 700,
+    },
+  ],
 });
 
 const styles = StyleSheet.create({
   page: {
     flexDirection: "column",
     backgroundColor: "#FFFFFF",
-    fontFamily: "Roboto",
+    fontFamily: "Inter",
   },
   header: {
     flexDirection: "row",
@@ -29,19 +46,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#F9FAFB",
     padding: 16,
-    borderBottom: "1 solid #E5E7EB",
   },
   headerText: {
     flexDirection: "column",
   },
   title: {
     fontSize: 16,
-    fontWeight: "medium",
+    fontWeight: 500,
     marginBottom: 8,
   },
   date: {
-    fontSize: 14,
-    color: "#9CA3AF",
+    fontSize: 12,
+    color: "#6C6C89",
   },
   logo: {
     width: 40,
@@ -52,9 +68,10 @@ const styles = StyleSheet.create({
   },
   amount: {
     fontSize: 18,
-    fontWeight: "semibold",
+    fontWeight: 600,
     marginBottom: 8,
     marginTop: 20,
+    color: "#121217",
   },
   statusContainer: {
     flexDirection: "row",
@@ -68,7 +85,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: "semibold",
+    fontWeight: 600,
     color: "#15803D",
   },
   infoItem: {
@@ -76,12 +93,13 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: "#9CA3AF",
+    color: "#8E8E8F",
     marginBottom: 4,
   },
   value: {
     fontSize: 14,
-    fontWeight: "normal",
+    fontWeight: 400,
+    color: "#121217",
   },
   divider: {
     borderBottomWidth: 4,
@@ -101,10 +119,11 @@ const styles = StyleSheet.create({
   },
   qrText: {
     fontSize: 20,
-    fontWeight: "bold",
+    fontWeight: 700,
+    color: "#121217",
   },
   noblocks: {
-    color: "#60A5FA",
+    color: "#8B85F4",
   },
   footer: {
     backgroundColor: "#F9FAFB",
@@ -112,7 +131,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 14,
-    color: "#9CA3AF",
+    color: "#8E8E8F",
     textAlign: "right",
   },
 });
@@ -157,13 +176,13 @@ export const PDFReceipt = ({
     { label: "Account number", value: accountIdentifier || "N/A" },
     { label: "Bank", value: institutionName || "N/A" },
     { label: "Description", value: memo || "N/A" },
-    { label: "Transaction reference", value: data?.orderId || "N/A" },
+    { label: "Transaction ID", value: data?.orderId || "N/A" },
   ];
 
   return (
     <Document>
-      <Page size="A5" style={styles.page}>
-        <View style={[styles.header, { borderTop: "4 solid #60A5FA" }]}>
+      <Page size="A4" style={styles.page}>
+        <View style={[styles.header, { borderTop: "4 solid #8B85F4" }]}>
           <View style={styles.headerText}>
             <Text style={styles.title}>Receipt</Text>
             <Text style={styles.date}>

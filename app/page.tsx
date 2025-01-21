@@ -88,18 +88,6 @@ export default function Home() {
   };
 
   useEffect(() => {
-    // set status to settled after 5 seconds
-    const timeoutId = setTimeout(() => {
-      setTransactionStatus("settled");
-      setCurrentStep(STEPS.STATUS);
-    }, 5000);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  });
-
-  useEffect(() => {
     if (!isPageLoading) {
       trackEvent("app_opened");
       trackEvent("page_viewed", { page: "Swap Interface" });

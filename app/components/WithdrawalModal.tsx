@@ -70,7 +70,6 @@ export const WithdrawalModal = ({
       )?.decimals;
 
       await client?.sendTransaction({
-        account: client.account,
         to: tokenAddress,
         data: encodeFunctionData({
           abi: erc20Abi,

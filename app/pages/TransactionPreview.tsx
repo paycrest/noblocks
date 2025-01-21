@@ -157,7 +157,6 @@ export const TransactionPreview = ({
       setCreatedAt(new Date().toISOString());
 
       await client?.sendTransaction({
-        account: client.account,
         calls: [
           // Approve gateway contract to spend token
           {

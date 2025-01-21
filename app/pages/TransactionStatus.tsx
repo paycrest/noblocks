@@ -45,11 +45,9 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics";
-import { format } from "date-fns";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
-
-const LOCAL_STORAGE_KEY_RECIPIENTS = "savedRecipients";
+import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";
 
 /**
  * Renders the transaction status component.

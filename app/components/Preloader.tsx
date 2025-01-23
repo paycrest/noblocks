@@ -22,7 +22,7 @@ const NavbarSkeleton = () => (
 );
 
 const FooterSkeleton = () => (
-  <footer className="mx-auto mt-8 flex w-full max-w-2xl flex-wrap items-center justify-between gap-2 border-t border-dashed border-gray-200 pb-6 pt-4 dark:border-white/10">
+  <footer className="mx-auto mt-8 flex w-full max-w-2xl flex-wrap items-center justify-between gap-2 border-t border-dashed border-gray-100 pb-6 pt-4 dark:border-white/5">
     <Skeleton className="h-4 w-32" />
     <div className="flex items-center gap-2">
       <Skeleton className="h-5 w-5" />
@@ -101,13 +101,13 @@ export const Preloader = ({ isLoading }: { isLoading: boolean }) => {
             <Skeleton className="h-11 w-full rounded-xl" />
 
             {/* Rate Info */}
-            <div className="flex w-full flex-col justify-between gap-2 sm:flex-row sm:items-center">
+            {/* <div className="flex w-full flex-col justify-between gap-2 sm:flex-row sm:items-center">
               <Skeleton className="h-4 w-32" />
               <div className="ml-auto flex w-full flex-col justify-end gap-2 sm:flex-row sm:items-center">
                 <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-200 dark:from-neutral-900 dark:to-neutral-800 sm:w-full" />
                 <Skeleton className="h-4 w-48" />
               </div>
-            </div>
+            </div> */}
           </div>
           <FooterSkeleton />
         </motion.div>

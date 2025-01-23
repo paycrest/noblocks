@@ -89,7 +89,10 @@ export const WithdrawalModal = ({
   };
 
   const handleBalanceMaxClick = () => {
-    setValue("amount", smartWalletBalance?.balances[token] ?? 0);
+    setValue("amount", smartWalletBalance?.balances[token] ?? 0, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
   };
 
   useEffect(() => {
@@ -231,6 +234,10 @@ export const WithdrawalModal = ({
                 {...register("amount", {
                   required: { value: true, message: "Amount is required" },
                   disabled: !token,
+                  min: {
+                    value: 0.0001,
+                    message: `Min. amount is 0.0001`,
+                  },
                   max: {
                     value: tokenBalance,
                     message: `Max. amount is ${tokenBalance}`,

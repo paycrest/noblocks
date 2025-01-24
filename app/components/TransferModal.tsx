@@ -12,7 +12,7 @@ import { BaseError, encodeFunctionData, erc20Abi, parseUnits } from "viem";
 import { useBalance } from "../context";
 import type { Token } from "../types";
 import { useNetwork } from "../context/NetworksContext";
-import { classNames, fetchSupportedTokens } from "../utils";
+import { classNames, fetchSupportedTokens, getExplorerLink } from "../utils";
 
 import { primaryBtnClasses } from "./Styles";
 import { FlexibleDropdown } from "./FlexibleDropdown";
@@ -26,6 +26,7 @@ export const TransferModal = ({
   const { selectedNetwork } = useNetwork();
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0);
+  const [isConfirming, setIsConfirming] = useState<boolean>(false);
 
   const { smartWalletBalance, refreshBalance } = useBalance();
   const { client } = useSmartWallets();
@@ -70,22 +71,27 @@ export const TransferModal = ({
         (t) => t.symbol.toUpperCase() === data.token,
       )?.decimals;
 
-      await client?.sendTransaction(
-        {
-          to: tokenAddress,
-          data: encodeFunctionData({
-            abi: erc20Abi,
-            functionName: "transfer",
-            args: [
-              data.recipientAddress as `0x${string}`,
-              parseUnits(data.amount.toString(), tokenDecimals!),
-            ],
-          }),
-        },
+      setIsConfirming(true);
+      const txHash = await client?.sendTransaction({
+        to: tokenAddress,
+        data: encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "transfer",
+          args: [
+            data.recipientAddress as `0x${string}`,
+            parseUnits(data.amount.toString(), tokenDecimals!),
+          ],
+        }),
+      });
+      toast.success(
+        `${data.amount.toString()} ${token} successfully transferred`,
       );
+      setIsTransferModalOpen(false);
     } catch (e: any) {
       setErrorMessage((e as BaseError).shortMessage);
       setErrorCount((prevCount) => prevCount + 1);
+      setIsConfirming(false);
+      setIsTransferModalOpen(false);
     }
     refreshBalance();
   };
@@ -288,9 +294,9 @@ export const TransferModal = ({
         <button
           type="submit"
           className={classNames(primaryBtnClasses, "w-full")}
-          disabled={!isValid || !isDirty}
+          disabled={!isValid || !isDirty || isConfirming}
         >
-          Confirm transfer
+          {isConfirming ? "Confirming..." : "Confirm transfer"}
         </button>
       </form>
     </div>

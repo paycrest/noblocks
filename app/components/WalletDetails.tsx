@@ -12,12 +12,12 @@ import { useFundWallet, usePrivy } from "@privy-io/react-auth";
 import { Token } from "../types";
 import { useNetwork } from "../context/NetworksContext";
 import { trackEvent } from "../hooks/analytics";
-import { WithdrawalModal } from "./WithdrawalModal";
+import { TransferModal } from "./TransferModal";
 import { ArrowDown01Icon } from "hugeicons-react";
 
 export const WalletDetails = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
-  const [isWithdrawModalOpen, setIsWithdrawModalOpen] =
+  const [isTransferModalOpen, setIsTransferModalOpen] =
     useState<boolean>(false);
 
   const { smartWalletBalance, allBalances, refreshBalance } = useBalance();
@@ -143,12 +143,12 @@ export const WalletDetails = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          setIsWithdrawModalOpen(true);
+                          setIsTransferModalOpen(true);
                           setIsOpen(false);
                         }}
                         className="font-medium text-lavender-500"
                       >
-                        Withdraw
+                        Transfer
                       </button>
                     </div>
                   </motion.div>
@@ -192,8 +192,8 @@ export const WalletDetails = () => {
       </div>
 
       <Dialog
-        open={isWithdrawModalOpen}
-        onClose={() => setIsWithdrawModalOpen(false)}
+        open={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
         className="relative z-50"
       >
         <DialogBackdrop
@@ -206,7 +206,7 @@ export const WalletDetails = () => {
             transition
             className="relative max-h-[90vh] w-full max-w-[25.75rem] overflow-y-auto rounded-2xl bg-white p-5 text-sm shadow-xl transition-all duration-300 ease-out data-[closed]:scale-95 data-[closed]:opacity-0 dark:bg-surface-overlay"
           >
-            <WithdrawalModal setIsWithdrawModalOpen={setIsWithdrawModalOpen} />
+            <TransferModal setIsTransferModalOpen={setIsTransferModalOpen} />
           </DialogPanel>
         </div>
       </Dialog>

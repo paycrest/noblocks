@@ -18,10 +18,10 @@ import { primaryBtnClasses } from "./Styles";
 import { FlexibleDropdown } from "./FlexibleDropdown";
 import { AnimatedFeedbackItem } from "./AnimatedComponents";
 
-export const WithdrawalModal = ({
-  setIsWithdrawModalOpen,
+export const TransferModal = ({
+  setIsTransferModalOpen,
 }: {
-  setIsWithdrawModalOpen: (isOpen: boolean) => void;
+  setIsTransferModalOpen: (isOpen: boolean) => void;
 }) => {
   const { selectedNetwork } = useNetwork();
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -57,7 +57,7 @@ export const WithdrawalModal = ({
     });
   }
 
-  const handleWithdrawal = async (data: FormData) => {
+  const handleTransfer = async (data: FormData) => {
     try {
       const fetchedTokens: Token[] =
         fetchSupportedTokens(client?.chain.name) || [];
@@ -70,17 +70,19 @@ export const WithdrawalModal = ({
         (t) => t.symbol.toUpperCase() === data.token,
       )?.decimals;
 
-      await client?.sendTransaction({
-        to: tokenAddress,
-        data: encodeFunctionData({
-          abi: erc20Abi,
-          functionName: "transfer",
-          args: [
-            data.recipientAddress as `0x${string}`,
-            parseUnits(data.amount.toString(), tokenDecimals!),
-          ],
-        }),
-      });
+      await client?.sendTransaction(
+        {
+          to: tokenAddress,
+          data: encodeFunctionData({
+            abi: erc20Abi,
+            functionName: "transfer",
+            args: [
+              data.recipientAddress as `0x${string}`,
+              parseUnits(data.amount.toString(), tokenDecimals!),
+            ],
+          }),
+        },
+      );
     } catch (e: any) {
       setErrorMessage((e as BaseError).shortMessage);
       setErrorCount((prevCount) => prevCount + 1);
@@ -112,11 +114,11 @@ export const WithdrawalModal = ({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium dark:text-white">Withdraw funds</h2>
+        <h2 className="text-lg font-medium dark:text-white">Transfer funds</h2>
 
         <button
           type="button"
-          onClick={() => setIsWithdrawModalOpen(false)}
+          onClick={() => setIsTransferModalOpen(false)}
           className="rounded-full p-1 text-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/80"
           title="Close"
         >
@@ -125,7 +127,7 @@ export const WithdrawalModal = ({
       </div>
 
       <form
-        onSubmit={handleSubmit(handleWithdrawal)}
+        onSubmit={handleSubmit(handleTransfer)}
         className="z-50 space-y-4 text-neutral-900 transition-all *:text-sm dark:text-white"
         noValidate
       >
@@ -288,7 +290,7 @@ export const WithdrawalModal = ({
           className={classNames(primaryBtnClasses, "w-full")}
           disabled={!isValid || !isDirty}
         >
-          Continue
+          Confirm transfer
         </button>
       </form>
     </div>

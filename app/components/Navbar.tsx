@@ -3,12 +3,11 @@ import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
 
-import { ArrowDownIcon, NoblocksBetaLogo } from "./ImageAssets";
+import { ArrowDownIcon, NoblocksLogo } from "./ImageAssets";
 import { primaryBtnClasses } from "./Styles";
 import { WalletDetails } from "./WalletDetails";
 import { NetworksDropdown } from "./NetworksDropdown";
 import { SettingsDropdown } from "./SettingsDropdown";
-import { AnimatedComponent } from "./AnimatedComponents";
 import { trackEvent } from "../hooks/analytics";
 
 export const Navbar = () => {
@@ -62,7 +61,7 @@ export const Navbar = () => {
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               className="flex items-center gap-1"
             >
-              <NoblocksBetaLogo />
+              <NoblocksLogo />
             </button>
 
             <div className="relative">

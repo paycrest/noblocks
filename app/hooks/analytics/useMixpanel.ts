@@ -18,7 +18,6 @@ export const initMixpanel = () => {
 
   if (mixpanelToken) {
     mixpanel.init(mixpanelToken, {
-      track_pageview: true,
       persistence: "localStorage",
       ignore_dnt: true,
     });

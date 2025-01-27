@@ -56,7 +56,7 @@ export const Navbar = () => {
             onMouseLeave={() => setIsDropdownOpen(false)}
           >
             <button
-              aria-label="Noblocks Beta Logo"
+              aria-label="Noblocks Logo"
               type="button"
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               className="flex items-center gap-1"

@@ -198,7 +198,7 @@ export const TransferModal = ({
                   aria-expanded={isOpen}
                   type="button"
                   onClick={toggleDropdown}
-                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-gray-300 px-3 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:border-white/20 dark:focus-visible:ring-offset-neutral-900"
+                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:border-white/20 dark:focus-visible:ring-offset-neutral-900"
                 >
                   {selectedItem?.name ? (
                     <div className="flex items-center gap-1.5">

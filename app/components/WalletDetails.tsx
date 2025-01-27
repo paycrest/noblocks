@@ -8,7 +8,7 @@ import { classNames, fetchSupportedTokens, formatCurrency } from "../utils";
 import { WalletIcon } from "./ImageAssets";
 import { useBalance } from "../context/BalanceContext";
 import { dropdownVariants } from "./AnimatedComponents";
-import { useFundWallet, usePrivy } from "@privy-io/react-auth";
+import { useFundWallet, usePrivy, useWallets } from "@privy-io/react-auth";
 import { Token } from "../types";
 import { useNetwork } from "../context/NetworksContext";
 import { trackEvent } from "../hooks/analytics";
@@ -32,6 +32,11 @@ export const WalletDetails = () => {
 
   const smartWallet = user?.linkedAccounts.find(
     (account) => account.type === "smart_wallet",
+  );
+
+  const { wallets } = useWallets();
+  const externalWallet = wallets.find(
+    (wallet) => wallet.walletClientType !== "privy",
   );
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -164,8 +169,8 @@ export const WalletDetails = () => {
                     variants={dropdownVariants}
                     className="space-y-3 rounded-xl bg-accent-gray p-3 dark:bg-white/5"
                   >
-                    <h3 className="font-light text-gray-500 dark:text-white/50">
-                      External Wallet
+                    <h3 className="font-light capitalize text-gray-500 dark:text-white/50">
+                      {externalWallet?.walletClientType}
                     </h3>
                     <ul className="space-y-2 text-neutral-900 dark:text-white/80">
                       {Object.entries(allBalances.externalWallet.balances).map(

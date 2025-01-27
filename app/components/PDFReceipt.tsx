@@ -194,11 +194,7 @@ export const PDFReceipt = ({
 
         <View style={styles.content}>
           <Text style={styles.amount}>
-            {formatCurrency(
-              Number(amountReceived || 0),
-              currency || "USD",
-              `en-${(currency || "USD").slice(0, 2)}`,
-            )}
+            {amountReceived} {currency}
           </Text>
           <View style={styles.statusContainer}>
             <Image

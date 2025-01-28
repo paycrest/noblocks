@@ -63,21 +63,21 @@ export const Navbar = () => {
       >
         <div className="flex items-start gap-2 lg:flex-1">
           <div
-            className="flex items-start gap-1"
+            className="relative flex items-start gap-1"
             ref={dropdownRef}
             onMouseEnter={() => setIsDropdownOpen(true)}
             onMouseLeave={() => setIsDropdownOpen(false)}
           >
-            <button
-              aria-label="Noblocks Logo"
-              type="button"
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center gap-1"
-            >
-              <NoblocksLogo />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                aria-label="Noblocks Logo"
+                type="button"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="flex items-center gap-1"
+              >
+                <NoblocksLogo />
+              </button>
 
-            <div className="relative">
               <button
                 aria-label="Dropdown Menu"
                 type="button"
@@ -90,9 +90,12 @@ export const Navbar = () => {
                   }`}
                 />
               </button>
+            </div>
 
-              {isDropdownOpen && (
-                <div className="absolute left-0 top-full mt-2 w-48 rounded-lg border border-gray-200 bg-white py-2 shadow-lg dark:border-white/10 dark:bg-neutral-800">
+            {isDropdownOpen && (
+              <>
+                <div className="absolute left-0 top-[calc(100%-0.5rem)] h-8 w-full" />
+                <div className="absolute left-0 top-full mt-4 w-48 rounded-lg border border-gray-200 bg-white py-2 shadow-lg dark:border-white/10 dark:bg-neutral-800">
                   <Link
                     href="/terms"
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-white/80 dark:hover:bg-white/5"
@@ -108,8 +111,8 @@ export const Navbar = () => {
                     Privacy Policy
                   </Link>
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </div>
 

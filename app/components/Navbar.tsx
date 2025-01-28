@@ -22,6 +22,8 @@ export const Navbar = () => {
     onComplete: ({ user, isNewUser, loginMethod }) => {
       trackEvent("wallet_connected");
 
+      if (!process.env.NEXT_PUBLIC_MIXPANEL_TOKEN) return;
+
       mixpanel.identify(user.wallet?.address);
 
       mixpanel.people.set({

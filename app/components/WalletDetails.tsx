@@ -20,12 +20,20 @@ export const WalletDetails = () => {
   const [isTransferModalOpen, setIsTransferModalOpen] =
     useState<boolean>(false);
 
+  const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, allBalances, refreshBalance } = useBalance();
 
   const { user } = usePrivy();
   const { fundWallet } = useFundWallet({
-    onUserExited: () => {
+    onUserExited: ({ fundingMethod, balance, chain, address }) => {
       refreshBalance();
+      trackEvent("funding_completed", {
+        wallet: "smart_wallet",
+        address,
+        network: chain.name,
+        fundingType: fundingMethod,
+        amount: balance,
+      });
     },
   });
   const handleFundWallet = async (address: string) => await fundWallet(address);
@@ -44,8 +52,6 @@ export const WalletDetails = () => {
     ref: dropdownRef,
     handler: () => setIsOpen(false),
   });
-
-  const { selectedNetwork } = useNetwork();
 
   const tokens: { name: string; imageUrl: string | undefined }[] = [];
   const fetchedTokens: Token[] =
@@ -137,6 +143,9 @@ export const WalletDetails = () => {
                         onClick={() => {
                           handleFundWallet(smartWallet?.address ?? "");
                           setIsOpen(false);
+                          trackEvent("fund_wallet", {
+                            wallet: "smart_wallet",
+                          });
                         }}
                         className="font-medium text-lavender-500"
                       >

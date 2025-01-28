@@ -9,6 +9,7 @@ import { WalletDetails } from "./WalletDetails";
 import { NetworksDropdown } from "./NetworksDropdown";
 import { SettingsDropdown } from "./SettingsDropdown";
 import { trackEvent } from "../hooks/analytics";
+import mixpanel from "mixpanel-browser";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -18,8 +19,18 @@ export const Navbar = () => {
   const { ready, authenticated } = usePrivy();
 
   const { login } = useLogin({
-    onComplete: () => {
+    onComplete: ({ user, isNewUser, loginMethod }) => {
       trackEvent("wallet_connected");
+
+      mixpanel.identify(user.wallet?.address);
+
+      mixpanel.people.set({
+        login_method: loginMethod,
+        $last_login: new Date(),
+        $signup_date: user.createdAt,
+        $email: user.email,
+        isNewUser,
+      });
     },
   });
 

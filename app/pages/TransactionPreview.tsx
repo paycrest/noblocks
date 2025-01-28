@@ -264,7 +264,7 @@ export const TransactionPreview = ({
             sender: smartWallet?.address as `0x${string}`,
             token: tokenAddress,
           },
-          fromBlock: toBlock - BigInt(10),
+          fromBlock: toBlock - BigInt(500),
           toBlock: toBlock,
         });
 

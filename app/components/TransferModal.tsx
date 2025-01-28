@@ -72,7 +72,7 @@ export const TransferModal = ({
       )?.decimals;
 
       setIsConfirming(true);
-      const txHash = await client?.sendTransaction({
+      await client?.sendTransaction({
         to: tokenAddress,
         data: encodeFunctionData({
           abi: erc20Abi,

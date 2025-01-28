@@ -1,11 +1,9 @@
 "use client";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { PiSpinnerBold } from "react-icons/pi";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { Checkbox } from "@headlessui/react";
 
 import {
@@ -15,7 +13,6 @@ import {
   fadeInOut,
   slideInOut,
   primaryBtnClasses,
-  TransactionReceipt,
 } from "../components";
 import {
   CheckIcon,
@@ -30,7 +27,6 @@ import {
 import {
   calculateDuration,
   classNames,
-  formatCurrency,
   getExplorerLink,
   getInstitutionNameByCode,
   getSavedRecipients,
@@ -99,7 +95,10 @@ export function TransactionStatus({
 
     const getOrderDetails = async () => {
       try {
-        const orderDetailsResponse = await fetchOrderDetails(orderId);
+        const orderDetailsResponse = await fetchOrderDetails(
+          selectedNetwork.chain.id,
+          orderId,
+        );
         setOrderDetails(orderDetailsResponse.data);
 
         if (orderDetailsResponse.data.status !== "pending") {

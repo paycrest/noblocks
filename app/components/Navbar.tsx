@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
+import { usePathname } from "next/navigation";
 
 import { ArrowDownIcon, NoblocksLogo } from "./ImageAssets";
 import { primaryBtnClasses } from "./Styles";
@@ -15,6 +16,7 @@ export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
 
   const { ready, authenticated } = usePrivy();
 
@@ -96,13 +98,15 @@ export const Navbar = () => {
               <>
                 <div className="absolute left-0 top-[calc(100%-0.5rem)] h-8 w-full" />
                 <div className="absolute left-0 top-full mt-4 w-48 rounded-lg border border-gray-200 bg-white py-2 shadow-lg dark:border-white/10 dark:bg-neutral-800">
-                  <Link
-                    href="/"
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-white/80 dark:hover:bg-white/5"
-                    onClick={() => setIsDropdownOpen(false)}
-                  >
-                    Home
-                  </Link>
+                  {pathname !== "/" && (
+                    <Link
+                      href="/"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-white/80 dark:hover:bg-white/5"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      Home
+                    </Link>
+                  )}
                   <Link
                     href="/terms"
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-white/80 dark:hover:bg-white/5"

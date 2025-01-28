@@ -18,7 +18,7 @@ export const lightModeConfig: PrivyClientConfig = {
   appearance: {
     theme: "light",
     accentColor: "#8B85F4",
-    landingHeader: "Connect",
+    landingHeader: "Log in or sign up",
     logo: "/logos/noblocks-logo.svg",
   },
 };
@@ -28,7 +28,7 @@ export const darkModeConfig: PrivyClientConfig = {
   appearance: {
     theme: "dark",
     accentColor: "#8B85F4",
-    landingHeader: "Connect",
+    landingHeader: "Log in or sign up",
     logo: "/logos/noblocks-logo.svg",
   },
 };

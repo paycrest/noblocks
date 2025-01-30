@@ -194,7 +194,7 @@ export const PDFReceipt = ({
 
         <View style={styles.content}>
           <Text style={styles.amount}>
-            {amountReceived} {currency}
+            {amountReceived.toLocaleString()} {currency}
           </Text>
           <View style={styles.statusContainer}>
             <Image

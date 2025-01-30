@@ -1,4 +1,5 @@
 # ![image](/public/logos/noblocks-logo.svg)
+![image](/public/images/noblocks-bg-image.png)
 
 [![Next.js](https://img.shields.io/badge/-Next.js-61DAFB?logo=Next.js&logoColor=white&color=11172a)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/-TypeScript-FFA500?logo=TypeScript&logoColor=blue&color=11172a)](https://typescriptlang.org/)

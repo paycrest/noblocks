@@ -1,7 +1,7 @@
 import JSEncrypt from "jsencrypt";
 import type { InstitutionProps, Token } from "./types";
-import { publicClient } from "./client";
 import { erc20Abi } from "viem";
+import { colors } from "./mocks";
 
 /**
  * Concatenates and returns a string of class names.
@@ -28,13 +28,15 @@ export function getInstitutionNameByCode(
 }
 
 /**
- * Formats a number with commas.
+ * Formats a number with commas before the decimal point.
  *
  * @param num - The number to format.
  * @returns The formatted number as a string.
  */
 export function formatNumberWithCommas(num: number): string {
-  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const parts = num.toString().split(".");
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.join(".");
 }
 
 /**
@@ -120,18 +122,21 @@ export const calculateDuration = (
  * @returns The explorer link for the transaction.
  */
 export const getExplorerLink = (network: string, txHash: string) => {
-  if (network === "Polygon") {
-    return `https://polygonscan.com/tx/${txHash}`;
-  } else if (network === "BNB Smart Chain") {
-    return `https://bscscan.com/tx/${txHash}`;
-  } else if (network === "Base") {
-    return `https://basescan.org/tx/${txHash}`;
-  } else if (network === "Arbitrum One") {
-    return `https://arbiscan.io/tx/${txHash}`;
-  } else if (network === "Optimism") {
-    return `https://optimistic.etherscan.io/tx/${txHash}`;
-  } else if (network === "Scroll") {
-    return `https://scrollscan.com/tx/${txHash}`;
+  switch (network) {
+    case "Polygon":
+      return `https://polygonscan.com/tx/${txHash}`;
+    case "BNB Smart Chain":
+      return `https://bscscan.com/tx/${txHash}`;
+    case "Base":
+      return `https://basescan.org/tx/${txHash}`;
+    case "Arbitrum One":
+      return `https://arbiscan.io/tx/${txHash}`;
+    case "Optimism":
+      return `https://optimistic.etherscan.io/tx/${txHash}`;
+    case "Scroll":
+      return `https://scrollscan.com/tx/${txHash}`;
+    default:
+      return "";
   }
 };
 
@@ -162,6 +167,13 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
         imageUrl: "/logos/usdc-logo.svg",
       },
+      {
+        name: "Tether USD",
+        symbol: "USDT",
+        decimals: 6,
+        address: "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+        imageUrl: "/logos/usdt-logo.svg",
+      },
     ],
     "BNB Smart Chain": [
       {
@@ -171,6 +183,13 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         address: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
         imageUrl: "/logos/usdc-logo.svg",
       },
+      {
+        name: "Tether USD",
+        symbol: "USDT",
+        decimals: 18,
+        address: "0x55d398326f99059ff775485246999027b3197955",
+        imageUrl: "/logos/usdt-logo.svg",
+      },
     ],
     Polygon: [
       {
@@ -179,6 +198,13 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         decimals: 6,
         address: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
         imageUrl: "/logos/usdc-logo.svg",
+      },
+      {
+        name: "Tether USD",
+        symbol: "USDT",
+        decimals: 6,
+        address: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
+        imageUrl: "/logos/usdt-logo.svg",
       },
     ],
     Scroll: [
@@ -348,3 +374,16 @@ export const getSavedRecipients = (key: string) => {
 export function clearFormState(formMethods: any) {
   formMethods.reset();
 }
+
+/**
+ * Generates a random color based on the provided name.
+ *
+ * @param name - The name of the recipient to generate a color for.
+ * @returns A color string from the `colors` array.
+ */
+export const getRandomColor = (name: string) => {
+  const index = name
+    .split("")
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colors[index % colors.length];
+};

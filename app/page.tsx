@@ -53,7 +53,6 @@ export default function Home() {
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
 
   const [rate, setRate] = useState<number>(0);
-  const [recipientName, setRecipientName] = useState<string>("");
   const [formValues, setFormValues] = useState<FormData>({} as FormData);
   const [institutions, setInstitutions] = useState<InstitutionProps[]>([]);
 
@@ -79,9 +78,6 @@ export default function Home() {
 
     institutions,
     isFetchingInstitutions,
-
-    recipientName,
-    setRecipientName,
 
     selectedRecipient,
     setSelectedRecipient,
@@ -206,7 +202,6 @@ export default function Home() {
             transactionStatus={transactionStatus}
             createdAt={createdAt}
             orderId={orderId}
-            recipientName={stateProps.recipientName}
             clearForm={() => {
               clearFormState(formMethods);
               setSelectedRecipient(null);

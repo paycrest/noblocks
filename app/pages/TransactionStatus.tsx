@@ -1,11 +1,9 @@
 "use client";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { PiSpinnerBold } from "react-icons/pi";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { Checkbox } from "@headlessui/react";
 
 import {
@@ -15,7 +13,6 @@ import {
   fadeInOut,
   slideInOut,
   primaryBtnClasses,
-  TransactionReceipt,
 } from "../components";
 import {
   CheckIcon,
@@ -35,14 +32,18 @@ import {
   getSavedRecipients,
 } from "../utils";
 import { fetchOrderDetails } from "../api/aggregator";
-import type { OrderDetailsData, TransactionStatusProps } from "../types";
+import {
+  STEPS,
+  type OrderDetailsData,
+  type TransactionStatusProps,
+} from "../types";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics";
-
-const LOCAL_STORAGE_KEY_BANK = "savedBankTransferRecipients";
-const LOCAL_STORAGE_KEY_MOBILE = "savedMobileMoneyRecipients";
+import { PDFReceipt } from "../components/PDFReceipt";
+import { pdf } from "@react-pdf/renderer";
+import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";
 
 /**
  * Renders the transaction status component.
@@ -59,10 +60,8 @@ const LOCAL_STORAGE_KEY_MOBILE = "savedMobileMoneyRecipients";
  */
 export function TransactionStatus({
   transactionStatus,
-  recipientName,
   orderId,
   createdAt,
-  clearForm,
   clearTransactionStatus,
   setTransactionStatus,
   setCurrentStep,
@@ -84,6 +83,7 @@ export function TransactionStatus({
   const token = watch("token");
   const currency = watch("currency");
   const amount = watch("amountSent");
+  const recipientName = String(watch("recipientName"));
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -95,7 +95,10 @@ export function TransactionStatus({
 
     const getOrderDetails = async () => {
       try {
-        const orderDetailsResponse = await fetchOrderDetails(orderId);
+        const orderDetailsResponse = await fetchOrderDetails(
+          selectedNetwork.chain.id,
+          orderId,
+        );
         setOrderDetails(orderDetailsResponse.data);
 
         if (orderDetailsResponse.data.status !== "pending") {
@@ -146,10 +149,7 @@ export function TransactionStatus({
 
   // Check if the recipient is saved in the beneficiaries list
   useEffect(() => {
-    const savedRecipients = [
-      ...getSavedRecipients(LOCAL_STORAGE_KEY_BANK),
-      ...getSavedRecipients(LOCAL_STORAGE_KEY_MOBILE),
-    ];
+    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
     const isRecipientSaved = savedRecipients.some(
       (r: { accountIdentifier: string; institutionCode: string }) =>
         r.accountIdentifier === formMethods.watch("accountIdentifier") &&
@@ -211,7 +211,9 @@ export function TransactionStatus({
               ? "bg-orange-50 text-orange-400"
               : transactionStatus === "processing"
                 ? "bg-yellow-50 text-yellow-400"
-                : "bg-gray-50"
+                : transactionStatus === "fulfilled"
+                  ? "bg-green-50 text-green-400"
+                  : "bg-gray-50"
           }`}
         >
           <PiSpinnerBold className="animate-spin" />
@@ -239,15 +241,15 @@ export function TransactionStatus({
       trackEvent("post_swap_action", {
         action: "Retried transaction",
       });
-    } else {
-      clearForm();
-      clearTransactionStatus();
 
+      setCurrentStep(STEPS.FORM);
+    } else {
       trackEvent("post_swap_action", {
-        action: "Returned to swap interface",
+        action: "Started new transaction",
       });
+
+      window.location.reload();
     }
-    setCurrentStep("form");
   };
 
   // Add or remove the recipient from the beneficiaries list
@@ -290,10 +292,7 @@ export function TransactionStatus({
       type: formMethods.watch("accountType") || "bank",
     };
 
-    const savedRecipients = [
-      ...getSavedRecipients(LOCAL_STORAGE_KEY_BANK),
-      ...getSavedRecipients(LOCAL_STORAGE_KEY_MOBILE),
-    ];
+    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
     const isDuplicate = savedRecipients.some(
       (r: {
         accountIdentifier: string | number;
@@ -306,14 +305,8 @@ export function TransactionStatus({
     if (!isDuplicate) {
       const updatedRecipients = [...savedRecipients, newRecipient];
       localStorage.setItem(
-        LOCAL_STORAGE_KEY_BANK,
-        JSON.stringify(updatedRecipients.filter((r) => r.type === "bank")),
-      );
-      localStorage.setItem(
-        LOCAL_STORAGE_KEY_MOBILE,
-        JSON.stringify(
-          updatedRecipients.filter((r) => r.type === "mobile_money"),
-        ),
+        LOCAL_STORAGE_KEY_RECIPIENTS,
+        JSON.stringify(updatedRecipients),
       );
     }
   };
@@ -322,10 +315,7 @@ export function TransactionStatus({
     const accountIdentifier = formMethods.watch("accountIdentifier");
     const institutionCode = formMethods.watch("institution");
 
-    const savedRecipients = [
-      ...getSavedRecipients(LOCAL_STORAGE_KEY_BANK),
-      ...getSavedRecipients(LOCAL_STORAGE_KEY_MOBILE),
-    ];
+    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
 
     const updatedRecipients = savedRecipients.filter(
       (r: { accountIdentifier: string; institutionCode: string }) =>
@@ -336,23 +326,19 @@ export function TransactionStatus({
     );
 
     localStorage.setItem(
-      LOCAL_STORAGE_KEY_BANK,
-      JSON.stringify(updatedRecipients.filter((r) => r.type === "bank")),
-    );
-    localStorage.setItem(
-      LOCAL_STORAGE_KEY_MOBILE,
-      JSON.stringify(
-        updatedRecipients.filter((r) => r.type === "mobile_money"),
-      ),
+      LOCAL_STORAGE_KEY_RECIPIENTS,
+      JSON.stringify(updatedRecipients),
     );
   };
 
   const getPaymentMessage = () => {
-    recipientName = recipientName
-      .toLowerCase()
-      .split(" ")
-      .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
-      .join(" ");
+    const formattedRecipientName =
+      recipientName ??
+      ""
+        .toLowerCase()
+        .split(" ")
+        .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+        .join(" ");
 
     if (transactionStatus === "refunded") {
       return (
@@ -361,7 +347,7 @@ export function TransactionStatus({
           <span className="text-neutral-900 dark:text-white">
             {amount} {token}
           </span>{" "}
-          to {recipientName} was unsuccessful.
+          to {formattedRecipientName} was unsuccessful.
           <br />
           <br />
           The stablecoin has been refunded to your account.
@@ -370,7 +356,7 @@ export function TransactionStatus({
     }
 
     if (!["validated", "settled"].includes(transactionStatus)) {
-      return `Processing payment to ${recipientName}. Hang on, this will only take a few seconds.`;
+      return `Processing payment to ${formattedRecipientName}. Hang on, this will only take a few seconds.`;
     }
 
     return (
@@ -379,7 +365,7 @@ export function TransactionStatus({
         <span className="text-neutral-900 dark:text-white">
           {amount} {token}
         </span>{" "}
-        to {recipientName} has been completed successfully.
+        to {formattedRecipientName} has been completed successfully.
       </>
     );
   };
@@ -394,34 +380,27 @@ export function TransactionStatus({
     return base + themeSuffix;
   };
 
-  const receiptRef = useRef<HTMLDivElement | null>(null);
-
   const handleGetReceipt = async () => {
     setIsGettingReceipt(true);
     try {
-      if (receiptRef.current) {
-        const canvas = await html2canvas(receiptRef.current, {
-          scale: 2,
-        });
-        const imgData = canvas.toDataURL("image/png");
-
-        if (imgData.length <= 6) {
-          throw new Error(
-            "Image data URL is too short, indicating an empty canvas.",
-          );
-        }
-
-        const pdf = new jsPDF({
-          orientation: "portrait",
-          unit: "px",
-          format: [canvas.width, canvas.height],
-        });
-
-        pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
-
-        const pdfBlob = pdf.output("blob");
-        const pdfUrl = URL.createObjectURL(pdfBlob);
-
+      if (orderDetails) {
+        const blob = await pdf(
+          <PDFReceipt
+            data={orderDetails as OrderDetailsData}
+            formData={{
+              recipientName,
+              accountIdentifier: formMethods.watch(
+                "accountIdentifier",
+              ) as string,
+              institution: formMethods.watch("institution") as string,
+              memo: formMethods.watch("memo") as string,
+              amountReceived: formMethods.watch("amountReceived") as number,
+              currency: formMethods.watch("currency") as string,
+            }}
+            supportedInstitutions={supportedInstitutions}
+          />,
+        ).toBlob();
+        const pdfUrl = URL.createObjectURL(blob);
         window.open(pdfUrl, "_blank");
       }
     } catch (error) {
@@ -469,7 +448,7 @@ export function TransactionStatus({
               delay={0.4}
               className="whitespace-nowrap rounded-full bg-gray-50 px-2 py-1 capitalize dark:bg-white/5"
             >
-              {recipientName.toLowerCase().split(" ")[0]}
+              {(recipientName ?? "").toLowerCase().split(" ")[0]}
             </AnimatedComponent>
           </div>
         </div>
@@ -509,7 +488,7 @@ export function TransactionStatus({
                 <AnimatedComponent
                   variant={slideInOut}
                   delay={0.5}
-                  className="flex w-full gap-3"
+                  className="flex w-full flex-wrap gap-3"
                 >
                   {["validated", "settled"].includes(transactionStatus) && (
                     <button
@@ -518,9 +497,7 @@ export function TransactionStatus({
                       className={`w-fit ${secondaryBtnClasses}`}
                       disabled={isGettingReceipt}
                     >
-                      {isGettingReceipt
-                        ? "Generating receipt..."
-                        : "Get receipt"}
+                      {isGettingReceipt ? "Generating..." : "Get receipt"}
                     </button>
                   )}
 
@@ -539,7 +516,7 @@ export function TransactionStatus({
                     <Checkbox
                       checked={addToBeneficiaries}
                       onChange={handleAddToBeneficiariesChange}
-                      className="group block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-primary data-[checked]:bg-primary dark:border-white/30 dark:data-[checked]:border-primary"
+                      className="group block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
                     >
                       <svg
                         className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
@@ -561,8 +538,14 @@ export function TransactionStatus({
                     </Checkbox>
                     <label className="text-gray-500 dark:text-white/50">
                       Add{" "}
-                      {recipientName.split(" ")[0].charAt(0).toUpperCase() +
-                        recipientName.toLowerCase().split(" ")[0].slice(1)}{" "}
+                      {(recipientName ?? "")
+                        .split(" ")[0]
+                        .charAt(0)
+                        .toUpperCase() +
+                        (recipientName ?? "")
+                          .toLowerCase()
+                          .split(" ")[0]
+                          .slice(1)}{" "}
                       to beneficiaries
                     </label>
                   </div>
@@ -624,7 +607,7 @@ export function TransactionStatus({
                         selectedNetwork.chain.name,
                         `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
                       )}
-                      className="text-primary hover:underline dark:text-primary"
+                      className="text-lavender-500 hover:underline dark:text-lavender-500"
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -656,7 +639,7 @@ export function TransactionStatus({
                   <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <a
                     aria-label="Share on Twitter"
                     rel="noopener noreferrer"
@@ -707,27 +690,6 @@ export function TransactionStatus({
           </AnimatePresence>
         </div>
       </AnimatedComponent>
-
-      <div className="absolute left-[-9999px] top-[-9999px] w-full">
-        <div ref={receiptRef}>
-          {orderDetails && (
-            <TransactionReceipt
-              data={orderDetails as OrderDetailsData}
-              formData={{
-                recipientName,
-                accountIdentifier: formMethods.watch(
-                  "accountIdentifier",
-                ) as string,
-                institution: formMethods.watch("institution") as string,
-                memo: formMethods.watch("memo") as string,
-                amountReceived: formMethods.watch("amountReceived") as number,
-                currency: formMethods.watch("currency") as string,
-              }}
-              supportedInstitutions={supportedInstitutions}
-            />
-          )}
-        </div>
-      </div>
     </>
   );
 }

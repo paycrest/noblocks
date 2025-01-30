@@ -9,12 +9,46 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: "#8B85F4",
         secondary: "#43B9FB",
         black: "#121217",
         outline: {
-          gray: "#8A8AA3"
-        }
+          gray: "#8A8AA3",
+        },
+        lavender: {
+          50: "#F6F6FE",
+          100: "#ECECFD",
+          200: "#D8D7FB",
+          300: "#C2BFF8",
+          400: "#A9A5F6",
+          500: "#8B85F4",
+          600: "#7C77DA",
+          700: "#6C67BD",
+          800: "#58549A",
+          900: "#3E3B6D",
+        },
+        surface: {
+          overlay: "#202020",
+          canvas: "#141414",
+        },
+        accent: {
+          gray: "#F7F7F8",
+          red: "#F53D6B",
+        },
+        background: {
+          accent: {
+            red: "#FEF0F4",
+          },
+        },
+        text: {
+          body: "#121217",
+          secondary: "#6C6C89",
+          accent: {
+            red: "#D50B3E",
+          },
+        },
+        input: {
+          destructive: "#F53D6B",
+        },
       },
     },
   },

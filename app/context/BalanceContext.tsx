@@ -43,7 +43,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     useState<WalletBalances | null>(null);
 
   const fetchBalances = async () => {
-    if (!ready || !user || !client) return;
+    if (!ready || !user) return;
 
     const smartWalletAccount = user.linkedAccounts.find(
       (account) => account.type === "smart_wallet",
@@ -52,9 +52,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       (account) => account.connectorType === "injected",
     );
 
-    await client.switchChain({
+    await client?.switchChain({
       id: selectedNetwork.chain.id,
     });
+
+    await externalWalletAccount?.switchChain(selectedNetwork.chain.id);
 
     const publicClient = createPublicClient({
       chain: selectedNetwork.chain,

@@ -1,11 +1,11 @@
 "use client";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
-import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
 import { MdOutlineLockClock } from "react-icons/md";
 import { dropdownVariants } from "./AnimatedComponents";
 import { useEffect, useRef, useState, ReactNode } from "react";
+import { Tick02Icon } from "hugeicons-react";
 
 export interface DropdownItem {
   name: string;
@@ -125,11 +125,11 @@ export const FlexibleDropdown = ({
                   </div>
 
                   {item.disabled ? (
-                    <MdOutlineLockClock className="text-lg text-gray-400 dark:text-white/50" />
+                    <MdOutlineLockClock className="text-base text-gray-400 dark:text-white/50" />
                   ) : (
-                    <PiCheck
+                    <Tick02Icon
                       className={classNames(
-                        "text-lg text-gray-400 transition-transform dark:text-white/50",
+                        "text-base text-gray-400 transition-transform dark:text-white/50",
                         selectedItem?.name === item.name ? "" : "hidden",
                       )}
                     />

@@ -69,10 +69,11 @@ export const fetchAccountName = async (
 };
 
 export const fetchOrderDetails = async (
+  chainId: number,
   orderId: string,
 ): Promise<OrderDetailsResponse> => {
   try {
-    const response = await axios.get(`${AGGREGATOR_URL}/orders/${orderId}`);
+    const response = await axios.get(`${AGGREGATOR_URL}/orders/${chainId}/${orderId}`);
     return response.data;
   } catch (error) {
     console.error("Error fetching order details:", error);

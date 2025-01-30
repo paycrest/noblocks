@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { ImSpinner3 } from "react-icons/im";
 import { BsArrowDown } from "react-icons/bs";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useFundWallet } from "@privy-io/react-auth";
 import { AnimatePresence } from "framer-motion";
 
 import {
@@ -15,7 +15,7 @@ import {
 } from "../components";
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
-import { NoteIcon } from "../components/ImageAssets";
+import { NoteIcon, WalletIcon } from "../components/ImageAssets";
 import { fetchSupportedTokens } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
@@ -36,12 +36,14 @@ export const TransactionForm = ({
   stateProps,
 }: TransactionFormProps) => {
   // Destructure stateProps
-  const { authenticated, ready, login } = usePrivy();
-  const { selectedNetwork } = useNetwork();
   const { rate, isFetchingRate } = stateProps;
-  const { smartWalletBalance } = useBalance();
+  const { authenticated, ready, login, user } = usePrivy();
+  const { selectedNetwork } = useNetwork();
+  const { smartWalletBalance, refreshBalance } = useBalance();
 
-  // Destructure formMethods from react-hook-form
+  const [isUserVerified, setIsUserVerified] = useState(false);
+  const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
+
   const {
     handleSubmit,
     register,
@@ -49,10 +51,36 @@ export const TransactionForm = ({
     setValue,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { amountSent, amountReceived, token, currency } = watch();
+  const { amountSent, amountReceived, token, currency, recipientName } =
+    watch();
 
-  const [isUserVerified, setIsUserVerified] = useState(false);
-  const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
+  const balance = smartWalletBalance?.balances[token] ?? 0;
+
+  const { fundWallet } = useFundWallet({
+    onUserExited: () => {
+      refreshBalance();
+    },
+  });
+
+  const handleFundWallet = async (address: string) => {
+    const amountToFund = Number(
+      (Number(amountSent) - Number(balance)).toFixed(4),
+    ).toString();
+
+    const selectedToken = fetchSupportedTokens(
+      selectedNetwork.chain.name,
+    )?.find((t) => t.symbol === token);
+
+    await fundWallet(address, {
+      amount: amountToFund,
+      chain: selectedNetwork.chain,
+      asset: { erc20: selectedToken?.address as `0x${string}` },
+    });
+  };
+
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet",
+  );
 
   const tokens = [];
 
@@ -66,33 +94,32 @@ export const TransactionForm = ({
   }
 
   const handleBalanceMaxClick = () => {
-    setValue("amountSent", smartWalletBalance?.balances[token] ?? 0);
-    setIsReceiveInputActive(false);
-    trackEvent("cta_clicked", { cta: "Max balance" });
+    if (balance > 0) {
+      setValue("amountSent", balance);
+      setIsReceiveInputActive(false);
+      trackEvent("cta_clicked", { cta: "Max balance" });
+    }
   };
 
-  // Effect to calculate receive amount based on send amount and rate
+  // calculate receive amount based on send amount and rate
   useEffect(() => {
     if (rate && (amountSent || amountReceived)) {
       if (isReceiveInputActive) {
         setValue(
           "amountSent",
-          Number((Number(amountReceived) / rate).toFixed(2)),
+          Number((Number(amountReceived) / rate).toFixed(4)),
         );
       } else {
-        setValue("amountReceived", Number((rate * amountSent).toFixed(2)));
+        setValue("amountReceived", Number((rate * amountSent).toFixed(4)));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amountSent, amountReceived, rate]);
 
-  // set the default value of the token and network
   useEffect(() => {
     if (!token || !currency) {
       register("token", { value: "USDC" });
-      // register("currency", { value: "KES" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -113,23 +140,25 @@ export const TransactionForm = ({
             <div className="flex items-center justify-between">
               <label
                 htmlFor="amount-sent"
-                className="text-gray-500 dark:text-white/80"
+                className="text-gray-500 dark:text-white/50"
               >
                 Send
               </label>
               {authenticated &&
                 token &&
                 smartWalletBalance &&
-                smartWalletBalance.balances[token] !== undefined &&
-                amountSent > 0 && (
+                balance !== undefined && (
                   <div className="flex items-center gap-2">
-                    <span>
-                      {smartWalletBalance.balances[token]} {token}
+                    <WalletIcon className="size-4" />
+                    <span
+                      className={amountSent > balance ? "text-red-500" : ""}
+                    >
+                      {balance} {token}
                     </span>
                     <button
                       type="button"
                       onClick={handleBalanceMaxClick}
-                      className="font-medium text-primary dark:text-primary"
+                      className="font-medium text-lavender-500 dark:text-lavender-500"
                     >
                       Max
                     </button>
@@ -155,11 +184,15 @@ export const TransactionForm = ({
                   },
                   pattern: {
                     value: /^\d+(\.\d{1,4})?$/,
-                    message: "Max. of 4 decimal places + no leading dot",
+                    message: "Invalid amount",
                   },
                   onChange: () => setIsReceiveInputActive(false),
                 })}
-                className="w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl text-neutral-900 outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30"
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:placeholder:text-white/30 ${
+                  amountSent > balance || errors.amountSent
+                    ? "text-red-500 dark:text-red-500"
+                    : "text-neutral-900 dark:text-white/80"
+                }`}
                 placeholder="0"
                 title="Enter amount to send"
               />
@@ -167,7 +200,7 @@ export const TransactionForm = ({
               <FormDropdown
                 defaultTitle="Select token"
                 data={tokens}
-                defaultSelectedItem="USDC"
+                defaultSelectedItem={token}
                 onSelect={(selectedToken) => {
                   setValue("token", selectedToken);
                   trackEvent("token_selected", {
@@ -197,7 +230,7 @@ export const TransactionForm = ({
           <div className="space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-neutral-900">
             <label
               htmlFor="amount-received"
-              className="text-gray-500 dark:text-white/80"
+              className="text-gray-500 dark:text-white/50"
             >
               Receive
             </label>
@@ -206,12 +239,16 @@ export const TransactionForm = ({
               <input
                 id="amount-received"
                 type="number"
-                step="0.01"
+                step="0.0001"
                 {...register("amountReceived", {
                   disabled: !token || !currency,
                   onChange: () => setIsReceiveInputActive(true),
                 })}
-                className="w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl text-neutral-900 outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30"
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:placeholder:text-white/30 ${
+                  errors.amountReceived
+                    ? "text-red-500 dark:text-red-500"
+                    : "text-neutral-900 dark:text-white/80"
+                }`}
                 placeholder="0"
                 title="Enter amount to receive"
               />
@@ -224,6 +261,11 @@ export const TransactionForm = ({
                   setValue("currency", selectedCurrency)
                 }
                 className="min-w-52"
+                isCTA={
+                  !currency &&
+                  !(authenticated && amountSent > balance) &&
+                  authenticated
+                }
               />
             </div>
             {/* {errors.amountReceived && (
@@ -233,31 +275,38 @@ export const TransactionForm = ({
         </div>
 
         {/* Recipient and memo */}
-
-        {currency && (
-          <div className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800">
-            <RecipientDetailsForm
-              formMethods={formMethods}
-              stateProps={stateProps}
-            />
-
-            {/* Memo */}
-            <div className="relative">
-              <NoteIcon className="absolute left-2 top-2.5 fill-white stroke-gray-300 dark:fill-transparent dark:stroke-none" />
-              <input
-                type="text"
-                id="memo"
-                {...register("memo", {
-                  required: { value: false, message: "Add description" },
-                })}
-                className="w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm text-neutral-900 transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900"
-                placeholder="Add description (optional)"
-                maxLength={25}
+        <AnimatePresence>
+          {currency && (
+            <AnimatedComponent
+              variant={slideInOut}
+              className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800"
+            >
+              <RecipientDetailsForm
+                formMethods={formMethods}
+                stateProps={stateProps}
               />
-            </div>
-            {/* {errors.memo && <InputError message={errors.memo.message} />} */}
-          </div>
-        )}
+
+              {/* Memo */}
+              <div className="relative">
+                <NoteIcon className="absolute left-2 top-2.5 fill-white stroke-gray-300 dark:fill-transparent dark:stroke-none" />
+                <input
+                  type="text"
+                  id="memo"
+                  {...register("memo", {
+                    required: { value: false, message: "Add description" },
+                  })}
+                  className={`focus:ring-primary w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900 ${
+                    errors.memo
+                      ? "text-red-500 dark:text-red-500"
+                      : "text-neutral-900 dark:text-white/80"
+                  }`}
+                  placeholder="Add description (optional)"
+                  maxLength={25}
+                />
+              </div>
+            </AnimatedComponent>
+          )}
+        </AnimatePresence>
 
         {!ready && (
           <button type="button" className={primaryBtnClasses} disabled>
@@ -277,11 +326,21 @@ export const TransactionForm = ({
 
         {ready && authenticated && (
           <button
-            type="submit"
+            type="button"
             className={primaryBtnClasses}
-            disabled={!isDirty || !isValid || !currency}
+            disabled={
+              (!isDirty || !isValid || !currency || !recipientName) &&
+              amountSent <= balance
+            }
+            onClick={() => {
+              if (amountSent > balance) {
+                handleFundWallet(smartWallet?.address ?? "");
+              } else {
+                handleSubmit(onSubmit)();
+              }
+            }}
           >
-            Swap
+            {amountSent > balance ? "Fund Wallet" : "Swap"}
           </button>
         )}
 

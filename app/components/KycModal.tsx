@@ -101,15 +101,15 @@ export const KycModal = ({
 
     try {
       setIsOpen(false);
-      const signature = await signMessage(message, uiConfig);
+      const signature = await signMessage({ message }, { uiOptions: uiConfig });
       if (signature) {
         setIsOpen(true);
         setStep(STEPS.LOADING);
 
         const response = await initiateKYC({
-          signature: signature.startsWith("0x")
-            ? signature.slice(2)
-            : signature,
+          signature: signature.signature.startsWith("0x")
+            ? signature.signature.slice(2)
+            : signature.signature,
           walletAddress: walletAddress || "",
           nonce,
         });
@@ -192,7 +192,7 @@ export const KycModal = ({
             <Checkbox
               checked={termsAccepted[term.id]}
               onChange={(checked) => handleTermChange(term.id, checked)}
-              className="group mt-1 block size-5 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-primary data-[checked]:bg-primary dark:border-white/30 dark:data-[checked]:border-primary"
+              className="group mt-1 block size-5 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
             >
               <svg
                 className="stroke-neutral-800 opacity-0 group-data-[checked]:opacity-100"
@@ -213,7 +213,7 @@ export const KycModal = ({
                 href={term.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline"
+                className="text-lavender-500 hover:underline"
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
@@ -376,7 +376,7 @@ export const KycModal = ({
       {...fadeInOut}
       className="flex h-full items-center justify-center py-40"
     >
-      <div className="h-24 w-24 animate-spin rounded-full border-4 border-t-4 border-primary border-t-white"></div>
+      <div className="h-24 w-24 animate-spin rounded-full border-4 border-t-4 border-lavender-500 border-t-white"></div>
     </motion.div>
   );
 

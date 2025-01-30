@@ -2,7 +2,6 @@
 import Image from "next/image";
 import { toast } from "sonner";
 import { useState } from "react";
-import { PiCaretDown } from "react-icons/pi";
 
 import { networks } from "../mocks";
 import { classNames } from "../utils";
@@ -11,8 +10,9 @@ import { useStep } from "../context/StepContext";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-import { image } from "html2canvas/dist/types/css/types/image";
+import { useWallets } from "@privy-io/react-auth";
 import { trackEvent } from "../hooks/analytics";
+import { ArrowDown01Icon } from "hugeicons-react";
 
 interface NetworksDropdownProps {
   iconOnly?: boolean;
@@ -22,8 +22,6 @@ export const NetworksDropdown = ({
   iconOnly = false,
 }: NetworksDropdownProps) => {
   const { client } = useSmartWallets();
-  const { refreshBalance } = useBalance();
-
   const { isFormStep } = useStep();
   iconOnly = !isFormStep;
 
@@ -37,14 +35,10 @@ export const NetworksDropdown = ({
     if (newNetwork && client) {
       try {
         setSelectedNetwork(newNetwork);
-        // await client.switchChain({
-        //   id: newNetwork.chainId,
-        // });
         setDropdownSelectedItem(newNetwork.chain.name);
         toast.success(`Network switched successfully`, {
           description: `You are now swapping on ${newNetwork.chain.name} network`,
         });
-        refreshBalance();
       } catch (error) {
         console.error("Failed to switch network:", error);
         toast.error("Error switching network", {
@@ -83,7 +77,7 @@ export const NetworksDropdown = ({
             });
           }}
           className={classNames(
-            "flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900",
+            "flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900",
             iconOnly ? "pointer-events-none" : "",
           )}
         >
@@ -108,9 +102,9 @@ export const NetworksDropdown = ({
             )}
           </span>
           {!iconOnly && (
-            <PiCaretDown
+            <ArrowDown01Icon
               className={classNames(
-                "text-base text-gray-400 transition-transform dark:text-white/50",
+                "size-4 text-gray-400 transition-transform duration-300 dark:text-white/50",
                 isOpen ? "rotate-180" : "",
               )}
               aria-label="Caret down"

@@ -11,12 +11,13 @@
 
 > Include any links supporting this change such as a:
 >
-> - GitHub Issue/PR number addressed or fixed
+> - GitHub Issue/PR number addressed or fixed e.g closes #407
 > - StackOverflow post
 > - Support forum thread
-> - Related pull requests/issues from other repos e.g #4o7
+> - Related pull requests/issues from other repos
 >
 > If there are no references, simply delete this section.
+
 
 ### Testing
 
@@ -28,10 +29,12 @@
 
 - [ ] This change adds test coverage for new/changed/fixed functionality
 
+
 ### Checklist
 
 - [ ] I have added documentation for new/changed functionality in this PR
 - [ ] All active GitHub checks for tests, formatting, and security are passing
 - [ ] The correct base branch is being used, if not `master`
+
 
 By submitting a PR to this repository, you agree to the terms within the [Paycrest Code of Conduct](https://www.notion.so/paycrest/Contributor-Code-of-Conduct-1602482d45a2806bab75fd314b381f4c?pvs=4). Please see the [contributing guidelines](https://paycrest.notion.site/Contribution-Guide-1602482d45a2809a8930e6ad565c906a?pvs=4) for how to create and submit a high-quality PR for this repo.

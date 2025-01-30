@@ -261,7 +261,11 @@ export const TransactionForm = ({
                   setValue("currency", selectedCurrency)
                 }
                 className="min-w-52"
-                isCTA={!currency && !(authenticated && amountSent > balance)}
+                isCTA={
+                  !currency &&
+                  !(authenticated && amountSent > balance) &&
+                  authenticated
+                }
               />
             </div>
             {/* {errors.amountReceived && (

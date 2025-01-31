@@ -17,9 +17,10 @@ import {
 import { shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 import { trackEvent } from "../hooks/analytics";
+import { Mail01Icon } from "hugeicons-react";
 
 export const SettingsDropdown = () => {
-  const { user, exportWallet } = usePrivy();
+  const { user, exportWallet, linkEmail } = usePrivy();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -108,6 +109,26 @@ export const SettingsDropdown = () => {
                   )}
                 </button>
               </li>
+              {!user?.email && (
+                <li
+                  role="menuitem"
+                  className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
+                >
+                  <button
+                    type="button"
+                    className="group flex w-full items-center justify-between gap-2.5"
+                    onClick={linkEmail}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Mail01Icon
+                        className="size-4 text-neutral-500 dark:text-white/40"
+                        strokeWidth={2}
+                      />
+                      <p>Link Email Address</p>
+                    </div>
+                  </button>
+                </li>
+              )}
               <li
                 role="menuitem"
                 className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"

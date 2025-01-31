@@ -4,12 +4,12 @@ import { useEffect, useState, useRef } from "react";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
 import { usePathname } from "next/navigation";
 
-import { ArrowDownIcon, NoblocksLogo } from "./ImageAssets";
+import { ArrowDownIcon, NoblocksLogo, NoblocksLogoIcon } from "./ImageAssets";
 import { primaryBtnClasses } from "./Styles";
 import { WalletDetails } from "./WalletDetails";
 import { NetworksDropdown } from "./NetworksDropdown";
 import { SettingsDropdown } from "./SettingsDropdown";
-import { trackEvent } from "../hooks/analytics";
+import { identifyUser, trackEvent } from "../hooks/analytics";
 import mixpanel from "mixpanel-browser";
 
 export const Navbar = () => {
@@ -24,17 +24,14 @@ export const Navbar = () => {
     onComplete: ({ user, isNewUser, loginMethod }) => {
       trackEvent("wallet_connected");
 
-      if (!process.env.NEXT_PUBLIC_MIXPANEL_TOKEN) return;
-
-      mixpanel.identify(user.wallet?.address);
-
-      mixpanel.people.set({
-        login_method: loginMethod,
-        $last_login: new Date(),
-        $signup_date: user.createdAt,
-        $email: user.email,
-        isNewUser,
-      });
+      if (user.wallet?.address) {
+        identifyUser(user.wallet.address, {
+          login_method: loginMethod,
+          isNewUser,
+          createdAt: user.createdAt,
+          email: user.email,
+        });
+      }
     },
   });
 
@@ -71,14 +68,26 @@ export const Navbar = () => {
             onMouseLeave={() => setIsDropdownOpen(false)}
           >
             <div className="flex items-center gap-1">
-              <button
-                aria-label="Noblocks Logo"
-                type="button"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center gap-1"
-              >
-                <NoblocksLogo />
-              </button>
+              {authenticated ? (
+                <button
+                  aria-label="Noblocks Logo Icon"
+                  type="button"
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="flex items-center gap-1"
+                >
+                  <NoblocksLogo className="hidden sm:block" />
+                  <NoblocksLogoIcon className="size-6 sm:hidden" />
+                </button>
+              ) : (
+                <button
+                  aria-label="Noblocks Logo"
+                  type="button"
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="flex items-center gap-1"
+                >
+                  <NoblocksLogo />
+                </button>
+              )}
 
               <button
                 aria-label="Dropdown Menu"
@@ -127,7 +136,7 @@ export const Navbar = () => {
           </div>
         </div>
 
-        <div className="flex gap-4 text-sm font-medium">
+        <div className="flex gap-2 text-sm font-medium *:flex-shrink-0 sm:gap-4">
           {ready && authenticated ? (
             <>
               <WalletDetails />

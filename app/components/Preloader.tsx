@@ -13,8 +13,6 @@ const NavbarSkeleton = () => (
         <Skeleton className="h-8 w-32" />
       </div>
       <div className="flex items-center gap-4">
-        <Skeleton className="h-9 w-32" />
-        <Skeleton className="h-9 w-24" />
         <Skeleton className="h-9 w-10" />
       </div>
     </nav>
@@ -42,7 +40,7 @@ export const Preloader = ({ isLoading }: { isLoading: boolean }) => {
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
-          className="fixed inset-0 flex min-h-screen flex-col justify-between bg-white pt-20 dark:bg-neutral-900"
+          className="fixed inset-0 flex min-h-screen flex-col justify-between bg-white px-4 pt-20 dark:bg-neutral-900"
         >
           <NavbarSkeleton />
           <div className="mx-auto grid w-full max-w-md gap-6 py-10 text-sm">

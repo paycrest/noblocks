@@ -46,6 +46,35 @@ export const useMixpanel = () => {
   }, []);
 };
 
+export const identifyUser = (
+  address: string,
+  properties: {
+    login_method: string | null;
+    isNewUser: boolean;
+    createdAt: Date | string;
+    email?: { address: string } | null;
+  },
+) => {
+  if (!initialized) {
+    console.warn("Mixpanel not initialized");
+    return;
+  }
+
+  const consent = Cookies.get("cookieConsent");
+  if (!consent || !JSON.parse(consent).analytics) {
+    return;
+  }
+
+  mixpanel.identify(address);
+  mixpanel.people.set({
+    login_method: properties.login_method || "unknown",
+    $last_login: new Date(),
+    $signup_date: properties.createdAt,
+    $email: properties.email?.address,
+    isNewUser: properties.isNewUser,
+  });
+};
+
 export const trackEvent = (
   eventName: string,
   properties?: Dict | undefined,

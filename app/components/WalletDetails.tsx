@@ -78,10 +78,10 @@ export const WalletDetails = () => {
             setIsOpen(!isOpen);
             trackEvent("cta_clicked", { cta: "Wallet Balance Dropdown" });
           }}
-          className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 px-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-surface-overlay dark:focus-visible:ring-offset-neutral-900"
+          className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 px-2.5 py-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-surface-overlay dark:focus-visible:ring-offset-neutral-900 sm:py-0"
         >
-          <WalletIcon className="size-4" />
-          <div className="h-10 w-px border-r border-dashed border-gray-100 dark:border-white/10" />
+          <WalletIcon className="hidden size-4 sm:block" />
+          <div className="hidden h-10 w-px border-r border-dashed border-gray-100 dark:border-white/10 sm:block" />
           <div className="flex items-center gap-1.5 dark:text-white/80">
             <p>
               {formatCurrency(smartWalletBalance?.total ?? 0, "USD", "en-US")}

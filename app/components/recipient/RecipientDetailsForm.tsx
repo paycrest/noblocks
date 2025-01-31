@@ -210,13 +210,30 @@ export const RecipientDetailsForm = ({
   }, [accountIdentifier, institution, setValue, isManualEntry]);
 
   useEffect(() => {
-    setSelectedInstitution(null);
-    setSelectedRecipient(null);
-    setValue("institution", "");
-    setValue("recipientName", "");
-    setValue("accountIdentifier", "");
-    setRecipientNameError("");
-    setIsManualEntry(true);
+    // Initialize selected institution if form has values
+    if (institution && !selectedInstitution) {
+      const foundInstitution = [
+        ...kenyaMobileMoneyOptions,
+        ...(institutions || []),
+      ].find((inst) => inst.code === institution);
+      if (foundInstitution) {
+        setSelectedInstitution(foundInstitution);
+        setIsManualEntry(false);
+      }
+    }
+  }, [institution, institutions, selectedInstitution]);
+
+  // Modify the existing currency effect to prevent clearing on currency change if we have values
+  useEffect(() => {
+    if (!currency) {
+      setSelectedInstitution(null);
+      setSelectedRecipient(null);
+      setValue("institution", "");
+      setValue("recipientName", "");
+      setValue("accountIdentifier", "");
+      setRecipientNameError("");
+      setIsManualEntry(true);
+    }
   }, [currency, setValue]);
 
   return (

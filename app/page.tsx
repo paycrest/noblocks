@@ -26,19 +26,6 @@ import { clearFormState } from "./utils";
 import { trackEvent } from "./hooks/analytics";
 import { useNetwork } from "./context/NetworksContext";
 
-const INITIAL_FORM_STATE: FormData = {
-  network: "",
-  token: "",
-  amountSent: 0,
-  amountReceived: 0,
-  currency: "",
-  institution: "",
-  accountIdentifier: "",
-  recipientName: "",
-  memo: "",
-  accountType: "bank",
-};
-
 /**
  * Represents the Home component.
  * This component handles the logic and rendering of the home page.
@@ -175,6 +162,9 @@ export default function Home() {
   };
 
   const handleBackToForm = () => {
+    Object.entries(formValues).forEach(([key, value]) => {
+      formMethods.setValue(key as keyof FormData, value);
+    });
     setCurrentStep(STEPS.FORM);
   };
 

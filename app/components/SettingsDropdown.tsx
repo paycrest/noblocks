@@ -136,7 +136,7 @@ export const SettingsDropdown = () => {
                         className="size-4 text-neutral-500 dark:text-white/40"
                         strokeWidth={2}
                       />
-                      <p>Link Email Address</p>
+                      <p>Link email address</p>
                     </div>
                   </button>
                 </li>
@@ -147,7 +147,7 @@ export const SettingsDropdown = () => {
                 onClick={exportWallet}
               >
                 <PrivateKeyIcon />
-                <p>Export Wallet</p>
+                <p>Export wallet</p>
               </li>
               <li
                 role="menuitem"

@@ -1,7 +1,7 @@
 "use client";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRef, useState } from "react";
-import { useLogout, usePrivy } from "@privy-io/react-auth";
+import { useLinkAccount, useLogout, usePrivy } from "@privy-io/react-auth";
 import { ImSpinner } from "react-icons/im";
 
 import { PiCheck } from "react-icons/pi";
@@ -18,9 +18,10 @@ import { shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 import { trackEvent } from "../hooks/analytics";
 import { Mail01Icon } from "hugeicons-react";
+import { toast } from "sonner";
 
 export const SettingsDropdown = () => {
-  const { user, exportWallet, linkEmail } = usePrivy();
+  const { user, exportWallet } = usePrivy();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -46,6 +47,17 @@ export const SettingsDropdown = () => {
     onSuccess: () => {
       setIsLoggingOut(false);
       trackEvent("sign_out");
+    },
+  });
+
+  const { linkEmail } = useLinkAccount({
+    onSuccess: ({ user }) => {
+      toast.success(`${user.email} linked successfully`);
+    },
+    onError: () => {
+      toast.error("Error linking account", {
+        description: "You might have this email linked already",
+      });
     },
   });
 

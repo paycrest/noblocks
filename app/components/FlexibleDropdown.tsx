@@ -89,7 +89,7 @@ export const FlexibleDropdown = ({
             variants={dropdownVariants}
             aria-label="Dropdown menu"
             className={classNames(
-              "absolute right-0 z-10 mt-2 max-h-52 max-w-full overflow-y-auto rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800",
+              "absolute right-0 z-50 mt-2 max-h-52 max-w-full overflow-y-auto rounded-xl bg-gray-50 py-2 shadow-xl dark:bg-neutral-800",
               className?.includes("min-w") ? "" : "min-w-40",
               className?.includes("max-h") ? "" : "max-h-52",
               className ?? "",
@@ -107,15 +107,15 @@ export const FlexibleDropdown = ({
                       : "cursor-pointer",
                   )}
                 >
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2">
                     {item.imageUrl && (
                       <Image
                         src={item.imageUrl ?? ""}
                         alt="image"
                         loading="lazy"
-                        width={20}
-                        height={20}
-                        className="me-2 h-5 w-5 rounded-full object-cover"
+                        width={24}
+                        height={24}
+                        className="h-6 w-6 rounded-full object-cover"
                       />
                     )}
 
@@ -129,7 +129,7 @@ export const FlexibleDropdown = ({
                   ) : (
                     <Tick02Icon
                       className={classNames(
-                        "text-base text-gray-400 transition-transform dark:text-white/50",
+                        "text-sm text-gray-400 transition-transform dark:text-white/50",
                         selectedItem?.name === item.name ? "" : "hidden",
                       )}
                     />

@@ -50,6 +50,9 @@ const config: Config = {
           destructive: "#F53D6B",
         },
       },
+      screens: {
+        xsm: "375px",
+      },
     },
   },
   plugins: [],

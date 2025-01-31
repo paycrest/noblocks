@@ -148,37 +148,6 @@ export const RecipientDetailsForm = ({
     }, 300); // delay deletion to allow for animation
   };
 
-  const filteredSavedRecipients = useMemo(() => {
-    if (!currency) return [];
-    const allRecipients = [...savedRecipients];
-
-    // just in case there are duplicates
-    const uniqueRecipients = allRecipients.filter(
-      (recipient, index, self) =>
-        index ===
-        self.findIndex(
-          (r) =>
-            r.accountIdentifier === recipient.accountIdentifier &&
-            r.institutionCode === recipient.institutionCode,
-        ),
-    );
-
-    const currentBankCodes = institutions.map(
-      (institution) => institution.code,
-    );
-    return uniqueRecipients
-      .filter(
-        (recipient) =>
-          recipient.name
-            .toLowerCase()
-            .includes(beneficiarySearchTerm.toLowerCase()) ||
-          recipient.accountIdentifier.includes(beneficiarySearchTerm),
-      )
-      .filter((recipient) =>
-        currentBankCodes.includes(recipient.institutionCode),
-      );
-  }, [savedRecipients, beneficiarySearchTerm, currency, institutions]);
-
   // * USE EFFECTS
 
   useEffect(() => {
@@ -196,7 +165,7 @@ export const RecipientDetailsForm = ({
         setRecipientNameError("");
       }
     }
-  }, [selectedInstitution, register, setValue, isManualEntry]);
+  }, [selectedInstitution, isManualEntry]);
 
   // Fetch recipient name based on institution and account identifier
   useEffect(() => {
@@ -264,9 +233,12 @@ export const RecipientDetailsForm = ({
           </button>
         </div>
 
-        <div className="flex flex-row items-start gap-4">
+        <div className="xsm:flex-row flex flex-col items-start gap-4">
           {/* Bank */}
-          <div ref={institutionsDropdownRef} className="flex-1">
+          <div
+            ref={institutionsDropdownRef}
+            className="xsm:w-1/2 w-full flex-1"
+          >
             <button
               type="button"
               onClick={() => {
@@ -276,7 +248,7 @@ export const RecipientDetailsForm = ({
                 }
               }}
               disabled={isFetchingInstitutions}
-              className="flex w-full max-w-48 items-center justify-between gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-left text-sm text-neutral-900 outline-none transition-all hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:text-white/80 dark:hover:bg-white/5 dark:focus:bg-neutral-950 dark:focus-visible:ring-offset-neutral-900"
+              className="flex w-full items-center justify-between gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-left text-sm text-neutral-900 outline-none transition-all hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:text-white/80 dark:hover:bg-white/5 dark:focus:bg-neutral-950 dark:focus-visible:ring-offset-neutral-900"
             >
               {selectedInstitution ? (
                 <p className="truncate">{selectedInstitution.name}</p>
@@ -285,11 +257,11 @@ export const RecipientDetailsForm = ({
               )}
 
               {isFetchingInstitutions ? (
-                <ImSpinner className="size-4 animate-spin text-gray-400" />
+                <ImSpinner className="size-4 flex-shrink-0 animate-spin text-gray-400" />
               ) : (
                 <ArrowDown01Icon
                   className={classNames(
-                    "size-5 text-gray-400 transition-transform dark:text-white/50",
+                    "size-5 flex-shrink-0 text-gray-400 transition-transform dark:text-white/50",
                     isInstitutionsDropdownOpen ? "rotate-180" : "",
                   )}
                 />
@@ -368,7 +340,7 @@ export const RecipientDetailsForm = ({
           </div>
 
           {/* Account number */}
-          <div className="flex-1 flex-shrink-0">
+          <div className="xsm:w-1/2 w-full flex-1 flex-shrink-0">
             <input
               type="number"
               placeholder="Account number"

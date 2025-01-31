@@ -415,9 +415,9 @@ export function TransactionStatus({
     <>
       <AnimatedComponent
         variant={slideInOut}
-        className="flex w-full justify-between gap-10 text-sm"
+        className="flex w-full justify-between gap-10"
       >
-        <div className="flex flex-col gap-2">
+        <div className="hidden flex-col gap-2 sm:flex">
           <div className="flex w-fit flex-col items-end gap-2 text-neutral-900 dark:text-white/80">
             <AnimatedComponent
               variant={slideInOut}

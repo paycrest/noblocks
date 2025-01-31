@@ -320,7 +320,7 @@ export const TransactionPreview = ({
       <div className="grid gap-4">
         {/* Render transaction information */}
         {Object.entries(renderedInfo).map(([key, value]) => (
-          <div key={key} className="flex items-center justify-between gap-2">
+          <div key={key} className="flex items-start justify-between gap-2">
             <h3 className="w-full max-w-28 capitalize text-gray-500 dark:text-white/50 sm:max-w-40">
               {/* Capitalize the first letter of the key */}
               {key === "totalValue" ? "Total value" : key}
@@ -363,7 +363,7 @@ export const TransactionPreview = ({
       <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
 
       {/* CTAs */}
-      <div className="flex gap-6">
+      <div className="xsm:gap-6 flex gap-4">
         <button
           type="button"
           onClick={handleBackButtonClick}

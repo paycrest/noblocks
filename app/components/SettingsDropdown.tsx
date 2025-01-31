@@ -1,7 +1,8 @@
 "use client";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRef, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useLogout, usePrivy } from "@privy-io/react-auth";
+import { ImSpinner } from "react-icons/im";
 
 import { PiCheck } from "react-icons/pi";
 
@@ -18,7 +19,8 @@ import { dropdownVariants } from "./AnimatedComponents";
 import { trackEvent } from "../hooks/analytics";
 
 export const SettingsDropdown = () => {
-  const { user, logout, exportWallet } = usePrivy();
+  const { user, exportWallet } = usePrivy();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -39,6 +41,18 @@ export const SettingsDropdown = () => {
     setTimeout(() => setIsAddressCopied(false), 2000);
   };
 
+  const { logout } = useLogout({
+    onSuccess: () => {
+      setIsLoggingOut(false);
+      trackEvent("sign_out");
+    },
+  });
+
+  const handleLogout = () => {
+    setIsLoggingOut(true);
+    logout();
+  };
+
   return (
     <div ref={dropdownRef} className="relative">
       <button
@@ -50,7 +64,7 @@ export const SettingsDropdown = () => {
           setIsOpen(!isOpen);
           trackEvent("cta_clicked", { cta: "Settings Dropdown" });
         }}
-        className="focus-visible:ring-lavender-500 flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900"
+        className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900"
       >
         <SettingsIcon />
       </button>
@@ -90,7 +104,7 @@ export const SettingsDropdown = () => {
                   {isAddressCopied ? (
                     <PiCheck className="size-4" />
                   ) : (
-                    <CopyIcon className="group-hover:text-lavender-500 size-4 transition dark:hover:text-white" />
+                    <CopyIcon className="size-4 transition group-hover:text-lavender-500 dark:hover:text-white" />
                   )}
                 </button>
               </li>
@@ -105,9 +119,13 @@ export const SettingsDropdown = () => {
               <li
                 role="menuitem"
                 className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
-                onClick={logout}
+                onClick={handleLogout}
               >
-                <LogoutIcon />
+                {isLoggingOut ? (
+                  <ImSpinner className="size-4 animate-spin" />
+                ) : (
+                  <LogoutIcon />
+                )}
                 <p>Sign out</p>
               </li>
             </ul>

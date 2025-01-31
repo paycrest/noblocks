@@ -90,7 +90,7 @@ export const Footer = () => {
 
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
-      <footer className="mx-auto mt-8 flex w-full max-w-2xl flex-wrap items-center justify-between gap-2 border-t border-dashed border-gray-200 pb-6 pt-4 dark:border-white/10">
+      <footer className="mx-auto mt-8 flex w-full max-w-2xl flex-wrap items-center justify-between gap-4 border-t border-dashed border-gray-200 pb-6 pt-4 dark:border-white/10">
         <p className="text-xs font-medium">
           <span className="text-gray-500 dark:text-white/50">
             &copy; {currentYear} Powered by

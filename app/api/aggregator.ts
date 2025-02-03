@@ -17,10 +17,11 @@ export const fetchRate = async ({
   token,
   amount,
   currency,
+  provider_id,
 }: RatePayload): Promise<RateResponse> => {
   try {
     const response = await axios.get(
-      `${AGGREGATOR_URL}/rates/${token}/${amount}/${currency}`,
+      `${AGGREGATOR_URL}/rates/${token}/${amount}/${currency}?provider_id=${provider_id}`,
     );
     return response.data;
   } catch (error) {

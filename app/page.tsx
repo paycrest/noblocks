@@ -25,6 +25,7 @@ import { useStep } from "./context/StepContext";
 import { clearFormState } from "./utils";
 import { trackEvent } from "./hooks/analytics";
 import { useNetwork } from "./context/NetworksContext";
+import { useRouter } from "next/router";
 
 /**
  * Represents the Home component.
@@ -34,6 +35,9 @@ export default function Home() {
   const { authenticated } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
   const { selectedNetwork } = useNetwork();
+  
+  const router = useRouter();
+  const { LP: providerId } = router.query; 
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -122,7 +126,7 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currency]);
 
-  // Fetch rate based on currency, amount, and token
+  // Fetch rate based on currency, amount, token and providerId
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
@@ -134,6 +138,7 @@ export default function Home() {
         token,
         amount: amountSent || 1,
         currency,
+        provider_id: providerId,
       });
       setRate(rate.data);
       setIsFetchingRate(false);
@@ -149,7 +154,7 @@ export default function Home() {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [amountSent, currency, token]);
+  }, [amountSent, currency, token, providerId]);
 
   const handleFormSubmit = (data: FormData) => {
     setFormValues(data);

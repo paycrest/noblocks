@@ -71,6 +71,7 @@ export const TransactionPreview = ({
     recipientName,
     accountIdentifier,
     memo,
+    providerId,
   } = formValues;
 
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -91,6 +92,7 @@ export const TransactionPreview = ({
     account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
     description: memo || "N/A",
     network: selectedNetwork.chain.name,
+    providerId: providerId || "N/A",
   };
 
   const fetchedTokens: Token[] =
@@ -115,6 +117,7 @@ export const TransactionPreview = ({
       accountName: recipientName,
       institution: formValues.institution,
       memo: formValues.memo,
+      providerId: formValues.providerId,
     };
 
     // Fetch aggregator public key

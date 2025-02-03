@@ -24,6 +24,7 @@ export type FormData = {
   memo: string;
   amountSent: number;
   amountReceived: number;
+  providerId: String;
 };
 
 export const STEPS = {
@@ -113,7 +114,7 @@ export type RatePayload = {
   token: string;
   amount?: number;
   currency: string;
-  provider_id?: string | string[] | undefined;
+  provider_id?: string;
 };
 
 export type RateResponse = {

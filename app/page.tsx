@@ -37,8 +37,8 @@ export default function Home() {
   const { selectedNetwork } = useNetwork();
   
   const router = useRouter();
-  const { LP: providerId } = router.query; 
-  const providerIdString = Array.isArray(providerId) ? providerId[0] : providerId;
+  const { LP } = router.query;
+  const providerId = LP ? String(LP) : undefined;
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -139,7 +139,7 @@ export default function Home() {
         token,
         amount: amountSent || 1,
         currency,
-        provider_id: providerIdString || undefined,
+        ...(providerId && { providerId }),
       });
       setRate(rate.data);
       setIsFetchingRate(false);
@@ -155,7 +155,7 @@ export default function Home() {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [amountSent, currency, token, providerIdString]);
+  }, [amountSent, currency, token, providerId]);
 
   const handleFormSubmit = (data: FormData) => {
     setFormValues(data);

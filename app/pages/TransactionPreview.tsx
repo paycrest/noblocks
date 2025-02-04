@@ -92,7 +92,7 @@ export const TransactionPreview = ({
     account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
     description: memo || "N/A",
     network: selectedNetwork.chain.name,
-    providerId: providerId || "N/A",
+    providerId: providerId || "",
   };
 
   const fetchedTokens: Token[] =

@@ -24,7 +24,14 @@
     "@hotjar/browser": "^1.0.9",
     "@privy-io/react-auth": "^2.0.1",
     "@react-pdf/renderer": "^4.1.6",
-    "@tanstack/react-query": "^5.64.0",
+    "@reown/appkit": "^1.6.5",
+    "@reown/appkit-adapter-bitcoin": "^1.6.5",
+    "@reown/appkit-adapter-solana": "^1.6.5",
+    "@reown/appkit-adapter-wagmi": "^1.6.5",
+    "@reown/appkit-siwx": "^1.6.5",
+    "@solana/wallet-adapter-wallets": "^0.19.32",
+    "@solana/web3.js": "^1.98.0",
+    "@tanstack/react-query": "^5.66.0",
     "axios": "^1.7.9",
     "date-fns": "^4.1.0",
     "framer-motion": "^11.17.0",
@@ -43,8 +50,8 @@
     "react-icons": "^5.4.0",
     "react-qrcode-logo": "^3.0.0",
     "sonner": "^1.7.1",
-    "viem": "^2.22.7",
-    "wagmi": "^2.14.7"
+    "viem": "^2.22.21",
+    "wagmi": "^2.14.9"
   },
   "devDependencies": {
     "@types/js-cookie": "^3.0.6",

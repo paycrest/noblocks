@@ -31,8 +31,8 @@ To run the project locally, follow these steps:
 
    - Add your privy app ID (`NEXT_PUBLIC_PRIVY_APP_ID`) to the `.env.local` file.
    - Setup your [Privy](https://www.privy.io/) account by doing the following:
-      - Get your app ID ![image](https://github.com/paycrest/noblocks/blob/readme-adjustment/public/images/Screenshot%202025-02-06%20at%2016.12.19.png)
-      - ![image](https://github.com/paycrest/noblocks/blob/readme-adjustment/public/images/Screenshot%202025-02-06%20at%2016.10.44.png?raw=true)
+      - Get your app ID: ![image](https://github.com/paycrest/noblocks/blob/readme-adjustment/public/images/Screenshot%202025-02-06%20at%2016.12.19.png)
+      - Add your local domain URL: ![image](https://github.com/paycrest/noblocks/blob/readme-adjustment/public/images/Screenshot%202025-02-06%20at%2016.10.44.png?raw=true)
       - ![image](https://github.com/paycrest/noblocks/blob/readme-adjustment/public/images/Screenshot%202025-02-06%20at%2016.12.03.png?raw=true)
       - ![image](https://github.com/paycrest/noblocks/blob/readme-adjustment/public/images/Screenshot%202025-02-06%20at%2016.11.53.png?raw=true)
 

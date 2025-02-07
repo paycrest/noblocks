@@ -182,9 +182,24 @@ export default function Home() {
   };
 
   const handleBackToForm = () => {
+    // Preserve all form values when going back
     Object.entries(formValues).forEach(([key, value]) => {
-      formMethods.setValue(key as keyof FormData, value);
+      if (value !== undefined && value !== null) {
+        formMethods.setValue(key as keyof FormData, value);
+      }
     });
+
+    // Force the form to recognize we're returning from preview
+    formMethods.setValue("institution", formValues.institution, {
+      shouldTouch: true,
+    });
+    formMethods.setValue("recipientName", formValues.recipientName, {
+      shouldTouch: true,
+    });
+    formMethods.setValue("accountIdentifier", formValues.accountIdentifier, {
+      shouldTouch: true,
+    });
+
     setCurrentStep(STEPS.FORM);
   };
 

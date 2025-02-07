@@ -9,11 +9,18 @@ export const RecipientListItem = ({
   onDelete,
   isBeingDeleted,
 }: RecipientListItemProps) => (
-  <Button
-    className={`group flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 ${
+  <div
+    role="button"
+    tabIndex={0}
+    className={`group flex w-full cursor-pointer items-center justify-between rounded-2xl px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 ${
       isBeingDeleted ? "bg-red-100 dark:bg-red-900/30" : ""
     }`}
     onClick={() => onSelect(recipient)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        onSelect(recipient);
+      }
+    }}
   >
     <div className="flex items-center gap-3">
       <div
@@ -49,5 +56,5 @@ export const RecipientListItem = ({
     >
       <TrashIcon className="size-4 stroke-gray-500 dark:stroke-white/50" />
     </Button>
-  </Button>
+  </div>
 );

@@ -50,7 +50,6 @@ export const RecipientDetailsForm = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [bankSearchTerm, setBankSearchTerm] = useState("");
-  const [beneficiarySearchTerm, setBeneficiarySearchTerm] = useState("");
 
   const [isInstitutionsDropdownOpen, setIsInstitutionsDropdownOpen] =
     useState(false);
@@ -223,17 +222,15 @@ export const RecipientDetailsForm = ({
     }
   }, [institution, institutions, selectedInstitution]);
 
-  // Modify the existing currency effect to prevent clearing on currency change if we have values
+  // Modify the existing currency effect to clear all recipient details on currency change
   useEffect(() => {
-    if (!currency) {
-      setSelectedInstitution(null);
-      setSelectedRecipient(null);
-      setValue("institution", "");
-      setValue("recipientName", "");
-      setValue("accountIdentifier", "");
-      setRecipientNameError("");
-      setIsManualEntry(true);
-    }
+    setSelectedInstitution(null);
+    setSelectedRecipient(null);
+    setValue("institution", "");
+    setValue("recipientName", "");
+    setValue("accountIdentifier", "");
+    setRecipientNameError("");
+    setIsManualEntry(true);
   }, [currency, setValue]);
 
   return (
@@ -250,11 +247,11 @@ export const RecipientDetailsForm = ({
           </button>
         </div>
 
-        <div className="xsm:flex-row flex flex-col items-start gap-4">
+        <div className="flex flex-col items-start gap-4 xsm:flex-row">
           {/* Bank */}
           <div
             ref={institutionsDropdownRef}
-            className="xsm:w-1/2 w-full flex-1"
+            className="w-full flex-1 xsm:w-1/2"
           >
             <button
               type="button"
@@ -357,7 +354,7 @@ export const RecipientDetailsForm = ({
           </div>
 
           {/* Account number */}
-          <div className="xsm:w-1/2 w-full flex-1 flex-shrink-0">
+          <div className="w-full flex-1 flex-shrink-0 xsm:w-1/2">
             <input
               type="number"
               placeholder="Account number"

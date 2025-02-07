@@ -122,7 +122,7 @@ export const TransactionForm = ({
       required: { value: true, message: "Amount is required" },
       disabled: !token,
       min: {
-        value: 0.1,
+        value: 0.5,
         message: "Minimum amount is 0.5",
       },
       max: {

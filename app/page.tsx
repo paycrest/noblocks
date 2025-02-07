@@ -52,7 +52,20 @@ export default function Home() {
   const [orderId, setOrderId] = useState<string>("");
 
   // Form methods and watch
-  const formMethods = useForm<FormData>({ mode: "onChange" });
+  const formMethods = useForm<FormData>({
+    mode: "onChange",
+    defaultValues: {
+      token: "USDC",
+      amountSent: 0, // Changed from "" to 0
+      amountReceived: 0, // Changed from "" to 0
+      currency: "",
+      recipientName: "",
+      memo: "",
+      institution: "",
+      accountIdentifier: "",
+      accountType: "bank", // Changed from "" to "bank"
+    },
+  });
   const { watch } = formMethods;
   const { currency, amountSent, token } = watch();
 
@@ -102,6 +115,13 @@ export default function Home() {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated]);
+
+  // Add this effect to handle form initialization
+  useEffect(() => {
+    if (!formMethods.getValues("token")) {
+      formMethods.reset({ token: "USDC" });
+    }
+  }, []);
 
   // Fetch supported institutions based on currency
   useEffect(() => {

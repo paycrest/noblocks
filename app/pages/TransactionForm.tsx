@@ -116,11 +116,39 @@ export const TransactionForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amountSent, amountReceived, rate]);
 
+  // Register form fields
   useEffect(() => {
-    if (!token || !currency) {
-      register("token", { value: "USDC" });
-    }
-  }, []);
+    formMethods.register("amountSent", {
+      required: { value: true, message: "Amount is required" },
+      disabled: !token,
+      min: {
+        value: 0.1,
+        message: "Minimum amount is 0.5",
+      },
+      max: {
+        value: 10000,
+        message: "Maximum amount is 10,000",
+      },
+      validate: {
+        decimals: (value) => {
+          const decimals = value.toString().split(".")[1];
+          return (
+            !decimals ||
+            decimals.length <= 4 ||
+            "Maximum 4 decimal places allowed"
+          );
+        },
+      },
+    });
+
+    formMethods.register("amountReceived", {
+      disabled: !token || !currency,
+    });
+
+    formMethods.register("memo", {
+      required: { value: false, message: "Add description" },
+    });
+  }, [token, currency, formMethods]);
 
   return (
     <>
@@ -171,23 +199,31 @@ export const TransactionForm = ({
                 id="amount-sent"
                 type="number"
                 step="0.0001"
-                {...register("amountSent", {
-                  required: { value: true, message: "Amount is required" },
-                  disabled: !token,
-                  min: {
-                    value: 0.5,
-                    message: `Min. amount is 0.5`,
-                  },
-                  max: {
-                    value: 10000,
-                    message: `Max. amount is 10,000`,
-                  },
-                  pattern: {
-                    value: /^\d+(\.\d{1,4})?$/,
-                    message: "Invalid amount",
-                  },
-                  onChange: () => setIsReceiveInputActive(false),
-                })}
+                onChange={(e) => {
+                  let inputValue = e.target.value;
+
+                  // Allow empty input for clearing
+                  if (inputValue === "") {
+                    formMethods.setValue("amountSent", 0);
+                    setIsReceiveInputActive(false);
+                    return;
+                  }
+
+                  const value = Number(inputValue);
+                  if (isNaN(value) || value < 0) return;
+                  if (
+                    inputValue.includes(".") &&
+                    inputValue.split(".")[1]?.length > 4
+                  )
+                    return;
+                  if (value > 10000) return;
+
+                  formMethods.setValue("amountSent", value, {
+                    shouldValidate: true,
+                  });
+                  setIsReceiveInputActive(false);
+                }}
+                value={formMethods.watch("amountSent").toString()}
                 className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:placeholder:text-white/30 ${
                   amountSent > balance || errors.amountSent
                     ? "text-red-500 dark:text-red-500"
@@ -240,10 +276,31 @@ export const TransactionForm = ({
                 id="amount-received"
                 type="number"
                 step="0.0001"
-                {...register("amountReceived", {
-                  disabled: !token || !currency,
-                  onChange: () => setIsReceiveInputActive(true),
-                })}
+                onChange={(e) => {
+                  let inputValue = e.target.value;
+
+                  // Allow empty input for clearing
+                  if (inputValue === "") {
+                    formMethods.setValue("amountReceived", 0);
+                    setIsReceiveInputActive(true);
+                    return;
+                  }
+
+                  const value = Number(inputValue);
+                  if (isNaN(value) || value < 0) return;
+                  if (
+                    inputValue.includes(".") &&
+                    inputValue.split(".")[1]?.length > 4
+                  )
+                    return;
+                  if (value > 10000) return;
+
+                  formMethods.setValue("amountReceived", value, {
+                    shouldValidate: true,
+                  });
+                  setIsReceiveInputActive(true);
+                }}
+                value={formMethods.watch("amountReceived").toString()}
                 className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:placeholder:text-white/30 ${
                   errors.amountReceived
                     ? "text-red-500 dark:text-red-500"
@@ -292,9 +349,10 @@ export const TransactionForm = ({
                 <input
                   type="text"
                   id="memo"
-                  {...register("memo", {
-                    required: { value: false, message: "Add description" },
-                  })}
+                  onChange={(e) => {
+                    formMethods.setValue("memo", e.target.value);
+                  }}
+                  value={formMethods.watch("memo")}
                   className={`focus:ring-primary w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900 ${
                     errors.memo
                       ? "text-red-500 dark:text-red-500"

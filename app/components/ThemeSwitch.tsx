@@ -6,7 +6,7 @@ import { useState, useEffect, type ReactElement } from "react";
 import { FiSun, FiMoon } from "react-icons/fi";
 
 type IconButtonProps = {
-  icon: ReactElement;
+  icon: ReactElement<any>;
   onClick: () => void;
   isActive: boolean;
 };

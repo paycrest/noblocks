@@ -113,6 +113,7 @@ export type RatePayload = {
   token: string;
   amount?: number;
   currency: string;
+  providerId?: string;
 };
 
 export type RateResponse = {

@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import Cookies from "js-cookie";
+import { useSearchParams } from "next/navigation";
 
 import {
   AnimatedPage,
@@ -34,6 +35,7 @@ export default function Home() {
   const { authenticated } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
   const { selectedNetwork } = useNetwork();
+  const searchParams = useSearchParams();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -150,10 +152,12 @@ export default function Home() {
 
     const getRate = async () => {
       setIsFetchingRate(true);
+      const providerId = searchParams.get("LP");
       const rate = await fetchRate({
         token,
         amount: amountSent || 1,
         currency,
+        providerId: providerId || undefined,
       });
       setRate(rate.data);
       setIsFetchingRate(false);
@@ -169,7 +173,7 @@ export default function Home() {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [amountSent, currency, token]);
+  }, [amountSent, currency, token, searchParams]);
 
   const handleFormSubmit = (data: FormData) => {
     setFormValues(data);

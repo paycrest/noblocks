@@ -191,9 +191,7 @@ export default function Home() {
             lpParam &&
             !failedProviders.current.has(lpParam)
           ) {
-            toast.error(error.message, {
-              description: "Using public queue",
-            });
+            toast.error(`${error.message} - defaulting to public rate`);
 
             // Track failed provider
             if (lpParam) {

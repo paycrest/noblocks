@@ -110,7 +110,7 @@ export const TransactionForm = ({
           Number((Number(amountReceived) / rate).toFixed(4)),
         );
       } else {
-        setValue("amountReceived", Number((rate * amountSent).toFixed(4)));
+        setValue("amountReceived", Number((rate * amountSent).toFixed(2)));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -211,12 +211,12 @@ export const TransactionForm = ({
 
                   const value = Number(inputValue);
                   if (isNaN(value) || value < 0) return;
-                  if (
-                    inputValue.includes(".") &&
-                    inputValue.split(".")[1]?.length > 4
-                  )
-                    return;
-                  if (value > 10000) return;
+
+                  // Only limit decimal places, allow any whole number
+                  if (inputValue.includes(".")) {
+                    const decimals = inputValue.split(".")[1];
+                    if (decimals?.length > 4) return;
+                  }
 
                   formMethods.setValue("amountSent", value, {
                     shouldValidate: true,
@@ -275,7 +275,7 @@ export const TransactionForm = ({
               <input
                 id="amount-received"
                 type="number"
-                step="0.0001"
+                step="0.01"
                 onChange={(e) => {
                   let inputValue = e.target.value;
 
@@ -288,12 +288,12 @@ export const TransactionForm = ({
 
                   const value = Number(inputValue);
                   if (isNaN(value) || value < 0) return;
-                  if (
-                    inputValue.includes(".") &&
-                    inputValue.split(".")[1]?.length > 4
-                  )
-                    return;
-                  if (value > 10000) return;
+
+                  // Only limit decimal places to 2 for receive amount
+                  if (inputValue.includes(".")) {
+                    const decimals = inputValue.split(".")[1];
+                    if (decimals?.length > 2) return;
+                  }
 
                   formMethods.setValue("amountReceived", value, {
                     shouldValidate: true,

@@ -20,11 +20,23 @@ export const fetchRate = async ({
   providerId,
 }: RatePayload): Promise<RateResponse> => {
   try {
-    const endpoint = `${AGGREGATOR_URL}/rates/${token}/${amount}/${currency}${providerId ? `?provider_id=${providerId}` : ""}`;
-    const response = await fetch(endpoint);
-    const data = await response.json();
+    const endpoint = `${AGGREGATOR_URL}/rates/${token}/${amount}/${currency}`;
+    const params = providerId ? { provider_id: providerId } : undefined;
+
+    const response = await axios.get(endpoint, { params });
+    const { data } = response;
+
+    // Check the API response status first
+    if (data.status === "error") {
+      throw new Error(data.message || "Provider not found");
+    }
+
     return data;
   } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message = error.response?.data?.message || error.message;
+      throw new Error(message);
+    }
     console.error("Error fetching rate:", error);
     throw error;
   }

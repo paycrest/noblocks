@@ -15,14 +15,15 @@ const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
 
 export const fetchRate = async ({
   token,
-  amount,
+  amount = 1,
   currency,
+  providerId,
 }: RatePayload): Promise<RateResponse> => {
   try {
-    const response = await axios.get(
-      `${AGGREGATOR_URL}/rates/${token}/${amount}/${currency}`,
-    );
-    return response.data;
+    const endpoint = `${AGGREGATOR_URL}/rates/${token}/${amount}/${currency}${providerId ? `?provider_id=${providerId}` : ""}`;
+    const response = await fetch(endpoint);
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error("Error fetching rate:", error);
     throw error;
@@ -73,7 +74,9 @@ export const fetchOrderDetails = async (
   orderId: string,
 ): Promise<OrderDetailsResponse> => {
   try {
-    const response = await axios.get(`${AGGREGATOR_URL}/orders/${chainId}/${orderId}`);
+    const response = await axios.get(
+      `${AGGREGATOR_URL}/orders/${chainId}/${orderId}`,
+    );
     return response.data;
   } catch (error) {
     console.error("Error fetching order details:", error);

@@ -292,7 +292,7 @@ export const TransactionPreview = ({
     getOrderCreatedLogs();
 
     // Set up polling
-    intervalId = setInterval(getOrderCreatedLogs, 2000);
+    intervalId = setInterval(getOrderCreatedLogs, 1000);
 
     // Cleanup function
     return () => {
@@ -363,7 +363,7 @@ export const TransactionPreview = ({
       <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
 
       {/* CTAs */}
-      <div className="xsm:gap-6 flex gap-4">
+      <div className="flex gap-4 xsm:gap-6">
         <button
           type="button"
           onClick={handleBackButtonClick}

@@ -74,6 +74,9 @@ export const RecipientDetailsForm = ({
   });
 
   const [isManualEntry, setIsManualEntry] = useState(true);
+  const [isReturningFromPreview, setIsReturningFromPreview] = useState(false);
+
+  const prevCurrencyRef = useRef(currency);
 
   /**
    * Array of institutions filtered and sorted alphabetically based on the bank search term.
@@ -217,13 +220,16 @@ export const RecipientDetailsForm = ({
       ].find((inst) => inst.code === institution);
       if (foundInstitution) {
         setSelectedInstitution(foundInstitution);
-        setIsManualEntry(false);
+        // Only set manual entry to false if we have recipient name
+        if (recipientName) {
+          setIsManualEntry(false);
+        }
       }
     }
-  }, [institution, institutions, selectedInstitution]);
+  }, [institution, institutions, selectedInstitution, recipientName]);
 
-  // Modify the existing currency effect to clear all recipient details on currency change
-  useEffect(() => {
+  // Simplified recipient details management
+  const clearRecipientDetails = () => {
     setSelectedInstitution(null);
     setSelectedRecipient(null);
     setValue("institution", "");
@@ -231,7 +237,24 @@ export const RecipientDetailsForm = ({
     setValue("accountIdentifier", "");
     setRecipientNameError("");
     setIsManualEntry(true);
-  }, [currency, setValue]);
+  };
+
+  // Only clear when currency actually changes (not on mount or preview return)
+  useEffect(() => {
+    if (
+      prevCurrencyRef.current !== currency &&
+      prevCurrencyRef.current !== undefined
+    ) {
+      clearRecipientDetails();
+    }
+    prevCurrencyRef.current = currency;
+  }, [currency]);
+
+  useEffect(() => {
+    if (institution && recipientName) {
+      setIsReturningFromPreview(true);
+    }
+  }, []);
 
   return (
     <>

@@ -1,7 +1,7 @@
-import { arbitrum, base, bsc, optimism, polygon, scroll } from "viem/chains";
+import { arbitrum, base, bsc, polygon } from "viem/chains";
 import type { PrivyClientConfig } from "@privy-io/react-auth";
 
-const baseConfig: Omit<PrivyClientConfig, 'appearance'> = {
+const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
   embeddedWallets: {
     createOnLogin: "all-users",
   },
@@ -10,7 +10,7 @@ const baseConfig: Omit<PrivyClientConfig, 'appearance'> = {
       connectionOptions: "smartWalletOnly",
     },
   },
-  supportedChains: [base, bsc, arbitrum, polygon, scroll, optimism],
+  supportedChains: [base, bsc, arbitrum, polygon],
 };
 
 export const lightModeConfig: PrivyClientConfig = {

@@ -15,15 +15,28 @@ const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
 
 export const fetchRate = async ({
   token,
-  amount,
+  amount = 1,
   currency,
+  providerId,
 }: RatePayload): Promise<RateResponse> => {
   try {
-    const response = await axios.get(
-      `${AGGREGATOR_URL}/rates/${token}/${amount}/${currency}`,
-    );
-    return response.data;
+    const endpoint = `${AGGREGATOR_URL}/rates/${token}/${amount}/${currency}`;
+    const params = providerId ? { provider_id: providerId } : undefined;
+
+    const response = await axios.get(endpoint, { params });
+    const { data } = response;
+
+    // Check the API response status first
+    if (data.status === "error") {
+      throw new Error(data.message || "Provider not found");
+    }
+
+    return data;
   } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message = error.response?.data?.message || error.message;
+      throw new Error(message);
+    }
     console.error("Error fetching rate:", error);
     throw error;
   }
@@ -73,7 +86,9 @@ export const fetchOrderDetails = async (
   orderId: string,
 ): Promise<OrderDetailsResponse> => {
   try {
-    const response = await axios.get(`${AGGREGATOR_URL}/orders/${chainId}/${orderId}`);
+    const response = await axios.get(
+      `${AGGREGATOR_URL}/orders/${chainId}/${orderId}`,
+    );
     return response.data;
   } catch (error) {
     console.error("Error fetching order details:", error);

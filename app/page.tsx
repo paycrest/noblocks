@@ -1,8 +1,10 @@
 "use client";
 import { useForm } from "react-hook-form";
-import { useEffect, useState } from "react";
-import { AnimatePresence } from "framer-motion";
+import { useEffect, useState, useRef } from "react";
+// import { AnimatePresence } from "framer-motion";
 import Cookies from "js-cookie";
+import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 
 import {
   AnimatedPage,
@@ -56,8 +58,24 @@ export default function Home() {
   const [createdAt, setCreatedAt] = useState<string>("");
   const [orderId, setOrderId] = useState<string>("");
 
+  const providerErrorShown = useRef(false);
+  const failedProviders = useRef<Set<string>>(new Set());
+
   // Form methods and watch
-  const formMethods = useForm<FormData>({ mode: "onChange" });
+  const formMethods = useForm<FormData>({
+    mode: "onChange",
+    defaultValues: {
+      token: "USDC",
+      amountSent: 0,
+      amountReceived: 0,
+      currency: "",
+      recipientName: "",
+      memo: "",
+      institution: "",
+      accountIdentifier: "",
+      accountType: "bank",
+    },
+  });
   const { watch } = formMethods;
   const { currency, amountSent, token } = watch();
 
@@ -129,20 +147,62 @@ export default function Home() {
 
     if (!currency) return;
 
-    const getRate = async () => {
+    const getRate = async (shouldUseProvider = true) => {
       setIsFetchingRate(true);
-      const rate = await fetchRate({
-        token,
-        amount: amountSent || 1,
-        currency,
-      });
-      setRate(rate.data);
-      setIsFetchingRate(false);
+      try {
+        const lpParam = searchParams.get("LP");
+
+        // Skip using provider if it's already failed
+        const shouldSkipProvider =
+          lpParam && failedProviders.current.has(lpParam);
+        const providerId =
+          shouldUseProvider && lpParam && !shouldSkipProvider
+            ? lpParam
+            : undefined;
+
+        const rate = await fetchRate({
+          token,
+          amount: amountSent || 1,
+          currency,
+          providerId,
+        });
+        setRate(rate.data);
+      } catch (error) {
+        if (error instanceof Error) {
+          const lpParam = searchParams.get("LP");
+          if (
+            shouldUseProvider &&
+            lpParam &&
+            !failedProviders.current.has(lpParam)
+          ) {
+            toast.error(`${error.message} - defaulting to public rate`);
+
+            // Track failed provider
+            if (lpParam) {
+              failedProviders.current.add(lpParam);
+            }
+            providerErrorShown.current = true;
+
+            trackEvent("provider_error", {
+              provider: lpParam,
+              currency,
+              token,
+            });
+          }
+
+          // Retry without provider ID if we were using one
+          if (shouldUseProvider) {
+            await getRate(false);
+          }
+        }
+      } finally {
+        setIsFetchingRate(false);
+      }
     };
 
     const debounceFetchRate = () => {
       clearTimeout(timeoutId);
-      timeoutId = setTimeout(getRate, 1000);
+      timeoutId = setTimeout(() => getRate(), 1000);
     };
 
     debounceFetchRate();
@@ -150,7 +210,7 @@ export default function Home() {
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [amountSent, currency, token]);
+  }, [amountSent, currency, token, searchParams]);
 
   const handleFormSubmit = (data: FormData) => {
     setFormValues(data);
@@ -163,9 +223,24 @@ export default function Home() {
   };
 
   const handleBackToForm = () => {
+    // Preserve all form values when going back
     Object.entries(formValues).forEach(([key, value]) => {
-      formMethods.setValue(key as keyof FormData, value);
+      if (value !== undefined && value !== null) {
+        formMethods.setValue(key as keyof FormData, value);
+      }
     });
+
+    // Force the form to recognize we're returning from preview
+    formMethods.setValue("institution", formValues.institution, {
+      shouldTouch: true,
+    });
+    formMethods.setValue("recipientName", formValues.recipientName, {
+      shouldTouch: true,
+    });
+    formMethods.setValue("accountIdentifier", formValues.accountIdentifier, {
+      shouldTouch: true,
+    });
+
     setCurrentStep(STEPS.FORM);
   };
 

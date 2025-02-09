@@ -50,7 +50,6 @@ export const RecipientDetailsForm = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [bankSearchTerm, setBankSearchTerm] = useState("");
-  const [beneficiarySearchTerm, setBeneficiarySearchTerm] = useState("");
 
   const [isInstitutionsDropdownOpen, setIsInstitutionsDropdownOpen] =
     useState(false);
@@ -75,6 +74,9 @@ export const RecipientDetailsForm = ({
   });
 
   const [isManualEntry, setIsManualEntry] = useState(true);
+  const [isReturningFromPreview, setIsReturningFromPreview] = useState(false);
+
+  const prevCurrencyRef = useRef(currency);
 
   /**
    * Array of institutions filtered and sorted alphabetically based on the bank search term.
@@ -218,23 +220,41 @@ export const RecipientDetailsForm = ({
       ].find((inst) => inst.code === institution);
       if (foundInstitution) {
         setSelectedInstitution(foundInstitution);
-        setIsManualEntry(false);
+        // Only set manual entry to false if we have recipient name
+        if (recipientName) {
+          setIsManualEntry(false);
+        }
       }
     }
-  }, [institution, institutions, selectedInstitution]);
+  }, [institution, institutions, selectedInstitution, recipientName]);
 
-  // Modify the existing currency effect to prevent clearing on currency change if we have values
+  // Simplified recipient details management
+  const clearRecipientDetails = () => {
+    setSelectedInstitution(null);
+    setSelectedRecipient(null);
+    setValue("institution", "");
+    setValue("recipientName", "");
+    setValue("accountIdentifier", "");
+    setRecipientNameError("");
+    setIsManualEntry(true);
+  };
+
+  // Only clear when currency actually changes (not on mount or preview return)
   useEffect(() => {
-    if (!currency) {
-      setSelectedInstitution(null);
-      setSelectedRecipient(null);
-      setValue("institution", "");
-      setValue("recipientName", "");
-      setValue("accountIdentifier", "");
-      setRecipientNameError("");
-      setIsManualEntry(true);
+    if (
+      prevCurrencyRef.current !== currency &&
+      prevCurrencyRef.current !== undefined
+    ) {
+      clearRecipientDetails();
     }
-  }, [currency, setValue]);
+    prevCurrencyRef.current = currency;
+  }, [currency]);
+
+  useEffect(() => {
+    if (institution && recipientName) {
+      setIsReturningFromPreview(true);
+    }
+  }, []);
 
   return (
     <>
@@ -250,11 +270,11 @@ export const RecipientDetailsForm = ({
           </button>
         </div>
 
-        <div className="xsm:flex-row flex flex-col items-start gap-4">
+        <div className="flex flex-col items-start gap-4 xsm:flex-row">
           {/* Bank */}
           <div
             ref={institutionsDropdownRef}
-            className="xsm:w-1/2 w-full flex-1"
+            className="w-full flex-1 xsm:w-1/2"
           >
             <button
               type="button"
@@ -357,7 +377,7 @@ export const RecipientDetailsForm = ({
           </div>
 
           {/* Account number */}
-          <div className="xsm:w-1/2 w-full flex-1 flex-shrink-0">
+          <div className="w-full flex-1 flex-shrink-0 xsm:w-1/2">
             <input
               type="number"
               placeholder="Account number"

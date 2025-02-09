@@ -1,7 +1,7 @@
 "use client";
 import { useForm } from "react-hook-form";
 import { useEffect, useState, useRef } from "react";
-// import { AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import Cookies from "js-cookie";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ export default function Home() {
   // const { authenticated } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
   // const { selectedNetwork } = useNetwork();
+  const searchParams = useSearchParams();
   const { isConnected, embeddedWalletInfo, address } = useAppKitAccount();
   const { caipNetwork, caipNetworkId, chainId, switchNetwork } =
     useAppKitNetwork();

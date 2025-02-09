@@ -1,13 +1,12 @@
 import {
   mainnet,
   arbitrum,
-   sepolia, solana, solanaTestnet, solanaDevnet, bitcoin,  polygon,
-   scroll,
-   bsc, optimism
+   sepolia, solana, solanaTestnet, bitcoin,  polygon,
+   bsc,
 } from "@reown/appkit/networks";
 import type { AppKitNetwork } from '@reown/appkit/networks'
 // import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets'
-import { cookieStorage, createStorage} from "wagmi";
+import { cookieStorage, createStorage, Storage } from "wagmi";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 // import { SolanaAdapter } from "@reown/appkit-adapter-solana";
 // import { PublicKey } from '@solana/web3.js'
@@ -20,14 +19,15 @@ if (!projectId) {
   throw new Error("Project ID is not defined");
 }
 
-export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [mainnet, arbitrum, sepolia, solana, solanaTestnet, bitcoin, solanaDevnet, polygon, scroll, bsc, optimism] ;
+export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [mainnet, arbitrum, sepolia, solana, solanaTestnet, bitcoin, polygon, bsc] ;
 
 
 //Set up the Wagmi Adapter (Config)
 export const wagmiAdapter = new WagmiAdapter({
   storage: createStorage({
     storage: cookieStorage,
-  }),
+  }) as Storage,
+
   ssr: true,
   projectId,
   networks,

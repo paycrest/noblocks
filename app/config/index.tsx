@@ -1,26 +1,26 @@
-// config/index.tsx
 import {
   mainnet,
   arbitrum,
-   sepolia, solana, solanaTestnet, solanaDevnet, bitcoin
+   sepolia, solana, solanaTestnet, solanaDevnet, bitcoin,  polygon,
+   scroll,
+   bsc, optimism
 } from "@reown/appkit/networks";
 import type { AppKitNetwork } from '@reown/appkit/networks'
 // import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets'
-import { cookieStorage, createStorage, http } from "wagmi";
+import { cookieStorage, createStorage} from "wagmi";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 // import { SolanaAdapter } from "@reown/appkit-adapter-solana";
-import { PublicKey } from '@solana/web3.js'
+// import { PublicKey } from '@solana/web3.js'
 import { BitcoinAdapter } from '@reown/appkit-adapter-bitcoin'
 
 
-// Get projectId from https://cloud.reown.com
-export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID || "c70ce5dae11d998ebacea800aca7a444";
+export const projectId = process.env.NEXT_PUBLIC_PROJECT_ID || 'b56e18d47c72ab683b10814fe9495694' // this is a public projectId only to use on localhost
 
 if (!projectId) {
   throw new Error("Project ID is not defined");
 }
 
-export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [mainnet, arbitrum, sepolia, solana, solanaTestnet, bitcoin, solanaDevnet];
+export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [mainnet, arbitrum, sepolia, solana, solanaTestnet, bitcoin, solanaDevnet, polygon, scroll, bsc, optimism] ;
 
 
 //Set up the Wagmi Adapter (Config)

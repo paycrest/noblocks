@@ -5,39 +5,24 @@ import { useEffect, useState, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 import { ArrowDownIcon, NoblocksLogo, NoblocksLogoIcon } from "./ImageAssets";
-import { primaryBtnClasses } from "./Styles";
-import { WalletDetails } from "./WalletDetails";
-import { NetworksDropdown } from "./NetworksDropdown";
-import { SettingsDropdown } from "./SettingsDropdown";
-import { identifyUser, trackEvent } from "../hooks/analytics";
-import mixpanel from "mixpanel-browser";
-import { projectId, wagmiAdapter } from "../config";
-import { arbitrum, mainnet } from "viem/chains";
-import { metadata } from "../layout";
-import { createAppKit } from "@reown/appkit/react";
+// import { primaryBtnClasses } from "./Styles";
+// import { WalletDetails } from "./WalletDetails";
+// import { NetworksDropdown } from "./NetworksDropdown";
+// import { SettingsDropdown } from "./SettingsDropdown";
+// import { identifyUser, trackEvent } from "../hooks/analytics";
+// import mixpanel from "mixpanel-browser";
+// import { projectId, wagmiAdapter } from "../config";
+// import { arbitrum, mainnet } from "viem/chains";
+// import { metadata } from "../layout";
+import { useDisconnect } from "@reown/appkit/react";
+import { useAccount } from "wagmi";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
-
-  // const { ready, authenticated } = usePrivy();
-
-  // const { login } = useLogin({
-  //   onComplete: ({ user, isNewUser, loginMethod }) => {
-  //     trackEvent("wallet_connected");
-
-  //     if (user.wallet?.address) {
-  //       identifyUser(user.wallet.address, {
-  //         login_method: loginMethod,
-  //         isNewUser,
-  //         createdAt: user.createdAt,
-  //         email: user.email,
-  //       });
-  //     }
-  //   },
-  // });
+  const { disconnect } = useDisconnect();
 
   useEffect(() => setMounted(true), []);
 
@@ -56,25 +41,7 @@ export const Navbar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const modal = createAppKit({
-    adapters: [wagmiAdapter],
-    projectId,
-    networks: [mainnet, arbitrum],
-    features: {
-      email: true, // default to true
-      socials: [
-        "google",
-        "x",
-        "github",
-        "discord",
-        "apple",
-        "facebook",
-        "farcaster",
-      ],
-      emailShowWallets: true, // default to true
-    },
-    allWallets: "SHOW", // default to SHOW
-  });
+
 
   if (!mounted) return null;
 
@@ -178,7 +145,10 @@ export const Navbar = () => {
             >
               Sign in
             </button> */}
-            <w3m-button />
+            {/* <w3m-button /> */}
+
+            <appkit-button />
+            <button onClick={disconnect}>disconnect</button>
           </>
           {/* )} */}
         </div>

@@ -3,7 +3,7 @@
 
 import { wagmiAdapter, projectId, networks, bitcoinAdapter} from "./index";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createAppKit } from "@reown/appkit";
+import { createAppKit } from "@reown/appkit/react";
 import { DefaultSIWX } from '@reown/appkit-siwx';
 
 import React, { type ReactNode } from "react";
@@ -12,8 +12,10 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { useActualTheme } from "../hooks/useActualTheme";
 
+import { StepProvider } from "../context";
+import { mainnet } from "@reown/appkit/networks";
 // Set up queryClient
-const queryClient = new QueryClient();
+export const queryClient = new QueryClient();
 
 if (!projectId) {
   throw new Error("Project ID is not defined");
@@ -28,13 +30,17 @@ const metadata = {
 };
 
 // Create the modal
-const modal = createAppKit({
+createAppKit({
   adapters: [wagmiAdapter, bitcoinAdapter],
   projectId,
   networks,
   metadata: metadata,
+  defaultNetwork: mainnet,
   features: {
-    analytics: true, // Optional - defaults to your Cloud configuration
+    // analytics: true, // Optional - defaults to your Cloud configuration
+    email: true, // default to true
+    socials: ["google", "x", "github", "discord", "apple", "facebook"],
+    emailShowWallets: true, // default to true
   },
   siwx: new DefaultSIWX(),
 });
@@ -58,10 +64,12 @@ function ContextProvider({
         config={wagmiAdapter.wagmiConfig as Config}
         initialState={initialState}
       >
-        <QueryClientProvider client={queryClient}>
-          {children}
-          <Toaster position="bottom-right" theme={isDark ? "dark" : "light"} />
-        </QueryClientProvider>
+        <StepProvider>
+          <QueryClientProvider client={queryClient}>
+            {children}
+            <Toaster position="bottom-right" theme={isDark ? "dark" : "light"} />
+          </QueryClientProvider>
+        </StepProvider>
       </WagmiProvider>
     </ThemeProvider>
   );

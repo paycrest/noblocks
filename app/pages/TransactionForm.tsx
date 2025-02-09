@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { ImSpinner3 } from "react-icons/im";
 import { BsArrowDown } from "react-icons/bs";
-import { usePrivy, useFundWallet } from "@privy-io/react-auth";
+// import { usePrivy, useFundWallet } from "@privy-io/react-auth";
 import { AnimatePresence } from "framer-motion";
 
 import {
@@ -12,14 +12,25 @@ import {
   FormDropdown,
   RecipientDetailsForm,
   KycModal,
+  NetworksDropdown,
+  InputError,
 } from "../components";
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
 import { NoteIcon, WalletIcon } from "../components/ImageAssets";
 import { fetchSupportedTokens } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance } from "../context/BalanceContext";
+// import { useBalance } from "../context/BalanceContext";
 import { trackEvent } from "../hooks/analytics";
+
+import {
+  useAppKit,
+  useAppKitAccount,
+  useAppKitNetwork,
+} from "@reown/appkit/react";
+import { wagmiAdapter } from "../config";
+import { useAccount, useBalance, useConnect } from "wagmi";
+import { injected } from "wagmi/connectors";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -37,9 +48,31 @@ export const TransactionForm = ({
 }: TransactionFormProps) => {
   // Destructure stateProps
   const { rate, isFetchingRate } = stateProps;
-  const { authenticated, ready, login, user } = usePrivy();
-  const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, refreshBalance } = useBalance();
+  // const { authenticated, ready, login, user } = usePrivy();
+  // const { selectedNetwork } = useNetwork();
+  // const { smartWalletBalance, refreshBalance } = useBalance();
+
+  const { connect } = useConnect();
+  const { open, close } = useAppKit();
+  const {
+    address,
+    isConnected,
+    caipAddress,
+    status,
+    embeddedWalletInfo,
+    allAccounts,
+  } = useAppKitAccount();
+  const accountBalance = useBalance({
+    address: address as `0x${string}`,
+  });
+  const { caipNetwork, caipNetworkId, chainId, switchNetwork } =
+  useAppKitNetwork();
+  const smartWalletBalance = wagmiAdapter.getBalance({
+    address:
+      address ||
+      ("0x0000000000000000000000000000000000000000" as `0x${string}`),
+    chainId: Number(caipNetworkId),
+  });
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
@@ -54,38 +87,38 @@ export const TransactionForm = ({
   const { amountSent, amountReceived, token, currency, recipientName } =
     watch();
 
-  const balance = smartWalletBalance?.balances[token] ?? 0;
+  // const balance = smartWalletBalance?.balances[token] ?? 0;
 
-  const { fundWallet } = useFundWallet({
-    onUserExited: () => {
-      refreshBalance();
-    },
-  });
+  // const { fundWallet } = useFundWallet({
+  //   onUserExited: () => {
+  //     refreshBalance();
+  //   },
+  // });
 
-  const handleFundWallet = async (address: string) => {
-    const amountToFund = Number(
-      (Number(amountSent) - Number(balance)).toFixed(4),
-    ).toString();
+  // const handleFundWallet = async (address: string) => {
+  //   const amountToFund = Number(
+  //     (Number(amountSent) - Number(balance)).toFixed(4),
+  //   ).toString();
 
-    const selectedToken = fetchSupportedTokens(
-      selectedNetwork.chain.name,
-    )?.find((t) => t.symbol === token);
+    // const selectedToken = fetchSupportedTokens(
+    //   selectedNetwork.chain.name,
+    // )?.find((t) => t.symbol === token);
 
-    await fundWallet(address, {
-      amount: amountToFund,
-      chain: selectedNetwork.chain,
-      asset: { erc20: selectedToken?.address as `0x${string}` },
-    });
-  };
+  //   await fundWallet(address, {
+  //     amount: amountToFund,
+  //     chain: selectedNetwork.chain,
+  //     asset: { erc20: selectedToken?.address as `0x${string}` },
+  //   });
+  // };
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  // const smartWallet = user?.linkedAccounts.find(
+  //   (account) => account.type === "smart_wallet",
+  // );
 
   const tokens = [];
 
   const fetchedTokens: Token[] =
-    fetchSupportedTokens(selectedNetwork.chain.name) || [];
+    fetchSupportedTokens(caipNetwork?.name) || [];
   for (const token of fetchedTokens) {
     tokens.push({
       name: token.symbol,
@@ -93,9 +126,10 @@ export const TransactionForm = ({
     });
   }
 
-  const handleBalanceMaxClick = () => {
-    if (balance > 0) {
-      setValue("amountSent", balance);
+  const handleBalanceMaxClick = async () => {
+    const bal = accountBalance?.data?.value;
+    if (bal && bal > 0) {
+      setValue("amountSent", Number(bal));
       setIsReceiveInputActive(false);
       trackEvent("cta_clicked", { cta: "Max balance" });
     }
@@ -122,6 +156,7 @@ export const TransactionForm = ({
     }
   }, []);
 
+  console.log(caipNetwork);
   return (
     <>
       <form
@@ -144,16 +179,15 @@ export const TransactionForm = ({
               >
                 Send
               </label>
-              {authenticated &&
+              {isConnected &&
                 token &&
-                smartWalletBalance &&
-                balance !== undefined && (
+                BigInt(accountBalance.data?.value || 0) && (
                   <div className="flex items-center gap-2">
                     <WalletIcon className="size-4" />
                     <span
-                      className={amountSent > balance ? "text-red-500" : ""}
+                      className={amountSent > BigInt(accountBalance.data?.value || 0) ? "text-red-500" : ""}
                     >
-                      {balance} {token}
+                      {BigInt(accountBalance.data?.value || 0)} {token}
                     </span>
                     <button
                       type="button"
@@ -189,7 +223,8 @@ export const TransactionForm = ({
                   onChange: () => setIsReceiveInputActive(false),
                 })}
                 className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:placeholder:text-white/30 ${
-                  amountSent > balance || errors.amountSent
+                  amountSent > BigInt(accountBalance.data?.value || 0) ||
+                  errors.amountSent
                     ? "text-red-500 dark:text-red-500"
                     : "text-neutral-900 dark:text-white/80"
                 }`}
@@ -205,14 +240,14 @@ export const TransactionForm = ({
                   setValue("token", selectedToken);
                   trackEvent("token_selected", {
                     token: selectedToken,
-                    network: selectedNetwork.chain.name,
+                    network: caipNetwork?.name,
                   });
                 }}
               />
             </div>
-            {/* {errors.amountSent && (
+            {errors.amountSent && (
               <InputError message={errors.amountSent.message} />
-            )} */}
+            )}
 
             {/* Arrow showing swap direction */}
             <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-gray-50 bg-gray-50 dark:border-neutral-800 dark:bg-neutral-800">
@@ -263,14 +298,17 @@ export const TransactionForm = ({
                 className="min-w-52"
                 isCTA={
                   !currency &&
-                  !(authenticated && amountSent > balance) &&
-                  authenticated
+                  !(
+                    isConnected &&
+                    amountSent > BigInt(accountBalance.data?.value || 0)
+                  ) &&
+                  isConnected
                 }
               />
             </div>
-            {/* {errors.amountReceived && (
+            {errors.amountReceived && (
               <InputError message={errors.amountReceived.message} />
-            )} */}
+            )}
           </div>
         </div>
 
@@ -308,39 +346,39 @@ export const TransactionForm = ({
           )}
         </AnimatePresence>
 
-        {!ready && (
+        {/* {!ready && (
           <button type="button" className={primaryBtnClasses} disabled>
             Loading...
           </button>
-        )}
-
-        {/* {ready && authenticated && !isUserVerified && (
-          <KycModal setIsUserVerified={setIsUserVerified} />
         )} */}
 
-        {ready && !authenticated && (
-          <button type="button" className={primaryBtnClasses} onClick={login}>
+        {isConnected && !isUserVerified && (
+          <KycModal setIsUserVerified={setIsUserVerified} />
+        )}
+
+        {!isConnected && (
+          <button type="button" className={primaryBtnClasses} onClick={() => open()}>
             Get started
           </button>
         )}
 
-        {ready && authenticated && (
+        {isConnected && (
           <button
             type="button"
             className={primaryBtnClasses}
             disabled={
               (!isDirty || !isValid || !currency || !recipientName) &&
-              amountSent <= balance
+              amountSent <= BigInt(accountBalance.data?.value || 0)
             }
             onClick={() => {
-              if (amountSent > balance) {
-                handleFundWallet(smartWallet?.address ?? "");
+              if (amountSent > BigInt(accountBalance.data?.value || 0)) {
+                return;
               } else {
                 handleSubmit(onSubmit)();
               }
             }}
           >
-            {amountSent > balance ? "Fund Wallet" : "Swap"}
+            {amountSent > BigInt(accountBalance.data?.value || 0) ? "Fund Wallet" : "Swap"}
           </button>
         )}
 

@@ -20,6 +20,8 @@ import { fetchSupportedTokens } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { trackEvent } from "../hooks/analytics";
+import { ArrowDown01Icon, ArrowDown02Icon } from "hugeicons-react";
+import { useSwapButton } from "../hooks/useSwapButton";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -150,25 +152,37 @@ export const TransactionForm = ({
     });
   }, [token, currency, formMethods]);
 
+  const { isEnabled, buttonText, buttonAction } = useSwapButton({
+    watch,
+    balance,
+    isDirty,
+    isValid,
+  });
+
+  const handleSwap = () => {
+    handleSubmit(onSubmit)();
+  };
+
   return (
     <>
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="z-50 grid gap-6 py-10 text-sm text-neutral-900 transition-all dark:text-white"
+        className="z-50 grid gap-4 pb-4 text-sm text-neutral-900 transition-all dark:text-white"
         noValidate
       >
-        <div className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800">
-          <div className="flex items-center justify-between py-1">
-            <h3 className="px-2 font-medium">Swap</h3>
-            {/* {authenticated && <NetworksDropdown iconOnly />} */}
-          </div>
+        <h3 className="text-lg font-medium text-text-body dark:text-white sm:hidden">
+          Swap
+        </h3>
+
+        <div className="grid gap-2 rounded-3xl bg-background-neutral p-2 dark:bg-neutral-800">
+          <h3 className="px-2 py-1 font-medium max-sm:hidden">Swap</h3>
 
           {/* Amount to send & token with wallet balance */}
           <div className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-neutral-900">
             <div className="flex items-center justify-between">
               <label
                 htmlFor="amount-sent"
-                className="text-gray-500 dark:text-white/50"
+                className="text-text-secondary dark:text-white/50"
               >
                 Send
               </label>
@@ -225,7 +239,7 @@ export const TransactionForm = ({
                 }}
                 value={formMethods.watch("amountSent").toString()}
                 className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:placeholder:text-white/30 ${
-                  amountSent > balance || errors.amountSent
+                  authenticated && (amountSent > balance || errors.amountSent)
                     ? "text-red-500 dark:text-red-500"
                     : "text-neutral-900 dark:text-white/80"
                 }`}
@@ -246,17 +260,14 @@ export const TransactionForm = ({
                 }}
               />
             </div>
-            {/* {errors.amountSent && (
-              <InputError message={errors.amountSent.message} />
-            )} */}
 
             {/* Arrow showing swap direction */}
-            <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-gray-50 bg-gray-50 dark:border-neutral-800 dark:bg-neutral-800">
-              <div className="rounded-lg bg-white p-1 dark:bg-neutral-900">
+            <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-neutral-800 dark:bg-neutral-800">
+              <div className="rounded-lg bg-white p-0.5 dark:bg-neutral-900">
                 {isFetchingRate ? (
-                  <ImSpinner3 className="animate-spin text-xl text-gray-500 dark:text-white/50" />
+                  <ImSpinner3 className="animate-spin text-xl text-outline-gray dark:text-white/50" />
                 ) : (
-                  <BsArrowDown className="text-xl text-gray-500 dark:text-white/80" />
+                  <ArrowDown02Icon className="text-xl text-outline-gray dark:text-white/80" />
                 )}
               </div>
             </div>
@@ -266,7 +277,7 @@ export const TransactionForm = ({
           <div className="space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-neutral-900">
             <label
               htmlFor="amount-received"
-              className="text-gray-500 dark:text-white/50"
+              className="text-text-secondary dark:text-white/50"
             >
               Receive
             </label>
@@ -319,21 +330,20 @@ export const TransactionForm = ({
                 }
                 className="min-w-52"
                 isCTA={
+                  // Show CTA styling when:
+                  // 1. No currency is selected AND
+                  // 2. Either user is not authenticated OR (user is authenticated AND doesn't need funding)
                   !currency &&
-                  !(authenticated && amountSent > balance) &&
-                  authenticated
+                  (!authenticated || (authenticated && !(amountSent > balance)))
                 }
               />
             </div>
-            {/* {errors.amountReceived && (
-              <InputError message={errors.amountReceived.message} />
-            )} */}
           </div>
         </div>
 
         {/* Recipient and memo */}
         <AnimatePresence>
-          {currency && (
+          {currency && authenticated && (
             <AnimatedComponent
               variant={slideInOut}
               className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800"
@@ -345,7 +355,7 @@ export const TransactionForm = ({
 
               {/* Memo */}
               <div className="relative">
-                <NoteIcon className="absolute left-2 top-2.5 fill-white stroke-gray-300 dark:fill-transparent dark:stroke-none" />
+                <NoteIcon className="absolute left-3 top-3.5 fill-white stroke-gray-300 dark:fill-transparent dark:stroke-none" />
                 <input
                   type="text"
                   id="memo"
@@ -353,7 +363,7 @@ export const TransactionForm = ({
                     formMethods.setValue("memo", e.target.value);
                   }}
                   value={formMethods.watch("memo")}
-                  className={`focus:ring-primary w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-8 pr-4 text-sm transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900 ${
+                  className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-gray-400 focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
                     errors.memo
                       ? "text-red-500 dark:text-red-500"
                       : "text-neutral-900 dark:text-white/80"
@@ -372,33 +382,16 @@ export const TransactionForm = ({
           </button>
         )}
 
-        {/* {ready && authenticated && !isUserVerified && (
-          <KycModal setIsUserVerified={setIsUserVerified} />
-        )} */}
-
-        {ready && !authenticated && (
-          <button type="button" className={primaryBtnClasses} onClick={login}>
-            Get started
-          </button>
-        )}
-
-        {ready && authenticated && (
+        {ready && (
           <button
             type="button"
             className={primaryBtnClasses}
-            disabled={
-              (!isDirty || !isValid || !currency || !recipientName) &&
-              amountSent <= balance
-            }
-            onClick={() => {
-              if (amountSent > balance) {
-                handleFundWallet(smartWallet?.address ?? "");
-              } else {
-                handleSubmit(onSubmit)();
-              }
-            }}
+            disabled={!isEnabled}
+            onClick={buttonAction(handleSwap, login, () =>
+              handleFundWallet(smartWallet?.address ?? ""),
+            )}
           >
-            {amountSent > balance ? "Fund Wallet" : "Swap"}
+            {buttonText}
           </button>
         )}
 
@@ -406,14 +399,14 @@ export const TransactionForm = ({
           {rate > 0 && (
             <AnimatedComponent
               variant={slideInOut}
-              className="flex w-full flex-col justify-between gap-2 text-xs text-gray-500 transition-all dark:text-white/30 sm:flex-row sm:items-center"
+              className="flex w-full flex-col justify-between gap-2 text-xs text-gray-500 transition-all dark:text-white/30 xsm:flex-row xsm:items-center"
             >
               {currency && (
                 <div className="min-w-fit">
                   1 {token} ~ {isFetchingRate ? "..." : rate} {currency}
                 </div>
               )}
-              <div className="ml-auto flex w-full flex-col justify-end gap-2 sm:flex-row sm:items-center">
+              <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">
                 <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
                 <p className="min-w-fit">
                   Swap usually completes in 30s or less

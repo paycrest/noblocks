@@ -33,7 +33,7 @@ import { useNetwork } from "./context/NetworksContext";
  * This component handles the logic and rendering of the home page.
  */
 function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
-  const { authenticated } = usePrivy();
+  const { authenticated, ready } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
   const { selectedNetwork } = useNetwork();
 
@@ -302,10 +302,13 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
 
   return (
     <>
-      <Preloader isLoading={isPageLoading} />
-      <AnimatePresence mode="wait">
-        <AnimatedPage componentKey={currentStep}>{renderStep()}</AnimatedPage>
-      </AnimatePresence>
+      {isPageLoading || !ready ? (
+        <Preloader isLoading={true} />
+      ) : (
+        <AnimatePresence mode="wait">
+          <AnimatedPage componentKey={currentStep}>{renderStep()}</AnimatedPage>
+        </AnimatePresence>
+      )}
     </>
   );
 }

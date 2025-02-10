@@ -38,6 +38,7 @@ const config: Config = {
           accent: {
             red: "#FEF0F4",
           },
+          neutral: "#F9FAFB",
         },
         text: {
           body: "#121217",

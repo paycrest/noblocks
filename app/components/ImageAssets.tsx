@@ -57,6 +57,7 @@ export const NoblocksBetaLogo = (props: ImageProps) => {
       viewBox="0 0 123 28"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
+      {...props}
     >
       <path
         d="M13.6614 0V13.4667H10.2559V5.10844C10.2559 4.16855 9.49387 3.40569 8.553 3.40569C7.61262 3.40569 6.85025 4.16806 6.85025 5.10844V13.4667H0V0H13.6614Z"
@@ -108,16 +109,16 @@ export const NoblocksBetaLogo = (props: ImageProps) => {
 export const NoblocksLogoIcon = (props: ImageProps) => {
   return (
     <svg
-      width="703"
-      height="693"
-      viewBox="0 0 703 693"
+      width="18"
+      height="18"
+      viewBox="0 0 18 18"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
       <title>Noblocks logo icon</title>
       <path
-        d="M702.99 0V692.97H527.75V262.87C527.75 214.505 488.535 175.25 440.12 175.25C391.73 175.25 352.5 214.48 352.5 262.87V692.97H0V0H702.99Z"
+        d="M0 18H10.4773V5.60074C10.4773 4.52752 11.3449 3.65706 12.4152 3.65706C13.4855 3.65706 14.3531 4.52752 14.3531 5.60074V18H18V0H0V18Z"
         fill="#43B9FB"
       />
     </svg>

@@ -270,12 +270,9 @@ export const RecipientDetailsForm = ({
           </button>
         </div>
 
-        <div className="flex flex-col items-start gap-4 xsm:flex-row">
+        <div className="flex flex-col items-start gap-4 sm:flex-row">
           {/* Bank */}
-          <div
-            ref={institutionsDropdownRef}
-            className="w-full flex-1 xsm:w-1/2"
-          >
+          <div ref={institutionsDropdownRef} className="w-full flex-1 sm:w-1/2">
             <button
               type="button"
               onClick={() => {
@@ -377,7 +374,7 @@ export const RecipientDetailsForm = ({
           </div>
 
           {/* Account number */}
-          <div className="w-full flex-1 flex-shrink-0 xsm:w-1/2">
+          <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
             <input
               type="number"
               placeholder="Account number"
@@ -436,7 +433,7 @@ export const RecipientDetailsForm = ({
                     </p>
                   </motion.div>
 
-                  <Tick02Icon className="text-lg text-green-700 dark:text-green-500" />
+                  {/* <Tick02Icon className="text-lg text-green-700 dark:text-green-500" /> */}
                 </AnimatedFeedbackItem>
               ) : recipientNameError ? (
                 <InputError message={recipientNameError} />

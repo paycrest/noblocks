@@ -3,10 +3,11 @@ import React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 
-import Providers from "./providers";
+// import Providers from "./providers";
 import MainContent from "./mainContent";
 import { CookieConsent, Footer, Navbar } from "./components";
 import { useHotjar } from "./hooks/analytics";
+import ContextProvider from "./config/provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -52,17 +53,19 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <Providers>
-          <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-            <Navbar />
-            <div className="relative mx-auto flex min-h-screen flex-col items-center px-4 pt-20 transition-all">
-              <MainContent>{children}</MainContent>
-              <Footer />
+        <ContextProvider cookies={null}>
+          <>
+            <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
+              <Navbar />
+              <div className="relative mx-auto flex min-h-screen flex-col items-center px-4 pt-20 transition-all">
+                <MainContent>{children}</MainContent>
+                <Footer />
+              </div>
             </div>
-          </div>
 
-          <CookieConsent />
-        </Providers>
+            <CookieConsent />
+          </>
+        </ContextProvider>
       </body>
     </html>
   );

@@ -1,39 +1,28 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
-import { useLogin, usePrivy } from "@privy-io/react-auth";
+// import { useLogin, usePrivy } from "@privy-io/react-auth";
 import { usePathname } from "next/navigation";
 
 import { ArrowDownIcon, NoblocksLogo, NoblocksLogoIcon } from "./ImageAssets";
-import { primaryBtnClasses } from "./Styles";
-import { WalletDetails } from "./WalletDetails";
-import { NetworksDropdown } from "./NetworksDropdown";
-import { SettingsDropdown } from "./SettingsDropdown";
-import { identifyUser, trackEvent } from "../hooks/analytics";
-import mixpanel from "mixpanel-browser";
+// import { primaryBtnClasses } from "./Styles";
+// import { WalletDetails } from "./WalletDetails";
+// import { NetworksDropdown } from "./NetworksDropdown";
+// import { SettingsDropdown } from "./SettingsDropdown";
+// import { identifyUser, trackEvent } from "../hooks/analytics";
+// import mixpanel from "mixpanel-browser";
+// import { projectId, wagmiAdapter } from "../config";
+// import { arbitrum, mainnet } from "viem/chains";
+// import { metadata } from "../layout";
+import { useDisconnect } from "@reown/appkit/react";
+import { useAccount } from "wagmi";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
-
-  const { ready, authenticated } = usePrivy();
-
-  const { login } = useLogin({
-    onComplete: ({ user, isNewUser, loginMethod }) => {
-      trackEvent("wallet_connected");
-
-      if (user.wallet?.address) {
-        identifyUser(user.wallet.address, {
-          login_method: loginMethod,
-          isNewUser,
-          createdAt: user.createdAt,
-          email: user.email,
-        });
-      }
-    },
-  });
+  const { disconnect } = useDisconnect();
 
   useEffect(() => setMounted(true), []);
 
@@ -52,6 +41,8 @@ export const Navbar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+
+
   if (!mounted) return null;
 
   return (
@@ -68,7 +59,7 @@ export const Navbar = () => {
             onMouseLeave={() => setIsDropdownOpen(false)}
           >
             <div className="flex items-center gap-1">
-              {authenticated ? (
+              {false ? (
                 <button
                   aria-label="Noblocks Logo Icon"
                   type="button"
@@ -137,7 +128,7 @@ export const Navbar = () => {
         </div>
 
         <div className="flex gap-2 text-sm font-medium *:flex-shrink-0 sm:gap-4">
-          {ready && authenticated ? (
+          {/* {ready && authenticated ? (
             <>
               <WalletDetails />
 
@@ -145,17 +136,21 @@ export const Navbar = () => {
 
               <SettingsDropdown />
             </>
-          ) : (
-            <>
-              <button
-                type="button"
-                className={primaryBtnClasses}
-                onClick={() => login()}
-              >
-                Sign in
-              </button>
-            </>
-          )}
+          ) : ( */}
+          <>
+            {/* <button
+              type="button"
+              className={primaryBtnClasses}
+              // onClick={() => login()}
+            >
+              Sign in
+            </button> */}
+            {/* <w3m-button /> */}
+
+            <appkit-button />
+            <button onClick={disconnect}>disconnect</button>
+          </>
+          {/* )} */}
         </div>
       </nav>
     </header>

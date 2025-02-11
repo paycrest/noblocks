@@ -319,7 +319,7 @@ function SearchParamsWrapper(props: {
 
 export default function Page() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<Preloader isLoading={true} />}>
       <SearchParamsWrapper>
         {(sp) => <HomeImpl searchParams={sp} />}
       </SearchParamsWrapper>

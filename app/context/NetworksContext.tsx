@@ -12,7 +12,7 @@ type NetworkContextType = {
   setSelectedNetwork: (network: Network) => void;
 };
 
-const STORAGE_KEY = "selectedNetwork"
+const STORAGE_KEY = "selectedNetwork";
 
 const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
 
@@ -29,8 +29,8 @@ const getStoredNetwork = (): Network => {
 };
 
 const setStoredNetwork = (network: Network) => {
-  localStorage.setItem(STORAGE_KEY, network.chain.name)
-}
+  localStorage.setItem(STORAGE_KEY, network.chain.name);
+};
 
 export function NetworkProvider({ children }: { children: React.ReactNode }) {
   const [selectedNetwork, setSelectedNetwork] = useState(defaultNetwork);
@@ -44,12 +44,12 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const preferredNetwork = getStoredNetwork();
     setSelectedNetwork(preferredNetwork);
-  }, [])
+  }, []);
 
   // cross-tab synchronization
   const onStorageUpdate = () => {
-    const storedNetwork = getStoredNetwork()
-    handleNetworkChange(storedNetwork)
+    const storedNetwork = getStoredNetwork();
+    handleNetworkChange(storedNetwork);
   };
 
   useEffect(() => {
@@ -58,7 +58,6 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("storage", onStorageUpdate);
     };
   }, []);
-
 
   return (
     <NetworkContext.Provider

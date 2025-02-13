@@ -79,7 +79,7 @@ export const WalletDetails = () => {
           }}
           className="flex h-9 items-center justify-center gap-2 rounded-xl bg-accent-gray px-2.5 py-2.5 transition-colors duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900 sm:py-0"
         >
-          <Wallet01Icon className="text-icon-outline-secondary size-5" />
+          <Wallet01Icon className="text-icon-outline-secondary size-5 dark:text-white/50" />
           <div className="h-10 w-px border-r border-dashed border-gray-100 dark:border-white/10" />
           <div className="flex items-center gap-1.5 dark:text-white/80">
             <p>

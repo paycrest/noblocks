@@ -430,7 +430,7 @@ export const RecipientDetailsForm = ({
                       ease: "easeInOut",
                     }}
                   >
-                    <p className="rounded-md bg-accent-gray px-3 py-1 capitalize text-neutral-900 dark:bg-white/5 dark:text-white">
+                    <p className="rounded-md bg-accent-gray px-3 py-1 capitalize text-neutral-900 dark:bg-neutral-800 dark:text-white">
                       {recipientName.toLowerCase()}
                     </p>
                   </motion.div>

@@ -79,7 +79,7 @@ export const SettingsDropdown = () => {
         }}
         className="flex h-9 items-center justify-center gap-2 rounded-xl bg-accent-gray p-2 transition-colors duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900"
       >
-        <Setting07Icon className="size-5 text-outline-gray dark:text-white" />
+        <Setting07Icon className="size-5 text-outline-gray dark:text-white/50" />
       </button>
 
       {/* Dropdown menu */}
@@ -91,7 +91,7 @@ export const SettingsDropdown = () => {
             exit="closed"
             variants={dropdownVariants}
             aria-label="Dropdown menu"
-            className="absolute right-0 z-10 mt-4 w-fit space-y-4 overflow-hidden rounded-xl border-2 border-border-light bg-white py-2 shadow-xl dark:bg-neutral-800"
+            className="absolute right-0 z-10 mt-4 w-fit space-y-4 overflow-hidden rounded-xl border border-border-light bg-white py-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
           >
             <ul
               role="menu"
@@ -109,7 +109,7 @@ export const SettingsDropdown = () => {
                   onClick={handleCopyAddress}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Wallet01Icon className="text-icon-outline-secondary size-5" />
+                    <Wallet01Icon className="text-icon-outline-secondary size-5 dark:text-white/50" />
                     <p className="max-w-60 break-words">
                       {shortenAddress(smartWallet?.address ?? "", 6)}
                     </p>
@@ -117,7 +117,7 @@ export const SettingsDropdown = () => {
                   {isAddressCopied ? (
                     <PiCheck className="size-4 text-green-900 dark:text-green-500" />
                   ) : (
-                    <Copy01Icon className="text-icon-outline-secondary size-4 transition group-hover:text-lavender-500 dark:hover:text-white" />
+                    <Copy01Icon className="text-icon-outline-secondary size-4 transition group-hover:text-lavender-500 dark:text-white/50 dark:hover:text-white" />
                   )}
                 </button>
               </li>
@@ -132,7 +132,7 @@ export const SettingsDropdown = () => {
                     onClick={updateEmail}
                   >
                     <div className="flex items-center gap-2.5">
-                      <Mail01Icon className="text-icon-outline-secondary size-5 flex-shrink-0 dark:text-white/40" />
+                      <Mail01Icon className="text-icon-outline-secondary size-5 flex-shrink-0 dark:text-white/50" />
                       <p className="whitespace-nowrap">Linked email</p>
                     </div>
                     <p className="max-w-20 truncate text-neutral-500 dark:text-white/40">
@@ -151,10 +151,7 @@ export const SettingsDropdown = () => {
                     onClick={linkEmail}
                   >
                     <div className="flex items-center gap-2.5">
-                      <Mail01Icon
-                        className="text-icon-outline-secondary size-5 dark:text-white/40"
-                        strokeWidth={2}
-                      />
+                      <Mail01Icon className="text-icon-outline-secondary size-5 dark:text-white/50" />
                       <p>Link email address</p>
                     </div>
                   </button>
@@ -165,7 +162,7 @@ export const SettingsDropdown = () => {
                 className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-accent-gray dark:hover:bg-neutral-700"
                 onClick={exportWallet}
               >
-                <AccessIcon className="text-icon-outline-secondary size-5" />
+                <AccessIcon className="text-icon-outline-secondary size-5 dark:text-white/50" />
                 <p>Export wallet</p>
               </li>
               <li
@@ -174,9 +171,9 @@ export const SettingsDropdown = () => {
                 onClick={handleLogout}
               >
                 {isLoggingOut ? (
-                  <ImSpinner className="text-icon-outline-secondary size-5 animate-spin" />
+                  <ImSpinner className="text-icon-outline-secondary size-5 animate-spin dark:text-white/50" />
                 ) : (
-                  <Logout03Icon className="text-icon-outline-secondary size-5" />
+                  <Logout03Icon className="text-icon-outline-secondary size-5 dark:text-white/50" />
                 )}
                 <p>Sign out</p>
               </li>

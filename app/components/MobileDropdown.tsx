@@ -54,7 +54,7 @@ export const MobileDropdown = ({
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, exportWallet, linkEmail, updateEmail } = usePrivy();
-  const { smartWalletBalance, allBalances, refreshBalance } = useBalance();
+  const { allBalances, refreshBalance } = useBalance();
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
@@ -173,7 +173,7 @@ export const MobileDropdown = ({
                           <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
                             <div className="flex items-center gap-1">
                               <h3 className="font-light text-text-secondary dark:text-white/50">
-                                Smart Wallet
+                                Noblocks Wallet
                               </h3>
                               <HelpCircleIcon
                                 className="size-4 text-gray-400 dark:text-white/30"

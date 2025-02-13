@@ -55,7 +55,7 @@ export default function RootLayout({
         <Providers>
           <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
             <Navbar />
-            <div className="relative mx-auto flex min-h-screen flex-col items-center px-4 pt-20 transition-all">
+            <div className="relative mx-auto flex min-h-screen flex-col items-center px-4 pt-24 transition-all">
               <MainContent>{children}</MainContent>
               <Footer />
             </div>

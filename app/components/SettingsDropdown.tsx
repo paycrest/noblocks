@@ -7,21 +7,21 @@ import { ImSpinner } from "react-icons/im";
 import { PiCheck } from "react-icons/pi";
 
 import { useOutsideClick } from "../hooks";
-import {
-  CopyIcon,
-  LogoutIcon,
-  PrivateKeyIcon,
-  SettingsIcon,
-  WalletIcon,
-} from "./ImageAssets";
 import { shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 import { trackEvent } from "../hooks/analytics";
-import { Mail01Icon } from "hugeicons-react";
+import {
+  AccessIcon,
+  Copy01Icon,
+  Logout03Icon,
+  Mail01Icon,
+  Setting07Icon,
+  Wallet01Icon,
+} from "hugeicons-react";
 import { toast } from "sonner";
 
 export const SettingsDropdown = () => {
-  const { user, exportWallet } = usePrivy();
+  const { user, exportWallet, updateEmail } = usePrivy();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -77,9 +77,9 @@ export const SettingsDropdown = () => {
           setIsOpen(!isOpen);
           trackEvent("cta_clicked", { cta: "Settings Dropdown" });
         }}
-        className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900"
+        className="flex h-9 items-center justify-center gap-2 rounded-xl bg-accent-gray p-2 transition-colors duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900"
       >
-        <SettingsIcon />
+        <Setting07Icon className="size-5 text-outline-gray dark:text-white" />
       </button>
 
       {/* Dropdown menu */}
@@ -91,17 +91,17 @@ export const SettingsDropdown = () => {
             exit="closed"
             variants={dropdownVariants}
             aria-label="Dropdown menu"
-            className="absolute right-0 z-10 mt-4 w-fit space-y-4 overflow-hidden rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800"
+            className="absolute right-0 z-10 mt-4 w-fit space-y-4 overflow-hidden rounded-xl border-2 border-border-light bg-white py-2 shadow-xl dark:bg-neutral-800"
           >
             <ul
               role="menu"
               aria-labelledby="settings-dropdown"
               aria-orientation="vertical"
-              className="text-sm font-light text-black dark:text-white/80"
+              className="text-sm font-normal text-black dark:text-white/80"
             >
               <li
                 role="menuitem"
-                className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
+                className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-accent-gray dark:hover:bg-neutral-700"
               >
                 <button
                   type="button"
@@ -109,22 +109,41 @@ export const SettingsDropdown = () => {
                   onClick={handleCopyAddress}
                 >
                   <div className="flex items-center gap-2.5">
-                    <WalletIcon />
+                    <Wallet01Icon className="text-icon-outline-secondary size-5" />
                     <p className="max-w-60 break-words">
                       {shortenAddress(smartWallet?.address ?? "", 6)}
                     </p>
                   </div>
                   {isAddressCopied ? (
-                    <PiCheck className="size-4" />
+                    <PiCheck className="size-4 text-green-900 dark:text-green-500" />
                   ) : (
-                    <CopyIcon className="size-4 transition group-hover:text-lavender-500 dark:hover:text-white" />
+                    <Copy01Icon className="text-icon-outline-secondary size-4 transition group-hover:text-lavender-500 dark:hover:text-white" />
                   )}
                 </button>
               </li>
-              {!user?.email && (
+              {user?.email ? (
                 <li
                   role="menuitem"
-                  className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
+                  className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-accent-gray dark:hover:bg-neutral-700"
+                >
+                  <button
+                    type="button"
+                    className="group flex w-full items-center justify-between gap-4"
+                    onClick={updateEmail}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Mail01Icon className="text-icon-outline-secondary size-5 flex-shrink-0 dark:text-white/40" />
+                      <p className="whitespace-nowrap">Linked email</p>
+                    </div>
+                    <p className="max-w-20 truncate text-neutral-500 dark:text-white/40">
+                      {user.email.address}
+                    </p>
+                  </button>
+                </li>
+              ) : (
+                <li
+                  role="menuitem"
+                  className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-accent-gray dark:hover:bg-neutral-700"
                 >
                   <button
                     type="button"
@@ -133,7 +152,7 @@ export const SettingsDropdown = () => {
                   >
                     <div className="flex items-center gap-2.5">
                       <Mail01Icon
-                        className="size-4 text-neutral-500 dark:text-white/40"
+                        className="text-icon-outline-secondary size-5 dark:text-white/40"
                         strokeWidth={2}
                       />
                       <p>Link email address</p>
@@ -143,21 +162,21 @@ export const SettingsDropdown = () => {
               )}
               <li
                 role="menuitem"
-                className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
+                className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-accent-gray dark:hover:bg-neutral-700"
                 onClick={exportWallet}
               >
-                <PrivateKeyIcon />
+                <AccessIcon className="text-icon-outline-secondary size-5" />
                 <p>Export wallet</p>
               </li>
               <li
                 role="menuitem"
-                className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-gray-200 dark:hover:bg-neutral-700"
+                className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-accent-gray dark:hover:bg-neutral-700"
                 onClick={handleLogout}
               >
                 {isLoggingOut ? (
-                  <ImSpinner className="size-4 animate-spin" />
+                  <ImSpinner className="text-icon-outline-secondary size-5 animate-spin" />
                 ) : (
-                  <LogoutIcon />
+                  <Logout03Icon className="text-icon-outline-secondary size-5" />
                 )}
                 <p>Sign out</p>
               </li>

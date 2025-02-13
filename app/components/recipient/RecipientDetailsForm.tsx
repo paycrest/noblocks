@@ -282,12 +282,14 @@ export const RecipientDetailsForm = ({
                 }
               }}
               disabled={isFetchingInstitutions}
-              className="flex w-full items-center justify-between gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-left text-sm text-neutral-900 outline-none transition-all hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:text-white/80 dark:hover:bg-white/5 dark:focus:bg-neutral-950 dark:focus-visible:ring-offset-neutral-900"
+              className="border-border-input flex w-full items-center justify-between gap-2 rounded-xl border px-4 py-2.5 text-left text-sm text-neutral-900 outline-none transition-all hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:text-white/80 dark:hover:bg-white/5 dark:focus:bg-neutral-950 dark:focus-visible:ring-offset-neutral-900"
             >
               {selectedInstitution ? (
                 <p className="truncate">{selectedInstitution.name}</p>
               ) : (
-                <p className="dark:text-white/30">Select bank</p>
+                <p className="text-text-placeholder dark:text-white/30">
+                  Select bank
+                </p>
               )}
 
               {isFetchingInstitutions ? (
@@ -295,7 +297,7 @@ export const RecipientDetailsForm = ({
               ) : (
                 <ArrowDown01Icon
                   className={classNames(
-                    "size-5 flex-shrink-0 text-gray-400 transition-transform dark:text-white/50",
+                    "size-5 flex-shrink-0 text-outline-gray transition-transform dark:text-white/50",
                     isInstitutionsDropdownOpen ? "rotate-180" : "",
                   )}
                 />
@@ -390,10 +392,10 @@ export const RecipientDetailsForm = ({
                 onChange: () => setIsManualEntry(true),
               })}
               className={classNames(
-                "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-gray-400 focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
+                "placeholder:text-text-placeholder w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
                 errors.accountIdentifier
                   ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
-                  : "border-gray-300 dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
+                  : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
               )}
             />
           </div>
@@ -428,7 +430,7 @@ export const RecipientDetailsForm = ({
                       ease: "easeInOut",
                     }}
                   >
-                    <p className="rounded-md bg-gray-200 px-3 py-1 capitalize text-neutral-900 dark:bg-neutral-800 dark:text-white">
+                    <p className="rounded-md bg-accent-gray px-3 py-1 capitalize text-neutral-900 dark:bg-white/5 dark:text-white">
                       {recipientName.toLowerCase()}
                     </p>
                   </motion.div>

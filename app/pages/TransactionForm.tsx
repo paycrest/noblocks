@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { ImSpinner3 } from "react-icons/im";
-import { BsArrowDown } from "react-icons/bs";
 import { usePrivy, useFundWallet } from "@privy-io/react-auth";
 import { AnimatePresence } from "framer-motion";
 
@@ -15,12 +14,11 @@ import {
 } from "../components";
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
-import { NoteIcon, WalletIcon } from "../components/ImageAssets";
 import { fetchSupportedTokens } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { trackEvent } from "../hooks/analytics";
-import { ArrowDown01Icon, ArrowDown02Icon } from "hugeicons-react";
+import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 
 /**
@@ -170,12 +168,8 @@ export const TransactionForm = ({
         className="z-50 grid gap-4 pb-4 text-sm text-neutral-900 transition-all dark:text-white"
         noValidate
       >
-        <h3 className="text-lg font-medium text-text-body dark:text-white sm:hidden">
-          Swap
-        </h3>
-
-        <div className="grid gap-2 rounded-3xl bg-background-neutral p-2 dark:bg-neutral-800">
-          <h3 className="px-2 py-1 font-medium max-sm:hidden">Swap</h3>
+        <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-neutral-800">
+          <h3 className="px-2 py-1 text-base font-medium">Swap</h3>
 
           {/* Amount to send & token with wallet balance */}
           <div className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-neutral-900">
@@ -186,26 +180,31 @@ export const TransactionForm = ({
               >
                 Send
               </label>
-              {authenticated &&
-                token &&
-                smartWalletBalance &&
-                balance !== undefined && (
-                  <div className="flex items-center gap-2">
-                    <WalletIcon className="size-4" />
-                    <span
-                      className={amountSent > balance ? "text-red-500" : ""}
+              <AnimatePresence>
+                {authenticated &&
+                  token &&
+                  smartWalletBalance &&
+                  balance !== undefined && (
+                    <AnimatedComponent
+                      variant={slideInOut}
+                      className="flex items-center gap-2"
                     >
-                      {balance} {token}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleBalanceMaxClick}
-                      className="font-medium text-lavender-500 dark:text-lavender-500"
-                    >
-                      Max
-                    </button>
-                  </div>
-                )}
+                      <Wallet01Icon className="text-icon-outline-secondary size-4 dark:text-white/50" />
+                      <span
+                        className={amountSent > balance ? "text-red-500" : ""}
+                      >
+                        {balance} {token}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleBalanceMaxClick}
+                        className="font-medium text-lavender-500 dark:text-lavender-500"
+                      >
+                        Max
+                      </button>
+                    </AnimatedComponent>
+                  )}
+              </AnimatePresence>
             </div>
 
             <div className="flex items-center justify-between gap-2">
@@ -346,7 +345,7 @@ export const TransactionForm = ({
           {currency && authenticated && (
             <AnimatedComponent
               variant={slideInOut}
-              className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800"
+              className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-neutral-800"
             >
               <RecipientDetailsForm
                 formMethods={formMethods}
@@ -355,7 +354,7 @@ export const TransactionForm = ({
 
               {/* Memo */}
               <div className="relative">
-                <NoteIcon className="absolute left-3 top-3.5 fill-white stroke-gray-300 dark:fill-transparent dark:stroke-none" />
+                <NoteEditIcon className="text-icon-outline-disabled absolute left-3 top-3.5 size-4 dark:text-white/30" />
                 <input
                   type="text"
                   id="memo"
@@ -363,7 +362,7 @@ export const TransactionForm = ({
                     formMethods.setValue("memo", e.target.value);
                   }}
                   value={formMethods.watch("memo")}
-                  className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-gray-400 focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
+                  className={`placeholder:text-text-placeholder min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
                     errors.memo
                       ? "text-red-500 dark:text-red-500"
                       : "text-neutral-900 dark:text-white/80"
@@ -399,7 +398,7 @@ export const TransactionForm = ({
           {rate > 0 && (
             <AnimatedComponent
               variant={slideInOut}
-              className="flex w-full flex-col justify-between gap-2 text-xs text-gray-500 transition-all dark:text-white/30 xsm:flex-row xsm:items-center"
+              className="flex w-full flex-col justify-between gap-2 py-3 text-xs text-text-disabled transition-all dark:text-white/30 xsm:flex-row xsm:items-center"
             >
               {currency && (
                 <div className="min-w-fit">

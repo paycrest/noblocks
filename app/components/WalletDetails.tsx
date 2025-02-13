@@ -5,7 +5,6 @@ import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
 
 import { useOutsideClick } from "../hooks";
 import { classNames, fetchSupportedTokens, formatCurrency } from "../utils";
-import { WalletIcon } from "./ImageAssets";
 import { useBalance } from "../context/BalanceContext";
 import { dropdownVariants } from "./AnimatedComponents";
 import { useFundWallet, usePrivy, useWallets } from "@privy-io/react-auth";
@@ -13,7 +12,7 @@ import { Token } from "../types";
 import { useNetwork } from "../context/NetworksContext";
 import { trackEvent } from "../hooks/analytics";
 import { TransferModal } from "./TransferModal";
-import { ArrowDown01Icon } from "hugeicons-react";
+import { ArrowDown01Icon, Wallet01Icon } from "hugeicons-react";
 
 export const WalletDetails = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -78,10 +77,10 @@ export const WalletDetails = () => {
             setIsOpen(!isOpen);
             trackEvent("cta_clicked", { cta: "Wallet Balance Dropdown" });
           }}
-          className="flex items-center justify-center gap-2 rounded-xl bg-gray-50 px-2.5 py-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-surface-overlay dark:focus-visible:ring-offset-neutral-900 sm:py-0"
+          className="flex h-9 items-center justify-center gap-2 rounded-xl bg-accent-gray px-2.5 py-2.5 transition-colors duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900 sm:py-0"
         >
-          <WalletIcon className="hidden size-4 sm:block" />
-          <div className="hidden h-10 w-px border-r border-dashed border-gray-100 dark:border-white/10 sm:block" />
+          <Wallet01Icon className="text-icon-outline-secondary size-5" />
+          <div className="h-10 w-px border-r border-dashed border-gray-100 dark:border-white/10" />
           <div className="flex items-center gap-1.5 dark:text-white/80">
             <p>
               {formatCurrency(smartWalletBalance?.total ?? 0, "USD", "en-US")}
@@ -89,7 +88,7 @@ export const WalletDetails = () => {
             <ArrowDown01Icon
               aria-label="Caret down"
               className={classNames(
-                "mx-1 size-4 text-gray-400 transition-transform duration-300 dark:text-white/50",
+                "text-icon-outline-secondary mx-1 size-4 transition-transform duration-300 dark:text-white/50",
                 isOpen ? "rotate-180" : "",
               )}
             />

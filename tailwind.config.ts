@@ -40,15 +40,27 @@ const config: Config = {
           },
           neutral: "#F9FAFB",
         },
+        border: {
+          light: "#EBEBEF",
+          input: "#D1D1DB",
+        },
         text: {
           body: "#121217",
           secondary: "#6C6C89",
           accent: {
             red: "#D50B3E",
           },
+          disabled: "#A9A9BC",
+          placeholder: "#A9A9BC",
         },
         input: {
           destructive: "#F53D6B",
+        },
+        icon: {
+          outline: {
+            secondary: "#8A8AA3",
+            disabled: "#D1D1DB",
+          },
         },
       },
       screens: {

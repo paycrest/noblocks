@@ -54,12 +54,12 @@ export const FormDropdown = ({
                 height={24}
                 className="size-6 object-contain"
               />
-              <p className="text-sm text-text-body dark:text-white">
+              <p className="text-sm font-medium text-text-body dark:text-white">
                 {selectedItem?.name}
               </p>
             </div>
           ) : (
-            <p className="whitespace-nowrap pl-2">
+            <p className="whitespace-nowrap pl-2 font-medium">
               {defaultTitle ? defaultTitle : "Select an option"}
             </p>
           )}

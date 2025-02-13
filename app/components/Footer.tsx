@@ -115,9 +115,11 @@ export const Footer = () => {
             <SocialLink key={social.title} {...social} />
           ))}
 
-          <div className="h-3 w-px bg-gray-200 dark:bg-white/20" />
+          <div className="h-3 w-px bg-gray-200 dark:bg-white/20 max-sm:hidden" />
 
-          <ThemeSwitch />
+          <div className="max-sm:hidden">
+            <ThemeSwitch />
+          </div>
         </div>
       </footer>
     </AnimatedComponent>

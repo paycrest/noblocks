@@ -89,22 +89,25 @@ export const FlexibleDropdown = ({
             variants={dropdownVariants}
             aria-label="Dropdown menu"
             className={classNames(
-              "absolute right-0 z-50 mt-2 max-h-52 max-w-full overflow-y-auto rounded-xl bg-gray-50 py-2 shadow-xl dark:bg-neutral-800",
+              "no-scrollbar absolute right-0 z-50 mt-2 max-h-52 max-w-full overflow-y-auto rounded-xl border-2 border-border-light bg-white py-2 shadow-xl dark:bg-neutral-800",
               className?.includes("min-w") ? "" : "min-w-40",
-              className?.includes("max-h") ? "" : "max-h-52",
+              className?.includes("max-h") ? "" : "max-h-56",
               className ?? "",
             )}
           >
-            <ul role="list" aria-labelledby="networks-dropdown">
+            <ul
+              role="list"
+              aria-labelledby="networks-dropdown"
+              className="font-normal"
+            >
               {data?.map((item) => (
                 <li
                   key={item.name}
                   onClick={() => !item.disabled && handleChange(item)}
+                  aria-disabled={item.disabled}
                   className={classNames(
-                    "flex items-center justify-between gap-2 px-3 py-2 transition-all hover:bg-gray-200 dark:hover:bg-neutral-700",
-                    item?.disabled
-                      ? "pointer-events-none cursor-not-allowed"
-                      : "cursor-pointer",
+                    "flex items-center justify-between gap-2 px-3 py-2 transition-all hover:bg-accent-gray dark:hover:bg-neutral-700",
+                    item?.disabled ? "cursor-not-allowed" : "cursor-pointer",
                   )}
                 >
                   <div className="flex items-center gap-2">
@@ -119,7 +122,7 @@ export const FlexibleDropdown = ({
                       />
                     )}
 
-                    <span className="text-neutral-900 dark:text-white/80">
+                    <span className="text-text-body dark:text-white/80">
                       {item.label ?? item.name}
                     </span>
                   </div>

@@ -77,7 +77,7 @@ export const NetworksDropdown = ({
             });
           }}
           className={classNames(
-            "flex items-center justify-center gap-2 rounded-xl bg-gray-50 p-2.5 shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-neutral-800 dark:focus-visible:ring-offset-neutral-900",
+            "flex h-9 items-center justify-center gap-1 rounded-xl bg-accent-gray p-2.5 duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900",
             iconOnly ? "pointer-events-none" : "",
           )}
         >
@@ -104,7 +104,7 @@ export const NetworksDropdown = ({
           {!iconOnly && (
             <ArrowDown01Icon
               className={classNames(
-                "size-4 text-gray-400 transition-transform duration-300 dark:text-white/50",
+                "text-icon-outline-secondary size-4 transition-transform duration-300 dark:text-white/50",
                 isOpen ? "rotate-180" : "",
               )}
               aria-label="Caret down"

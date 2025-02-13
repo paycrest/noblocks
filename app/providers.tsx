@@ -58,7 +58,14 @@ function PrivyConfigWrapper({
         }}
       >
         <ContextProviders>{children}</ContextProviders>
-        <Toaster position="bottom-right" theme={isDark ? "dark" : "light"} />
+        <Toaster
+          position={
+            typeof window !== "undefined" && window.innerWidth < 640
+              ? "top-center"
+              : "bottom-right"
+          }
+          theme={isDark ? "dark" : "light"}
+        />
       </SmartWalletsProvider>
     </PrivyProvider>
   );

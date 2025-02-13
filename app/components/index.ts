@@ -19,8 +19,8 @@ export {
 
 export { Tooltip } from "./Tooltip";
 export { KycModal } from "./KycModal";
-export { FundWalletModal } from "./FundWalletModal";
 export { CookieConsent } from "./CookieConsent";
+export { NetworkSelectionModal } from "./NetworkSelectionModal";
 
 export { TransactionReceipt } from "./TransactionReceipt";
 export { TransactionForm } from "../pages/TransactionForm";

@@ -8,7 +8,7 @@ const Skeleton = ({ className }: { className?: string }) => (
 
 const NavbarSkeleton = () => (
   <header className="fixed left-0 top-0 z-20 w-full">
-    <nav className="container mx-auto flex items-center justify-between p-4 lg:px-8">
+    <nav className="mx-auto flex items-center justify-between p-4 xl:container lg:px-8">
       <div className="flex items-center gap-2">
         <Skeleton className="h-8 w-32" />
       </div>

@@ -12,6 +12,7 @@ import {
   TransactionForm,
   TransactionPreview,
   TransactionStatus,
+  NetworkSelectionModal,
 } from "./components";
 import { fetchRate, fetchSupportedInstitutions } from "./api/aggregator";
 import {
@@ -93,7 +94,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   };
 
   useEffect(() => {
-    if (!isPageLoading) {
+    if (!isPageLoading || !ready) {
       trackEvent("app_opened");
       trackEvent("page_viewed", { page: "Swap Interface" });
 
@@ -305,9 +306,15 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
       {isPageLoading || !ready ? (
         <Preloader isLoading={true} />
       ) : (
-        <AnimatePresence mode="wait">
-          <AnimatedPage componentKey={currentStep}>{renderStep()}</AnimatedPage>
-        </AnimatePresence>
+        <>
+          <NetworkSelectionModal />
+
+          <AnimatePresence mode="wait">
+            <AnimatedPage componentKey={currentStep}>
+              {renderStep()}
+            </AnimatedPage>
+          </AnimatePresence>
+        </>
       )}
     </>
   );

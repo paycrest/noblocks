@@ -16,16 +16,13 @@ const STORAGE_KEY = "selectedNetwork";
 
 const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
 
-const defaultNetwork =
-  networks.find((network) => network.chain.name === "Base") || networks[0];
-
 const getStoredNetwork = (): Network => {
   const storedNetworkName = localStorage.getItem(STORAGE_KEY);
   if (storedNetworkName) {
     const network = networks.find((n) => n.chain.name === storedNetworkName);
     if (network) return network;
   }
-  return defaultNetwork;
+  return networks[0];
 };
 
 const setStoredNetwork = (network: Network) => {
@@ -33,7 +30,7 @@ const setStoredNetwork = (network: Network) => {
 };
 
 export function NetworkProvider({ children }: { children: React.ReactNode }) {
-  const [selectedNetwork, setSelectedNetwork] = useState(defaultNetwork);
+  const [selectedNetwork, setSelectedNetwork] = useState(networks[0]);
 
   const handleNetworkChange = (network: Network) => {
     setSelectedNetwork(network);

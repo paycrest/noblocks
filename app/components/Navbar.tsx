@@ -28,7 +28,7 @@ export const Navbar = () => {
   const { ready, authenticated, user } = usePrivy();
 
   const { login } = useLogin({
-    onComplete: ({ user, isNewUser, loginMethod }) => {
+    onComplete: async ({ user, isNewUser, loginMethod }) => {
       trackEvent("wallet_connected");
 
       if (user.wallet?.address) {
@@ -38,6 +38,10 @@ export const Navbar = () => {
           createdAt: user.createdAt,
           email: user.email,
         });
+
+        if (isNewUser) {
+          localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address}`);
+        }
       }
     },
   });
@@ -168,7 +172,7 @@ export const Navbar = () => {
                   className="size-5"
                 />
                 <span className="font-medium dark:text-white">
-                  {shortenAddress(user?.wallet?.address ?? "", 4)}
+                  {shortenAddress(user?.wallet?.address ?? "", 6)}
                 </span>
                 <ArrowDown01Icon className="size-4 dark:text-white/50" />
               </button>

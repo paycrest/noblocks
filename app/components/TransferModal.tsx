@@ -3,8 +3,7 @@ import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
 
-import { IoMdClose } from "react-icons/io";
-import { ArrowDown01Icon } from "hugeicons-react";
+import { ArrowDown01Icon, ArrowLeft02Icon } from "hugeicons-react";
 
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { BaseError, encodeFunctionData, erc20Abi, parseUnits } from "viem";
@@ -120,16 +119,18 @@ export const TransferModal = ({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium dark:text-white">Transfer funds</h2>
-
         <button
           type="button"
+          aria-label="Close transfer modal"
           onClick={() => setIsTransferModalOpen(false)}
-          className="rounded-full p-1 text-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/80"
-          title="Close"
+          className="-ml-2 rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
         >
-          <IoMdClose />
+          <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
         </button>
+        <h2 className="text-lg font-semibold text-text-body dark:text-white">
+          Transfer
+        </h2>
+        <div className="w-10" />
       </div>
 
       <form

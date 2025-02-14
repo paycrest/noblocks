@@ -37,7 +37,7 @@ export const CookieConsent = () => {
   useHotjar();
   useMixpanel();
 
-  const [isBannerVisible, setIsBannerVisible] = useState(true);
+  const [isBannerVisible, setIsBannerVisible] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [consent, setConsent] = useState({
     marketing: false,
@@ -147,7 +147,7 @@ export const CookieConsent = () => {
               transition: { delay: 2, duration: 0.3 },
             }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-0 z-[52] w-full space-y-4 rounded-3xl border border-gray-100 bg-gray-50 p-5 shadow-lg transition-colors dark:border-white/10 dark:bg-neutral-800 sm:bottom-5 sm:right-5 sm:max-w-[25.75rem]"
+            className="fixed z-[52] w-full space-y-4 border border-gray-100 bg-gray-50 px-5 py-6 shadow-lg transition-colors dark:border-white/10 dark:bg-neutral-800 max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:rounded-t-[30px] sm:bottom-5 sm:right-5 sm:max-w-[25.75rem] sm:rounded-[30px]"
           >
             <div className="text-text-lavender-500 space-y-3 dark:text-white">
               <h2 className="text-lg font-semibold">We use cookies</h2>
@@ -202,7 +202,7 @@ export const CookieConsent = () => {
                 animate="visible"
                 exit="hidden"
                 variants={modalVariants}
-                className="w-full max-w-[25.75rem] space-y-4 rounded-t-[30px] bg-gray-50 p-5 shadow-lg dark:border-white/10 dark:bg-surface-overlay dark:shadow-xl sm:rounded-[30px]"
+                className="w-full space-y-4 rounded-t-[30px] bg-gray-50 px-5 py-6 shadow-lg dark:border-white/10 dark:bg-surface-overlay dark:shadow-xl sm:max-w-[25.75rem] sm:rounded-[30px]"
               >
                 <div className="text-text-lavender-500 space-y-3 dark:text-white">
                   <DialogTitle className="text-lg font-semibold">
@@ -248,7 +248,7 @@ export const CookieConsent = () => {
                   />
                 </div>
 
-                <div className="flex space-x-2">
+                <div className="flex space-x-2 max-sm:pb-4">
                   <Button
                     onClick={handleRejectNonEssential}
                     className="text-text-lavender-500 flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"

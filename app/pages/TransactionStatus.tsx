@@ -131,12 +131,12 @@ export function TransactionStatus({
           }
         }
       } catch (error) {
-        console.error("Error fetching order status:", error);
+        // fail silently
       }
     };
 
     getOrderDetails();
-    intervalId = setInterval(getOrderDetails, 3000);
+    intervalId = setInterval(getOrderDetails, 10000);
 
     return () => {
       if (intervalId) clearInterval(intervalId);

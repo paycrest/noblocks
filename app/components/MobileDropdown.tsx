@@ -66,7 +66,6 @@ export const MobileDropdown = ({
   const { fundWallet } = useFundWallet({
     onUserExited: ({ fundingMethod, balance, chain, address }) => {
       refreshBalance();
-      onClose();
       trackEvent("funding_completed", {
         wallet: "smart_wallet",
         address,
@@ -486,18 +485,41 @@ export const MobileDropdown = ({
         )}
       </AnimatePresence>
 
-      <Dialog
-        open={isTransferModalOpen}
-        onClose={() => setIsTransferModalOpen(false)}
-        className="relative z-50"
-      >
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
-        <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
-          <DialogPanel className="relative max-h-[90vh] w-full max-w-[25.75rem] overflow-y-auto rounded-2xl bg-white p-5 text-sm shadow-xl dark:bg-surface-overlay">
-            <TransferModal setIsTransferModalOpen={setIsTransferModalOpen} />
-          </DialogPanel>
-        </div>
-      </Dialog>
+      <AnimatePresence>
+        {isTransferModalOpen && (
+          <Dialog
+            open={isTransferModalOpen}
+            onClose={() => setIsTransferModalOpen(false)}
+            className="relative z-50"
+          >
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+            />
+            <div className="fixed inset-0 flex w-screen items-end justify-center">
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 30,
+                }}
+              >
+                <DialogPanel className="relative max-h-[90vh] w-full overflow-y-auto rounded-t-[30px] bg-white p-5 text-sm dark:bg-surface-overlay">
+                  <TransferModal
+                    setIsTransferModalOpen={setIsTransferModalOpen}
+                  />
+                </DialogPanel>
+              </motion.div>
+            </div>
+          </Dialog>
+        )}
+      </AnimatePresence>
     </>
   );
 };

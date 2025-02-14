@@ -189,7 +189,7 @@ export const TransactionForm = ({
                       variant={slideInOut}
                       className="flex items-center gap-2"
                     >
-                      <Wallet01Icon className="text-icon-outline-secondary size-4 dark:text-white/50" />
+                      <Wallet01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
                       <span
                         className={amountSent > balance ? "text-red-500" : ""}
                       >
@@ -327,7 +327,7 @@ export const TransactionForm = ({
                 onSelect={(selectedCurrency) =>
                   setValue("currency", selectedCurrency)
                 }
-                className="min-w-52"
+                className="min-w-60"
                 isCTA={
                   // Show CTA styling when:
                   // 1. No currency is selected AND
@@ -354,7 +354,7 @@ export const TransactionForm = ({
 
               {/* Memo */}
               <div className="relative">
-                <NoteEditIcon className="text-icon-outline-disabled absolute left-3 top-3.5 size-4 dark:text-white/30" />
+                <NoteEditIcon className="absolute left-3 top-3.5 size-4 text-icon-outline-disabled dark:text-white/30" />
                 <input
                   type="text"
                   id="memo"
@@ -362,7 +362,7 @@ export const TransactionForm = ({
                     formMethods.setValue("memo", e.target.value);
                   }}
                   value={formMethods.watch("memo")}
-                  className={`placeholder:text-text-placeholder min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
+                  className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
                     errors.memo
                       ? "text-red-500 dark:text-red-500"
                       : "text-neutral-900 dark:text-white/80"

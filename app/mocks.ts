@@ -3,29 +3,29 @@ import { arbitrum, base, bsc, optimism, polygon, scroll } from "viem/chains";
 export const currencies = [
   {
     name: "KES",
-    label: "Kenyan Shilling",
+    label: "Kenyan Shilling (KES)",
     imageUrl: "/logos/kes-logo.svg",
   },
   {
     name: "NGN",
-    label: "Nigerian Naira",
+    label: "Nigerian Naira (NGN)",
     imageUrl: "/logos/ngn-logo.svg",
   },
   {
     name: "GHS",
-    label: "Ghanaian Cedi",
+    label: "Ghanaian Cedi (GHS)",
     imageUrl: "/logos/ghs-logo.svg",
     disabled: true,
   },
   {
     name: "ARS",
-    label: "Argentine Peso",
+    label: "Argentine Peso (ARS)",
     imageUrl: "/logos/ars-logo.png",
     disabled: true,
   },
   {
     name: "BRL",
-    label: "Brazilian Real",
+    label: "Brazilian Real (BRL)",
     imageUrl: "/logos/brl-logo.png",
     disabled: true,
   },

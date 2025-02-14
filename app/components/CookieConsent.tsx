@@ -37,7 +37,7 @@ export const CookieConsent = () => {
   useHotjar();
   useMixpanel();
 
-  const [isBannerVisible, setIsBannerVisible] = useState(false);
+  const [isBannerVisible, setIsBannerVisible] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [consent, setConsent] = useState({
     marketing: false,
@@ -114,7 +114,7 @@ export const CookieConsent = () => {
       <Checkbox
         checked={checked}
         onChange={onChange}
-        className="data-[checked]:bg-lavender-500 dark:data-[checked]:bg-lavender-500 data-[checked]:border-lavender-500 dark:data-[checked]:border-lavender-500 group ml-auto mt-1 block size-5 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-gray-100 dark:border-white/30 dark:bg-transparent"
+        className="group ml-auto mt-1 block size-5 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-gray-100 data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:bg-transparent dark:data-[checked]:border-lavender-500 dark:data-[checked]:bg-lavender-500"
       >
         <svg
           className="stroke-white opacity-0 group-data-[checked]:opacity-100"
@@ -147,7 +147,7 @@ export const CookieConsent = () => {
               transition: { delay: 2, duration: 0.3 },
             }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-5 right-5 z-[52] w-full max-w-[25.75rem] space-y-4 rounded-3xl border border-gray-100 bg-gray-50 p-5 shadow-lg transition-colors dark:border-white/10 dark:bg-neutral-800"
+            className="fixed bottom-0 z-[52] w-full space-y-4 rounded-3xl border border-gray-100 bg-gray-50 p-5 shadow-lg transition-colors dark:border-white/10 dark:bg-neutral-800 sm:bottom-5 sm:right-5 sm:max-w-[25.75rem]"
           >
             <div className="text-text-lavender-500 space-y-3 dark:text-white">
               <h2 className="text-lg font-semibold">We use cookies</h2>
@@ -164,7 +164,7 @@ export const CookieConsent = () => {
               </p>
             </div>
 
-            <div className="flex space-x-4">
+            <div className="flex gap-4 max-xsm:flex-col">
               <Button
                 onClick={handleCustomize}
                 className="text-text-lavender-500 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
@@ -173,13 +173,13 @@ export const CookieConsent = () => {
               </Button>
               <Button
                 onClick={handleRejectNonEssential}
-                className="text-text-lavender-500 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                className="text-text-lavender-500 min-w-fit bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
               >
                 Reject all
               </Button>
               <Button
                 onClick={handleAcceptAll}
-                className="bg-lavender-500 flex-1 text-white hover:opacity-80"
+                className="min-w-fit flex-1 bg-lavender-500 text-white hover:opacity-80"
               >
                 Accept all
               </Button>
@@ -193,16 +193,16 @@ export const CookieConsent = () => {
           <Dialog
             open={isModalOpen}
             onClose={() => setIsModalOpen(false)}
-            className="relative z-[52]"
+            className="relative z-[52]" // network selection modal has z-53
           >
             <DialogBackdrop className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm backdrop-filter transition-opacity data-[closed]:opacity-0" />
-            <DialogPanel className="fixed inset-0 flex items-center justify-center p-4 transition-transform data-[closed]:scale-95 data-[closed]:opacity-0">
+            <DialogPanel className="fixed inset-0 flex items-end justify-center transition-transform data-[closed]:scale-95 data-[closed]:opacity-0 sm:items-center sm:p-4">
               <motion.div
                 initial="hidden"
                 animate="visible"
                 exit="hidden"
                 variants={modalVariants}
-                className="dark:bg-surface-overlay w-full max-w-[25.75rem] space-y-4 rounded-3xl bg-gray-50 p-5 shadow-lg dark:border-white/10 dark:bg-neutral-800 dark:shadow-xl"
+                className="w-full max-w-[25.75rem] space-y-4 rounded-t-[30px] bg-gray-50 p-5 shadow-lg dark:border-white/10 dark:bg-surface-overlay dark:shadow-xl sm:rounded-[30px]"
               >
                 <div className="text-text-lavender-500 space-y-3 dark:text-white">
                   <DialogTitle className="text-lg font-semibold">
@@ -257,7 +257,7 @@ export const CookieConsent = () => {
                   </Button>
                   <Button
                     onClick={handleAcceptSelected}
-                    className="bg-lavender-500 flex-1 text-white"
+                    className="flex-1 bg-lavender-500 text-white"
                   >
                     Accept
                   </Button>

@@ -71,7 +71,7 @@ export const ThemeSwitch = () => {
       />
       <IconButton
         icon={
-          <Moon02Icon className="size-5 text-gray-400 dark:text-white/50" />
+          <Moon02Icon className="size-5 text-gray-400 dark:text-white/40" />
         }
         onClick={() => setTheme("dark")}
         isActive={theme === "dark"}

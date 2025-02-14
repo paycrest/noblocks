@@ -79,7 +79,7 @@ export const WalletDetails = () => {
           }}
           className="flex h-9 items-center justify-center gap-2 rounded-xl bg-accent-gray px-2.5 py-2.5 transition-colors duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900 sm:py-0"
         >
-          <Wallet01Icon className="text-icon-outline-secondary size-5 dark:text-white/50" />
+          <Wallet01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
           <div className="h-10 w-px border-r border-dashed border-gray-100 dark:border-white/10" />
           <div className="flex items-center gap-1.5 dark:text-white/80">
             <p>
@@ -88,7 +88,7 @@ export const WalletDetails = () => {
             <ArrowDown01Icon
               aria-label="Caret down"
               className={classNames(
-                "text-icon-outline-secondary mx-1 size-4 transition-transform duration-300 dark:text-white/50",
+                "mx-1 size-4 text-icon-outline-secondary transition-transform duration-300 dark:text-white/50",
                 isOpen ? "rotate-180" : "",
               )}
             />
@@ -204,25 +204,42 @@ export const WalletDetails = () => {
         </AnimatePresence>
       </div>
 
-      <Dialog
-        open={isTransferModalOpen}
-        onClose={() => setIsTransferModalOpen(false)}
-        className="relative z-50"
-      >
-        <DialogBackdrop
-          transition
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-300 ease-out data-[closed]:opacity-0"
-        />
-
-        <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
-          <DialogPanel
-            transition
-            className="relative max-h-[90vh] w-full max-w-[25.75rem] overflow-y-auto rounded-2xl bg-white p-5 text-sm shadow-xl transition-all duration-300 ease-out data-[closed]:scale-95 data-[closed]:opacity-0 dark:bg-surface-overlay"
+      <AnimatePresence>
+        {isTransferModalOpen && (
+          <Dialog
+            open={isTransferModalOpen}
+            onClose={() => setIsTransferModalOpen(false)}
+            className="relative z-50"
           >
-            <TransferModal setIsTransferModalOpen={setIsTransferModalOpen} />
-          </DialogPanel>
-        </div>
-      </Dialog>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+            />
+
+            <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 30,
+                }}
+              >
+                <DialogPanel className="relative max-h-[90vh] w-full max-w-[25.75rem] overflow-y-auto rounded-2xl bg-white p-5 text-sm shadow-xl dark:bg-surface-overlay">
+                  <TransferModal
+                    setIsTransferModalOpen={setIsTransferModalOpen}
+                  />
+                </DialogPanel>
+              </motion.div>
+            </div>
+          </Dialog>
+        )}
+      </AnimatePresence>
     </>
   );
 };

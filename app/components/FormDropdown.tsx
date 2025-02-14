@@ -26,6 +26,7 @@ export const FormDropdown = ({
       defaultSelectedItem={defaultSelectedItem}
       onSelect={onSelect}
       className={className}
+      mobileTitle={defaultTitle}
     >
       {({ selectedItem, isOpen, toggleDropdown }) => (
         <button

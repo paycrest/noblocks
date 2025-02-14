@@ -1,5 +1,5 @@
 "use client";
-import { Dialog, DialogPanel } from "@headlessui/react";
+import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { useState, useEffect } from "react";
@@ -91,16 +91,16 @@ export const NetworkSelectionModal = () => {
                       <motion.div
                         key="networks"
                         layout
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 20 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                         transition={{ duration: 0.2, type: "spring" }}
                         className="space-y-4"
                       >
                         <div className="flex items-center justify-between">
-                          <h2 className="text-center text-lg font-semibold text-text-body dark:text-white">
+                          <DialogTitle className="text-center text-lg font-semibold text-text-body dark:text-white">
                             Choose network
-                          </h2>
+                          </DialogTitle>
                           <button
                             type="button"
                             title="Close"
@@ -161,9 +161,9 @@ export const NetworkSelectionModal = () => {
                       <motion.div
                         key="info"
                         layout
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
                         className="space-y-6"
                       >

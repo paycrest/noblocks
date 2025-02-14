@@ -354,7 +354,7 @@ export const TransactionForm = ({
 
               {/* Memo */}
               <div className="relative">
-                <NoteEditIcon className="absolute left-3 top-3.5 size-4 text-icon-outline-disabled dark:text-white/30" />
+                <NoteEditIcon className="absolute left-3 top-3.5 size-4 text-icon-outline-secondary dark:text-white/50" />
                 <input
                   type="text"
                   id="memo"

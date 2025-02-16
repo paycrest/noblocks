@@ -2,11 +2,15 @@
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { useOutsideClick } from "../hooks";
-import { MdOutlineLockClock } from "react-icons/md";
 import { dropdownVariants } from "./AnimatedComponents";
 import { useEffect, useRef, useState, ReactNode } from "react";
 import { Cancel01Icon, Tick02Icon } from "hugeicons-react";
-import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
+import {
+  Dialog,
+  DialogPanel,
+  DialogTitle,
+  DialogBackdrop,
+} from "@headlessui/react";
 
 export interface DropdownItem {
   name: string;
@@ -43,6 +47,7 @@ const DropdownContent = ({
   handleChange: (item: DropdownItem) => void;
 }) => (
   <ul
+    aria-label="Dropdown items"
     role="listbox"
     aria-labelledby="dropdown-items"
     className="font-normal max-sm:space-y-1"
@@ -171,68 +176,83 @@ export const FlexibleDropdown = ({
               />
             </motion.div>
 
-            {/* Mobile modal - simplified version */}
-            <Dialog
-              as={motion.div}
-              static
-              open={isOpen && isMobile()}
-              onClose={() => setIsOpen(false)}
-              className="relative z-[53] sm:hidden"
-            >
-              <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
-              <div className="fixed inset-0 flex w-screen items-end justify-center">
-                <DialogPanel className="w-full space-y-4 overflow-hidden rounded-t-[30px] border border-border-light bg-white px-5 py-6 shadow-xl dark:border-white/5 dark:bg-surface-overlay">
-                  <div className="flex items-center justify-between">
-                    <DialogTitle className="text-center text-lg font-semibold text-text-body dark:text-white">
-                      {mobileTitle}
-                    </DialogTitle>
-                    <button
-                      title="Close dropdown"
-                      type="button"
-                      onClick={() => setIsOpen(false)}
-                      className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
-                    >
-                      <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
-                    </button>
-                  </div>
-
-                  <div className="max-h-[50vh] space-y-1 overflow-y-auto">
-                    {data.map((item) => (
+            {/* Mobile modal */}
+            {isMobile() && (
+              <Dialog
+                static
+                unmount={false}
+                open={isOpen}
+                as={motion.div}
+                key="mobile-dialog"
+                initial="closed"
+                animate="open"
+                exit="closed"
+                variants={dropdownVariants}
+                className="relative z-[53] sm:hidden"
+                onClose={() => setIsOpen(false)}
+              >
+                <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+                <motion.div
+                  initial="closed"
+                  animate="open"
+                  exit="closed"
+                  variants={dropdownVariants}
+                  className="fixed inset-0 flex w-screen items-end justify-center"
+                >
+                  <DialogPanel className="w-full rounded-t-[30px] border border-border-light bg-white px-5 py-6 dark:border-white/5 dark:bg-surface-overlay">
+                    <div className="flex items-center justify-between">
+                      <DialogTitle className="text-center text-lg font-semibold text-text-body dark:text-white">
+                        {mobileTitle}
+                      </DialogTitle>
                       <button
-                        key={item.name}
+                        title="Close dropdown"
                         type="button"
-                        disabled={item.disabled}
-                        onClick={() => handleMobileSelect(item)}
-                        className={classNames(
-                          "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left transition-all hover:bg-accent-gray dark:hover:bg-neutral-700",
-                          item.disabled
-                            ? "cursor-not-allowed opacity-50"
-                            : "cursor-pointer",
-                        )}
+                        onClick={() => setIsOpen(false)}
+                        className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
                       >
-                        <div className="flex items-center gap-3">
-                          {item.imageUrl && (
-                            <Image
-                              src={item.imageUrl}
-                              alt={item.name}
-                              width={24}
-                              height={24}
-                              className="h-6 w-6 rounded-full object-cover"
-                            />
-                          )}
-                          <span className="text-text-body dark:text-white/80">
-                            {item.label ?? item.name}
-                          </span>
-                        </div>
-                        {!item.disabled && selectedItem?.name === item.name && (
-                          <Tick02Icon className="text-sm text-gray-400 dark:text-white/50" />
-                        )}
+                        <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
                       </button>
-                    ))}
-                  </div>
-                </DialogPanel>
-              </div>
-            </Dialog>
+                    </div>
+
+                    <div className="max-h-[50vh] space-y-1 overflow-y-auto">
+                      {data.map((item) => (
+                        <button
+                          key={item.name}
+                          type="button"
+                          disabled={item.disabled}
+                          onClick={() => handleMobileSelect(item)}
+                          className={classNames(
+                            "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left transition-all hover:bg-accent-gray dark:hover:bg-neutral-700",
+                            item.disabled
+                              ? "cursor-not-allowed opacity-50"
+                              : "cursor-pointer",
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            {item.imageUrl && (
+                              <Image
+                                src={item.imageUrl}
+                                alt={item.name}
+                                width={24}
+                                height={24}
+                                className="h-6 w-6 rounded-full object-cover"
+                              />
+                            )}
+                            <span className="text-text-body dark:text-white/80">
+                              {item.label ?? item.name}
+                            </span>
+                          </div>
+                          {!item.disabled &&
+                            selectedItem?.name === item.name && (
+                              <Tick02Icon className="text-sm text-gray-400 dark:text-white/50" />
+                            )}
+                        </button>
+                      ))}
+                    </div>
+                  </DialogPanel>
+                </motion.div>
+              </Dialog>
+            )}
           </>
         )}
       </AnimatePresence>

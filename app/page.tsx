@@ -1,6 +1,6 @@
 "use client";
 import { useForm } from "react-hook-form";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense, JSX } from "react";
 import { AnimatePresence } from "framer-motion";
 import Cookies from "js-cookie";
 import { useSearchParams } from "next/navigation";
@@ -34,14 +34,14 @@ import { connected } from "process";
  * Represents the Home component.
  * This component handles the logic and rendering of the home page.
  */
-export default function Home() {
-  // const { authenticated } = usePrivy();
+
+function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
+//   const { authenticated } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
-  // const { selectedNetwork } = useNetwork();
-  const searchParams = useSearchParams();
+//   const { selectedNetwork } = useNetwork();
   const { isConnected, embeddedWalletInfo, address } = useAppKitAccount();
   const { caipNetwork, caipNetworkId, chainId, switchNetwork } =
-    useAppKitNetwork();
+        useAppKitNetwork();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -294,5 +294,22 @@ export default function Home() {
         <AnimatedPage componentKey={currentStep}>{renderStep()}</AnimatedPage>
       </AnimatePresence>
     </>
+  );
+}
+
+function SearchParamsWrapper(props: {
+  children: (sp: URLSearchParams) => JSX.Element;
+}) {
+  const searchParams = useSearchParams();
+  return props.children(searchParams);
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<Preloader isLoading={true} />}>
+      <SearchParamsWrapper>
+        {(sp) => <HomeImpl searchParams={sp} />}
+      </SearchParamsWrapper>
+    </Suspense>
   );
 }

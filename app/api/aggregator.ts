@@ -91,7 +91,6 @@ export const fetchOrderDetails = async (
     );
     return response.data;
   } catch (error) {
-    console.error("Error fetching order details:", error);
     throw error;
   }
 };

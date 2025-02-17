@@ -88,11 +88,6 @@ export function TransactionStatus({
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
 
-    if (["validated", "settled", "refunded"].includes(transactionStatus)) {
-      // If order is completed, we can stop polling
-      return;
-    }
-
     const getOrderDetails = async () => {
       try {
         const orderDetailsResponse = await fetchOrderDetails(
@@ -122,6 +117,7 @@ export function TransactionStatus({
               refreshBalance();
             }
             setCompletedAt(orderDetailsResponse.data.updatedAt);
+            clearInterval(intervalId);
           }
 
           if (orderDetailsResponse.data.status === "processing") {
@@ -135,12 +131,12 @@ export function TransactionStatus({
           }
         }
       } catch (error) {
-        console.error("Error fetching order status:", error);
+        // fail silently
       }
     };
 
     getOrderDetails();
-    intervalId = setInterval(getOrderDetails, 3000);
+    intervalId = setInterval(getOrderDetails, 10000);
 
     return () => {
       if (intervalId) clearInterval(intervalId);

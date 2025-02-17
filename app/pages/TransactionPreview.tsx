@@ -46,7 +46,6 @@ export const TransactionPreview = ({
 }: TransactionPreviewProps) => {
   const { user } = usePrivy();
   const { client } = useSmartWallets();
-  const { wallets } = useWallets();
   const { fundWallet } = useFundWallet();
 
   const { selectedNetwork } = useNetwork();
@@ -143,15 +142,9 @@ export const TransactionPreview = ({
         throw new Error("Smart wallet not found");
       }
 
-      const externalWalletAccount = wallets.find(
-        (account) => account.connectorType === "injected",
-      );
-
       await client.switchChain({
         id: selectedNetwork.chain.id,
       });
-
-      await externalWalletAccount?.switchChain(selectedNetwork.chain.id);
 
       const params = await prepareCreateOrderParams();
       setCreatedAt(new Date().toISOString());
@@ -238,14 +231,14 @@ export const TransactionPreview = ({
   const getOrderId = async () => {
     let intervalId: NodeJS.Timeout;
 
-    const publicClient = createPublicClient({
-      chain: client?.chain,
-      transport: http(),
-    });
-
-    if (!publicClient || !user || isOrderCreatedLogsFetched) return;
-
     const getOrderCreatedLogs = async () => {
+      const publicClient = createPublicClient({
+        chain: selectedNetwork.chain,
+        transport: http(),
+      });
+
+      if (!publicClient || !user || isOrderCreatedLogsFetched) return;
+
       try {
         if (currentStep !== "preview") {
           return () => {
@@ -292,7 +285,7 @@ export const TransactionPreview = ({
     getOrderCreatedLogs();
 
     // Set up polling
-    intervalId = setInterval(getOrderCreatedLogs, 1000);
+    intervalId = setInterval(getOrderCreatedLogs, 2000);
 
     // Cleanup function
     return () => {

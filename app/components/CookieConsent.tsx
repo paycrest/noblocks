@@ -149,7 +149,7 @@ export const CookieConsent = () => {
             exit={{ opacity: 0, y: 50 }}
             className="fixed p-4 max-sm:bottom-0 max-sm:left-0 max-sm:right-0 sm:bottom-5 sm:right-5"
           >
-            <div className="z-[52] w-full space-y-4 rounded-3xl border border-border-light bg-background-neutral px-5 py-6 shadow-lg transition-colors dark:border-white/5 dark:bg-surface-overlay sm:max-w-[25.75rem]">
+            <div className="z-[52] w-full space-y-4 rounded-[30px] border border-border-light bg-background-neutral px-5 py-6 shadow-lg transition-colors dark:border-white/5 dark:bg-surface-overlay sm:max-w-[25.75rem] sm:rounded-3xl">
               <div className="text-text-lavender-500 space-y-3 dark:text-white">
                 <h2 className="text-lg font-semibold">We use cookies</h2>
                 <p className="text-sm dark:text-white/80">

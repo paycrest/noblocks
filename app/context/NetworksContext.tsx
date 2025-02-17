@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { networks } from "../mocks";
-import { trackEvent } from "../hooks/analytics";
 
 type Network = {
   chain: any;
@@ -35,7 +34,6 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
   const handleNetworkChange = (network: Network) => {
     setSelectedNetwork(network);
     setStoredNetwork(network);
-    trackEvent("network_switched", { network: network.chain.name });
   };
 
   useEffect(() => {

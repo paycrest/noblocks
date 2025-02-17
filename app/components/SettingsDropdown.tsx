@@ -9,7 +9,6 @@ import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
 import { classNames, shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
-import { trackEvent } from "../hooks/analytics";
 import {
   AccessIcon,
   Copy01Icon,
@@ -46,7 +45,6 @@ export const SettingsDropdown = () => {
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
-      trackEvent("sign_out");
     },
   });
 
@@ -75,7 +73,6 @@ export const SettingsDropdown = () => {
         aria-haspopup="true"
         onClick={() => {
           setIsOpen(!isOpen);
-          trackEvent("cta_clicked", { cta: "Settings Dropdown" });
         }}
         className="flex h-9 items-center justify-center gap-2 rounded-xl bg-accent-gray p-2 transition-colors duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900"
       >

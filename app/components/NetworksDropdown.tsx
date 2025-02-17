@@ -8,10 +8,7 @@ import { classNames } from "../utils";
 import { FlexibleDropdown } from "./FlexibleDropdown";
 import { useStep } from "../context/StepContext";
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance } from "../context";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-import { useWallets } from "@privy-io/react-auth";
-import { trackEvent } from "../hooks/analytics";
 import { ArrowDown01Icon } from "hugeicons-react";
 
 interface NetworksDropdownProps {
@@ -72,9 +69,6 @@ export const NetworksDropdown = ({
           type="button"
           onClick={() => {
             toggleDropdown();
-            trackEvent("cta_clicked", {
-              cta: "Networks Dropdown",
-            });
           }}
           className={classNames(
             "flex h-9 items-center justify-center gap-1 rounded-xl bg-accent-gray p-2.5 duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900",
@@ -104,7 +98,7 @@ export const NetworksDropdown = ({
           {!iconOnly && (
             <ArrowDown01Icon
               className={classNames(
-                "text-icon-outline-secondary size-4 transition-transform duration-300 dark:text-white/50",
+                "size-4 text-icon-outline-secondary transition-transform duration-300 dark:text-white/50",
                 isOpen ? "rotate-180" : "",
               )}
               aria-label="Caret down"

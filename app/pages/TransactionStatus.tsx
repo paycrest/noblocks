@@ -71,7 +71,7 @@ export function TransactionStatus({
 }: TransactionStatusProps) {
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
-  const { refreshBalance } = useBalance();
+  const { refreshBalance, smartWalletBalance } = useBalance();
   const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
   const [createdHash, setCreatedHash] = useState("");
@@ -159,32 +159,35 @@ export function TransactionStatus({
   useEffect(() => {
     if (!isTracked) {
       if (["validated", "settled"].includes(transactionStatus)) {
-        trackEvent("swap_completed", {
-          recipient: recipientName,
-          amount,
-          token,
-          network: selectedNetwork.chain.name,
-        });
-
-        trackEvent("transaction_completed", {
-          recipient: recipientName,
-          amount,
-          token,
-          network: selectedNetwork.chain.name,
+        trackEvent("Swap completed", {
+          Amount: amount,
+          "Send token": token,
+          "Receive currency": currency,
+          "Recipient name": recipientName,
+          "Recipient bank": getInstitutionNameByCode(
+            String(formMethods.watch("institution")),
+            supportedInstitutions,
+          ),
+          "Noblocks balance": smartWalletBalance?.balances[token] || 0,
+          "Swap date": createdAt,
+          "Transaction duration": calculateDuration(createdAt, completedAt),
         });
       } else if (transactionStatus === "refunded") {
-        trackEvent("swap_failed", {
-          recipient: recipientName,
-          amount,
-          token,
-          network: selectedNetwork.chain.name,
+        trackEvent("Swap failed", {
+          Amount: amount,
+          "Send token": token,
+          "Receive currency": currency,
+          "Recipient name": recipientName,
+          "Recipient bank": getInstitutionNameByCode(
+            String(formMethods.watch("institution")),
+            supportedInstitutions,
+          ),
+          "Noblocks balance": smartWalletBalance?.balances[token] || 0,
+          "Swap date": createdAt,
+          "Reason for failure": "Transaction failed and refunded",
+          "Transaction duration": calculateDuration(createdAt, completedAt),
         });
       }
-
-      trackEvent("transaction_status", {
-        status: transactionStatus,
-        timestamp: new Date().toISOString(),
-      });
 
       setIsTracked(true);
     }
@@ -229,23 +232,8 @@ export function TransactionStatus({
     if (transactionStatus === "refunded") {
       clearTransactionStatus();
 
-      trackEvent("retry_swap", {
-        recipient: recipientName,
-        amount,
-        token,
-        network: selectedNetwork.chain.name,
-      });
-
-      trackEvent("post_swap_action", {
-        action: "Retried transaction",
-      });
-
       setCurrentStep(STEPS.FORM);
     } else {
-      trackEvent("post_swap_action", {
-        action: "Started new transaction",
-      });
-
       window.location.reload();
     }
   };
@@ -255,22 +243,8 @@ export function TransactionStatus({
     setAddToBeneficiaries(checked);
     if (checked) {
       addBeneficiary();
-
-      trackEvent("beneficiary_added", {
-        recipient: recipientName,
-      });
-      trackEvent("post_swap_action", {
-        action: "Added recipient to beneficiaries",
-      });
     } else {
       removeRecipient();
-
-      trackEvent("beneficiary_removed", {
-        recipient: recipientName,
-      });
-      trackEvent("post_swap_action", {
-        action: "Removed recipient from beneficiaries",
-      });
     }
   };
 
@@ -688,14 +662,6 @@ export function TransactionStatus({
                     target="_blank"
                     href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
                     className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
-                    onClick={() => {
-                      trackEvent("social_share_clicked", {
-                        platform: "Twitter",
-                      });
-                      trackEvent("post_swap_action", {
-                        action: "Shared transaction on Twitter",
-                      });
-                    }}
                   >
                     {resolvedTheme === "dark" ? (
                       <XIconDarkTheme className="size-5" />
@@ -710,14 +676,6 @@ export function TransactionStatus({
                     target="_blank"
                     href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
                     className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
-                    onClick={() => {
-                      trackEvent("social_share_clicked", {
-                        platform: "Warpcast",
-                      });
-                      trackEvent("post_swap_action", {
-                        action: "Shared transaction on Warpcast",
-                      });
-                    }}
                   >
                     {resolvedTheme === "dark" ? (
                       <FarcasterIconDarkTheme className="size-5" />

@@ -55,8 +55,34 @@ export const TransactionForm = ({
   const balance = smartWalletBalance?.balances[token] ?? 0;
 
   const { fundWallet } = useFundWallet({
-    onUserExited: () => {
-      refreshBalance();
+    onUserExited: ({ fundingMethod, chain }) => {
+      // NOTE: This is an inaccurate way of tracking funding status
+      // Privy doesn't provide detailed funding status information
+      // Available variables in onUserExited: address, chain, fundingMethod, balance
+      // Limitations:
+      // 1. fundingMethod only indicates user selected a method, not if funding completed
+      // 2. User can select method and cancel, but it still records as "completed"
+      // 3. No way to track funding errors
+      // 4. balance is returned as bigint and doesn't specify token type
+      // 5. No webhook or callback for actual funding confirmation
+      if (fundingMethod) {
+        refreshBalance();
+        trackEvent("Funding Completed", {
+          "Funding type": fundingMethod,
+          Amount: "Not available on Privy",
+          Network: chain.name,
+          Token: "USDC", // privy only supports USDC
+          "Funding date": new Date().toISOString(),
+        });
+      } else {
+        trackEvent("Funding cancelled", {
+          "Funding type": "User exited the funding process",
+          Amount: "Not available on Privy",
+          Network: chain.name,
+          Token: "USDC", // privy only supports USDC
+          "Funding date": new Date().toISOString(),
+        });
+      }
     },
   });
 
@@ -68,6 +94,10 @@ export const TransactionForm = ({
     const selectedToken = fetchSupportedTokens(
       selectedNetwork.chain.name,
     )?.find((t) => t.symbol === token);
+
+    trackEvent("Funding started", {
+      "Entry point": "Fund button on swap interface",
+    });
 
     await fundWallet(address, {
       amount: amountToFund,
@@ -95,7 +125,6 @@ export const TransactionForm = ({
     if (balance > 0) {
       setValue("amountSent", balance);
       setIsReceiveInputActive(false);
-      trackEvent("cta_clicked", { cta: "Max balance" });
     }
   };
 
@@ -250,10 +279,6 @@ export const TransactionForm = ({
                 defaultSelectedItem={token}
                 onSelect={(selectedToken) => {
                   setValue("token", selectedToken);
-                  trackEvent("token_selected", {
-                    token: selectedToken,
-                    network: selectedNetwork.chain.name,
-                  });
                 }}
               />
             </div>
@@ -411,9 +436,7 @@ export const TransactionForm = ({
               )}
               <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">
                 <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
-                <p className="min-w-fit">
-                  Swap usually completes in 30s
-                </p>
+                <p className="min-w-fit">Swap usually completes in 30s</p>
               </div>
             </AnimatedComponent>
           )}

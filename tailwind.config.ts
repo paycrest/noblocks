@@ -55,6 +55,7 @@ const config: Config = {
         },
         input: {
           destructive: "#F53D6B",
+          focus: "#141414",
         },
         icon: {
           outline: {

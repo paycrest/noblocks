@@ -2,11 +2,7 @@
 import { ImSpinner } from "react-icons/im";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ArrowDown01Icon,
-  InformationSquareIcon,
-  Tick02Icon,
-} from "hugeicons-react";
+import { ArrowDown01Icon, InformationSquareIcon } from "hugeicons-react";
 
 import { AnimatedFeedbackItem, dropdownVariants } from "../AnimatedComponents";
 import { InstitutionProps } from "@/app/types";
@@ -25,6 +21,7 @@ import {
   RecipientDetailsFormProps,
 } from "./types";
 import { SavedBeneficiariesModal } from "./SavedBeneficiariesModal";
+import { SelectBankModal } from "./SelectBankModal";
 
 export const RecipientDetailsForm = ({
   formMethods,
@@ -49,6 +46,7 @@ export const RecipientDetailsForm = ({
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  const [isSelectBankModalOpen, setIsSelectBankModalOpen] = useState(false);
   const [bankSearchTerm, setBankSearchTerm] = useState("");
 
   const [isInstitutionsDropdownOpen, setIsInstitutionsDropdownOpen] =
@@ -67,7 +65,6 @@ export const RecipientDetailsForm = ({
     useState<RecipientDetails | null>(null);
 
   const institutionsDropdownRef = useRef<HTMLDivElement>(null);
-  const bankSearchInputRef = useRef<HTMLInputElement>(null);
   useOutsideClick({
     ref: institutionsDropdownRef,
     handler: () => setIsInstitutionsDropdownOpen(false),
@@ -272,17 +269,12 @@ export const RecipientDetailsForm = ({
 
         <div className="flex flex-col items-start gap-4 sm:flex-row">
           {/* Bank */}
-          <div ref={institutionsDropdownRef} className="w-full flex-1 sm:w-1/2">
+          <div className="w-full flex-1 sm:w-1/2">
             <button
               type="button"
-              onClick={() => {
-                setIsInstitutionsDropdownOpen(!isInstitutionsDropdownOpen);
-                if (!isInstitutionsDropdownOpen) {
-                  setTimeout(() => bankSearchInputRef.current?.focus(), 0);
-                }
-              }}
+              onClick={() => setIsSelectBankModalOpen(true)}
               disabled={isFetchingInstitutions}
-              className="border-border-input flex w-full items-center justify-between gap-2 rounded-xl border px-4 py-2.5 text-left text-sm text-neutral-900 outline-none transition-all hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:text-white/80 dark:hover:bg-white/5 dark:focus:bg-neutral-950 dark:focus-visible:ring-offset-neutral-900"
+              className="flex w-full items-center justify-between gap-2 rounded-xl border border-border-input px-4 py-2.5 text-left text-sm dark:border-white/20 dark:text-white/80"
             >
               {selectedInstitution ? (
                 <p className="truncate">{selectedInstitution.name}</p>
@@ -291,7 +283,6 @@ export const RecipientDetailsForm = ({
                   Select bank
                 </p>
               )}
-
               {isFetchingInstitutions ? (
                 <ImSpinner className="size-4 flex-shrink-0 animate-spin text-gray-400" />
               ) : (
@@ -303,76 +294,6 @@ export const RecipientDetailsForm = ({
                 />
               )}
             </button>
-
-            {/* Bank Selection Dropdown */}
-            <AnimatePresence>
-              {isInstitutionsDropdownOpen && (
-                <motion.div
-                  initial="closed"
-                  animate={isInstitutionsDropdownOpen ? "open" : "closed"}
-                  exit="closed"
-                  variants={dropdownVariants}
-                  className="scrollbar-hide absolute right-0 z-10 mt-6 max-h-80 w-full max-w-full overflow-y-auto rounded-xl bg-gray-50 shadow-xl dark:bg-neutral-800"
-                >
-                  <h4 className="px-4 pt-4 font-medium">Select bank</h4>
-                  <div className="sticky top-0 bg-gray-50 p-4 dark:bg-neutral-800">
-                    {/* Search banks */}
-                    <SearchInput
-                      value={bankSearchTerm}
-                      onChange={setBankSearchTerm}
-                      placeholder="Search banks..."
-                      autoFocus={isInstitutionsDropdownOpen}
-                    />
-                  </div>
-
-                  {/* Banks list */}
-                  <ul
-                    role="list"
-                    aria-labelledby="networks-dropdown"
-                    className="px-2 pb-2"
-                  >
-                    {currency ? (
-                      filteredInstitutions.length > 0 ? (
-                        filteredInstitutions.map((institution) => (
-                          <li
-                            key={institution.code}
-                            onClick={() => {
-                              setSelectedInstitution(institution);
-                              setIsInstitutionsDropdownOpen(false);
-                              setValue("institution", institution.code, {
-                                shouldValidate: true,
-                              });
-                              setIsManualEntry(true);
-                            }}
-                            className={classNames(
-                              "flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-neutral-900 transition-all hover:bg-gray-200 dark:text-white/80 dark:hover:bg-white/5",
-                              selectedInstitution?.code === institution.code
-                                ? "bg-gray-200 dark:bg-white/5"
-                                : "",
-                            )}
-                          >
-                            {institution.name}
-                          </li>
-                        ))
-                      ) : (
-                        <li className="mx-auto flex max-w-60 flex-col items-center justify-center gap-2 py-14 text-center *:dark:text-white/50">
-                          <InformationSquareIcon className="size-5" />
-                          <p className="font-medium">No exact match found</p>
-                          <p>
-                            No bank with that name found. Please try another
-                            search input{" "}
-                          </p>
-                        </li>
-                      )
-                    ) : (
-                      <li className="flex items-center justify-center gap-2 py-4">
-                        <p>Please select a currency first</p>
-                      </li>
-                    )}
-                  </ul>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
 
           {/* Account number */}
@@ -392,7 +313,7 @@ export const RecipientDetailsForm = ({
                 onChange: () => setIsManualEntry(true),
               })}
               className={classNames(
-                "placeholder:text-text-placeholder w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
+                "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
                 errors.accountIdentifier
                   ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
                   : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
@@ -405,7 +326,7 @@ export const RecipientDetailsForm = ({
         <AnimatePresence mode="wait">
           {isFetchingRecipientName ? (
             <div className="flex items-center gap-1 text-gray-400 dark:text-white/50">
-              <AnimatedFeedbackItem>
+              <AnimatedFeedbackItem className="animate-pulse">
                 <ImSpinner className="size-4 animate-spin" />
                 <p className="text-xs">Verifying account name...</p>
               </AnimatedFeedbackItem>
@@ -417,8 +338,8 @@ export const RecipientDetailsForm = ({
                   <motion.div
                     className="relative overflow-hidden rounded-lg p-0.5"
                     style={{
-                      background:
-                        "linear-gradient(90deg, #CB2DA899, #8250DF46, #F2690C99)",
+                      backgroundImage:
+                        "linear-gradient(90deg, #CB2DA899, #8250DF46, #FFEB3B99)",
                       backgroundSize: "200% 100%",
                     }}
                     animate={{
@@ -444,6 +365,20 @@ export const RecipientDetailsForm = ({
           )}
         </AnimatePresence>
       </div>
+
+      <SelectBankModal
+        isOpen={isSelectBankModalOpen}
+        onClose={() => setIsSelectBankModalOpen(false)}
+        filteredInstitutions={filteredInstitutions}
+        selectedInstitution={selectedInstitution}
+        setSelectedInstitution={setSelectedInstitution}
+        setValue={setValue}
+        setIsManualEntry={setIsManualEntry}
+        currency={currency}
+        bankSearchTerm={bankSearchTerm}
+        setBankSearchTerm={setBankSearchTerm}
+        isFetchingInstitutions={isFetchingInstitutions}
+      />
 
       <SavedBeneficiariesModal
         isOpen={isModalOpen}

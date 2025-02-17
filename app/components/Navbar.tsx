@@ -27,6 +27,10 @@ export const Navbar = () => {
 
   const { ready, authenticated, user } = usePrivy();
 
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet",
+  );
+
   const { login } = useLogin({
     onComplete: async ({ user, isNewUser, loginMethod }) => {
       trackEvent("wallet_connected");
@@ -172,7 +176,7 @@ export const Navbar = () => {
                   className="size-5"
                 />
                 <span className="font-medium dark:text-white">
-                  {shortenAddress(user?.wallet?.address ?? "", 6)}
+                  {shortenAddress(smartWallet?.address ?? "", 6)}
                 </span>
                 <ArrowDown01Icon className="size-4 dark:text-white/50" />
               </button>

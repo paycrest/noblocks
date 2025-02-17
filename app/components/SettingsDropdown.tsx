@@ -7,7 +7,7 @@ import { ImSpinner } from "react-icons/im";
 import { PiCheck } from "react-icons/pi";
 
 import { useOutsideClick } from "../hooks";
-import { shortenAddress } from "../utils";
+import { classNames, shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 import { trackEvent } from "../hooks/analytics";
 import {
@@ -79,7 +79,12 @@ export const SettingsDropdown = () => {
         }}
         className="flex h-9 items-center justify-center gap-2 rounded-xl bg-accent-gray p-2 transition-colors duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900"
       >
-        <Setting07Icon className="size-5 text-outline-gray dark:text-white/50" />
+        <Setting07Icon
+          className={classNames(
+            "size-5 text-outline-gray transition-transform duration-300 dark:text-white/50",
+            isOpen ? "rotate-180" : "",
+          )}
+        />
       </button>
 
       {/* Dropdown menu */}
@@ -109,7 +114,7 @@ export const SettingsDropdown = () => {
                   onClick={handleCopyAddress}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Wallet01Icon className="text-icon-outline-secondary size-5 dark:text-white/50" />
+                    <Wallet01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                     <p className="max-w-60 break-words">
                       {shortenAddress(smartWallet?.address ?? "", 6)}
                     </p>
@@ -117,7 +122,7 @@ export const SettingsDropdown = () => {
                   {isAddressCopied ? (
                     <PiCheck className="size-4 text-green-900 dark:text-green-500" />
                   ) : (
-                    <Copy01Icon className="text-icon-outline-secondary size-4 transition group-hover:text-lavender-500 dark:text-white/50 dark:hover:text-white" />
+                    <Copy01Icon className="size-4 text-icon-outline-secondary transition group-hover:text-lavender-500 dark:text-white/50 dark:hover:text-white" />
                   )}
                 </button>
               </li>
@@ -132,7 +137,7 @@ export const SettingsDropdown = () => {
                     onClick={updateEmail}
                   >
                     <div className="flex items-center gap-2.5">
-                      <Mail01Icon className="text-icon-outline-secondary size-5 flex-shrink-0 dark:text-white/50" />
+                      <Mail01Icon className="size-5 flex-shrink-0 text-icon-outline-secondary dark:text-white/50" />
                       <p className="whitespace-nowrap">Linked email</p>
                     </div>
                     <p className="max-w-20 truncate text-neutral-500 dark:text-white/40">
@@ -151,7 +156,7 @@ export const SettingsDropdown = () => {
                     onClick={linkEmail}
                   >
                     <div className="flex items-center gap-2.5">
-                      <Mail01Icon className="text-icon-outline-secondary size-5 dark:text-white/50" />
+                      <Mail01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                       <p>Link email address</p>
                     </div>
                   </button>
@@ -162,7 +167,7 @@ export const SettingsDropdown = () => {
                 className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-accent-gray dark:hover:bg-neutral-700"
                 onClick={exportWallet}
               >
-                <AccessIcon className="text-icon-outline-secondary size-5 dark:text-white/50" />
+                <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                 <p>Export wallet</p>
               </li>
               <li
@@ -171,9 +176,9 @@ export const SettingsDropdown = () => {
                 onClick={handleLogout}
               >
                 {isLoggingOut ? (
-                  <ImSpinner className="text-icon-outline-secondary size-5 animate-spin dark:text-white/50" />
+                  <ImSpinner className="size-5 animate-spin text-icon-outline-secondary dark:text-white/50" />
                 ) : (
-                  <Logout03Icon className="text-icon-outline-secondary size-5 dark:text-white/50" />
+                  <Logout03Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                 )}
                 <p>Sign out</p>
               </li>

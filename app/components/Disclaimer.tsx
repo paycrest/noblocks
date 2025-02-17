@@ -26,8 +26,8 @@ export const Disclaimer = () => {
   };
 
   const handleClose = () => {
-    window.history.back();
-    toast.error("You must accept the disclaimer to proceed.");
+    toast.error("Consent declined. Redirecting to production site...");
+    window.location.href = "https://noblocks.xyz";
   };
 
   return (

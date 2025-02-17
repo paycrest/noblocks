@@ -12,7 +12,6 @@ import {
 } from "./ImageAssets";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
 import { ThemeSwitch } from "./ThemeSwitch";
-import { trackEvent } from "../hooks/analytics";
 
 const socialsDarkTheme = [
   {
@@ -50,10 +49,6 @@ const socialsLightTheme = [
   },
 ];
 
-const handleSocialMediaClick = (platform: string) => {
-  trackEvent("social_media_icon_clicked", { platform });
-};
-
 const SocialLink = ({
   href,
   title,
@@ -64,13 +59,7 @@ const SocialLink = ({
   LogoSvg: React.FC<React.SVGProps<SVGSVGElement>>;
 }) => {
   return (
-    <a
-      href={href}
-      title={title}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={() => handleSocialMediaClick(title)}
-    >
+    <a href={href} title={title} target="_blank" rel="noopener noreferrer">
       <LogoSvg className="size-5 hover:opacity-70 transition-opacity" />
     </a>
   );

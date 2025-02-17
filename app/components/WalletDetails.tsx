@@ -60,8 +60,17 @@ export const WalletDetails = () => {
     trackEvent("Funding started", {
       "Entry point": "Fund button on navbar",
     });
+    const fetchedTokens: Token[] =
+      fetchSupportedTokens(selectedNetwork.chain.name) || [];
+    const tokenAddress = fetchedTokens.find(
+      (t) =>
+        t.symbol.toUpperCase() ===
+        (selectedNetwork.chain.name.toLowerCase() === "base" ? "USDC" : "USDT"),
+    )?.address as `0x${string}`;
+
     await fundWallet(address, {
       chain: selectedNetwork.chain,
+      asset: { erc20: tokenAddress },
     });
   };
 
@@ -192,7 +201,7 @@ export const WalletDetails = () => {
                 )}
               </AnimatePresence>
 
-              <AnimatePresence>
+              {/* <AnimatePresence>
                 {allBalances.externalWallet?.balances && (
                   <motion.div
                     initial="closed"
@@ -222,7 +231,7 @@ export const WalletDetails = () => {
                     </ul>
                   </motion.div>
                 )}
-              </AnimatePresence>
+              </AnimatePresence> */}
             </motion.div>
           )}
         </AnimatePresence>

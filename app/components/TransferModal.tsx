@@ -60,15 +60,12 @@ export const TransferModal = ({
     try {
       const fetchedTokens: Token[] =
         fetchSupportedTokens(client?.chain.name) || [];
-
       const tokenAddress = fetchedTokens.find(
         (t) => t.symbol.toUpperCase() === token,
       )?.address as `0x${string}`;
-
       const tokenDecimals = fetchedTokens.find(
         (t) => t.symbol.toUpperCase() === data.token,
       )?.decimals;
-
       setIsConfirming(true);
       await client?.sendTransaction({
         to: tokenAddress,
@@ -86,10 +83,10 @@ export const TransferModal = ({
       );
       setIsTransferModalOpen(false);
     } catch (e: any) {
+      setIsTransferModalOpen(false);
       setErrorMessage((e as BaseError).shortMessage);
       setErrorCount((prevCount) => prevCount + 1);
       setIsConfirming(false);
-      setIsTransferModalOpen(false);
     }
     refreshBalance();
   };

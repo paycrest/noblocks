@@ -1,16 +1,8 @@
 "use client";
-import {
-  Checkbox,
-  Dialog,
-  DialogBackdrop,
-  DialogPanel,
-  DialogTitle,
-  Field,
-  Label,
-} from "@headlessui/react";
+import { Checkbox, DialogTitle, Field, Label } from "@headlessui/react";
 import { toast } from "sonner";
 import { QRCode } from "react-qrcode-logo";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { FiExternalLink } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useCallback, useEffect } from "react";
@@ -29,9 +21,8 @@ import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics";
 import { Cancel01Icon } from "hugeicons-react";
 
-const STEPS = {
+export const STEPS = {
   TERMS: "terms",
-  QR_CODE: "qr_code",
   STATUS: {
     PENDING: "pending",
     SUCCESS: "success",
@@ -44,53 +35,29 @@ const STEPS = {
 
 type Step =
   | typeof STEPS.TERMS
-  | typeof STEPS.QR_CODE
   | typeof STEPS.LOADING
   | typeof STEPS.REFRESH
   | (typeof STEPS.STATUS)[keyof typeof STEPS.STATUS];
 
-const terms = [
-  {
-    id: "privacyPolicy",
-    label: "Privacy Policy",
-    url: "/privacy-policy",
-    text: "I understand my privacy is protected through self-custody wallets, and only essential transaction details will be processed. Personal data won't be shared without consent unless legally required.",
-  },
-  {
-    id: "termsAndConditions1",
-    label: "Terms and Conditions",
-    url: "/terms",
-    text: "I understand I maintain control of my assets but must complete KYC verification through a third party. I confirm I'm not in a restricted region or a Politically Exposed Person.",
-  },
-  {
-    id: "termsAndConditions2",
-    label: "Terms and Conditions",
-    url: "/terms",
-    text: "I understand I'm responsible for my wallet security and payment accuracy. I confirm I'm at least 18 years old and will use this service in compliance with applicable laws.",
-  },
-] as const;
-
 export const KycModal = ({
   setIsUserVerified,
+  setIsKycModalOpen,
 }: {
   setIsUserVerified: (value: boolean) => void;
+  setIsKycModalOpen: (value: boolean) => void;
 }) => {
-  const { user, signMessage } = usePrivy();
-  const walletAddress = user?.wallet?.address;
-
-  const [isOpen, setIsOpen] = useState(false);
-  const [step, setStep] = useState<Step>(STEPS.TERMS);
-  const [kycUrl, setKycUrl] = useState("");
-  const [termsAccepted, setTermsAccepted] = useState<Record<string, boolean>>(
-    Object.fromEntries(terms.map((term) => [term.id, false])),
+  const { signMessage } = usePrivy();
+  const { wallets } = useWallets();
+  const embeddedWallet = wallets.find(
+    (wallet) => wallet.walletClientType === "privy",
   );
+  const walletAddress = embeddedWallet?.address;
+
+  const [step, setStep] = useState<Step>(STEPS.LOADING);
+  const [showQRCode, setShowQRCode] = useState(false);
+  const [kycUrl, setKycUrl] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleTermChange = useCallback((termId: string, value: boolean) => {
-    setTermsAccepted((prev) => ({ ...prev, [termId]: value }));
-  }, []);
-
-  const isAllTermsAccepted = Object.values(termsAccepted).every(Boolean);
 
   const handleSignAndContinue = async () => {
     const nonce = generateTimeBasedNonce({ length: 16 });
@@ -100,10 +67,11 @@ export const KycModal = ({
     };
 
     try {
-      setIsOpen(false);
+      setIsKycModalOpen(false);
       const signature = await signMessage({ message }, { uiOptions: uiConfig });
+      console.log(signature);
       if (signature) {
-        setIsOpen(true);
+        setIsKycModalOpen(true);
         setStep(STEPS.LOADING);
 
         const response = await initiateKYC({
@@ -115,8 +83,9 @@ export const KycModal = ({
         });
 
         if (response.status === "success") {
-          setStep(STEPS.QR_CODE);
           setKycUrl(response.data.url);
+          setShowQRCode(true);
+          setStep(STEPS.STATUS.PENDING);
           trackEvent("Account verification", {
             "Verification status": "Pending",
           });
@@ -140,7 +109,7 @@ export const KycModal = ({
         // unexpected errors
         toast.error(error instanceof Error ? error.message : String(error));
       }
-      setIsOpen(false);
+      setIsKycModalOpen(false);
       setStep(STEPS.TERMS);
     }
   };
@@ -174,12 +143,14 @@ export const KycModal = ({
     <motion.div key="terms" {...fadeInOut} className="space-y-4">
       <div className="space-y-3">
         <UserDetailsIcon />
-        <DialogTitle className="text-lg font-bold">
-          Start sending money in just{" "}
-          <span className="bg-gradient-to-br from-green-400 via-orange-400 to-orange-600 bg-clip-text text-transparent">
-            2 minutes
-          </span>
-        </DialogTitle>
+        <div>
+          <h2 className="text-lg font-medium dark:text-white">
+            Start sending money in just{" "}
+            <span className="bg-gradient-to-br from-green-400 via-orange-400 to-orange-600 bg-clip-text text-transparent">
+              2 minutes
+            </span>
+          </h2>
+        </div>
       </div>
 
       <div className="space-y-6 rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
@@ -187,57 +158,102 @@ export const KycModal = ({
           Accept terms to get started
         </h4>
 
-        {terms.map((term) => (
-          <Field key={term.id} className="flex gap-6">
-            <Checkbox
-              checked={termsAccepted[term.id]}
-              onChange={(checked) => handleTermChange(term.id, checked)}
-              className="group mt-1 block size-5 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
-            >
-              <svg
-                className="stroke-neutral-800 opacity-0 group-data-[checked]:opacity-100"
-                viewBox="0 0 14 14"
-                fill="none"
-              >
-                <path
-                  d="M3 8L6 11L11 3.5"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </Checkbox>
-            <Label className="grid cursor-pointer gap-2 text-gray-500 dark:text-white/50">
-              <p>{term.text}</p>
-              <a
-                href={term.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-lavender-500 hover:underline"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  window.open(term.url, "_blank");
-                }}
-              >
-                Read full {term.label}
-              </a>
-            </Label>
-          </Field>
-        ))}
+        <Field className="flex gap-6">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start gap-2">
+              <CheckIcon className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer" />
+              <Label className="cursor-pointer text-gray-500 dark:text-white/50">
+                <p>
+                  We do not collect, store, or retain any personal information
+                  obtained during the KYC process. All personal data, including
+                  sensitive information, is handled exclusively by the
+                  third-party provider.
+                </p>
+              </Label>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <CheckIcon className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer" />
+              <Label className="cursor-pointer text-gray-500 dark:text-white/50">
+                <p>
+                  We only retain the reference code associated with the KYC
+                  verification and the wallet address of the private key that
+                  signs the KYC. This limited information is kept solely for
+                  transaction verification and auditing purposes.
+                </p>
+              </Label>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <CheckIcon className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer" />
+              <Label className="cursor-pointer text-gray-500 dark:text-white/50">
+                <p>
+                  We rely on the third-party provider&apos;s rigorous data
+                  protection measures to ensure that your personal information
+                  is secure.
+                </p>
+              </Label>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <div className="mx-1 mt-1 size-5 flex-shrink-0"></div>
+              <Label className="cursor-pointer text-gray-500 dark:text-white/50">
+                <a
+                  href={
+                    "https://paycrest.notion.site/KYC-Policy-10e2482d45a280e191b8d47d76a8d242"
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-lavender-500 hover:underline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    window.open(
+                      "https://paycrest.notion.site/KYC-Policy-10e2482d45a280e191b8d47d76a8d242",
+                      "_blank",
+                    );
+                  }}
+                >
+                  Read full KYC Policy
+                </a>
+              </Label>
+            </div>
+          </div>
+        </Field>
       </div>
 
       <div className="rounded-2xl border border-gray-100 p-4 dark:border-white/10">
-        <p className="text-xs text-gray-500 dark:text-white/50">
-          By clicking “Accept” below, you are agreeing to the terms and policies
-          above
-        </p>
+        <div className="flex items-start gap-2">
+          <Checkbox
+            checked={termsAccepted}
+            onChange={(checked) => setTermsAccepted(checked)}
+            className="group mr-1 mt-1 block size-5 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
+          >
+            <svg
+              className="group-data-[chec ked]:opacity-100 stroke-neutral-800 opacity-0"
+              viewBox="0 0 14 14"
+              fill="none"
+            >
+              <path
+                d="M3 8L6 11L11 3.5"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </Checkbox>
+          <p className="text-xs text-gray-500 dark:text-white/50">
+            By clicking "Accept and sign" below, you are agreeing to the KYC
+            Policy and hereby request an identity verification check for your
+            wallet address.
+          </p>
+        </div>
       </div>
 
       <div className="flex gap-4">
         <button
           type="button"
-          onClick={() => setIsOpen(false)}
+          onClick={() => setIsKycModalOpen(false)}
           className={secondaryBtnClasses}
         >
           No, thanks
@@ -245,10 +261,10 @@ export const KycModal = ({
         <button
           type="button"
           className={`${primaryBtnClasses} w-full`}
-          disabled={!isAllTermsAccepted}
+          disabled={!termsAccepted}
           onClick={handleSignAndContinue}
         >
-          Accept
+          Accept and sign
         </button>
       </div>
     </motion.div>
@@ -256,10 +272,19 @@ export const KycModal = ({
 
   const renderQRCode = () => (
     <motion.div key="qr_code" {...fadeInOut} className="space-y-4">
-      <div className="relative">
-        <DialogTitle className="mx-auto text-center text-lg font-semibold">
+      <div className="flex items-center justify-between">
+        <div></div>
+        <h2 className="text-lg font-medium dark:text-white">
           Verify with your phone or URL
-        </DialogTitle>
+        </h2>
+        <button
+          type="button"
+          onClick={() => setIsKycModalOpen(false)}
+          className="rounded-full p-1 text-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/80"
+          title="Close"
+        >
+          <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+        </button>
       </div>
 
       <p className="mx-auto text-center text-gray-500 dark:text-white/50">
@@ -305,14 +330,14 @@ export const KycModal = ({
           type="button"
           title="View QR Code"
           className={`${secondaryBtnClasses}`}
-          onClick={() => setStep(STEPS.QR_CODE)}
+          onClick={() => setShowQRCode(true)}
         >
           <QrCodeIcon className="size-6 p-0.5 text-gray-300" />
         </button>
         <button
           type="button"
           className={`${primaryBtnClasses} w-full`}
-          onClick={() => setIsOpen(false)}
+          onClick={() => setIsKycModalOpen(false)}
         >
           Got it
         </button>
@@ -330,15 +355,18 @@ export const KycModal = ({
         </DialogTitle>
 
         <p className="text-gray-500 dark:text-white/50">
-          You can now start converting your crypto to fiats at zero fees on
-          noblocks
+          You can now start converting your stablecoin to fiat at zero fees on
+          Noblocks
         </p>
       </div>
 
       <button
         type="button"
         className={`${primaryBtnClasses} w-full`}
-        onClick={() => setIsOpen(false)}
+        onClick={() => {
+          setIsUserVerified(true);
+          setIsKycModalOpen(false);
+        }}
       >
         Let&apos;s go!
       </button>
@@ -431,7 +459,7 @@ export const KycModal = ({
       setStep(newStatus);
 
       if (newStatus === STEPS.STATUS.SUCCESS) {
-        setIsUserVerified(true);
+        setShowQRCode(false);
         trackEvent("Account verification", {
           "Verification status": "Success",
         });
@@ -443,7 +471,7 @@ export const KycModal = ({
         });
       }
 
-      setIsOpen(true);
+      setIsKycModalOpen(true);
     } catch (error) {
       if (
         error instanceof Error &&
@@ -452,109 +480,70 @@ export const KycModal = ({
       ) {
         // backend error response
         const { message } = (error as any).response.data;
-        console.error(message);
+        toast.error(message);
       } else {
         // unexpected errors
-        console.error(error instanceof Error ? error.message : String(error));
+        toast.error(error instanceof Error ? error.message : String(error));
       }
+      setIsKycModalOpen(false);
     }
   };
 
   useEffect(() => {
-    fetchStatus();
+    let timeoutId: NodeJS.Timeout;
+    const startTime = Date.now();
+
+    const debouncedFetchStatus = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
+      timeoutId = setTimeout(async () => {
+        await fetchStatus();
+      }, 500); // 500ms debounce delay
+    };
+
+    debouncedFetchStatus(); // Initial fetch
 
     let intervalId: NodeJS.Timeout;
-    let elapsedTime = 0;
 
     if (step === STEPS.STATUS.PENDING) {
       intervalId = setInterval(() => {
-        elapsedTime += 30;
+        const elapsedSeconds = (Date.now() - startTime) / 1000;
+
         // stop polling after 10 minutes
-        if (elapsedTime >= 600) {
+        if (elapsedSeconds >= 600) {
           clearInterval(intervalId);
           setStep(STEPS.REFRESH);
         } else {
-          fetchStatus();
+          debouncedFetchStatus();
         }
       }, 30000);
     }
 
     return () => {
-      clearInterval(intervalId);
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [walletAddress]);
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setIsOpen(true)}
-        aria-label="Get started"
-        className={`${primaryBtnClasses} w-full`}
-      >
-        Get started
-      </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <Dialog
-            open={isOpen}
-            onClose={() => {
-              setIsOpen(false);
-            }}
-            className="relative z-50"
-          >
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{
-                opacity: 1,
-                y: 0,
-                transition: { type: "spring", stiffness: 300, damping: 30 },
-              }}
-              exit={{
-                opacity: 0,
-                y: 20,
-                transition: { type: "spring", stiffness: 300, damping: 30 },
-              }}
-              className="fixed inset-0 flex w-screen items-end justify-center sm:items-center sm:p-4"
-            >
-              <DialogPanel
-                as={motion.div}
-                className="relative max-h-[90vh] w-full space-y-4 overflow-y-auto rounded-t-[20px] bg-white p-5 text-sm shadow-xl dark:bg-neutral-800 sm:max-w-md sm:rounded-[20px]"
-              >
-                <button
-                  title="Close"
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="absolute right-5 top-9 rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 dark:hover:bg-white/10"
-                >
-                  <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
-                </button>
-                <AnimatePresence mode="wait">
-                  {
-                    {
-                      [STEPS.TERMS]: renderTerms(),
-                      [STEPS.QR_CODE]: renderQRCode(),
-                      [STEPS.STATUS.PENDING]: renderPendingStatus(),
-                      [STEPS.STATUS.SUCCESS]: renderSuccessStatus(),
-                      [STEPS.STATUS.FAILED]: renderFailedStatus(),
-                      [STEPS.LOADING]: renderLoadingStatus(),
-                      [STEPS.REFRESH]: renderRefresh(),
-                    }[step]
-                  }
-                </AnimatePresence>
-              </DialogPanel>
-            </motion.div>
-          </Dialog>
-        )}
+      <AnimatePresence mode="wait">
+        {showQRCode
+          ? renderQRCode()
+          : {
+              [STEPS.TERMS]: renderTerms(),
+              [STEPS.STATUS.PENDING]: renderPendingStatus(),
+              [STEPS.STATUS.SUCCESS]: renderSuccessStatus(),
+              [STEPS.STATUS.FAILED]: renderFailedStatus(),
+              [STEPS.LOADING]: renderLoadingStatus(),
+              [STEPS.REFRESH]: renderRefresh(),
+            }[step]}
       </AnimatePresence>
     </>
   );

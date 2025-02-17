@@ -37,7 +37,7 @@ export const CookieConsent = () => {
   useHotjar();
   useMixpanel();
 
-  const [isBannerVisible, setIsBannerVisible] = useState(false);
+  const [isBannerVisible, setIsBannerVisible] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [consent, setConsent] = useState({
     marketing: false,
@@ -147,42 +147,43 @@ export const CookieConsent = () => {
               transition: { delay: 2, duration: 0.3 },
             }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed z-[52] w-full space-y-4 border border-gray-100 bg-gray-50 px-5 py-6 shadow-lg transition-colors dark:border-white/10 dark:bg-neutral-800 max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:rounded-t-[30px] sm:bottom-5 sm:right-5 sm:max-w-[25.75rem] sm:rounded-[30px]"
+            className="fixed p-4 max-sm:bottom-0 max-sm:left-0 max-sm:right-0 sm:bottom-5 sm:right-5"
           >
-            <div className="text-text-lavender-500 space-y-3 dark:text-white">
-              <h2 className="text-lg font-semibold">We use cookies</h2>
-              <p className="text-sm dark:text-white/80">
-                Our website utilizes cookies to enhance your experience.{" "}
-                <Link
-                  href="https://www.paycrest.io/privacy-policy#third-party-applications-and-services"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-lavender-500 hover:underline"
+            <div className="z-[52] w-full space-y-4 rounded-3xl border border-border-light bg-background-neutral px-5 py-6 shadow-lg transition-colors dark:border-white/5 dark:bg-surface-overlay sm:max-w-[25.75rem]">
+              <div className="text-text-lavender-500 space-y-3 dark:text-white">
+                <h2 className="text-lg font-semibold">We use cookies</h2>
+                <p className="text-sm dark:text-white/80">
+                  Our website utilizes cookies to enhance your experience.{" "}
+                  <Link
+                    href="https://www.paycrest.io/privacy-policy#third-party-applications-and-services"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-lavender-500 hover:underline"
+                  >
+                    Learn more
+                  </Link>
+                </p>
+              </div>
+              <div className="flex gap-4 max-xsm:flex-col">
+                <Button
+                  onClick={handleCustomize}
+                  className="text-text-lavender-500 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
                 >
-                  Learn more
-                </Link>
-              </p>
-            </div>
-
-            <div className="flex gap-4 max-xsm:flex-col">
-              <Button
-                onClick={handleCustomize}
-                className="text-text-lavender-500 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
-              >
-                Customize
-              </Button>
-              <Button
-                onClick={handleRejectNonEssential}
-                className="text-text-lavender-500 min-w-fit bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
-              >
-                Reject all
-              </Button>
-              <Button
-                onClick={handleAcceptAll}
-                className="min-w-fit flex-1 bg-lavender-500 text-white hover:opacity-80"
-              >
-                Accept all
-              </Button>
+                  Customize
+                </Button>
+                <Button
+                  onClick={handleRejectNonEssential}
+                  className="text-text-lavender-500 min-w-fit bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                >
+                  Reject all
+                </Button>
+                <Button
+                  onClick={handleAcceptAll}
+                  className="min-w-fit flex-1 bg-lavender-500 text-white hover:opacity-80"
+                >
+                  Accept all
+                </Button>
+              </div>
             </div>
           </motion.div>
         )}

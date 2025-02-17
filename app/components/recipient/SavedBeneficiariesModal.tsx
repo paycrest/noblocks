@@ -1,6 +1,6 @@
 "use client";
 import { Button, Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
-import { ArrowUp01Icon } from "hugeicons-react";
+import { ArrowUp01Icon, InformationSquareIcon } from "hugeicons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, useMemo } from "react";
 
@@ -117,9 +117,14 @@ export const SavedBeneficiariesModal = ({
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: "auto" }}
                           exit={{ opacity: 0, height: 0 }}
-                          className="py-4 text-center text-gray-500 dark:text-white/50"
+                          className="text-text-secondary dark:text-white/50"
                         >
-                          No recipients found
+                          <div className="flex flex-col items-center gap-2 py-12 text-center">
+                            <InformationSquareIcon className="size-5" />
+                            <p className="font-medium">
+                              No saved beneficiaries found
+                            </p>
+                          </div>
                         </motion.div>
                       )}
                     </AnimatePresence>

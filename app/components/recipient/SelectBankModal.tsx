@@ -150,13 +150,13 @@ export const SelectBankModal = ({
                             <motion.li
                               initial={{ opacity: 0 }}
                               animate={{ opacity: 1 }}
-                              className="mt-8 flex flex-col items-center gap-2 text-center dark:text-white/50"
+                              className="text-text-secondary dark:text-white/50"
                             >
-                              <InformationSquareIcon className="size-5" />
-                              <p className="font-medium">
-                                No exact match found
-                              </p>
-                              <p>Please try another search input</p>
+                              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                                <InformationSquareIcon className="size-5" />
+                                <p className="font-medium">No banks found</p>
+                                <p>Please try another search term</p>
+                              </div>
                             </motion.li>
                           )
                         ) : (
@@ -165,7 +165,6 @@ export const SelectBankModal = ({
                             animate={{ opacity: 1 }}
                             className="mt-6 text-center dark:text-white/50"
                           >
-                            No bank with that name found <br />
                             Please select a currency first
                           </motion.li>
                         )}

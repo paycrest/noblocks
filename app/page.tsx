@@ -14,6 +14,7 @@ import {
   TransactionStatus,
   NetworkSelectionModal,
   CookieConsent,
+  Disclaimer,
 } from "./components";
 import { fetchRate, fetchSupportedInstitutions } from "./api/aggregator";
 import {
@@ -317,8 +318,9 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
         <Preloader isLoading={true} />
       ) : (
         <>
-          <NetworkSelectionModal />
+          <Disclaimer />
           <CookieConsent />
+          <NetworkSelectionModal />
 
           <AnimatePresence mode="wait">
             <AnimatedPage componentKey={currentStep}>

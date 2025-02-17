@@ -4,13 +4,17 @@ import { useEffect, useState, useRef } from "react";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
 import { usePathname } from "next/navigation";
 
-import { NoblocksLogo, NoblocksLogoIcon } from "./ImageAssets";
+import {
+  NoblocksLogo,
+  NoblocksLogoIcon,
+  NoblocksBetaLogo,
+} from "./ImageAssets";
 import { baseBtnClasses } from "./Styles";
 import { WalletDetails } from "./WalletDetails";
 import { NetworksDropdown } from "./NetworksDropdown";
 import { SettingsDropdown } from "./SettingsDropdown";
 import { identifyUser, trackEvent } from "../hooks/analytics";
-import { shortenAddress } from "../utils";
+import { shortenAddress, IS_MAIN_PRODUCTION_DOMAIN } from "../utils";
 import { ArrowDown01Icon } from "hugeicons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MobileDropdown } from "./MobileDropdown";
@@ -50,7 +54,9 @@ export const Navbar = () => {
     },
   });
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -89,8 +95,17 @@ export const Navbar = () => {
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="flex items-center gap-1 max-sm:min-h-9 max-sm:rounded-lg max-sm:bg-accent-gray max-sm:p-2 dark:max-sm:bg-white/10"
               >
-                <NoblocksLogo className="hidden sm:block" />
-                <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                {IS_MAIN_PRODUCTION_DOMAIN ? (
+                  <>
+                    <NoblocksLogo className="hidden sm:block" />
+                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                  </>
+                ) : (
+                  <>
+                    <NoblocksBetaLogo className="hidden sm:block" />
+                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                  </>
+                )}
               </button>
 
               <button

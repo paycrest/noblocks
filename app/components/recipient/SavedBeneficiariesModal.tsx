@@ -7,7 +7,6 @@ import { useState, useMemo } from "react";
 import { RecipientListItem } from "./RecipientListItem";
 import { SearchInput } from "./SearchInput";
 import { SavedBeneficiariesModalProps } from "./types";
-import { dropdownVariants } from "../AnimatedComponents";
 import { classNames } from "@/app/utils";
 
 export const SavedBeneficiariesModal = ({

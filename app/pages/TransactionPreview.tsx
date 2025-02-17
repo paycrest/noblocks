@@ -1,8 +1,10 @@
 "use client";
 import Image from "next/image";
-import { TbInfoSquareRounded } from "react-icons/tb";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import {
+  classNames,
   fetchSupportedTokens,
   formatCurrency,
   formatNumberWithCommas,
@@ -12,9 +14,9 @@ import {
 } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 import type { Token, TransactionPreviewProps } from "../types";
-import { primaryBtnClasses, secondaryBtnClasses } from "../components";
+import { primaryBtnClasses, outlineBtnClasses } from "../components";
 import { gatewayAbi } from "../api/abi";
-import { useFundWallet, usePrivy, useWallets } from "@privy-io/react-auth";
+import { useFundWallet, usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
   type BaseError,
@@ -28,11 +30,11 @@ import {
 } from "viem";
 import { useBalance } from "../context/BalanceContext";
 
-import { useEffect, useState } from "react";
 import { fetchAggregatorPublicKey } from "../api/aggregator";
-import { toast } from "sonner";
 import { useStep } from "../context/StepContext";
 import { trackEvent } from "../hooks/analytics";
+import { ImSpinner } from "react-icons/im";
+import { InformationSquareIcon } from "hugeicons-react";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -88,7 +90,7 @@ export const TransactionPreview = ({
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" "),
     account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
-    description: memo || "N/A",
+    ...(memo && { description: memo }),
     network: selectedNetwork.chain.name,
   };
 
@@ -302,24 +304,24 @@ export const TransactionPreview = ({
   return (
     <div className="grid gap-6 py-10 text-sm">
       <div className="grid gap-4">
-        <h2 className="text-xl font-medium text-neutral-900 dark:text-white/80">
+        <h2 className="text-xl font-medium text-text-body dark:text-white/80">
           Review transaction
         </h2>
-        <p className="text-gray-500 dark:text-white/50">
+        <p className="text-text-secondary dark:text-white/50">
           Verify transaction details before you send
         </p>
       </div>
 
       <div className="grid gap-4">
-        {/* Render transaction information */}
         {Object.entries(renderedInfo).map(([key, value]) => (
           <div key={key} className="flex items-start justify-between gap-2">
-            <h3 className="w-full max-w-28 capitalize text-gray-500 dark:text-white/50 sm:max-w-40">
-              {/* Capitalize the first letter of the key */}
-              {key === "totalValue" ? "Total value" : key}
+            <h3 className="w-full max-w-28 text-text-secondary dark:text-white/50 sm:max-w-40">
+              {key === "totalValue"
+                ? "Total value"
+                : key.charAt(0).toUpperCase() + key.slice(1)}
             </h3>
-            <p className="flex flex-grow items-center gap-1 text-neutral-900 dark:text-white/80">
-              {/* Render token logo for amount and fee */}
+
+            <p className="flex flex-grow items-center gap-1 font-medium text-text-body dark:text-white/80">
               {(key === "amount" || key === "fee") && (
                 <Image
                   src={`/logos/${token.toLowerCase()}-logo.svg`}
@@ -329,7 +331,6 @@ export const TransactionPreview = ({
                 />
               )}
 
-              {/* Render network logo for network */}
               {key === "network" && (
                 <Image
                   src={`/logos/${value.toLowerCase().replace(/ /g, "-")}-logo.svg`}
@@ -338,6 +339,7 @@ export const TransactionPreview = ({
                   height={14}
                 />
               )}
+
               {value}
             </p>
           </div>
@@ -345,32 +347,38 @@ export const TransactionPreview = ({
       </div>
 
       {/* Transaction detail disclaimer */}
-      <div className="flex gap-2.5 rounded-xl border border-gray-200 bg-gray-50 p-3 text-gray-500 dark:border-white/10 dark:bg-white/5 dark:text-white/50">
-        <TbInfoSquareRounded className="w-8 text-xl" />
+      <div className="flex gap-2.5 rounded-xl border border-border-light bg-background-neutral p-3 text-text-secondary dark:border-white/5 dark:bg-white/5 dark:text-white/50">
+        <InformationSquareIcon className="mt-1 size-4 flex-shrink-0" />
         <p>
           Ensure the details above are correct. Failed transaction due to wrong
           details may attract a refund fee
         </p>
       </div>
 
-      <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
-
       {/* CTAs */}
       <div className="flex gap-4 xsm:gap-6">
         <button
           type="button"
           onClick={handleBackButtonClick}
-          className={`w-fit ${secondaryBtnClasses}`}
+          className={classNames(outlineBtnClasses)}
+          disabled={isConfirming}
         >
           Back
         </button>
         <button
           type="submit"
-          className={`w-full ${primaryBtnClasses}`}
+          className={classNames(primaryBtnClasses, "w-full")}
           onClick={handlePaymentConfirmation}
           disabled={isConfirming}
         >
-          {isConfirming ? "Confirming..." : "Confirm payment"}
+          {isConfirming ? (
+            <span className="flex items-center justify-center gap-2">
+              <ImSpinner className="animate-spin" />
+              Confirming...
+            </span>
+          ) : (
+            "Confirm payment"
+          )}
         </button>
       </div>
     </div>

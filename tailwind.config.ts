@@ -49,6 +49,7 @@ const config: Config = {
           secondary: "#6C6C89",
           accent: {
             red: "#D50B3E",
+            gray: "#3F3F50",
           },
           disabled: "#A9A9BC",
           placeholder: "#A9A9BC",

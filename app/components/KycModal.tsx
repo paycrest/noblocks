@@ -28,6 +28,7 @@ import { generateTimeBasedNonce } from "../utils";
 import { fetchKYCStatus, initiateKYC } from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics";
+import { Cancel01Icon } from "hugeicons-react";
 
 const STEPS = {
   TERMS: "terms",
@@ -495,42 +496,68 @@ export const KycModal = ({
         Get started
       </button>
 
-      <Dialog
-        open={isOpen}
-        onClose={() => {
-          setIsOpen(false);
-          trackEvent("dismissed_ui_element", { element: "KYC Modal" });
-        }}
-        className="relative z-50"
-      >
-        <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-300 ease-out data-[state=closed]:opacity-0" />
-
-        <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
-          <DialogPanel className="relative max-h-[90vh] w-full max-w-md space-y-4 overflow-y-auto rounded-2xl bg-white p-5 text-sm shadow-xl transition-all duration-300 ease-out data-[state=closed]:scale-95 data-[state=closed]:opacity-0 dark:bg-neutral-800">
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="absolute right-5 top-9 rounded-full bg-gray-100 p-1 text-lg text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:bg-white/10 dark:text-white/40 dark:hover:bg-white/30 dark:hover:text-white/80"
-              title="Close"
+      <AnimatePresence>
+        {isOpen && (
+          <Dialog
+            open={isOpen}
+            onClose={() => {
+              setIsOpen(false);
+              trackEvent("dismissed_ui_element", { element: "KYC Modal" });
+            }}
+            className="relative z-50"
+          >
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
             >
-              <IoMdClose />
-            </button>
-            <AnimatePresence mode="wait">
-              {
-                {
-                  [STEPS.TERMS]: renderTerms(),
-                  [STEPS.QR_CODE]: renderQRCode(),
-                  [STEPS.STATUS.PENDING]: renderPendingStatus(),
-                  [STEPS.STATUS.SUCCESS]: renderSuccessStatus(),
-                  [STEPS.STATUS.FAILED]: renderFailedStatus(),
-                  [STEPS.LOADING]: renderLoadingStatus(),
-                  [STEPS.REFRESH]: renderRefresh(),
-                }[step]
-              }
-            </AnimatePresence>
-          </DialogPanel>
-        </div>
-      </Dialog>
+              <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{
+                opacity: 1,
+                y: 0,
+                transition: { type: "spring", stiffness: 300, damping: 30 },
+              }}
+              exit={{
+                opacity: 0,
+                y: 20,
+                transition: { type: "spring", stiffness: 300, damping: 30 },
+              }}
+              className="fixed inset-0 flex w-screen items-end justify-center sm:items-center sm:p-4"
+            >
+              <DialogPanel
+                as={motion.div}
+                className="relative max-h-[90vh] w-full space-y-4 overflow-y-auto rounded-t-[20px] bg-white p-5 text-sm shadow-xl dark:bg-neutral-800 sm:max-w-md sm:rounded-[20px]"
+              >
+                <button
+                  title="Close"
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="absolute right-5 top-9 rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 dark:hover:bg-white/10"
+                >
+                  <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                </button>
+                <AnimatePresence mode="wait">
+                  {
+                    {
+                      [STEPS.TERMS]: renderTerms(),
+                      [STEPS.QR_CODE]: renderQRCode(),
+                      [STEPS.STATUS.PENDING]: renderPendingStatus(),
+                      [STEPS.STATUS.SUCCESS]: renderSuccessStatus(),
+                      [STEPS.STATUS.FAILED]: renderFailedStatus(),
+                      [STEPS.LOADING]: renderLoadingStatus(),
+                      [STEPS.REFRESH]: renderRefresh(),
+                    }[step]
+                  }
+                </AnimatePresence>
+              </DialogPanel>
+            </motion.div>
+          </Dialog>
+        )}
+      </AnimatePresence>
     </>
   );
 };

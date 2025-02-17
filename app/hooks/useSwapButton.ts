@@ -40,7 +40,7 @@ export function useSwapButton({
 
   const buttonText = (() => {
     if (authenticated && hasInsufficientBalance) {
-      return "Fund Wallet";
+      return "Fund wallet";
     }
     return "Swap";
   })();

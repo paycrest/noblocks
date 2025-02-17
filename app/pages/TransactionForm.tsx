@@ -412,7 +412,7 @@ export const TransactionForm = ({
               <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">
                 <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
                 <p className="min-w-fit">
-                  Swap usually completes in 30s or less
+                  Swap usually completes in 30s
                 </p>
               </div>
             </AnimatedComponent>

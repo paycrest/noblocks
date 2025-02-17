@@ -34,4 +34,10 @@ export { RecipientDetailsForm } from "./recipient/RecipientDetailsForm";
 export { SearchInput } from "./recipient/SearchInput";
 export { RecipientListItem } from "./recipient/RecipientListItem";
 export { SavedBeneficiariesModal } from "./recipient/SavedBeneficiariesModal";
-export { inputClasses, primaryBtnClasses, secondaryBtnClasses } from "./Styles";
+export {
+  inputClasses,
+  primaryBtnClasses,
+  secondaryBtnClasses,
+  outlineBtnClasses,
+  baseBtnClasses,
+} from "./Styles";

@@ -387,3 +387,12 @@ export const getRandomColor = (name: string) => {
     .reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return colors[index % colors.length];
 };
+
+/**
+ * Checks if the current domain is exactly the main production domain (noblocks.xyz).
+ * This excludes subdomains and paths, only matching the exact domain.
+ *
+ * @returns {boolean} True if on the main production domain, false otherwise
+ */
+export const IS_MAIN_PRODUCTION_DOMAIN =
+  typeof window !== "undefined" && window.location.hostname === "noblocks.xyz";

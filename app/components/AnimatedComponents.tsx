@@ -60,6 +60,7 @@ export const dropdownVariants = {
       type: "spring",
       stiffness: 300,
       damping: 30,
+      duration: 0.3,
     },
   },
   closed: {
@@ -69,6 +70,7 @@ export const dropdownVariants = {
       type: "spring",
       stiffness: 300,
       damping: 30,
+      duration: 0.3,
     },
   },
 };

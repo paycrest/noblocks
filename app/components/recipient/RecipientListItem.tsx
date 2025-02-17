@@ -12,7 +12,7 @@ export const RecipientListItem = ({
   <div
     role="button"
     tabIndex={0}
-    className={`group flex w-full cursor-pointer items-center justify-between rounded-2xl px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-white/5 ${
+    className={`group flex w-full cursor-pointer items-center justify-between rounded-2xl px-3 py-2 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-white/5 ${
       isBeingDeleted ? "bg-red-100 dark:bg-red-900/30" : ""
     }`}
     onClick={() => onSelect(recipient)}
@@ -25,7 +25,7 @@ export const RecipientListItem = ({
     <div className="flex items-center gap-3">
       <div
         className={classNames(
-          "hidden size-11 rounded-xl p-2 text-base text-white sm:grid sm:place-content-center",
+          "grid size-11 place-content-center rounded-xl p-2 text-base text-white max-xsm:hidden",
           getRandomColor(recipient.name),
         )}
       >
@@ -52,7 +52,7 @@ export const RecipientListItem = ({
         e.stopPropagation();
         onDelete(recipient);
       }}
-      className="group-hover:block sm:hidden"
+      className="scale-0 transform transition-transform group-hover:block group-hover:scale-100 sm:hidden"
     >
       <TrashIcon className="size-4 stroke-gray-500 dark:stroke-white/50" />
     </Button>

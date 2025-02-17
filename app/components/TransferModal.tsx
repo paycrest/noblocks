@@ -167,7 +167,7 @@ export const TransferModal = ({
                   message: "Invalid amount",
                 },
               })}
-              className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:placeholder:text-white/30 ${
+              className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
                 errors.amount
                   ? "text-red-500 dark:text-red-500"
                   : "text-neutral-900 dark:text-white/80"
@@ -234,7 +234,7 @@ export const TransferModal = ({
               },
             })}
             className={classNames(
-              "min-h-11 w-full rounded-xl border border-border-input bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
+              "min-h-11 w-full rounded-xl border border-border-input bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
               errors.recipientAddress
                 ? "text-red-500 dark:text-red-500"
                 : "text-neutral-900 dark:text-white/80",

@@ -53,87 +53,83 @@ export const SavedBeneficiariesModal = ({
   }, [savedRecipients, beneficiarySearchTerm, currency, institutions]);
 
   return (
-    <Dialog
-      open={isOpen}
-      as="div"
-      className="relative z-20 focus:outline-none"
-      onClose={onClose}
-    >
-      <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
-
-      <div className="fixed inset-0 w-screen overflow-y-auto">
-        <div className="flex min-h-full items-center justify-center p-4">
-          <DialogPanel
-            transition
-            className="data-[closed]:transform-[scale(95%)] w-full max-w-md space-y-4 duration-300 ease-out data-[closed]:opacity-0"
-          >
-            <div className="rounded-2xl bg-white p-4 dark:bg-neutral-900">
-              <Button
-                className="flex w-full items-center justify-between"
-                onClick={onClose}
-              >
-                <p>Saved beneficiaries</p>
-                <ArrowUp01Icon
-                  className={classNames(
-                    "text-base text-gray-400 transition-transform dark:text-white/50",
-                  )}
-                />
-              </Button>
-
+    <AnimatePresence>
+      {isOpen && (
+        <Dialog
+          open={isOpen}
+          as="div"
+          className="relative z-20 focus:outline-none"
+          onClose={onClose}
+        >
+          <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="fixed inset-0 w-screen overflow-y-auto">
+            <div className="flex min-h-full w-full items-end justify-center sm:items-center sm:p-4">
               <motion.div
-                initial="closed"
-                animate="open"
-                exit="closed"
-                variants={dropdownVariants}
-                className="scrollbar-hide mt-4 max-h-80 space-y-2 overflow-y-auto"
+                initial={{ y: 20 }}
+                animate={{ y: 0 }}
+                exit={{ y: 20 }}
+                transition={{ duration: 0.3 }}
+                className="w-full sm:max-w-md"
               >
-                {/* Search beneficiaries */}
-                <div className="sticky top-0 bg-white pb-2 dark:bg-neutral-900">
-                  <SearchInput
-                    value={beneficiarySearchTerm}
-                    onChange={setBeneficiarySearchTerm}
-                    placeholder="Search beneficiaries by name or account number"
-                    autoFocus={isOpen}
-                  />
-                </div>
+                <DialogPanel className="relative h-[28.5rem] w-full max-w-full overflow-hidden rounded-t-[20px] border border-border-light bg-white px-5 pb-6 pt-6 shadow-xl dark:border-white/5 dark:bg-surface-overlay max-sm:pb-12 sm:max-w-md sm:rounded-[20px]">
+                  <Button
+                    className="flex w-full items-center justify-between"
+                    onClick={onClose}
+                  >
+                    <p>Saved beneficiaries</p>
+                    <ArrowUp01Icon
+                      className={classNames(
+                        "size-5 text-gray-400 transition-transform dark:text-white/50",
+                      )}
+                    />
+                  </Button>
 
-                <AnimatePresence>
-                  {filteredSavedRecipients.length > 0 ? (
-                    filteredSavedRecipients.map((recipient, index) => (
-                      <motion.div
-                        key={`${recipient.accountIdentifier}-${index}`}
-                        initial={{ opacity: 1, height: "auto" }}
-                        exit={{
-                          opacity: 0,
-                          height: 0,
-                          backgroundColor: "#4D2121",
-                        }}
-                        transition={{ duration: 0.3 }}
-                      >
-                        <RecipientListItem
-                          recipient={recipient}
-                          onSelect={onSelectRecipient}
-                          onDelete={onDeleteRecipient}
-                          isBeingDeleted={recipientToDelete === recipient}
-                        />
-                      </motion.div>
-                    ))
-                  ) : (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="py-4 text-center text-gray-500 dark:text-white/50"
-                    >
-                      No recipients found
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                  <div className="scrollbar-hide mt-4 max-h-80 space-y-2 overflow-y-auto">
+                    <SearchInput
+                      value={beneficiarySearchTerm}
+                      onChange={setBeneficiarySearchTerm}
+                      placeholder="Search by name or account number"
+                      autoFocus={isOpen}
+                    />
+
+                    <AnimatePresence>
+                      {filteredSavedRecipients.length > 0 ? (
+                        filteredSavedRecipients.map((recipient, index) => (
+                          <motion.div
+                            key={`${recipient.accountIdentifier}-${index}`}
+                            initial={{ opacity: 1, height: "auto" }}
+                            exit={{
+                              opacity: 0,
+                              height: 0,
+                              backgroundColor: "#4D2121",
+                            }}
+                          >
+                            <RecipientListItem
+                              recipient={recipient}
+                              onSelect={onSelectRecipient}
+                              onDelete={onDeleteRecipient}
+                              isBeingDeleted={recipientToDelete === recipient}
+                            />
+                          </motion.div>
+                        ))
+                      ) : (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="py-4 text-center text-gray-500 dark:text-white/50"
+                        >
+                          No recipients found
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </DialogPanel>
               </motion.div>
             </div>
-          </DialogPanel>
-        </div>
-      </div>
-    </Dialog>
+          </div>
+        </Dialog>
+      )}
+    </AnimatePresence>
   );
 };

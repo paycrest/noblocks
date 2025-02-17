@@ -22,20 +22,26 @@ import {
   type StateProps,
   type TransactionStatusType,
 } from "./types";
-import { usePrivy } from "@privy-io/react-auth";
+// import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "./context/StepContext";
-import { clearFormState } from "./utils";
+// import { clearFormState } from "./utils";
 import { trackEvent } from "./hooks/analytics";
-import { useNetwork } from "./context/NetworksContext";
+// import { useNetwork } from "./context/NetworksContext";
+import { useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
+import { connected } from "process";
 
 /**
  * Represents the Home component.
  * This component handles the logic and rendering of the home page.
  */
+
 function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
-  const { authenticated } = usePrivy();
+//   const { authenticated } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
-  const { selectedNetwork } = useNetwork();
+//   const { selectedNetwork } = useNetwork();
+  const { isConnected, embeddedWalletInfo, address } = useAppKitAccount();
+  const { caipNetwork, caipNetworkId, chainId, switchNetwork } =
+        useAppKitNetwork();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -77,16 +83,12 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   // State props for child components
   const stateProps: StateProps = {
     formValues,
-
     rate,
     isFetchingRate,
-
     institutions,
     isFetchingInstitutions,
-
     selectedRecipient,
     setSelectedRecipient,
-
     setOrderId,
     setCreatedAt,
     setTransactionStatus,
@@ -112,30 +114,14 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
     setIsPageLoading(false);
   }, []);
 
-  // Reset form values and return to form when user logs out
   useEffect(() => {
-    if (!authenticated) {
+    if (!isConnected) {
       setCurrentStep(STEPS.FORM);
       setFormValues({} as FormData);
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated]);
-
-  // Reset token to USDC when it's not present
-  useEffect(() => {
-    if (!formMethods.getValues("token")) {
-      formMethods.reset({ token: "USDC" });
-    }
-  }, []);
-
-  // Reset provider error state when search params change
-  useEffect(() => {
-    const newProvider = searchParams.get("LP");
-    if (!failedProviders.current.has(newProvider || "")) {
-      providerErrorShown.current = false;
-    }
-  }, [searchParams]);
+  }, [isConnected]);
 
   // Fetch supported institutions based on currency
   useEffect(() => {
@@ -232,7 +218,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
     setCurrentStep(STEPS.PREVIEW);
     trackEvent("form_submitted", {
       token: data.token,
-      network: selectedNetwork.chain.name,
+      network: caipNetwork?.name,
       recipient: data.recipientName,
     });
   };
@@ -269,37 +255,38 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
             stateProps={stateProps}
           />
         );
-      case STEPS.PREVIEW:
-        return (
-          <TransactionPreview
-            handleBackButtonClick={handleBackToForm}
-            stateProps={stateProps}
-          />
-        );
-      case STEPS.STATUS:
-        return (
-          <TransactionStatus
-            formMethods={formMethods}
-            transactionStatus={transactionStatus}
-            createdAt={createdAt}
-            orderId={orderId}
-            clearForm={() => {
-              clearFormState(formMethods);
-              setSelectedRecipient(null);
-            }}
-            clearTransactionStatus={() => {
-              setTransactionStatus("idle");
-            }}
-            setTransactionStatus={setTransactionStatus}
-            setCurrentStep={setCurrentStep}
-            supportedInstitutions={institutions}
-          />
-        );
+    //   case STEPS.PREVIEW:
+    //     return (
+    //       <TransactionPreview
+    //         handleBackButtonClick={handleBackToForm}
+    //         stateProps={stateProps}
+    //       />
+    //     );
+    //   case STEPS.STATUS:
+    //     return (
+    //       <TransactionStatus
+    //         formMethods={formMethods}
+    //         transactionStatus={transactionStatus}
+    //         createdAt={createdAt}
+    //         orderId={orderId}
+    //         clearForm={() => {
+    //           clearFormState(formMethods);
+    //           setSelectedRecipient(null);
+    //         }}
+    //         clearTransactionStatus={() => {
+    //           setTransactionStatus("idle");
+    //         }}
+    //         setTransactionStatus={setTransactionStatus}
+    //         setCurrentStep={setCurrentStep}
+    //         supportedInstitutions={institutions}
+    //       />
+    //     );
       default:
         return null;
     }
   };
 
+  console.log(caipNetwork?.name);
   return (
     <>
       <Preloader isLoading={isPageLoading} />

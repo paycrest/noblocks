@@ -10,11 +10,12 @@ import {
 } from "@headlessui/react";
 import { toast } from "sonner";
 import { QRCode } from "react-qrcode-logo";
-import { usePrivy } from "@privy-io/react-auth";
+// import { usePrivy } from "@privy-io/react-auth";
 import { FiExternalLink } from "react-icons/fi";
 import { IoMdClose } from "react-icons/io";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useCallback, useEffect } from "react";
+import { useAccount, useSignMessage } from "wagmi";
 
 import {
   CheckIcon,
@@ -75,8 +76,10 @@ export const KycModal = ({
 }: {
   setIsUserVerified: (value: boolean) => void;
 }) => {
-  const { user, signMessage } = usePrivy();
-  const walletAddress = user?.wallet?.address;
+  // const { user, signMessage } = usePrivy();
+  const { address } = useAccount();
+  const { signMessageAsync, data, isSuccess } = useSignMessage();
+  const walletAddress = address;
 
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<Step>(STEPS.TERMS);
@@ -101,15 +104,15 @@ export const KycModal = ({
 
     try {
       setIsOpen(false);
-      const signature = await signMessage({ message }, { uiOptions: uiConfig });
-      if (signature) {
+      const signature = await signMessageAsync({ message });
+      if (data && isSuccess) {
         setIsOpen(true);
         setStep(STEPS.LOADING);
 
         const response = await initiateKYC({
-          signature: signature.signature.startsWith("0x")
-            ? signature.signature.slice(2)
-            : signature.signature,
+          signature: data.startsWith("0x")
+            ? data.slice(2)
+            : data, // remove the 0x prefix
           walletAddress: walletAddress || "",
           nonce,
         });

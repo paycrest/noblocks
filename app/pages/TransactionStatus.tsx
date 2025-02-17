@@ -27,6 +27,7 @@ import {
 import {
   calculateDuration,
   classNames,
+  formatCurrency,
   getExplorerLink,
   getInstitutionNameByCode,
   getSavedRecipients,
@@ -80,10 +81,11 @@ export function TransactionStatus({
   const [isTracked, setIsTracked] = useState(false);
 
   const { watch } = formMethods;
-  const token = watch("token");
-  const currency = watch("currency");
-  const amount = watch("amountSent");
-  const recipientName = String(watch("recipientName"));
+  const token = watch("token") || "";
+  const currency = String(watch("currency")) || "USD";
+  const amount = watch("amountSent") || 0;
+  const fiat = Number(watch("amountReceived")) || 0;
+  const recipientName = String(watch("recipientName")) || "";
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -340,8 +342,9 @@ export function TransactionStatus({
       return (
         <>
           Your transfer of{" "}
-          <span className="text-neutral-900 dark:text-white">
-            {amount} {token}
+          <span className="text-text-body dark:text-white">
+            {amount} {token} (
+            {formatCurrency(fiat ?? 0, currency, `en-${currency.slice(0, 2)}`)})
           </span>{" "}
           to {formattedRecipientName} was unsuccessful.
           <br />
@@ -352,14 +355,25 @@ export function TransactionStatus({
     }
 
     if (!["validated", "settled"].includes(transactionStatus)) {
-      return `Processing payment to ${formattedRecipientName}. Hang on, this will only take a few seconds.`;
+      return (
+        <>
+          Processing payment of{" "}
+          <span className="text-text-body dark:text-white">
+            {amount} {token} (
+            {formatCurrency(fiat ?? 0, currency, `en-${currency.slice(0, 2)}`)})
+          </span>{" "}
+          to {formattedRecipientName}. Hang on, this will only take a few
+          seconds
+        </>
+      );
     }
 
     return (
       <>
         Your transfer of{" "}
-        <span className="text-neutral-900 dark:text-white">
-          {amount} {token}
+        <span className="text-text-body dark:text-white">
+          {amount} {token} (
+          {formatCurrency(fiat ?? 0, currency, `en-${currency.slice(0, 2)}`)})
         </span>{" "}
         to {formattedRecipientName} has been completed successfully.
       </>
@@ -442,7 +456,7 @@ export function TransactionStatus({
             <AnimatedComponent
               variant={slideInOut}
               delay={0.4}
-              className="whitespace-nowrap rounded-full bg-gray-50 px-2 py-1 capitalize dark:bg-white/5"
+              className="whitespace-nowrap rounded-full bg-gray-50 px-3 py-1 capitalize dark:bg-white/5"
             >
               {(recipientName ?? "").toLowerCase().split(" ")[0]}
             </AnimatedComponent>
@@ -464,14 +478,46 @@ export function TransactionStatus({
                 : "Transaction successful"}
           </AnimatedComponent>
 
-          {!["validated", "settled"].includes(transactionStatus) && (
-            <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
-          )}
+          <div className="flex w-full items-center gap-2 text-neutral-900 dark:text-white/80 sm:hidden">
+            <AnimatedComponent
+              variant={slideInOut}
+              delay={0.2}
+              className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5"
+            >
+              {token && (
+                <Image
+                  src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
+                  alt={`${token} logo`}
+                  width={14}
+                  height={14}
+                />
+              )}
+              <p className="whitespace-nowrap pr-0.5 font-medium">
+                {amount} {token}
+              </p>
+            </AnimatedComponent>
+            <Image
+              src={`/images/horizontal-stepper${resolvedTheme === "dark" ? "-dark" : ""}.svg`}
+              alt="Progress"
+              width={200}
+              height={200}
+              className="-mr-1.5 mt-1 size-auto"
+            />
+            <AnimatedComponent
+              variant={slideInOut}
+              delay={0.4}
+              className="max-w-28 truncate rounded-full bg-gray-50 px-3 py-1 capitalize dark:bg-white/5"
+            >
+              {(recipientName ?? "").toLowerCase().split(" ")[0]}
+            </AnimatedComponent>
+          </div>
+
+          <hr className="w-full border-dashed border-border-light dark:border-white/10 sm:hidden" />
 
           <AnimatedComponent
             variant={slideInOut}
             delay={0.4}
-            className="font-light leading-normal text-gray-500 dark:text-white/50"
+            className="leading-normal text-gray-500 dark:text-white/50"
           >
             {getPaymentMessage()}
           </AnimatedComponent>
@@ -484,7 +530,7 @@ export function TransactionStatus({
                 <AnimatedComponent
                   variant={slideInOut}
                   delay={0.5}
-                  className="flex w-full flex-wrap gap-3"
+                  className="flex w-full flex-wrap gap-3 max-sm:hidden"
                 >
                   {["validated", "settled"].includes(transactionStatus) && (
                     <button
@@ -532,7 +578,7 @@ export function TransactionStatus({
                         />
                       </svg>
                     </Checkbox>
-                    <label className="text-gray-500 dark:text-white/50">
+                    <label className="text-text-body dark:text-white/80">
                       Add{" "}
                       {(recipientName ?? "")
                         .split(" ")[0]
@@ -550,8 +596,8 @@ export function TransactionStatus({
             )}
           </AnimatePresence>
 
-          {["validated", "settled"].includes(transactionStatus) && (
-            <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
+          {["validated", "settled", "refunded"].includes(transactionStatus) && (
+            <hr className="w-full border-dashed border-border-light dark:border-white/10" />
           )}
 
           <AnimatePresence>
@@ -622,7 +668,7 @@ export function TransactionStatus({
                 delay={0.8}
                 className="w-full space-y-4 text-gray-500 dark:text-white/50"
               >
-                <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
+                <hr className="w-full border-dashed border-border-light dark:border-white/10" />
 
                 <p>Help spread the word</p>
 
@@ -641,7 +687,7 @@ export function TransactionStatus({
                     rel="noopener noreferrer"
                     target="_blank"
                     href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
-                    className={`!rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                    className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                     onClick={() => {
                       trackEvent("social_share_clicked", {
                         platform: "Twitter",
@@ -663,7 +709,7 @@ export function TransactionStatus({
                     rel="noopener noreferrer"
                     target="_blank"
                     href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
-                    className={`!rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                    className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                     onClick={() => {
                       trackEvent("social_share_clicked", {
                         platform: "Warpcast",
@@ -682,6 +728,46 @@ export function TransactionStatus({
                   </a>
                 </div>
               </AnimatedComponent>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {["validated", "settled", "refunded"].includes(
+              transactionStatus,
+            ) && (
+              <>
+                <AnimatedComponent
+                  variant={slideInOut}
+                  delay={0.5}
+                  className="mt-10 w-full space-y-4 sm:hidden"
+                >
+                  <div className="flex w-full flex-col gap-3">
+                    {["validated", "settled"].includes(transactionStatus) && (
+                      <button
+                        type="button"
+                        onClick={handleGetReceipt}
+                        className={classNames(
+                          secondaryBtnClasses,
+                          "w-full flex-1",
+                        )}
+                        disabled={isGettingReceipt}
+                      >
+                        {isGettingReceipt ? "Generating..." : "Get receipt"}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleBackButtonClick}
+                      className={classNames(primaryBtnClasses, "w-full flex-1")}
+                    >
+                      {transactionStatus === "refunded"
+                        ? "Retry transaction"
+                        : "New payment"}
+                    </button>
+                  </div>
+                </AnimatedComponent>
+              </>
             )}
           </AnimatePresence>
         </div>

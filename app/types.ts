@@ -43,6 +43,7 @@ export type TransactionFormProps = {
 export type TransactionPreviewProps = {
   handleBackButtonClick: () => void;
   stateProps: StateProps;
+  createdAt: string;
 };
 
 export type RecipientDetailsFormProps = {

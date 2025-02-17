@@ -28,7 +28,6 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "./context/StepContext";
 import { clearFormState } from "./utils";
-import { trackEvent } from "./hooks/analytics";
 import { useNetwork } from "./context/NetworksContext";
 
 /**
@@ -38,7 +37,6 @@ import { useNetwork } from "./context/NetworksContext";
 function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   const { authenticated, ready } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
-  const { selectedNetwork } = useNetwork();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -95,24 +93,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
     setTransactionStatus,
   };
 
-  useEffect(function trackPageOpening() {
-    // Track initial page load
-    if (!isPageLoading || !ready) {
-      trackEvent("app_opened");
-      trackEvent("page_viewed", { page: "Swap Interface" });
-
-      const cookieConsent = Cookies.get("cookieConsent");
-      if (cookieConsent) {
-        try {
-          const consent = JSON.parse(cookieConsent);
-          if (consent && consent.essential) {
-            trackEvent("return_user");
-          }
-        } catch (error) {
-          console.error("Invalid cookie consent format", error);
-        }
-      }
-    }
+  useEffect(function setPageLoadingState() {
     setIsPageLoading(false);
   }, []);
 
@@ -207,12 +188,6 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
                 failedProviders.current.add(lpParam);
               }
               providerErrorShown.current = true;
-
-              trackEvent("provider_error", {
-                provider: lpParam,
-                currency,
-                token,
-              });
             }
 
             // Retry without provider ID if one was previously used
@@ -242,11 +217,6 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   const handleFormSubmit = (data: FormData) => {
     setFormValues(data);
     setCurrentStep(STEPS.PREVIEW);
-    trackEvent("form_submitted", {
-      token: data.token,
-      network: selectedNetwork.chain.name,
-      recipient: data.recipientName,
-    });
   };
 
   const handleBackToForm = () => {
@@ -286,6 +256,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
           <TransactionPreview
             handleBackButtonClick={handleBackToForm}
             stateProps={stateProps}
+            createdAt={createdAt}
           />
         );
       case STEPS.STATUS:

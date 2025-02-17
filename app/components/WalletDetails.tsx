@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
+import { Dialog, DialogPanel } from "@headlessui/react";
 
 import { useOutsideClick } from "../hooks";
 import { classNames, fetchSupportedTokens, formatCurrency } from "../utils";
@@ -23,19 +23,47 @@ export const WalletDetails = () => {
   const { smartWalletBalance, allBalances, refreshBalance } = useBalance();
 
   const { user } = usePrivy();
+
   const { fundWallet } = useFundWallet({
-    onUserExited: ({ fundingMethod, balance, chain, address }) => {
-      refreshBalance();
-      trackEvent("funding_completed", {
-        wallet: "smart_wallet",
-        address,
-        network: chain.name,
-        fundingType: fundingMethod,
-        amount: balance,
-      });
+    onUserExited: ({ fundingMethod, chain }) => {
+      // NOTE: This is an inaccurate way of tracking funding status
+      // Privy doesn't provide detailed funding status information
+      // Available variables in onUserExited: address, chain, fundingMethod, balance
+      // Limitations:
+      // 1. fundingMethod only indicates user selected a method, not if funding completed
+      // 2. User can select method and cancel, but it still records as "completed"
+      // 3. No way to track funding errors
+      // 4. balance is returned as bigint and doesn't specify token type
+      // 5. No webhook or callback for actual funding confirmation
+      if (fundingMethod) {
+        refreshBalance();
+        trackEvent("Funding Completed", {
+          "Funding type": fundingMethod,
+          Amount: "Not available on Privy",
+          Network: chain.name,
+          Token: "USDC", // privy only supports USDC
+          "Funding date": new Date().toISOString(),
+        });
+      } else {
+        trackEvent("Funding cancelled", {
+          "Funding type": "User exited the funding process",
+          Amount: "Not available on Privy",
+          Network: chain.name,
+          Token: "USDC", // privy only supports USDC
+          "Funding date": new Date().toISOString(),
+        });
+      }
     },
   });
-  const handleFundWallet = async (address: string) => await fundWallet(address);
+
+  const handleFundWallet = async (address: string) => {
+    trackEvent("Funding started", {
+      "Entry point": "Fund button on navbar",
+    });
+    await fundWallet(address, {
+      chain: selectedNetwork.chain,
+    });
+  };
 
   const smartWallet = user?.linkedAccounts.find(
     (account) => account.type === "smart_wallet",
@@ -75,12 +103,11 @@ export const WalletDetails = () => {
           title="Wallet balance"
           onClick={() => {
             setIsOpen(!isOpen);
-            trackEvent("cta_clicked", { cta: "Wallet Balance Dropdown" });
           }}
           className="flex h-9 items-center justify-center gap-2 rounded-xl bg-accent-gray px-2.5 py-2.5 transition-colors duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900 sm:py-0"
         >
           <Wallet01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-          <div className="h-10 w-px border-r border-dashed border-gray-100 dark:border-white/10" />
+          <div className="h-9 w-px border-r border-dashed border-border-light dark:border-white/10" />
           <div className="flex items-center gap-1.5 dark:text-white/80">
             <p>
               {formatCurrency(smartWalletBalance?.total ?? 0, "USD", "en-US")}
@@ -142,9 +169,6 @@ export const WalletDetails = () => {
                         onClick={() => {
                           handleFundWallet(smartWallet?.address ?? "");
                           setIsOpen(false);
-                          trackEvent("fund_wallet", {
-                            wallet: "smart_wallet",
-                          });
                         }}
                         className="font-medium text-lavender-500"
                       >

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
+  calculateDuration,
   classNames,
   fetchSupportedTokens,
   formatCurrency,
@@ -45,6 +46,7 @@ import { InformationSquareIcon } from "hugeicons-react";
 export const TransactionPreview = ({
   handleBackButtonClick,
   stateProps,
+  createdAt,
 }: TransactionPreviewProps) => {
   const { user } = usePrivy();
   const { client } = useSmartWallets();
@@ -191,22 +193,30 @@ export const TransactionPreview = ({
 
       await getOrderId();
       refreshBalance(); // Refresh balance after order is created
-      trackEvent("swap_initiated", {
-        token,
-        amount: amountSent,
-        recipient: recipientName,
-        network: selectedNetwork.chain.name,
+
+      trackEvent("Swap started", {
+        "Entry point": "Transaction preview",
       });
     } catch (e) {
       const error = e as BaseError;
       setErrorMessage(error.shortMessage);
       setIsConfirming(false);
-      trackEvent("swap_failed", {
-        error: error.shortMessage,
-        token,
-        amount: amountSent,
-        recipient: recipientName,
-        network: selectedNetwork.chain.name,
+      trackEvent("Swap Failed", {
+        Amount: amountSent,
+        "Send token": token,
+        "Receive currency": currency,
+        "Recipient name": recipientName,
+        "Recipient bank": getInstitutionNameByCode(
+          institution,
+          supportedInstitutions,
+        ),
+        "Noblocks balance": smartWalletBalance?.balances[token] || 0,
+        "Swap date": createdAt,
+        "Reason for failure": error.shortMessage,
+        "Transaction duration": calculateDuration(
+          createdAt,
+          new Date().toISOString(),
+        ),
       });
     }
   };

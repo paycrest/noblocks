@@ -12,7 +12,6 @@ import { toast } from "sonner";
 import { QRCode } from "react-qrcode-logo";
 import { usePrivy } from "@privy-io/react-auth";
 import { FiExternalLink } from "react-icons/fi";
-import { IoMdClose } from "react-icons/io";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useCallback, useEffect } from "react";
 
@@ -118,13 +117,13 @@ export const KycModal = ({
         if (response.status === "success") {
           setStep(STEPS.QR_CODE);
           setKycUrl(response.data.url);
-          trackEvent("verification_initiated", {
-            walletAddress,
+          trackEvent("Account verification", {
+            "Verification status": "Pending",
           });
         } else {
           setStep(STEPS.STATUS.FAILED);
-          trackEvent("verification_initiation_failed", {
-            walletAddress,
+          trackEvent("Account verification", {
+            "Verification status": "Failed",
           });
         }
       }
@@ -433,14 +432,14 @@ export const KycModal = ({
 
       if (newStatus === STEPS.STATUS.SUCCESS) {
         setIsUserVerified(true);
-        trackEvent("verification_completed", {
-          walletAddress,
+        trackEvent("Account verification", {
+          "Verification status": "Success",
         });
       }
       if (newStatus === STEPS.STATUS.PENDING) setKycUrl(response.data.url);
       if (newStatus === STEPS.STATUS.FAILED) {
-        trackEvent("verification_failed", {
-          walletAddress,
+        trackEvent("Account verification", {
+          "Verification status": "Failed",
         });
       }
 
@@ -502,7 +501,6 @@ export const KycModal = ({
             open={isOpen}
             onClose={() => {
               setIsOpen(false);
-              trackEvent("dismissed_ui_element", { element: "KYC Modal" });
             }}
             className="relative z-50"
           >

@@ -37,8 +37,6 @@ export const Navbar = () => {
 
   const { login } = useLogin({
     onComplete: async ({ user, isNewUser, loginMethod }) => {
-      trackEvent("wallet_connected");
-
       if (user.wallet?.address) {
         identifyUser(user.wallet.address, {
           login_method: loginMethod,
@@ -49,6 +47,16 @@ export const Navbar = () => {
 
         if (isNewUser) {
           localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address}`);
+
+          trackEvent("Sign up completed", {
+            "Login method": loginMethod,
+            user_id: user.wallet.address,
+            "Email address": user.email,
+            "Sign up date": user.createdAt,
+            "Noblocks balance": 0, // a new user should always have 0 balance
+          });
+        } else {
+          trackEvent("Login completed", { "Login method": loginMethod });
         }
       }
     },

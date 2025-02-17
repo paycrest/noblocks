@@ -112,7 +112,7 @@ export const Navbar = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute left-0 top-full mt-4 w-48 rounded-lg border border-gray-200 bg-white py-2 shadow-lg dark:border-white/10 dark:bg-neutral-800"
+                    className="absolute left-0 top-full mt-4 w-48 rounded-lg border border-border-light bg-white py-2 shadow-lg dark:border-white/5 dark:bg-surface-overlay"
                   >
                     {pathname !== "/" && (
                       <Link

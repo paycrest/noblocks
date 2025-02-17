@@ -37,7 +37,7 @@ export const CookieConsent = () => {
   useHotjar();
   useMixpanel();
 
-  const [isBannerVisible, setIsBannerVisible] = useState(true);
+  const [isBannerVisible, setIsBannerVisible] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [consent, setConsent] = useState({
     marketing: false,

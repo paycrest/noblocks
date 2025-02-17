@@ -94,7 +94,8 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
     setTransactionStatus,
   };
 
-  useEffect(() => {
+  useEffect(function trackPageOpening() {
+    // Track initial page load
     if (!isPageLoading || !ready) {
       trackEvent("app_opened");
       trackEvent("page_viewed", { page: "Swap Interface" });
@@ -114,120 +115,128 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
     setIsPageLoading(false);
   }, []);
 
-  // Reset form values and return to form when user logs out
-  useEffect(() => {
-    if (!authenticated) {
-      setCurrentStep(STEPS.FORM);
-      setFormValues({} as FormData);
-    }
+  useEffect(
+    function resetOnLogout() {
+      // Reset form if user logs out
+      if (!authenticated) {
+        setCurrentStep(STEPS.FORM);
+        setFormValues({} as FormData);
+      }
+    },
+    [authenticated],
+  );
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated]);
-
-  // Reset token to USDC when it's not present
-  useEffect(() => {
+  useEffect(function ensureDefaultToken() {
+    // Default token to USDC if missing
     if (!formMethods.getValues("token")) {
       formMethods.reset({ token: "USDC" });
     }
   }, []);
 
-  // Reset provider error state when search params change
-  useEffect(() => {
-    const newProvider = searchParams.get("LP");
-    if (!failedProviders.current.has(newProvider || "")) {
-      providerErrorShown.current = false;
-    }
-  }, [searchParams]);
-
-  // Fetch supported institutions based on currency
-  useEffect(() => {
-    const getInstitutions = async (currencyValue: string) => {
-      if (!currencyValue) return;
-
-      setIsFetchingInstitutions(true);
-
-      const institutions = await fetchSupportedInstitutions(currencyValue);
-      setInstitutions(
-        institutions.filter((institution) => institution.type === "bank"),
-      );
-
-      setIsFetchingInstitutions(false);
-    };
-
-    getInstitutions(currency);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currency]);
-
-  // Fetch rate based on currency, amount, and token
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    if (!currency) return;
-
-    const getRate = async (shouldUseProvider = true) => {
-      setIsFetchingRate(true);
-      try {
-        const lpParam = searchParams.get("LP");
-
-        // Skip using provider if it's already failed
-        const shouldSkipProvider =
-          lpParam && failedProviders.current.has(lpParam);
-        const providerId =
-          shouldUseProvider && lpParam && !shouldSkipProvider
-            ? lpParam
-            : undefined;
-
-        const rate = await fetchRate({
-          token,
-          amount: amountSent || 1,
-          currency,
-          providerId,
-        });
-        setRate(rate.data);
-      } catch (error) {
-        if (error instanceof Error) {
-          const lpParam = searchParams.get("LP");
-          if (
-            shouldUseProvider &&
-            lpParam &&
-            !failedProviders.current.has(lpParam)
-          ) {
-            toast.error(`${error.message} - defaulting to public rate`);
-
-            // Track failed provider
-            if (lpParam) {
-              failedProviders.current.add(lpParam);
-            }
-            providerErrorShown.current = true;
-
-            trackEvent("provider_error", {
-              provider: lpParam,
-              currency,
-              token,
-            });
-          }
-
-          // Retry without provider ID if we were using one
-          if (shouldUseProvider) {
-            await getRate(false);
-          }
-        }
-      } finally {
-        setIsFetchingRate(false);
+  useEffect(
+    function resetProviderErrorOnChange() {
+      // Reset providerErrorShown on query param change
+      const newProvider = searchParams.get("LP");
+      if (!failedProviders.current.has(newProvider || "")) {
+        providerErrorShown.current = false;
       }
-    };
+    },
+    [searchParams],
+  );
 
-    const debounceFetchRate = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => getRate(), 1000);
-    };
+  useEffect(
+    function fetchInstitutionData() {
+      async function getInstitutions(currencyValue: string) {
+        if (!currencyValue) return;
 
-    debounceFetchRate();
+        setIsFetchingInstitutions(true);
 
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [amountSent, currency, token, searchParams]);
+        const institutions = await fetchSupportedInstitutions(currencyValue);
+        setInstitutions(
+          institutions.filter((institution) => institution.type === "bank"),
+        );
+
+        setIsFetchingInstitutions(false);
+      }
+
+      getInstitutions(currency);
+    },
+    [currency],
+  );
+
+  useEffect(
+    function handleRateFetch() {
+      // Debounce rate fetching
+      let timeoutId: NodeJS.Timeout;
+
+      if (!currency) return;
+
+      const getRate = async (shouldUseProvider = true) => {
+        setIsFetchingRate(true);
+        try {
+          const lpParam = searchParams.get("LP");
+
+          // Skip using provider if it's already failed
+          const shouldSkipProvider =
+            lpParam && failedProviders.current.has(lpParam);
+          const providerId =
+            shouldUseProvider && lpParam && !shouldSkipProvider
+              ? lpParam
+              : undefined;
+
+          const rate = await fetchRate({
+            token,
+            amount: amountSent || 1,
+            currency,
+            providerId,
+          });
+          setRate(rate.data);
+        } catch (error) {
+          if (error instanceof Error) {
+            const lpParam = searchParams.get("LP");
+            if (
+              shouldUseProvider &&
+              lpParam &&
+              !failedProviders.current.has(lpParam)
+            ) {
+              toast.error(`${error.message} - defaulting to public rate`);
+
+              // Track failed provider
+              if (lpParam) {
+                failedProviders.current.add(lpParam);
+              }
+              providerErrorShown.current = true;
+
+              trackEvent("provider_error", {
+                provider: lpParam,
+                currency,
+                token,
+              });
+            }
+
+            // Retry without provider ID if one was previously used
+            if (shouldUseProvider) {
+              await getRate(false);
+            }
+          }
+        } finally {
+          setIsFetchingRate(false);
+        }
+      };
+
+      const debounceFetchRate = () => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => getRate(), 1000);
+      };
+
+      debounceFetchRate();
+
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    },
+    [amountSent, currency, token, searchParams],
+  );
 
   const handleFormSubmit = (data: FormData) => {
     setFormValues(data);

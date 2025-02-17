@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { ImSpinner, ImSpinner3 } from "react-icons/im";
-import { usePrivy, useFundWallet } from "@privy-io/react-auth";
-import { AnimatePresence } from "framer-motion";
+import { usePrivy, useFundWallet, useWallets } from "@privy-io/react-auth";
+import { AnimatePresence, motion } from "framer-motion";
 
 import {
   AnimatedComponent,
@@ -10,6 +10,7 @@ import {
   slideInOut,
   FormDropdown,
   RecipientDetailsForm,
+  KycModal,
 } from "../components";
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
@@ -19,6 +20,8 @@ import { useBalance } from "../context/BalanceContext";
 import { trackEvent } from "../hooks/analytics";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
+import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
+import { fetchKYCStatus } from "../api/aggregator";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -37,10 +40,15 @@ export const TransactionForm = ({
   // Destructure stateProps
   const { rate, isFetchingRate } = stateProps;
   const { authenticated, ready, login, user } = usePrivy();
+  const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, refreshBalance } = useBalance();
+  const embeddedWalletAddress = wallets.find(
+    (wallet) => wallet.walletClientType === "privy",
+  )?.address;
 
   const [isUserVerified, setIsUserVerified] = useState(false);
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
 
   const {
@@ -127,6 +135,19 @@ export const TransactionForm = ({
       setIsReceiveInputActive(false);
     }
   };
+
+  useEffect(() => {
+    if (!embeddedWalletAddress) return;
+
+    const fetchStatus = async () => {
+      const response = await fetchKYCStatus(embeddedWalletAddress);
+      if (response.data.status === "pending") {
+        setIsKycModalOpen(true);
+      }
+    };
+
+    fetchStatus();
+  }, [embeddedWalletAddress]);
 
   // calculate receive amount based on send amount and rate
   useEffect(
@@ -371,6 +392,7 @@ export const TransactionForm = ({
 
         {/* Recipient and memo */}
         <AnimatePresence>
+          {/* {currency && authenticated && isUserVerified && ( */}
           {currency && authenticated && (
             <AnimatedComponent
               variant={slideInOut}
@@ -404,6 +426,53 @@ export const TransactionForm = ({
           )}
         </AnimatePresence>
 
+        <AnimatePresence>
+          {isKycModalOpen && (
+            <Dialog
+              open={isKycModalOpen}
+              onClose={() => setIsKycModalOpen(false)}
+              className="relative z-50"
+            >
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <DialogBackdrop
+                  transition
+                  className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+                />
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  transition: { type: "spring", stiffness: 300, damping: 30 },
+                }}
+                exit={{
+                  opacity: 0,
+                  y: 20,
+                  transition: { type: "spring", stiffness: 300, damping: 30 },
+                }}
+                className="fixed inset-0 flex w-screen items-end justify-center sm:items-center sm:p-4"
+              >
+                <DialogPanel
+                  transition
+                  className="relative max-h-[90vh] w-full max-w-[25.75rem] overflow-y-auto rounded-2xl bg-white p-5 text-sm shadow-xl transition-all duration-300 ease-out data-[closed]:scale-95 data-[closed]:opacity-0 dark:bg-surface-overlay"
+                >
+                  <KycModal
+                    setIsKycModalOpen={setIsKycModalOpen}
+                    setIsUserVerified={setIsUserVerified}
+                  />
+                </DialogPanel>
+              </motion.div>
+            </Dialog>
+          )}
+        </AnimatePresence>
+
         {/* Loading and Submit buttons */}
         {!ready && (
           <button
@@ -416,13 +485,37 @@ export const TransactionForm = ({
           </button>
         )}
 
+        {/* {ready && (
+          <button
+            type="button"
+            className={primaryBtnClasses}
+            disabled={!isEnabled && isUserVerified}
+            onClick={buttonAction(
+              handleSwap,
+              login,
+              () => handleFundWallet(smartWallet?.address ?? ""),
+              () => setIsKycModalOpen(true),
+              isUserVerified,
+            )}
+          >
+            {!isUserVerified && authenticated && !hasInsufficientBalance
+              ? "Get started"
+              : buttonText}
+          </button>
+        )} */}
+
         {ready && (
           <button
             type="button"
             className={primaryBtnClasses}
+            // disabled={!isEnabled && isUserVerified}
             disabled={!isEnabled}
-            onClick={buttonAction(handleSwap, login, () =>
-              handleFundWallet(smartWallet?.address ?? ""),
+            onClick={buttonAction(
+              handleSwap,
+              login,
+              () => handleFundWallet(smartWallet?.address ?? ""),
+              () => setIsKycModalOpen(true),
+              isUserVerified,
             )}
           >
             {buttonText}

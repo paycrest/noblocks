@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { ImSpinner3 } from "react-icons/im";
+import { ImSpinner, ImSpinner3 } from "react-icons/im";
 import { usePrivy, useFundWallet } from "@privy-io/react-auth";
 import { AnimatePresence } from "framer-motion";
 
@@ -46,7 +46,6 @@ export const TransactionForm = ({
 
   const {
     handleSubmit,
-    register,
     watch,
     setValue,
     formState: { errors, isValid, isDirty },
@@ -165,14 +164,14 @@ export const TransactionForm = ({
     <>
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="z-50 grid gap-4 pb-4 text-sm text-neutral-900 transition-all dark:text-white"
+        className="z-50 grid gap-2 pb-4 text-sm text-text-body transition-all dark:text-white"
         noValidate
       >
-        <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-neutral-800">
+        <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
           <h3 className="px-2 py-1 text-base font-medium">Swap</h3>
 
           {/* Amount to send & token with wallet balance */}
-          <div className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-neutral-900">
+          <div className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-surface-canvas">
             <div className="flex items-center justify-between">
               <label
                 htmlFor="amount-sent"
@@ -237,7 +236,7 @@ export const TransactionForm = ({
                   setIsReceiveInputActive(false);
                 }}
                 value={formMethods.watch("amountSent").toString()}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:placeholder:text-white/30 ${
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
                   authenticated && (amountSent > balance || errors.amountSent)
                     ? "text-red-500 dark:text-red-500"
                     : "text-neutral-900 dark:text-white/80"
@@ -261,8 +260,8 @@ export const TransactionForm = ({
             </div>
 
             {/* Arrow showing swap direction */}
-            <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-neutral-800 dark:bg-neutral-800">
-              <div className="rounded-lg bg-white p-0.5 dark:bg-neutral-900">
+            <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas">
+              <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
                 {isFetchingRate ? (
                   <ImSpinner3 className="animate-spin text-xl text-outline-gray dark:text-white/50" />
                 ) : (
@@ -273,7 +272,7 @@ export const TransactionForm = ({
           </div>
 
           {/* Amount to receive & currency */}
-          <div className="space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-neutral-900">
+          <div className="space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-surface-canvas">
             <label
               htmlFor="amount-received"
               className="text-text-secondary dark:text-white/50"
@@ -311,7 +310,7 @@ export const TransactionForm = ({
                   setIsReceiveInputActive(true);
                 }}
                 value={formMethods.watch("amountReceived").toString()}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-neutral-900 dark:placeholder:text-white/30 ${
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
                   errors.amountReceived
                     ? "text-red-500 dark:text-red-500"
                     : "text-neutral-900 dark:text-white/80"
@@ -345,7 +344,7 @@ export const TransactionForm = ({
           {currency && authenticated && (
             <AnimatedComponent
               variant={slideInOut}
-              className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-neutral-800"
+              className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-white/5"
             >
               <RecipientDetailsForm
                 formMethods={formMethods}
@@ -362,10 +361,10 @@ export const TransactionForm = ({
                     formMethods.setValue("memo", e.target.value);
                   }}
                   value={formMethods.watch("memo")}
-                  className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-neutral-900 dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
+                  className={`dark:bg-input-focus min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
                     errors.memo
                       ? "text-red-500 dark:text-red-500"
-                      : "text-neutral-900 dark:text-white/80"
+                      : "text-text-body dark:text-white/80"
                   }`}
                   placeholder="Add description (optional)"
                   maxLength={25}
@@ -375,9 +374,15 @@ export const TransactionForm = ({
           )}
         </AnimatePresence>
 
+        {/* Loading and Submit buttons */}
         {!ready && (
-          <button type="button" className={primaryBtnClasses} disabled>
-            Loading...
+          <button
+            title="Loading..."
+            type="button"
+            className={`${primaryBtnClasses} cursor-not-allowed`}
+            disabled
+          >
+            <ImSpinner className="mx-auto animate-spin text-xl" />
           </button>
         )}
 
@@ -393,6 +398,8 @@ export const TransactionForm = ({
             {buttonText}
           </button>
         )}
+
+        <KycModal setIsUserVerified={setIsUserVerified} />
 
         <AnimatePresence>
           {rate > 0 && (

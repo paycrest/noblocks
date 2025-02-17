@@ -255,9 +255,9 @@ export const RecipientDetailsForm = ({
 
   return (
     <>
-      <div className="space-y-4 rounded-2xl bg-white p-4 text-sm dark:bg-neutral-900">
+      <div className="space-y-4 rounded-2xl bg-white p-4 text-sm dark:bg-surface-canvas">
         <div className="flex items-center justify-between *:font-medium">
-          <p className="text-gray-500 dark:text-white">Recipient</p>
+          <p className="text-base text-text-body dark:text-white">Recipient</p>
           <button
             type="button"
             onClick={() => setIsModalOpen(true)}
@@ -351,7 +351,7 @@ export const RecipientDetailsForm = ({
                       ease: "easeInOut",
                     }}
                   >
-                    <p className="rounded-md bg-accent-gray px-3 py-1 capitalize text-neutral-900 dark:bg-neutral-800 dark:text-white">
+                    <p className="text-text-accent-gray rounded-md bg-accent-gray px-3 py-1 capitalize dark:bg-surface-overlay dark:text-white/80">
                       {recipientName.toLowerCase()}
                     </p>
                   </motion.div>

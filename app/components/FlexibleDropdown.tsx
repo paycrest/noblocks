@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useOutsideClick } from "../hooks";
 import { dropdownVariants } from "./AnimatedComponents";
 import { useEffect, useRef, useState, ReactNode } from "react";
-import { Cancel01Icon, Tick02Icon } from "hugeicons-react";
+import { Cancel01Icon, SquareLock02Icon, Tick02Icon } from "hugeicons-react";
 import {
   Dialog,
   DialogPanel,
@@ -79,7 +79,11 @@ const DropdownContent = ({
         </div>
 
         {!item.disabled && selectedItem?.name === item.name && (
-          <Tick02Icon className="text-sm text-gray-400 dark:text-white/50" />
+          <Tick02Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+        )}
+
+        {item.disabled && (
+          <SquareLock02Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
         )}
       </li>
     ))}
@@ -237,10 +241,15 @@ export const FlexibleDropdown = ({
                               {item.label ?? item.name}
                             </span>
                           </div>
+
                           {!item.disabled &&
                             selectedItem?.name === item.name && (
-                              <Tick02Icon className="text-sm text-gray-400 dark:text-white/50" />
+                              <Tick02Icon className="size-5 text-gray-400 dark:text-white/50" />
                             )}
+
+                          {item.disabled && (
+                            <SquareLock02Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                          )}
                         </button>
                       ))}
                     </div>

@@ -2,7 +2,7 @@
 import { ImSpinner } from "react-icons/im";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown01Icon, InformationSquareIcon } from "hugeicons-react";
+import { ArrowDown01Icon, Tick02Icon } from "hugeicons-react";
 
 import { AnimatedFeedbackItem, dropdownVariants } from "../AnimatedComponents";
 import { InstitutionProps } from "@/app/types";
@@ -351,12 +351,12 @@ export const RecipientDetailsForm = ({
                       ease: "easeInOut",
                     }}
                   >
-                    <p className="text-text-accent-gray rounded-md bg-accent-gray px-3 py-1 capitalize dark:bg-surface-overlay dark:text-white/80">
+                    <p className="rounded-md bg-accent-gray px-3 py-1 capitalize text-text-accent-gray dark:bg-surface-overlay dark:text-white/80">
                       {recipientName.toLowerCase()}
                     </p>
                   </motion.div>
 
-                  {/* <Tick02Icon className="text-lg text-green-700 dark:text-green-500" /> */}
+                  <Tick02Icon className="text-lg text-green-700 dark:text-green-500 max-sm:hidden" />
                 </AnimatedFeedbackItem>
               ) : recipientNameError ? (
                 <InputError message={recipientNameError} />

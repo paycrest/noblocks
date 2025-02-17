@@ -180,18 +180,13 @@ export const FlexibleDropdown = ({
             {isMobile() && (
               <Dialog
                 static
-                unmount={false}
                 open={isOpen}
-                as={motion.div}
-                key="mobile-dialog"
-                initial="closed"
-                animate="open"
-                exit="closed"
-                variants={dropdownVariants}
-                className="relative z-[53] sm:hidden"
                 onClose={() => setIsOpen(false)}
+                key="mobile-dialog"
+                className="relative z-[53] sm:hidden"
               >
                 <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+
                 <motion.div
                   initial="closed"
                   animate="open"
@@ -199,7 +194,7 @@ export const FlexibleDropdown = ({
                   variants={dropdownVariants}
                   className="fixed inset-0 flex w-screen items-end justify-center"
                 >
-                  <DialogPanel className="w-full rounded-t-[30px] border border-border-light bg-white px-5 py-6 dark:border-white/5 dark:bg-surface-overlay">
+                  <DialogPanel className="w-full space-y-4 rounded-t-[30px] border border-border-light bg-white px-5 py-6 dark:border-white/5 dark:bg-surface-overlay">
                     <div className="flex items-center justify-between">
                       <DialogTitle className="text-center text-lg font-semibold text-text-body dark:text-white">
                         {mobileTitle}

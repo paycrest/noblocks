@@ -360,7 +360,7 @@ export const TransactionForm = ({
                     formMethods.setValue("memo", e.target.value);
                   }}
                   value={formMethods.watch("memo")}
-                  className={`dark:bg-input-focus min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
+                  className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
                     errors.memo
                       ? "text-red-500 dark:text-red-500"
                       : "text-text-body dark:text-white/80"

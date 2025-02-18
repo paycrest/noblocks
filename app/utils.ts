@@ -313,7 +313,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
 export const kenyaMobileMoneyOptions: InstitutionProps[] = [
   {
     name: "SAFARICOM (MPESA)",
-    code: "MPESA",
+    code: "SAFAKEPC",
     type: "mobile_money",
   },
   {

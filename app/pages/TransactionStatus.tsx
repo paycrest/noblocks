@@ -87,111 +87,120 @@ export function TransactionStatus({
   const fiat = Number(watch("amountReceived")) || 0;
   const recipientName = String(watch("recipientName")) || "";
 
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout;
+  useEffect(
+    function pollOrderDetails() {
+      let intervalId: NodeJS.Timeout;
 
-    const getOrderDetails = async () => {
-      try {
-        const orderDetailsResponse = await fetchOrderDetails(
-          selectedNetwork.chain.id,
-          orderId,
-        );
-        setOrderDetails(orderDetailsResponse.data);
+      const getOrderDetails = async () => {
+        try {
+          const orderDetailsResponse = await fetchOrderDetails(
+            selectedNetwork.chain.id,
+            orderId,
+          );
+          setOrderDetails(orderDetailsResponse.data);
 
-        if (orderDetailsResponse.data.status !== "pending") {
-          if (transactionStatus !== orderDetailsResponse.data.status) {
-            setTransactionStatus(
-              orderDetailsResponse.data.status as
-                | "processing"
-                | "fulfilled"
-                | "validated"
-                | "settled"
-                | "refunded",
-            );
-          }
-
-          if (
-            ["validated", "settled", "refunded"].includes(
-              orderDetailsResponse.data.status,
-            )
-          ) {
-            if (orderDetailsResponse.data.status === "refunded") {
-              refreshBalance();
+          if (orderDetailsResponse.data.status !== "pending") {
+            if (transactionStatus !== orderDetailsResponse.data.status) {
+              setTransactionStatus(
+                orderDetailsResponse.data.status as
+                  | "processing"
+                  | "fulfilled"
+                  | "validated"
+                  | "settled"
+                  | "refunded",
+              );
             }
-            setCompletedAt(orderDetailsResponse.data.updatedAt);
-            clearInterval(intervalId);
-          }
 
-          if (orderDetailsResponse.data.status === "processing") {
-            const createdReceipt = orderDetailsResponse.data.txReceipts.find(
-              (txReceipt) => txReceipt.status === "pending",
-            );
+            if (
+              ["validated", "settled", "refunded"].includes(
+                orderDetailsResponse.data.status,
+              )
+            ) {
+              if (orderDetailsResponse.data.status === "refunded") {
+                refreshBalance();
+              }
+              setCompletedAt(orderDetailsResponse.data.updatedAt);
+              clearInterval(intervalId);
+            }
 
-            if (createdReceipt) {
-              setCreatedHash(createdReceipt.txHash);
+            if (orderDetailsResponse.data.status === "processing") {
+              const createdReceipt = orderDetailsResponse.data.txReceipts.find(
+                (txReceipt) => txReceipt.status === "pending",
+              );
+
+              if (createdReceipt) {
+                setCreatedHash(createdReceipt.txHash);
+              }
             }
           }
+        } catch (error) {
+          // fail silently
         }
-      } catch (error) {
-        // fail silently
-      }
-    };
+      };
 
-    getOrderDetails();
-    intervalId = setInterval(getOrderDetails, 10000);
+      getOrderDetails();
+      intervalId = setInterval(getOrderDetails, 10000);
 
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [orderId, transactionStatus]);
+      return () => {
+        if (intervalId) clearInterval(intervalId);
+      };
+    },
+    [orderId, transactionStatus],
+  );
 
   // Check if the recipient is saved in the beneficiaries list
-  useEffect(() => {
-    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
-    const isRecipientSaved = savedRecipients.some(
-      (r: { accountIdentifier: string; institutionCode: string }) =>
-        r.accountIdentifier === formMethods.watch("accountIdentifier") &&
-        r.institutionCode === formMethods.watch("institution"),
-    );
-    setAddToBeneficiaries(isRecipientSaved);
-  }, [formMethods]);
+  useEffect(
+    function checkRecipientInBeneficiaries() {
+      const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
+      const isRecipientSaved = savedRecipients.some(
+        (r: { accountIdentifier: string; institutionCode: string }) =>
+          r.accountIdentifier === formMethods.watch("accountIdentifier") &&
+          r.institutionCode === formMethods.watch("institution"),
+      );
+      setAddToBeneficiaries(isRecipientSaved);
+    },
+    [formMethods],
+  );
 
-  useEffect(() => {
-    if (!isTracked) {
-      if (["validated", "settled"].includes(transactionStatus)) {
-        trackEvent("Swap completed", {
-          Amount: amount,
-          "Send token": token,
-          "Receive currency": currency,
-          "Recipient name": recipientName,
-          "Recipient bank": getInstitutionNameByCode(
-            String(formMethods.watch("institution")),
-            supportedInstitutions,
-          ),
-          "Noblocks balance": smartWalletBalance?.balances[token] || 0,
-          "Swap date": createdAt,
-          "Transaction duration": calculateDuration(createdAt, completedAt),
-        });
-      } else if (transactionStatus === "refunded") {
-        trackEvent("Swap failed", {
-          Amount: amount,
-          "Send token": token,
-          "Receive currency": currency,
-          "Recipient name": recipientName,
-          "Recipient bank": getInstitutionNameByCode(
-            String(formMethods.watch("institution")),
-            supportedInstitutions,
-          ),
-          "Noblocks balance": smartWalletBalance?.balances[token] || 0,
-          "Swap date": createdAt,
-          "Reason for failure": "Transaction failed and refunded",
-          "Transaction duration": calculateDuration(createdAt, completedAt),
-        });
+  useEffect(
+    function trackTransactionEvents() {
+      if (!isTracked) {
+        if (["validated", "settled"].includes(transactionStatus)) {
+          trackEvent("Swap completed", {
+            Amount: amount,
+            "Send token": token,
+            "Receive currency": currency,
+            "Recipient name": recipientName,
+            "Recipient bank": getInstitutionNameByCode(
+              String(formMethods.watch("institution")),
+              supportedInstitutions,
+            ),
+            "Noblocks balance": smartWalletBalance?.balances[token] || 0,
+            "Swap date": createdAt,
+            "Transaction duration": calculateDuration(createdAt, completedAt),
+          });
+        } else if (transactionStatus === "refunded") {
+          trackEvent("Swap failed", {
+            Amount: amount,
+            "Send token": token,
+            "Receive currency": currency,
+            "Recipient name": recipientName,
+            "Recipient bank": getInstitutionNameByCode(
+              String(formMethods.watch("institution")),
+              supportedInstitutions,
+            ),
+            "Noblocks balance": smartWalletBalance?.balances[token] || 0,
+            "Swap date": createdAt,
+            "Reason for failure": "Transaction failed and refunded",
+            "Transaction duration": calculateDuration(createdAt, completedAt),
+          });
+        }
+
+        setIsTracked(true);
       }
-
-      setIsTracked(true);
-    }
-  }, [transactionStatus, isTracked]);
+    },
+    [transactionStatus, isTracked],
+  );
 
   const StatusIndicator = () => (
     <AnimatePresence mode="wait">

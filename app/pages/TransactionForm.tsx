@@ -129,53 +129,59 @@ export const TransactionForm = ({
   };
 
   // calculate receive amount based on send amount and rate
-  useEffect(() => {
-    if (rate && (amountSent || amountReceived)) {
-      if (isReceiveInputActive) {
-        setValue(
-          "amountSent",
-          Number((Number(amountReceived) / rate).toFixed(4)),
-        );
-      } else {
-        setValue("amountReceived", Number((rate * amountSent).toFixed(2)));
+  useEffect(
+    function calculateReceiveAmount() {
+      if (rate && (amountSent || amountReceived)) {
+        if (isReceiveInputActive) {
+          setValue(
+            "amountSent",
+            Number((Number(amountReceived) / rate).toFixed(4)),
+          );
+        } else {
+          setValue("amountReceived", Number((rate * amountSent).toFixed(2)));
+        }
       }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amountSent, amountReceived, rate]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [amountSent, amountReceived, rate],
+  );
 
   // Register form fields
-  useEffect(() => {
-    formMethods.register("amountSent", {
-      required: { value: true, message: "Amount is required" },
-      disabled: !token,
-      min: {
-        value: 0.5,
-        message: "Minimum amount is 0.5",
-      },
-      max: {
-        value: 10000,
-        message: "Maximum amount is 10,000",
-      },
-      validate: {
-        decimals: (value) => {
-          const decimals = value.toString().split(".")[1];
-          return (
-            !decimals ||
-            decimals.length <= 4 ||
-            "Maximum 4 decimal places allowed"
-          );
+  useEffect(
+    function registerFormFields() {
+      formMethods.register("amountSent", {
+        required: { value: true, message: "Amount is required" },
+        disabled: !token,
+        min: {
+          value: 0.5,
+          message: "Minimum amount is 0.5",
         },
-      },
-    });
+        max: {
+          value: 10000,
+          message: "Maximum amount is 10,000",
+        },
+        validate: {
+          decimals: (value) => {
+            const decimals = value.toString().split(".")[1];
+            return (
+              !decimals ||
+              decimals.length <= 4 ||
+              "Maximum 4 decimal places allowed"
+            );
+          },
+        },
+      });
 
-    formMethods.register("amountReceived", {
-      disabled: !token || !currency,
-    });
+      formMethods.register("amountReceived", {
+        disabled: !token || !currency,
+      });
 
-    formMethods.register("memo", {
-      required: { value: false, message: "Add description" },
-    });
-  }, [token, currency, formMethods]);
+      formMethods.register("memo", {
+        required: { value: false, message: "Add description" },
+      });
+    },
+    [token, currency, formMethods],
+  );
 
   const { isEnabled, buttonText, buttonAction } = useSwapButton({
     watch,

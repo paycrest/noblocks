@@ -204,12 +204,13 @@ export const TransactionForm = ({
     [token, currency, formMethods],
   );
 
-  const { isEnabled, buttonText, buttonAction } = useSwapButton({
-    watch,
-    balance,
-    isDirty,
-    isValid,
-  });
+  const { isEnabled, buttonText, buttonAction, hasInsufficientBalance } =
+    useSwapButton({
+      watch,
+      balance,
+      isDirty,
+      isValid,
+    });
 
   const handleSwap = () => {
     handleSubmit(onSubmit)();

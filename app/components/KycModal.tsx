@@ -69,7 +69,6 @@ export const KycModal = ({
     try {
       setIsKycModalOpen(false);
       const signature = await signMessage({ message }, { uiOptions: uiConfig });
-      console.log(signature);
       if (signature) {
         setIsKycModalOpen(true);
         setStep(STEPS.LOADING);
@@ -145,7 +144,7 @@ export const KycModal = ({
         <UserDetailsIcon />
         <div>
           <h2 className="text-lg font-medium dark:text-white">
-            Start sending money in just{" "}
+            Verify your identity in just{" "}
             <span className="bg-gradient-to-br from-green-400 via-orange-400 to-orange-600 bg-clip-text text-transparent">
               2 minutes
             </span>
@@ -161,31 +160,36 @@ export const KycModal = ({
         <Field className="flex gap-6">
           <div className="flex flex-col gap-4">
             <div className="flex items-start gap-2">
-              <CheckIcon className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer" />
+              <CheckIcon
+                className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer"
+                isActive={termsAccepted}
+              />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
                 <p>
-                  We do not collect, store, or retain any personal information
-                  obtained during the KYC process. All personal data, including
-                  sensitive information, is handled exclusively by the
-                  third-party provider.
+                  We do not store any personal information. All personal data is
+                  handled exclusively by our third-party KYC provider.
                 </p>
               </Label>
             </div>
 
             <div className="flex items-start gap-2">
-              <CheckIcon className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer" />
+              <CheckIcon
+                className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer"
+                isActive={termsAccepted}
+              />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
                 <p>
-                  We only retain the reference code associated with the KYC
-                  verification and the wallet address of the private key that
-                  signs the KYC. This limited information is kept solely for
-                  transaction verification and auditing purposes.
+                  We only store the KYC reference code and signing wallet
+                  address for verification and audit purposes.
                 </p>
               </Label>
             </div>
 
             <div className="flex items-start gap-2">
-              <CheckIcon className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer" />
+              <CheckIcon
+                className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer"
+                isActive={termsAccepted}
+              />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
                 <p>
                   We rely on the third-party provider&apos;s rigorous data
@@ -230,7 +234,7 @@ export const KycModal = ({
             className="group mr-1 mt-1 block size-5 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
           >
             <svg
-              className="group-data-[chec ked]:opacity-100 stroke-neutral-800 opacity-0"
+              className="stroke-neutral-800 opacity-0 group-data-[checked]:opacity-100"
               viewBox="0 0 14 14"
               fill="none"
             >
@@ -473,19 +477,21 @@ export const KycModal = ({
 
       setIsKycModalOpen(true);
     } catch (error) {
-      if (
-        error instanceof Error &&
-        (error as any).response &&
-        (error as any).response.data
-      ) {
-        // backend error response
-        const { message } = (error as any).response.data;
-        toast.error(message);
-      } else {
-        // unexpected errors
-        toast.error(error instanceof Error ? error.message : String(error));
+      if (error instanceof Error && (error as any).response?.status === 404) {
+        setStep(STEPS.TERMS);
+        return;
       }
-      setIsKycModalOpen(false);
+
+      // Show error message from backend if available, otherwise show generic error
+      if (error instanceof Error) {
+        const errorMessage =
+          (error as any).response?.data?.message || error.message;
+        toast.error(errorMessage);
+        setIsKycModalOpen(false);
+      } else {
+        toast.error(String(error));
+        setIsKycModalOpen(false);
+      }
     }
   };
 

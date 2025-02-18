@@ -2,6 +2,10 @@ interface ImageProps {
   className?: string;
 }
 
+interface CheckIconProps extends ImageProps {
+  isActive?: boolean;
+}
+
 export const NoblocksLogo = (props: ImageProps) => {
   return (
     <svg
@@ -679,28 +683,21 @@ export const QuotesBgIcon = (props: ImageProps) => {
   );
 };
 
-export const CheckIcon = (props: ImageProps) => {
+export const CheckIcon = (props: CheckIconProps) => {
   return (
     <svg
-      width="36"
-      height="36"
-      viewBox="0 0 36 36"
+      width="28"
+      height="28"
+      viewBox="0 0 28 28"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
-      <title>Check icon</title>
       <path
-        d="M34.6693 17.9993C34.6693 8.7946 27.2074 1.33268 18.0026 1.33268C8.79786 1.33268 1.33594 8.7946 1.33594 17.9993C1.33594 27.2041 8.79786 34.666 18.0026 34.666C27.2074 34.666 34.6693 27.2041 34.6693 17.9993Z"
-        stroke="#39C65D"
-        strokeWidth="2"
-      />
-      <path
-        d="M11.3359 19.2487C11.3359 19.2487 14.0026 20.7696 15.3359 22.9987C15.3359 22.9987 19.3359 14.2487 24.6693 11.332"
-        stroke="#39C65D"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        fill-rule="evenodd"
+        clip-rule="evenodd"
+        d="M14 24C8.47715 24 4 19.5229 4 14C4 8.47715 8.47715 4 14 4C19.5229 4 24 8.47715 24 14C24 19.5229 19.5229 24 14 24ZM18.4355 11.8048C18.7645 11.4101 18.7112 10.8236 18.3165 10.4947C17.9218 10.1658 17.3352 10.2191 17.0063 10.6138L13.0073 15.4127L10.9368 13.3422C10.5736 12.979 9.98458 12.979 9.62129 13.3422C9.25802 13.7055 9.25802 14.2945 9.62129 14.6578L12.412 17.4485C12.5968 17.6333 12.8508 17.7318 13.1119 17.72C13.373 17.7081 13.6171 17.587 13.7844 17.3862L18.4355 11.8048Z"
+        fill={props.isActive ? "#39C65D" : "#A9A9BC"}
       />
     </svg>
   );

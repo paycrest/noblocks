@@ -305,11 +305,14 @@ export const TransactionPreview = ({
     };
   };
 
-  useEffect(() => {
-    if (errorMessage) {
-      toast.error(errorMessage);
-    }
-  }, [errorCount, errorMessage]);
+  useEffect(
+    function displayErrorToast() {
+      if (errorMessage) {
+        toast.error(errorMessage);
+      }
+    },
+    [errorCount, errorMessage],
+  );
 
   return (
     <div className="grid gap-6 py-10 text-sm">

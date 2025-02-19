@@ -118,7 +118,8 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   useEffect(
     function resetProviderErrorOnChange() {
       // Reset providerErrorShown on query param change
-      const newProvider = searchParams.get("LP");
+      const newProvider =
+        searchParams.get("lp")?.toUpperCase() || searchParams.get("LP");
       if (!failedProviders.current.has(newProvider || "")) {
         providerErrorShown.current = false;
       }
@@ -156,7 +157,8 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
       const getRate = async (shouldUseProvider = true) => {
         setIsFetchingRate(true);
         try {
-          const lpParam = searchParams.get("LP");
+          const lpParam =
+            searchParams.get("lp")?.toUpperCase() || searchParams.get("LP");
 
           // Skip using provider if it's already failed
           const shouldSkipProvider =
@@ -175,7 +177,8 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
           setRate(rate.data);
         } catch (error) {
           if (error instanceof Error) {
-            const lpParam = searchParams.get("LP");
+            const lpParam =
+              searchParams.get("lp")?.toUpperCase() || searchParams.get("LP");
             if (
               shouldUseProvider &&
               lpParam &&

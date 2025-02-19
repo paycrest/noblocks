@@ -2,6 +2,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useSearchParams } from "next/navigation";
 
 import {
   calculateDuration,
@@ -82,6 +83,8 @@ export const TransactionPreview = ({
   const [isOrderCreatedLogsFetched, setIsOrderCreatedLogsFetched] =
     useState<boolean>(false);
 
+  const searchParams = useSearchParams();
+
   // Rendered tsx info
   const renderedInfo = {
     amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
@@ -112,12 +115,15 @@ export const TransactionPreview = ({
   );
 
   const prepareCreateOrderParams = async () => {
+    const providerId = searchParams.get("LP");
+
     // Prepare recipient data
     const recipient = {
       accountIdentifier: formValues.accountIdentifier,
       accountName: recipientName,
       institution: formValues.institution,
       memo: formValues.memo,
+      ...(providerId && { providerId }),
     };
 
     // Fetch aggregator public key

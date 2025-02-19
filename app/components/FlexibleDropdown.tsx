@@ -56,6 +56,7 @@ const DropdownContent = ({
       <li
         key={item.name}
         role="option"
+        aria-selected={selectedItem?.name === item.name}
         aria-disabled={item.disabled}
         onClick={() => !item.disabled && handleChange(item)}
         className={classNames(

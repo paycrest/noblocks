@@ -108,6 +108,7 @@ export const TransferModal = ({
     if (!token) {
       setValue("token", "USDC");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const tokenBalance = Number(smartWalletBalance?.balances[token]) || 0;

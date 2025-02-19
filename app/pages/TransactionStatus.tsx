@@ -145,6 +145,7 @@ export function TransactionStatus({
         if (intervalId) clearInterval(intervalId);
       };
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [orderId, transactionStatus],
   );
 
@@ -199,6 +200,7 @@ export function TransactionStatus({
         setIsTracked(true);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [transactionStatus, isTracked],
   );
 

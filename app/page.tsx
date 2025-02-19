@@ -105,6 +105,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
         setFormValues({} as FormData);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [authenticated],
   );
 
@@ -113,6 +114,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
     if (!formMethods.getValues("token")) {
       formMethods.reset({ token: "USDC" });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(

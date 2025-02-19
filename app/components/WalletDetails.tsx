@@ -13,6 +13,7 @@ import { useNetwork } from "../context/NetworksContext";
 import { trackEvent } from "../hooks/analytics";
 import { TransferModal } from "./TransferModal";
 import { ArrowDown01Icon, Wallet01Icon } from "hugeicons-react";
+import Image from "next/image";
 
 export const WalletDetails = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -160,11 +161,20 @@ export const WalletDetails = () => {
                         allBalances.smartWallet?.balances || {},
                       ).map(([token, balance]) => (
                         <li key={token} className="flex items-center gap-1">
-                          <img
-                            src={getTokenImageUrl(token)}
-                            alt={token}
-                            className="size-3.5"
-                          />
+                          {(() => {
+                            const imageUrl = getTokenImageUrl(token);
+
+                            return imageUrl ? (
+                              <Image
+                                src={imageUrl}
+                                alt={token}
+                                width={14}
+                                height={14}
+                                className="size-3.5"
+                              />
+                            ) : null;
+                          })()}
+
                           <span className="font-medium">
                             {balance} {token}
                           </span>

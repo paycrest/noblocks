@@ -247,9 +247,9 @@ export const KycModal = ({
             </svg>
           </Checkbox>
           <p className="text-xs text-gray-500 dark:text-white/50">
-            By clicking "Accept and sign" below, you are agreeing to the KYC
-            Policy and hereby request an identity verification check for your
-            wallet address.
+            By clicking &ldquo;Accept and sign&rdquo; below, you are agreeing to
+            the KYC Policy and hereby request an identity verification check for
+            your wallet address.
           </p>
         </div>
       </div>
@@ -535,6 +535,7 @@ export const KycModal = ({
         clearTimeout(timeoutId);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletAddress]);
 
   return (

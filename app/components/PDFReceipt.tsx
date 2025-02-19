@@ -189,6 +189,7 @@ export const PDFReceipt = ({
               {formatDate(data?.updatedAt || new Date())}
             </Text>
           </View>
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
           <Image src="/logos/noblocks-logo-icon.png" style={styles.logo} />
         </View>
 
@@ -197,6 +198,7 @@ export const PDFReceipt = ({
             {amountReceived.toLocaleString()} {currency}
           </Text>
           <View style={styles.statusContainer}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
             <Image
               src="/icons/tick-01-stroke-rounded.png"
               style={styles.statusIcon}
@@ -214,6 +216,7 @@ export const PDFReceipt = ({
           <View style={styles.divider} />
 
           <View style={styles.qrSection}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
             <Image src="/images/noblocks-qr-code.png" style={styles.qrCode} />
             <View>
               <Text style={styles.qrText}>Make more transactions</Text>

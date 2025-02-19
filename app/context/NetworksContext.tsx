@@ -52,6 +52,7 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
     return () => {
       window.removeEventListener("storage", onStorageUpdate);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

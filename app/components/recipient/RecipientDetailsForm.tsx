@@ -164,6 +164,7 @@ export const RecipientDetailsForm = ({
         setRecipientNameError("");
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedInstitution, isManualEntry]);
 
   // Fetch recipient name based on institution and account identifier
@@ -205,7 +206,6 @@ export const RecipientDetailsForm = ({
     return () => {
       clearTimeout(timeoutId);
     };
-    // Add selectedRecipient to dependencies array
   }, [accountIdentifier, institution, setValue, isManualEntry]);
 
   useEffect(() => {
@@ -245,12 +245,14 @@ export const RecipientDetailsForm = ({
       clearRecipientDetails();
     }
     prevCurrencyRef.current = currency;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currency]);
 
   useEffect(() => {
     if (institution && recipientName) {
       setIsReturningFromPreview(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

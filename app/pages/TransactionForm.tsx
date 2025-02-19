@@ -162,8 +162,8 @@ export const TransactionForm = ({
           setValue("amountReceived", Number((rate * amountSent).toFixed(2)));
         }
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [amountSent, amountReceived, rate],
   );
 

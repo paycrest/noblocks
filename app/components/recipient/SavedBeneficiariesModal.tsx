@@ -1,8 +1,9 @@
 "use client";
-import { Button, Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
-import { ArrowUp01Icon, InformationSquareIcon } from "hugeicons-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { Button, DialogTitle } from "@headlessui/react";
+import { InformationSquareIcon, Cancel01Icon } from "hugeicons-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo } from "react";
+import { AnimatedModal } from "../AnimatedComponents";
 
 import { RecipientListItem } from "./RecipientListItem";
 import { SearchInput } from "./SearchInput";
@@ -52,88 +53,72 @@ export const SavedBeneficiariesModal = ({
   }, [savedRecipients, beneficiarySearchTerm, currency, institutions]);
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <Dialog
-          open={isOpen}
-          as="div"
-          className="relative z-20 focus:outline-none"
-          onClose={onClose}
+    <AnimatedModal isOpen={isOpen} onClose={onClose} maxWidth="28.5rem">
+      <div className="flex items-center justify-between">
+        <DialogTitle className="text-lg font-semibold dark:text-white sm:text-base">
+          Saved beneficiaries
+        </DialogTitle>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close saved beneficiaries modal"
+          className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
         >
-          <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="fixed inset-0 w-screen overflow-y-auto">
-            <div className="flex min-h-full w-full items-end justify-center sm:items-center sm:p-4">
+          <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+        </button>
+      </div>
+
+      <div className="mt-3">
+        <SearchInput
+          value={beneficiarySearchTerm}
+          onChange={setBeneficiarySearchTerm}
+          placeholder="Search by name or account number"
+          autoFocus={isOpen}
+        />
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 20 }}
+        transition={{ duration: 0.2 }}
+        className="mt-2 h-[21rem] overflow-y-auto sm:h-[14rem]"
+      >
+        <AnimatePresence>
+          {filteredSavedRecipients.length > 0 ? (
+            filteredSavedRecipients.map((recipient, index) => (
               <motion.div
-                initial={{ y: 20 }}
-                animate={{ y: 0 }}
-                exit={{ y: 20 }}
-                transition={{ duration: 0.3 }}
-                className="w-full sm:max-w-md"
+                key={`${recipient.accountIdentifier}-${index}`}
+                initial={{ opacity: 1, height: "auto" }}
+                exit={{
+                  opacity: 0,
+                  height: 0,
+                  backgroundColor: "#4D2121",
+                }}
               >
-                <DialogPanel className="relative h-[28.5rem] w-full max-w-full overflow-hidden rounded-t-[20px] border border-border-light bg-white px-5 pb-6 pt-6 shadow-xl dark:border-white/5 dark:bg-surface-overlay max-sm:pb-12 sm:h-[20.25rem] sm:max-w-md sm:rounded-[20px]">
-                  <Button
-                    className="flex w-full items-center justify-between"
-                    onClick={onClose}
-                  >
-                    <p>Saved beneficiaries</p>
-                    <ArrowUp01Icon
-                      className={classNames(
-                        "size-5 text-gray-400 transition-transform dark:text-white/50",
-                      )}
-                    />
-                  </Button>
-
-                  <div className="scrollbar-hide mt-4 max-h-80 space-y-2 overflow-y-auto">
-                    <SearchInput
-                      value={beneficiarySearchTerm}
-                      onChange={setBeneficiarySearchTerm}
-                      placeholder="Search by name or account number"
-                      autoFocus={isOpen}
-                    />
-
-                    <AnimatePresence>
-                      {filteredSavedRecipients.length > 0 ? (
-                        filteredSavedRecipients.map((recipient, index) => (
-                          <motion.div
-                            key={`${recipient.accountIdentifier}-${index}`}
-                            initial={{ opacity: 1, height: "auto" }}
-                            exit={{
-                              opacity: 0,
-                              height: 0,
-                              backgroundColor: "#4D2121",
-                            }}
-                          >
-                            <RecipientListItem
-                              recipient={recipient}
-                              onSelect={onSelectRecipient}
-                              onDelete={onDeleteRecipient}
-                              isBeingDeleted={recipientToDelete === recipient}
-                            />
-                          </motion.div>
-                        ))
-                      ) : (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="text-text-secondary dark:text-white/50"
-                        >
-                          <div className="flex flex-col items-center gap-2 py-12 text-center">
-                            <InformationSquareIcon className="size-5" />
-                            <p className="font-medium">
-                              No saved beneficiaries found
-                            </p>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </DialogPanel>
+                <RecipientListItem
+                  recipient={recipient}
+                  onSelect={onSelectRecipient}
+                  onDelete={onDeleteRecipient}
+                  isBeingDeleted={recipientToDelete === recipient}
+                />
               </motion.div>
-            </div>
-          </div>
-        </Dialog>
-      )}
-    </AnimatePresence>
+            ))
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="text-text-secondary dark:text-white/50"
+            >
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <InformationSquareIcon className="size-5" />
+                <p className="font-medium">No saved beneficiaries found</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </AnimatedModal>
   );
 };

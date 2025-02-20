@@ -212,10 +212,7 @@ export const MobileDropdown = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setIsFundModalOpen(true);
-                                  onClose();
-                                }}
+                                onClick={() => setIsFundModalOpen(true)}
                                 className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
                               >
                                 Fund
@@ -487,47 +484,15 @@ export const MobileDropdown = ({
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {isTransferModalOpen && (
-          <Dialog
-            open={isTransferModalOpen}
-            onClose={() => setIsTransferModalOpen(false)}
-            className="relative z-50"
-          >
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="fixed inset-0 bg-black/30 backdrop-blur-sm"
-            />
-            <div className="fixed inset-0 flex w-screen items-end justify-center">
-              <motion.div
-                initial={{ y: "100%" }}
-                animate={{ y: 0 }}
-                exit={{ y: "100%" }}
-                transition={{
-                  type: "spring",
-                  stiffness: 300,
-                  damping: 30,
-                }}
-              >
-                <DialogPanel className="relative max-h-[90vh] w-full overflow-y-auto rounded-t-[30px] bg-white p-5 text-sm dark:bg-surface-overlay">
-                  <TransferModal
-                    setIsTransferModalOpen={setIsTransferModalOpen}
-                  />
-                </DialogPanel>
-              </motion.div>
-            </div>
-          </Dialog>
-        )}
-      </AnimatePresence>
+      <TransferModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+      />
 
       <FundWalletModal
         isOpen={isFundModalOpen}
         onClose={() => setIsFundModalOpen(false)}
         onFund={handleFundWalletClick}
-        isMobile={true}
       />
     </>
   );

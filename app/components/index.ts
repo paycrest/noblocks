@@ -10,6 +10,7 @@ export {
   AnimatedPage,
   AnimatedComponent,
   AnimatedFeedbackItem,
+  AnimatedModal,
   slideInDown,
   slideInOut,
   scaleInOut,

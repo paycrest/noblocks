@@ -173,42 +173,10 @@ export const WalletDetails = () => {
         </AnimatePresence>
       </div>
 
-      <AnimatePresence>
-        {isTransferModalOpen && (
-          <Dialog
-            open={isTransferModalOpen}
-            onClose={() => setIsTransferModalOpen(false)}
-            className="relative z-50"
-          >
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="fixed inset-0 bg-black/30 backdrop-blur-sm"
-            />
-
-            <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                transition={{
-                  type: "spring",
-                  stiffness: 300,
-                  damping: 30,
-                }}
-              >
-                <DialogPanel className="relative max-h-[90vh] w-full max-w-[25.75rem] overflow-y-auto rounded-2xl bg-white p-5 text-sm shadow-xl dark:bg-surface-overlay">
-                  <TransferModal
-                    setIsTransferModalOpen={setIsTransferModalOpen}
-                  />
-                </DialogPanel>
-              </motion.div>
-            </div>
-          </Dialog>
-        )}
-      </AnimatePresence>
+      <TransferModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+      />
 
       <FundWalletModal
         isOpen={isFundModalOpen}

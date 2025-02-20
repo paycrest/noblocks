@@ -12,6 +12,7 @@ import {
   RecipientDetailsForm,
   KycModal,
   FundWalletModal,
+  AnimatedModal,
 } from "../components";
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
@@ -388,48 +389,15 @@ export const TransactionForm = ({
 
         <AnimatePresence>
           {isKycModalOpen && (
-            <Dialog
-              open={isKycModalOpen}
+            <AnimatedModal
+              isOpen={isKycModalOpen}
               onClose={() => setIsKycModalOpen(false)}
-              className="relative z-50"
             >
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <DialogBackdrop
-                  transition
-                  className="fixed inset-0 bg-black/30 backdrop-blur-sm"
-                />
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                  transition: { type: "spring", stiffness: 300, damping: 30 },
-                }}
-                exit={{
-                  opacity: 0,
-                  y: 20,
-                  transition: { type: "spring", stiffness: 300, damping: 30 },
-                }}
-                className="fixed inset-0 flex w-screen items-end justify-center sm:items-center sm:p-4"
-              >
-                <DialogPanel
-                  transition
-                  className="relative max-h-[90vh] w-full max-w-[25.75rem] overflow-y-auto rounded-2xl bg-white p-5 text-sm shadow-xl transition-all duration-300 ease-out data-[closed]:scale-95 data-[closed]:opacity-0 dark:bg-surface-overlay"
-                >
-                  <KycModal
-                    setIsKycModalOpen={setIsKycModalOpen}
-                    setIsUserVerified={setIsUserVerified}
-                  />
-                </DialogPanel>
-              </motion.div>
-            </Dialog>
+              <KycModal
+                setIsKycModalOpen={setIsKycModalOpen}
+                setIsUserVerified={setIsUserVerified}
+              />
+            </AnimatedModal>
           )}
         </AnimatePresence>
 
@@ -506,7 +474,6 @@ export const TransactionForm = ({
         isOpen={isFundModalOpen}
         onClose={() => setIsFundModalOpen(false)}
         onFund={handleFundWalletClick}
-        isMobile={window.innerWidth < 640}
       />
     </>
   );

@@ -674,33 +674,6 @@ export const CheckIcon = (props: CheckIconProps) => {
   );
 };
 
-export const XFailIcon = (props: ImageProps) => {
-  return (
-    <svg
-      width="36"
-      height="36"
-      viewBox="0 0 36 36"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
-    >
-      <title>X fail icon</title>
-      <path
-        d="M22.9989 23L13 13M13.0011 23L23 13"
-        stroke="#F76489"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M34.6654 18.0013C34.6654 8.79655 27.2034 1.33463 17.9987 1.33463C8.79395 1.33463 1.33203 8.79655 1.33203 18.0013C1.33203 27.206 8.79395 34.668 17.9987 34.668C27.2034 34.668 34.6654 27.206 34.6654 18.0013Z"
-        stroke="#F53D6B"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-};
-
 export const UserDetailsIcon = (props: ImageProps) => {
   return (
     <svg

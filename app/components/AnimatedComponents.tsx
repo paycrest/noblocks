@@ -1,7 +1,9 @@
 "use client";
 import type { ReactNode } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { Dialog, DialogPanel } from "@headlessui/react";
 import type { AnimatedComponentProps } from "../types";
+import { classNames } from "../utils";
 
 // Animation variants and transition
 const pageVariants = {
@@ -125,4 +127,58 @@ export const AnimatedFeedbackItem = ({
   >
     {children}
   </AnimatedComponent>
+);
+
+type AnimatedModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  maxWidth?: string;
+  dialogPanelClassName?: string;
+};
+
+export const AnimatedModal = ({
+  isOpen,
+  onClose,
+  children,
+  maxWidth = "25.75rem",
+  dialogPanelClassName,
+}: AnimatedModalProps) => (
+  <AnimatePresence>
+    {isOpen && (
+      <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+        />
+
+        <div className="fixed inset-0 flex w-screen items-end sm:items-center sm:justify-center sm:p-4">
+          <motion.div
+            initial={{ y: "100%", opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: "100%", opacity: 0 }}
+            transition={{
+              type: "spring",
+              stiffness: 300,
+              damping: 30,
+            }}
+            className="w-full"
+          >
+            <DialogPanel
+              className={classNames(
+                "relative mx-auto w-full overflow-y-auto bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-2xl",
+                dialogPanelClassName || "",
+              )}
+              style={{ maxWidth: window.innerWidth > 640 ? maxWidth : "none" }}
+            >
+              {children}
+            </DialogPanel>
+          </motion.div>
+        </div>
+      </Dialog>
+    )}
+  </AnimatePresence>
 );

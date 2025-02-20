@@ -122,7 +122,7 @@ export const Navbar = () => {
 
               <ArrowDown01Icon
                 className={classNames(
-                  "size-5 cursor-pointer text-icon-outline-secondary transition-transform duration-200 dark:text-white/50",
+                  "size-5 cursor-pointer text-icon-outline-secondary transition-transform duration-200 dark:text-white/50 max-sm:hidden",
                   isDropdownOpen ? "rotate-0" : "-rotate-90",
                   IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[15px]", // this adjusts the arrow position for beta logo
                 )}

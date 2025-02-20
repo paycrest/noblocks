@@ -315,13 +315,13 @@ export function TransactionStatus({
   };
 
   const getPaymentMessage = () => {
-    const formattedRecipientName =
-      recipientName ??
-      ""
-        .toLowerCase()
-        .split(" ")
-        .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
-        .join(" ");
+    const formattedRecipientName = recipientName
+      ? recipientName
+          .toLowerCase()
+          .split(" ")
+          .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+          .join(" ")
+      : "";
 
     if (transactionStatus === "refunded") {
       return (
@@ -502,7 +502,7 @@ export function TransactionStatus({
           <AnimatedComponent
             variant={slideInOut}
             delay={0.4}
-            className="leading-normal text-gray-500 dark:text-white/50"
+            className="text-sm leading-normal text-gray-500 dark:text-white/50"
           >
             {getPaymentMessage()}
           </AnimatedComponent>

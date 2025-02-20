@@ -58,8 +58,10 @@ export const KycModal = ({
   const [kycUrl, setKycUrl] = useState("");
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSigning, setIsSigning] = useState(false);
 
   const handleSignAndContinue = async () => {
+    setIsSigning(true);
     const nonce = generateTimeBasedNonce({ length: 16 });
     const message = `I accept the KYC Policy and hereby request an identity verification check for ${walletAddress} with nonce ${nonce}`;
     const uiConfig = {
@@ -67,7 +69,6 @@ export const KycModal = ({
     };
 
     try {
-      setIsKycModalOpen(false);
       const signature = await signMessage({ message }, { uiOptions: uiConfig });
       if (signature) {
         setIsKycModalOpen(true);
@@ -82,12 +83,12 @@ export const KycModal = ({
         });
 
         if (response.status === "success") {
-          setKycUrl(response.data.url);
-          setShowQRCode(true);
-          setStep(STEPS.STATUS.PENDING);
           trackEvent("Account verification", {
             "Verification status": "Pending",
           });
+          setKycUrl(response.data.url);
+          setShowQRCode(true);
+          setStep(STEPS.STATUS.PENDING);
         } else {
           setStep(STEPS.STATUS.FAILED);
           trackEvent("Account verification", {
@@ -96,6 +97,7 @@ export const KycModal = ({
         }
       }
     } catch (error: unknown) {
+      console.log("error", error);
       if (
         error instanceof Error &&
         (error as any).response &&
@@ -265,10 +267,10 @@ export const KycModal = ({
         <button
           type="button"
           className={`${primaryBtnClasses} w-full`}
-          disabled={!termsAccepted}
+          disabled={!termsAccepted || isSigning}
           onClick={handleSignAndContinue}
         >
-          Accept and sign
+          {isSigning ? "Signing..." : "Accept and sign"}
         </button>
       </div>
     </motion.div>

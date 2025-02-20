@@ -100,9 +100,17 @@ export const TransactionForm = ({
     if (!embeddedWalletAddress) return;
 
     const fetchStatus = async () => {
-      const response = await fetchKYCStatus(embeddedWalletAddress);
-      if (response.data.status === "pending") {
-        setIsKycModalOpen(true);
+      try {
+        const response = await fetchKYCStatus(embeddedWalletAddress);
+        if (response.data.status === "pending") {
+          setIsKycModalOpen(true);
+        }
+      } catch (error) {
+        if (error instanceof Error && (error as any).response?.status === 404) {
+          // do nothing
+        } else {
+          console.log("error", error);
+        }
       }
     };
 
@@ -353,8 +361,7 @@ export const TransactionForm = ({
 
         {/* Recipient and memo */}
         <AnimatePresence>
-          {/* {currency && authenticated && isUserVerified && ( */}
-          {currency && authenticated && (
+          {currency && authenticated && isUserVerified && (
             <AnimatedComponent
               variant={slideInOut}
               className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-white/5"
@@ -413,7 +420,7 @@ export const TransactionForm = ({
           </button>
         )}
 
-        {/* {ready && (
+        {ready && (
           <button
             type="button"
             className={primaryBtnClasses}
@@ -421,7 +428,13 @@ export const TransactionForm = ({
             onClick={buttonAction(
               handleSwap,
               login,
-              () => handleFundWallet(smartWallet?.address ?? ""),
+              () =>
+                handleFundWallet(
+                  smartWallet?.address ?? "",
+                  amountSent.toString(),
+                  (fetchedTokens.find((t) => t.symbol === token)
+                    ?.address as `0x${string}`) ?? "",
+                ),
               () => setIsKycModalOpen(true),
               isUserVerified,
             )}
@@ -429,24 +442,6 @@ export const TransactionForm = ({
             {!isUserVerified && authenticated && !hasInsufficientBalance
               ? "Get started"
               : buttonText}
-          </button>
-        )} */}
-
-        {ready && (
-          <button
-            type="button"
-            className={primaryBtnClasses}
-            // disabled={!isEnabled && isUserVerified}
-            disabled={!isEnabled}
-            onClick={buttonAction(
-              handleSwap,
-              login,
-              () => setIsFundModalOpen(true),
-              () => setIsKycModalOpen(true),
-              isUserVerified,
-            )}
-          >
-            {buttonText}
           </button>
         )}
 

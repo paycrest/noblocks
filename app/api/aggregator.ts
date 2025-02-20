@@ -102,7 +102,6 @@ export const initiateKYC = async (
     const response = await axios.post(`${AGGREGATOR_URL}/kyc`, payload);
     return response.data;
   } catch (error) {
-    console.error("Error initiating KYC:", error);
     throw error;
   }
 };
@@ -114,7 +113,6 @@ export const fetchKYCStatus = async (
     const response = await axios.get(`${AGGREGATOR_URL}/kyc/${walletAddress}`);
     return response.data;
   } catch (error) {
-    console.error("Error fetching KYC status:", error);
     throw error;
   }
 };

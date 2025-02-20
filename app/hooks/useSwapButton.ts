@@ -58,9 +58,9 @@ export function useSwapButton({
     if (hasInsufficientBalance) {
       return handleFundWallet;
     }
-    // if (!isUserVerified) {
-    //   return setIsKycModalOpen;
-    // }
+    if (!isUserVerified) {
+      return setIsKycModalOpen;
+    }
     return handleSwap;
   };
 

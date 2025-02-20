@@ -208,7 +208,7 @@ export function TransactionStatus({
     <AnimatePresence mode="wait">
       {["validated", "settled"].includes(transactionStatus) ? (
         <AnimatedComponent variant={scaleInOut} key="settled">
-          <CheckIcon className="size-10" />
+          <CheckIcon className="size-10" isActive={true} />
         </AnimatedComponent>
       ) : transactionStatus === "refunded" ? (
         <AnimatedComponent variant={scaleInOut} key="refunded">
@@ -605,7 +605,7 @@ export function TransactionStatus({
                     {transactionStatus === "refunded" ? (
                       <XFailIcon className="size-4" />
                     ) : (
-                      <CheckIcon className="size-4" />
+                      <CheckIcon className="size-4" isActive={true} />
                     )}
                     <p
                       className={classNames(

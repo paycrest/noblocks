@@ -14,7 +14,11 @@ import { WalletDetails } from "./WalletDetails";
 import { NetworksDropdown } from "./NetworksDropdown";
 import { SettingsDropdown } from "./SettingsDropdown";
 import { identifyUser, trackEvent } from "../hooks/analytics";
-import { shortenAddress, IS_MAIN_PRODUCTION_DOMAIN } from "../utils";
+import {
+  shortenAddress,
+  IS_MAIN_PRODUCTION_DOMAIN,
+  classNames,
+} from "../utils";
 import { ArrowDown01Icon } from "hugeicons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MobileDropdown } from "./MobileDropdown";
@@ -105,29 +109,24 @@ export const Navbar = () => {
               >
                 {IS_MAIN_PRODUCTION_DOMAIN ? (
                   <>
-                    <NoblocksLogo className="hidden sm:block" />
+                    <NoblocksLogo className="max-sm:hidden" />
                     <NoblocksLogoIcon className="size-[18px] sm:hidden" />
                   </>
                 ) : (
                   <>
-                    <NoblocksBetaLogo className="hidden sm:block" />
+                    <NoblocksBetaLogo className="max-sm:hidden" />
                     <NoblocksLogoIcon className="size-[18px] sm:hidden" />
                   </>
                 )}
               </button>
 
-              <button
-                aria-label="Dropdown Menu"
-                type="button"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="hidden items-center gap-1 text-gray-400 hover:text-gray-600 dark:text-white/50 dark:hover:text-white/80 sm:flex"
-              >
-                <ArrowDown01Icon
-                  className={`size-5 transition-transform duration-200 ${
-                    isDropdownOpen ? "rotate-0" : "-rotate-90"
-                  }`}
-                />
-              </button>
+              <ArrowDown01Icon
+                className={classNames(
+                  "size-5 cursor-pointer text-icon-outline-secondary transition-transform duration-200 dark:text-white/50",
+                  isDropdownOpen ? "rotate-0" : "-rotate-90",
+                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[15px]", // this adjusts the arrow position for beta logo
+                )}
+              />
             </div>
 
             <AnimatePresence>

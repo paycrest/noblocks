@@ -7,72 +7,33 @@ import { useOutsideClick } from "../hooks";
 import { classNames, fetchSupportedTokens, formatCurrency } from "../utils";
 import { useBalance } from "../context/BalanceContext";
 import { dropdownVariants } from "./AnimatedComponents";
-import { useFundWallet, usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { Token } from "../types";
 import { useNetwork } from "../context/NetworksContext";
-import { trackEvent } from "../hooks/analytics";
 import { TransferModal } from "./TransferModal";
 import { ArrowDown01Icon, Wallet01Icon } from "hugeicons-react";
 import Image from "next/image";
+import { FundWalletModal } from "./FundWalletModal";
+import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 
 export const WalletDetails = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isTransferModalOpen, setIsTransferModalOpen] =
     useState<boolean>(false);
+  const [isFundModalOpen, setIsFundModalOpen] = useState(false);
 
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, allBalances, refreshBalance } = useBalance();
 
   const { user } = usePrivy();
 
-  const { fundWallet } = useFundWallet({
-    onUserExited: ({ fundingMethod, chain }) => {
-      // NOTE: This is an inaccurate way of tracking funding status
-      // Privy doesn't provide detailed funding status information
-      // Available variables in onUserExited: address, chain, fundingMethod, balance
-      // Limitations:
-      // 1. fundingMethod only indicates user selected a method, not if funding completed
-      // 2. User can select method and cancel, but it still records as "completed"
-      // 3. No way to track funding errors
-      // 4. balance is returned as bigint and doesn't specify token type
-      // 5. No webhook or callback for actual funding confirmation
-      if (fundingMethod) {
-        refreshBalance();
-        trackEvent("Funding Completed", {
-          "Funding type": fundingMethod,
-          Amount: "Not available on Privy",
-          Network: chain.name,
-          Token: "USDC", // privy only supports USDC
-          "Funding date": new Date().toISOString(),
-        });
-      } else {
-        trackEvent("Funding cancelled", {
-          "Funding type": "User exited the funding process",
-          Amount: "Not available on Privy",
-          Network: chain.name,
-          Token: "USDC", // privy only supports USDC
-          "Funding date": new Date().toISOString(),
-        });
-      }
-    },
-  });
+  const { handleFundWallet } = useFundWalletHandler("Wallet details");
 
-  const handleFundWallet = async (address: string) => {
-    trackEvent("Funding started", {
-      "Entry point": "Fund button on navbar",
-    });
-    const fetchedTokens: Token[] =
-      fetchSupportedTokens(selectedNetwork.chain.name) || [];
-    const tokenAddress = fetchedTokens.find(
-      (t) =>
-        t.symbol.toUpperCase() ===
-        (selectedNetwork.chain.name.toLowerCase() === "base" ? "USDC" : "USDT"),
-    )?.address as `0x${string}`;
-
-    await fundWallet(address, {
-      chain: selectedNetwork.chain,
-      asset: { erc20: tokenAddress },
-    });
+  const handleFundWalletClick = async (
+    amount: string,
+    tokenAddress: `0x${string}`,
+  ) => {
+    await handleFundWallet(smartWallet?.address ?? "", amount, tokenAddress);
   };
 
   const smartWallet = user?.linkedAccounts.find(
@@ -80,9 +41,6 @@ export const WalletDetails = () => {
   );
 
   const { wallets } = useWallets();
-  const externalWallet = wallets.find(
-    (wallet) => wallet.walletClientType !== "privy",
-  );
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({
@@ -186,7 +144,7 @@ export const WalletDetails = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          handleFundWallet(smartWallet?.address ?? "");
+                          setIsFundModalOpen(true);
                           setIsOpen(false);
                         }}
                         className="font-medium text-lavender-500"
@@ -210,38 +168,6 @@ export const WalletDetails = () => {
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {/* <AnimatePresence>
-                {allBalances.externalWallet?.balances && (
-                  <motion.div
-                    initial="closed"
-                    animate="open"
-                    exit="closed"
-                    variants={dropdownVariants}
-                    className="space-y-3 rounded-xl bg-accent-gray p-3 dark:bg-white/5"
-                  >
-                    <h3 className="font-light capitalize text-gray-500 dark:text-white/50">
-                      {externalWallet?.walletClientType}
-                    </h3>
-                    <ul className="space-y-2 text-neutral-900 dark:text-white/80">
-                      {Object.entries(allBalances.externalWallet.balances).map(
-                        ([token, balance]) => (
-                          <li key={token} className="flex items-center gap-1">
-                            <img
-                              src={getTokenImageUrl(token)}
-                              alt={token}
-                              className="size-3.5"
-                            />
-                            <span>
-                              {balance} {token}
-                            </span>
-                          </li>
-                        ),
-                      )}
-                    </ul>
-                  </motion.div>
-                )}
-              </AnimatePresence> */}
             </motion.div>
           )}
         </AnimatePresence>
@@ -283,6 +209,12 @@ export const WalletDetails = () => {
           </Dialog>
         )}
       </AnimatePresence>
+
+      <FundWalletModal
+        isOpen={isFundModalOpen}
+        onClose={() => setIsFundModalOpen(false)}
+        onFund={handleFundWalletClick}
+      />
     </>
   );
 };

@@ -232,7 +232,6 @@ export const TransactionPreview = ({
       toast.warning("Low balance. Fund your wallet.", {
         description: "Insufficient funds. Please add money to continue.",
       });
-      await fundWallet(smartWallet?.address ?? "");
       return;
     }
     try {

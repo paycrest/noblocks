@@ -3,7 +3,7 @@ import Image from "next/image";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
-import { usePrivy, useFundWallet } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import {
   Cancel01Icon,
   ArrowRight01Icon,
@@ -21,7 +21,6 @@ import {
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { classNames, shortenAddress, fetchSupportedTokens } from "../utils";
-import { trackEvent } from "../hooks/analytics";
 import { useLogout } from "@privy-io/react-auth";
 import { PiCheck } from "react-icons/pi";
 import { ImSpinner } from "react-icons/im";
@@ -32,6 +31,8 @@ import { Token } from "../types";
 import { toast } from "sonner";
 import { useStep } from "../context/StepContext";
 import { STEPS } from "../types";
+import { FundWalletModal } from "./FundWalletModal";
+import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 
 type View = "wallet" | "settings";
 
@@ -46,6 +47,7 @@ export const MobileDropdown = ({
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isFundModalOpen, setIsFundModalOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, exportWallet, linkEmail, updateEmail } = usePrivy();
@@ -57,37 +59,7 @@ export const MobileDropdown = ({
     },
   });
 
-  const { fundWallet } = useFundWallet({
-    onUserExited: ({ fundingMethod, chain }) => {
-      // NOTE: This is an inaccurate way of tracking funding status
-      // Privy doesn't provide detailed funding status information
-      // Available variables in onUserExited: address, chain, fundingMethod, balance
-      // Limitations:
-      // 1. fundingMethod only indicates user selected a method, not if funding completed
-      // 2. User can select method and cancel, but it still records as "completed"
-      // 3. No way to track funding errors
-      // 4. balance is returned as bigint and doesn't specify token type
-      // 5. No webhook or callback for actual funding confirmation
-      if (fundingMethod) {
-        refreshBalance();
-        trackEvent("Funding completed", {
-          "Funding type": fundingMethod,
-          Amount: "Not available on Privy",
-          Network: chain.name,
-          Token: "USDC", // privy only supports USDC
-          "Funding date": new Date().toISOString(),
-        });
-      } else {
-        trackEvent("Funding cancelled", {
-          "Funding type": "User exited the funding process",
-          Amount: "Not available on Privy",
-          Network: chain.name,
-          Token: "USDC", // privy only supports USDC
-          "Funding date": new Date().toISOString(),
-        });
-      }
-    },
-  });
+  const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
   const smartWallet = user?.linkedAccounts.find(
     (account) => account.type === "smart_wallet",
@@ -125,6 +97,13 @@ export const MobileDropdown = ({
       damping: 30,
       duration: 0.2,
     },
+  };
+
+  const handleFundWalletClick = async (
+    amount: string,
+    tokenAddress: `0x${string}`,
+  ) => {
+    await handleFundWallet(smartWallet?.address ?? "", amount, tokenAddress);
   };
 
   return (
@@ -234,10 +213,8 @@ export const MobileDropdown = ({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  fundWallet(smartWallet?.address ?? "");
-                                  trackEvent("Funding started", {
-                                    "Entry point": "Mobile wallet dropdown",
-                                  });
+                                  setIsFundModalOpen(true);
+                                  onClose();
                                 }}
                                 className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
                               >
@@ -545,6 +522,13 @@ export const MobileDropdown = ({
           </Dialog>
         )}
       </AnimatePresence>
+
+      <FundWalletModal
+        isOpen={isFundModalOpen}
+        onClose={() => setIsFundModalOpen(false)}
+        onFund={handleFundWalletClick}
+        isMobile={true}
+      />
     </>
   );
 };

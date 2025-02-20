@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { ImSpinner, ImSpinner3 } from "react-icons/im";
-import { usePrivy, useFundWallet, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { AnimatePresence, motion } from "framer-motion";
 
 import {
@@ -11,17 +11,18 @@ import {
   FormDropdown,
   RecipientDetailsForm,
   KycModal,
+  FundWalletModal,
 } from "../components";
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
 import { fetchSupportedTokens } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
-import { trackEvent } from "../hooks/analytics";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
 import { fetchKYCStatus } from "../api/aggregator";
+import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -50,6 +51,7 @@ export const TransactionForm = ({
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
+  const [isFundModalOpen, setIsFundModalOpen] = useState(false);
 
   const {
     handleSubmit,
@@ -62,56 +64,13 @@ export const TransactionForm = ({
 
   const balance = smartWalletBalance?.balances[token] ?? 0;
 
-  const { fundWallet } = useFundWallet({
-    onUserExited: ({ fundingMethod, chain }) => {
-      // NOTE: This is an inaccurate way of tracking funding status
-      // Privy doesn't provide detailed funding status information
-      // Available variables in onUserExited: address, chain, fundingMethod, balance
-      // Limitations:
-      // 1. fundingMethod only indicates user selected a method, not if funding completed
-      // 2. User can select method and cancel, but it still records as "completed"
-      // 3. No way to track funding errors
-      // 4. balance is returned as bigint and doesn't specify token type
-      // 5. No webhook or callback for actual funding confirmation
-      if (fundingMethod) {
-        refreshBalance();
-        trackEvent("Funding Completed", {
-          "Funding type": fundingMethod,
-          Amount: "Not available on Privy",
-          Network: chain.name,
-          Token: "USDC", // privy only supports USDC
-          "Funding date": new Date().toISOString(),
-        });
-      } else {
-        trackEvent("Funding cancelled", {
-          "Funding type": "User exited the funding process",
-          Amount: "Not available on Privy",
-          Network: chain.name,
-          Token: "USDC", // privy only supports USDC
-          "Funding date": new Date().toISOString(),
-        });
-      }
-    },
-  });
+  const { handleFundWallet } = useFundWalletHandler("Transaction form");
 
-  const handleFundWallet = async (address: string) => {
-    const amountToFund = Number(
-      (Number(amountSent) - Number(balance)).toFixed(4),
-    ).toString();
-
-    const selectedToken = fetchSupportedTokens(
-      selectedNetwork.chain.name,
-    )?.find((t) => t.symbol === token);
-
-    trackEvent("Funding started", {
-      "Entry point": "Fund button on swap interface",
-    });
-
-    await fundWallet(address, {
-      amount: amountToFund,
-      chain: selectedNetwork.chain,
-      asset: { erc20: selectedToken?.address as `0x${string}` },
-    });
+  const handleFundWalletClick = async (
+    amount: string,
+    tokenAddress: `0x${string}`,
+  ) => {
+    await handleFundWallet(smartWallet?.address ?? "", amount, tokenAddress);
   };
 
   const smartWallet = user?.linkedAccounts.find(
@@ -514,7 +473,7 @@ export const TransactionForm = ({
             onClick={buttonAction(
               handleSwap,
               login,
-              () => handleFundWallet(smartWallet?.address ?? ""),
+              () => setIsFundModalOpen(true),
               () => setIsKycModalOpen(true),
               isUserVerified,
             )}
@@ -542,6 +501,13 @@ export const TransactionForm = ({
           )}
         </AnimatePresence>
       </form>
+
+      <FundWalletModal
+        isOpen={isFundModalOpen}
+        onClose={() => setIsFundModalOpen(false)}
+        onFund={handleFundWalletClick}
+        isMobile={window.innerWidth < 640}
+      />
     </>
   );
 };

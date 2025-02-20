@@ -70,7 +70,7 @@ export const SavedBeneficiariesModal = ({
                 transition={{ duration: 0.3 }}
                 className="w-full sm:max-w-md"
               >
-                <DialogPanel className="relative h-[28.5rem] w-full max-w-full overflow-hidden rounded-t-[20px] border border-border-light bg-white px-5 pb-6 pt-6 shadow-xl dark:border-white/5 dark:bg-surface-overlay max-sm:pb-12 sm:max-w-md sm:rounded-[20px]">
+                <DialogPanel className="relative h-[28.5rem] w-full max-w-full overflow-hidden rounded-t-[20px] border border-border-light bg-white px-5 pb-6 pt-6 shadow-xl dark:border-white/5 dark:bg-surface-overlay max-sm:pb-12 sm:h-[20.25rem] sm:max-w-md sm:rounded-[20px]">
                   <Button
                     className="flex w-full items-center justify-between"
                     onClick={onClose}

@@ -1,7 +1,7 @@
 import { Button } from "@headlessui/react";
-import { TrashIcon } from "../ImageAssets";
 import { RecipientListItemProps } from "./types";
 import { classNames, getRandomColor } from "@/app/utils";
+import { Delete01Icon } from "hugeicons-react";
 
 export const RecipientListItem = ({
   recipient,
@@ -52,9 +52,12 @@ export const RecipientListItem = ({
         e.stopPropagation();
         onDelete(recipient);
       }}
-      className="scale-0 transform transition-transform group-hover:block group-hover:scale-100 sm:hidden"
+      className="group/btn scale-0 transform rounded-lg p-2 opacity-0 transition-all duration-200 hover:bg-red-100 group-hover:scale-100 group-hover:opacity-100 dark:hover:bg-red-100/10"
     >
-      <TrashIcon className="size-4 stroke-gray-500 dark:stroke-white/50" />
+      <Delete01Icon
+        className="size-4 text-icon-outline-secondary transition-colors group-hover/btn:text-red-500 dark:text-white/50 dark:group-hover/btn:text-red-400"
+        strokeWidth={2}
+      />
     </Button>
   </div>
 );

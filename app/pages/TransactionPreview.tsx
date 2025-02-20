@@ -16,7 +16,7 @@ import {
 } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 import type { Token, TransactionPreviewProps } from "../types";
-import { primaryBtnClasses, outlineBtnClasses } from "../components";
+import { primaryBtnClasses, secondaryBtnClasses } from "../components";
 import { gatewayAbi } from "../api/abi";
 import { useFundWallet, usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -378,7 +378,7 @@ export const TransactionPreview = ({
         <button
           type="button"
           onClick={handleBackButtonClick}
-          className={classNames(outlineBtnClasses)}
+          className={classNames(secondaryBtnClasses)}
           disabled={isConfirming}
         >
           Back

@@ -599,35 +599,6 @@ export const AddUserIcon = (props: ImageProps) => {
   );
 };
 
-export const TrashIcon = (props: ImageProps) => {
-  return (
-    <svg
-      width="18"
-      height="20"
-      viewBox="0 0 18 20"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      {...props}
-    >
-      <title>Trash icon</title>
-      <path
-        d="M15.25 4.58203L14.7336 12.9363C14.6016 15.0707 14.5356 16.138 14.0006 16.9052C13.7361 17.2846 13.3955 17.6048 13.0006 17.8454C12.2018 18.332 11.1325 18.332 8.99395 18.332C6.8526 18.332 5.78192 18.332 4.98254 17.8445C4.58733 17.6034 4.24666 17.2827 3.98224 16.9027C3.4474 16.1342 3.38288 15.0655 3.25384 12.928L2.75 4.58203"
-        stroke="currentColor"
-        strokeOpacity="0.5"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M1.5 4.58268H16.5M12.3798 4.58268L11.8109 3.40912C11.433 2.62956 11.244 2.23978 10.9181 1.99669C10.8458 1.94277 10.7692 1.8948 10.6892 1.85327C10.3283 1.66602 9.8951 1.66602 9.02877 1.66602C8.14069 1.66602 7.69665 1.66602 7.32974 1.86112C7.24842 1.90436 7.17082 1.95426 7.09774 2.01032C6.76803 2.26327 6.58386 2.66731 6.2155 3.4754L5.71077 4.58268"
-        stroke="currentColor"
-        strokeOpacity="0.5"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-};
-
 export const YellowHeart = (props: ImageProps) => {
   return (
     <svg

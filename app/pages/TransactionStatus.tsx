@@ -15,11 +15,9 @@ import {
   primaryBtnClasses,
 } from "../components";
 import {
-  CheckIcon,
   FarcasterIconDarkTheme,
   FarcasterIconLightTheme,
   QuotesBgIcon,
-  XFailIcon,
   XIconDarkTheme,
   XIconLightTheme,
   YellowHeart,
@@ -45,6 +43,7 @@ import { trackEvent } from "../hooks/analytics";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";
+import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
 
 /**
  * Renders the transaction status component.
@@ -208,11 +207,11 @@ export function TransactionStatus({
     <AnimatePresence mode="wait">
       {["validated", "settled"].includes(transactionStatus) ? (
         <AnimatedComponent variant={scaleInOut} key="settled">
-          <CheckIcon className="size-10" isActive={true} />
+          <CheckmarkCircle01Icon className="size-10" color="#39C65D" />
         </AnimatedComponent>
       ) : transactionStatus === "refunded" ? (
         <AnimatedComponent variant={scaleInOut} key="refunded">
-          <XFailIcon className="size-10" />
+          <CancelCircleIcon className="size-10" color="#F53D6B" />
         </AnimatedComponent>
       ) : (
         <AnimatedComponent
@@ -602,11 +601,6 @@ export function TransactionStatus({
                 <div className="flex items-center justify-between gap-1">
                   <p className="flex-1">Status</p>
                   <div className="flex flex-1 items-center gap-1">
-                    {transactionStatus === "refunded" ? (
-                      <XFailIcon className="size-4" />
-                    ) : (
-                      <CheckIcon className="size-4" isActive={true} />
-                    )}
                     <p
                       className={classNames(
                         transactionStatus === "refunded"

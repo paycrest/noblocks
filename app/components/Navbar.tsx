@@ -52,7 +52,7 @@ export const Navbar = () => {
             "Login method": loginMethod,
             user_id: user.wallet.address,
             "Email address": user.email,
-            "Sign up date": user.createdAt,
+            "Sign up date": user.createdAt.toISOString(),
             "Noblocks balance": 0, // a new user should always have 0 balance
           });
         } else {

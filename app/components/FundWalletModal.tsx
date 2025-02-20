@@ -76,7 +76,7 @@ export const FundWalletModal = ({
     } finally {
       setIsConfirming(false);
     }
-  };
+  }; 
 
   useEffect(() => {
     if (!token) {
@@ -99,7 +99,7 @@ export const FundWalletModal = ({
           <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
         </button>
         <h2 className="text-lg font-semibold text-text-body dark:text-white">
-          Fund Wallet
+          Fund wallet
         </h2>
         <div className="w-10" />
       </div>
@@ -173,7 +173,7 @@ export const FundWalletModal = ({
           className={classNames(primaryBtnClasses, "w-full")}
           disabled={!isValid || !isDirty || isConfirming}
         >
-          {isConfirming ? "Confirming..." : "Fund wallet"}
+          {isConfirming ? "Loading..." : "Choose funding method"}
         </button>
       </form>
     </div>

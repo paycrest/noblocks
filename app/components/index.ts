@@ -22,6 +22,7 @@ export { KycModal } from "./KycModal";
 export { CookieConsent } from "./CookieConsent";
 export { NetworkSelectionModal } from "./NetworkSelectionModal";
 export { Disclaimer } from "./Disclaimer";
+export { FundWalletModal } from "./FundWalletModal";
 
 export { TransactionReceipt } from "./TransactionReceipt";
 export { TransactionForm } from "../pages/TransactionForm";

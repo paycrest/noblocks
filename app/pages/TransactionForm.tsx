@@ -362,7 +362,7 @@ export const TransactionForm = ({
 
         {/* Recipient and memo */}
         <AnimatePresence>
-          {currency && authenticated && isUserVerified && (
+          {currency && authenticated && (
             <AnimatedComponent
               variant={slideInOut}
               className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-white/5"

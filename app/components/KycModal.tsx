@@ -353,7 +353,7 @@ export const KycModal = ({
 
   const renderSuccessStatus = () => (
     <motion.div key="success" {...fadeInOut} className="space-y-6 pt-4">
-      <CheckmarkCircle01Icon className="size-10 mx-auto" color="#39C65D" />
+      <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
 
       <div className="space-y-3 pb-5 text-center">
         <DialogTitle className="text-lg font-semibold">
@@ -526,7 +526,7 @@ export const KycModal = ({
         } else {
           debouncedFetchStatus();
         }
-      }, 30000);
+      }, 10000);
     }
 
     return () => {

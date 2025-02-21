@@ -59,7 +59,8 @@ export const TransactionForm = ({
     setValue,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { amountSent, amountReceived, token, currency } = watch();
+  const { amountSent, amountReceived, token, currency, recipientName } =
+    watch();
 
   const balance = smartWalletBalance?.balances[token] ?? 0;
 
@@ -419,31 +420,33 @@ export const TransactionForm = ({
         )}
 
         {ready && (
-          <button
-            type="button"
-            className={primaryBtnClasses}
-            disabled={!isEnabled}
-            onClick={buttonAction(
-              handleSwap,
-              login,
-              () =>
-                handleFundWallet(
-                  smartWallet?.address ?? "",
-                  amountSent.toString(),
-                  (fetchedTokens.find((t) => t.symbol === token)
-                    ?.address as `0x${string}`) ?? "",
-                ),
-              () => setIsKycModalOpen(true),
-              isUserVerified,
-            )}
-          >
-            {!isUserVerified &&
-            authenticated &&
-            !hasInsufficientBalance &&
-            amountSent > 0
-              ? "Get started"
-              : buttonText}
-          </button>
+          <>
+            <button
+              type="button"
+              className={primaryBtnClasses}
+              disabled={!isEnabled && !isValid && recipientName === ""}
+              onClick={buttonAction(
+                handleSwap,
+                login,
+                () =>
+                  handleFundWallet(
+                    smartWallet?.address ?? "",
+                    amountSent.toString(),
+                    (fetchedTokens.find((t) => t.symbol === token)
+                      ?.address as `0x${string}`) ?? "",
+                  ),
+                () => setIsKycModalOpen(true),
+                isUserVerified,
+              )}
+            >
+              {!isUserVerified &&
+              authenticated &&
+              !hasInsufficientBalance &&
+              amountSent > 0
+                ? "Get started"
+                : buttonText}
+            </button>
+          </>
         )}
 
         <AnimatePresence>

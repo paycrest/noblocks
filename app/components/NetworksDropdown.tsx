@@ -58,7 +58,7 @@ export const NetworksDropdown = ({
       data={dropdownNetworks}
       selectedItem={dropdownSelectedItem}
       onSelect={handleNetworkSelect}
-      className="max-h-max min-w-52"
+      className="max-h-max min-w-56"
     >
       {({ isOpen, toggleDropdown }) => (
         <button

@@ -50,7 +50,7 @@ const DropdownContent = ({
     aria-label="Dropdown items"
     role="listbox"
     aria-labelledby="dropdown-items"
-    className="font-normal max-sm:space-y-1"
+    className="px-2 font-normal max-sm:space-y-1"
   >
     {data?.map((item) => (
       <li
@@ -60,7 +60,7 @@ const DropdownContent = ({
         aria-disabled={item.disabled}
         onClick={() => !item.disabled && handleChange(item)}
         className={classNames(
-          "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-all hover:bg-accent-gray dark:hover:bg-neutral-700 max-sm:rounded-lg sm:py-2",
+          "flex w-full items-center justify-between gap-2 rounded-lg p-2.5 text-left transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700 sm:py-2",
           item.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
         )}
       >

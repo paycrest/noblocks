@@ -395,4 +395,5 @@ export const getRandomColor = (name: string) => {
  * @returns {boolean} True if on the main production domain, false otherwise
  */
 export const IS_MAIN_PRODUCTION_DOMAIN =
-  typeof window !== "undefined" && window.location.hostname === "noblocks.xyz";
+  typeof window !== "undefined" &&
+  /^(?:www\.)?noblocks\.xyz$/.test(window.location.hostname);

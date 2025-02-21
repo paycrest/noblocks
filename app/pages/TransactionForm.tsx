@@ -424,7 +424,7 @@ export const TransactionForm = ({
           <button
             type="button"
             className={primaryBtnClasses}
-            disabled={!isEnabled && isUserVerified}
+            disabled={!isEnabled}
             onClick={buttonAction(
               handleSwap,
               login,

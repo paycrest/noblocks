@@ -347,7 +347,7 @@ export const TransactionForm = ({
                 onSelect={(selectedCurrency) =>
                   setValue("currency", selectedCurrency)
                 }
-                className="min-w-60"
+                className="min-w-64"
                 isCTA={
                   // Show CTA styling when:
                   // 1. No currency is selected AND

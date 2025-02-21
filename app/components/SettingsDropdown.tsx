@@ -93,7 +93,7 @@ export const SettingsDropdown = () => {
             exit="closed"
             variants={dropdownVariants}
             aria-label="Dropdown menu"
-            className="absolute right-0 z-10 mt-4 w-fit space-y-4 overflow-hidden rounded-xl border border-border-light bg-white py-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
+            className="absolute right-0 z-10 mt-4 w-fit space-y-4 overflow-hidden rounded-xl border border-border-light bg-white p-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
           >
             <ul
               role="menu"
@@ -103,7 +103,7 @@ export const SettingsDropdown = () => {
             >
               <li
                 role="menuitem"
-                className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-accent-gray dark:hover:bg-neutral-700"
+                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
               >
                 <button
                   type="button"
@@ -119,14 +119,17 @@ export const SettingsDropdown = () => {
                   {isAddressCopied ? (
                     <PiCheck className="size-4 text-green-900 dark:text-green-500" />
                   ) : (
-                    <Copy01Icon className="size-4 text-icon-outline-secondary transition group-hover:text-lavender-500 dark:text-white/50 dark:hover:text-white" />
+                    <Copy01Icon
+                      className="size-4 text-icon-outline-secondary transition-all group-hover:text-lavender-500 dark:text-white/50 dark:hover:text-white"
+                      strokeWidth={2}
+                    />
                   )}
                 </button>
               </li>
               {user?.email ? (
                 <li
                   role="menuitem"
-                  className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
                 >
                   <button
                     type="button"
@@ -145,7 +148,7 @@ export const SettingsDropdown = () => {
               ) : (
                 <li
                   role="menuitem"
-                  className="flex cursor-pointer items-center justify-between gap-2 px-4 py-2 transition hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
                 >
                   <button
                     type="button"
@@ -161,7 +164,7 @@ export const SettingsDropdown = () => {
               )}
               <li
                 role="menuitem"
-                className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-accent-gray dark:hover:bg-neutral-700"
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
                 onClick={exportWallet}
               >
                 <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
@@ -169,7 +172,7 @@ export const SettingsDropdown = () => {
               </li>
               <li
                 role="menuitem"
-                className="flex cursor-pointer items-center gap-2.5 px-4 py-2 transition hover:bg-accent-gray dark:hover:bg-neutral-700"
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
                 onClick={handleLogout}
               >
                 {isLoggingOut ? (

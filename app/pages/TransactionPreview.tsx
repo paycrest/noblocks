@@ -18,7 +18,7 @@ import { useNetwork } from "../context/NetworksContext";
 import type { Token, TransactionPreviewProps } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components";
 import { gatewayAbi } from "../api/abi";
-import { useFundWallet, usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
   type BaseError,

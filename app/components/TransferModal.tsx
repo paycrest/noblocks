@@ -83,6 +83,7 @@ export const TransferModal = ({
       toast.success(
         `${data.amount.toString()} ${token} successfully transferred`,
       );
+      setIsConfirming(false);
       onClose();
     } catch (e: any) {
       onClose();

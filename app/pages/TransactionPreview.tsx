@@ -51,7 +51,6 @@ export const TransactionPreview = ({
 }: TransactionPreviewProps) => {
   const { user } = usePrivy();
   const { client } = useSmartWallets();
-  const { fundWallet } = useFundWallet();
 
   const { selectedNetwork } = useNetwork();
   const { currentStep, setCurrentStep } = useStep();

@@ -19,7 +19,7 @@ import { generateTimeBasedNonce } from "../utils";
 import { fetchKYCStatus, initiateKYC } from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics";
-import { Cancel01Icon } from "hugeicons-react";
+import { Cancel01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
 
 export const STEPS = {
   TERMS: "terms",
@@ -353,7 +353,7 @@ export const KycModal = ({
 
   const renderSuccessStatus = () => (
     <motion.div key="success" {...fadeInOut} className="space-y-6 pt-4">
-      <CheckIcon className="mx-auto" />
+      <CheckmarkCircle01Icon className="size-10 mx-auto" color="#39C65D" />
 
       <div className="space-y-3 pb-5 text-center">
         <DialogTitle className="text-lg font-semibold">

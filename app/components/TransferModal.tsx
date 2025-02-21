@@ -1,9 +1,6 @@
 import { toast } from "sonner";
-import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
-import { Dialog, DialogPanel } from "@headlessui/react";
-import { motion, AnimatePresence } from "framer-motion";
 
 import { ArrowLeft02Icon, Cancel01Icon, Wallet01Icon } from "hugeicons-react";
 
@@ -13,7 +10,7 @@ import { BaseError, encodeFunctionData, erc20Abi, parseUnits } from "viem";
 import { useBalance } from "../context";
 import type { Token } from "../types";
 import { useNetwork } from "../context/NetworksContext";
-import { classNames, fetchSupportedTokens, getExplorerLink } from "../utils";
+import { classNames, fetchSupportedTokens } from "../utils";
 
 import { primaryBtnClasses } from "./Styles";
 import { FormDropdown } from "./FormDropdown";
@@ -48,7 +45,7 @@ export const TransferModal = ({
     watch,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { token, amount, recipientAddress } = watch();
+  const { token, amount } = watch();
 
   const tokens = [];
   const fetchedTokens: Token[] =

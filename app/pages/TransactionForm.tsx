@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { ImSpinner, ImSpinner3 } from "react-icons/im";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 
 import {
   AnimatedComponent,
@@ -21,7 +21,6 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
-import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
 import { fetchKYCStatus } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 
@@ -44,7 +43,7 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, refreshBalance } = useBalance();
+  const { smartWalletBalance } = useBalance();
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
   )?.address;
@@ -60,8 +59,7 @@ export const TransactionForm = ({
     setValue,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { amountSent, amountReceived, token, currency, recipientName } =
-    watch();
+  const { amountSent, amountReceived, token, currency } = watch();
 
   const balance = smartWalletBalance?.balances[token] ?? 0;
 

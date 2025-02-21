@@ -1,13 +1,12 @@
 "use client";
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Dialog, DialogPanel } from "@headlessui/react";
 
 import { useOutsideClick } from "../hooks";
 import { classNames, fetchSupportedTokens, formatCurrency } from "../utils";
 import { useBalance } from "../context/BalanceContext";
 import { dropdownVariants } from "./AnimatedComponents";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { Token } from "../types";
 import { useNetwork } from "../context/NetworksContext";
 import { TransferModal } from "./TransferModal";
@@ -23,7 +22,7 @@ export const WalletDetails = () => {
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
 
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, allBalances, refreshBalance } = useBalance();
+  const { smartWalletBalance, allBalances } = useBalance();
 
   const { user } = usePrivy();
 
@@ -39,8 +38,6 @@ export const WalletDetails = () => {
   const smartWallet = user?.linkedAccounts.find(
     (account) => account.type === "smart_wallet",
   );
-
-  const { wallets } = useWallets();
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({

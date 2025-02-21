@@ -6,6 +6,7 @@ interface UseSwapButtonProps {
   balance?: number;
   isDirty: boolean;
   isValid: boolean;
+  isUserVerified: boolean;
 }
 
 export function useSwapButton({
@@ -13,6 +14,7 @@ export function useSwapButton({
   balance = 0,
   isDirty,
   isValid,
+  isUserVerified,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { amountSent, currency, recipientName } = watch();
@@ -24,6 +26,10 @@ export function useSwapButton({
   const isEnabled = (() => {
     // If needs funding, always enable the button
     if (hasInsufficientBalance) {
+      return true;
+    }
+
+    if (!isUserVerified && authenticated && amountSent > 0) {
       return true;
     }
 
@@ -42,6 +48,11 @@ export function useSwapButton({
     if (authenticated && hasInsufficientBalance) {
       return "Fund wallet";
     }
+
+    if (!isUserVerified && authenticated && amountSent > 0) {
+      return "Get started";
+    }
+
     return "Swap";
   })();
 

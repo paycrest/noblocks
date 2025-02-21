@@ -179,6 +179,7 @@ export const TransactionForm = ({
       balance,
       isDirty,
       isValid,
+      isUserVerified,
     });
 
   const handleSwap = () => {
@@ -426,7 +427,7 @@ export const TransactionForm = ({
             <button
               type="button"
               className={primaryBtnClasses}
-              disabled={!isEnabled && recipientName === ""}
+              disabled={!isEnabled}
               onClick={buttonAction(
                 handleSwap,
                 login,
@@ -441,12 +442,7 @@ export const TransactionForm = ({
                 isUserVerified,
               )}
             >
-              {!isUserVerified &&
-              authenticated &&
-              !hasInsufficientBalance &&
-              amountSent > 0
-                ? "Get started"
-                : buttonText}
+              {buttonText}
             </button>
           </>
         )}

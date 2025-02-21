@@ -29,7 +29,14 @@ export function useSwapButton({
       return true;
     }
 
-    if (!isUserVerified && authenticated && amountSent > 0) {
+    if (
+      !isUserVerified &&
+      authenticated &&
+      amountSent > 0 &&
+      isCurrencySelected &&
+      isAmountValid &&
+      isDirty
+    ) {
       return true;
     }
 

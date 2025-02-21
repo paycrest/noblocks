@@ -437,7 +437,10 @@ export const TransactionForm = ({
               isUserVerified,
             )}
           >
-            {!isUserVerified && authenticated && !hasInsufficientBalance
+            {!isUserVerified &&
+            authenticated &&
+            !hasInsufficientBalance &&
+            amountSent > 0
               ? "Get started"
               : buttonText}
           </button>

@@ -103,6 +103,8 @@ export const TransactionForm = ({
         const response = await fetchKYCStatus(embeddedWalletAddress);
         if (response.data.status === "pending") {
           setIsKycModalOpen(true);
+        } else if (response.data.status === "success") {
+          setIsUserVerified(true);
         }
       } catch (error) {
         if (error instanceof Error && (error as any).response?.status === 404) {

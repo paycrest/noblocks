@@ -274,7 +274,6 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
             }}
             clearTransactionStatus={() => {
               setTransactionStatus("idle");
-              setOrderId("");
             }}
             setTransactionStatus={setTransactionStatus}
             setCurrentStep={setCurrentStep}

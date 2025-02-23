@@ -156,6 +156,7 @@ export const TransactionPreview = ({
       });
 
       const params = await prepareCreateOrderParams();
+      setOrderId("");
       setCreatedAt(new Date().toISOString());
 
       await client?.sendTransaction({

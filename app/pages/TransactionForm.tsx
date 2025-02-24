@@ -169,6 +169,20 @@ export const TransactionForm = ({
       formMethods.register("memo", {
         required: { value: false, message: "Add description" },
       });
+
+      if (token === "cNGN") {
+        // Move NGN to first position and disable other currencies
+        const ngnCurrency = currencies.find((c) => c.name === "NGN");
+        if (ngnCurrency) {
+          currencies.splice(currencies.indexOf(ngnCurrency), 1);
+          currencies.unshift(ngnCurrency);
+        }
+        currencies.forEach((currency) => {
+          if (currency.name !== "NGN") {
+            currency.disabled = true;
+          }
+        });
+      }
     },
     [token, currency, formMethods],
   );

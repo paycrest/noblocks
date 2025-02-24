@@ -33,10 +33,6 @@ export const currencies = [
 
 export const networks = [
   {
-    chain: arbitrum,
-    imageUrl: "/logos/arbitrum-one-logo.svg",
-  },
-  {
     chain: base,
     imageUrl: "/logos/base-logo.svg",
   },
@@ -47,6 +43,10 @@ export const networks = [
   {
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
+  },
+  {
+    chain: arbitrum,
+    imageUrl: "/logos/arbitrum-one-logo.svg",
   },
   // {
   //   chain: scroll,
@@ -68,6 +68,11 @@ export const tokens = [
     name: "USDC",
     label: "USD Coin",
     imageUrl: "/logos/usdc-logo.svg",
+  },
+  {
+    name: "cNGN",
+    label: "cNGN",
+    imageUrl: "/logos/cngn-logo.svg",
   },
 ];
 

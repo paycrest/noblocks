@@ -6,6 +6,7 @@ import { Inter } from "next/font/google";
 import Providers from "./providers";
 import MainContent from "./mainContent";
 import { Footer, Navbar } from "./components";
+import { TawkToWidget } from "./components/TawkToWidget";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -59,6 +60,7 @@ export default function RootLayout({
               <Footer />
             </div>
           </div>
+          <TawkToWidget />
         </Providers>
       </body>
     </html>

@@ -158,6 +158,8 @@ export const TransactionPreview = ({
       const params = await prepareCreateOrderParams();
       setCreatedAt(new Date().toISOString());
 
+      console.log(tokenAddress);
+
       await client?.sendTransaction({
         calls: [
           // Approve gateway contract to spend token
@@ -226,6 +228,7 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
+    setOrderId("");
     if (amountSent > (smartWalletBalance?.balances[token] || 0)) {
       toast.warning("Low balance. Fund your wallet.", {
         description: "Insufficient funds. Please add money to continue.",

@@ -63,11 +63,11 @@ export function TransactionStatus({
   transactionStatus,
   orderId,
   createdAt,
-  clearTransactionStatus,
   setTransactionStatus,
   setCurrentStep,
   formMethods,
   supportedInstitutions,
+  setOrderId,
 }: TransactionStatusProps) {
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
@@ -240,7 +240,7 @@ export function TransactionStatus({
    * Clears the transaction status if it's refunded, otherwise clears the form and transaction status.
    */
   const handleBackButtonClick = () => {
-    clearTransactionStatus();
+    setOrderId("");
     if (transactionStatus === "refunded") {
       setCurrentStep(STEPS.FORM);
     } else {

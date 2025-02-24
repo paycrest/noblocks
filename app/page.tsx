@@ -279,6 +279,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
             setTransactionStatus={setTransactionStatus}
             setCurrentStep={setCurrentStep}
             supportedInstitutions={institutions}
+            setOrderId={setOrderId}
           />
         );
       default:

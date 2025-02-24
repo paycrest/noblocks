@@ -2,6 +2,7 @@ import JSEncrypt from "jsencrypt";
 import type { InstitutionProps, Token } from "./types";
 import { erc20Abi } from "viem";
 import { colors } from "./mocks";
+import { fetchRate } from "./api/aggregator";
 
 /**
  * Concatenates and returns a string of class names.
@@ -147,6 +148,13 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
         imageUrl: "/logos/usdc-logo.svg",
       },
+      {
+        name: "cNGN",
+        symbol: "cNGN",
+        decimals: 6,
+        address: "0xC930784d6e14e2FC2A1F49BE1068dc40f24762D3",
+        imageUrl: "/logos/cngn-logo.svg",
+      },
     ],
     "Arbitrum One": [
       {
@@ -166,6 +174,13 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
     ],
     "BNB Smart Chain": [
       {
+        name: "Tether USD",
+        symbol: "USDT",
+        decimals: 18,
+        address: "0x55d398326f99059ff775485246999027b3197955",
+        imageUrl: "/logos/usdt-logo.svg",
+      },
+      {
         name: "USD Coin",
         symbol: "USDC",
         decimals: 18,
@@ -173,11 +188,11 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         imageUrl: "/logos/usdc-logo.svg",
       },
       {
-        name: "Tether USD",
-        symbol: "USDT",
-        decimals: 18,
-        address: "0x55d398326f99059ff775485246999027b3197955",
-        imageUrl: "/logos/usdt-logo.svg",
+        name: "cNGN",
+        symbol: "cNGN",
+        decimals: 6,
+        address: "0xa8AEA66B361a8d53e8865c62D142167Af28Af058",
+        imageUrl: "/logos/cngn-logo.svg",
       },
     ],
     Polygon: [
@@ -253,6 +268,14 @@ export async function fetchWalletBalance(
   const tokenBalances = await Promise.all(balancePromises);
   totalBalance = tokenBalances.reduce((acc, curr) => acc + curr, 0); // Sum all balances
 
+  // Add USD equivalent of cNGN balance to total balance
+  totalBalance -= balances["cNGN"];
+  const rate = await fetchRate({
+    token: "USDT",
+    amount: 1,
+    currency: "NGN",
+  });
+  totalBalance += balances["cNGN"] / rate.data;
   return { total: totalBalance, balances };
 }
 

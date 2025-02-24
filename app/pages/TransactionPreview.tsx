@@ -319,7 +319,7 @@ export const TransactionPreview = ({
   );
 
   return (
-    <div className="grid gap-6 py-10 text-sm">
+    <div className="mx-auto grid max-w-[27.3125rem] gap-6 py-10 text-sm">
       <div className="grid gap-4">
         <h2 className="text-xl font-medium text-text-body dark:text-white/80">
           Review transaction

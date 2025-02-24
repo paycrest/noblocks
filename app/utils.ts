@@ -34,7 +34,7 @@ export function getInstitutionNameByCode(
  * @param num - The number to format.
  * @returns The formatted number as a string.
  */
-export function formatNumberWithCommas(num: number): string {
+export function formatNumberWithCommas(num: string | number): string {
   const parts = num.toString().split(".");
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return parts.join(".");

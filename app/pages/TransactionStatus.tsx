@@ -26,6 +26,7 @@ import {
   calculateDuration,
   classNames,
   formatCurrency,
+  formatNumberWithCommas,
   getExplorerLink,
   getInstitutionNameByCode,
   getSavedRecipients,
@@ -326,7 +327,7 @@ export function TransactionStatus({
         <>
           Your transfer of{" "}
           <span className="text-text-body dark:text-white">
-            {amount} {token} (
+            {formatNumberWithCommas(amount)} {token} (
             {formatCurrency(fiat ?? 0, currency, `en-${currency.slice(0, 2)}`)})
           </span>{" "}
           to {formattedRecipientName} was unsuccessful.
@@ -342,7 +343,7 @@ export function TransactionStatus({
         <>
           Processing payment of{" "}
           <span className="text-text-body dark:text-white">
-            {amount} {token} (
+            {formatNumberWithCommas(amount)} {token} (
             {formatCurrency(fiat ?? 0, currency, `en-${currency.slice(0, 2)}`)})
           </span>{" "}
           to {formattedRecipientName}. Hang on, this will only take a few
@@ -355,7 +356,7 @@ export function TransactionStatus({
       <>
         Your transfer of{" "}
         <span className="text-text-body dark:text-white">
-          {amount} {token} (
+          {formatNumberWithCommas(amount)} {token} (
           {formatCurrency(fiat ?? 0, currency, `en-${currency.slice(0, 2)}`)})
         </span>{" "}
         to {formattedRecipientName} has been completed successfully.
@@ -408,7 +409,7 @@ export function TransactionStatus({
     <>
       <AnimatedComponent
         variant={slideInOut}
-        className="flex w-full justify-between gap-10"
+        className="flex w-full justify-center gap-[4.5rem]"
       >
         <div className="hidden flex-col gap-2 sm:flex">
           <div className="flex w-fit flex-col items-end gap-2 text-neutral-900 dark:text-white/80">
@@ -426,7 +427,7 @@ export function TransactionStatus({
                 />
               )}
               <p className="whitespace-nowrap pr-4 font-medium">
-                {amount} {token}
+                {formatNumberWithCommas(amount)} {token}
               </p>
             </AnimatedComponent>
             <Image
@@ -439,14 +440,14 @@ export function TransactionStatus({
             <AnimatedComponent
               variant={slideInOut}
               delay={0.4}
-              className="whitespace-nowrap rounded-full bg-gray-50 px-3 py-1 capitalize dark:bg-white/5"
+              className="max-w-60 truncate whitespace-nowrap rounded-full bg-gray-50 px-3 py-1 capitalize dark:bg-white/5"
             >
               {(recipientName ?? "").toLowerCase().split(" ")[0]}
             </AnimatedComponent>
           </div>
         </div>
 
-        <div className="flex flex-col items-start gap-4">
+        <div className="flex max-w-xs flex-col items-start gap-4">
           <StatusIndicator />
 
           <AnimatedComponent
@@ -537,11 +538,11 @@ export function TransactionStatus({
                   </button>
                 </AnimatedComponent>
                 {["validated", "settled"].includes(transactionStatus) && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex gap-2">
                     <Checkbox
                       checked={addToBeneficiaries}
                       onChange={handleAddToBeneficiariesChange}
-                      className="group block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
+                      className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
                     >
                       <svg
                         className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"

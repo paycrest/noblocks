@@ -39,7 +39,7 @@ export const TransactionForm = ({
   stateProps,
 }: TransactionFormProps) => {
   // Destructure stateProps
-  const { rate, isFetchingRate } = stateProps;
+  const { rate, isFetchingRate, setOrderId } = stateProps;
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
@@ -197,6 +197,7 @@ export const TransactionForm = ({
     });
 
   const handleSwap = () => {
+    setOrderId("");
     handleSubmit(onSubmit)();
   };
 

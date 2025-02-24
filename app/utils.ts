@@ -292,11 +292,10 @@ export async function fetchWalletBalance(
           totalBalance += balances["cNGN"] / rate.data;
         }
       } catch (error) {
-        console.error("Error fetching exchange rate:", error);
+        console.error("Error fetching cNGN rate:", error);
       }
     }
   } catch (error) {
-    console.error("Error in fetchWalletBalance:", error);
     return { total: 0, balances: {} };
   }
 

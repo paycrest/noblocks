@@ -94,7 +94,6 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   };
 
   useEffect(function setPageLoadingState() {
-    setOrderId("");
     setIsPageLoading(false);
   }, []);
 

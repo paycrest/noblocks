@@ -119,6 +119,7 @@ export function TransactionStatus({
                 refreshBalance();
               }
               setCompletedAt(orderDetailsResponse.data.updatedAt);
+              clearTransactionStatus();
               clearInterval(intervalId);
             }
 
@@ -138,7 +139,7 @@ export function TransactionStatus({
       };
 
       getOrderDetails();
-      intervalId = setInterval(getOrderDetails, 10000);
+      intervalId = setInterval(getOrderDetails, 5000);
 
       return () => {
         if (intervalId) clearInterval(intervalId);
@@ -239,9 +240,8 @@ export function TransactionStatus({
    * Clears the transaction status if it's refunded, otherwise clears the form and transaction status.
    */
   const handleBackButtonClick = () => {
+    clearTransactionStatus();
     if (transactionStatus === "refunded") {
-      clearTransactionStatus();
-
       setCurrentStep(STEPS.FORM);
     } else {
       window.location.reload();

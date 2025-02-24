@@ -234,4 +234,5 @@ export type Config = {
   privyAppId: string;
   mixpanelToken: string;
   hotjarSiteId: number;
+  tawkPropertyId: string;
 };

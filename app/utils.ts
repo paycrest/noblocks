@@ -84,7 +84,7 @@ export function publicKeyEncrypt(data: unknown, publicKeyPEM: string): string {
  * Calculates the duration between two dates and returns a human-readable string.
  * @param createdAt - Start date in ISO string format
  * @param completedAt - End date in ISO string format
- * @returns A string representing the duration in seconds, minutes, or hours
+ * @returns A string representing the duration in seconds
  */
 export const calculateDuration = (
   createdAt: string,
@@ -100,18 +100,7 @@ export const calculateDuration = (
 
   const durationMs = end.getTime() - start.getTime();
   const durationSec = Math.floor(durationMs / 1000);
-
-  if (durationSec < 60) {
-    return `${durationSec} second${durationSec !== 1 ? "s" : ""}`;
-  }
-
-  const durationMin = Math.floor(durationSec / 60);
-  if (durationMin < 60) {
-    return `${durationMin} minute${durationMin !== 1 ? "s" : ""}`;
-  }
-
-  const durationHours = Math.floor(durationMin / 60);
-  return `${durationHours} hour${durationHours !== 1 ? "s" : ""}`;
+  return `${durationSec} second${durationSec !== 1 ? "s" : ""}`;
 };
 
 /**

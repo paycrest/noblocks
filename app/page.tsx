@@ -94,7 +94,6 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   };
 
   useEffect(function setPageLoadingState() {
-    setOrderId("");
     setIsPageLoading(false);
   }, []);
 
@@ -279,6 +278,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
             setTransactionStatus={setTransactionStatus}
             setCurrentStep={setCurrentStep}
             supportedInstitutions={institutions}
+            setOrderId={setOrderId}
           />
         );
       default:

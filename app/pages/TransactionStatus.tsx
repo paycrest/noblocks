@@ -119,7 +119,6 @@ export function TransactionStatus({
                 refreshBalance();
               }
               setCompletedAt(orderDetailsResponse.data.updatedAt);
-              clearTransactionStatus();
               clearInterval(intervalId);
             }
 

@@ -94,6 +94,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   };
 
   useEffect(function setPageLoadingState() {
+    setOrderId("");
     setIsPageLoading(false);
   }, []);
 
@@ -274,7 +275,6 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
             }}
             clearTransactionStatus={() => {
               setTransactionStatus("idle");
-              setOrderId("");
             }}
             setTransactionStatus={setTransactionStatus}
             setCurrentStep={setCurrentStep}

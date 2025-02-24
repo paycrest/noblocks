@@ -90,6 +90,7 @@ export type TransactionStatusProps = {
   setCurrentStep: (step: Step) => void;
   formMethods: FormMethods;
   supportedInstitutions: InstitutionProps[];
+  setOrderId: (orderId: string) => void;
 };
 
 export type SelectFieldProps = {

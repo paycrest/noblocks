@@ -68,6 +68,7 @@ export function TransactionStatus({
   clearTransactionStatus,
   formMethods,
   supportedInstitutions,
+  setOrderId,
 }: TransactionStatusProps) {
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();

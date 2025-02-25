@@ -115,10 +115,10 @@ export function TransactionStatus({
                 orderDetailsResponse.data.status,
               )
             ) {
+              setCompletedAt(orderDetailsResponse.data.updatedAt);
               if (orderDetailsResponse.data.status === "refunded") {
                 refreshBalance();
               }
-              setCompletedAt(orderDetailsResponse.data.updatedAt);
               clearInterval(intervalId);
             }
 
@@ -164,43 +164,38 @@ export function TransactionStatus({
 
   useEffect(
     function trackTransactionEvents() {
-      if (!isTracked) {
+      // Only track if we haven't tracked yet and have all required data
+      if (!isTracked && transactionStatus && completedAt) {
+        const bankName = getInstitutionNameByCode(
+          String(formMethods.watch("institution")),
+          supportedInstitutions,
+        );
+
+        const eventData = {
+          Amount: amount,
+          "Send token": token,
+          "Receive currency": currency,
+          "Recipient name": recipientName,
+          "Recipient bank": bankName,
+          "Noblocks balance": smartWalletBalance?.balances[token] || 0,
+          "Swap date": createdAt,
+          "Transaction duration": calculateDuration(createdAt, completedAt),
+        };
+
         if (["validated", "settled"].includes(transactionStatus)) {
-          trackEvent("Swap completed", {
-            Amount: amount,
-            "Send token": token,
-            "Receive currency": currency,
-            "Recipient name": recipientName,
-            "Recipient bank": getInstitutionNameByCode(
-              String(formMethods.watch("institution")),
-              supportedInstitutions,
-            ),
-            "Noblocks balance": smartWalletBalance?.balances[token] || 0,
-            "Swap date": createdAt,
-            "Transaction duration": calculateDuration(createdAt, completedAt),
-          });
+          trackEvent("Swap completed", eventData);
+          setIsTracked(true);
         } else if (transactionStatus === "refunded") {
           trackEvent("Swap failed", {
-            Amount: amount,
-            "Send token": token,
-            "Receive currency": currency,
-            "Recipient name": recipientName,
-            "Recipient bank": getInstitutionNameByCode(
-              String(formMethods.watch("institution")),
-              supportedInstitutions,
-            ),
-            "Noblocks balance": smartWalletBalance?.balances[token] || 0,
-            "Swap date": createdAt,
+            ...eventData,
             "Reason for failure": "Transaction failed and refunded",
-            "Transaction duration": calculateDuration(createdAt, completedAt),
           });
+          setIsTracked(true);
         }
-
-        setIsTracked(true);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transactionStatus, isTracked],
+    [isTracked, transactionStatus, completedAt],
   );
 
   const StatusIndicator = () => (

@@ -175,7 +175,6 @@ export function TransactionStatus({
           Amount: amount,
           "Send token": token,
           "Receive currency": currency,
-          "Recipient name": recipientName,
           "Recipient bank": bankName,
           "Noblocks balance": smartWalletBalance?.balances[token] || 0,
           "Swap date": createdAt,

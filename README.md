@@ -1,4 +1,5 @@
 # ![image](/public/logos/noblocks-logo.svg)
+
 ![image](/public/images/noblocks-bg-image.png)
 
 [![Next.js](https://img.shields.io/badge/-Next.js-61DAFB?logo=Next.js&logoColor=white&color=11172a)](https://nextjs.org/)
@@ -30,10 +31,8 @@ To run the project locally, follow these steps:
      ```
 
    - Add your privy app ID (`NEXT_PUBLIC_PRIVY_APP_ID`) to the `.env.local` file.
-   - Setup your [Privy](https://www.privy.io/) account by doing the following:
-      - Get your app ID: ![image](https://github.com/paycrest/noblocks/blob/main/public/images/Screenshot%202025-02-06%20at%2016.12.19.png)
-      - Add your local domain URL: ![image](https://github.com/paycrest/noblocks/blob/main/public/images/Screenshot%202025-02-06%20at%2016.10.44.png?raw=true)
-P.S: Check out the privy docs for more information - https://docs.privy.io/guide/react/quickstart
+   - Setup your [Privy](https://www.privy.io/) account by doing the following: - Get your app ID: ![image](https://github.com/paycrest/noblocks/blob/main/public/images/Screenshot%202025-02-06%20at%2016.12.19.png?raw=true) - Add your local domain URL: ![image](https://github.com/paycrest/noblocks/blob/main/public/images/Screenshot%202025-02-06%20at%2016.10.44.png?raw=true) - Enable smart wallet and configure chains: ![image](public/images/Screenshot%202025-02-25%20at%2001.14.22.png) - Enable funding: ![image](public/images/Screenshot%202025-02-25%20at%2002.08.23.png)
+     P.S: Check out the privy docs for more information - https://docs.privy.io/guide/react/quickstart
 
 3. Install dependencies and start the development server:
 
@@ -56,8 +55,8 @@ For more details, visit [paycrest.io](https://paycrest.io).
 
 ### Noblocks is built on Paycrest Protocol
 
-| Before      | Now |
-| ----------- | ----------- |
+| Before                                                                                         | Now                                                                                            |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | ![image](https://github.com/paycrest/zap/assets/87664239/73548ada-bde5-41f5-8af6-0f9f943c763f) | ![image](https://github.com/paycrest/zap/assets/87664239/495e166f-54cf-4951-9cdd-92b9357e8608) |
 
 ## 🛠️ Technologies Used

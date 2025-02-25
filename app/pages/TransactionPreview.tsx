@@ -211,7 +211,6 @@ export const TransactionPreview = ({
         Amount: amountSent,
         "Send token": token,
         "Receive currency": currency,
-        "Recipient name": recipientName,
         "Recipient bank": getInstitutionNameByCode(
           institution,
           supportedInstitutions,

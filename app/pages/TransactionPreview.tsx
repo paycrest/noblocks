@@ -156,10 +156,9 @@ export const TransactionPreview = ({
       });
 
       const params = await prepareCreateOrderParams();
-      setOrderId("");
       setCreatedAt(new Date().toISOString());
 
-      await client?.sendTransaction({
+      const hash = await client?.sendTransaction({
         calls: [
           // Approve gateway contract to spend token
           {
@@ -196,6 +195,8 @@ export const TransactionPreview = ({
           },
         ],
       });
+
+      console.log(hash);
 
       await getOrderId();
       refreshBalance(); // Refresh balance after order is created
@@ -272,8 +273,9 @@ export const TransactionPreview = ({
           args: {
             sender: smartWallet?.address as `0x${string}`,
             token: tokenAddress,
+            amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
           },
-          fromBlock: toBlock - BigInt(500),
+          fromBlock: toBlock - BigInt(5),
           toBlock: toBlock,
         });
 

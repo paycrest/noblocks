@@ -202,7 +202,7 @@ export const TransactionForm = ({
   };
 
   return (
-    <>
+    <div className="mx-auto max-w-[27.3125rem]">
       <form
         onSubmit={handleSubmit(onSubmit)}
         className="z-50 grid gap-4 pb-4 text-sm text-text-body transition-all dark:text-white sm:gap-2"
@@ -487,6 +487,6 @@ export const TransactionForm = ({
         onClose={() => setIsFundModalOpen(false)}
         onFund={handleFundWalletClick}
       />
-    </>
+    </div>
   );
 };

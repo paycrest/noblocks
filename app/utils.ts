@@ -34,7 +34,7 @@ export function getInstitutionNameByCode(
  * @param num - The number to format.
  * @returns The formatted number as a string.
  */
-export function formatNumberWithCommas(num: number): string {
+export function formatNumberWithCommas(num: string | number): string {
   const parts = num.toString().split(".");
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return parts.join(".");
@@ -248,35 +248,62 @@ export async function fetchWalletBalance(
   const supportedTokens = fetchSupportedTokens(client.chain?.name);
   if (!supportedTokens) return { total: 0, balances: {} };
 
-  let totalBalance: number = 0;
+  let totalBalance = 0;
   const balances: Record<string, number> = {};
 
-  // Fetch balances in parallel
-  const balancePromises = supportedTokens.map(async (token) => {
-    const balanceInWei = await client.readContract({
-      address: token.address as `0x${string}`,
-      abi: erc20Abi,
-      functionName: "balanceOf",
-      args: [address as `0x${string}`],
+  try {
+    // Fetch balances in parallel
+    const balancePromises = supportedTokens.map(async (token) => {
+      try {
+        const balanceInWei = await client.readContract({
+          address: token.address as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [address as `0x${string}`],
+        });
+        const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+        // Ensure balance is a valid number
+        balances[token.symbol] = isNaN(balance) ? 0 : balance;
+        return balances[token.symbol];
+      } catch (error) {
+        console.error(`Error fetching balance for ${token.symbol}:`, error);
+        balances[token.symbol] = 0;
+        return 0;
+      }
     });
-    const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-    balances[token.symbol] = balance; // Store the balance for the token
-    return balance;
-  });
 
-  // Wait for all promises to resolve
-  const tokenBalances = await Promise.all(balancePromises);
-  totalBalance = tokenBalances.reduce((acc, curr) => acc + curr, 0); // Sum all balances
+    // Wait for all promises to resolve
+    const tokenBalances = await Promise.all(balancePromises);
+    totalBalance = tokenBalances.reduce(
+      (acc, curr) => (acc || 0) + (curr || 0),
+      0,
+    );
 
-  // Add USD equivalent of cNGN balance to total balance
-  totalBalance -= balances["cNGN"];
-  const rate = await fetchRate({
-    token: "USDT",
-    amount: 1,
-    currency: "NGN",
-  });
-  totalBalance += balances["cNGN"] / rate.data;
-  return { total: totalBalance, balances };
+    // Add USD equivalent for cNGN
+    if (typeof balances["cNGN"] === "number" && !isNaN(balances["cNGN"])) {
+      totalBalance -= balances["cNGN"];
+      try {
+        const rate = await fetchRate({
+          token: "USDT",
+          amount: 1,
+          currency: "NGN",
+        });
+        if (rate?.data && typeof rate.data === "number" && rate.data > 0) {
+          totalBalance += balances["cNGN"] / rate.data;
+        }
+      } catch (error) {
+        console.error("Error fetching cNGN rate:", error);
+      }
+    }
+  } catch (error) {
+    return { total: 0, balances: {} };
+  }
+
+  // Ensure final total is a valid number
+  return {
+    total: isNaN(totalBalance) ? 0 : totalBalance,
+    balances,
+  };
 }
 
 /**

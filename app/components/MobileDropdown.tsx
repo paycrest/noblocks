@@ -16,6 +16,7 @@ import {
   HelpCircleIcon,
   ArrowLeft02Icon,
   ArrowDown01Icon,
+  CustomerService01Icon,
 } from "hugeicons-react";
 
 import { useNetwork } from "../context/NetworksContext";
@@ -33,6 +34,7 @@ import { useStep } from "../context/StepContext";
 import { STEPS } from "../types";
 import { FundWalletModal } from "./FundWalletModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
+import config from "@/app/lib/config";
 
 type View = "wallet" | "settings";
 
@@ -443,6 +445,21 @@ export const MobileDropdown = ({
                               </div>
                               <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
                             </button>
+
+                            <a
+                              href={config.contactSupportUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex w-full items-center justify-between"
+                            >
+                              <div className="flex items-center gap-3">
+                                <CustomerService01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                                <span className="text-text-body dark:text-white/80">
+                                  Contact support
+                                </span>
+                              </div>
+                              <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                            </a>
 
                             <div className="flex w-full items-center justify-between">
                               <div className="flex items-center gap-3">

@@ -3,21 +3,21 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useRef, useState } from "react";
 import { useLinkAccount, useLogout, usePrivy } from "@privy-io/react-auth";
 import { ImSpinner } from "react-icons/im";
-
 import { PiCheck } from "react-icons/pi";
-
 import { useOutsideClick } from "../hooks";
 import { classNames, shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 import {
   AccessIcon,
   Copy01Icon,
+  CustomerService01Icon,
   Logout03Icon,
   Mail01Icon,
   Setting07Icon,
   Wallet01Icon,
 } from "hugeicons-react";
 import { toast } from "sonner";
+import config from "@/app/lib/config";
 
 export const SettingsDropdown = () => {
   const { user, exportWallet, updateEmail } = usePrivy();
@@ -169,6 +169,20 @@ export const SettingsDropdown = () => {
               >
                 <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                 <p>Export wallet</p>
+              </li>
+              <li
+                role="menuitem"
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+              >
+                <a
+                  href={config.contactSupportUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2.5"
+                >
+                  <CustomerService01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                  <p>Contact support</p>
+                </a>
               </li>
               <li
                 role="menuitem"

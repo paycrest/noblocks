@@ -158,7 +158,7 @@ export const TransactionPreview = ({
       const params = await prepareCreateOrderParams();
       setCreatedAt(new Date().toISOString());
 
-      const hash = await client?.sendTransaction({
+      await client?.sendTransaction({
         calls: [
           // Approve gateway contract to spend token
           {
@@ -195,8 +195,6 @@ export const TransactionPreview = ({
           },
         ],
       });
-
-      console.log(hash);
 
       await getOrderId();
       refreshBalance(); // Refresh balance after order is created
@@ -275,7 +273,7 @@ export const TransactionPreview = ({
             token: tokenAddress,
             amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
           },
-          fromBlock: toBlock - BigInt(5),
+          fromBlock: toBlock - BigInt(2),
           toBlock: toBlock,
         });
 

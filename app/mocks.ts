@@ -18,15 +18,15 @@ export const currencies = [
     disabled: true,
   },
   {
-    name: "ARS",
-    label: "Argentine Peso (ARS)",
-    imageUrl: "/logos/ars-logo.png",
-    disabled: true,
-  },
-  {
     name: "BRL",
     label: "Brazilian Real (BRL)",
     imageUrl: "/logos/brl-logo.png",
+    disabled: true,
+  },
+  {
+    name: "ARS",
+    label: "Argentine Peso (ARS)",
+    imageUrl: "/logos/ars-logo.png",
     disabled: true,
   },
 ];

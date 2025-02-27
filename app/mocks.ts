@@ -72,7 +72,7 @@ export const tokens = [
   {
     name: "cNGN",
     label: "cNGN",
-    imageUrl: "/logos/cngn-logo.svg",
+    imageUrl: "/logos/cngn-logo.png",
   },
 ];
 

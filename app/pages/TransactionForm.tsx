@@ -16,7 +16,11 @@ import {
 } from "../components";
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
-import { fetchSupportedTokens, formatNumberWithCommas } from "../utils";
+import {
+  classNames,
+  fetchSupportedTokens,
+  formatNumberWithCommas,
+} from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
@@ -52,6 +56,8 @@ export const TransactionForm = ({
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
+  const [formattedSentAmount, setFormattedSentAmount] = useState("");
+  const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
 
   const {
     handleSubmit,
@@ -95,6 +101,33 @@ export const TransactionForm = ({
     }
   };
 
+  // Improved function to format number with commas while preserving decimal places
+  const formatNumberWithCommasForDisplay = (value: number | string): string => {
+    if (value === undefined || value === null || value === "") return "";
+
+    const valueStr = value.toString();
+    if (valueStr === "0") return "0";
+
+    // Handle case when input is just a decimal point
+    if (valueStr === ".") return "0.";
+
+    const parts = valueStr.split(".");
+    // Add commas to the integer part
+    const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+    // Preserve the decimal part if it exists
+    if (parts.length > 1) {
+      return `${integerPart}.${parts[1]}`;
+    }
+
+    return integerPart;
+  };
+
+  // Remove commas for calculation and validation
+  const removeCommas = (value: string): string => {
+    return value.replace(/,/g, "");
+  };
+
   useEffect(() => {
     if (!embeddedWalletAddress) return;
 
@@ -118,17 +151,31 @@ export const TransactionForm = ({
     fetchStatus();
   }, [embeddedWalletAddress]);
 
+  // Format the display values whenever the actual values change
+  useEffect(() => {
+    if (amountSent !== undefined) {
+      setFormattedSentAmount(formatNumberWithCommasForDisplay(amountSent));
+    }
+
+    if (amountReceived !== undefined) {
+      setFormattedReceivedAmount(
+        formatNumberWithCommasForDisplay(amountReceived),
+      );
+    }
+  }, [amountSent, amountReceived]);
+
   // calculate receive amount based on send amount and rate
   useEffect(
     function calculateReceiveAmount() {
       if (rate && (amountSent || amountReceived)) {
         if (isReceiveInputActive) {
-          setValue(
-            "amountSent",
-            Number((Number(amountReceived) / rate).toFixed(4)),
+          const calculatedAmount = Number(
+            (Number(amountReceived) / rate).toFixed(4),
           );
+          setValue("amountSent", calculatedAmount);
         } else {
-          setValue("amountReceived", Number((rate * amountSent).toFixed(2)));
+          const calculatedAmount = Number((rate * amountSent).toFixed(2));
+          setValue("amountReceived", calculatedAmount);
         }
       }
     },
@@ -229,6 +276,169 @@ export const TransactionForm = ({
     handleSubmit(onSubmit)();
   };
 
+  // Handle sent amount input changes
+  interface SentAmountChangeEvent extends React.ChangeEvent<HTMLInputElement> {
+    target: HTMLInputElement;
+  }
+
+  interface AmountChangeResult {
+    formattedValue: string;
+    numericValue: number;
+  }
+
+  const handleSentAmountChange = (e: SentAmountChangeEvent): void => {
+    let inputValue: string = e.target.value;
+
+    // Special handling for when user directly types "."
+    if (inputValue === ".") {
+      setFormattedSentAmount("0.");
+      setValue("amountSent", 0.0);
+      setIsReceiveInputActive(false);
+      return;
+    }
+
+    // Check if user is trying to add a decimal point to a number
+    const currentValueStr: string = removeCommas(formattedSentAmount);
+    if (
+      inputValue.endsWith(".") &&
+      currentValueStr !== "" &&
+      !currentValueStr.includes(".")
+    ) {
+      // User added a decimal point to existing number
+      const newValue: string = currentValueStr + ".";
+      setFormattedSentAmount(formatNumberWithCommasForDisplay(newValue));
+      setValue("amountSent", parseFloat(newValue) || 0);
+      setIsReceiveInputActive(false);
+      return;
+    }
+
+    // Remove commas for processing
+    const cleanedValue: string = removeCommas(inputValue);
+
+    // Allow empty input for clearing
+    if (cleanedValue === "") {
+      setFormattedSentAmount("");
+      setValue("amountSent", 0);
+      setIsReceiveInputActive(false);
+      return;
+    }
+
+    // Validate as a number with optional decimal point
+    // This regex allows: "123", "123.456", ".123"
+    if (!/^(\d*\.?\d*)$/.test(cleanedValue)) return;
+
+    const value: number = parseFloat(cleanedValue) || 0;
+
+    // Only limit decimal places, allow any whole number
+    if (cleanedValue.includes(".")) {
+      const decimals: string | undefined = cleanedValue.split(".")[1];
+      if (decimals?.length > 4) return;
+    }
+
+    // Update the form value
+    setValue("amountSent", value, {
+      shouldValidate: true,
+    });
+    setIsReceiveInputActive(false);
+  };
+
+  // Handle received amount input changes
+  interface ReceivedAmountChangeEvent
+    extends React.ChangeEvent<HTMLInputElement> {
+    target: HTMLInputElement;
+  }
+
+  const handleReceivedAmountChange = (e: ReceivedAmountChangeEvent): void => {
+    let inputValue: string = e.target.value;
+
+    // Special handling for when user directly types "."
+    if (inputValue === ".") {
+      setFormattedReceivedAmount("0.");
+      setValue("amountReceived", 0.0);
+      setIsReceiveInputActive(true);
+      return;
+    }
+
+    // Check if user is trying to add a decimal point to a number
+    const currentValueStr: string = removeCommas(formattedReceivedAmount);
+    if (
+      inputValue.endsWith(".") &&
+      currentValueStr !== "" &&
+      !currentValueStr.includes(".")
+    ) {
+      // User added a decimal point to existing number
+      const newValue: string = currentValueStr + ".";
+      setFormattedReceivedAmount(formatNumberWithCommasForDisplay(newValue));
+      setValue("amountReceived", parseFloat(newValue) || 0);
+      setIsReceiveInputActive(true);
+      return;
+    }
+
+    // Remove commas for processing
+    const cleanedValue: string = removeCommas(inputValue);
+
+    // Allow empty input for clearing
+    if (cleanedValue === "") {
+      setFormattedReceivedAmount("");
+      setValue("amountReceived", 0);
+      setIsReceiveInputActive(true);
+      return;
+    }
+
+    // Validate as a number with optional decimal point
+    if (!/^(\d*\.?\d*)$/.test(cleanedValue)) return;
+
+    const value: number = parseFloat(cleanedValue) || 0;
+
+    // Only limit decimal places to 2 for receive amount
+    if (cleanedValue.includes(".")) {
+      const decimals: string | undefined = cleanedValue.split(".")[1];
+      if (decimals?.length > 2) return;
+    }
+
+    setValue("amountReceived", value, {
+      shouldValidate: true,
+    });
+    setIsReceiveInputActive(true);
+  };
+
+  // Handle changes directly to the decimal part
+  interface DecimalChangeEvent extends React.ChangeEvent<HTMLInputElement> {
+    target: HTMLInputElement;
+  }
+
+  interface FormattedAmounts {
+    formattedValue: string;
+    numericValue: number;
+  }
+
+  const handleDecimalChange = (
+    e: DecimalChangeEvent,
+    isReceiveInput: boolean = false,
+  ): void => {
+    const inputValue: string = e.target.value;
+    const removeCommasFromValue: string = removeCommas(inputValue);
+
+    // Check if the cursor is positioned right after a digit followed by a dot
+    const lastCharIsDecimal: boolean = inputValue.endsWith(".");
+
+    if (lastCharIsDecimal) {
+      // If the last character is a decimal point, we want to preserve it
+      const formattedValue: string = formatNumberWithCommasForDisplay(
+        removeCommasFromValue,
+      );
+      if (isReceiveInput) {
+        setFormattedReceivedAmount(formattedValue);
+        setValue("amountReceived", parseFloat(removeCommasFromValue) || 0);
+        setIsReceiveInputActive(true);
+      } else {
+        setFormattedSentAmount(formattedValue);
+        setValue("amountSent", parseFloat(removeCommasFromValue) || 0);
+        setIsReceiveInputActive(false);
+      }
+    }
+  };
+
   return (
     <div className="mx-auto max-w-[27.3125rem]">
       <form
@@ -261,12 +471,15 @@ export const TransactionForm = ({
                       <span
                         className={amountSent > balance ? "text-red-500" : ""}
                       >
-                        {balance} {token}
+                        {formatNumberWithCommasForDisplay(balance)} {token}
                       </span>
                       <button
                         type="button"
                         onClick={handleBalanceMaxClick}
-                        className="font-medium text-lavender-500 dark:text-lavender-500"
+                        className={classNames(
+                          "font-medium text-lavender-500 dark:text-lavender-500",
+                          balance === 0 ? "hidden" : "",
+                        )}
                       >
                         Max
                       </button>
@@ -278,33 +491,26 @@ export const TransactionForm = ({
             <div className="flex items-center justify-between gap-2">
               <input
                 id="amount-sent"
-                type="number"
-                step="0.0001"
-                onChange={(e) => {
-                  let inputValue = e.target.value;
-
-                  // Allow empty input for clearing
-                  if (inputValue === "") {
-                    formMethods.setValue("amountSent", 0);
+                type="text"
+                inputMode="decimal"
+                onChange={handleSentAmountChange}
+                onKeyDown={(e) => {
+                  // Special handling for the decimal point key
+                  if (e.key === "." && !formattedSentAmount.includes(".")) {
+                    // If there's no decimal in the current value, we want to add it
+                    e.preventDefault();
+                    const newValue = formattedSentAmount
+                      ? formattedSentAmount + "."
+                      : "0.";
+                    setFormattedSentAmount(newValue);
+                    setValue(
+                      "amountSent",
+                      parseFloat(removeCommas(formattedSentAmount)) || 0,
+                    );
                     setIsReceiveInputActive(false);
-                    return;
                   }
-
-                  const value = Number(inputValue);
-                  if (isNaN(value) || value < 0) return;
-
-                  // Only limit decimal places, allow any whole number
-                  if (inputValue.includes(".")) {
-                    const decimals = inputValue.split(".")[1];
-                    if (decimals?.length > 4) return;
-                  }
-
-                  formMethods.setValue("amountSent", value, {
-                    shouldValidate: true,
-                  });
-                  setIsReceiveInputActive(false);
                 }}
-                value={formMethods.watch("amountSent").toString()}
+                value={formattedSentAmount}
                 className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
                   authenticated && (amountSent > balance || errors.amountSent)
                     ? "text-red-500 dark:text-red-500"
@@ -348,33 +554,26 @@ export const TransactionForm = ({
             <div className="flex items-center justify-between gap-2">
               <input
                 id="amount-received"
-                type="number"
-                step="0.01"
-                onChange={(e) => {
-                  let inputValue = e.target.value;
-
-                  // Allow empty input for clearing
-                  if (inputValue === "") {
-                    formMethods.setValue("amountReceived", 0);
+                type="text"
+                inputMode="decimal"
+                onChange={handleReceivedAmountChange}
+                onKeyDown={(e) => {
+                  // Special handling for the decimal point key
+                  if (e.key === "." && !formattedReceivedAmount.includes(".")) {
+                    // If there's no decimal in the current value, we want to add it
+                    e.preventDefault();
+                    const newValue = formattedReceivedAmount
+                      ? formattedReceivedAmount + "."
+                      : "0.";
+                    setFormattedReceivedAmount(newValue);
+                    setValue(
+                      "amountReceived",
+                      parseFloat(removeCommas(formattedReceivedAmount)) || 0,
+                    );
                     setIsReceiveInputActive(true);
-                    return;
                   }
-
-                  const value = Number(inputValue);
-                  if (isNaN(value) || value < 0) return;
-
-                  // Only limit decimal places to 2 for receive amount
-                  if (inputValue.includes(".")) {
-                    const decimals = inputValue.split(".")[1];
-                    if (decimals?.length > 2) return;
-                  }
-
-                  formMethods.setValue("amountReceived", value, {
-                    shouldValidate: true,
-                  });
-                  setIsReceiveInputActive(true);
                 }}
-                value={formMethods.watch("amountReceived").toString()}
+                value={formattedReceivedAmount}
                 className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
                   errors.amountReceived
                     ? "text-red-500 dark:text-red-500"
@@ -498,7 +697,11 @@ export const TransactionForm = ({
             >
               {currency && (
                 <div className="min-w-fit">
-                  1 {token} ~ {isFetchingRate ? "..." : rate} {currency}
+                  1 {token} ~{" "}
+                  {isFetchingRate
+                    ? "..."
+                    : formatNumberWithCommasForDisplay(rate)}{" "}
+                  {currency}
                 </div>
               )}
               <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">

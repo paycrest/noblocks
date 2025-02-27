@@ -193,19 +193,25 @@ export const TransactionForm = ({
       });
 
       if (token === "cNGN") {
-        // Move NGN to first position and disable other currencies
-        const ngnCurrency = currencies.find((c) => c.name === "NGN");
-        if (ngnCurrency) {
-          currencies.splice(currencies.indexOf(ngnCurrency), 1);
-          currencies.unshift(ngnCurrency);
-        }
+        // When cNGN is selected, only enable NGN
         currencies.forEach((currency) => {
-          if (currency.name !== "NGN") {
-            currency.disabled = true;
-          }
+          currency.disabled = currency.name !== "NGN";
+        });
+      } else {
+        // Reset currencies to their default state from mocks
+        currencies.forEach((currency) => {
+          // Only GHS, BRL and ARS are disabled by default
+          currency.disabled = ["GHS", "BRL", "ARS"].includes(currency.name);
         });
       }
+
+      // Sort currencies so enabled ones appear first
+      currencies.sort((a, b) => {
+        if (a.disabled === b.disabled) return 0;
+        return a.disabled ? 1 : -1;
+      });
     }
+
     registerFormFields();
   }, [token, currency, formMethods]);
 

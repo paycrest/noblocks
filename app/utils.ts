@@ -288,8 +288,12 @@ export async function fetchWalletBalance(
           amount: 1,
           currency: "NGN",
         });
-        if (rate?.data && typeof rate.data === "number" && rate.data > 0) {
-          totalBalance += balances["cNGN"] / rate.data;
+        if (
+          rate?.data &&
+          typeof rate.data === "string" &&
+          Number(rate.data) > 0
+        ) {
+          totalBalance += balances["cNGN"] / Number(rate.data);
         }
       } catch (error) {
         console.error("Error fetching cNGN rate:", error);

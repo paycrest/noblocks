@@ -16,12 +16,12 @@ import {
 } from "../components";
 import type { TransactionFormProps, Token } from "../types";
 import { currencies } from "../mocks";
-import { fetchSupportedTokens } from "../utils";
+import { fetchSupportedTokens, formatNumberWithCommas } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
-import { fetchKYCStatus } from "../api/aggregator";
+import { fetchKYCStatus, fetchRate } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 
 /**
@@ -137,8 +137,30 @@ export const TransactionForm = ({
   );
 
   // Register form fields
-  useEffect(
-    function registerFormFields() {
+  useEffect(() => {
+    async function registerFormFields() {
+      let maxAmountSentValue = 10000;
+
+      if (token === "cNGN") {
+        try {
+          const rate = await fetchRate({
+            token: "USDT",
+            amount: 1,
+            currency: "NGN",
+          });
+
+          if (
+            rate?.data &&
+            typeof rate.data === "string" &&
+            Number(rate.data) > 0
+          ) {
+            maxAmountSentValue = 10000 * Number(rate.data);
+          }
+        } catch (error) {
+          console.error("Error fetching rate for cNGN max amount:", error);
+        }
+      }
+
       formMethods.register("amountSent", {
         required: { value: true, message: "Amount is required" },
         disabled: !token,
@@ -147,8 +169,8 @@ export const TransactionForm = ({
           message: "Minimum amount is 0.5",
         },
         max: {
-          value: 10000,
-          message: "Maximum amount is 10,000",
+          value: maxAmountSentValue,
+          message: `Maximum amount is ${formatNumberWithCommas(maxAmountSentValue)}`,
         },
         validate: {
           decimals: (value) => {
@@ -183,9 +205,9 @@ export const TransactionForm = ({
           }
         });
       }
-    },
-    [token, currency, formMethods],
-  );
+    }
+    registerFormFields();
+  }, [token, currency, formMethods]);
 
   const { isEnabled, buttonText, buttonAction, hasInsufficientBalance } =
     useSwapButton({

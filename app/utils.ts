@@ -359,7 +359,6 @@ export function shortenAddress(
  * @returns The contract address for the specified network, or undefined if the network is not found.
  */
 export function getGatewayContractAddress(network = ""): string | undefined {
-  console.log("network", network);
   return {
     Base: "0x30f6a8457f8e42371e204a9c103f2bd42341dd0f",
     "Arbitrum One": "0xe8bc3b607cfe68f47000e3d200310d49041148fc",

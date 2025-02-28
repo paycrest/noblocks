@@ -1,4 +1,4 @@
-import { arbitrum, base, bsc, optimism, polygon, scroll } from "viem/chains";
+import { arbitrum, base, bsc, polygon, celo } from "viem/chains";
 
 export const currencies = [
   {
@@ -47,6 +47,10 @@ export const networks = [
   {
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
+  },
+  {
+    chain: celo,
+    imageUrl: "/logos/celo-logo.svg",
   },
   // {
   //   chain: scroll,

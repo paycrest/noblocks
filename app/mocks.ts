@@ -1,4 +1,4 @@
-import { arbitrum, base, bsc, optimism, polygon, scroll } from "viem/chains";
+import { arbitrum, base, bsc, polygon, celo } from "viem/chains";
 
 export const currencies = [
   {
@@ -48,6 +48,10 @@ export const networks = [
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
   },
+  {
+    chain: celo,
+    imageUrl: "/logos/celo-logo.svg",
+  },
   // {
   //   chain: scroll,
   //   imageUrl: "/logos/scroll-logo.svg",
@@ -58,23 +62,24 @@ export const networks = [
   // },
 ];
 
-export const tokens = [
-  {
-    name: "USDT",
-    label: "Tether",
-    imageUrl: "/logos/usdt-logo.svg",
-  },
-  {
-    name: "USDC",
-    label: "USD Coin",
-    imageUrl: "/logos/usdc-logo.svg",
-  },
-  {
-    name: "cNGN",
-    label: "cNGN",
-    imageUrl: "/logos/cngn-logo.png",
-  },
-];
+// Unused, consider removing
+// export const tokens = [
+//   {
+//     name: "USDT",
+//     label: "Tether",
+//     imageUrl: "/logos/usdt-logo.svg",
+//   },
+//   {
+//     name: "USDC",
+//     label: "USD Coin",
+//     imageUrl: "/logos/usdc-logo.svg",
+//   },
+//   {
+//     name: "cNGN",
+//     label: "cNGN",
+//     imageUrl: "/logos/cngn-logo.png",
+//   },
+// ];
 
 export const colors = [
   "bg-blue-600",

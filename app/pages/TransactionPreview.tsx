@@ -124,6 +124,7 @@ export const TransactionPreview = ({
       institution: formValues.institution,
       memo: formValues.memo,
       ...(providerId && { providerId }),
+      nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
     };
 
     // Fetch aggregator public key
@@ -134,7 +135,7 @@ export const TransactionPreview = ({
     const params = {
       token: tokenAddress,
       amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-      rate: BigInt(rate * 100),
+      rate: BigInt(Math.round(rate * 100)),
       senderFeeRecipient: getAddress(
         "0x0000000000000000000000000000000000000000",
       ),
@@ -274,7 +275,7 @@ export const TransactionPreview = ({
             token: tokenAddress,
             amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
           },
-          fromBlock: toBlock - BigInt(2),
+          fromBlock: toBlock - BigInt(5),
           toBlock: toBlock,
         });
 

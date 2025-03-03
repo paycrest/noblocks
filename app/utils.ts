@@ -25,7 +25,6 @@ export function getInstitutionNameByCode(
   supportedInstitutions: InstitutionProps[],
 ): string | undefined {
   const institution = supportedInstitutions.find((inst) => inst.code === code);
-  console.log(code, institution);
   return institution ? institution.name : undefined;
 }
 

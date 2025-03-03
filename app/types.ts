@@ -5,6 +5,7 @@ import type {
   UseFormRegister,
   UseFormHandleSubmit,
   UseFormReturn,
+  UseFormSetValue,
 } from "react-hook-form";
 
 export type InstitutionProps = {

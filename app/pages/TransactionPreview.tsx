@@ -114,7 +114,8 @@ export const TransactionPreview = ({
   );
 
   const prepareCreateOrderParams = async () => {
-    const providerId = searchParams.get("lp") || searchParams.get("LP");
+    const providerId =
+      searchParams.get("provider") || searchParams.get("PROVIDER");
 
     // Prepare recipient data
     const recipient = {

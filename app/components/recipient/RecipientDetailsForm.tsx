@@ -4,24 +4,19 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown01Icon, Tick02Icon } from "hugeicons-react";
 
-import { AnimatedFeedbackItem, dropdownVariants } from "../AnimatedComponents";
+import { AnimatedFeedbackItem } from "../AnimatedComponents";
 import { InstitutionProps } from "@/app/types";
 import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
-import { InputError } from "../InputError";
-import {
-  classNames,
-  kenyaMobileMoneyOptions,
-  getSavedRecipients,
-} from "@/app/utils";
-import { SearchInput } from "./SearchInput";
+import { InputError } from "@/app/components/InputError";
+import { classNames, getSavedRecipients } from "@/app/utils";
 import {
   LOCAL_STORAGE_KEY_RECIPIENTS,
   RecipientDetails,
   RecipientDetailsFormProps,
-} from "./types";
-import { SavedBeneficiariesModal } from "./SavedBeneficiariesModal";
-import { SelectBankModal } from "./SelectBankModal";
+} from "@/app/components/recipient/types";
+import { SavedBeneficiariesModal } from "@/app/components/recipient/SavedBeneficiariesModal";
+import { SelectBankModal } from "@/app/components/recipient/SelectBankModal";
 
 export const RecipientDetailsForm = ({
   formMethods,
@@ -81,19 +76,12 @@ export const RecipientDetailsForm = ({
    * @type {Array<InstitutionProps>}
    */
   const filteredInstitutions: Array<InstitutionProps> = useMemo(() => {
-    const mobileMoneyInstitutions =
-      currency === "KES"
-        ? kenyaMobileMoneyOptions.filter((item) =>
-            item.name.toLowerCase().includes(bankSearchTerm.toLowerCase()),
-          )
-        : [];
-
-    const bankInstitutions =
+    const filtered =
       institutions?.filter((item) =>
         item.name.toLowerCase().includes(bankSearchTerm.toLowerCase()),
       ) || [];
 
-    return [...mobileMoneyInstitutions, ...bankInstitutions].sort((a, b) => {
+    return filtered.sort((a, b) => {
       // Sort mobile money first, then alphabetically within each type
       if (a.type === "mobile_money" && b.type !== "mobile_money") return -1;
       if (a.type !== "mobile_money" && b.type === "mobile_money") return 1;
@@ -211,10 +199,9 @@ export const RecipientDetailsForm = ({
   useEffect(() => {
     // Initialize selected institution if form has values
     if (institution && !selectedInstitution) {
-      const foundInstitution = [
-        ...kenyaMobileMoneyOptions,
-        ...(institutions || []),
-      ].find((inst) => inst.code === institution);
+      const foundInstitution = [...(institutions || [])].find(
+        (inst) => inst.code === institution,
+      );
       if (foundInstitution) {
         setSelectedInstitution(foundInstitution);
         // Only set manual entry to false if we have recipient name

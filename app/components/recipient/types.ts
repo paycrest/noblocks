@@ -3,6 +3,7 @@ import type {
   RecipientDetails,
   RecipientDetailsFormProps,
 } from "@/app/types";
+import { UseFormSetValue } from "react-hook-form";
 
 export interface SearchInputProps {
   value: string;
@@ -27,6 +28,20 @@ export interface SavedBeneficiariesModalProps {
   currency: string;
   institutions: InstitutionProps[];
 }
+
+export type SelectBankModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  filteredInstitutions: InstitutionProps[];
+  selectedInstitution: InstitutionProps | null;
+  setSelectedInstitution: (inst: InstitutionProps | null) => void;
+  setValue: UseFormSetValue<any>;
+  setIsManualEntry: (value: boolean) => void;
+  currency: string;
+  bankSearchTerm: string;
+  setBankSearchTerm: (val: string) => void;
+  isFetchingInstitutions: boolean;
+};
 
 export { type RecipientDetails, type RecipientDetailsFormProps };
 

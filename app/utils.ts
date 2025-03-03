@@ -25,6 +25,7 @@ export function getInstitutionNameByCode(
   supportedInstitutions: InstitutionProps[],
 ): string | undefined {
   const institution = supportedInstitutions.find((inst) => inst.code === code);
+  console.log(code, institution);
   return institution ? institution.name : undefined;
 }
 
@@ -343,28 +344,6 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
   }[network];
 }
-
-/**
- * An array of mobile money options available in Kenya.
- * Each option includes the name of the institution, a code, and the type.
- *
- * @constant {InstitutionProps[]} kenyaMobileMoneyOptions
- * @property {string} name - The name of the mobile money institution.
- * @property {string} code - The code representing the mobile money institution.
- * @property {string} type - The type of institution, which is "mobile-money" for all entries.
- */
-export const kenyaMobileMoneyOptions: InstitutionProps[] = [
-  {
-    name: "SAFARICOM (MPESA)",
-    code: "SAFAKEPC",
-    type: "mobile_money",
-  },
-  {
-    name: "AIRTEL",
-    code: "AIRTEL",
-    type: "mobile_money",
-  },
-];
 
 /**
  * Generates a time-based nonce string.

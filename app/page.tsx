@@ -121,7 +121,8 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   useEffect(
     function resetProviderErrorOnChange() {
       // Reset providerErrorShown on query param change
-      const newProvider = searchParams.get("lp") || searchParams.get("LP");
+      const newProvider =
+        searchParams.get("provider") || searchParams.get("PROVIDER");
       if (!failedProviders.current.has(newProvider || "")) {
         providerErrorShown.current = false;
       }
@@ -137,9 +138,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
         setIsFetchingInstitutions(true);
 
         const institutions = await fetchSupportedInstitutions(currencyValue);
-        setInstitutions(
-          institutions.filter((institution) => institution.type === "bank"),
-        );
+        setInstitutions(institutions);
 
         setIsFetchingInstitutions(false);
       }
@@ -159,7 +158,8 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
       const getRate = async (shouldUseProvider = true) => {
         setIsFetchingRate(true);
         try {
-          const lpParam = searchParams.get("lp") || searchParams.get("LP");
+          const lpParam =
+            searchParams.get("provider") || searchParams.get("PROVIDER");
 
           // Skip using provider if it's already failed
           const shouldSkipProvider =
@@ -178,7 +178,8 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
           setRate(rate.data);
         } catch (error) {
           if (error instanceof Error) {
-            const lpParam = searchParams.get("lp") || searchParams.get("LP");
+            const lpParam =
+              searchParams.get("provider") || searchParams.get("PROVIDER");
             if (
               shouldUseProvider &&
               lpParam &&

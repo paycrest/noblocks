@@ -30,6 +30,7 @@ import {
   getExplorerLink,
   getInstitutionNameByCode,
   getSavedRecipients,
+  getTransactionWallet,
 } from "../utils";
 import { fetchOrderDetails } from "../api/aggregator";
 import {
@@ -45,6 +46,7 @@ import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
+import { usePrivy } from "@privy-io/react-auth";
 
 /**
  * Renders the transaction status component.
@@ -72,7 +74,12 @@ export function TransactionStatus({
 }: TransactionStatusProps) {
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
-  const { refreshBalance, smartWalletBalance } = useBalance();
+  const { refreshBalance, smartWalletBalance, externalWalletBalance } =
+    useBalance();
+
+  const { user } = usePrivy();
+  const transactionWallet = getTransactionWallet(user);
+
   const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
   const [createdHash, setCreatedHash] = useState("");
@@ -173,12 +180,17 @@ export function TransactionStatus({
           supportedInstitutions,
         );
 
+        const relevantBalance =
+          transactionWallet?.type === "smart_wallet"
+            ? smartWalletBalance?.balances[token] || 0
+            : externalWalletBalance?.balances[token] || 0;
+
         const eventData = {
           Amount: amount,
           "Send token": token,
           "Receive currency": currency,
           "Recipient bank": bankName,
-          "Noblocks balance": smartWalletBalance?.balances[token] || 0,
+          "Noblocks balance": relevantBalance,
           "Swap date": createdAt,
           "Transaction duration": calculateDuration(createdAt, completedAt),
         };
@@ -196,7 +208,7 @@ export function TransactionStatus({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isTracked, transactionStatus, completedAt],
+    [isTracked, transactionStatus, completedAt, transactionWallet],
   );
 
   const StatusIndicator = () => (

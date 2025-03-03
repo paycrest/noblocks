@@ -13,7 +13,6 @@ import {
   AccessIcon,
   Setting07Icon,
   Wallet01Icon,
-  HelpCircleIcon,
   ArrowLeft02Icon,
   ArrowDown01Icon,
   CustomerService01Icon,
@@ -21,7 +20,14 @@ import {
 
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
-import { classNames, shortenAddress, fetchSupportedTokens } from "../utils";
+import {
+  classNames,
+  shortenAddress,
+  fetchSupportedTokens,
+  hasEmbeddedWallet,
+  shouldShowEmailOption,
+  getTransactionWallet,
+} from "../utils";
 import { useLogout } from "@privy-io/react-auth";
 import { PiCheck } from "react-icons/pi";
 import { ImSpinner } from "react-icons/im";
@@ -63,14 +69,16 @@ export const MobileDropdown = ({
 
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  const transactionWallet = getTransactionWallet(user);
+
+  const userHasEmbeddedWallet = hasEmbeddedWallet(user);
+
+  const showEmailOptions = shouldShowEmailOption(user);
 
   const { currentStep } = useStep();
 
   const handleCopyAddress = () => {
-    navigator.clipboard.writeText(smartWallet?.address ?? "");
+    navigator.clipboard.writeText(transactionWallet?.address ?? "");
     toast.success("Address copied to clipboard");
   };
 
@@ -105,8 +113,27 @@ export const MobileDropdown = ({
     amount: string,
     tokenAddress: `0x${string}`,
   ) => {
-    await handleFundWallet(smartWallet?.address ?? "", amount, tokenAddress);
+    await handleFundWallet(
+      transactionWallet?.address ?? "",
+      amount,
+      tokenAddress,
+    );
   };
+
+  const hasSmartWalletBalances = !!(
+    allBalances.smartWallet?.balances &&
+    Object.keys(allBalances.smartWallet.balances).length > 0
+  );
+
+  const hasExternalWalletBalances = !!(
+    allBalances.externalWallet?.balances &&
+    Object.keys(allBalances.externalWallet.balances).length > 0
+  );
+
+  const shouldShowExternalWallet =
+    !hasSmartWalletBalances && hasExternalWalletBalances;
+
+  const hasAnyBalances = hasSmartWalletBalances || hasExternalWalletBalances;
 
   return (
     <>
@@ -162,65 +189,120 @@ export const MobileDropdown = ({
                             </div>
                           </div>
 
-                          {/* Smart Wallet Container */}
-                          <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
-                            <div className="flex items-center gap-1">
-                              <h3 className="font-light text-text-secondary dark:text-white/50">
-                                Noblocks Wallet
-                              </h3>
-                              <HelpCircleIcon
-                                className="size-4 text-gray-400 dark:text-white/30"
-                                strokeWidth={2}
-                              />
-                            </div>
-
-                            <div className="space-y-2">
-                              {Object.entries(
-                                allBalances.smartWallet?.balances || {},
-                              ).map(([token, balance]) => (
-                                <div
-                                  key={token}
-                                  className="flex items-center gap-1"
-                                >
-                                  {(() => {
-                                    const imageUrl = getTokenImageUrl(token);
-
-                                    return imageUrl ? (
-                                      <Image
-                                        src={imageUrl}
-                                        alt={token}
-                                        width={14}
-                                        height={14}
-                                        className="size-3.5"
-                                      />
-                                    ) : null;
-                                  })()}
-
-                                  <span className="font-medium dark:text-white/80">
-                                    {balance} {token}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* Fund/Transfer Buttons */}
-                            <div className="grid grid-cols-2 gap-4">
-                              <button
-                                type="button"
-                                onClick={() => setIsTransferModalOpen(true)}
-                                className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
-                              >
-                                Transfer
-                              </button>
+                          {/* No balances message */}
+                          {!hasAnyBalances && (
+                            <div className="rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
+                              <div className="py-2 text-center text-text-secondary dark:text-white/50">
+                                No wallet balances
+                              </div>
                               <button
                                 type="button"
                                 onClick={() => setIsFundModalOpen(true)}
-                                className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                                className="mt-2 min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
                               >
-                                Fund
+                                Fund Wallet
                               </button>
                             </div>
-                          </div>
+                          )}
+
+                          {/* Smart Wallet Container - Only show if there are balances */}
+                          {hasSmartWalletBalances && (
+                            <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
+                              <div className="flex items-center gap-1">
+                                <h3 className="font-light text-text-secondary dark:text-white/50">
+                                  Noblocks Wallet
+                                </h3>
+                              </div>
+
+                              <div className="space-y-2">
+                                {Object.entries(
+                                  allBalances.smartWallet?.balances || {},
+                                ).map(([token, balance]) => (
+                                  <div
+                                    key={token}
+                                    className="flex items-center gap-1"
+                                  >
+                                    {(() => {
+                                      const imageUrl = getTokenImageUrl(token);
+
+                                      return imageUrl ? (
+                                        <Image
+                                          src={imageUrl}
+                                          alt={token}
+                                          width={14}
+                                          height={14}
+                                          className="size-3.5"
+                                        />
+                                      ) : null;
+                                    })()}
+
+                                    <span className="font-medium dark:text-white/80">
+                                      {balance} {token}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Fund/Transfer Buttons */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsTransferModalOpen(true)}
+                                  className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                                >
+                                  Transfer
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsFundModalOpen(true)}
+                                  className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                                >
+                                  Fund
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* External Wallet Container - Only when NO smart wallet balances */}
+                          {shouldShowExternalWallet && (
+                            <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
+                              <div className="flex items-center gap-1">
+                                <h3 className="font-light capitalize text-text-secondary dark:text-white/50">
+                                  {transactionWallet?.walletClientType ||
+                                    "External wallet"}
+                                </h3>
+                              </div>
+
+                              <div className="space-y-2">
+                                {Object.entries(
+                                  allBalances.externalWallet?.balances || {},
+                                ).map(([token, balance]) => (
+                                  <div
+                                    key={token}
+                                    className="flex items-center gap-1"
+                                  >
+                                    {(() => {
+                                      const imageUrl = getTokenImageUrl(token);
+
+                                      return imageUrl ? (
+                                        <Image
+                                          src={imageUrl}
+                                          alt={token}
+                                          width={14}
+                                          height={14}
+                                          className="size-3.5"
+                                        />
+                                      ) : null;
+                                    })()}
+
+                                    <span className="font-medium dark:text-white/80">
+                                      {balance} {token}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           {/* Wallet Address Container */}
                           <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
@@ -233,7 +315,7 @@ export const MobileDropdown = ({
 
                             <span className="block break-words text-sm font-medium dark:text-white/80">
                               {shortenAddress(
-                                smartWallet?.address ?? "",
+                                transactionWallet?.address ?? "",
                                 14,
                                 20,
                               )}
@@ -248,6 +330,7 @@ export const MobileDropdown = ({
                             </button>
                           </div>
 
+                          {/* Network Container */}
                           <div
                             className={classNames(
                               "space-y-3 rounded-[20px] py-3",
@@ -289,10 +372,6 @@ export const MobileDropdown = ({
                                       : "Network"}
                                   </motion.span>
                                 </AnimatePresence>
-                                <HelpCircleIcon
-                                  className="size-4 text-gray-400 dark:text-white/30"
-                                  strokeWidth={2}
-                                />
                               </div>
                               <AnimatePresence mode="wait">
                                 {!isNetworkListOpen && (
@@ -397,54 +476,59 @@ export const MobileDropdown = ({
                           </div>
 
                           <div className="space-y-2 *:min-h-11">
-                            {user?.email ? (
-                              <button
-                                type="button"
-                                onClick={updateEmail}
-                                className="flex w-full items-center justify-between"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <Mail01Icon className="size-5 text-outline-gray dark:text-white/50" />
-                                  <span className="text-text-body dark:text-white/80">
-                                    Linked email
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="max-w-36 truncate text-text-disabled dark:text-white/30">
-                                    {user.email.address}
-                                  </span>
+                            {/* Only show email options if user has both embedded and external wallets */}
+                            {showEmailOptions &&
+                              (user?.email ? (
+                                <button
+                                  type="button"
+                                  onClick={updateEmail}
+                                  className="flex w-full items-center justify-between"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <Mail01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                                    <span className="text-text-body dark:text-white/80">
+                                      Linked email
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="max-w-36 truncate text-text-disabled dark:text-white/30">
+                                      {user.email.address}
+                                    </span>
+                                    <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                                  </div>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={linkEmail}
+                                  className="flex w-full items-center justify-between"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <Mail01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                                    <span className="text-text-body dark:text-white/80">
+                                      Link email address
+                                    </span>
+                                  </div>
                                   <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                                </div>
-                              </button>
-                            ) : (
+                                </button>
+                              ))}
+
+                            {/* Only show export wallet option if the user has an embedded wallet */}
+                            {userHasEmbeddedWallet && (
                               <button
                                 type="button"
-                                onClick={linkEmail}
+                                onClick={exportWallet}
                                 className="flex w-full items-center justify-between"
                               >
                                 <div className="flex items-center gap-3">
-                                  <Mail01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                                  <AccessIcon className="size-5 text-outline-gray dark:text-white/50" />
                                   <span className="text-text-body dark:text-white/80">
-                                    Link email address
+                                    Export wallet
                                   </span>
                                 </div>
                                 <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
                               </button>
                             )}
-
-                            <button
-                              type="button"
-                              onClick={exportWallet}
-                              className="flex w-full items-center justify-between"
-                            >
-                              <div className="flex items-center gap-3">
-                                <AccessIcon className="size-5 text-outline-gray dark:text-white/50" />
-                                <span className="text-text-body dark:text-white/80">
-                                  Export wallet
-                                </span>
-                              </div>
-                              <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                            </button>
 
                             <a
                               href={config.contactSupportUrl}

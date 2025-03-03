@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
 } from "react";
 import { fetchWalletBalance } from "../utils";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
@@ -24,7 +25,7 @@ interface BalanceContextProps {
     smartWallet: WalletBalances | null;
     externalWallet: WalletBalances | null;
   };
-  refreshBalance: () => void;
+  refreshBalance: () => Promise<void>;
 }
 
 const BalanceContext = createContext<BalanceContextProps | undefined>(
@@ -42,7 +43,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [externalWalletBalance, setExternalWalletBalance] =
     useState<WalletBalances | null>(null);
 
-  const fetchBalances = async () => {
+  const fetchBalances = useCallback(async () => {
     if (!ready || !user) return;
 
     const smartWalletAccount = user.linkedAccounts.find(
@@ -82,16 +83,15 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     } else {
       setExternalWalletBalance(null);
     }
-  };
+  }, [ready, user, client, wallets, selectedNetwork]);
 
   useEffect(() => {
     fetchBalances();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, user, selectedNetwork]);
+  }, [fetchBalances]);
 
-  const refreshBalance = () => {
-    fetchBalances();
-  };
+  const refreshBalance = useCallback(() => {
+    return fetchBalances();
+  }, [fetchBalances]);
 
   const allBalances = {
     smartWallet: smartWalletBalance,

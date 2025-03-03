@@ -5,7 +5,13 @@ import { useLinkAccount, useLogout, usePrivy } from "@privy-io/react-auth";
 import { ImSpinner } from "react-icons/im";
 import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
-import { classNames, shortenAddress } from "../utils";
+import {
+  classNames,
+  getTransactionWallet,
+  hasEmbeddedWallet,
+  shouldShowEmailOption,
+  shortenAddress,
+} from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 import {
   AccessIcon,
@@ -32,12 +38,14 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  const transactionWallet = getTransactionWallet(user);
+
+  const userHasEmbeddedWallet = hasEmbeddedWallet(user);
+
+  const showEmailOptions = shouldShowEmailOption(user);
 
   const handleCopyAddress = () => {
-    navigator.clipboard.writeText(smartWallet?.address ?? "");
+    navigator.clipboard.writeText(transactionWallet?.address ?? "");
     setIsAddressCopied(true);
     setTimeout(() => setIsAddressCopied(false), 2000);
   };
@@ -113,7 +121,7 @@ export const SettingsDropdown = () => {
                   <div className="flex items-center gap-2.5">
                     <Wallet01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                     <p className="max-w-60 break-words">
-                      {shortenAddress(smartWallet?.address ?? "", 6)}
+                      {shortenAddress(transactionWallet?.address ?? "", 6)}
                     </p>
                   </div>
                   {isAddressCopied ? (
@@ -126,50 +134,57 @@ export const SettingsDropdown = () => {
                   )}
                 </button>
               </li>
-              {user?.email ? (
+
+              {/* Only show email options if user has both embedded and external wallets */}
+              {showEmailOptions &&
+                (user?.email ? (
+                  <li
+                    role="menuitem"
+                    className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  >
+                    <button
+                      type="button"
+                      className="group flex w-full items-center justify-between gap-4"
+                      onClick={updateEmail}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Mail01Icon className="size-5 flex-shrink-0 text-icon-outline-secondary dark:text-white/50" />
+                        <p className="whitespace-nowrap">Linked email</p>
+                      </div>
+                      <p className="max-w-20 truncate text-neutral-500 dark:text-white/40">
+                        {user.email.address}
+                      </p>
+                    </button>
+                  </li>
+                ) : (
+                  <li
+                    role="menuitem"
+                    className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  >
+                    <button
+                      type="button"
+                      className="group flex w-full items-center justify-between gap-2.5"
+                      onClick={linkEmail}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Mail01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                        <p>Link email address</p>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+
+              {/* Only show export wallet option if user has an embedded wallet */}
+              {userHasEmbeddedWallet && (
                 <li
                   role="menuitem"
-                  className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  onClick={exportWallet}
                 >
-                  <button
-                    type="button"
-                    className="group flex w-full items-center justify-between gap-4"
-                    onClick={updateEmail}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Mail01Icon className="size-5 flex-shrink-0 text-icon-outline-secondary dark:text-white/50" />
-                      <p className="whitespace-nowrap">Linked email</p>
-                    </div>
-                    <p className="max-w-20 truncate text-neutral-500 dark:text-white/40">
-                      {user.email.address}
-                    </p>
-                  </button>
-                </li>
-              ) : (
-                <li
-                  role="menuitem"
-                  className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
-                >
-                  <button
-                    type="button"
-                    className="group flex w-full items-center justify-between gap-2.5"
-                    onClick={linkEmail}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Mail01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-                      <p>Link email address</p>
-                    </div>
-                  </button>
+                  <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                  <p>Export wallet</p>
                 </li>
               )}
-              <li
-                role="menuitem"
-                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
-                onClick={exportWallet}
-              >
-                <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-                <p>Export wallet</p>
-              </li>
               <li
                 role="menuitem"
                 className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"

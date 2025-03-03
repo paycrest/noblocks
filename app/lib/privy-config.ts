@@ -3,7 +3,7 @@ import type { PrivyClientConfig } from "@privy-io/react-auth";
 
 const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
   embeddedWallets: {
-    createOnLogin: "all-users",
+    createOnLogin: "users-without-wallets",
   },
   externalWallets: {
     coinbaseWallet: {

@@ -20,6 +20,7 @@ import {
   classNames,
   fetchSupportedTokens,
   formatNumberWithCommas,
+  getTransactionWallet,
 } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
@@ -47,15 +48,12 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance } = useBalance();
+  const { smartWalletBalance, externalWalletBalance } = useBalance();
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
   )?.address;
 
-  const [isUserVerified, setIsUserVerified] = useState(false);
-  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
-  const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
-  const [isFundModalOpen, setIsFundModalOpen] = useState(false);
+  const transactionWallet = getTransactionWallet(user);
   const [formattedSentAmount, setFormattedSentAmount] = useState("");
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
 
@@ -65,10 +63,21 @@ export const TransactionForm = ({
     setValue,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { amountSent, amountReceived, token, currency, recipientName } =
-    watch();
 
-  const balance = smartWalletBalance?.balances[token] ?? 0;
+  const { amountSent, amountReceived, token, currency } = watch();
+
+  const isExternalWallet =
+    transactionWallet?.connectorType !== "embedded" &&
+    transactionWallet?.type !== "smart_wallet";
+
+  const balance = isExternalWallet
+    ? (externalWalletBalance?.balances[token] ?? 0)
+    : (smartWalletBalance?.balances[token] ?? 0);
+
+  const [isUserVerified, setIsUserVerified] = useState(false);
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
+  const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
+  const [isFundModalOpen, setIsFundModalOpen] = useState(false);
 
   const { handleFundWallet } = useFundWalletHandler("Transaction form");
 
@@ -76,12 +85,12 @@ export const TransactionForm = ({
     amount: string,
     tokenAddress: `0x${string}`,
   ) => {
-    await handleFundWallet(smartWallet?.address ?? "", amount, tokenAddress);
+    await handleFundWallet(
+      transactionWallet?.address ?? "",
+      amount,
+      tokenAddress,
+    );
   };
-
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
 
   const tokens = [];
 
@@ -262,14 +271,14 @@ export const TransactionForm = ({
     registerFormFields();
   }, [token, currency, formMethods]);
 
-  const { isEnabled, buttonText, buttonAction, hasInsufficientBalance } =
-    useSwapButton({
-      watch,
-      balance,
-      isDirty,
-      isValid,
-      isUserVerified,
-    });
+  const { isEnabled, buttonText, buttonAction } = useSwapButton({
+    watch,
+    balance,
+    isDirty,
+    isValid,
+    isUserVerified,
+    isExternalWallet,
+  });
 
   const handleSwap = () => {
     setOrderId("");
@@ -461,7 +470,8 @@ export const TransactionForm = ({
               <AnimatePresence>
                 {authenticated &&
                   token &&
-                  smartWalletBalance &&
+                  ((isExternalWallet && externalWalletBalance) ||
+                    (!isExternalWallet && smartWalletBalance)) &&
                   balance !== undefined && (
                     <AnimatedComponent
                       variant={slideInOut}
@@ -675,7 +685,7 @@ export const TransactionForm = ({
                 login,
                 () =>
                   handleFundWallet(
-                    smartWallet?.address ?? "",
+                    transactionWallet?.address ?? "",
                     amountSent.toString(),
                     (fetchedTokens.find((t) => t.symbol === token)
                       ?.address as `0x${string}`) ?? "",

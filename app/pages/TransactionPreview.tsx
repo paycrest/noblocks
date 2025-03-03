@@ -13,6 +13,7 @@ import {
   getGatewayContractAddress,
   getInstitutionNameByCode,
   publicKeyEncrypt,
+  getTransactionWallet,
 } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
 import type { Token, TransactionPreviewProps } from "../types";
@@ -109,9 +110,7 @@ export const TransactionPreview = ({
     (t) => t.symbol.toUpperCase() === token.toUpperCase(),
   )?.decimals;
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  const transactionWallet = getTransactionWallet(user);
 
   const prepareCreateOrderParams = async () => {
     const providerId =
@@ -140,7 +139,7 @@ export const TransactionPreview = ({
         "0x0000000000000000000000000000000000000000",
       ),
       senderFee: BigInt(0),
-      refundAddress: smartWallet?.address as `0x${string}`,
+      refundAddress: transactionWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
 
@@ -271,7 +270,7 @@ export const TransactionPreview = ({
           abi: gatewayAbi,
           eventName: "OrderCreated",
           args: {
-            sender: smartWallet?.address as `0x${string}`,
+            sender: transactionWallet?.address as `0x${string}`,
             token: tokenAddress,
             amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
           },

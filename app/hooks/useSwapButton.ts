@@ -7,6 +7,7 @@ interface UseSwapButtonProps {
   isDirty: boolean;
   isValid: boolean;
   isUserVerified: boolean;
+  isExternalWallet?: boolean;
 }
 
 export function useSwapButton({
@@ -15,6 +16,7 @@ export function useSwapButton({
   isDirty,
   isValid,
   isUserVerified,
+  isExternalWallet = false,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { amountSent, currency, recipientName } = watch();
@@ -24,8 +26,13 @@ export function useSwapButton({
   const hasInsufficientBalance = authenticated && amountSent > balance;
 
   const isEnabled = (() => {
-    // If needs funding, always enable the button
-    if (hasInsufficientBalance) {
+    // If external wallet with insufficient funds, disable the button
+    if (hasInsufficientBalance && isExternalWallet) {
+      return false;
+    }
+
+    // If smart wallet needs funding, enable the button
+    if (hasInsufficientBalance && !isExternalWallet) {
       return true;
     }
 
@@ -52,8 +59,9 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
+    // For external wallets with insufficient funds, show "Insufficient funds"
     if (authenticated && hasInsufficientBalance) {
-      return "Fund wallet";
+      return isExternalWallet ? "Insufficient funds" : "Fund wallet";
     }
 
     if (!isUserVerified && authenticated && amountSent > 0) {
@@ -73,7 +81,7 @@ export function useSwapButton({
     if (!authenticated) {
       return login;
     }
-    if (hasInsufficientBalance) {
+    if (hasInsufficientBalance && !isExternalWallet) {
       return handleFundWallet;
     }
     if (!isUserVerified) {

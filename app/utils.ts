@@ -410,6 +410,119 @@ export const getRandomColor = (name: string) => {
 };
 
 /**
+ * Checks if the user has an embedded (Privy) wallet.
+ *
+ * Use this function to determine if a user has created an embedded Privy wallet.
+ * Typically used when deciding whether to show the "Export wallet" option.
+ *
+ * @param user - The user object from Privy's usePrivy hook
+ * @returns Boolean indicating if the user has an embedded wallet
+ */
+export function hasEmbeddedWallet(user: any): boolean {
+  if (!user || !user.linkedAccounts) return false;
+
+  return user.linkedAccounts.some(
+    (account: {
+      type: string;
+      walletClientType?: string;
+      connectorType?: string;
+    }) =>
+      account.type === "wallet" &&
+      account.walletClientType === "privy" &&
+      account.connectorType === "embedded",
+  );
+}
+
+/**
+ * Checks if the user has an external wallet (non-embedded).
+ *
+ * Use this function to determine if a user has connected an external wallet
+ * like MetaMask, WalletConnect, etc.
+ *
+ * @param user - The user object from Privy's usePrivy hook
+ * @returns Boolean indicating if the user has an external wallet
+ */
+export function hasExternalWallet(user: any): boolean {
+  if (!user || !user.linkedAccounts) return false;
+
+  return user.linkedAccounts.some(
+    (account: { type: string; connectorType?: string }) =>
+      account.type === "wallet" && account.connectorType !== "embedded",
+  );
+}
+
+/**
+ * Determines if the user should see email linking options.
+ *
+ * Email options are shown only if the user has both an external and an embedded wallet.
+ * Use this to conditionally render email linking UI elements in settings screens.
+ *
+ * @param user - The user object from Privy's usePrivy hook
+ * @returns Boolean indicating if email options should be shown
+ */
+export function shouldShowEmailOption(user: any): boolean {
+  return hasEmbeddedWallet(user) && hasExternalWallet(user);
+}
+
+/**
+ * Gets the preferred wallet for user interactions like signing messages.
+ *
+ * Use this function for KYC verification, signing messages, and non-transaction operations.
+ * Prioritizes embedded wallets first (if available), then falls back to external wallets.
+ *
+ * @param user - The user object from Privy's usePrivy hook
+ * @returns The preferred wallet account or undefined if no wallets are available
+ */
+export function getPreferredWallet(user: any): any {
+  if (!user || !user.linkedAccounts) return undefined;
+
+  // First try to find an embedded wallet
+  const embeddedWallet = user.linkedAccounts.find(
+    (account: {
+      type: string;
+      walletClientType?: string;
+      connectorType?: string;
+    }) =>
+      account.type === "wallet" &&
+      account.walletClientType === "privy" &&
+      account.connectorType === "embedded",
+  );
+
+  if (embeddedWallet) return embeddedWallet;
+
+  // If no embedded wallet, look for any external wallet
+  const externalWallet = user.linkedAccounts.find(
+    (account: { type: string; connectorType?: string }) =>
+      account.type === "wallet" && account.connectorType !== "embedded",
+  );
+
+  return externalWallet;
+}
+
+/**
+ * Gets the wallet to use for blockchain transactions.
+ *
+ * Use this function for token transfers, contract interactions, and other on-chain operations.
+ * Returns smart wallet if available, otherwise the preferred wallet.
+ *
+ * @param user - The user object from Privy's usePrivy hook
+ * @returns The wallet to use for transactions or undefined if no suitable wallet is found
+ */
+export function getTransactionWallet(user: any): any {
+  if (!user || !user.linkedAccounts) return undefined;
+
+  // First try to get the smart wallet
+  const smartWallet = user.linkedAccounts.find(
+    (account: { type: string }) => account.type === "smart_wallet",
+  );
+
+  if (smartWallet) return smartWallet;
+
+  // Fall back to the preferred wallet
+  return getPreferredWallet(user);
+}
+
+/**
  * Checks if the current domain is exactly the main production domain (noblocks.xyz).
  * This excludes subdomains and paths, only matching the exact domain.
  *

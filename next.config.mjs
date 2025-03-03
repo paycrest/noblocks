@@ -2,6 +2,9 @@
 const nextConfig = {
   experimental: {
     turbo: {}
+  },
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
   }
 };
 

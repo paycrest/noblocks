@@ -15,7 +15,7 @@ import {
   VerificationPendingIcon,
 } from "./ImageAssets";
 import { fadeInOut } from "./AnimatedComponents";
-import { generateTimeBasedNonce } from "../utils";
+import { generateTimeBasedNonce, getPreferredWallet } from "../utils";
 import { fetchKYCStatus, initiateKYC } from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics";
@@ -46,12 +46,10 @@ export const KycModal = ({
   setIsUserVerified: (value: boolean) => void;
   setIsKycModalOpen: (value: boolean) => void;
 }) => {
-  const { signMessage } = usePrivy();
-  const { wallets } = useWallets();
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy",
-  );
-  const walletAddress = embeddedWallet?.address;
+  const { signMessage, user } = usePrivy();
+
+  const preferredWallet = getPreferredWallet(user);
+  const walletAddress = preferredWallet?.address;
 
   const [step, setStep] = useState<Step>(STEPS.LOADING);
   const [showQRCode, setShowQRCode] = useState(false);

@@ -55,7 +55,9 @@ export const TransactionPreview = ({
 
   const { selectedNetwork } = useNetwork();
   const { currentStep, setCurrentStep } = useStep();
-  const { refreshBalance, smartWalletBalance } = useBalance();
+  const transactionWallet = getTransactionWallet(user);
+  const { refreshBalance, smartWalletBalance, externalWalletBalance } =
+    useBalance();
 
   const {
     rate,
@@ -76,6 +78,14 @@ export const TransactionPreview = ({
     accountIdentifier,
     memo,
   } = formValues;
+
+  const isExternalWallet =
+    transactionWallet?.connectorType !== "embedded" &&
+    transactionWallet?.type !== "smart_wallet";
+
+  const balance = isExternalWallet
+    ? (externalWalletBalance?.balances[token] ?? 0)
+    : (smartWalletBalance?.balances[token] ?? 0);
 
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0); // Used to trigger toast
@@ -109,8 +119,6 @@ export const TransactionPreview = ({
   const tokenDecimals = fetchedTokens.find(
     (t) => t.symbol.toUpperCase() === token.toUpperCase(),
   )?.decimals;
-
-  const transactionWallet = getTransactionWallet(user);
 
   const prepareCreateOrderParams = async () => {
     const providerId =
@@ -207,6 +215,7 @@ export const TransactionPreview = ({
       const error = e as BaseError;
       setErrorMessage(error.shortMessage);
       setIsConfirming(false);
+
       trackEvent("Swap Failed", {
         Amount: amountSent,
         "Send token": token,
@@ -215,7 +224,7 @@ export const TransactionPreview = ({
           institution,
           supportedInstitutions,
         ),
-        "Noblocks balance": smartWalletBalance?.balances[token] || 0,
+        "Noblocks balance": balance,
         "Swap date": createdAt,
         "Reason for failure": error.shortMessage,
         "Transaction duration": calculateDuration(
@@ -227,7 +236,7 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
-    if (amountSent > (smartWalletBalance?.balances[token] || 0)) {
+    if (amountSent > balance) {
       toast.warning("Low balance. Fund your wallet.", {
         description: "Insufficient funds. Please add money to continue.",
       });

@@ -180,17 +180,20 @@ export function TransactionStatus({
           supportedInstitutions,
         );
 
-        const relevantBalance =
-          transactionWallet?.type === "smart_wallet"
-            ? smartWalletBalance?.balances[token] || 0
-            : externalWalletBalance?.balances[token] || 0;
+        const isExternalWallet =
+          transactionWallet?.connectorType !== "embedded" &&
+          transactionWallet?.type !== "smart_wallet";
+
+        const balance = isExternalWallet
+          ? (externalWalletBalance?.balances[token] ?? 0)
+          : (smartWalletBalance?.balances[token] ?? 0);
 
         const eventData = {
           Amount: amount,
           "Send token": token,
           "Receive currency": currency,
           "Recipient bank": bankName,
-          "Noblocks balance": relevantBalance,
+          "Noblocks balance": balance,
           "Swap date": createdAt,
           "Transaction duration": calculateDuration(createdAt, completedAt),
         };

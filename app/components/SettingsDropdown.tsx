@@ -77,7 +77,6 @@ export const SettingsDropdown = () => {
       <button
         type="button"
         aria-label="Wallet details"
-        aria-expanded={isOpen}
         aria-haspopup="true"
         onClick={() => {
           setIsOpen(!isOpen);

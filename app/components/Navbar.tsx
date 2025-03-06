@@ -91,9 +91,9 @@ export const Navbar = () => {
   const transactionWallet = getTransactionWallet(user);
 
   return (
-    <header className="fixed left-0 top-0 z-20 w-full bg-white transition-all dark:bg-neutral-900">
+    <header className="fixed left-0 top-0 z-20 w-full bg-white/80 backdrop-blur-md transition-all supports-[backdrop-filter]:bg-white/60 dark:bg-neutral-900/80 dark:supports-[backdrop-filter]:bg-neutral-900/60">
       <nav
-        className="mx-auto flex items-center justify-between p-4 text-neutral-900 dark:text-white lg:px-8"
+        className="mx-auto flex max-w-[90rem] items-center justify-between p-4 text-neutral-900 dark:text-white lg:px-8"
         aria-label="Navbar"
       >
         <div className="flex items-start gap-2 lg:flex-1">

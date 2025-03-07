@@ -96,7 +96,7 @@ export const TransactionForm = ({
 
   const handleBalanceMaxClick = () => {
     if (balance > 0) {
-      setValue("amountSent", balance);
+      setValue("amountSent", balance, { shouldValidate: true });
       setIsReceiveInputActive(false);
     }
   };

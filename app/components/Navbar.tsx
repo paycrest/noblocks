@@ -35,10 +35,7 @@ export const Navbar = () => {
   const { selectedNetwork } = useNetwork();
 
   const { ready, authenticated, user } = usePrivy();
-
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  const transactionWallet = getTransactionWallet(user);
 
   const { login } = useLogin({
     onComplete: async ({ user, isNewUser, loginMethod }) => {
@@ -87,8 +84,6 @@ export const Navbar = () => {
   }, []);
 
   if (!mounted) return null;
-
-  const transactionWallet = getTransactionWallet(user);
 
   return (
     <header className="fixed left-0 top-0 z-20 w-full bg-white/80 backdrop-blur-md transition-all supports-[backdrop-filter]:bg-white/60 dark:bg-neutral-900/80 dark:supports-[backdrop-filter]:bg-neutral-900/60">

@@ -59,7 +59,7 @@ export const MobileDropdown = ({
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, exportWallet, linkEmail, updateEmail } = usePrivy();
-  const { allBalances, refreshBalance } = useBalance();
+  const { allBalances } = useBalance();
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);

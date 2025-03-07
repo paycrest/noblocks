@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { ImSpinner, ImSpinner3 } from "react-icons/im";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { AnimatePresence } from "framer-motion";
 
 import {
@@ -43,20 +43,6 @@ export const TransactionForm = ({
   onSubmit,
   stateProps,
 }: TransactionFormProps) => {
-  // Destructure stateProps
-  const { rate, isFetchingRate, setOrderId } = stateProps;
-  const { authenticated, ready, login, user } = usePrivy();
-  const { wallets } = useWallets();
-  const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, externalWalletBalance } = useBalance();
-  const embeddedWalletAddress = wallets.find(
-    (wallet) => wallet.walletClientType === "privy",
-  )?.address;
-
-  const transactionWallet = getTransactionWallet(user);
-  const [formattedSentAmount, setFormattedSentAmount] = useState("");
-  const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
-
   const {
     handleSubmit,
     watch,
@@ -66,13 +52,21 @@ export const TransactionForm = ({
 
   const { amountSent, amountReceived, token, currency } = watch();
 
-  const isExternalWallet =
-    transactionWallet?.connectorType !== "embedded" &&
-    transactionWallet?.type !== "smart_wallet";
+  const { rate, isFetchingRate, setOrderId } = stateProps;
+  const { authenticated, ready, login, user } = usePrivy();
+
+  const { selectedNetwork } = useNetwork();
+  const { smartWalletBalance, externalWalletBalance } = useBalance();
+
+  const transactionWallet = getTransactionWallet(user);
+  const isExternalWallet = transactionWallet?.connectorType !== "embedded";
 
   const balance = isExternalWallet
     ? (externalWalletBalance?.balances[token] ?? 0)
     : (smartWalletBalance?.balances[token] ?? 0);
+
+  const [formattedSentAmount, setFormattedSentAmount] = useState("");
+  const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
@@ -137,12 +131,13 @@ export const TransactionForm = ({
     return value.replace(/,/g, "");
   };
 
-  useEffect(() => {
-    if (!embeddedWalletAddress) return;
+  useEffect(function checkUserKycStatus() {
+    const walletAddress = transactionWallet?.address;
+    if (!walletAddress) return;
 
     const fetchStatus = async () => {
       try {
-        const response = await fetchKYCStatus(embeddedWalletAddress);
+        const response = await fetchKYCStatus(walletAddress);
         if (response.data.status === "pending") {
           setIsKycModalOpen(true);
         } else if (response.data.status === "success") {
@@ -158,20 +153,22 @@ export const TransactionForm = ({
     };
 
     fetchStatus();
-  }, [embeddedWalletAddress]);
+  }, []);
 
-  // Format the display values whenever the actual values change
-  useEffect(() => {
-    if (amountSent !== undefined) {
-      setFormattedSentAmount(formatNumberWithCommasForDisplay(amountSent));
-    }
+  useEffect(
+    function formatDisplayValues() {
+      if (amountSent !== undefined) {
+        setFormattedSentAmount(formatNumberWithCommasForDisplay(amountSent));
+      }
 
-    if (amountReceived !== undefined) {
-      setFormattedReceivedAmount(
-        formatNumberWithCommasForDisplay(amountReceived),
-      );
-    }
-  }, [amountSent, amountReceived]);
+      if (amountReceived !== undefined) {
+        setFormattedReceivedAmount(
+          formatNumberWithCommasForDisplay(amountReceived),
+        );
+      }
+    },
+    [amountSent, amountReceived],
+  );
 
   // calculate receive amount based on send amount and rate
   useEffect(
@@ -193,83 +190,86 @@ export const TransactionForm = ({
   );
 
   // Register form fields
-  useEffect(() => {
-    async function registerFormFields() {
-      let maxAmountSentValue = 10000;
+  useEffect(
+    function registerFormFields() {
+      async function registerFormFields() {
+        let maxAmountSentValue = 10000;
 
-      if (token === "cNGN") {
-        try {
-          const rate = await fetchRate({
-            token: "USDT",
-            amount: 1,
-            currency: "NGN",
-          });
+        if (token === "cNGN") {
+          try {
+            const rate = await fetchRate({
+              token: "USDT",
+              amount: 1,
+              currency: "NGN",
+            });
 
-          if (
-            rate?.data &&
-            typeof rate.data === "string" &&
-            Number(rate.data) > 0
-          ) {
-            maxAmountSentValue = 10000 * Number(rate.data);
+            if (
+              rate?.data &&
+              typeof rate.data === "string" &&
+              Number(rate.data) > 0
+            ) {
+              maxAmountSentValue = 10000 * Number(rate.data);
+            }
+          } catch (error) {
+            console.error("Error fetching rate for cNGN max amount:", error);
           }
-        } catch (error) {
-          console.error("Error fetching rate for cNGN max amount:", error);
         }
-      }
 
-      formMethods.register("amountSent", {
-        required: { value: true, message: "Amount is required" },
-        disabled: !token,
-        min: {
-          value: 0.5,
-          message: "Minimum amount is 0.5",
-        },
-        max: {
-          value: maxAmountSentValue,
-          message: `Maximum amount is ${formatNumberWithCommas(maxAmountSentValue)}`,
-        },
-        validate: {
-          decimals: (value) => {
-            const decimals = value.toString().split(".")[1];
-            return (
-              !decimals ||
-              decimals.length <= 4 ||
-              "Maximum 4 decimal places allowed"
-            );
+        formMethods.register("amountSent", {
+          required: { value: true, message: "Amount is required" },
+          disabled: !token,
+          min: {
+            value: 0.5,
+            message: "Minimum amount is 0.5",
           },
-        },
-      });
-
-      formMethods.register("amountReceived", {
-        disabled: !token || !currency,
-      });
-
-      formMethods.register("memo", {
-        required: { value: false, message: "Add description" },
-      });
-
-      if (token === "cNGN") {
-        // When cNGN is selected, only enable NGN
-        currencies.forEach((currency) => {
-          currency.disabled = currency.name !== "NGN";
+          max: {
+            value: maxAmountSentValue,
+            message: `Maximum amount is ${formatNumberWithCommas(maxAmountSentValue)}`,
+          },
+          validate: {
+            decimals: (value) => {
+              const decimals = value.toString().split(".")[1];
+              return (
+                !decimals ||
+                decimals.length <= 4 ||
+                "Maximum 4 decimal places allowed"
+              );
+            },
+          },
         });
-      } else {
-        // Reset currencies to their default state from mocks
-        currencies.forEach((currency) => {
-          // Only GHS, BRL and ARS are disabled by default
-          currency.disabled = ["GHS", "BRL", "ARS"].includes(currency.name);
+
+        formMethods.register("amountReceived", {
+          disabled: !token || !currency,
+        });
+
+        formMethods.register("memo", {
+          required: { value: false, message: "Add description" },
+        });
+
+        if (token === "cNGN") {
+          // When cNGN is selected, only enable NGN
+          currencies.forEach((currency) => {
+            currency.disabled = currency.name !== "NGN";
+          });
+        } else {
+          // Reset currencies to their default state from mocks
+          currencies.forEach((currency) => {
+            // Only GHS, BRL and ARS are disabled by default
+            currency.disabled = ["GHS", "BRL", "ARS"].includes(currency.name);
+          });
+        }
+
+        // Sort currencies so enabled ones appear first
+        currencies.sort((a, b) => {
+          if (a.disabled === b.disabled) return 0;
+          return a.disabled ? 1 : -1;
         });
       }
 
-      // Sort currencies so enabled ones appear first
-      currencies.sort((a, b) => {
-        if (a.disabled === b.disabled) return 0;
-        return a.disabled ? 1 : -1;
-      });
-    }
-
-    registerFormFields();
-  }, [token, currency, formMethods]);
+      registerFormFields();
+    },
+    [token, currency, formMethods],
+  );
 
   const { isEnabled, buttonText, buttonAction } = useSwapButton({
     watch,

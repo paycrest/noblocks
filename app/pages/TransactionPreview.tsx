@@ -19,7 +19,7 @@ import { useNetwork } from "../context/NetworksContext";
 import type { Token, TransactionPreviewProps } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components";
 import { gatewayAbi } from "../api/abi";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
   type BaseError,
@@ -52,6 +52,7 @@ export const TransactionPreview = ({
 }: TransactionPreviewProps) => {
   const { user } = usePrivy();
   const { client } = useSmartWallets();
+  const { wallets } = useWallets();
 
   const { selectedNetwork } = useNetwork();
   const { currentStep, setCurrentStep } = useStep();
@@ -79,9 +80,7 @@ export const TransactionPreview = ({
     memo,
   } = formValues;
 
-  const isExternalWallet =
-    transactionWallet?.connectorType !== "embedded" &&
-    transactionWallet?.type !== "smart_wallet";
+  const isExternalWallet = transactionWallet?.connectorType !== "embedded";
 
   const balance = isExternalWallet
     ? (externalWalletBalance?.balances[token] ?? 0)
@@ -156,60 +155,144 @@ export const TransactionPreview = ({
 
   const createOrder = async () => {
     try {
-      if (!client) {
-        throw new Error("Smart wallet not found");
+      if (!transactionWallet) {
+        throw new Error("No wallet available");
       }
 
-      await client.switchChain({
-        id: selectedNetwork.chain.id,
-      });
+      // Handle chain switching based on wallet type
+      if (transactionWallet.type === "smart_wallet") {
+        if (!client) throw new Error("Smart wallet not found");
+        await client.switchChain({
+          id: selectedNetwork.chain.id,
+        });
+      }
 
       const params = await prepareCreateOrderParams();
       setCreatedAt(new Date().toISOString());
 
-      await client?.sendTransaction({
-        calls: [
-          // Approve gateway contract to spend token
-          {
-            to: tokenAddress,
-            data: encodeFunctionData({
-              abi: erc20Abi,
-              functionName: "approve",
-              args: [
-                getGatewayContractAddress(
-                  selectedNetwork.chain.name,
-                ) as `0x${string}`,
-                parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-              ],
-            }),
-          },
-          // Create order
-          {
-            to: getGatewayContractAddress(
-              selectedNetwork.chain.name,
-            ) as `0x${string}`,
-            data: encodeFunctionData({
-              abi: gatewayAbi,
-              functionName: "createOrder",
-              args: [
-                params.token,
-                params.amount,
-                params.rate,
-                params.senderFeeRecipient,
-                params.senderFee,
-                params.refundAddress ?? "",
-                params.messageHash,
-              ],
-            }),
-          },
-        ],
-      });
+      // Handle external wallet transactions
+      if (transactionWallet.type !== "smart_wallet") {
+        const wallet = wallets.find(
+          (w) => w.address === transactionWallet.address,
+        );
+        if (!wallet) {
+          throw new Error("External wallet not found");
+        }
+
+        const provider = await wallet.getEthereumProvider();
+
+        // First - Send approval transaction
+        toast.loading("Approve token spending...");
+        const approvalTx = await provider.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: wallet.address,
+              to: tokenAddress,
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [
+                  getGatewayContractAddress(
+                    selectedNetwork.chain.name,
+                  ) as `0x${string}`,
+                  parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+                ],
+              }),
+            },
+          ],
+        });
+
+        // Wait for the approval to be mined
+        try {
+          const publicClient = createPublicClient({
+            chain: selectedNetwork.chain,
+            transport: http(),
+          });
+          await publicClient.waitForTransactionReceipt({
+            hash: approvalTx as `0x${string}`,
+          });
+          toast.success("Token spending approved");
+        } catch (error) {
+          toast.error("Approval failed");
+          throw new Error("Approval transaction failed");
+        }
+
+        // Second - Create order transaction
+        await provider.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: wallet.address,
+              to: getGatewayContractAddress(
+                selectedNetwork.chain.name,
+              ) as `0x${string}`,
+              data: encodeFunctionData({
+                abi: gatewayAbi,
+                functionName: "createOrder",
+                args: [
+                  params.token,
+                  params.amount,
+                  params.rate,
+                  params.senderFeeRecipient,
+                  params.senderFee,
+                  params.refundAddress ?? "",
+                  params.messageHash,
+                ],
+              }),
+            },
+          ],
+        });
+      } else {
+        // Smart wallet flow
+        await client?.sendTransaction({
+          calls: [
+            // Approve gateway contract to spend token
+            {
+              to: tokenAddress,
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [
+                  getGatewayContractAddress(
+                    selectedNetwork.chain.name,
+                  ) as `0x${string}`,
+                  parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+                ],
+              }),
+            },
+            // Create order
+            {
+              to: getGatewayContractAddress(
+                selectedNetwork.chain.name,
+              ) as `0x${string}`,
+              data: encodeFunctionData({
+                abi: gatewayAbi,
+                functionName: "createOrder",
+                args: [
+                  params.token,
+                  params.amount,
+                  params.rate,
+                  params.senderFeeRecipient,
+                  params.senderFee,
+                  params.refundAddress ?? "",
+                  params.messageHash,
+                ],
+              }),
+            },
+          ],
+        });
+      }
 
       await getOrderId();
-      refreshBalance(); // Refresh balance after order is created
+      refreshBalance();
 
       trackEvent("Swap started", {
         "Entry point": "Transaction preview",
+        "Wallet type":
+          transactionWallet.type === "smart_wallet"
+            ? "Smart Wallet"
+            : "External Wallet",
       });
     } catch (e) {
       const error = e as BaseError;
@@ -231,6 +314,10 @@ export const TransactionPreview = ({
           createdAt,
           new Date().toISOString(),
         ),
+        "Wallet type":
+          transactionWallet?.type === "smart_wallet"
+            ? "Smart Wallet"
+            : "External Wallet",
       });
     }
   };

@@ -15,7 +15,11 @@ import {
   VerificationPendingIcon,
 } from "./ImageAssets";
 import { fadeInOut } from "./AnimatedComponents";
-import { generateTimeBasedNonce, getPreferredWallet } from "../utils";
+import {
+  generateTimeBasedNonce,
+  getPreferredWallet,
+  getTransactionWallet,
+} from "../utils";
 import { fetchKYCStatus, initiateKYC } from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics";
@@ -47,6 +51,7 @@ export const KycModal = ({
   setIsKycModalOpen: (value: boolean) => void;
 }) => {
   const { signMessage, user } = usePrivy();
+  const { wallets } = useWallets();
 
   const preferredWallet = getPreferredWallet(user);
   const walletAddress = preferredWallet?.address;
@@ -62,20 +67,45 @@ export const KycModal = ({
     setIsSigning(true);
     const nonce = generateTimeBasedNonce({ length: 16 });
     const message = `I accept the KYC Policy and hereby request an identity verification check for ${walletAddress} with nonce ${nonce}`;
-    const uiConfig = {
-      buttonText: "Sign",
-    };
 
     try {
-      const signature = await signMessage({ message }, { uiOptions: uiConfig });
+      let signature;
+      const preferredWallet = getTransactionWallet(user);
+
+      if (!preferredWallet) {
+        throw new Error("No wallet available");
+      }
+
+      if (preferredWallet.type === "smart_wallet") {
+        signature = await signMessage(
+          { message },
+          { uiOptions: { buttonText: "Sign" } },
+        );
+        signature = signature.signature;
+      } else {
+        const wallet = wallets.find(
+          (w) => w.address === preferredWallet.address,
+        );
+
+        if (!wallet) {
+          throw new Error("External wallet not found");
+        }
+
+        const provider = await wallet.getEthereumProvider();
+        signature = await provider.request({
+          method: "personal_sign",
+          params: [message, walletAddress],
+        });
+      }
+
       if (signature) {
         setIsKycModalOpen(true);
         setStep(STEPS.LOADING);
 
         const response = await initiateKYC({
-          signature: signature.signature.startsWith("0x")
-            ? signature.signature.slice(2)
-            : signature.signature,
+          signature: signature.startsWith("0x")
+            ? signature.slice(2)
+            : signature,
           walletAddress: walletAddress || "",
           nonce,
         });
@@ -95,7 +125,7 @@ export const KycModal = ({
         }
       }
     } catch (error: unknown) {
-      console.log("error", error);
+      console.log("Error initiating KYC: ", error);
       if (
         error instanceof Error &&
         (error as any).response &&
@@ -103,7 +133,7 @@ export const KycModal = ({
       ) {
         // backend error response
         const { status, message, data } = (error as any).response.data;
-        toast.error(`${message}: ${data}`);
+        toast.error(`${status} ${message}: ${data}`);
       } else {
         // unexpected errors
         toast.error(error instanceof Error ? error.message : String(error));

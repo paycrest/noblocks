@@ -488,7 +488,7 @@ export function getPreferredWallet(user: any): any {
       account.connectorType === "embedded",
   );
 
-  if (embeddedWallet) return embeddedWallet;
+  if (embeddedWallet) return { ...embeddedWallet, isEmbedded: true };
 
   // If no embedded wallet, look for any external wallet
   const externalWallet = user.linkedAccounts.find(
@@ -496,7 +496,7 @@ export function getPreferredWallet(user: any): any {
       account.type === "wallet" && account.connectorType !== "embedded",
   );
 
-  return externalWallet;
+  return externalWallet ? { ...externalWallet, isEmbedded: false } : undefined;
 }
 
 /**
@@ -516,10 +516,13 @@ export function getTransactionWallet(user: any): any {
     (account: { type: string }) => account.type === "smart_wallet",
   );
 
-  if (smartWallet) return smartWallet;
+  if (smartWallet) return { ...smartWallet, isSmartWallet: true };
 
   // Fall back to the preferred wallet
-  return getPreferredWallet(user);
+  const preferredWallet = getPreferredWallet(user);
+  return preferredWallet
+    ? { ...preferredWallet, isSmartWallet: false }
+    : undefined;
 }
 
 /**

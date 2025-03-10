@@ -18,6 +18,7 @@ import {
   shortenAddress,
   IS_MAIN_PRODUCTION_DOMAIN,
   classNames,
+  getTransactionWallet,
 } from "../utils";
 import { ArrowDown01Icon } from "hugeicons-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -34,10 +35,7 @@ export const Navbar = () => {
   const { selectedNetwork } = useNetwork();
 
   const { ready, authenticated, user } = usePrivy();
-
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  const transactionWallet = getTransactionWallet(user);
 
   const { login } = useLogin({
     onComplete: async ({ user, isNewUser, loginMethod }) => {
@@ -88,9 +86,9 @@ export const Navbar = () => {
   if (!mounted) return null;
 
   return (
-    <header className="fixed left-0 top-0 z-20 w-full bg-white transition-all dark:bg-neutral-900">
+    <header className="fixed left-0 top-0 z-20 w-full bg-white/80 backdrop-blur-md transition-all supports-[backdrop-filter]:bg-white/60 dark:bg-neutral-900/80 dark:supports-[backdrop-filter]:bg-neutral-900/60">
       <nav
-        className="mx-auto flex items-center justify-between p-4 text-neutral-900 lg:container dark:text-white lg:px-8"
+        className="mx-auto flex max-w-[90rem] items-center justify-between p-4 text-neutral-900 dark:text-white lg:px-8"
         aria-label="Navbar"
       >
         <div className="flex items-start gap-2 lg:flex-1">
@@ -198,7 +196,7 @@ export const Navbar = () => {
                   className="size-5"
                 />
                 <span className="font-medium dark:text-white">
-                  {shortenAddress(smartWallet?.address ?? "", 6)}
+                  {shortenAddress(transactionWallet?.address ?? "", 6)}
                 </span>
                 <ArrowDown01Icon className="size-4 dark:text-white/50" />
               </button>

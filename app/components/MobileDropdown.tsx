@@ -308,7 +308,7 @@ export const MobileDropdown = ({
                                         alt={selectedNetwork.chain.name}
                                         width={16}
                                         height={16}
-                                        className="size-4"
+                                        className="size-4 rounded-full"
                                       />
                                       <span className="text-text-body dark:text-white">
                                         {selectedNetwork.chain.name}

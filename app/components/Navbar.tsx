@@ -203,7 +203,7 @@ export const Navbar = () => {
                   alt={isMiniPay ? "Celo" : selectedNetwork.chain.name}
                   width={20}
                   height={20}
-                  className="size-5"
+                  className="size-5 rounded-full"
                 />
                 <span className="font-medium dark:text-white">
                   {shortenAddress(activeWallet?.address ?? "", 6)}

@@ -86,7 +86,7 @@ export const NetworksDropdown = ({
                   src={selectedNetwork.imageUrl ?? ""}
                   width={20}
                   height={20}
-                  className="size-5"
+                  className="size-5 rounded-full"
                 />
                 {!iconOnly && (
                   <p className="hidden sm:block">

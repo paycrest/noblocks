@@ -125,6 +125,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://optimistic.etherscan.io/tx/${txHash}`;
     case "Scroll":
       return `https://scrollscan.com/tx/${txHash}`;
+    case "Celo":
+      return `https://explorer.celo.org/tx/${txHash}`;
     default:
       return "";
   }
@@ -234,6 +236,22 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         decimals: 6,
         address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
         imageUrl: "/logos/usdc-logo.svg",
+      },
+    ],
+    Celo: [
+      {
+        name: "CELO",
+        symbol: "CELO",
+        decimals: 18,
+        address: "0x471EcE3750Da237f93B8E339c536989b8978a438",
+        imageUrl: "/logos/celo-logo.svg",
+      },
+      {
+        name: "Celo Dollar",
+        symbol: "cUSD",
+        decimals: 18,
+        address: "0x765de816845861e75a25fca122bb6898b8b1282a",
+        imageUrl: "/logos/cusd-logo.png",
       },
     ],
   };

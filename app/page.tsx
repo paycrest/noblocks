@@ -29,6 +29,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "./context/StepContext";
 import { clearFormState } from "./utils";
 import { useNetwork } from "./context/NetworksContext";
+import { useMiniPay } from "./context/MiniPayContext";
 
 /**
  * Represents the Home component.
@@ -37,6 +38,7 @@ import { useNetwork } from "./context/NetworksContext";
 function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   const { authenticated, ready } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
+  const { isMiniPay, miniPayReady } = useMiniPay();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -57,7 +59,6 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
 
-  // Form methods and watch
   const formMethods = useForm<FormData>({
     mode: "onChange",
     defaultValues: {
@@ -100,14 +101,14 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
 
   useEffect(
     function resetOnLogout() {
-      // Reset form if user logs out
-      if (!authenticated) {
+      // Reset form if user logs out (but not for MiniPay)
+      if (!authenticated && !isMiniPay) {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [authenticated],
+    [authenticated, isMiniPay],
   );
 
   useEffect(function ensureDefaultToken() {
@@ -169,13 +170,23 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
               ? lpParam
               : undefined;
 
-          const rate = await fetchRate({
-            token,
-            amount: amountSent || 1,
-            currency,
-            providerId,
-          });
-          setRate(rate.data);
+          if (isMiniPay && (token === "CELO" || token === "cUSD")) {
+            const usdtRate = await fetchRate({
+              token: "USDT",
+              amount: amountSent || 1,
+              currency,
+            });
+
+            setRate(usdtRate.data);
+          } else {
+            const rate = await fetchRate({
+              token,
+              amount: amountSent || 1,
+              currency,
+              providerId,
+            });
+            setRate(rate.data);
+          }
         } catch (error) {
           if (error instanceof Error) {
             const lpParam =
@@ -215,7 +226,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
         clearTimeout(timeoutId);
       };
     },
-    [amountSent, currency, token, searchParams],
+    [amountSent, currency, token, searchParams, isMiniPay],
   );
 
   const handleFormSubmit = (data: FormData) => {
@@ -244,6 +255,9 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
 
     setCurrentStep(STEPS.FORM);
   };
+
+  const showLoading =
+    isPageLoading || (!ready && !isMiniPay) || (isMiniPay && !miniPayReady);
 
   const renderStep = () => {
     switch (currentStep) {
@@ -290,13 +304,13 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
 
   return (
     <>
-      {isPageLoading || !ready ? (
+      {showLoading ? (
         <Preloader isLoading={true} />
       ) : (
         <>
           <Disclaimer />
           <CookieConsent />
-          <NetworkSelectionModal />
+          {!isMiniPay && <NetworkSelectionModal />}
 
           <AnimatePresence mode="wait">
             <AnimatedPage componentKey={currentStep}>

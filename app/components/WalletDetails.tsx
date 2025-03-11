@@ -14,6 +14,7 @@ import { ArrowDown01Icon, Wallet01Icon } from "hugeicons-react";
 import Image from "next/image";
 import { FundWalletModal } from "./FundWalletModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
+import { useMiniPay } from "../context";
 
 export const WalletDetails = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -22,22 +23,27 @@ export const WalletDetails = () => {
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
 
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, allBalances } = useBalance();
+  const { allBalances } = useBalance();
+  const { isMiniPay, miniPayAddress } = useMiniPay();
 
   const { user } = usePrivy();
 
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
 
+  const activeWallet = isMiniPay
+    ? { address: miniPayAddress }
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+
+  const activeBalance = isMiniPay
+    ? allBalances.miniPay
+    : allBalances.smartWallet;
+
   const handleFundWalletClick = async (
     amount: string,
     tokenAddress: `0x${string}`,
   ) => {
-    await handleFundWallet(smartWallet?.address ?? "", amount, tokenAddress);
+    await handleFundWallet(activeWallet?.address ?? "", amount, tokenAddress);
   };
-
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({
@@ -47,7 +53,7 @@ export const WalletDetails = () => {
 
   const tokens: { name: string; imageUrl: string | undefined }[] = [];
   const fetchedTokens: Token[] =
-    fetchSupportedTokens(selectedNetwork.chain.name) || [];
+    fetchSupportedTokens(isMiniPay ? "Celo" : selectedNetwork.chain.name) || [];
   for (const token of fetchedTokens) {
     tokens.push({
       name: token.symbol,
@@ -74,9 +80,7 @@ export const WalletDetails = () => {
           <Wallet01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
           <div className="h-9 w-px border-r border-dashed border-border-light dark:border-white/10" />
           <div className="flex items-center gap-1.5 dark:text-white/80">
-            <p>
-              {formatCurrency(smartWalletBalance?.total ?? 0, "USD", "en-US")}
-            </p>
+            <p>{formatCurrency(activeBalance?.total ?? 0, "USD", "en-US")}</p>
             <ArrowDown01Icon
               aria-label="Caret down"
               className={classNames(
@@ -97,7 +101,7 @@ export const WalletDetails = () => {
               className="absolute right-0 mt-3 w-[273px] space-y-2 rounded-xl border border-neutral-100 bg-white p-2 shadow-lg dark:border-white/5 dark:bg-surface-overlay"
             >
               <AnimatePresence>
-                {allBalances.smartWallet?.balances && (
+                {activeBalance?.balances ? (
                   <motion.div
                     initial="closed"
                     animate="open"
@@ -107,60 +111,76 @@ export const WalletDetails = () => {
                   >
                     <div className="flex items-center justify-between">
                       <h3 className="font-light text-gray-500 dark:text-white/50">
-                        Noblocks Wallet
+                        {isMiniPay ? "MiniPay Wallet" : "Noblocks Wallet"}
                       </h3>
                     </div>
 
                     <ul className="space-y-2 text-neutral-900 dark:text-white/80">
-                      {Object.entries(
-                        allBalances.smartWallet?.balances || {},
-                      ).map(([token, balance]) => (
-                        <li key={token} className="flex items-center gap-1">
-                          {(() => {
-                            const imageUrl = getTokenImageUrl(token);
+                      {Object.entries(activeBalance?.balances || {}).map(
+                        ([token, balance]) => (
+                          <li key={token} className="flex items-center gap-1">
+                            {(() => {
+                              const imageUrl = getTokenImageUrl(token);
 
-                            return imageUrl ? (
-                              <Image
-                                src={imageUrl}
-                                alt={token}
-                                width={14}
-                                height={14}
-                                className="size-3.5"
-                              />
-                            ) : null;
-                          })()}
+                              return imageUrl ? (
+                                <Image
+                                  src={imageUrl}
+                                  alt={token}
+                                  width={14}
+                                  height={14}
+                                  className="size-3.5"
+                                />
+                              ) : null;
+                            })()}
 
-                          <span className="font-medium">
-                            {balance} {token}
-                          </span>
-                        </li>
-                      ))}
+                            <span className="font-medium">
+                              {balance} {token}
+                            </span>
+                          </li>
+                        ),
+                      )}
                     </ul>
 
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsFundModalOpen(true);
-                          setIsOpen(false);
-                        }}
-                        className="font-medium text-lavender-500"
-                      >
-                        Fund
-                      </button>
-                      <p className="text-[10px] text-gray-200 dark:text-white/10">
-                        |
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsTransferModalOpen(true);
-                          setIsOpen(false);
-                        }}
-                        className="font-medium text-lavender-500"
-                      >
-                        Transfer
-                      </button>
+                    {!isMiniPay && (
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsFundModalOpen(true);
+                            setIsOpen(false);
+                          }}
+                          className="font-medium text-lavender-500"
+                        >
+                          Fund
+                        </button>
+                        <p className="text-[10px] text-gray-200 dark:text-white/10">
+                          |
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsTransferModalOpen(true);
+                            setIsOpen(false);
+                          }}
+                          className="font-medium text-lavender-500"
+                        >
+                          Transfer
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    initial="closed"
+                    animate="open"
+                    exit="closed"
+                    variants={dropdownVariants}
+                    className="space-y-3 rounded-xl bg-accent-gray p-3 dark:bg-white/5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-light text-gray-500 dark:text-white/50">
+                        No balances available
+                      </h3>
                     </div>
                   </motion.div>
                 )}
@@ -170,16 +190,20 @@ export const WalletDetails = () => {
         </AnimatePresence>
       </div>
 
-      <TransferModal
-        isOpen={isTransferModalOpen}
-        onClose={() => setIsTransferModalOpen(false)}
-      />
+      {!isMiniPay && (
+        <>
+          <TransferModal
+            isOpen={isTransferModalOpen}
+            onClose={() => setIsTransferModalOpen(false)}
+          />
 
-      <FundWalletModal
-        isOpen={isFundModalOpen}
-        onClose={() => setIsFundModalOpen(false)}
-        onFund={handleFundWalletClick}
-      />
+          <FundWalletModal
+            isOpen={isFundModalOpen}
+            onClose={() => setIsFundModalOpen(false)}
+            onFund={handleFundWalletClick}
+          />
+        </>
+      )}
     </>
   );
 };

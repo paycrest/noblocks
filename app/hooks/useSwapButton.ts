@@ -7,6 +7,7 @@ interface UseSwapButtonProps {
   isDirty: boolean;
   isValid: boolean;
   isUserVerified: boolean;
+  isMiniPay?: boolean;
 }
 
 export function useSwapButton({
@@ -15,18 +16,30 @@ export function useSwapButton({
   isDirty,
   isValid,
   isUserVerified,
+  isMiniPay = false,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { amountSent, currency, recipientName } = watch();
 
   const isAmountValid = Number(amountSent) >= 0.5;
   const isCurrencySelected = Boolean(currency);
-  const hasInsufficientBalance = authenticated && amountSent > balance;
+
+  const hasInsufficientBalance = amountSent > balance;
 
   const isEnabled = (() => {
-    // If needs funding, always enable the button
-    if (hasInsufficientBalance) {
+    if (isMiniPay && hasInsufficientBalance) {
+      return false;
+    }
+
+    if (hasInsufficientBalance && !isMiniPay && authenticated) {
       return true;
+    }
+
+    if (isMiniPay) {
+      if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
+        return false;
+      }
+      return Boolean(recipientName);
     }
 
     if (
@@ -52,7 +65,11 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
-    if (authenticated && hasInsufficientBalance) {
+    if (isMiniPay && hasInsufficientBalance) {
+      return "Insufficient balance";
+    }
+
+    if (authenticated && hasInsufficientBalance && !isMiniPay) {
       return "Fund wallet";
     }
 
@@ -70,13 +87,13 @@ export function useSwapButton({
     setIsKycModalOpen: () => void,
     isUserVerified: boolean,
   ) => {
-    if (!authenticated) {
+    if (!authenticated && !isMiniPay) {
       return login;
     }
-    if (hasInsufficientBalance) {
+    if (hasInsufficientBalance && !isMiniPay && authenticated) {
       return handleFundWallet;
     }
-    if (!isUserVerified) {
+    if (!isUserVerified && authenticated) {
       return setIsKycModalOpen;
     }
     return handleSwap;

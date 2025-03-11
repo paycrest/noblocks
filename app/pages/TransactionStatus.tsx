@@ -37,14 +37,13 @@ import {
   type OrderDetailsData,
   type TransactionStatusProps,
 } from "../types";
-import { useNetwork } from "../context/NetworksContext";
-import { useBalance } from "../context/BalanceContext";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
+import { useBalance, useMiniPay, useNetwork } from "../context";
 
 /**
  * Renders the transaction status component.
@@ -73,6 +72,8 @@ export function TransactionStatus({
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
   const { refreshBalance, smartWalletBalance } = useBalance();
+  const { isMiniPay } = useMiniPay();
+
   const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
   const [createdHash, setCreatedHash] = useState("");
@@ -95,7 +96,7 @@ export function TransactionStatus({
       const getOrderDetails = async () => {
         try {
           const orderDetailsResponse = await fetchOrderDetails(
-            selectedNetwork.chain.id,
+            isMiniPay ? 42220 : selectedNetwork.chain.id, // 42220 is Celo mainnet id
             orderId,
           );
           setOrderDetails(orderDetailsResponse.data);
@@ -153,6 +154,8 @@ export function TransactionStatus({
   // Check if the recipient is saved in the beneficiaries list
   useEffect(
     function checkRecipientInBeneficiaries() {
+      if (isMiniPay) return;
+
       const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
       const isRecipientSaved = savedRecipients.some(
         (r: { accountIdentifier: string; institutionCode: string }) =>
@@ -161,7 +164,7 @@ export function TransactionStatus({
       );
       setAddToBeneficiaries(isRecipientSaved);
     },
-    [formMethods],
+    [formMethods, isMiniPay],
   );
 
   useEffect(
@@ -532,45 +535,46 @@ export function TransactionStatus({
                       : "New payment"}
                   </button>
                 </AnimatedComponent>
-                {["validated", "settled"].includes(transactionStatus) && (
-                  <div className="flex gap-2">
-                    <Checkbox
-                      checked={addToBeneficiaries}
-                      onChange={handleAddToBeneficiariesChange}
-                      className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
-                    >
-                      <svg
-                        className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
-                        viewBox="0 0 14 14"
-                        fill="none"
+                {["validated", "settled"].includes(transactionStatus) &&
+                  !isMiniPay && (
+                    <div className="flex gap-2">
+                      <Checkbox
+                        checked={addToBeneficiaries}
+                        onChange={handleAddToBeneficiariesChange}
+                        className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
                       >
-                        <title>
-                          {addToBeneficiaries
-                            ? "Remove from beneficiaries"
-                            : "Add to beneficiaries"}
-                        </title>
-                        <path
-                          d="M3 8L6 11L11 3.5"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </Checkbox>
-                    <label className="text-text-body dark:text-white/80">
-                      Add{" "}
-                      {(recipientName ?? "")
-                        .split(" ")[0]
-                        .charAt(0)
-                        .toUpperCase() +
-                        (recipientName ?? "")
-                          .toLowerCase()
+                        <svg
+                          className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
+                          viewBox="0 0 14 14"
+                          fill="none"
+                        >
+                          <title>
+                            {addToBeneficiaries
+                              ? "Remove from beneficiaries"
+                              : "Add to beneficiaries"}
+                          </title>
+                          <path
+                            d="M3 8L6 11L11 3.5"
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </Checkbox>
+                      <label className="text-text-body dark:text-white/80">
+                        Add{" "}
+                        {(recipientName ?? "")
                           .split(" ")[0]
-                          .slice(1)}{" "}
-                      to beneficiaries
-                    </label>
-                  </div>
-                )}
+                          .charAt(0)
+                          .toUpperCase() +
+                          (recipientName ?? "")
+                            .toLowerCase()
+                            .split(" ")[0]
+                            .slice(1)}{" "}
+                        to beneficiaries
+                      </label>
+                    </div>
+                  )}
               </>
             )}
           </AnimatePresence>
@@ -620,7 +624,7 @@ export function TransactionStatus({
                   <p className="flex-1">
                     <a
                       href={getExplorerLink(
-                        selectedNetwork.chain.name,
+                        isMiniPay ? "Celo" : selectedNetwork.chain.name,
                         `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
                       )}
                       className="text-lavender-500 hover:underline dark:text-lavender-500"

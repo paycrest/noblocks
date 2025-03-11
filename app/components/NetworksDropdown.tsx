@@ -7,9 +7,9 @@ import { networks } from "../mocks";
 import { classNames } from "../utils";
 import { FlexibleDropdown } from "./FlexibleDropdown";
 import { useStep } from "../context/StepContext";
-import { useNetwork } from "../context/NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { ArrowDown01Icon } from "hugeicons-react";
+import { useMiniPay, useNetwork } from "../context";
 
 interface NetworksDropdownProps {
   iconOnly?: boolean;
@@ -20,6 +20,10 @@ export const NetworksDropdown = ({
 }: NetworksDropdownProps) => {
   const { client } = useSmartWallets();
   const { isFormStep } = useStep();
+  const { isMiniPay } = useMiniPay();
+
+  if (isMiniPay) return null;
+
   iconOnly = !isFormStep;
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
@@ -65,7 +69,6 @@ export const NetworksDropdown = ({
           id="networks-dropdown"
           aria-label="Toggle dropdown"
           aria-haspopup="true"
-          aria-expanded={isOpen}
           type="button"
           onClick={() => {
             toggleDropdown();

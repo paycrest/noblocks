@@ -20,6 +20,7 @@ import { fetchKYCStatus, initiateKYC } from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics";
 import { Cancel01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
+import { useMiniPay } from "../context";
 
 export const STEPS = {
   TERMS: "terms",
@@ -48,10 +49,12 @@ export const KycModal = ({
 }) => {
   const { signMessage } = usePrivy();
   const { wallets } = useWallets();
+  const { isMiniPay, miniPayAddress, miniPayProvider } = useMiniPay();
+
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
   );
-  const walletAddress = embeddedWallet?.address;
+  const walletAddress = isMiniPay ? miniPayAddress : embeddedWallet?.address;
 
   const [step, setStep] = useState<Step>(STEPS.LOADING);
   const [showQRCode, setShowQRCode] = useState(false);
@@ -64,20 +67,52 @@ export const KycModal = ({
     setIsSigning(true);
     const nonce = generateTimeBasedNonce({ length: 16 });
     const message = `I accept the KYC Policy and hereby request an identity verification check for ${walletAddress} with nonce ${nonce}`;
-    const uiConfig = {
-      buttonText: "Sign",
-    };
 
     try {
-      const signature = await signMessage({ message }, { uiOptions: uiConfig });
+      let signature: string;
+
+      if (isMiniPay && miniPayProvider) {
+        try {
+          const accounts = await miniPayProvider.request({
+            method: "eth_requestAccounts",
+          });
+
+          const signResult = await miniPayProvider.request({
+            method: "personal_sign",
+            params: [`0x${Buffer.from(message).toString("hex")}`, accounts[0]],
+          });
+
+          signature = signResult;
+        } catch (error) {
+          console.error("MiniPay signature error:", error);
+          toast.error("Failed to sign message with MiniPay");
+          setIsSigning(false);
+          return;
+        }
+      } else {
+        const signResult = await signMessage(
+          { message },
+          { uiOptions: { buttonText: "Sign" } },
+        );
+
+        if (!signResult) {
+          setIsSigning(false);
+          return;
+        }
+
+        signature = signResult.signature;
+      }
+
       if (signature) {
         setIsKycModalOpen(true);
         setStep(STEPS.LOADING);
 
+        const sigWithoutPrefix = signature.startsWith("0x")
+          ? signature.slice(2)
+          : signature;
+
         const response = await initiateKYC({
-          signature: signature.signature.startsWith("0x")
-            ? signature.signature.slice(2)
-            : signature.signature,
+          signature: sigWithoutPrefix,
           walletAddress: walletAddress || "",
           nonce,
         });
@@ -112,6 +147,8 @@ export const KycModal = ({
       }
       setIsKycModalOpen(false);
       setStep(STEPS.TERMS);
+    } finally {
+      setIsSigning(false);
     }
   };
 

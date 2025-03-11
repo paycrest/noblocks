@@ -31,12 +31,14 @@ import {
   http,
 } from "viem";
 import { useBalance } from "../context/BalanceContext";
+import { useMiniPay } from "../context";
 
 import { fetchAggregatorPublicKey } from "../api/aggregator";
 import { useStep } from "../context/StepContext";
 import { trackEvent } from "../hooks/analytics";
 import { ImSpinner } from "react-icons/im";
 import { InformationSquareIcon } from "hugeicons-react";
+import { celo } from "viem/chains";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -51,6 +53,8 @@ export const TransactionPreview = ({
 }: TransactionPreviewProps) => {
   const { user } = usePrivy();
   const { client } = useSmartWallets();
+  const { isMiniPay, miniPayAddress, miniPayProvider, miniPayReady } =
+    useMiniPay();
 
   const { selectedNetwork } = useNetwork();
   const { currentStep, setCurrentStep } = useStep();
@@ -95,11 +99,11 @@ export const TransactionPreview = ({
       .join(" "),
     account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
     ...(memo && { description: memo }),
-    network: selectedNetwork.chain.name,
+    network: isMiniPay ? "Celo" : selectedNetwork.chain.name,
   };
 
   const fetchedTokens: Token[] =
-    fetchSupportedTokens(selectedNetwork.chain.name) || [];
+    fetchSupportedTokens(isMiniPay ? "Celo" : selectedNetwork.chain.name) || [];
 
   const tokenAddress = fetchedTokens.find(
     (t) => t.symbol.toUpperCase() === token.toUpperCase(),
@@ -109,9 +113,15 @@ export const TransactionPreview = ({
     (t) => t.symbol.toUpperCase() === token.toUpperCase(),
   )?.decimals;
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  const injectedWallet = isMiniPay
+    ? { address: miniPayAddress, type: "injected_wallet" }
+    : null;
+
+  const smartWallet = isMiniPay
+    ? null
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+
+  const activeWallet = injectedWallet || smartWallet;
 
   const prepareCreateOrderParams = async () => {
     const providerId =
@@ -140,7 +150,7 @@ export const TransactionPreview = ({
         "0x0000000000000000000000000000000000000000",
       ),
       senderFee: BigInt(0),
-      refundAddress: smartWallet?.address as `0x${string}`,
+      refundAddress: activeWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
 
@@ -149,54 +159,121 @@ export const TransactionPreview = ({
 
   const createOrder = async () => {
     try {
-      if (!client) {
-        throw new Error("Smart wallet not found");
+      if (isMiniPay && miniPayProvider) {
+        if (!miniPayReady) {
+          throw new Error("MiniPay not ready");
+        }
+
+        const params = await prepareCreateOrderParams();
+        setCreatedAt(new Date().toISOString());
+
+        // Send approval transaction
+        const approvalTx = await miniPayProvider.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: miniPayAddress,
+              to: tokenAddress,
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [
+                  getGatewayContractAddress("Celo") as `0x${string}`,
+                  parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+                ],
+              }),
+            },
+          ],
+        });
+
+        try {
+          const publicClient = createPublicClient({
+            chain: celo,
+            transport: http(),
+          });
+
+          await publicClient.waitForTransactionReceipt({
+            hash: approvalTx as `0x${string}`,
+          });
+          toast.success("Token spending approved");
+        } catch (error) {
+          toast.error("Approval failed");
+          throw new Error("Approval transaction failed");
+        }
+
+        // Create order transaction
+        await miniPayProvider.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: miniPayAddress,
+              to: getGatewayContractAddress("Celo") as `0x${string}`,
+              data: encodeFunctionData({
+                abi: gatewayAbi,
+                functionName: "createOrder",
+                args: [
+                  params.token,
+                  params.amount,
+                  params.rate,
+                  params.senderFeeRecipient,
+                  params.senderFee,
+                  params.refundAddress ?? "",
+                  params.messageHash,
+                ],
+              }),
+            },
+          ],
+        });
+      } else {
+        if (!client) {
+          throw new Error("Smart wallet not found");
+        }
+
+        await client.switchChain({
+          id: selectedNetwork.chain.id,
+        });
+
+        const params = await prepareCreateOrderParams();
+        setCreatedAt(new Date().toISOString());
+
+        await client.sendTransaction({
+          calls: [
+            // Approve gateway contract to spend token
+            {
+              to: tokenAddress,
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [
+                  getGatewayContractAddress(
+                    selectedNetwork.chain.name,
+                  ) as `0x${string}`,
+                  parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+                ],
+              }),
+            },
+            // Create order
+            {
+              to: getGatewayContractAddress(
+                selectedNetwork.chain.name,
+              ) as `0x${string}`,
+              data: encodeFunctionData({
+                abi: gatewayAbi,
+                functionName: "createOrder",
+                args: [
+                  params.token,
+                  params.amount,
+                  params.rate,
+                  params.senderFeeRecipient,
+                  params.senderFee,
+                  params.refundAddress ?? "",
+                  params.messageHash,
+                ],
+              }),
+            },
+          ],
+        });
       }
-
-      await client.switchChain({
-        id: selectedNetwork.chain.id,
-      });
-
-      const params = await prepareCreateOrderParams();
-      setCreatedAt(new Date().toISOString());
-
-      await client?.sendTransaction({
-        calls: [
-          // Approve gateway contract to spend token
-          {
-            to: tokenAddress,
-            data: encodeFunctionData({
-              abi: erc20Abi,
-              functionName: "approve",
-              args: [
-                getGatewayContractAddress(
-                  selectedNetwork.chain.name,
-                ) as `0x${string}`,
-                parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-              ],
-            }),
-          },
-          // Create order
-          {
-            to: getGatewayContractAddress(
-              selectedNetwork.chain.name,
-            ) as `0x${string}`,
-            data: encodeFunctionData({
-              abi: gatewayAbi,
-              functionName: "createOrder",
-              args: [
-                params.token,
-                params.amount,
-                params.rate,
-                params.senderFeeRecipient,
-                params.senderFee,
-                params.refundAddress ?? "",
-                params.messageHash,
-              ],
-            }),
-          },
-        ],
-      });
 
       await getOrderId();
       refreshBalance(); // Refresh balance after order is created
@@ -206,7 +283,7 @@ export const TransactionPreview = ({
       });
     } catch (e) {
       const error = e as BaseError;
-      setErrorMessage(error.shortMessage);
+      setErrorMessage(error.shortMessage || error.message);
       setIsConfirming(false);
       trackEvent("Swap Failed", {
         Amount: amountSent,
@@ -218,7 +295,7 @@ export const TransactionPreview = ({
         ),
         "Noblocks balance": smartWalletBalance?.balances[token] || 0,
         "Swap date": createdAt,
-        "Reason for failure": error.shortMessage,
+        "Reason for failure": error.shortMessage || error.message,
         "Transaction duration": calculateDuration(
           createdAt,
           new Date().toISOString(),
@@ -250,11 +327,12 @@ export const TransactionPreview = ({
 
     const getOrderCreatedLogs = async () => {
       const publicClient = createPublicClient({
-        chain: selectedNetwork.chain,
+        chain: isMiniPay ? celo : selectedNetwork.chain,
         transport: http(),
       });
 
-      if (!publicClient || !user || isOrderCreatedLogsFetched) return;
+      if (!publicClient || !activeWallet?.address || isOrderCreatedLogsFetched)
+        return;
 
       try {
         if (currentStep !== "preview") {
@@ -266,12 +344,12 @@ export const TransactionPreview = ({
         const toBlock = await publicClient.getBlockNumber();
         const logs = await publicClient.getContractEvents({
           address: getGatewayContractAddress(
-            selectedNetwork.chain.name,
+            isMiniPay ? "Celo" : selectedNetwork.chain.name,
           ) as `0x${string}`,
           abi: gatewayAbi,
           eventName: "OrderCreated",
           args: {
-            sender: smartWallet?.address as `0x${string}`,
+            sender: activeWallet.address as `0x${string}`,
             token: tokenAddress,
             amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
           },

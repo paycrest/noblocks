@@ -27,6 +27,7 @@ import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus, fetchRate } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
+import { useMiniPay } from "../context";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -47,7 +48,9 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance } = useBalance();
+  const { smartWalletBalance, miniPayBalance } = useBalance();
+  const { isMiniPay, miniPayAddress } = useMiniPay();
+
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
   )?.address;
@@ -65,10 +68,15 @@ export const TransactionForm = ({
     setValue,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { amountSent, amountReceived, token, currency, recipientName } =
-    watch();
+  const { amountSent, amountReceived, token, currency } = watch();
 
-  const balance = smartWalletBalance?.balances[token] ?? 0;
+  const activeWallet = isMiniPay
+    ? { address: miniPayAddress }
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+
+  const activeBalance = isMiniPay ? miniPayBalance : smartWalletBalance;
+
+  const balance = activeBalance?.balances[token] ?? 0;
 
   const { handleFundWallet } = useFundWalletHandler("Transaction form");
 
@@ -76,23 +84,16 @@ export const TransactionForm = ({
     amount: string,
     tokenAddress: `0x${string}`,
   ) => {
-    await handleFundWallet(smartWallet?.address ?? "", amount, tokenAddress);
+    await handleFundWallet(activeWallet?.address ?? "", amount, tokenAddress);
   };
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
-
-  const tokens = [];
-
   const fetchedTokens: Token[] =
-    fetchSupportedTokens(selectedNetwork.chain.name) || [];
-  for (const token of fetchedTokens) {
-    tokens.push({
-      name: token.symbol,
-      imageUrl: token.imageUrl,
-    });
-  }
+    fetchSupportedTokens(isMiniPay ? "Celo" : selectedNetwork.chain.name) || [];
+
+  const tokens = fetchedTokens.map((token) => ({
+    name: token.symbol,
+    imageUrl: token.imageUrl,
+  }));
 
   const handleBalanceMaxClick = () => {
     if (balance > 0) {
@@ -128,41 +129,52 @@ export const TransactionForm = ({
     return value.replace(/,/g, "");
   };
 
-  useEffect(() => {
-    if (!embeddedWalletAddress) return;
+  useEffect(
+    function checkKycStatus() {
+      const walletAddressToCheck = isMiniPay
+        ? miniPayAddress
+        : embeddedWalletAddress;
+      if (!walletAddressToCheck) return;
 
-    const fetchStatus = async () => {
-      try {
-        const response = await fetchKYCStatus(embeddedWalletAddress);
-        if (response.data.status === "pending") {
-          setIsKycModalOpen(true);
-        } else if (response.data.status === "success") {
-          setIsUserVerified(true);
+      const fetchStatus = async () => {
+        try {
+          const response = await fetchKYCStatus(walletAddressToCheck);
+          if (response.data.status === "pending") {
+            setIsKycModalOpen(true);
+          } else if (response.data.status === "success") {
+            setIsUserVerified(true);
+          }
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            (error as any).response?.status === 404
+          ) {
+            // silently fail if user is not found/verified
+          } else {
+            console.log("error", error);
+          }
         }
-      } catch (error) {
-        if (error instanceof Error && (error as any).response?.status === 404) {
-          // do nothing
-        } else {
-          console.log("error", error);
-        }
+      };
+
+      fetchStatus();
+    },
+    [embeddedWalletAddress, miniPayAddress, isMiniPay],
+  );
+
+  useEffect(
+    function updateFormattedAmounts() {
+      if (amountSent !== undefined) {
+        setFormattedSentAmount(formatNumberWithCommasForDisplay(amountSent));
       }
-    };
 
-    fetchStatus();
-  }, [embeddedWalletAddress]);
-
-  // Format the display values whenever the actual values change
-  useEffect(() => {
-    if (amountSent !== undefined) {
-      setFormattedSentAmount(formatNumberWithCommasForDisplay(amountSent));
-    }
-
-    if (amountReceived !== undefined) {
-      setFormattedReceivedAmount(
-        formatNumberWithCommasForDisplay(amountReceived),
-      );
-    }
-  }, [amountSent, amountReceived]);
+      if (amountReceived !== undefined) {
+        setFormattedReceivedAmount(
+          formatNumberWithCommasForDisplay(amountReceived),
+        );
+      }
+    },
+    [amountSent, amountReceived],
+  );
 
   // calculate receive amount based on send amount and rate
   useEffect(
@@ -184,92 +196,106 @@ export const TransactionForm = ({
   );
 
   // Register form fields
-  useEffect(() => {
-    async function registerFormFields() {
-      let maxAmountSentValue = 10000;
+  useEffect(
+    function registerFieldsWithValidation() {
+      async function registerFormFields() {
+        let maxAmountSentValue = 10000;
 
-      if (token === "cNGN") {
-        try {
-          const rate = await fetchRate({
-            token: "USDT",
-            amount: 1,
-            currency: "NGN",
-          });
+        if (token === "cNGN") {
+          try {
+            const rate = await fetchRate({
+              token: "USDT",
+              amount: 1,
+              currency: "NGN",
+            });
 
-          if (
-            rate?.data &&
-            typeof rate.data === "string" &&
-            Number(rate.data) > 0
-          ) {
-            maxAmountSentValue = 10000 * Number(rate.data);
+            if (
+              rate?.data &&
+              typeof rate.data === "string" &&
+              Number(rate.data) > 0
+            ) {
+              maxAmountSentValue = 10000 * Number(rate.data);
+            }
+          } catch (error) {
+            console.error("Error fetching rate for cNGN max amount:", error);
           }
-        } catch (error) {
-          console.error("Error fetching rate for cNGN max amount:", error);
         }
-      }
 
-      formMethods.register("amountSent", {
-        required: { value: true, message: "Amount is required" },
-        disabled: !token,
-        min: {
-          value: 0.5,
-          message: "Minimum amount is 0.5",
-        },
-        max: {
-          value: maxAmountSentValue,
-          message: `Maximum amount is ${formatNumberWithCommas(maxAmountSentValue)}`,
-        },
-        validate: {
-          decimals: (value) => {
-            const decimals = value.toString().split(".")[1];
-            return (
-              !decimals ||
-              decimals.length <= 4 ||
-              "Maximum 4 decimal places allowed"
-            );
+        formMethods.register("amountSent", {
+          required: { value: true, message: "Amount is required" },
+          disabled: !token,
+          min: {
+            value: 0.5,
+            message: "Minimum amount is 0.5",
           },
-        },
-      });
-
-      formMethods.register("amountReceived", {
-        disabled: !token || !currency,
-      });
-
-      formMethods.register("memo", {
-        required: { value: false, message: "Add description" },
-      });
-
-      if (token === "cNGN") {
-        // When cNGN is selected, only enable NGN
-        currencies.forEach((currency) => {
-          currency.disabled = currency.name !== "NGN";
+          max: {
+            value: maxAmountSentValue,
+            message: `Maximum amount is ${formatNumberWithCommas(maxAmountSentValue)}`,
+          },
+          validate: {
+            decimals: (value) => {
+              const decimals = value.toString().split(".")[1];
+              return (
+                !decimals ||
+                decimals.length <= 4 ||
+                "Maximum 4 decimal places allowed"
+              );
+            },
+          },
         });
-      } else {
-        // Reset currencies to their default state from mocks
-        currencies.forEach((currency) => {
-          // Only GHS, BRL and ARS are disabled by default
-          currency.disabled = ["GHS", "BRL", "ARS"].includes(currency.name);
+
+        formMethods.register("amountReceived", {
+          disabled: !token || !currency,
+        });
+
+        formMethods.register("memo", {
+          required: { value: false, message: "Add description" },
+        });
+
+        if (token === "cNGN") {
+          // When cNGN is selected, only enable NGN
+          currencies.forEach((currency) => {
+            currency.disabled = currency.name !== "NGN";
+          });
+        } else {
+          // Reset currencies to their default state from mocks
+          currencies.forEach((currency) => {
+            // Only GHS, BRL and ARS are disabled by default
+            currency.disabled = ["GHS", "BRL", "ARS"].includes(currency.name);
+          });
+        }
+
+        // Sort currencies so enabled ones appear first
+        currencies.sort((a, b) => {
+          if (a.disabled === b.disabled) return 0;
+          return a.disabled ? 1 : -1;
         });
       }
 
-      // Sort currencies so enabled ones appear first
-      currencies.sort((a, b) => {
-        if (a.disabled === b.disabled) return 0;
-        return a.disabled ? 1 : -1;
-      });
-    }
+      registerFormFields();
+    },
+    [token, currency, formMethods],
+  );
 
-    registerFormFields();
-  }, [token, currency, formMethods]);
+  useEffect(
+    function ensureDefaultToken() {
+      if (isMiniPay) {
+        formMethods.reset({ token: "cUSD" });
+      } else if (!formMethods.getValues("token")) {
+        formMethods.reset({ token: "USDC" });
+      }
+    },
+    [formMethods, isMiniPay],
+  );
 
-  const { isEnabled, buttonText, buttonAction, hasInsufficientBalance } =
-    useSwapButton({
-      watch,
-      balance,
-      isDirty,
-      isValid,
-      isUserVerified,
-    });
+  const { isEnabled, buttonText, buttonAction } = useSwapButton({
+    watch,
+    balance,
+    isDirty,
+    isValid,
+    isUserVerified,
+    isMiniPay,
+  });
 
   const handleSwap = () => {
     setOrderId("");
@@ -279,11 +305,6 @@ export const TransactionForm = ({
   // Handle sent amount input changes
   interface SentAmountChangeEvent extends React.ChangeEvent<HTMLInputElement> {
     target: HTMLInputElement;
-  }
-
-  interface AmountChangeResult {
-    formattedValue: string;
-    numericValue: number;
   }
 
   const handleSentAmountChange = (e: SentAmountChangeEvent): void => {
@@ -402,43 +423,6 @@ export const TransactionForm = ({
     setIsReceiveInputActive(true);
   };
 
-  // Handle changes directly to the decimal part
-  interface DecimalChangeEvent extends React.ChangeEvent<HTMLInputElement> {
-    target: HTMLInputElement;
-  }
-
-  interface FormattedAmounts {
-    formattedValue: string;
-    numericValue: number;
-  }
-
-  const handleDecimalChange = (
-    e: DecimalChangeEvent,
-    isReceiveInput: boolean = false,
-  ): void => {
-    const inputValue: string = e.target.value;
-    const removeCommasFromValue: string = removeCommas(inputValue);
-
-    // Check if the cursor is positioned right after a digit followed by a dot
-    const lastCharIsDecimal: boolean = inputValue.endsWith(".");
-
-    if (lastCharIsDecimal) {
-      // If the last character is a decimal point, we want to preserve it
-      const formattedValue: string = formatNumberWithCommasForDisplay(
-        removeCommasFromValue,
-      );
-      if (isReceiveInput) {
-        setFormattedReceivedAmount(formattedValue);
-        setValue("amountReceived", parseFloat(removeCommasFromValue) || 0);
-        setIsReceiveInputActive(true);
-      } else {
-        setFormattedSentAmount(formattedValue);
-        setValue("amountSent", parseFloat(removeCommasFromValue) || 0);
-        setIsReceiveInputActive(false);
-      }
-    }
-  };
-
   return (
     <div className="mx-auto max-w-[27.3125rem]">
       <form
@@ -459,20 +443,18 @@ export const TransactionForm = ({
                 Send
               </label>
               <AnimatePresence>
-                {authenticated &&
-                  token &&
-                  smartWalletBalance &&
-                  balance !== undefined && (
-                    <AnimatedComponent
-                      variant={slideInOut}
-                      className="flex items-center gap-2"
+                {token && activeBalance && balance !== undefined && (
+                  <AnimatedComponent
+                    variant={slideInOut}
+                    className="flex items-center gap-2"
+                  >
+                    <Wallet01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
+                    <span
+                      className={amountSent > balance ? "text-red-500" : ""}
                     >
-                      <Wallet01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
-                      <span
-                        className={amountSent > balance ? "text-red-500" : ""}
-                      >
-                        {formatNumberWithCommasForDisplay(balance)} {token}
-                      </span>
+                      {formatNumberWithCommasForDisplay(balance)} {token}
+                    </span>
+                    {balance > 0 && (
                       <button
                         type="button"
                         onClick={handleBalanceMaxClick}
@@ -483,8 +465,9 @@ export const TransactionForm = ({
                       >
                         Max
                       </button>
-                    </AnimatedComponent>
-                  )}
+                    )}
+                  </AnimatedComponent>
+                )}
               </AnimatePresence>
             </div>
 
@@ -675,7 +658,7 @@ export const TransactionForm = ({
                 login,
                 () =>
                   handleFundWallet(
-                    smartWallet?.address ?? "",
+                    activeWallet?.address ?? "",
                     amountSent.toString(),
                     (fetchedTokens.find((t) => t.symbol === token)
                       ?.address as `0x${string}`) ?? "",
@@ -713,11 +696,13 @@ export const TransactionForm = ({
         </AnimatePresence>
       </form>
 
-      <FundWalletModal
-        isOpen={isFundModalOpen}
-        onClose={() => setIsFundModalOpen(false)}
-        onFund={handleFundWalletClick}
-      />
+      {!isMiniPay && (
+        <FundWalletModal
+          isOpen={isFundModalOpen}
+          onClose={() => setIsFundModalOpen(false)}
+          onFund={handleFundWalletClick}
+        />
+      )}
     </div>
   );
 };

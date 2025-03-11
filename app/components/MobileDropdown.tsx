@@ -13,7 +13,6 @@ import {
   AccessIcon,
   Setting07Icon,
   Wallet01Icon,
-  HelpCircleIcon,
   ArrowLeft02Icon,
   ArrowDown01Icon,
   CustomerService01Icon,
@@ -35,6 +34,7 @@ import { STEPS } from "../types";
 import { FundWalletModal } from "./FundWalletModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import config from "@/app/lib/config";
+import { useMiniPay } from "../context";
 
 type View = "wallet" | "settings";
 
@@ -53,19 +53,20 @@ export const MobileDropdown = ({
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, exportWallet, linkEmail, updateEmail } = usePrivy();
-  const { allBalances, refreshBalance } = useBalance();
+  const { allBalances } = useBalance();
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
       onClose();
     },
   });
+  const { isMiniPay, miniPayAddress } = useMiniPay();
 
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  const smartWallet = isMiniPay
+    ? { address: miniPayAddress }
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
   const { currentStep } = useStep();
 
@@ -76,7 +77,7 @@ export const MobileDropdown = ({
 
   const tokens: { name: string; imageUrl: string | undefined }[] = [];
   const fetchedTokens: Token[] =
-    fetchSupportedTokens(selectedNetwork.chain.name) || [];
+    fetchSupportedTokens(isMiniPay ? "Celo" : selectedNetwork.chain.name) || [];
   for (const token of fetchedTokens) {
     tokens.push({
       name: token.symbol,
@@ -107,6 +108,10 @@ export const MobileDropdown = ({
   ) => {
     await handleFundWallet(smartWallet?.address ?? "", amount, tokenAddress);
   };
+
+  const activeBalance = isMiniPay
+    ? allBalances.miniPay
+    : allBalances.smartWallet;
 
   return (
     <>
@@ -166,17 +171,15 @@ export const MobileDropdown = ({
                           <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
                             <div className="flex items-center gap-1">
                               <h3 className="font-light text-text-secondary dark:text-white/50">
-                                Noblocks Wallet
+                                {isMiniPay
+                                  ? "MiniPay Wallet"
+                                  : "Noblocks Wallet"}
                               </h3>
-                              <HelpCircleIcon
-                                className="size-4 text-gray-400 dark:text-white/30"
-                                strokeWidth={2}
-                              />
                             </div>
 
                             <div className="space-y-2">
                               {Object.entries(
-                                allBalances.smartWallet?.balances || {},
+                                activeBalance?.balances || {},
                               ).map(([token, balance]) => (
                                 <div
                                   key={token}
@@ -184,7 +187,6 @@ export const MobileDropdown = ({
                                 >
                                   {(() => {
                                     const imageUrl = getTokenImageUrl(token);
-
                                     return imageUrl ? (
                                       <Image
                                         src={imageUrl}
@@ -203,23 +205,24 @@ export const MobileDropdown = ({
                               ))}
                             </div>
 
-                            {/* Fund/Transfer Buttons */}
-                            <div className="grid grid-cols-2 gap-4">
-                              <button
-                                type="button"
-                                onClick={() => setIsTransferModalOpen(true)}
-                                className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
-                              >
-                                Transfer
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setIsFundModalOpen(true)}
-                                className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
-                              >
-                                Fund
-                              </button>
-                            </div>
+                            {!isMiniPay && (
+                              <div className="grid grid-cols-2 gap-4">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsTransferModalOpen(true)}
+                                  className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                                >
+                                  Transfer
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsFundModalOpen(true)}
+                                  className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                                >
+                                  Fund
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                           {/* Wallet Address Container */}
@@ -248,129 +251,154 @@ export const MobileDropdown = ({
                             </button>
                           </div>
 
-                          <div
-                            className={classNames(
-                              "space-y-3 rounded-[20px] py-3",
-                              isNetworkListOpen
-                                ? "border border-border-light px-4 dark:border-white/10"
-                                : "",
-                            )}
-                          >
+                          {!isMiniPay && (
                             <div
-                              className="flex cursor-pointer items-center justify-between"
-                              onClick={() =>
-                                setIsNetworkListOpen(!isNetworkListOpen)
-                              }
+                              className={classNames(
+                                "space-y-3 rounded-[20px] py-3",
+                                isNetworkListOpen
+                                  ? "border border-border-light px-4 dark:border-white/10"
+                                  : "",
+                              )}
                             >
                               <div
-                                className={classNames(
-                                  "flex items-center",
-                                  isNetworkListOpen ? "gap-3" : "gap-1",
-                                )}
+                                className="flex cursor-pointer items-center justify-between"
+                                onClick={() =>
+                                  setIsNetworkListOpen(!isNetworkListOpen)
+                                }
                               >
+                                <div
+                                  className={classNames(
+                                    "flex items-center",
+                                    isNetworkListOpen ? "gap-3" : "gap-1",
+                                  )}
+                                >
+                                  <AnimatePresence mode="wait">
+                                    <motion.span
+                                      key={
+                                        isNetworkListOpen ? "select" : "network"
+                                      }
+                                      initial={{ opacity: 0 }}
+                                      animate={{ opacity: 1 }}
+                                      exit={{ opacity: 0 }}
+                                      transition={{ duration: 0.2 }}
+                                      className={classNames(
+                                        "font-medium text-text-body",
+                                        isNetworkListOpen
+                                          ? "text-base dark:text-white"
+                                          : "dark:text-white/80",
+                                      )}
+                                    >
+                                      {isNetworkListOpen
+                                        ? "Select network"
+                                        : "Network"}
+                                    </motion.span>
+                                  </AnimatePresence>
+                                </div>
                                 <AnimatePresence mode="wait">
-                                  <motion.span
-                                    key={
-                                      isNetworkListOpen ? "select" : "network"
-                                    }
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className={classNames(
-                                      "font-medium text-text-body",
-                                      isNetworkListOpen
-                                        ? "text-base dark:text-white"
-                                        : "dark:text-white/80",
-                                    )}
-                                  >
-                                    {isNetworkListOpen
-                                      ? "Select network"
-                                      : "Network"}
-                                  </motion.span>
+                                  {!isNetworkListOpen && (
+                                    <motion.div
+                                      initial={{ x: -10, opacity: 0 }}
+                                      animate={{ x: 0, opacity: 1 }}
+                                      exit={{ x: -10, opacity: 0 }}
+                                      transition={{ duration: 0.2 }}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <Image
+                                        src={selectedNetwork.imageUrl}
+                                        alt={selectedNetwork.chain.name}
+                                        width={16}
+                                        height={16}
+                                        className="size-4"
+                                      />
+                                      <span className="text-text-body dark:text-white">
+                                        {selectedNetwork.chain.name}
+                                      </span>
+                                      <ArrowDown01Icon className="size-4 text-outline-gray transition-transform dark:text-white/50" />
+                                    </motion.div>
+                                  )}
                                 </AnimatePresence>
-                                <HelpCircleIcon
-                                  className="size-4 text-gray-400 dark:text-white/30"
-                                  strokeWidth={2}
-                                />
                               </div>
-                              <AnimatePresence mode="wait">
-                                {!isNetworkListOpen && (
+
+                              <AnimatePresence>
+                                {isNetworkListOpen && (
                                   <motion.div
-                                    initial={{ x: -10, opacity: 0 }}
-                                    animate={{ x: 0, opacity: 1 }}
-                                    exit={{ x: -10, opacity: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="flex items-center gap-2"
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="space-y-2 overflow-hidden *:min-h-11"
                                   >
-                                    <Image
-                                      src={selectedNetwork.imageUrl}
-                                      alt={selectedNetwork.chain.name}
-                                      width={16}
-                                      height={16}
-                                      className="size-4"
-                                    />
-                                    <span className="text-text-body dark:text-white">
-                                      {selectedNetwork.chain.name}
-                                    </span>
-                                    <ArrowDown01Icon className="size-4 text-outline-gray transition-transform dark:text-white/50" />
+                                    {networks.map((network) => (
+                                      <button
+                                        type="button"
+                                        key={network.chain.name}
+                                        onClick={() => {
+                                          if (currentStep !== STEPS.FORM) {
+                                            toast.error(
+                                              "Cannot switch networks during an active transaction",
+                                            );
+                                            return;
+                                          }
+                                          setSelectedNetwork(network);
+                                          setIsNetworkListOpen(false);
+                                          toast(
+                                            "Network switched successfully",
+                                            {
+                                              description: `You are now connected to ${network.chain.name} network`,
+                                            },
+                                          );
+                                        }}
+                                        className="flex w-full items-center justify-between"
+                                      >
+                                        <div className="flex items-center gap-2 py-2.5">
+                                          <Image
+                                            src={network.imageUrl}
+                                            alt={network.chain.name}
+                                            width={24}
+                                            height={24}
+                                            className="size-6"
+                                          />
+                                          <span className="text-text-body dark:text-white/80">
+                                            {network.chain.name}
+                                          </span>
+                                        </div>
+                                        {selectedNetwork.chain.name ===
+                                          network.chain.name && (
+                                          <PiCheck
+                                            className="size-5 text-green-900 dark:text-green-500"
+                                            strokeWidth={2}
+                                          />
+                                        )}
+                                      </button>
+                                    ))}
                                   </motion.div>
                                 )}
                               </AnimatePresence>
                             </div>
+                          )}
 
-                            <AnimatePresence>
-                              {isNetworkListOpen && (
-                                <motion.div
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: "auto", opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  className="space-y-2 overflow-hidden *:min-h-11"
-                                >
-                                  {networks.map((network) => (
-                                    <button
-                                      type="button"
-                                      key={network.chain.name}
-                                      onClick={() => {
-                                        if (currentStep !== STEPS.FORM) {
-                                          toast.error(
-                                            "Cannot switch networks during an active transaction",
-                                          );
-                                          return;
-                                        }
-                                        setSelectedNetwork(network);
-                                        setIsNetworkListOpen(false);
-                                        toast("Network switched successfully", {
-                                          description: `You are now connected to ${network.chain.name} network`,
-                                        });
-                                      }}
-                                      className="flex w-full items-center justify-between"
-                                    >
-                                      <div className="flex items-center gap-2 py-2.5">
-                                        <Image
-                                          src={network.imageUrl}
-                                          alt={network.chain.name}
-                                          width={24}
-                                          height={24}
-                                          className="size-6"
-                                        />
-                                        <span className="text-text-body dark:text-white/80">
-                                          {network.chain.name}
-                                        </span>
-                                      </div>
-                                      {selectedNetwork.chain.name ===
-                                        network.chain.name && (
-                                        <PiCheck
-                                          className="size-5 text-green-900 dark:text-green-500"
-                                          strokeWidth={2}
-                                        />
-                                      )}
-                                    </button>
-                                  ))}
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
+                          {isMiniPay && (
+                            <div className="rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-sm text-text-secondary dark:text-white/50">
+                                    Network
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Image
+                                    src="/logos/celo-logo.svg"
+                                    alt="Celo"
+                                    width={16}
+                                    height={16}
+                                    className="size-4"
+                                  />
+                                  <span className="text-text-body dark:text-white">
+                                    Celo
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </motion.div>
                       )}
 
@@ -397,7 +425,7 @@ export const MobileDropdown = ({
                           </div>
 
                           <div className="space-y-2 *:min-h-11">
-                            {user?.email ? (
+                            {!isMiniPay && user?.email ? (
                               <button
                                 type="button"
                                 onClick={updateEmail}
@@ -416,7 +444,7 @@ export const MobileDropdown = ({
                                   <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
                                 </div>
                               </button>
-                            ) : (
+                            ) : !isMiniPay ? (
                               <button
                                 type="button"
                                 onClick={linkEmail}
@@ -430,21 +458,23 @@ export const MobileDropdown = ({
                                 </div>
                                 <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
                               </button>
-                            )}
+                            ) : null}
 
-                            <button
-                              type="button"
-                              onClick={exportWallet}
-                              className="flex w-full items-center justify-between"
-                            >
-                              <div className="flex items-center gap-3">
-                                <AccessIcon className="size-5 text-outline-gray dark:text-white/50" />
-                                <span className="text-text-body dark:text-white/80">
-                                  Export wallet
-                                </span>
-                              </div>
-                              <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                            </button>
+                            {!isMiniPay && (
+                              <button
+                                type="button"
+                                onClick={exportWallet}
+                                className="flex w-full items-center justify-between"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <AccessIcon className="size-5 text-outline-gray dark:text-white/50" />
+                                  <span className="text-text-body dark:text-white/80">
+                                    Export wallet
+                                  </span>
+                                </div>
+                                <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                              </button>
+                            )}
 
                             <a
                               href={config.contactSupportUrl}
@@ -471,24 +501,26 @@ export const MobileDropdown = ({
                               <ThemeSwitch />
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsLoggingOut(true);
-                                logout();
-                              }}
-                              className="flex w-full items-center justify-between"
-                            >
-                              <div className="flex items-center gap-3">
-                                <Logout03Icon className="size-5 text-outline-gray dark:text-white/50" />
-                                <span className="text-text-body dark:text-white/80">
-                                  Sign out
-                                </span>
-                              </div>
-                              {isLoggingOut && (
-                                <ImSpinner className="size-4 animate-spin text-outline-gray" />
-                              )}
-                            </button>
+                            {!isMiniPay && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsLoggingOut(true);
+                                  logout();
+                                }}
+                                className="flex w-full items-center justify-between"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Logout03Icon className="size-5 text-outline-gray dark:text-white/50" />
+                                  <span className="text-text-body dark:text-white/80">
+                                    Sign out
+                                  </span>
+                                </div>
+                                {isLoggingOut && (
+                                  <ImSpinner className="size-4 animate-spin text-outline-gray" />
+                                )}
+                              </button>
+                            )}
                           </div>
                         </motion.div>
                       )}

@@ -10,7 +10,9 @@ import { fetchWalletBalance } from "../utils";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, createWalletClient, custom, http } from "viem";
+import { celo } from "viem/chains";
+import { useMiniPay } from "./MiniPayContext";
 
 interface WalletBalances {
   total: number;
@@ -20,9 +22,11 @@ interface WalletBalances {
 interface BalanceContextProps {
   smartWalletBalance: WalletBalances | null;
   externalWalletBalance: WalletBalances | null;
+  miniPayBalance: WalletBalances | null;
   allBalances: {
     smartWallet: WalletBalances | null;
     externalWallet: WalletBalances | null;
+    miniPay: WalletBalances | null;
   };
   refreshBalance: () => void;
 }
@@ -36,58 +40,83 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
   const { selectedNetwork } = useNetwork();
+  const { isMiniPay, miniPayAddress, miniPayReady, miniPayProvider } =
+    useMiniPay();
 
   const [smartWalletBalance, setSmartWalletBalance] =
     useState<WalletBalances | null>(null);
   const [externalWalletBalance, setExternalWalletBalance] =
     useState<WalletBalances | null>(null);
+  const [miniPayBalance, setMiniPayBalance] = useState<WalletBalances | null>(
+    null,
+  );
 
   const fetchBalances = async () => {
-    if (!ready || !user) return;
-
-    const smartWalletAccount = user.linkedAccounts.find(
-      (account) => account.type === "smart_wallet",
-    );
-    const externalWalletAccount = wallets.find(
-      (account) => account.connectorType === "injected",
-    );
-
-    await client?.switchChain({
-      id: selectedNetwork.chain.id,
-    });
-
-    await externalWalletAccount?.switchChain(selectedNetwork.chain.id);
-
-    const publicClient = createPublicClient({
-      chain: selectedNetwork.chain,
-      transport: http(),
-    });
-
-    if (smartWalletAccount) {
-      const result = await fetchWalletBalance(
-        publicClient,
-        smartWalletAccount.address,
+    if (ready && !isMiniPay) {
+      const smartWalletAccount = user?.linkedAccounts.find(
+        (account) => account.type === "smart_wallet",
       );
-      setSmartWalletBalance(result);
-    } else {
-      setSmartWalletBalance(null);
-    }
-
-    if (externalWalletAccount) {
-      const result = await fetchWalletBalance(
-        publicClient,
-        externalWalletAccount.address,
+      const externalWalletAccount = wallets.find(
+        (account) => account.connectorType === "injected",
       );
-      setExternalWalletBalance(result);
-    } else {
-      setExternalWalletBalance(null);
+
+      if (client) {
+        await client.switchChain({
+          id: selectedNetwork.chain.id,
+        });
+      }
+
+      await externalWalletAccount?.switchChain(selectedNetwork.chain.id);
+
+      const publicClient = createPublicClient({
+        chain: selectedNetwork.chain,
+        transport: http(),
+      });
+
+      if (smartWalletAccount) {
+        const result = await fetchWalletBalance(
+          publicClient,
+          smartWalletAccount.address,
+        );
+        setSmartWalletBalance(result);
+      } else {
+        setSmartWalletBalance(null);
+      }
+
+      if (externalWalletAccount) {
+        const result = await fetchWalletBalance(
+          publicClient,
+          externalWalletAccount.address,
+        );
+        setExternalWalletBalance(result);
+      } else {
+        setExternalWalletBalance(null);
+      }
+
+      setMiniPayBalance(null);
+    } else if (isMiniPay && miniPayReady && miniPayAddress && miniPayProvider) {
+      try {
+        const publicClient = createPublicClient({
+          chain: celo,
+          transport: http(),
+        });
+
+        const result = await fetchWalletBalance(publicClient, miniPayAddress);
+        setMiniPayBalance(result);
+
+        setSmartWalletBalance(null);
+        setExternalWalletBalance(null);
+      } catch (error) {
+        console.error("Error fetching MiniPay balance:", error);
+        setMiniPayBalance(null);
+      }
     }
   };
 
   useEffect(() => {
     fetchBalances();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, user, selectedNetwork]);
+  }, [ready, user, selectedNetwork, isMiniPay, miniPayReady, miniPayAddress]);
 
   const refreshBalance = () => {
     fetchBalances();
@@ -96,6 +125,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const allBalances = {
     smartWallet: smartWalletBalance,
     externalWallet: externalWalletBalance,
+    miniPay: miniPayBalance,
   };
 
   return (
@@ -103,6 +133,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       value={{
         smartWalletBalance,
         externalWalletBalance,
+        miniPayBalance,
         allBalances,
         refreshBalance,
       }}

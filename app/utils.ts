@@ -126,7 +126,7 @@ export const getExplorerLink = (network: string, txHash: string) => {
     case "Scroll":
       return `https://scrollscan.com/tx/${txHash}`;
     case "Celo":
-      return `https://explorer.celo.org/tx/${txHash}`;
+      return `https://celoscan.io/tx/${txHash}`;
     default:
       return "";
   }
@@ -233,18 +233,25 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
     ],
     Celo: [
       {
-        name: "CELO",
-        symbol: "CELO",
-        decimals: 18,
-        address: "0x471EcE3750Da237f93B8E339c536989b8978a438",
-        imageUrl: "/logos/celo-logo.svg",
+        name: "Tether USD",
+        symbol: "USDT",
+        decimals: 6,
+        address: "0x617f3112bf5397d0467d315cc709ef968d9ba546",
+        imageUrl: "/logos/usdt-logo.svg",
+      },
+      {
+        name: "USD Coin",
+        symbol: "USDC",
+        decimals: 6,
+        address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
+        imageUrl: "/logos/usdc-logo.svg",
       },
       {
         name: "Celo Dollar",
         symbol: "cUSD",
-        decimals: 18,
-        address: "0x765de816845861e75a25fca122bb6898b8b1282a",
-        imageUrl: "/logos/cusd-logo.png",
+        decimals: 6,
+        address: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+        imageUrl: "/logos/celo-logo.svg",
       },
     ],
   };
@@ -359,6 +366,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Polygon: "0xfb411cc6385af50a562afcb441864e9d541cda67",
     Scroll: "0x663c5bfe7d44ba946c2dd4b2d1cf9580319f9338",
     Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
+    Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
   }[network];
 }
 

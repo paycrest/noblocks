@@ -210,6 +210,13 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         address: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
         imageUrl: "/logos/usdt-logo.svg",
       },
+      {
+        name: "cNGN",
+        symbol: "cNGN",
+        decimals: 6,
+        address: "0x52828daa48C1a9A06F37500882b42daf0bE04C3B",
+        imageUrl: "/logos/cngn-logo.png",
+      },
     ],
     Scroll: [
       {

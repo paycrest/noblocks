@@ -152,7 +152,7 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         name: "cNGN",
         symbol: "cNGN",
         decimals: 6,
-        address: "0xC930784d6e14e2FC2A1F49BE1068dc40f24762D3",
+        address: "0x46C85152bFe9f96829aA94755D9f915F9B10EF5F",
         imageUrl: "/logos/cngn-logo.png",
       },
     ],

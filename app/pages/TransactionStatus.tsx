@@ -43,7 +43,7 @@ import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
-import { useBalance, useMiniPay, useNetwork } from "../context";
+import { useBalance, useInjectedWallet, useNetwork } from "../context";
 
 /**
  * Renders the transaction status component.
@@ -71,8 +71,9 @@ export function TransactionStatus({
 }: TransactionStatusProps) {
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
-  const { refreshBalance, smartWalletBalance } = useBalance();
-  const { isMiniPay } = useMiniPay();
+  const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
+    useBalance();
+  const { isInjectedWallet } = useInjectedWallet();
 
   const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
@@ -96,7 +97,7 @@ export function TransactionStatus({
       const getOrderDetails = async () => {
         try {
           const orderDetailsResponse = await fetchOrderDetails(
-            isMiniPay ? 42220 : selectedNetwork.chain.id, // 42220 is Celo mainnet id
+            selectedNetwork.chain.id,
             orderId,
           );
           setOrderDetails(orderDetailsResponse.data);
@@ -154,8 +155,6 @@ export function TransactionStatus({
   // Check if the recipient is saved in the beneficiaries list
   useEffect(
     function checkRecipientInBeneficiaries() {
-      if (isMiniPay) return;
-
       const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
       const isRecipientSaved = savedRecipients.some(
         (r: { accountIdentifier: string; institutionCode: string }) =>
@@ -164,7 +163,7 @@ export function TransactionStatus({
       );
       setAddToBeneficiaries(isRecipientSaved);
     },
-    [formMethods, isMiniPay],
+    [formMethods],
   );
 
   useEffect(
@@ -176,14 +175,19 @@ export function TransactionStatus({
           supportedInstitutions,
         );
 
+        const balance = isInjectedWallet
+          ? smartWalletBalance?.balances[token] || 0
+          : injectedWalletBalance?.balances[token] || 0;
+
         const eventData = {
           Amount: amount,
           "Send token": token,
           "Receive currency": currency,
           "Recipient bank": bankName,
-          "Noblocks balance": smartWalletBalance?.balances[token] || 0,
+          "Wallet balance": balance,
           "Swap date": createdAt,
           "Transaction duration": calculateDuration(createdAt, completedAt),
+          "Wallet type": isInjectedWallet ? "Injected" : "Smart wallet",
         };
 
         if (["validated", "settled"].includes(transactionStatus)) {
@@ -535,46 +539,45 @@ export function TransactionStatus({
                       : "New payment"}
                   </button>
                 </AnimatedComponent>
-                {["validated", "settled"].includes(transactionStatus) &&
-                  !isMiniPay && (
-                    <div className="flex gap-2">
-                      <Checkbox
-                        checked={addToBeneficiaries}
-                        onChange={handleAddToBeneficiariesChange}
-                        className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
+                {["validated", "settled"].includes(transactionStatus) && (
+                  <div className="flex gap-2">
+                    <Checkbox
+                      checked={addToBeneficiaries}
+                      onChange={handleAddToBeneficiariesChange}
+                      className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
+                    >
+                      <svg
+                        className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
+                        viewBox="0 0 14 14"
+                        fill="none"
                       >
-                        <svg
-                          className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
-                          viewBox="0 0 14 14"
-                          fill="none"
-                        >
-                          <title>
-                            {addToBeneficiaries
-                              ? "Remove from beneficiaries"
-                              : "Add to beneficiaries"}
-                          </title>
-                          <path
-                            d="M3 8L6 11L11 3.5"
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </Checkbox>
-                      <label className="text-text-body dark:text-white/80">
-                        Add{" "}
-                        {(recipientName ?? "")
+                        <title>
+                          {addToBeneficiaries
+                            ? "Remove from beneficiaries"
+                            : "Add to beneficiaries"}
+                        </title>
+                        <path
+                          d="M3 8L6 11L11 3.5"
+                          strokeWidth={2}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </Checkbox>
+                    <label className="text-text-body dark:text-white/80">
+                      Add{" "}
+                      {(recipientName ?? "")
+                        .split(" ")[0]
+                        .charAt(0)
+                        .toUpperCase() +
+                        (recipientName ?? "")
+                          .toLowerCase()
                           .split(" ")[0]
-                          .charAt(0)
-                          .toUpperCase() +
-                          (recipientName ?? "")
-                            .toLowerCase()
-                            .split(" ")[0]
-                            .slice(1)}{" "}
-                        to beneficiaries
-                      </label>
-                    </div>
-                  )}
+                          .slice(1)}{" "}
+                      to beneficiaries
+                    </label>
+                  </div>
+                )}
               </>
             )}
           </AnimatePresence>
@@ -624,7 +627,7 @@ export function TransactionStatus({
                   <p className="flex-1">
                     <a
                       href={getExplorerLink(
-                        isMiniPay ? "Celo" : selectedNetwork.chain.name,
+                        selectedNetwork.chain.name,
                         `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
                       )}
                       className="text-lavender-500 hover:underline dark:text-lavender-500"

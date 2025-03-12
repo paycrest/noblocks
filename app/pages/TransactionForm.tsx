@@ -21,13 +21,11 @@ import {
   fetchSupportedTokens,
   formatNumberWithCommas,
 } from "../utils";
-import { useNetwork } from "../context/NetworksContext";
-import { useBalance } from "../context/BalanceContext";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus, fetchRate } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
-import { useMiniPay } from "../context";
+import { useBalance, useInjectedWallet, useNetwork } from "../context";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -48,8 +46,8 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, miniPayBalance } = useBalance();
-  const { isMiniPay, miniPayAddress } = useMiniPay();
+  const { smartWalletBalance, injectedWalletBalance } = useBalance();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -70,11 +68,13 @@ export const TransactionForm = ({
   } = formMethods;
   const { amountSent, amountReceived, token, currency } = watch();
 
-  const activeWallet = isMiniPay
-    ? { address: miniPayAddress }
+  const activeWallet = isInjectedWallet
+    ? { address: injectedAddress }
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
-  const activeBalance = isMiniPay ? miniPayBalance : smartWalletBalance;
+  const activeBalance = isInjectedWallet
+    ? injectedWalletBalance
+    : smartWalletBalance;
 
   const balance = activeBalance?.balances[token] ?? 0;
 
@@ -88,7 +88,7 @@ export const TransactionForm = ({
   };
 
   const fetchedTokens: Token[] =
-    fetchSupportedTokens(isMiniPay ? "Celo" : selectedNetwork.chain.name) || [];
+    fetchSupportedTokens(selectedNetwork.chain.name) || [];
 
   const tokens = fetchedTokens.map((token) => ({
     name: token.symbol,
@@ -131,8 +131,8 @@ export const TransactionForm = ({
 
   useEffect(
     function checkKycStatus() {
-      const walletAddressToCheck = isMiniPay
-        ? miniPayAddress
+      const walletAddressToCheck = isInjectedWallet
+        ? injectedAddress
         : embeddedWalletAddress;
       if (!walletAddressToCheck) return;
 
@@ -158,7 +158,7 @@ export const TransactionForm = ({
 
       fetchStatus();
     },
-    [embeddedWalletAddress, miniPayAddress, isMiniPay],
+    [embeddedWalletAddress, injectedAddress, isInjectedWallet],
   );
 
   useEffect(
@@ -277,24 +277,12 @@ export const TransactionForm = ({
     [token, currency, formMethods],
   );
 
-  useEffect(
-    function ensureDefaultToken() {
-      if (isMiniPay) {
-        formMethods.reset({ token: "cUSD" });
-      } else if (!formMethods.getValues("token")) {
-        formMethods.reset({ token: "USDC" });
-      }
-    },
-    [formMethods, isMiniPay],
-  );
-
   const { isEnabled, buttonText, buttonAction } = useSwapButton({
     watch,
     balance,
     isDirty,
     isValid,
     isUserVerified,
-    isMiniPay,
   });
 
   const handleSwap = () => {
@@ -696,7 +684,7 @@ export const TransactionForm = ({
         </AnimatePresence>
       </form>
 
-      {!isMiniPay && (
+      {!isInjectedWallet && (
         <FundWalletModal
           isOpen={isFundModalOpen}
           onClose={() => setIsFundModalOpen(false)}

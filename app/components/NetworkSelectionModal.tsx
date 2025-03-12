@@ -9,6 +9,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { networks } from "../mocks";
 import { useNetwork } from "../context/NetworksContext";
 import { AnimatedModal } from "./AnimatedComponents";
+import { shouldUseInjectedWallet, handleNetworkSwitch } from "../utils";
 
 export const NetworkSelectionModal = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -16,6 +17,8 @@ export const NetworkSelectionModal = () => {
   const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { authenticated, user } = usePrivy();
+  const searchParams = new URLSearchParams(window.location.search);
+  const useInjectedWallet = shouldUseInjectedWallet(searchParams);
 
   useEffect(() => {
     if (!hasCheckedStorage && authenticated && user?.wallet?.address) {
@@ -35,6 +38,22 @@ export const NetworkSelectionModal = () => {
       localStorage.setItem(storageKey, "true");
     }
     setIsOpen(false);
+  };
+
+  const handleNetworkSelect = async (networkName: string) => {
+    const newNetwork = networks.find((net) => net.chain.name === networkName);
+    if (newNetwork) {
+      handleNetworkSwitch(
+        newNetwork,
+        useInjectedWallet,
+        setSelectedNetwork,
+        handleClose,
+        (error) => {
+          console.error("Failed to switch network:", error);
+          setSelectedNetwork(selectedNetwork);
+        },
+      );
+    }
   };
 
   if (!authenticated) return null;
@@ -82,10 +101,7 @@ export const NetworkSelectionModal = () => {
                     key={network.chain.name}
                     type="button"
                     aria-label={`Select ${network.chain.name} network`}
-                    onClick={() => {
-                      setSelectedNetwork(network);
-                      handleClose();
-                    }}
+                    onClick={() => handleNetworkSelect(network.chain.name)}
                     className="flex w-full items-center justify-between rounded-xl p-3 max-sm:bg-background-neutral max-sm:dark:bg-white/5 sm:hover:bg-background-neutral sm:dark:hover:bg-white/5"
                   >
                     <div className="flex items-center gap-3">

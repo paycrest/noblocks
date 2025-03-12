@@ -1,8 +1,9 @@
 import JSEncrypt from "jsencrypt";
-import type { InstitutionProps, Token } from "./types";
+import type { InstitutionProps, Network, Token } from "./types";
 import { erc20Abi } from "viem";
 import { colors } from "./mocks";
 import { fetchRate } from "./api/aggregator";
+import { toast } from "sonner";
 
 /**
  * Concatenates and returns a string of class names.
@@ -125,8 +126,6 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://optimistic.etherscan.io/tx/${txHash}`;
     case "Scroll":
       return `https://scrollscan.com/tx/${txHash}`;
-    case "Celo":
-      return `https://celoscan.io/tx/${txHash}`;
     default:
       return "";
   }
@@ -229,29 +228,6 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         decimals: 6,
         address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
         imageUrl: "/logos/usdc-logo.svg",
-      },
-    ],
-    Celo: [
-      {
-        name: "Tether USD",
-        symbol: "USDT",
-        decimals: 6,
-        address: "0x617f3112bf5397d0467d315cc709ef968d9ba546",
-        imageUrl: "/logos/usdt-logo.svg",
-      },
-      {
-        name: "USD Coin",
-        symbol: "USDC",
-        decimals: 6,
-        address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
-        imageUrl: "/logos/usdc-logo.svg",
-      },
-      {
-        name: "Celo Dollar",
-        symbol: "cUSD",
-        decimals: 6,
-        address: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
-        imageUrl: "/logos/celo-logo.svg",
       },
     ],
   };
@@ -366,7 +342,6 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Polygon: "0xfb411cc6385af50a562afcb441864e9d541cda67",
     Scroll: "0x663c5bfe7d44ba946c2dd4b2d1cf9580319f9338",
     Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
-    Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
   }[network];
 }
 
@@ -423,6 +398,19 @@ export function clearFormState(formMethods: any) {
 }
 
 /**
+ * Determines if the app should use an injected wallet.
+ *
+ * @param searchParams - The URL search parameters to check for the 'injected' flag
+ * @returns boolean indicating whether to use injected wallet
+ */
+export function shouldUseInjectedWallet(
+  searchParams: URLSearchParams,
+): boolean {
+  const injectedParam = searchParams.get("injected");
+  return Boolean(injectedParam === "true" && window.ethereum);
+}
+
+/**
  * Generates a random color based on the provided name.
  *
  * @param name - The name of the recipient to generate a color for.
@@ -444,3 +432,126 @@ export const getRandomColor = (name: string) => {
 export const IS_MAIN_PRODUCTION_DOMAIN =
   typeof window !== "undefined" &&
   /^(?:www\.)?noblocks\.xyz$/.test(window.location.hostname);
+
+/**
+ * Detects the current injected wallet provider.
+ * @returns The name of the detected wallet provider or "Injected Wallet" if unknown
+ */
+export function detectWalletProvider(): string {
+  if (typeof window === "undefined" || !window.ethereum) {
+    return "Injected Wallet";
+  }
+
+  const ethereum = window.ethereum;
+
+  switch (true) {
+    case ethereum.isMetaMask:
+      return "MetaMask";
+    case ethereum.isCoinbaseWallet:
+      return "Coinbase Wallet";
+    case ethereum.isTrust:
+      return "Trust Wallet";
+    case ethereum.isBraveWallet:
+      return "Brave Wallet";
+    case ethereum.isBitKeep:
+      return "BitKeep Wallet";
+    case ethereum.isTokenPocket:
+      return "TokenPocket";
+    case ethereum.isOneInchIOSWallet || ethereum.isOneInchAndroidWallet:
+      return "1inch Wallet";
+    case ethereum.isMiniPay:
+      return "MiniPay";
+    default:
+      return "Injected Wallet";
+  }
+}
+
+/**
+ * Converts a number to a "0x" prefixed hex string.
+ * @param num - The number to convert
+ * @returns A "0x" prefixed hex string
+ * @throws Error if num is undefined or not a number
+ */
+function toHex(num: number | undefined): string {
+  if (typeof num !== "number") {
+    throw new Error(`Invalid chain ID: ${num}`);
+  }
+  return `0x${num.toString(16)}`;
+}
+
+/**
+ * Gets the network parameters for adding a new chain
+ */
+function getAddChainParameters(network: Network) {
+  const { chain } = network;
+  return {
+    chainId: toHex(chain.id),
+    chainName: chain.name,
+    nativeCurrency: chain.nativeCurrency,
+    rpcUrls: [chain.rpcUrls.default.http[0]],
+    blockExplorerUrls: [chain.blockExplorers?.default.url],
+  };
+}
+
+/**
+ * Handles network switching logic for both injected and non-injected wallets.
+ *
+ * @param network - The network object to switch to.
+ * @param useInjectedWallet - Boolean indicating if an injected wallet is being used.
+ * @param setSelectedNetwork - Function to update the selected network state.
+ * @param onSuccess - Callback function to execute on successful network switch.
+ * @param onError - Callback function to execute on network switch failure.
+ */
+export const handleNetworkSwitch = async (
+  network: Network,
+  useInjectedWallet: boolean,
+  setSelectedNetwork: (network: Network) => void,
+  onSuccess: () => void,
+  onError: (error: Error) => void,
+) => {
+  if (useInjectedWallet && window.ethereum) {
+    if (!network.chain?.id) {
+      throw new Error(`Missing chainId for network: ${network.chain?.name}`);
+    }
+
+    const chainId = toHex(network.chain.id);
+
+    try {
+      toast.promise(
+        (async () => {
+          try {
+            // First try to switch to the network
+            await window.ethereum.request({
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId }],
+            });
+          } catch (switchError: any) {
+            // This error code indicates that the chain has not been added to MetaMask.
+            if (switchError.code === 4902) {
+              await window.ethereum.request({
+                method: "wallet_addEthereumChain",
+                params: [getAddChainParameters(network)],
+              });
+            } else {
+              throw switchError;
+            }
+          }
+        })(),
+        {
+          loading: `Switching to ${network.chain.name}...`,
+          success: `Successfully switched to ${network.chain.name}`,
+          error: (err) => err.message,
+        },
+      );
+
+      setSelectedNetwork(network);
+      onSuccess();
+    } catch (error) {
+      console.error("Network switch error:", error);
+      onError(error as Error);
+    }
+  } else {
+    setSelectedNetwork(network);
+    onSuccess();
+  }
+};

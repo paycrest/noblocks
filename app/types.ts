@@ -237,3 +237,8 @@ export type Config = {
   hotjarSiteId: number;
   contactSupportUrl: string;
 };
+
+export type Network = {
+  chain: any;
+  imageUrl: string;
+};

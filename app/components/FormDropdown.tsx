@@ -33,7 +33,6 @@ export const FormDropdown = ({
           id="dropdown"
           aria-label="Toggle dropdown"
           aria-haspopup="true"
-          aria-expanded={isOpen}
           type="button"
           onClick={toggleDropdown}
           className={classNames(
@@ -53,7 +52,7 @@ export const FormDropdown = ({
                 src={selectedItem?.imageUrl ?? ""}
                 width={24}
                 height={24}
-                className="size-6 object-contain"
+                className="size-6 rounded-full object-contain"
               />
               <p className="text-sm font-medium text-text-body dark:text-white">
                 {selectedItem?.name}

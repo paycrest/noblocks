@@ -2,7 +2,6 @@
 import { useForm } from "react-hook-form";
 import { useEffect, useState, useRef, Suspense, JSX } from "react";
 import { AnimatePresence } from "framer-motion";
-import Cookies from "js-cookie";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -28,8 +27,7 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "./context/StepContext";
 import { clearFormState } from "./utils";
-import { useNetwork } from "./context/NetworksContext";
-import { useMiniPay } from "./context/MiniPayContext";
+import { useInjectedWallet } from "./context/InjectedWalletContext";
 
 /**
  * Represents the Home component.
@@ -38,7 +36,7 @@ import { useMiniPay } from "./context/MiniPayContext";
 function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   const { authenticated, ready } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
-  const { isMiniPay, miniPayReady } = useMiniPay();
+  const { isInjectedWallet, injectedReady } = useInjectedWallet();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -101,14 +99,14 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
 
   useEffect(
     function resetOnLogout() {
-      // Reset form if user logs out (but not for MiniPay)
-      if (!authenticated && !isMiniPay) {
+      // Reset form if user logs out (but not for injected wallet)
+      if (!authenticated && !isInjectedWallet) {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [authenticated, isMiniPay],
+    [authenticated, isInjectedWallet],
   );
 
   useEffect(function ensureDefaultToken() {
@@ -170,23 +168,13 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
               ? lpParam
               : undefined;
 
-          if (isMiniPay && (token === "CELO" || token === "cUSD")) {
-            const usdtRate = await fetchRate({
-              token: "USDT",
-              amount: amountSent || 1,
-              currency,
-            });
-
-            setRate(usdtRate.data);
-          } else {
-            const rate = await fetchRate({
-              token,
-              amount: amountSent || 1,
-              currency,
-              providerId,
-            });
-            setRate(rate.data);
-          }
+          const rate = await fetchRate({
+            token,
+            amount: amountSent || 1,
+            currency,
+            providerId,
+          });
+          setRate(rate.data);
         } catch (error) {
           if (error instanceof Error) {
             const lpParam =
@@ -226,7 +214,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
         clearTimeout(timeoutId);
       };
     },
-    [amountSent, currency, token, searchParams, isMiniPay],
+    [amountSent, currency, token, searchParams],
   );
 
   const handleFormSubmit = (data: FormData) => {
@@ -257,7 +245,9 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   };
 
   const showLoading =
-    isPageLoading || (!ready && !isMiniPay) || (isMiniPay && !miniPayReady);
+    isPageLoading ||
+    (!ready && !isInjectedWallet) ||
+    (isInjectedWallet && !injectedReady);
 
   const renderStep = () => {
     switch (currentStep) {
@@ -310,7 +300,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
         <>
           <Disclaimer />
           <CookieConsent />
-          {!isMiniPay && <NetworkSelectionModal />}
+          {!isInjectedWallet && <NetworkSelectionModal />}
 
           <AnimatePresence mode="wait">
             <AnimatedPage componentKey={currentStep}>

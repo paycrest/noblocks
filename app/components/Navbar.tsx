@@ -24,7 +24,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { MobileDropdown } from "./MobileDropdown";
 import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
-import { useMiniPay } from "../context";
+import { useInjectedWallet } from "../context";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -33,12 +33,12 @@ export const Navbar = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { selectedNetwork } = useNetwork();
-  const { isMiniPay, miniPayAddress } = useMiniPay();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   const { ready, authenticated, user } = usePrivy();
 
-  const activeWallet = isMiniPay
-    ? { address: miniPayAddress, type: "injected_wallet" }
+  const activeWallet = isInjectedWallet
+    ? { address: injectedAddress, type: "injected_wallet" }
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
   const { login } = useLogin({
@@ -173,17 +173,15 @@ export const Navbar = () => {
         </div>
 
         <div className="flex gap-3 text-sm font-medium *:flex-shrink-0 sm:gap-4">
-          {(ready && authenticated) || isMiniPay ? (
+          {(ready && authenticated) || isInjectedWallet ? (
             <>
               <div className="hidden sm:block">
                 <WalletDetails />
               </div>
 
-              {!isMiniPay && (
-                <div className="hidden sm:block">
-                  <NetworksDropdown />
-                </div>
-              )}
+              <div className="hidden sm:block">
+                <NetworksDropdown />
+              </div>
 
               <div className="hidden sm:block">
                 <SettingsDropdown />
@@ -195,12 +193,8 @@ export const Navbar = () => {
                 onClick={() => setIsMobileDropdownOpen(true)}
               >
                 <Image
-                  src={
-                    isMiniPay
-                      ? "/logos/celo-logo.svg"
-                      : selectedNetwork.imageUrl
-                  }
-                  alt={isMiniPay ? "Celo" : selectedNetwork.chain.name}
+                  src={selectedNetwork.imageUrl}
+                  alt={selectedNetwork.chain.name}
                   width={20}
                   height={20}
                   className="size-5 rounded-full"
@@ -219,17 +213,15 @@ export const Navbar = () => {
               </AnimatePresence>
             </>
           ) : (
-            <>
-              {!isMiniPay && (
-                <button
-                  type="button"
-                  className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}
-                  onClick={() => login()}
-                >
-                  Sign in
-                </button>
-              )}
-            </>
+            !isInjectedWallet && (
+              <button
+                type="button"
+                className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}
+                onClick={() => login()}
+              >
+                Sign in
+              </button>
+            )
           )}
         </div>
       </nav>

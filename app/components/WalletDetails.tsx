@@ -3,7 +3,12 @@ import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { useOutsideClick } from "../hooks";
-import { classNames, fetchSupportedTokens, formatCurrency } from "../utils";
+import {
+  classNames,
+  fetchSupportedTokens,
+  formatCurrency,
+  detectWalletProvider,
+} from "../utils";
 import { useBalance } from "../context/BalanceContext";
 import { dropdownVariants } from "./AnimatedComponents";
 import { usePrivy } from "@privy-io/react-auth";
@@ -14,7 +19,7 @@ import { ArrowDown01Icon, Wallet01Icon } from "hugeicons-react";
 import Image from "next/image";
 import { FundWalletModal } from "./FundWalletModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
-import { useMiniPay } from "../context";
+import { useInjectedWallet } from "../context";
 
 export const WalletDetails = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -24,18 +29,18 @@ export const WalletDetails = () => {
 
   const { selectedNetwork } = useNetwork();
   const { allBalances } = useBalance();
-  const { isMiniPay, miniPayAddress } = useMiniPay();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   const { user } = usePrivy();
 
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
 
-  const activeWallet = isMiniPay
-    ? { address: miniPayAddress }
+  const activeWallet = isInjectedWallet
+    ? { address: injectedAddress }
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
-  const activeBalance = isMiniPay
-    ? allBalances.miniPay
+  const activeBalance = isInjectedWallet
+    ? allBalances.injectedWallet
     : allBalances.smartWallet;
 
   const handleFundWalletClick = async (
@@ -53,7 +58,7 @@ export const WalletDetails = () => {
 
   const tokens: { name: string; imageUrl: string | undefined }[] = [];
   const fetchedTokens: Token[] =
-    fetchSupportedTokens(isMiniPay ? "Celo" : selectedNetwork.chain.name) || [];
+    fetchSupportedTokens(selectedNetwork.chain.name) || [];
   for (const token of fetchedTokens) {
     tokens.push({
       name: token.symbol,
@@ -111,7 +116,9 @@ export const WalletDetails = () => {
                   >
                     <div className="flex items-center justify-between">
                       <h3 className="font-light text-gray-500 dark:text-white/50">
-                        {isMiniPay ? "MiniPay Wallet" : "Noblocks Wallet"}
+                        {isInjectedWallet
+                          ? detectWalletProvider()
+                          : "Noblocks Wallet"}
                       </h3>
                     </div>
 
@@ -141,7 +148,7 @@ export const WalletDetails = () => {
                       )}
                     </ul>
 
-                    {!isMiniPay && (
+                    {!isInjectedWallet && (
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
@@ -190,7 +197,7 @@ export const WalletDetails = () => {
         </AnimatePresence>
       </div>
 
-      {!isMiniPay && (
+      {!isInjectedWallet && (
         <>
           <TransferModal
             isOpen={isTransferModalOpen}

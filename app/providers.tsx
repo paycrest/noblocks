@@ -11,7 +11,7 @@ import { darkModeConfig, lightModeConfig } from "./lib/privy-config";
 import config from "./lib/config";
 import {
   BalanceProvider,
-  MiniPayProvider,
+  InjectedWalletProvider,
   NetworkProvider,
   StepProvider,
 } from "./context";
@@ -79,11 +79,11 @@ function PrivyConfigWrapper({
 function ContextProviders({ children }: { children: ReactNode }) {
   return (
     <NetworkProvider>
-      <MiniPayProvider>
+      <InjectedWalletProvider>
         <StepProvider>
           <BalanceProvider>{children}</BalanceProvider>
         </StepProvider>
-      </MiniPayProvider>
+      </InjectedWalletProvider>
     </NetworkProvider>
   );
 }

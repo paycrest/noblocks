@@ -1,5 +1,6 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { UseFormWatch } from "react-hook-form";
+import { useInjectedWallet } from "../context";
 
 interface UseSwapButtonProps {
   watch: UseFormWatch<any>;
@@ -7,7 +8,6 @@ interface UseSwapButtonProps {
   isDirty: boolean;
   isValid: boolean;
   isUserVerified: boolean;
-  isMiniPay?: boolean;
 }
 
 export function useSwapButton({
@@ -16,9 +16,9 @@ export function useSwapButton({
   isDirty,
   isValid,
   isUserVerified,
-  isMiniPay = false,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
+  const { isInjectedWallet } = useInjectedWallet();
   const { amountSent, currency, recipientName } = watch();
 
   const isAmountValid = Number(amountSent) >= 0.5;
@@ -27,24 +27,17 @@ export function useSwapButton({
   const hasInsufficientBalance = amountSent > balance;
 
   const isEnabled = (() => {
-    if (isMiniPay && hasInsufficientBalance) {
+    if (isInjectedWallet && hasInsufficientBalance) {
       return false;
     }
 
-    if (hasInsufficientBalance && !isMiniPay && authenticated) {
+    if (hasInsufficientBalance && !isInjectedWallet && authenticated) {
       return true;
-    }
-
-    if (isMiniPay) {
-      if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
-        return false;
-      }
-      return Boolean(recipientName);
     }
 
     if (
       !isUserVerified &&
-      authenticated &&
+      (authenticated || isInjectedWallet) &&
       amountSent > 0 &&
       isCurrencySelected &&
       isAmountValid &&
@@ -53,11 +46,18 @@ export function useSwapButton({
       return true;
     }
 
+    if (isInjectedWallet) {
+      if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
+        return false;
+      }
+      return Boolean(recipientName);
+    }
+
     if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
       return false;
     }
 
-    if (!authenticated) {
+    if (!authenticated && !isInjectedWallet) {
       return true; // Enable for login if amount and currency are valid
     }
 
@@ -65,15 +65,19 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
-    if (isMiniPay && hasInsufficientBalance) {
+    if (isInjectedWallet && hasInsufficientBalance) {
       return "Insufficient balance";
     }
 
-    if (authenticated && hasInsufficientBalance && !isMiniPay) {
+    if (authenticated && hasInsufficientBalance && !isInjectedWallet) {
       return "Fund wallet";
     }
 
-    if (!isUserVerified && authenticated && amountSent > 0) {
+    if (
+      !isUserVerified &&
+      (authenticated || isInjectedWallet) &&
+      amountSent > 0
+    ) {
       return "Get started";
     }
 
@@ -87,10 +91,10 @@ export function useSwapButton({
     setIsKycModalOpen: () => void,
     isUserVerified: boolean,
   ) => {
-    if (!authenticated && !isMiniPay) {
+    if (!authenticated && !isInjectedWallet) {
       return login;
     }
-    if (hasInsufficientBalance && !isMiniPay && authenticated) {
+    if (hasInsufficientBalance && !isInjectedWallet && authenticated) {
       return handleFundWallet;
     }
     if (!isUserVerified && authenticated) {

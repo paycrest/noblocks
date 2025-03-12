@@ -10,9 +10,8 @@ import { fetchWalletBalance } from "../utils";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-import { createPublicClient, createWalletClient, custom, http } from "viem";
-import { celo } from "viem/chains";
-import { useMiniPay } from "./MiniPayContext";
+import { createPublicClient, http } from "viem";
+import { useInjectedWallet } from "./InjectedWalletContext";
 
 interface WalletBalances {
   total: number;
@@ -22,11 +21,11 @@ interface WalletBalances {
 interface BalanceContextProps {
   smartWalletBalance: WalletBalances | null;
   externalWalletBalance: WalletBalances | null;
-  miniPayBalance: WalletBalances | null;
+  injectedWalletBalance: WalletBalances | null;
   allBalances: {
     smartWallet: WalletBalances | null;
     externalWallet: WalletBalances | null;
-    miniPay: WalletBalances | null;
+    injectedWallet: WalletBalances | null;
   };
   refreshBalance: () => void;
 }
@@ -40,19 +39,18 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
   const { selectedNetwork } = useNetwork();
-  const { isMiniPay, miniPayAddress, miniPayReady, miniPayProvider } =
-    useMiniPay();
+  const { isInjectedWallet, injectedAddress, injectedReady, injectedProvider } =
+    useInjectedWallet();
 
   const [smartWalletBalance, setSmartWalletBalance] =
     useState<WalletBalances | null>(null);
   const [externalWalletBalance, setExternalWalletBalance] =
     useState<WalletBalances | null>(null);
-  const [miniPayBalance, setMiniPayBalance] = useState<WalletBalances | null>(
-    null,
-  );
+  const [injectedWalletBalance, setInjectedWalletBalance] =
+    useState<WalletBalances | null>(null);
 
   const fetchBalances = async () => {
-    if (ready && !isMiniPay) {
+    if (ready && !isInjectedWallet) {
       const smartWalletAccount = user?.linkedAccounts.find(
         (account) => account.type === "smart_wallet",
       );
@@ -93,22 +91,28 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         setExternalWalletBalance(null);
       }
 
-      setMiniPayBalance(null);
-    } else if (isMiniPay && miniPayReady && miniPayAddress && miniPayProvider) {
+      setInjectedWalletBalance(null);
+    } else if (
+      isInjectedWallet &&
+      injectedReady &&
+      injectedAddress &&
+      injectedProvider
+    ) {
       try {
+        // Create a public client for the injected provider's chain
         const publicClient = createPublicClient({
-          chain: celo,
+          chain: selectedNetwork.chain,
           transport: http(),
         });
 
-        const result = await fetchWalletBalance(publicClient, miniPayAddress);
-        setMiniPayBalance(result);
+        const result = await fetchWalletBalance(publicClient, injectedAddress);
+        setInjectedWalletBalance(result);
 
         setSmartWalletBalance(null);
         setExternalWalletBalance(null);
       } catch (error) {
-        console.error("Error fetching MiniPay balance:", error);
-        setMiniPayBalance(null);
+        console.error("Error fetching injected wallet balance:", error);
+        setInjectedWalletBalance(null);
       }
     }
   };
@@ -116,7 +120,14 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   useEffect(() => {
     fetchBalances();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, user, selectedNetwork, isMiniPay, miniPayReady, miniPayAddress]);
+  }, [
+    ready,
+    user,
+    selectedNetwork,
+    isInjectedWallet,
+    injectedReady,
+    injectedAddress,
+  ]);
 
   const refreshBalance = () => {
     fetchBalances();
@@ -125,7 +136,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const allBalances = {
     smartWallet: smartWalletBalance,
     externalWallet: externalWalletBalance,
-    miniPay: miniPayBalance,
+    injectedWallet: injectedWalletBalance,
   };
 
   return (
@@ -133,7 +144,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       value={{
         smartWalletBalance,
         externalWalletBalance,
-        miniPayBalance,
+        injectedWalletBalance,
         allBalances,
         refreshBalance,
       }}

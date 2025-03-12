@@ -18,12 +18,12 @@ import {
 } from "hugeicons-react";
 import { toast } from "sonner";
 import config from "@/app/lib/config";
-import { useMiniPay } from "../context/MiniPayContext";
+import { useInjectedWallet } from "../context";
 
 export const SettingsDropdown = () => {
   const { user, exportWallet, updateEmail } = usePrivy();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const { isMiniPay, miniPayAddress } = useMiniPay();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -34,8 +34,8 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
-  const walletAddress = isMiniPay
-    ? miniPayAddress
+  const walletAddress = isInjectedWallet
+    ? injectedAddress
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
         ?.address;
 
@@ -128,7 +128,7 @@ export const SettingsDropdown = () => {
                   )}
                 </button>
               </li>
-              {!isMiniPay &&
+              {!isInjectedWallet &&
                 (user?.email ? (
                   <li
                     role="menuitem"
@@ -165,7 +165,7 @@ export const SettingsDropdown = () => {
                     </button>
                   </li>
                 ))}
-              {!isMiniPay && (
+              {!isInjectedWallet && (
                 <li
                   role="menuitem"
                   className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
@@ -189,7 +189,7 @@ export const SettingsDropdown = () => {
                   <p>Contact support</p>
                 </a>
               </li>
-              {!isMiniPay && (
+              {!isInjectedWallet && (
                 <li
                   role="menuitem"
                   className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"

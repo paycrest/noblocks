@@ -30,15 +30,12 @@ import {
   createPublicClient,
   http,
 } from "viem";
-import { useBalance } from "../context/BalanceContext";
-import { useMiniPay } from "../context";
+import { useBalance, useInjectedWallet, useStep } from "../context";
 
 import { fetchAggregatorPublicKey } from "../api/aggregator";
-import { useStep } from "../context/StepContext";
 import { trackEvent } from "../hooks/analytics";
 import { ImSpinner } from "react-icons/im";
 import { InformationSquareIcon } from "hugeicons-react";
-import { celo } from "viem/chains";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -53,12 +50,13 @@ export const TransactionPreview = ({
 }: TransactionPreviewProps) => {
   const { user } = usePrivy();
   const { client } = useSmartWallets();
-  const { isMiniPay, miniPayAddress, miniPayProvider, miniPayReady } =
-    useMiniPay();
+  const { isInjectedWallet, injectedAddress, injectedProvider, injectedReady } =
+    useInjectedWallet();
 
   const { selectedNetwork } = useNetwork();
   const { currentStep, setCurrentStep } = useStep();
-  const { refreshBalance, smartWalletBalance } = useBalance();
+  const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
+    useBalance();
 
   const {
     rate,
@@ -99,11 +97,11 @@ export const TransactionPreview = ({
       .join(" "),
     account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
     ...(memo && { description: memo }),
-    network: isMiniPay ? "Celo" : selectedNetwork.chain.name,
+    network: selectedNetwork.chain.name,
   };
 
   const fetchedTokens: Token[] =
-    fetchSupportedTokens(isMiniPay ? "Celo" : selectedNetwork.chain.name) || [];
+    fetchSupportedTokens(selectedNetwork.chain.name) || [];
 
   const tokenAddress = fetchedTokens.find(
     (t) => t.symbol.toUpperCase() === token.toUpperCase(),
@@ -113,15 +111,19 @@ export const TransactionPreview = ({
     (t) => t.symbol.toUpperCase() === token.toUpperCase(),
   )?.decimals;
 
-  const injectedWallet = isMiniPay
-    ? { address: miniPayAddress, type: "injected_wallet" }
+  const injectedWallet = isInjectedWallet
+    ? { address: injectedAddress, type: "injected_wallet" }
     : null;
 
-  const smartWallet = isMiniPay
+  const smartWallet = isInjectedWallet
     ? null
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
   const activeWallet = injectedWallet || smartWallet;
+
+  const balance = injectedWallet
+    ? injectedWalletBalance?.balances[token] || 0
+    : smartWalletBalance?.balances[token] || 0;
 
   const prepareCreateOrderParams = async () => {
     const providerId =
@@ -159,26 +161,28 @@ export const TransactionPreview = ({
 
   const createOrder = async () => {
     try {
-      if (isMiniPay && miniPayProvider) {
-        if (!miniPayReady) {
-          throw new Error("MiniPay not ready");
+      if (isInjectedWallet && injectedProvider) {
+        if (!injectedReady) {
+          throw new Error("Injected wallet not ready");
         }
 
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
         // Send approval transaction
-        const approvalTx = await miniPayProvider.request({
+        const approvalTx = await injectedProvider.request({
           method: "eth_sendTransaction",
           params: [
             {
-              from: miniPayAddress,
+              from: injectedAddress,
               to: tokenAddress,
               data: encodeFunctionData({
                 abi: erc20Abi,
                 functionName: "approve",
                 args: [
-                  getGatewayContractAddress("Celo") as `0x${string}`,
+                  getGatewayContractAddress(
+                    selectedNetwork.chain.name,
+                  ) as `0x${string}`,
                   parseUnits(amountSent.toString(), tokenDecimals ?? 18),
                 ],
               }),
@@ -188,7 +192,7 @@ export const TransactionPreview = ({
 
         try {
           const publicClient = createPublicClient({
-            chain: celo,
+            chain: selectedNetwork.chain,
             transport: http(),
           });
 
@@ -202,12 +206,14 @@ export const TransactionPreview = ({
         }
 
         // Create order transaction
-        await miniPayProvider.request({
+        await injectedProvider.request({
           method: "eth_sendTransaction",
           params: [
             {
-              from: miniPayAddress,
-              to: getGatewayContractAddress("Celo") as `0x${string}`,
+              from: injectedAddress,
+              to: getGatewayContractAddress(
+                selectedNetwork.chain.name,
+              ) as `0x${string}`,
               data: encodeFunctionData({
                 abi: gatewayAbi,
                 functionName: "createOrder",
@@ -293,7 +299,7 @@ export const TransactionPreview = ({
           institution,
           supportedInstitutions,
         ),
-        "Noblocks balance": smartWalletBalance?.balances[token] || 0,
+        "Wallet balance": balance,
         "Swap date": createdAt,
         "Reason for failure": error.shortMessage || error.message,
         "Transaction duration": calculateDuration(
@@ -305,12 +311,13 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
-    if (amountSent > (smartWalletBalance?.balances[token] || 0)) {
+    if (amountSent > balance) {
       toast.warning("Low balance. Fund your wallet.", {
         description: "Insufficient funds. Please add money to continue.",
       });
       return;
     }
+
     try {
       setIsConfirming(true);
       await createOrder();
@@ -327,7 +334,7 @@ export const TransactionPreview = ({
 
     const getOrderCreatedLogs = async () => {
       const publicClient = createPublicClient({
-        chain: isMiniPay ? celo : selectedNetwork.chain,
+        chain: selectedNetwork.chain,
         transport: http(),
       });
 
@@ -344,7 +351,7 @@ export const TransactionPreview = ({
         const toBlock = await publicClient.getBlockNumber();
         const logs = await publicClient.getContractEvents({
           address: getGatewayContractAddress(
-            isMiniPay ? "Celo" : selectedNetwork.chain.name,
+            selectedNetwork.chain.name,
           ) as `0x${string}`,
           abi: gatewayAbi,
           eventName: "OrderCreated",

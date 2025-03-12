@@ -20,7 +20,7 @@ import { fetchKYCStatus, initiateKYC } from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics";
 import { Cancel01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
-import { useMiniPay } from "../context";
+import { useInjectedWallet } from "../context";
 
 export const STEPS = {
   TERMS: "terms",
@@ -49,12 +49,15 @@ export const KycModal = ({
 }) => {
   const { signMessage } = usePrivy();
   const { wallets } = useWallets();
-  const { isMiniPay, miniPayAddress, miniPayProvider } = useMiniPay();
+  const { isInjectedWallet, injectedAddress, injectedProvider } =
+    useInjectedWallet();
 
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
   );
-  const walletAddress = isMiniPay ? miniPayAddress : embeddedWallet?.address;
+  const walletAddress = isInjectedWallet
+    ? injectedAddress
+    : embeddedWallet?.address;
 
   const [step, setStep] = useState<Step>(STEPS.LOADING);
   const [showQRCode, setShowQRCode] = useState(false);
@@ -71,21 +74,21 @@ export const KycModal = ({
     try {
       let signature: string;
 
-      if (isMiniPay && miniPayProvider) {
+      if (isInjectedWallet && injectedProvider) {
         try {
-          const accounts = await miniPayProvider.request({
+          const accounts = await injectedProvider.request({
             method: "eth_requestAccounts",
           });
 
-          const signResult = await miniPayProvider.request({
+          const signResult = await injectedProvider.request({
             method: "personal_sign",
             params: [`0x${Buffer.from(message).toString("hex")}`, accounts[0]],
           });
 
           signature = signResult;
         } catch (error) {
-          console.error("MiniPay signature error:", error);
-          toast.error("Failed to sign message with MiniPay");
+          console.error("Injected wallet signature error:", error);
+          toast.error("Failed to sign message with injected wallet");
           setIsSigning(false);
           return;
         }

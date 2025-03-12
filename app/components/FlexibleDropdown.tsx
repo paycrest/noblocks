@@ -56,8 +56,6 @@ const DropdownContent = ({
       <li
         key={item.name}
         role="option"
-        aria-selected={selectedItem?.name === item.name}
-        aria-disabled={item.disabled}
         onClick={() => !item.disabled && handleChange(item)}
         className={classNames(
           "flex w-full items-center justify-between gap-2 rounded-lg p-2.5 text-left transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700 sm:py-2",

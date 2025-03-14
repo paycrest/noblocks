@@ -87,6 +87,7 @@ export const RecipientDetailsForm = ({
       if (a.type !== "mobile_money" && b.type === "mobile_money") return 1;
       return a.name.localeCompare(b.name);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [institutions, bankSearchTerm, currency]);
 
   const selectSavedRecipient = (recipient: RecipientDetails) => {

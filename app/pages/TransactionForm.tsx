@@ -576,37 +576,39 @@ export const TransactionForm = ({
 
         {/* Recipient and memo */}
         <AnimatePresence>
-          {currency && authenticated && isUserVerified && (
-            <AnimatedComponent
-              variant={slideInOut}
-              className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-white/5"
-            >
-              <RecipientDetailsForm
-                formMethods={formMethods}
-                stateProps={stateProps}
-              />
-
-              {/* Memo */}
-              <div className="relative">
-                <NoteEditIcon className="absolute left-3 top-3.5 size-4 text-icon-outline-secondary dark:text-white/50" />
-                <input
-                  type="text"
-                  id="memo"
-                  onChange={(e) => {
-                    formMethods.setValue("memo", e.target.value);
-                  }}
-                  value={formMethods.watch("memo")}
-                  className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
-                    errors.memo
-                      ? "text-red-500 dark:text-red-500"
-                      : "text-text-body dark:text-white/80"
-                  }`}
-                  placeholder="Add description (optional)"
-                  maxLength={25}
+          {currency &&
+            (authenticated || isInjectedWallet) &&
+            isUserVerified && (
+              <AnimatedComponent
+                variant={slideInOut}
+                className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-white/5"
+              >
+                <RecipientDetailsForm
+                  formMethods={formMethods}
+                  stateProps={stateProps}
                 />
-              </div>
-            </AnimatedComponent>
-          )}
+
+                {/* Memo */}
+                <div className="relative">
+                  <NoteEditIcon className="absolute left-3 top-3.5 size-4 text-icon-outline-secondary dark:text-white/50" />
+                  <input
+                    type="text"
+                    id="memo"
+                    onChange={(e) => {
+                      formMethods.setValue("memo", e.target.value);
+                    }}
+                    value={formMethods.watch("memo")}
+                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
+                      errors.memo
+                        ? "text-red-500 dark:text-red-500"
+                        : "text-text-body dark:text-white/80"
+                    }`}
+                    placeholder="Add description (optional)"
+                    maxLength={25}
+                  />
+                </div>
+              </AnimatedComponent>
+            )}
         </AnimatePresence>
 
         <AnimatePresence>

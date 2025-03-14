@@ -97,7 +97,7 @@ export function useSwapButton({
     if (hasInsufficientBalance && !isInjectedWallet && authenticated) {
       return handleFundWallet;
     }
-    if (!isUserVerified && authenticated) {
+    if (!isUserVerified && (authenticated || isInjectedWallet)) {
       return setIsKycModalOpen;
     }
     return handleSwap;

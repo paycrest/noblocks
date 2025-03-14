@@ -94,6 +94,12 @@ export const FundWalletModal = ({
     if (!fundingInProgress) {
       reset();
       onClose();
+    } else {
+      if (confirm("Are you sure you want to cancel the funding process?")) {
+        setFundingInProgress(false);
+        reset();
+        onClose();
+      }
     }
   };
 
@@ -107,12 +113,19 @@ export const FundWalletModal = ({
   }, [token, selectedNetwork.chain.name, setValue]);
 
   return (
-    <AnimatedModal
-      isOpen={isOpen}
-      onClose={fundingInProgress ? () => {} : handleModalClose}
-    >
+    <AnimatedModal isOpen={isOpen} onClose={handleModalClose}>
       {fundingInProgress ? (
         <div className="flex flex-col items-center justify-center space-y-4 py-6">
+          <div className="absolute right-4 top-4">
+            <button
+              type="button"
+              aria-label="Cancel funding"
+              onClick={handleModalClose}
+              className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
+            >
+              <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+            </button>
+          </div>
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-solid border-lavender-500 border-t-transparent"></div>
           <p className="text-center text-text-body dark:text-white/80">
             Please complete the funding process.

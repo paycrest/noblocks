@@ -67,6 +67,7 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
     if (injectedReady || !isInjectedWallet) {
       initNetwork();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInjectedWallet, injectedReady]);
 
   // cross-tab synchronization

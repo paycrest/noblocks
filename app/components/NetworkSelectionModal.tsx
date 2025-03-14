@@ -10,14 +10,15 @@ import { networks } from "../mocks";
 import { useNetwork } from "../context/NetworksContext";
 import { AnimatedModal } from "./AnimatedComponents";
 import { shouldUseInjectedWallet, handleNetworkSwitch } from "../utils";
+import { useSearchParams } from "next/navigation";
 
 export const NetworkSelectionModal = () => {
+  const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { authenticated, user } = usePrivy();
-  const searchParams = new URLSearchParams(window.location.search);
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
 
   useEffect(() => {

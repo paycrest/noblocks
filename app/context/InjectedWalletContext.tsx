@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useEffect,
+  Suspense,
 } from "react";
 import { createWalletClient, custom } from "viem";
 import { toast } from "sonner";
@@ -25,11 +26,7 @@ const InjectedWalletContext = createContext<InjectedWalletContextType>({
   injectedReady: false,
 });
 
-export const InjectedWalletProvider = ({
-  children,
-}: {
-  children: ReactNode;
-}) => {
+function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const [isInjectedWallet, setIsInjectedWallet] = useState(false);
   const [injectedAddress, setInjectedAddress] = useState<string | null>(null);
@@ -99,6 +96,18 @@ export const InjectedWalletProvider = ({
     >
       {children}
     </InjectedWalletContext.Provider>
+  );
+}
+
+export const InjectedWalletProvider = ({
+  children,
+}: {
+  children: ReactNode;
+}) => {
+  return (
+    <Suspense fallback={null}>
+      <InjectedWalletProviderContent>{children}</InjectedWalletProviderContent>
+    </Suspense>
   );
 };
 

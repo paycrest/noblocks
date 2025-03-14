@@ -2,6 +2,7 @@
 import Image from "next/image";
 import { toast } from "sonner";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { networks } from "../mocks";
 import {
@@ -20,8 +21,8 @@ interface NetworksDropdownProps {
 export const NetworksDropdown = ({
   iconOnly = false,
 }: NetworksDropdownProps) => {
+  const searchParams = useSearchParams();
   const { isFormStep } = useStep();
-  const searchParams = new URLSearchParams(window.location.search);
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
 
   iconOnly = !isFormStep;

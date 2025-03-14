@@ -111,47 +111,46 @@ export const FundWalletModal = ({
       isOpen={isOpen}
       onClose={fundingInProgress ? () => {} : handleModalClose}
     >
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            aria-label="Close fund modal"
-            onClick={fundingInProgress ? undefined : handleModalClose}
-            disabled={fundingInProgress}
-            className={`rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 max-sm:-ml-2 sm:hidden ${
-              fundingInProgress ? "cursor-not-allowed opacity-50" : ""
-            }`}
-          >
-            <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
-          </button>
-          <h2 className="text-lg font-semibold text-text-body dark:text-white sm:flex-1">
-            {fundingInProgress ? "Funding Wallet..." : "Fund wallet"}
-          </h2>
-          <button
-            type="button"
-            aria-label="Close fund modal"
-            onClick={fundingInProgress ? undefined : handleModalClose}
-            disabled={fundingInProgress}
-            className={`hidden rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 sm:block ${
-              fundingInProgress ? "cursor-not-allowed opacity-50" : ""
-            }`}
-          >
-            <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
-          </button>
-          <div className="w-10 sm:hidden" />
+      {fundingInProgress ? (
+        <div className="flex flex-col items-center justify-center space-y-4 py-6">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-solid border-lavender-500 border-t-transparent"></div>
+          <p className="text-center text-text-body dark:text-white/80">
+            Please complete the funding process.
+          </p>
+          <p className="text-center text-sm text-text-secondary dark:text-white/50">
+            This window will automatically close when the process is complete.
+          </p>
         </div>
-
-        {fundingInProgress ? (
-          <div className="flex flex-col items-center justify-center space-y-4 py-6">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-solid border-lavender-500 border-t-transparent"></div>
-            <p className="text-center text-text-body dark:text-white/80">
-              Please complete the funding process.
-            </p>
-            <p className="text-center text-sm text-text-secondary dark:text-white/50">
-              This window will automatically close when the process is complete.
-            </p>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              aria-label="Close fund modal"
+              onClick={fundingInProgress ? undefined : handleModalClose}
+              disabled={fundingInProgress}
+              className={`rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 max-sm:-ml-2 sm:hidden ${
+                fundingInProgress ? "cursor-not-allowed opacity-50" : ""
+              }`}
+            >
+              <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
+            </button>
+            <h2 className="text-lg font-semibold text-text-body dark:text-white sm:flex-1">
+              {fundingInProgress ? "Funding Wallet..." : "Fund wallet"}
+            </h2>
+            <button
+              type="button"
+              aria-label="Close fund modal"
+              onClick={fundingInProgress ? undefined : handleModalClose}
+              disabled={fundingInProgress}
+              className={`hidden rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 sm:block ${
+                fundingInProgress ? "cursor-not-allowed opacity-50" : ""
+              }`}
+            >
+              <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+            </button>
+            <div className="w-10 sm:hidden" />
           </div>
-        ) : (
           <form
             onSubmit={handleSubmit(handleFund)}
             className="z-50 space-y-4 text-neutral-900 transition-all *:text-sm dark:text-white"
@@ -227,8 +226,8 @@ export const FundWalletModal = ({
               {isConfirming ? "Loading..." : "Choose funding method"}
             </button>
           </form>
-        )}
-      </div>
+        </div>
+      )}
     </AnimatedModal>
   );
 };

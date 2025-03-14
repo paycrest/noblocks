@@ -31,8 +31,14 @@ export const WalletDetails = () => {
   const handleFundWalletClick = async (
     amount: string,
     tokenAddress: `0x${string}`,
+    onComplete?: (success: boolean) => void,
   ) => {
-    await handleFundWallet(smartWallet?.address ?? "", amount, tokenAddress);
+    await handleFundWallet(
+      smartWallet?.address ?? "",
+      amount,
+      tokenAddress,
+      onComplete,
+    );
   };
 
   const smartWallet = user?.linkedAccounts.find(

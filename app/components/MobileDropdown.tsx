@@ -111,8 +111,14 @@ export const MobileDropdown = ({
   const handleFundWalletClick = async (
     amount: string,
     tokenAddress: `0x${string}`,
+    onComplete?: (success: boolean) => void,
   ) => {
-    await handleFundWallet(smartWallet?.address ?? "", amount, tokenAddress);
+    await handleFundWallet(
+      smartWallet?.address ?? "",
+      amount,
+      tokenAddress,
+      onComplete,
+    );
   };
 
   const activeBalance = isInjectedWallet

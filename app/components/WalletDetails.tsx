@@ -46,8 +46,14 @@ export const WalletDetails = () => {
   const handleFundWalletClick = async (
     amount: string,
     tokenAddress: `0x${string}`,
+    onComplete?: (success: boolean) => void,
   ) => {
-    await handleFundWallet(activeWallet?.address ?? "", amount, tokenAddress);
+    await handleFundWallet(
+      activeWallet?.address ?? "",
+      amount,
+      tokenAddress,
+      onComplete,
+    );
   };
 
   const dropdownRef = useRef<HTMLDivElement>(null);

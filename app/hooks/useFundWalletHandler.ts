@@ -44,6 +44,16 @@ export const useFundWalletHandler = (entryPoint: string) => {
         });
       }
 
+      const callbackId = localStorage.getItem("fundingCallbackId");
+      if (callbackId) {
+        window.dispatchEvent(
+          new CustomEvent("fundingCompleted", {
+            detail: { callbackId, success: !!fundingMethod },
+          }),
+        );
+        localStorage.removeItem("fundingCallbackId");
+      }
+
       localStorage.removeItem("lastFundingAttempt");
     },
   });
@@ -52,6 +62,7 @@ export const useFundWalletHandler = (entryPoint: string) => {
     walletAddress: string,
     amount: string,
     tokenAddress: `0x${string}`,
+    onComplete?: (success: boolean) => void,
   ) => {
     const fetchedTokens = fetchSupportedTokens(selectedNetwork.chain.name);
     const selectedToken = fetchedTokens?.find(
@@ -75,6 +86,25 @@ export const useFundWalletHandler = (entryPoint: string) => {
         timestamp: new Date().toISOString(),
       }),
     );
+
+    if (onComplete) {
+      const callbackId = Date.now().toString();
+      const handleFundingCompleted = (event: CustomEvent) => {
+        if (event.detail.callbackId === callbackId) {
+          onComplete(event.detail.success);
+          window.removeEventListener(
+            "fundingCompleted",
+            handleFundingCompleted as EventListener,
+          );
+        }
+      };
+
+      window.addEventListener(
+        "fundingCompleted",
+        handleFundingCompleted as EventListener,
+      );
+      localStorage.setItem("fundingCallbackId", callbackId);
+    }
 
     await fundWallet(walletAddress, {
       amount,

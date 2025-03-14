@@ -260,30 +260,28 @@ export const MobileDropdown = ({
                           </div>
 
                           {/* Wallet Address Container */}
-                          <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
-                            <div className="flex items-center gap-2">
-                              <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                              <span className="text-sm text-text-secondary dark:text-white/50">
-                                Wallet Address
+                          {smartWallet?.address && (
+                            <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
+                              <div className="flex items-center gap-2">
+                                <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                                <span className="text-sm text-text-secondary dark:text-white/50">
+                                  Wallet Address
+                                </span>
+                              </div>
+
+                              <span className="block break-words text-sm font-medium dark:text-white/80">
+                                {smartWallet?.address ?? ""}
                               </span>
+
+                              <button
+                                type="button"
+                                onClick={handleCopyAddress}
+                                className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                              >
+                                <span>Copy</span>
+                              </button>
                             </div>
-
-                            <span className="block break-words text-sm font-medium dark:text-white/80">
-                              {shortenAddress(
-                                smartWallet?.address ?? "",
-                                14,
-                                20,
-                              )}
-                            </span>
-
-                            <button
-                              type="button"
-                              onClick={handleCopyAddress}
-                              className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
-                            >
-                              <span>Copy</span>
-                            </button>
-                          </div>
+                          )}
 
                           <div
                             className={classNames(

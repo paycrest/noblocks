@@ -95,27 +95,27 @@ export const SettingsDropdown = () => {
             exit="closed"
             variants={dropdownVariants}
             aria-label="Dropdown menu"
-            className="absolute right-0 z-10 mt-4 w-fit space-y-4 overflow-hidden rounded-xl border border-border-light bg-white p-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
+            className="absolute right-0 z-10 mt-4 w-fit min-w-40 space-y-4 overflow-hidden rounded-xl border border-border-light bg-white p-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
           >
             <ul
               role="menu"
               aria-labelledby="settings-dropdown"
               aria-orientation="vertical"
-              className="text-sm font-normal text-black dark:text-white/80"
+              className="text-sm font-normal text-black *:px-4 *:py-2 dark:text-white/80"
             >
               <li
                 role="menuitem"
-                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
               >
                 <button
                   type="button"
-                  className="group flex w-full items-center justify-between gap-2.5"
+                  className="group flex w-full items-center justify-between gap-4"
                   onClick={handleCopyAddress}
                 >
                   <div className="flex items-center gap-2.5">
                     <Wallet01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                     <p className="max-w-60 break-words">
-                      {shortenAddress(walletAddress ?? "", 6)}
+                      {shortenAddress(walletAddress ?? "", 10)}
                     </p>
                   </div>
                   {isAddressCopied ? (
@@ -132,7 +132,7 @@ export const SettingsDropdown = () => {
                 (user?.email ? (
                   <li
                     role="menuitem"
-                    className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                    className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
                   >
                     <button
                       type="button"
@@ -143,7 +143,7 @@ export const SettingsDropdown = () => {
                         <Mail01Icon className="size-5 flex-shrink-0 text-icon-outline-secondary dark:text-white/50" />
                         <p className="whitespace-nowrap">Linked email</p>
                       </div>
-                      <p className="max-w-20 truncate text-neutral-500 dark:text-white/40">
+                      <p className="max-w-32 truncate text-neutral-500 dark:text-white/40">
                         {user.email.address}
                       </p>
                     </button>
@@ -151,7 +151,7 @@ export const SettingsDropdown = () => {
                 ) : (
                   <li
                     role="menuitem"
-                    className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                    className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
                   >
                     <button
                       type="button"
@@ -168,7 +168,7 @@ export const SettingsDropdown = () => {
               {!isInjectedWallet && (
                 <li
                   role="menuitem"
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
                   onClick={exportWallet}
                 >
                   <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
@@ -177,7 +177,7 @@ export const SettingsDropdown = () => {
               )}
               <li
                 role="menuitem"
-                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
               >
                 <a
                   href={config.contactSupportUrl}
@@ -192,7 +192,7 @@ export const SettingsDropdown = () => {
               {!isInjectedWallet && (
                 <li
                   role="menuitem"
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
                   onClick={handleLogout}
                 >
                   {isLoggingOut ? (

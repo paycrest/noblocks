@@ -64,7 +64,6 @@ export const NetworkSelectionModal = () => {
         layout
         layoutRoot
         transition={{ duration: 0.2, type: "spring" }}
-        className="px-5 pb-6 pt-6 max-sm:pb-12"
       >
         <AnimatePresence mode="wait" initial={false}>
           {!showInfo ? (

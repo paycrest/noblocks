@@ -360,7 +360,7 @@ export const TransactionPreview = ({
             token: tokenAddress,
             amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
           },
-          fromBlock: toBlock - BigInt(5),
+          fromBlock: toBlock - BigInt(10),
           toBlock: toBlock,
         });
 

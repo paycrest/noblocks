@@ -114,8 +114,6 @@ export const calculateDuration = (
  */
 export const getExplorerLink = (network: string, txHash: string) => {
   switch (network) {
-    case "Ethereum":
-      return `https://etherscan.io/tx/${txHash}`;
     case "Polygon":
       return `https://polygonscan.com/tx/${txHash}`;
     case "BNB Smart Chain":
@@ -143,15 +141,6 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
   let tokens: { [key: string]: Token[] };
 
   tokens = {
-    Ethereum: [
-      {
-        name: "USD Coin",
-        symbol: "USDC",
-        decimals: 6,
-        address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        imageUrl: "/logos/usdc-logo.svg",
-      },
-    ],
     Base: [
       {
         name: "USD Coin",

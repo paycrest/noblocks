@@ -153,17 +153,9 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         name: "cNGN",
         symbol: "cNGN",
         decimals: 6,
-        address: "0x46C85152bFe9f96829aA94755D9f915F9B10EF5F",
+        address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
         imageUrl: "/logos/cngn-logo.png",
       },
-      {
-        name: "Tether USD",
-        symbol: "USDT",
-        decimals: 6,
-        address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
-        imageUrl: "/logos/usdt-logo.svg",
-      },
-
     ],
     "Arbitrum One": [
       {
@@ -200,7 +192,7 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         name: "cNGN",
         symbol: "cNGN",
         decimals: 6,
-        address: "0xa8AEA66B361a8d53e8865c62D142167Af28Af058",
+        address: "0xa8aea66b361a8d53e8865c62d142167af28af058",
         imageUrl: "/logos/cngn-logo.png",
       },
     ],
@@ -223,7 +215,7 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         name: "cNGN",
         symbol: "cNGN",
         decimals: 6,
-        address: "0x52828daa48C1a9A06F37500882b42daf0bE04C3B",
+        address: "0x52828daa48c1a9a06f37500882b42daf0be04c3b",
         imageUrl: "/logos/cngn-logo.png",
       },
     ],

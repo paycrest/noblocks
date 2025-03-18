@@ -71,7 +71,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         chain: selectedNetwork.chain,
         transport: http(
           selectedNetwork.chain.id === bsc.id
-            ? "https://bsc-dataseed1.binance.org"
+            ? "https://bsc-dataseed.bnbchain.org/"
             : undefined,
         ),
       });

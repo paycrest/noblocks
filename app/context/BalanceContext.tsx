@@ -12,6 +12,7 @@ import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createPublicClient, http } from "viem";
 import { useInjectedWallet } from "./InjectedWalletContext";
+import { bsc } from "viem/chains";
 
 interface WalletBalances {
   total: number;
@@ -68,7 +69,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
       const publicClient = createPublicClient({
         chain: selectedNetwork.chain,
-        transport: http(),
+        transport: http(
+          selectedNetwork.chain.id === bsc.id
+            ? "https://bsc-dataseed1.binance.org"
+            : undefined,
+        ),
       });
 
       if (smartWalletAccount) {

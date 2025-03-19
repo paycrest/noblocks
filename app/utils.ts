@@ -135,15 +135,15 @@ export const getExplorerLink = (network: string, txHash: string) => {
 export function getRpcUrl(network: string) {
   switch (network) {
     case "Polygon":
-      return "https://polygon-mainnet.g.alchemy.com/v2/";
+      return `https://rpc.shield3.com/v3/0x89/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
     case "BNB Smart Chain":
-      return "https://bsc-dataseed.bnbchain.org/";
+      return `https://rpc.shield3.com/v3/0x38/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
     case "Base":
-      return "https://base-mainnet.g.alchemy.com/v2/";
+      return `https://rpc.shield3.com/v3/0x2105/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
     case "Arbitrum One":
-      return "https://arbitrum-one.g.alchemy.com/v2/";
-    case "Optimism":
-      return "https://optimism-mainnet.g.alchemy.com/v2/"; 
+      return `https://rpc.shield3.com/v3/0xa4b1/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
+    default:
+      return undefined;
   }
 }
 

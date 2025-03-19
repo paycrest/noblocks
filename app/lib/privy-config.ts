@@ -1,12 +1,13 @@
-import { arbitrum, base, bsc, polygon, mainnet } from "viem/chains";
+import { arbitrum, base, bsc, polygon } from "viem/chains";
 import {
   addRpcUrlOverrideToChain,
   type PrivyClientConfig,
 } from "@privy-io/react-auth";
+import { getRpcUrl } from "../utils";
 
 const bscOverride = addRpcUrlOverrideToChain(
   bsc,
-  "https://bsc-dataseed.bnbchain.org/",
+  getRpcUrl(bsc.name) ?? "https://bsc-dataseed.bnbchain.org/",
 );
 
 const baseConfig: Omit<PrivyClientConfig, "appearance"> = {

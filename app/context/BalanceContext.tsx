@@ -6,7 +6,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { fetchWalletBalance } from "../utils";
+import { fetchWalletBalance, getRpcUrl } from "../utils";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -69,11 +69,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
       const publicClient = createPublicClient({
         chain: selectedNetwork.chain,
-        transport: http(
-          selectedNetwork.chain.id === bsc.id
-            ? "https://bsc-dataseed.bnbchain.org/"
-            : undefined,
-        ),
+        transport: http(getRpcUrl(selectedNetwork.chain.name)),
       });
 
       if (smartWalletAccount) {
@@ -107,7 +103,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         // Create a public client for the injected provider's chain
         const publicClient = createPublicClient({
           chain: selectedNetwork.chain,
-          transport: http(),
+          transport: http(getRpcUrl(selectedNetwork.chain.name)),
         });
 
         const result = await fetchWalletBalance(publicClient, injectedAddress);

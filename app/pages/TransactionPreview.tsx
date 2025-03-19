@@ -12,6 +12,7 @@ import {
   formatNumberWithCommas,
   getGatewayContractAddress,
   getInstitutionNameByCode,
+  getRpcUrl,
   publicKeyEncrypt,
 } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
@@ -195,7 +196,7 @@ export const TransactionPreview = ({
         try {
           const publicClient = createPublicClient({
             chain: selectedNetwork.chain,
-            transport: http(),
+            transport: http(getRpcUrl(selectedNetwork.chain.name)),
           });
 
           await publicClient.waitForTransactionReceipt({
@@ -338,11 +339,7 @@ export const TransactionPreview = ({
     const getOrderCreatedLogs = async () => {
       const publicClient = createPublicClient({
         chain: selectedNetwork.chain,
-        transport: http(
-          selectedNetwork.chain.id === bsc.id
-            ? "https://bsc-dataseed.bnbchain.org/"
-            : undefined,
-        ),
+        transport: http(getRpcUrl(selectedNetwork.chain.name)),
       });
 
       if (!publicClient || !activeWallet?.address || isOrderCreatedLogsFetched)
@@ -395,7 +392,7 @@ export const TransactionPreview = ({
     getOrderCreatedLogs();
 
     // Set up polling
-    intervalId = setInterval(getOrderCreatedLogs, 5000);
+    intervalId = setInterval(getOrderCreatedLogs, 2000);
 
     // Cleanup function
     return () => {

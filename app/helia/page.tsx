@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useStorage } from "../context/StorageContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { toast } from "sonner";
@@ -51,7 +51,7 @@ export default function HeliaTestPage() {
   };
 
   /**
-   * Add a new mock transaction and save encrypted to IPFS/IPNS
+   * Add a new mock transaction and save encrypted to IPFS
    */
   const addTransaction = async () => {
     if (!ready || !authenticated) {
@@ -59,7 +59,7 @@ export default function HeliaTestPage() {
       return;
     }
 
-    if (!storage?.saveEncrypted || !storage.isInitialized) {
+    if (!storage?.save || !storage.isInitialized) {
       toast.error("Storage not initialized");
       return;
     }
@@ -72,13 +72,10 @@ export default function HeliaTestPage() {
 
       toast.info("Signing message to encrypt data...");
       // Save data with wallet-based encryption
-      const cid = await storage.saveEncrypted(
-        "transactions",
-        updatedTransactions,
-      );
+      const cid = await storage.save("transactions", updatedTransactions);
       setLastSavedCid(cid);
 
-      toast.success("Transaction encrypted and saved to IPFS/IPNS");
+      toast.success("Transaction encrypted and saved to IPFS");
     } catch (error) {
       console.error("Failed to save transaction:", error);
       toast.error(error instanceof Error ? error.message : String(error));
@@ -88,7 +85,7 @@ export default function HeliaTestPage() {
   };
 
   /**
-   * Load encrypted transactions from IPFS/IPNS
+   * Load transactions from IPFS
    */
   const loadTransactions = async () => {
     if (!ready || !authenticated) {
@@ -96,18 +93,18 @@ export default function HeliaTestPage() {
       return;
     }
 
-    if (!storage?.retrieveEncrypted || !storage.isInitialized) {
+    if (!storage?.retrieve || !storage.isInitialized) {
       toast.error("Storage not initialized");
       return;
     }
 
     try {
       setIsRetrieving(true);
-      toast.info("Signing message to decrypt data...");
+      toast.info("Retrieving encrypted transactions...");
 
       try {
         // Retrieve and decrypt data
-        const data = await storage.retrieveEncrypted("transactions");
+        const data = await storage.retrieve("transactions");
 
         if (data && Array.isArray(data)) {
           setTransactions(data);
@@ -150,6 +147,54 @@ export default function HeliaTestPage() {
       setIsRetrieving(false);
     }
   };
+
+  // Load transactions automatically when the page loads
+  useEffect(() => {
+    let isMounted = true;
+
+    // Only attempt to load if the user is authenticated and the storage is initialized
+    if (ready && authenticated && storage?.isInitialized && !isRetrieving) {
+      const autoLoadTransactions = async () => {
+        if (!isMounted) return;
+        setIsRetrieving(true);
+        try {
+          console.log("Auto-loading transactions...");
+          const data = await storage.retrieve("transactions");
+
+          if (!isMounted) return;
+
+          if (data && Array.isArray(data)) {
+            setTransactions(data);
+            console.log("Transactions loaded automatically:", data.length);
+          } else {
+            console.log("No transactions found or invalid format:", data);
+          }
+        } catch (error) {
+          if (!isMounted) return;
+          // Silent error handling for auto-loading
+          console.log("Error auto-loading transactions:", error);
+        } finally {
+          if (isMounted) {
+            setIsRetrieving(false);
+          }
+        }
+      };
+
+      // Slight delay to ensure everything is properly initialized
+      const timeoutId = setTimeout(() => {
+        autoLoadTransactions();
+      }, 1000);
+
+      return () => {
+        isMounted = false;
+        clearTimeout(timeoutId);
+      };
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [ready, authenticated, storage?.isInitialized]);
 
   // Authentication check
   if (!ready) {
@@ -194,7 +239,7 @@ export default function HeliaTestPage() {
             disabled={isSaving || !storage?.isInitialized}
             className="rounded-lg bg-lavender-500 px-4 py-2 font-medium text-white transition-colors hover:bg-lavender-600 disabled:opacity-50"
           >
-            {isSaving ? "Encrypting & Saving..." : "Add Encrypted Transaction"}
+            {isSaving ? "Encrypting & Saving..." : "Add Transaction"}
           </button>
 
           <button
@@ -202,9 +247,7 @@ export default function HeliaTestPage() {
             disabled={isRetrieving || !storage?.isInitialized}
             className="rounded-lg border border-lavender-500 bg-white px-4 py-2 font-medium text-lavender-500 transition-colors hover:bg-lavender-50 disabled:opacity-50 dark:bg-transparent dark:hover:bg-gray-700"
           >
-            {isRetrieving
-              ? "Retrieving & Decrypting..."
-              : "Load Your Transactions"}
+            {isRetrieving ? "Retrieving..." : "Refresh Transactions"}
           </button>
         </div>
 
@@ -215,6 +258,11 @@ export default function HeliaTestPage() {
             </h3>
             <p className="break-all font-mono text-sm dark:text-gray-300">
               {lastSavedCid}
+            </p>
+            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+              Note: Storing CIDs in localStorage is convenient but has security
+              implications. In a production app, consider alternative secure
+              storage methods.
             </p>
           </div>
         )}
@@ -270,7 +318,8 @@ export default function HeliaTestPage() {
             <br />
             2. Your data is encrypted using this key before being stored on IPFS
             <br />
-            3. The data is linked to your wallet address via IPNS
+            3. IPFS returns a Content ID (CID) that uniquely identifies your
+            encrypted data
             <br />
             4. When retrieving - you sign the same message to derive the same
             key for decryption

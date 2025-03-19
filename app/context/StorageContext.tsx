@@ -1,19 +1,16 @@
 import { createHelia } from "helia";
 import { dagJson } from "@helia/dag-json";
-import { ipns } from "@helia/ipns";
-import { strings } from "@helia/strings";
 import { useState, useEffect, createContext, useContext } from "react";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
 import { CID } from "multiformats/cid";
-import { createEd25519PeerId } from "@libp2p/peer-id-factory";
 import { useInjectedWallet } from "./InjectedWalletContext";
 
 /**
  * Type definition for the Storage Context
  */
 type StorageContextType = {
-  saveEncrypted: (key: string, data: any) => Promise<string>;
-  retrieveEncrypted: (key: string) => Promise<any>;
+  save: (key: string, data: any) => Promise<string>;
+  retrieve: (key: string) => Promise<any>;
   isInitialized: boolean;
 } | null;
 
@@ -21,13 +18,11 @@ const StorageContext = createContext<StorageContextType>(null);
 
 /**
  * StorageProvider component
- * Encrypted storage using IPFS/IPNS with wallet-derived keys
+ * Encrypted storage using IPFS with wallet-derived keys
  */
 export function StorageProvider({ children }: { children: React.ReactNode }) {
   const [helia, setHelia] = useState<any>(null);
   const [dag, setDag] = useState<any>(null);
-  const [ipnsInstance, setIpnsInstance] = useState<any>(null);
-  const [str, setStr] = useState<any>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const { wallets } = useWallets();
   const { signMessage } = usePrivy();
@@ -38,20 +33,11 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const init = async () => {
       try {
-        const heliaNode = await createHelia({
-          libp2p: {
-            // @ts-ignore
-            start: true,
-          },
-        });
+        const heliaNode = await createHelia();
         const dagInstance = dagJson(heliaNode);
-        const ipnsInstance = ipns(heliaNode);
-        const stringsInstance = strings(heliaNode);
 
         setHelia(heliaNode);
         setDag(dagInstance);
-        setIpnsInstance(ipnsInstance);
-        setStr(stringsInstance);
         setIsInitialized(true);
         console.log("Helia initialized successfully");
       } catch (error) {
@@ -86,6 +72,10 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
    * @returns Signature string
    */
   const signForEncryption = async (message: string): Promise<string> => {
+    // Make sure we use the EXACT same message for encryption and decryption
+    // Add a specific salt to make sure the message is consistent
+    const saltedMessage = `noblocks-storage:${message}`;
+
     if (isInjectedWallet && injectedProvider) {
       try {
         const accounts = await injectedProvider.request({
@@ -94,7 +84,10 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
 
         const signResult = await injectedProvider.request({
           method: "personal_sign",
-          params: [`0x${Buffer.from(message).toString("hex")}`, accounts[0]],
+          params: [
+            `0x${Buffer.from(saltedMessage).toString("hex")}`,
+            accounts[0],
+          ],
         });
 
         return signResult;
@@ -104,7 +97,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       }
     } else {
       const signResult = await signMessage(
-        { message },
+        { message: saltedMessage },
         { uiOptions: { buttonText: "Sign for encryption" } },
       );
 
@@ -113,46 +106,6 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       }
 
       return signResult.signature;
-    }
-  };
-
-  /**
-   * Generate a deterministic PeerId from wallet address
-   * @param address - Ethereum address
-   */
-  const getPeerIdFromAddress = async (address: string) => {
-    // Check if we already have a stored PeerId
-    const storedKey = localStorage.getItem(
-      `noblocks-ipns-key-${address.toLowerCase()}`,
-    );
-    if (storedKey) {
-      try {
-        // Use stored PeerId if available
-        const peerId = await createEd25519PeerId();
-        return peerId;
-      } catch (error) {
-        console.error("Failed to load stored PeerId:", error);
-      }
-    }
-
-    // Generate a new PeerId
-    try {
-      const peerId = await createEd25519PeerId();
-
-      // Store the PeerId for future use
-      localStorage.setItem(
-        `noblocks-ipns-key-${address.toLowerCase()}`,
-        peerId.toString(),
-      );
-
-      console.log(
-        `Peer ID generated and set to: noblocks-ipns-key-${address.toLowerCase()} ${peerId.toString()}`,
-      );
-
-      return peerId;
-    } catch (error) {
-      console.error("Failed to create PeerId:", error);
-      throw new Error("Could not create PeerId for IPNS");
     }
   };
 
@@ -233,31 +186,37 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
   };
 
   /**
-   * Save encrypted data to IPFS and bind to IPNS
+   * Save encrypted data to IPFS
    * @param key - Storage key
    * @param data - Data to store
    * @returns CID string of stored data
    */
-  const saveEncrypted = async (key: string, data: any): Promise<string> => {
-    if (!isInitialized || !dag || !ipnsInstance) {
+  const save = async (key: string, data: any): Promise<string> => {
+    if (!isInitialized || !dag) {
       throw new Error("Storage not initialized");
     }
 
     try {
       const walletAddress = getWalletAddress();
 
-      // Sign a message with the wallet to derive encryption key
+      // Important: Use a CONSISTENT message for encryption
+      // Don't include dynamic elements like timestamps
       const message = `Encrypt data for ${key} with wallet ${walletAddress.toLowerCase()}`;
+
+      // Log the exact message being used (helpful for debugging)
+      console.log("Encryption message:", message);
+
       const signature = await signForEncryption(message);
-      console.log("Signature for encryption:", signature);
+      console.log(
+        "Signature for encryption:",
+        signature.substring(0, 10) + "...",
+      );
 
       // Derive an encryption key from the signature
       const encryptionKey = await deriveEncryptionKey(signature);
-      console.log("Derived encryption key:", encryptionKey);
 
       // Encrypt the data
       const encrypted = await encryptData(data, encryptionKey);
-      console.log("Data encrypted:", encrypted);
 
       // Store encrypted data in IPFS
       const cid = await dag.add(encrypted);
@@ -265,130 +224,109 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
         `Data encrypted and stored in IPFS with CID: ${cid.toString()}`,
       );
 
-      try {
-        // Get a PeerId for IPNS based on wallet address
-        const peerId = await getPeerIdFromAddress(walletAddress);
+      // Store a mapping of the key to the CID for easier retrieval
+      const storageKey = `noblocks-data-${walletAddress.toLowerCase()}-${key}`;
+      localStorage.setItem(storageKey, cid.toString());
+      console.log(
+        `CID stored in localStorage as ${storageKey}: ${cid.toString()}`,
+      );
 
-        // Publish the CID to IPNS with the user's PeerId
-        await ipnsInstance.publish(peerId, cid);
-        console.log(`Published to IPNS with key: ${peerId.toString()}`);
-
-        // Store a mapping of the key to the CID for easier retrieval
-        localStorage.setItem(
-          `data-${walletAddress.toLowerCase()}-${key}`,
-          cid.toString(),
-        );
-      } catch (ipnsError) {
-        console.error("IPNS publishing error:", ipnsError);
-        // At least store the CID in localStorage even if IPNS fails
-        localStorage.setItem(
-          `data-${walletAddress.toLowerCase()}-${key}`,
-          cid.toString(),
-        );
-      }
-
-      console.log("CID stored in localStorage:", cid.toString());
       return cid.toString();
     } catch (error) {
-      console.error("Error saving encrypted data:", error);
+      console.error("Error saving data:", error);
       throw error instanceof Error
-        ? new Error(`Failed to save encrypted data: ${error.message}`)
-        : new Error(`Failed to save encrypted data`);
+        ? new Error(`Failed to save data: ${error.message}`)
+        : new Error(`Failed to save data`);
     }
   };
 
   /**
-   * Retrieve and decrypt data from IPFS/IPNS
+   * Retrieve and decrypt data from IPFS
    * @param key - Storage key
    * @returns Decrypted data
    */
-  const retrieveEncrypted = async (key: string): Promise<any> => {
-    if (!isInitialized || !dag || !ipnsInstance) {
+  const retrieve = async (key: string): Promise<any> => {
+    if (!isInitialized || !dag) {
       throw new Error("Storage not initialized");
     }
 
     try {
       const walletAddress = getWalletAddress();
 
-      // Sign the same message to derive the same encryption key
+      // Use the same message as in save - must match EXACTLY
       const message = `Encrypt data for ${key} with wallet ${walletAddress.toLowerCase()}`;
+
+      // Log the exact message being used (helpful for debugging)
+      console.log("Decryption message:", message);
+
       const signature = await signForEncryption(message);
-      console.log("Signature for decryption:", signature);
+      console.log(
+        "Signature for decryption:",
+        signature.substring(0, 10) + "...",
+      );
 
       // Derive the decryption key
       const decryptionKey = await deriveEncryptionKey(signature);
-      console.log("Derived decryption key:", decryptionKey);
 
-      let cid: CID | null = null;
+      // Get CID from localStorage
+      const storageKey = `noblocks-data-${walletAddress.toLowerCase()}-${key}`;
+      const storedCidString = localStorage.getItem(storageKey);
 
-      try {
-        // Try to resolve the CID from IPNS
-        const peerId = await getPeerIdFromAddress(walletAddress);
-        console.log(`Peer ID for IPNS: ${peerId.toString()}`);
-
-        const resolvedCid = await ipnsInstance.resolve(peerId);
-        console.log(`Resolved CID from IPNS: ${resolvedCid?.toString()}`);
-
-        if (resolvedCid) {
-          cid = resolvedCid;
-          console.log(`Using resolved CID from IPNS: ${cid?.toString()}`);
-        }
-      } catch (ipnsError) {
-        console.error("IPNS resolution error:", ipnsError);
-      }
-
-      // If IPNS resolution fails, try to get the CID from localStorage
-      if (!cid) {
-        console.log("Attempting to retrieve CID from localStorage");
-        const storedCidString = localStorage.getItem(
-          `data-${walletAddress.toLowerCase()}-${key}`,
-        );
-        if (storedCidString) {
-          try {
-            cid = CID.parse(storedCidString);
-            console.log(`Using stored CID: ${cid.toString()}`);
-          } catch (cidError) {
-            console.error("Error parsing stored CID:", cidError);
-          }
-        }
-      }
-
-      if (!cid) {
+      if (!storedCidString) {
+        console.log(`No CID found for ${storageKey}`);
         throw new Error("No stored data found");
       }
 
-      // Retrieve the encrypted data from IPFS
-      const encryptedData = await dag.get(cid);
-      console.log("Encrypted data retrieved from IPFS:", encryptedData);
+      console.log(`Retrieved CID from localStorage: ${storedCidString}`);
 
-      if (!encryptedData) {
-        throw new Error("Failed to retrieve encrypted data from IPFS");
-      }
-
-      // Decrypt the data
       try {
-        const decryptedData = await decryptData(encryptedData, decryptionKey);
-        console.log("Data successfully retrieved and decrypted", decryptedData);
-        return decryptedData;
-      } catch (decryptError) {
-        console.error("Decryption failed with error:", decryptError);
-        console.log("Encrypted data format:", encryptedData);
+        // Parse the CID string to a CID object
+        const cid = CID.parse(storedCidString);
+
+        // Retrieve encrypted data from IPFS
+        const encryptedData = await dag.get(cid);
+
+        if (!encryptedData) {
+          throw new Error("Failed to retrieve encrypted data from IPFS");
+        }
+
+        // Verify the encrypted data structure before decryption
+        if (!encryptedData.iv || !encryptedData.encryptedData) {
+          console.error("Invalid encrypted data format:", encryptedData);
+          throw new Error("Invalid encrypted data format");
+        }
+
+        // Decrypt the data with detailed error handling
+        try {
+          const decryptedData = await decryptData(encryptedData, decryptionKey);
+          console.log("Data successfully decrypted");
+          return decryptedData;
+        } catch (decryptError) {
+          console.error("Decryption failed with error:", decryptError);
+          console.log(
+            "Encrypted data format:",
+            JSON.stringify(encryptedData).substring(0, 100) + "...",
+          );
+          throw new Error(
+            `Decryption failed: ${decryptError instanceof Error ? decryptError.message : String(decryptError)}`,
+          );
+        }
+      } catch (cidError) {
+        console.error("Error parsing CID or retrieving data:", cidError);
         throw new Error(
-          `Decryption failed: ${decryptError instanceof Error ? decryptError.message : String(decryptError)}`,
+          `Failed to retrieve data: ${cidError instanceof Error ? cidError.message : String(cidError)}`,
         );
       }
     } catch (error) {
-      console.error("Error retrieving encrypted data:", error);
+      console.error("Error retrieving data:", error);
       throw error instanceof Error
-        ? new Error(`Failed to retrieve encrypted data: ${error.message}`)
-        : new Error(`Failed to retrieve encrypted data`);
+        ? new Error(`Failed to retrieve data: ${error.message}`)
+        : new Error(`Failed to retrieve data`);
     }
   };
 
   return (
-    <StorageContext.Provider
-      value={{ saveEncrypted, retrieveEncrypted, isInitialized }}
-    >
+    <StorageContext.Provider value={{ save, retrieve, isInitialized }}>
       {children}
     </StorageContext.Provider>
   );

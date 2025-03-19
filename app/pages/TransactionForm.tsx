@@ -28,7 +28,6 @@ import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus, fetchRate } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
-import IpfsComponent from "../components/ipfs";
 import { currencyToCountryCode } from "../hooks";
 
 /**
@@ -770,8 +769,6 @@ export const TransactionForm = ({
           )}
         </AnimatePresence>
       </form>
-
-      <IpfsComponent />
 
       {!isInjectedWallet && (
         <FundWalletModal

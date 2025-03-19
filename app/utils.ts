@@ -131,6 +131,22 @@ export const getExplorerLink = (network: string, txHash: string) => {
   }
 };
 
+// write function to get rpc url for a given network
+export function getRpcUrl(network: string) {
+  switch (network) {
+    case "Polygon":
+      return "https://polygon-mainnet.g.alchemy.com/v2/";
+    case "BNB Smart Chain":
+      return "https://bsc-dataseed.bnbchain.org/";
+    case "Base":
+      return "https://base-mainnet.g.alchemy.com/v2/";
+    case "Arbitrum One":
+      return "https://arbitrum-one.g.alchemy.com/v2/";
+    case "Optimism":
+      return "https://optimism-mainnet.g.alchemy.com/v2/"; 
+  }
+}
+
 /**
  * Fetches the supported tokens for the specified network.
  *

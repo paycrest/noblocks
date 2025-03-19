@@ -18,7 +18,7 @@ const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
       connectionOptions: "smartWalletOnly",
     },
   },
-  supportedChains: [base, bscOverride, arbitrum, polygon, mainnet],
+  supportedChains: [base, bscOverride, arbitrum, polygon],
 };
 
 export const lightModeConfig: PrivyClientConfig = {

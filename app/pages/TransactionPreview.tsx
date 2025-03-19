@@ -395,7 +395,7 @@ export const TransactionPreview = ({
     getOrderCreatedLogs();
 
     // Set up polling
-    intervalId = setInterval(getOrderCreatedLogs, 2000);
+    intervalId = setInterval(getOrderCreatedLogs, 5000);
 
     // Cleanup function
     return () => {

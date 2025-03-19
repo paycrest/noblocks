@@ -26,6 +26,7 @@ import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus, fetchRate } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
+import IpfsComponent from "../components/ipfs";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -693,6 +694,8 @@ export const TransactionForm = ({
           )}
         </AnimatePresence>
       </form>
+
+      <IpfsComponent />
 
       {!isInjectedWallet && (
         <FundWalletModal

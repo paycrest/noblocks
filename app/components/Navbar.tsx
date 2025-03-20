@@ -140,12 +140,12 @@ export const Navbar = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute left-0 top-full mt-4 w-48 rounded-lg border border-border-light bg-white py-2 shadow-lg dark:border-white/5 dark:bg-surface-overlay"
+                    className="*:w-fullx absolute left-0 top-full mt-4 w-48 rounded-lg border border-border-light bg-white p-2 text-sm shadow-lg *:flex *:rounded-lg *:px-4 *:py-2 *:text-sm *:text-gray-700 *:transition-colors *:hover:bg-accent-gray dark:border-white/5 dark:bg-surface-overlay *:dark:bg-surface-overlay *:dark:text-white/80"
                   >
                     {pathname !== "/" && (
                       <Link
                         href="/"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-white/80 dark:hover:bg-white/5"
+                        className="hover:bg-accent-gray dark:hover:bg-white/5"
                         onClick={() => setIsDropdownOpen(false)}
                       >
                         Home
@@ -153,14 +153,14 @@ export const Navbar = () => {
                     )}
                     <Link
                       href="/terms"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-white/80 dark:hover:bg-white/5"
+                      className="hover:bg-accent-gray dark:hover:bg-white/5"
                       onClick={() => setIsDropdownOpen(false)}
                     >
                       Terms
                     </Link>
                     <Link
                       href="/privacy-policy"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-white/80 dark:hover:bg-white/5"
+                      className="hover:bg-accent-gray dark:hover:bg-white/5"
                       onClick={() => setIsDropdownOpen(false)}
                     >
                       Privacy Policy

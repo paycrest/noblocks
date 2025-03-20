@@ -170,7 +170,7 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         symbol: "cNGN",
         decimals: 6,
         address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
-        imageUrl: "/logos/cngn-logo.png",
+        imageUrl: "/logos/cngn-logo.svg",
       },
     ],
     "Arbitrum One": [
@@ -209,7 +209,7 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         symbol: "cNGN",
         decimals: 6,
         address: "0xa8aea66b361a8d53e8865c62d142167af28af058",
-        imageUrl: "/logos/cngn-logo.png",
+        imageUrl: "/logos/cngn-logo.svg",
       },
     ],
     Polygon: [
@@ -232,7 +232,7 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         symbol: "cNGN",
         decimals: 6,
         address: "0x52828daa48c1a9a06f37500882b42daf0be04c3b",
-        imageUrl: "/logos/cngn-logo.png",
+        imageUrl: "/logos/cngn-logo.svg",
       },
     ],
     Scroll: [

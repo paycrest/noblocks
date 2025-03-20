@@ -422,7 +422,7 @@ export function TransactionStatus({
             >
               {token && (
                 <Image
-                  src={`/logos/${String(token)?.toLowerCase()}-logo.${token === 'cNGN' ? 'png' : 'svg'}`}
+                  src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
                   alt={`${token} logo`}
                   width={14}
                   height={14}

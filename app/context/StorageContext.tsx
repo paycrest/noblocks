@@ -258,7 +258,9 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       const privateKey = await getIpnsKey(walletAddress, key);
 
       // Publish to IPNS
+      console.time("IPNS publish");
       await ipnsInstance.publish(privateKey, cid);
+      console.timeEnd("IPNS publish");
       console.log(`Published to IPNS with key: eth-${walletAddress}-${key}`);
 
       // Store a local cache of the CID for faster retrieval
@@ -325,7 +327,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
           // Resolve the latest CID from IPNS
           const result = await ipnsInstance.resolve(privateKey.publicKey);
           cidToUse = result.cid.toString();
-          console.log(`Resolved IPNS to CID: ${cidToUse}`);
+          console.log(`Resolved from IPNS to CID: ${cidToUse}`);
 
           // Update the cache
           if (cidToUse) {
@@ -335,9 +337,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (error) {
           console.error("IPNS resolution failed:", error);
-          throw new Error(
-            `IPNS resolution failed: ${error instanceof Error ? error.message : String(error)}`,
-          );
+          throw error;
         }
       }
       // Normal flow: check localStorage or use IPNS based on force flag

@@ -59,6 +59,31 @@ Our current implementation adds several security layers:
 3. **User-specific storage**: Data is tied to your specific wallet address
 4. **Content-addressing**: Data is still identified by its content (after encryption)
 
+#### Stage 4: Persistent Naming with IPNS (InterPlanetary Name System)
+
+The final evolution of our storage system adds persistent naming:
+
+```javascript
+// Publish a CID to IPNS for persistent naming
+const privateKey = await generateKeyPair('Ed25519')
+const ipnsName = await name.publish(privateKey, cid)
+
+// Later, resolve the IPNS name to get the latest CID
+const resolvedCid = await name.resolve(ipnsName)
+```
+
+This solves a fundamental challenge with content-addressed systems:
+
+1. **The Problem**: Every time you update data in IPFS, you get a completely new CID
+2. **The Solution**: IPNS provides a persistent name that can point to different CIDs over time
+
+Benefits of IPNS:
+
+- Gives you a stable reference to changing content
+- Allows updating transaction history while keeping the same identifier
+- Makes it easier to share and reference data that changes
+- Works seamlessly with the encryption mechanisms from Stage 3
+
 ### 3. How Our Current System Works
 
 #### Saving Data - Step by Step
@@ -130,5 +155,12 @@ Our current implementation adds several security layers:
 - **Decentralization**: No single point of failure
 - **Privacy**: The service provider cannot read your data
 - **Persistence**: Data exists as long as someone on IPFS network has it
+
+### 8. IPNS Use Cases in Our Application
+
+- **Growing Transaction History**: As users add more transactions, the IPNS name stays the same while pointing to the latest state
+- **Profile Updates**: User profiles and settings can change while keeping the same reference
+- **Cross-Device Synchronization**: Easier to sync state across devices with a consistent name
+- **Shared References**: Multiple users can reference the same content via its IPNS name
 
 By combining wallet signatures, encryption, and IPFS, we've created a secure, private storage system that requires no accounts or passwords beyond your existing wallet.

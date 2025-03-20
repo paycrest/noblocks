@@ -5,31 +5,45 @@ import { generateKeyPair } from "@libp2p/crypto/keys";
 import { useState, useEffect, createContext, useContext } from "react";
 import { CID } from "multiformats/cid";
 import { toast } from "sonner";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useInjectedWallet } from "./InjectedWalletContext";
 
 /**
  * Type definition for the Storage Context
  */
 type StorageContextType = {
-  save: (data: any) => Promise<string>;
-  retrieve: (cid: string) => Promise<any>;
-  publishToIpns: (cid: string, key?: string) => Promise<string>;
-  resolveFromIpns: (keyName: string) => Promise<string>;
+  save: (key: string, data: any) => Promise<string>;
+  retrieve: (
+    key: string,
+    options?: {
+      force?: boolean;
+      directCid?: string;
+      useIpns?: boolean;
+    },
+  ) => Promise<any>;
   isInitialized: boolean;
+  isLoading: boolean;
 } | null;
 
 const StorageContext = createContext<StorageContextType>(null);
 
 /**
- * StorageProvider component - With IPNS support
- * Allows storing complex data structures with persistent naming
+ * StorageProvider component - Wallet-encrypted storage with IPNS
  */
 export function StorageProvider({ children }: { children: React.ReactNode }) {
   const [helia, setHelia] = useState<any>(null);
   const [dagInstance, setDagInstance] = useState<any>(null);
   const [ipnsInstance, setIpnsInstance] = useState<any>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   // Store IPNS keys with their names
   const [ipnsKeys, setIpnsKeys] = useState<Record<string, any>>({});
+
+  // Wallet-related hooks
+  const { wallets } = useWallets();
+  const { signMessage } = usePrivy();
+  const { isInjectedWallet, injectedAddress, injectedProvider } =
+    useInjectedWallet();
 
   // Initialize Helia on component mount
   useEffect(() => {
@@ -53,143 +67,372 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   /**
-   * Save structured data to IPFS via Helia
-   * This creates an immutable, content-addressed record
-   * @param data - Data object to store (can be complex nested objects/arrays)
+   * Get the wallet address to use for storage
+   */
+  const getWalletAddress = (): string => {
+    if (isInjectedWallet && injectedAddress) {
+      return injectedAddress.toLowerCase();
+    }
+
+    const embeddedWallet = wallets.find(
+      (wallet) => wallet.walletClientType === "privy",
+    );
+    if (!embeddedWallet?.address) {
+      throw new Error("No wallet address available");
+    }
+
+    return embeddedWallet.address.toLowerCase();
+  };
+
+  /**
+   * Sign a message to derive an encryption key
+   * @param message - Message to sign
+   * @returns Signature string
+   */
+  const signForEncryption = async (message: string): Promise<string> => {
+    // Add a specific salt to make sure the message is consistent
+    const saltedMessage = `noblocks-storage:${message}`;
+
+    if (isInjectedWallet && injectedProvider) {
+      try {
+        const accounts = await injectedProvider.request({
+          method: "eth_requestAccounts",
+        });
+
+        const signResult = await injectedProvider.request({
+          method: "personal_sign",
+          params: [
+            `0x${Buffer.from(saltedMessage).toString("hex")}`,
+            accounts[0],
+          ],
+        });
+
+        return signResult;
+      } catch (error) {
+        console.error("Injected wallet signature error:", error);
+        throw new Error("Failed to sign message with injected wallet");
+      }
+    } else {
+      const signResult = await signMessage(
+        { message: saltedMessage },
+        { uiOptions: { buttonText: "Sign for encryption" } },
+      );
+
+      if (!signResult) {
+        throw new Error("User denied signature request");
+      }
+
+      return signResult.signature;
+    }
+  };
+
+  /**
+   * Derive an encryption key from a signature
+   * @param signature - Wallet signature
+   */
+  const deriveEncryptionKey = async (signature: string): Promise<CryptoKey> => {
+    const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(signature),
+      "PBKDF2",
+      false,
+      ["deriveKey"],
+    );
+
+    // Use PBKDF2 to derive a key suitable for AES-GCM
+    return crypto.subtle.deriveKey(
+      {
+        name: "PBKDF2",
+        salt: encoder.encode("noblocks-secure-storage-salt"),
+        iterations: 100000,
+        hash: "SHA-256",
+      },
+      keyMaterial,
+      { name: "AES-GCM", length: 256 },
+      true,
+      ["encrypt", "decrypt"],
+    );
+  };
+
+  /**
+   * Encrypt data using AES-GCM
+   * @param data - Data to encrypt
+   * @param key - Encryption key
+   */
+  const encryptData = async (data: any, key: CryptoKey): Promise<object> => {
+    const encoder = new TextEncoder();
+    const dataStr = JSON.stringify(data);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+
+    const encrypted = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      key,
+      encoder.encode(dataStr),
+    );
+
+    return {
+      iv: Array.from(iv),
+      encryptedData: Array.from(new Uint8Array(encrypted)),
+    };
+  };
+
+  /**
+   * Decrypt data using AES-GCM
+   * @param encrypted - Encrypted data object
+   * @param key - Decryption key
+   */
+  const decryptData = async (encrypted: any, key: CryptoKey): Promise<any> => {
+    const decoder = new TextDecoder();
+    const iv = new Uint8Array(encrypted.iv);
+    const encryptedData = new Uint8Array(encrypted.encryptedData);
+
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv },
+      key,
+      encryptedData,
+    );
+
+    return JSON.parse(decoder.decode(decrypted));
+  };
+
+  /**
+   * Generate or get an IPNS key for publishing
+   * @param walletAddress - The user's wallet address
+   * @param key - Storage key
+   */
+  const getIpnsKey = async (
+    walletAddress: string,
+    key: string,
+  ): Promise<any> => {
+    const ipnsKeyName = `eth-${walletAddress}-${key}`;
+
+    // Check if we already have this key in memory
+    let privateKey = ipnsKeys[ipnsKeyName];
+
+    if (!privateKey) {
+      // Generate a new key if none exists
+      privateKey = await generateKeyPair("Ed25519");
+      setIpnsKeys((prev) => ({ ...prev, [ipnsKeyName]: privateKey }));
+      console.log(`Generated new IPNS key: ${ipnsKeyName}`);
+    }
+
+    return privateKey;
+  };
+
+  /**
+   * Save encrypted data to IPFS and publish to IPNS
+   * @param key - Storage key
+   * @param data - Data to store
    * @returns CID string of stored data
    */
-  const save = async (data: any): Promise<string> => {
-    if (!isInitialized || !dagInstance) {
+  const save = async (key: string, data: any): Promise<string> => {
+    if (!isInitialized || !dagInstance || !ipnsInstance) {
       throw new Error("Storage not initialized");
     }
 
+    setIsLoading(true);
     try {
-      // Store the structured data using Helia DAG
-      const cid = await dagInstance.add(data);
+      const walletAddress = getWalletAddress();
+
+      // Create a consistent message for encryption
+      const message = `Encrypt data for ${key} with wallet ${walletAddress}`;
+      console.log("Encryption message:", message);
+
+      // Sign the message to get a signature
+      const signature = await signForEncryption(message);
+
+      // Derive an encryption key from the signature
+      const encryptionKey = await deriveEncryptionKey(signature);
+
+      // Encrypt the data
+      const encrypted = await encryptData(data, encryptionKey);
+
+      // Store encrypted data in IPFS
+      const cid = await dagInstance.add(encrypted);
+      console.log(
+        `Data encrypted and stored in IPFS with CID: ${cid.toString()}`,
+      );
+
+      // Get or create IPNS key
+      const privateKey = await getIpnsKey(walletAddress, key);
+
+      // Publish to IPNS
+      await ipnsInstance.publish(privateKey, cid);
+      console.log(`Published to IPNS with key: eth-${walletAddress}-${key}`);
+
+      // Store a local cache of the CID for faster retrieval
+      const storageKey = `eth-${walletAddress}-${key}`;
+      localStorage.setItem(storageKey, cid.toString());
+
       return cid.toString();
     } catch (error) {
       console.error("Error saving data:", error);
-      throw error;
+      throw error instanceof Error
+        ? new Error(`Failed to save data: ${error.message}`)
+        : new Error(`Failed to save data`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   /**
-   * Retrieve immutable structured data from IPFS via Helia
-   * @param cidString - Content ID to retrieve
-   * @returns Retrieved data structure
+   * Retrieve and decrypt data from IPFS/IPNS
+   * @param key - Storage key
+   * @param options - Options for retrieval
+   * @returns Decrypted data
    */
-  const retrieve = async (cidString: string): Promise<any> => {
+  const retrieve = async (
+    key: string,
+    options?: {
+      force?: boolean;
+      directCid?: string;
+      useIpns?: boolean;
+    },
+  ): Promise<any> => {
     if (!isInitialized || !dagInstance) {
       throw new Error("Storage not initialized");
     }
 
+    setIsLoading(true);
     try {
-      // Parse the CID string to a CID object
-      const cid = CID.parse(cidString);
+      const walletAddress = getWalletAddress();
 
-      // Retrieve structured data using the CID object
-      const retrievedData = await dagInstance.get(cid);
+      // Create the same message as in save for consistent key derivation
+      const message = `Encrypt data for ${key} with wallet ${walletAddress}`;
+      console.log("Decryption message:", message);
 
-      if (retrievedData === undefined || retrievedData === null) {
-        throw new Error("Failed to retrieve data");
+      // Use the same signature process to derive the same key
+      const signature = await signForEncryption(message);
+      console.log("Decryption signature:", signature.substring(0, 20) + "...");
+
+      const decryptionKey = await deriveEncryptionKey(signature);
+
+      let cidToUse: string | null = null;
+
+      // If directCid is provided, use it directly
+      if (options?.directCid) {
+        console.log(`Using provided direct CID: ${options.directCid}`);
+        cidToUse = options.directCid;
       }
+      // If useIpns is true, always try IPNS resolution
+      else if (options?.useIpns && ipnsInstance) {
+        try {
+          console.log("Forcing IPNS resolution...");
+          const privateKey = await getIpnsKey(walletAddress, key);
+          console.log("Using IPNS key with publicKey:", privateKey.publicKey);
 
-      return retrievedData;
-    } catch (error) {
-      console.error("Error retrieving data:", error);
-      if (error instanceof Error && error.message.includes("multihash")) {
-        console.error(
-          "CID parsing error. Make sure the CID format is correct.",
+          // Resolve the latest CID from IPNS
+          const result = await ipnsInstance.resolve(privateKey.publicKey);
+          cidToUse = result.cid.toString();
+          console.log(`Resolved IPNS to CID: ${cidToUse}`);
+
+          // Update the cache
+          if (cidToUse) {
+            const storageKey = `eth-${walletAddress}-${key}`;
+            localStorage.setItem(storageKey, cidToUse);
+            console.log(`Updated localStorage with new CID: ${cidToUse}`);
+          }
+        } catch (error) {
+          console.error("IPNS resolution failed:", error);
+          throw new Error(
+            `IPNS resolution failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+      // Normal flow: check localStorage or use IPNS based on force flag
+      else {
+        // Check localStorage first for faster retrieval
+        const storageKey = `eth-${walletAddress}-${key}`;
+        const cachedCid = localStorage.getItem(storageKey);
+        console.log(
+          `Retrieved from localStorage key ${storageKey}: CID:`,
+          cachedCid,
         );
+
+        // If force is true or no cached CID, try to resolve from IPNS
+        if (options?.force || !cachedCid) {
+          if (ipnsInstance) {
+            try {
+              console.log(
+                "No cached CID or force refresh, trying IPNS resolution",
+              );
+              // Get the IPNS key
+              const privateKey = await getIpnsKey(walletAddress, key);
+              console.log(
+                "Using IPNS key with publicKey:",
+                privateKey.publicKey,
+              );
+
+              // Resolve the latest CID from IPNS
+              const result = await ipnsInstance.resolve(privateKey.publicKey);
+              cidToUse = result.cid.toString();
+              console.log(`Resolved IPNS to CID: ${cidToUse}`);
+
+              // Update the cache
+              if (cidToUse) {
+                localStorage.setItem(storageKey, cidToUse);
+                console.log(`Updated localStorage with new CID: ${cidToUse}`);
+              }
+            } catch (error) {
+              console.warn(
+                "IPNS resolution failed, falling back to cached CID:",
+                error,
+              );
+              cidToUse = cachedCid;
+            }
+          } else {
+            cidToUse = cachedCid;
+          }
+        } else {
+          console.log("Using cached CID from localStorage");
+          cidToUse = cachedCid;
+        }
       }
-      throw error;
-    }
-  };
 
-  /**
-   * Publish content to IPNS to create a persistent, updatable name
-   * @param cidString - CID of content to publish
-   * @param keyName - Optional name for the key (defaults to 'default')
-   * @returns Key name that can be used to resolve the content
-   */
-  const publishToIpns = async (
-    cidString: string,
-    keyName = "default",
-  ): Promise<string> => {
-    if (!isInitialized || !ipnsInstance) {
-      throw new Error("IPNS not initialized");
-    }
-
-    try {
-      // Get or generate a key for this name
-      let privateKey = ipnsKeys[keyName];
-
-      if (!privateKey) {
-        // Generate a new key if none exists
-        privateKey = await generateKeyPair("Ed25519");
-        setIpnsKeys((prev) => ({ ...prev, [keyName]: privateKey }));
-        console.log(`Generated new IPNS key: ${keyName}`);
+      if (!cidToUse) {
+        throw new Error("No stored data found");
       }
 
       // Parse the CID
-      const cid = CID.parse(cidString);
+      console.log(`Retrieving data with CID: ${cidToUse}`);
+      const cid = CID.parse(cidToUse);
 
-      // Publish the content to IPNS - using the private key
-      await ipnsInstance.publish(privateKey, cid);
+      // Retrieve encrypted data from IPFS
+      console.log(`Fetching from IPFS with CID: ${cid.toString()}`);
+      const encryptedData = await dagInstance.get(cid);
+      console.log(
+        "Retrieved data structure:",
+        JSON.stringify(encryptedData).substring(0, 100) + "...",
+      );
 
-      toast.success("Content published to IPNS");
-
-      // Return the key name for future resolution
-      return keyName;
-    } catch (error) {
-      console.error("Error publishing to IPNS:", error);
-      throw error instanceof Error
-        ? new Error(`Failed to publish to IPNS: ${error.message}`)
-        : new Error(`Failed to publish to IPNS`);
-    }
-  };
-
-  /**
-   * Resolve an IPNS name to the latest content CID
-   * @param keyName - Name of the key used to publish
-   * @returns The latest CID for this name
-   */
-  const resolveFromIpns = async (keyName: string): Promise<string> => {
-    if (!isInitialized || !ipnsInstance) {
-      throw new Error("IPNS not initialized");
-    }
-
-    try {
-      // Get the private key for this name
-      const privateKey = ipnsKeys[keyName];
-
-      if (!privateKey) {
-        throw new Error(`No key found for ${keyName}`);
+      if (!encryptedData || !encryptedData.iv || !encryptedData.encryptedData) {
+        console.error("Invalid data format:", encryptedData);
+        throw new Error("Invalid encrypted data format");
       }
 
-      // Resolve using the public key - correct property access
-      const result = await ipnsInstance.resolve(privateKey.publicKey);
-      console.log("IPNS resolve result:", result);
-
-      // Return the CID as a string
-      return result.cid.toString();
+      // Decrypt the data
+      console.log(
+        "Attempting decryption with iv length:",
+        encryptedData.iv.length,
+      );
+      console.log("Encrypted data length:", encryptedData.encryptedData.length);
+      const decryptedData = await decryptData(encryptedData, decryptionKey);
+      console.log("Decryption successful");
+      return decryptedData;
     } catch (error) {
-      console.error("Error resolving IPNS name:", error);
+      console.error("Error retrieving data:", error);
       throw error instanceof Error
-        ? new Error(`Failed to resolve IPNS name: ${error.message}`)
-        : new Error(`Failed to resolve IPNS name`);
+        ? new Error(`Failed to retrieve data: ${error.message}`)
+        : new Error(`Failed to retrieve data`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <StorageContext.Provider
-      value={{
-        save,
-        retrieve,
-        publishToIpns,
-        resolveFromIpns,
-        isInitialized,
-      }}
+      value={{ save, retrieve, isInitialized, isLoading }}
     >
       {children}
     </StorageContext.Provider>

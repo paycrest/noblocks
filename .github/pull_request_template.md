@@ -3,8 +3,6 @@
 > Describe the purpose of this PR along with any background information and the impacts of the proposed change. For the benefit of the community, please do not assume prior context.
 >
 > Provide details that support your chosen implementation, including: breaking changes, alternatives considered, changes to the API, contracts etc.
->
-> If the UI is being changed, please provide screenshots.
 
 
 ### References
@@ -32,9 +30,9 @@
 
 ### Checklist
 
-- [ ] I have added documentation for new/changed functionality in this PR
+- [ ] I have added documentation and tests for new/changed functionality in this PR
 - [ ] All active GitHub checks for tests, formatting, and security are passing
-- [ ] The correct base branch is being used, if not `master`
+- [ ] The correct base branch is being used, if not `main`
 
 
-By submitting a PR to this repository, you agree to the terms within the [Paycrest Code of Conduct](https://www.notion.so/paycrest/Contributor-Code-of-Conduct-1602482d45a2806bab75fd314b381f4c?pvs=4). Please see the [contributing guidelines](https://paycrest.notion.site/Contribution-Guide-1602482d45a2809a8930e6ad565c906a?pvs=4) for how to create and submit a high-quality PR for this repo.
+By submitting a PR, I agree to Paycrest's [Contributor Code of Conduct](https://paycrest.notion.site/Contributor-Code-of-Conduct-1602482d45a2806bab75fd314b381f4c) and [Contribution Guide](https://paycrest.notion.site/Contribution-Guide-1602482d45a2809a8930e6ad565c906a).

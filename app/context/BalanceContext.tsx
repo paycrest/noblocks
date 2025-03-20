@@ -69,7 +69,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
       const publicClient = createPublicClient({
         chain: selectedNetwork.chain,
-        transport: http(getRpcUrl(selectedNetwork.chain.name)),
+        transport: http(
+          selectedNetwork.chain.id === bsc.id
+            ? "https://bsc-dataseed.bnbchain.org/"
+            : undefined,
+        ),
       });
 
       if (smartWalletAccount) {

@@ -1,7 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useStorage } from "../context/StorageContext";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { toast } from "sonner";
+import { useInjectedWallet } from "../context/InjectedWalletContext";
 
 /**
  * Transaction type for testing structured data
@@ -15,16 +17,33 @@ type Transaction = {
 };
 
 /**
- * Helia/IPFS DAG Storage Test Page with IPNS support
+ * Wallet-Encrypted Storage Test Page
  */
 export default function HeliaTestPage() {
   const storage = useStorage();
+  const { ready, authenticated, login } = usePrivy();
+  const { wallets } = useWallets();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [savedCid, setSavedCid] = useState("");
-  const [ipnsName, setIpnsName] = useState("");
+  const [lastSavedCid, setLastSavedCid] = useState("");
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isPublishing, setIsPublishing] = useState(false);
-  const [currentKeyName, setCurrentKeyName] = useState("transactions");
+  const [debugInfo, setDebugInfo] = useState<string>("");
+  const [isLoadingFromStorage, setIsLoadingFromStorage] = useState(false);
+  const [isLoadingFromIpns, setIsLoadingFromIpns] = useState(false);
+
+  // Get the wallet address
+  const getWalletAddress = (): string | undefined => {
+    if (isInjectedWallet && injectedAddress) {
+      return injectedAddress;
+    }
+
+    const embeddedWallet = wallets.find(
+      (wallet) => wallet.walletClientType === "privy",
+    );
+    return embeddedWallet?.address;
+  };
 
   /**
    * Generate a mock transaction for testing
@@ -48,9 +67,14 @@ export default function HeliaTestPage() {
   };
 
   /**
-   * Add a new mock transaction and save to Helia
+   * Add a new mock transaction and save encrypted to IPFS
    */
   const addTransaction = async () => {
+    if (!ready || !authenticated) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
+
     if (!storage?.save || !storage.isInitialized) {
       toast.error("Storage not initialized");
       return;
@@ -62,20 +86,16 @@ export default function HeliaTestPage() {
       const updatedTransactions = [...transactions, newTransaction];
       setTransactions(updatedTransactions);
 
-      // Save structured data to Helia
-      const dataToSave = {
-        transactions: updatedTransactions,
-        metadata: {
-          count: updatedTransactions.length,
-          lastUpdated: new Date().toISOString(),
-        },
-      };
+      toast.info("Signing message to encrypt data...");
 
-      const cid = await storage.save(dataToSave);
-      setSavedCid(cid);
-      toast.success("Transactions saved to Helia");
+      // Save data with wallet-based encryption
+      const cid = await storage.save("transactions", updatedTransactions);
+      setLastSavedCid(cid);
+      setLastSaved(new Date().toISOString());
+
+      toast.success("Transaction encrypted and saved to IPFS");
     } catch (error) {
-      console.error("Failed to save transactions:", error);
+      console.error("Failed to save transaction:", error);
       toast.error(error instanceof Error ? error.message : String(error));
     } finally {
       setIsLoading(false);
@@ -83,11 +103,15 @@ export default function HeliaTestPage() {
   };
 
   /**
-   * Load transactions from Helia
+   * Load transactions from IPFS
    */
-  const loadTransactions = async () => {
-    if (!savedCid) {
-      toast.error("No CID available. Save some transactions first.");
+  const loadTransactions = async ({
+    forceRefresh = false,
+  }: {
+    forceRefresh?: boolean;
+  }) => {
+    if (!ready || !authenticated) {
+      toast.error("Please connect your wallet first");
       return;
     }
 
@@ -98,187 +122,305 @@ export default function HeliaTestPage() {
 
     try {
       setIsLoading(true);
-      // Retrieve structured data from Helia
-      const data = await storage.retrieve(savedCid);
+      toast.info("Retrieving encrypted transactions...");
 
-      if (data && data.transactions && Array.isArray(data.transactions)) {
-        setTransactions(data.transactions);
-        toast.success(
-          `Loaded ${data.transactions.length} transactions from Helia`,
-        );
+      // Retrieve and decrypt data
+      const data = await storage.retrieve("transactions", {
+        force: forceRefresh,
+      });
 
-        // Display metadata to show the full data structure was retrieved
-        if (data.metadata) {
-          toast.info(
-            `Last updated: ${new Date(data.metadata.lastUpdated).toLocaleString()}`,
-          );
-        }
+      if (data && Array.isArray(data)) {
+        setTransactions(data);
+        toast.success("Transactions successfully retrieved and decrypted");
       } else {
-        toast.error("Invalid data format retrieved");
+        setTransactions([]);
+        toast.info("No transactions found");
       }
     } catch (error) {
-      console.error("Failed to load transactions:", error);
-      toast.error(error instanceof Error ? error.message : String(error));
+      console.error("Storage retrieval error:", error);
+
+      // More specific error handling
+      if (
+        error instanceof Error &&
+        error.message.includes("No stored data found")
+      ) {
+        toast.info("You haven't saved any transactions yet");
+      } else if (
+        error instanceof Error &&
+        error.message.includes("Failed to decrypt")
+      ) {
+        toast.error(
+          "Could not decrypt your data. You may need to save new transactions first.",
+        );
+      } else {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to load transactions",
+        );
+      }
+
+      setTransactions([]);
     } finally {
       setIsLoading(false);
     }
   };
 
   /**
-   * Publish the latest transactions CID to IPNS
+   * Load transactions directly from localStorage CID
    */
-  const publishToIpns = async () => {
-    if (!savedCid) {
-      toast.error("No CID available. Save some transactions first.");
+  const loadFromLocalStorage = async () => {
+    if (!ready || !authenticated) {
+      toast.error("Please connect your wallet first");
       return;
     }
 
-    if (!storage?.publishToIpns || !storage.isInitialized) {
-      toast.error("IPNS not initialized");
+    if (!storage?.retrieve || !storage.isInitialized) {
+      toast.error("Storage not initialized");
       return;
     }
 
     try {
-      setIsPublishing(true);
-      toast.info("Publishing to IPNS...");
+      setIsLoadingFromStorage(true);
+      toast.info("Loading directly from localStorage CID...");
 
-      // Use a consistent key name for transactions
-      const keyName = "transactions";
-      setCurrentKeyName(keyName);
+      // Get wallet address for storage key
+      const walletAddress = getWalletAddress();
+      if (!walletAddress) {
+        throw new Error("No wallet address available");
+      }
 
-      // Publish the CID to IPNS
-      await storage.publishToIpns(savedCid, keyName);
-      setIpnsName(keyName);
+      // Get CID from localStorage
+      const storageKey = `eth-${walletAddress.toLowerCase()}-transactions`;
+      const cidFromStorage = localStorage.getItem(storageKey);
 
-      toast.success("Published to IPNS successfully");
+      if (!cidFromStorage) {
+        toast.error("No CID found in localStorage");
+        return;
+      }
+
+      setDebugInfo(`Using CID from localStorage: ${cidFromStorage}`);
+
+      // Force direct CID retrieval
+      const data = await storage.retrieve("transactions", {
+        force: false,
+        directCid: cidFromStorage, // Add this optional param to your StorageContext
+      });
+
+      if (data && Array.isArray(data)) {
+        setTransactions(data);
+        toast.success(
+          `Loaded ${data.length} transactions from localStorage CID`,
+        );
+      } else {
+        setTransactions([]);
+        toast.info("No transactions found");
+      }
     } catch (error) {
-      console.error("Failed to publish to IPNS:", error);
+      console.error("Error loading from localStorage CID:", error);
       toast.error(error instanceof Error ? error.message : String(error));
+      setDebugInfo(
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      setTransactions([]);
     } finally {
-      setIsPublishing(false);
+      setIsLoadingFromStorage(false);
     }
   };
 
   /**
-   * Load the latest transactions from IPNS
+   * Load transactions from IPNS
    */
   const loadFromIpns = async () => {
-    if (!currentKeyName) {
-      toast.error("No IPNS key available. Publish to IPNS first.");
+    if (!ready || !authenticated) {
+      toast.error("Please connect your wallet first");
       return;
     }
 
-    if (
-      !storage?.resolveFromIpns ||
-      !storage?.retrieve ||
-      !storage.isInitialized
-    ) {
-      toast.error("Storage or IPNS not initialized");
+    if (!storage?.retrieve || !storage.isInitialized) {
+      toast.error("Storage not initialized");
       return;
     }
 
     try {
-      setIsLoading(true);
-      toast.info("Resolving IPNS name...");
+      setIsLoadingFromIpns(true);
+      toast.info("Loading via IPNS resolution...");
 
-      // Resolve the IPNS name to a CID
-      const resolvedCid = await storage.resolveFromIpns(currentKeyName);
-      toast.info(`Resolved to CID: ${resolvedCid}`);
+      // Force IPNS resolution
+      const data = await storage.retrieve("transactions", {
+        force: true,
+        useIpns: true, // Add this optional param to your StorageContext
+      });
 
-      // Then retrieve the data using that CID
-      const data = await storage.retrieve(resolvedCid);
-
-      if (data && data.transactions && Array.isArray(data.transactions)) {
-        setTransactions(data.transactions);
-        setSavedCid(resolvedCid); // Update the current CID
-        toast.success(
-          `Loaded ${data.transactions.length} transactions via IPNS`,
-        );
-
-        if (data.metadata) {
-          toast.info(
-            `Last updated: ${new Date(data.metadata.lastUpdated).toLocaleString()}`,
-          );
-        }
+      if (data && Array.isArray(data)) {
+        setTransactions(data);
+        toast.success(`Loaded ${data.length} transactions via IPNS`);
       } else {
-        toast.error("Invalid data format retrieved via IPNS");
+        setTransactions([]);
+        toast.info("No transactions found via IPNS");
       }
     } catch (error) {
-      console.error("Failed to load from IPNS:", error);
+      console.error("Error loading via IPNS:", error);
       toast.error(error instanceof Error ? error.message : String(error));
+      setDebugInfo(
+        `IPNS Error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      setTransactions([]);
     } finally {
-      setIsLoading(false);
+      setIsLoadingFromIpns(false);
     }
   };
+
+  // Remove automatic loading (commenting out this useEffect)
+  /* 
+  useEffect(() => {
+    if (ready && authenticated && storage?.isInitialized && !isLoading) {
+      loadTransactions({ forceRefresh: false });
+    }
+  }, [ready, authenticated, storage?.isInitialized, getWalletAddress()]);
+  */
+
+  // Authentication check
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-t-4 border-gray-200 border-t-lavender-500"></div>
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background-neutral p-4 dark:bg-neutral-900">
+        <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">
+          Wallet-Encrypted Storage
+        </h1>
+        <p className="mb-4 text-text-secondary dark:text-gray-300">
+          Please connect your wallet to test the encrypted storage
+        </p>
+        <button
+          onClick={login}
+          className="rounded-lg bg-lavender-500 px-6 py-2 font-medium text-white transition-colors hover:bg-lavender-600"
+        >
+          Connect Wallet
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-4xl p-6">
       <h1 className="mb-6 text-2xl font-bold text-neutral-900 dark:text-white">
-        Persistent Data with IPNS + Helia
+        Wallet-Encrypted Storage
       </h1>
 
       <div className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-surface-canvas">
         <h2 className="mb-4 text-xl font-semibold text-neutral-900 dark:text-white">
-          Store, Name, and Retrieve Data
+          Your Data is Encrypted with Your Wallet
         </h2>
 
         <div className="mb-6 flex flex-wrap gap-4">
           <button
             onClick={addTransaction}
-            disabled={isLoading || !storage?.isInitialized}
+            disabled={
+              isLoading || storage?.isLoading || !storage?.isInitialized
+            }
             className="rounded-lg bg-lavender-500 px-4 py-2 font-medium text-white transition-colors hover:bg-lavender-600 disabled:opacity-50"
           >
-            {isLoading ? "Processing..." : "Add Transaction"}
+            {isLoading || storage?.isLoading
+              ? "Encrypting & Saving..."
+              : "Add Transaction"}
           </button>
 
           <button
-            onClick={loadTransactions}
-            disabled={isLoading || !storage?.isInitialized || !savedCid}
+            onClick={() => loadTransactions({ forceRefresh: true })}
+            disabled={
+              isLoading || storage?.isLoading || !storage?.isInitialized
+            }
             className="rounded-lg border border-lavender-500 bg-white px-4 py-2 font-medium text-lavender-500 transition-colors hover:bg-lavender-50 disabled:opacity-50 dark:bg-transparent dark:hover:bg-gray-700"
           >
-            {isLoading ? "Loading..." : "Load From CID"}
+            {isLoading || storage?.isLoading
+              ? "Retrieving..."
+              : "Auto Detect & Load"}
           </button>
+        </div>
 
+        <div className="mb-6 flex flex-wrap gap-4">
           <button
-            onClick={publishToIpns}
-            disabled={isPublishing || !storage?.isInitialized || !savedCid}
+            onClick={loadFromLocalStorage}
+            disabled={
+              isLoadingFromStorage ||
+              storage?.isLoading ||
+              !storage?.isInitialized
+            }
             className="rounded-lg bg-amber-500 px-4 py-2 font-medium text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
           >
-            {isPublishing ? "Publishing..." : "Publish to IPNS"}
+            {isLoadingFromStorage ? "Loading..." : "Load from localStorage CID"}
           </button>
 
           <button
             onClick={loadFromIpns}
-            disabled={isLoading || !storage?.isInitialized}
-            className="rounded-lg border border-amber-500 bg-white px-4 py-2 font-medium text-amber-500 transition-colors hover:bg-amber-50 disabled:opacity-50 dark:bg-transparent dark:hover:bg-gray-700"
+            disabled={
+              isLoadingFromIpns || storage?.isLoading || !storage?.isInitialized
+            }
+            className="rounded-lg bg-green-500 px-4 py-2 font-medium text-white transition-colors hover:bg-green-600 disabled:opacity-50"
           >
-            {isLoading ? "Loading..." : "Load From IPNS"}
+            {isLoadingFromIpns ? "Resolving..." : "Load via IPNS"}
           </button>
         </div>
 
-        {savedCid && (
+        {/* Add a message guiding users on how to start */}
+        <div className="mb-6 rounded-md bg-blue-50 p-4 dark:bg-blue-900/20">
+          <h3 className="mb-2 font-medium text-blue-800 dark:text-blue-400">
+            Getting Started
+          </h3>
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            To begin, either add a new transaction or load your existing data
+            using one of the buttons above.
+          </p>
+        </div>
+
+        {lastSavedCid && (
           <div className="mb-6 rounded-md bg-background-neutral p-4 dark:bg-gray-700">
             <h3 className="mb-2 font-medium text-neutral-900 dark:text-white">
-              Content ID (CID):
+              Last Content ID (CID):
             </h3>
             <p className="break-all font-mono text-sm text-text-body dark:text-gray-300">
-              {savedCid}
+              {lastSavedCid}
             </p>
+            {lastSaved && (
+              <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                Last saved: {new Date(lastSaved).toLocaleString()}
+              </p>
+            )}
           </div>
         )}
 
-        {ipnsName && (
-          <div className="mb-6 rounded-md bg-amber-50 p-4 dark:bg-amber-900/20">
-            <h3 className="mb-2 font-medium text-amber-800 dark:text-amber-400">
-              IPNS Name (Persistent Identifier):
+        {/* Debug info box */}
+        {debugInfo && (
+          <div className="mb-6 rounded-md bg-gray-100 p-4 dark:bg-gray-800">
+            <h3 className="mb-2 font-medium text-neutral-900 dark:text-white">
+              Debug Info:
             </h3>
-            <p className="break-all font-mono text-sm text-amber-700 dark:text-amber-300">
-              {ipnsName}
+            <p className="break-all font-mono text-xs text-text-body dark:text-gray-300">
+              {debugInfo}
             </p>
-            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-              Unlike CIDs which change with content, this IPNS name remains the
-              same even when your data changes.
-            </p>
+            <button
+              onClick={() => {
+                // Get localStorage CID for debugging
+                const walletAddress = getWalletAddress();
+                if (walletAddress) {
+                  const storageKey = `eth-${walletAddress.toLowerCase()}-transactions`;
+                  const cid = localStorage.getItem(storageKey);
+                  setDebugInfo(
+                    `localStorage key: ${storageKey}\nCID: ${cid || "Not found"}`,
+                  );
+                }
+              }}
+              className="mt-2 text-xs text-lavender-500 hover:underline"
+            >
+              Show localStorage CID info
+            </button>
           </div>
         )}
 
@@ -326,31 +468,29 @@ export default function HeliaTestPage() {
 
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-surface-canvas">
         <h3 className="mb-3 font-medium text-neutral-900 dark:text-white">
-          What's IPNS and Why It Matters
+          How Wallet-Encrypted Storage Works
         </h3>
         <p className="mb-2 text-sm text-text-secondary dark:text-gray-300">
-          IPNS (InterPlanetary Name System) provides{" "}
-          <strong>persistent naming</strong> for your changing content
+          1. When you save data, your wallet signs a message to derive an
+          encryption key
         </p>
         <p className="mb-2 text-sm text-text-secondary dark:text-gray-300">
-          <strong>Problem:</strong> Each time you modify data and save it to
-          IPFS, you get a completely new CID
+          2. Your data is encrypted before being stored on IPFS
         </p>
         <p className="mb-2 text-sm text-text-secondary dark:text-gray-300">
-          <strong>Solution:</strong> IPNS creates a stable pointer that can be
-          updated to point to the latest CID
+          3. An IPNS record is created that's specific to your wallet and the
+          data key
         </p>
         <p className="mb-2 text-sm text-text-secondary dark:text-gray-300">
-          This is perfect for:
+          4. When retrieving, your wallet signs the same message to derive the
+          same key for decryption
         </p>
-        <ul className="mb-2 ml-5 list-disc text-sm text-text-secondary dark:text-gray-300">
-          <li>User profiles that change over time</li>
-          <li>Transaction history that grows</li>
-          <li>Content that needs to be referenced by a stable identifier</li>
-        </ul>
+        <p className="mb-2 text-sm text-text-secondary dark:text-gray-300">
+          5. Only your wallet can decrypt the data, ensuring privacy
+        </p>
         <p className="text-sm text-text-secondary dark:text-gray-300">
-          Helia Status:{" "}
-          {storage?.isInitialized ? "✅ Ready" : "⏳ Initializing..."}
+          Status: {storage?.isInitialized ? "✅ Ready" : "⏳ Initializing..."}
+          {storage?.isLoading && " 🔄 Processing..."}
         </p>
       </div>
     </div>

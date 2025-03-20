@@ -18,7 +18,6 @@ export {
   dropdownVariants,
 } from "./AnimatedComponents";
 
-export { Tooltip } from "./Tooltip";
 export { KycModal } from "./KycModal";
 export { CookieConsent } from "./CookieConsent";
 export { NetworkSelectionModal } from "./NetworkSelectionModal";

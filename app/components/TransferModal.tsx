@@ -67,6 +67,17 @@ export const TransferModal = ({
     });
   }
 
+  // Add effect to revalidate amount when token changes
+  useEffect(
+    function revalidateAmount() {
+      if (token) {
+        setValue("amount", Number(amount), { shouldValidate: true });
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [token],
+  );
+
   const handleTransfer = async (data: FormData) => {
     try {
       const fetchedTokens: Token[] =

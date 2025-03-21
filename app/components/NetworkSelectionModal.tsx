@@ -9,13 +9,17 @@ import { usePrivy } from "@privy-io/react-auth";
 import { networks } from "../mocks";
 import { useNetwork } from "../context/NetworksContext";
 import { AnimatedModal } from "./AnimatedComponents";
+import { shouldUseInjectedWallet, handleNetworkSwitch } from "../utils";
+import { useSearchParams } from "next/navigation";
 
 export const NetworkSelectionModal = () => {
+  const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { authenticated, user } = usePrivy();
+  const useInjectedWallet = shouldUseInjectedWallet(searchParams);
 
   useEffect(() => {
     if (!hasCheckedStorage && authenticated && user?.wallet?.address) {
@@ -37,6 +41,22 @@ export const NetworkSelectionModal = () => {
     setIsOpen(false);
   };
 
+  const handleNetworkSelect = async (networkName: string) => {
+    const newNetwork = networks.find((net) => net.chain.name === networkName);
+    if (newNetwork) {
+      handleNetworkSwitch(
+        newNetwork,
+        useInjectedWallet,
+        setSelectedNetwork,
+        handleClose,
+        (error) => {
+          console.error("Failed to switch network:", error);
+          setSelectedNetwork(selectedNetwork);
+        },
+      );
+    }
+  };
+
   if (!authenticated) return null;
 
   return (
@@ -45,7 +65,6 @@ export const NetworkSelectionModal = () => {
         layout
         layoutRoot
         transition={{ duration: 0.2, type: "spring" }}
-        className="px-5 pb-6 pt-6 max-sm:pb-12"
       >
         <AnimatePresence mode="wait" initial={false}>
           {!showInfo ? (
@@ -82,10 +101,7 @@ export const NetworkSelectionModal = () => {
                     key={network.chain.name}
                     type="button"
                     aria-label={`Select ${network.chain.name} network`}
-                    onClick={() => {
-                      setSelectedNetwork(network);
-                      handleClose();
-                    }}
+                    onClick={() => handleNetworkSelect(network.chain.name)}
                     className="flex w-full items-center justify-between rounded-xl p-3 max-sm:bg-background-neutral max-sm:dark:bg-white/5 sm:hover:bg-background-neutral sm:dark:hover:bg-white/5"
                   >
                     <div className="flex items-center gap-3">

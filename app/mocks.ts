@@ -45,12 +45,12 @@ export const networks = [
     imageUrl: "/logos/bnb-smart-chain-logo.svg",
   },
   {
-    chain: polygon,
-    imageUrl: "/logos/polygon-logo.svg",
-  },
-  {
     chain: celo,
     imageUrl: "/logos/celo-logo.svg",
+  },
+  {
+    chain: polygon,
+    imageUrl: "/logos/polygon-logo.svg",
   },
   // {
   //   chain: scroll,
@@ -61,25 +61,6 @@ export const networks = [
   //   imageUrl: "/logos/op-mainnet-logo.svg",
   // },
 ];
-
-// Unused, consider removing
-// export const tokens = [
-//   {
-//     name: "USDT",
-//     label: "Tether",
-//     imageUrl: "/logos/usdt-logo.svg",
-//   },
-//   {
-//     name: "USDC",
-//     label: "USD Coin",
-//     imageUrl: "/logos/usdc-logo.svg",
-//   },
-//   {
-//     name: "cNGN",
-//     label: "cNGN",
-//     imageUrl: "/logos/cngn-logo.png",
-//   },
-// ];
 
 export const colors = [
   "bg-blue-600",

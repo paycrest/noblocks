@@ -5,6 +5,7 @@ import type {
   UseFormRegister,
   UseFormHandleSubmit,
   UseFormReturn,
+  UseFormSetValue,
 } from "react-hook-form";
 
 export type InstitutionProps = {
@@ -235,4 +236,9 @@ export type Config = {
   mixpanelToken: string;
   hotjarSiteId: number;
   contactSupportUrl: string;
+};
+
+export type Network = {
+  chain: any;
+  imageUrl: string;
 };

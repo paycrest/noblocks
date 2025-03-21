@@ -37,14 +37,13 @@ import {
   type OrderDetailsData,
   type TransactionStatusProps,
 } from "../types";
-import { useNetwork } from "../context/NetworksContext";
-import { useBalance } from "../context/BalanceContext";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
+import { useBalance, useInjectedWallet, useNetwork } from "../context";
 
 /**
  * Renders the transaction status component.
@@ -72,7 +71,10 @@ export function TransactionStatus({
 }: TransactionStatusProps) {
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
-  const { refreshBalance, smartWalletBalance } = useBalance();
+  const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
+    useBalance();
+  const { isInjectedWallet } = useInjectedWallet();
+
   const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
   const [createdHash, setCreatedHash] = useState("");
@@ -173,14 +175,19 @@ export function TransactionStatus({
           supportedInstitutions,
         );
 
+        const balance = isInjectedWallet
+          ? smartWalletBalance?.balances[token] || 0
+          : injectedWalletBalance?.balances[token] || 0;
+
         const eventData = {
           Amount: amount,
           "Send token": token,
           "Receive currency": currency,
           "Recipient bank": bankName,
-          "Noblocks balance": smartWalletBalance?.balances[token] || 0,
+          "Wallet balance": balance,
           "Swap date": createdAt,
           "Transaction duration": calculateDuration(createdAt, completedAt),
+          "Wallet type": isInjectedWallet ? "Injected" : "Smart wallet",
         };
 
         if (["validated", "settled"].includes(transactionStatus)) {

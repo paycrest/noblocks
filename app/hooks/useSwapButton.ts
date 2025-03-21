@@ -1,5 +1,6 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { UseFormWatch } from "react-hook-form";
+import { useInjectedWallet } from "../context";
 
 interface UseSwapButtonProps {
   watch: UseFormWatch<any>;
@@ -17,21 +18,26 @@ export function useSwapButton({
   isUserVerified,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
+  const { isInjectedWallet } = useInjectedWallet();
   const { amountSent, currency, recipientName } = watch();
 
   const isAmountValid = Number(amountSent) >= 0.5;
   const isCurrencySelected = Boolean(currency);
-  const hasInsufficientBalance = authenticated && amountSent > balance;
+
+  const hasInsufficientBalance = amountSent > balance;
 
   const isEnabled = (() => {
-    // If needs funding, always enable the button
-    if (hasInsufficientBalance) {
+    if (isInjectedWallet && hasInsufficientBalance) {
+      return false;
+    }
+
+    if (hasInsufficientBalance && !isInjectedWallet && authenticated) {
       return true;
     }
 
     if (
       !isUserVerified &&
-      authenticated &&
+      (authenticated || isInjectedWallet) &&
       amountSent > 0 &&
       isCurrencySelected &&
       isAmountValid &&
@@ -40,11 +46,18 @@ export function useSwapButton({
       return true;
     }
 
+    if (isInjectedWallet) {
+      if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
+        return false;
+      }
+      return Boolean(recipientName);
+    }
+
     if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
       return false;
     }
 
-    if (!authenticated) {
+    if (!authenticated && !isInjectedWallet) {
       return true; // Enable for login if amount and currency are valid
     }
 
@@ -52,11 +65,19 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
-    if (authenticated && hasInsufficientBalance) {
+    if (isInjectedWallet && hasInsufficientBalance) {
+      return "Insufficient balance";
+    }
+
+    if (authenticated && hasInsufficientBalance && !isInjectedWallet) {
       return "Fund wallet";
     }
 
-    if (!isUserVerified && authenticated && amountSent > 0) {
+    if (
+      !isUserVerified &&
+      (authenticated || isInjectedWallet) &&
+      amountSent > 0
+    ) {
       return "Get started";
     }
 
@@ -70,13 +91,13 @@ export function useSwapButton({
     setIsKycModalOpen: () => void,
     isUserVerified: boolean,
   ) => {
-    if (!authenticated) {
+    if (!authenticated && !isInjectedWallet) {
       return login;
     }
-    if (hasInsufficientBalance) {
+    if (hasInsufficientBalance && !isInjectedWallet && authenticated) {
       return handleFundWallet;
     }
-    if (!isUserVerified) {
+    if (!isUserVerified && (authenticated || isInjectedWallet)) {
       return setIsKycModalOpen;
     }
     return handleSwap;

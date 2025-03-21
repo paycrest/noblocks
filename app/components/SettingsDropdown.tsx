@@ -18,10 +18,12 @@ import {
 } from "hugeicons-react";
 import { toast } from "sonner";
 import config from "@/app/lib/config";
+import { useInjectedWallet } from "../context";
 
 export const SettingsDropdown = () => {
   const { user, exportWallet, updateEmail } = usePrivy();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -32,12 +34,13 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  const walletAddress = isInjectedWallet
+    ? injectedAddress
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
+        ?.address;
 
   const handleCopyAddress = () => {
-    navigator.clipboard.writeText(smartWallet?.address ?? "");
+    navigator.clipboard.writeText(walletAddress ?? "");
     setIsAddressCopied(true);
     setTimeout(() => setIsAddressCopied(false), 2000);
   };
@@ -69,7 +72,6 @@ export const SettingsDropdown = () => {
       <button
         type="button"
         aria-label="Wallet details"
-        aria-expanded={isOpen}
         aria-haspopup="true"
         onClick={() => {
           setIsOpen(!isOpen);
@@ -93,27 +95,27 @@ export const SettingsDropdown = () => {
             exit="closed"
             variants={dropdownVariants}
             aria-label="Dropdown menu"
-            className="absolute right-0 z-10 mt-4 w-fit space-y-4 overflow-hidden rounded-xl border border-border-light bg-white p-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
+            className="absolute right-0 z-10 mt-4 w-fit min-w-40 space-y-4 overflow-hidden rounded-xl border border-border-light bg-white p-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
           >
             <ul
               role="menu"
               aria-labelledby="settings-dropdown"
               aria-orientation="vertical"
-              className="text-sm font-normal text-black dark:text-white/80"
+              className="text-sm font-normal text-black *:px-4 *:py-2 dark:text-white/80"
             >
               <li
                 role="menuitem"
-                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
               >
                 <button
                   type="button"
-                  className="group flex w-full items-center justify-between gap-2.5"
+                  className="group flex w-full items-center justify-between gap-4"
                   onClick={handleCopyAddress}
                 >
                   <div className="flex items-center gap-2.5">
                     <Wallet01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                     <p className="max-w-60 break-words">
-                      {shortenAddress(smartWallet?.address ?? "", 6)}
+                      {shortenAddress(walletAddress ?? "", 10)}
                     </p>
                   </div>
                   {isAddressCopied ? (
@@ -126,53 +128,56 @@ export const SettingsDropdown = () => {
                   )}
                 </button>
               </li>
-              {user?.email ? (
+              {!isInjectedWallet &&
+                (user?.email ? (
+                  <li
+                    role="menuitem"
+                    className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  >
+                    <button
+                      type="button"
+                      className="group flex w-full items-center justify-between gap-4"
+                      onClick={updateEmail}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Mail01Icon className="size-5 flex-shrink-0 text-icon-outline-secondary dark:text-white/50" />
+                        <p className="whitespace-nowrap">Linked email</p>
+                      </div>
+                      <p className="max-w-32 truncate text-neutral-500 dark:text-white/40">
+                        {user.email.address}
+                      </p>
+                    </button>
+                  </li>
+                ) : (
+                  <li
+                    role="menuitem"
+                    className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  >
+                    <button
+                      type="button"
+                      className="group flex w-full items-center justify-between gap-2.5"
+                      onClick={linkEmail}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Mail01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                        <p>Link email address</p>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              {!isInjectedWallet && (
                 <li
                   role="menuitem"
-                  className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  onClick={exportWallet}
                 >
-                  <button
-                    type="button"
-                    className="group flex w-full items-center justify-between gap-4"
-                    onClick={updateEmail}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Mail01Icon className="size-5 flex-shrink-0 text-icon-outline-secondary dark:text-white/50" />
-                      <p className="whitespace-nowrap">Linked email</p>
-                    </div>
-                    <p className="max-w-20 truncate text-neutral-500 dark:text-white/40">
-                      {user.email.address}
-                    </p>
-                  </button>
-                </li>
-              ) : (
-                <li
-                  role="menuitem"
-                  className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
-                >
-                  <button
-                    type="button"
-                    className="group flex w-full items-center justify-between gap-2.5"
-                    onClick={linkEmail}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Mail01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-                      <p>Link email address</p>
-                    </div>
-                  </button>
+                  <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                  <p>Export wallet</p>
                 </li>
               )}
               <li
                 role="menuitem"
-                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
-                onClick={exportWallet}
-              >
-                <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-                <p>Export wallet</p>
-              </li>
-              <li
-                role="menuitem"
-                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
               >
                 <a
                   href={config.contactSupportUrl}
@@ -184,18 +189,20 @@ export const SettingsDropdown = () => {
                   <p>Contact support</p>
                 </a>
               </li>
-              <li
-                role="menuitem"
-                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-4 py-2 transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
-                onClick={handleLogout}
-              >
-                {isLoggingOut ? (
-                  <ImSpinner className="size-5 animate-spin text-icon-outline-secondary dark:text-white/50" />
-                ) : (
-                  <Logout03Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-                )}
-                <p>Sign out</p>
-              </li>
+              {!isInjectedWallet && (
+                <li
+                  role="menuitem"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+                  onClick={handleLogout}
+                >
+                  {isLoggingOut ? (
+                    <ImSpinner className="size-5 animate-spin text-icon-outline-secondary dark:text-white/50" />
+                  ) : (
+                    <Logout03Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                  )}
+                  <p>Sign out</p>
+                </li>
+              )}
             </ul>
           </motion.div>
         )}

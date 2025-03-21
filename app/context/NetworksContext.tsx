@@ -1,10 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { networks } from "../mocks";
-
-type Network = {
-  chain: any;
-  imageUrl: string;
-};
+import type { Network } from "../types";
+import { useInjectedWallet } from "./InjectedWalletContext";
 
 type NetworkContextType = {
   selectedNetwork: Network;
@@ -28,18 +25,50 @@ const setStoredNetwork = (network: Network) => {
   localStorage.setItem(STORAGE_KEY, network.chain.name);
 };
 
+const switchNetwork = async (network: Network) => {
+  if (typeof window.ethereum !== "undefined") {
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: `0x${network.chain.id.toString(16)}` }],
+      });
+      return true;
+    } catch (error) {
+      console.error("Failed to switch network:", error);
+      return false;
+    }
+  }
+  return false;
+};
+
 export function NetworkProvider({ children }: { children: React.ReactNode }) {
   const [selectedNetwork, setSelectedNetwork] = useState(networks[0]);
+  const { isInjectedWallet, injectedReady } = useInjectedWallet();
 
-  const handleNetworkChange = (network: Network) => {
-    setSelectedNetwork(network);
-    setStoredNetwork(network);
+  const handleNetworkChange = async (network: Network) => {
+    if (isInjectedWallet && injectedReady) {
+      const switched = await switchNetwork(network);
+      if (switched) {
+        setSelectedNetwork(network);
+        setStoredNetwork(network);
+      }
+    } else {
+      setSelectedNetwork(network);
+      setStoredNetwork(network);
+    }
   };
 
   useEffect(() => {
-    const preferredNetwork = getStoredNetwork();
-    setSelectedNetwork(preferredNetwork);
-  }, []);
+    const initNetwork = async () => {
+      const preferredNetwork = getStoredNetwork();
+      await handleNetworkChange(preferredNetwork);
+    };
+
+    if (injectedReady || !isInjectedWallet) {
+      initNetwork();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInjectedWallet, injectedReady]);
 
   // cross-tab synchronization
   const onStorageUpdate = () => {

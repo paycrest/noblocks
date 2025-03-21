@@ -24,6 +24,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { MobileDropdown } from "./MobileDropdown";
 import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
+import { useInjectedWallet } from "../context";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -32,12 +33,13 @@ export const Navbar = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { selectedNetwork } = useNetwork();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   const { ready, authenticated, user } = usePrivy();
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  const activeWallet = isInjectedWallet
+    ? { address: injectedAddress, type: "injected_wallet" }
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
   const { login } = useLogin({
     onComplete: async ({ user, isNewUser, loginMethod }) => {
@@ -138,12 +140,12 @@ export const Navbar = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute left-0 top-full mt-4 w-48 rounded-lg border border-border-light bg-white py-2 shadow-lg dark:border-white/5 dark:bg-surface-overlay"
+                    className="*:w-fullx absolute left-0 top-full mt-4 w-48 rounded-lg border border-border-light bg-white p-2 text-sm shadow-lg *:flex *:rounded-lg *:px-4 *:py-2 *:text-sm *:text-gray-700 *:transition-colors *:hover:bg-accent-gray dark:border-white/5 dark:bg-surface-overlay *:dark:bg-surface-overlay *:dark:text-white/80"
                   >
                     {pathname !== "/" && (
                       <Link
                         href="/"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-white/80 dark:hover:bg-white/5"
+                        className="hover:bg-accent-gray dark:hover:bg-white/5"
                         onClick={() => setIsDropdownOpen(false)}
                       >
                         Home
@@ -151,14 +153,14 @@ export const Navbar = () => {
                     )}
                     <Link
                       href="/terms"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-white/80 dark:hover:bg-white/5"
+                      className="hover:bg-accent-gray dark:hover:bg-white/5"
                       onClick={() => setIsDropdownOpen(false)}
                     >
                       Terms
                     </Link>
                     <Link
                       href="/privacy-policy"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-white/80 dark:hover:bg-white/5"
+                      className="hover:bg-accent-gray dark:hover:bg-white/5"
                       onClick={() => setIsDropdownOpen(false)}
                     >
                       Privacy Policy
@@ -171,7 +173,7 @@ export const Navbar = () => {
         </div>
 
         <div className="flex gap-3 text-sm font-medium *:flex-shrink-0 sm:gap-4">
-          {ready && authenticated ? (
+          {(ready && authenticated) || isInjectedWallet ? (
             <>
               <div className="hidden sm:block">
                 <WalletDetails />
@@ -195,10 +197,10 @@ export const Navbar = () => {
                   alt={selectedNetwork.chain.name}
                   width={20}
                   height={20}
-                  className="size-5"
+                  className="size-5 rounded-full"
                 />
                 <span className="font-medium dark:text-white">
-                  {shortenAddress(smartWallet?.address ?? "", 6)}
+                  {shortenAddress(activeWallet?.address ?? "", 6)}
                 </span>
                 <ArrowDown01Icon className="size-4 dark:text-white/50" />
               </button>
@@ -211,7 +213,7 @@ export const Navbar = () => {
               </AnimatePresence>
             </>
           ) : (
-            <>
+            !isInjectedWallet && (
               <button
                 type="button"
                 className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}
@@ -219,7 +221,7 @@ export const Navbar = () => {
               >
                 Sign in
               </button>
-            </>
+            )
           )}
         </div>
       </nav>

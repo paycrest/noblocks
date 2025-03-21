@@ -1,5 +1,14 @@
 import { arbitrum, base, bsc, polygon, celo } from "viem/chains";
-import type { PrivyClientConfig } from "@privy-io/react-auth";
+import {
+  addRpcUrlOverrideToChain,
+  type PrivyClientConfig,
+} from "@privy-io/react-auth";
+import { getRpcUrl } from "../utils";
+
+const bscOverride = addRpcUrlOverrideToChain(
+  bsc,
+  getRpcUrl(bsc.name) ?? "https://bsc-dataseed.bnbchain.org/",
+);
 
 const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
   embeddedWallets: {
@@ -10,7 +19,7 @@ const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
       connectionOptions: "smartWalletOnly",
     },
   },
-  supportedChains: [base, bsc, arbitrum, polygon, celo],
+  supportedChains: [base, bscOverride, arbitrum, polygon, celo],
 };
 
 export const lightModeConfig: PrivyClientConfig = {

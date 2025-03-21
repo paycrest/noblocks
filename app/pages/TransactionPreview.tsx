@@ -12,6 +12,7 @@ import {
   formatNumberWithCommas,
   getGatewayContractAddress,
   getInstitutionNameByCode,
+  getRpcUrl,
   publicKeyEncrypt,
 } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
@@ -30,13 +31,15 @@ import {
   createPublicClient,
   http,
 } from "viem";
-import { useBalance } from "../context/BalanceContext";
+import { useBalance, useInjectedWallet, useStep } from "../context";
 
 import { fetchAggregatorPublicKey } from "../api/aggregator";
-import { useStep } from "../context/StepContext";
 import { trackEvent } from "../hooks/analytics";
 import { ImSpinner } from "react-icons/im";
 import { InformationSquareIcon } from "hugeicons-react";
+import { bsc } from "viem/chains";
+import { PiCheckCircleFill } from "react-icons/pi";
+import { TbCircleDashed } from "react-icons/tb";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -51,10 +54,13 @@ export const TransactionPreview = ({
 }: TransactionPreviewProps) => {
   const { user } = usePrivy();
   const { client } = useSmartWallets();
+  const { isInjectedWallet, injectedAddress, injectedProvider, injectedReady } =
+    useInjectedWallet();
 
   const { selectedNetwork } = useNetwork();
   const { currentStep, setCurrentStep } = useStep();
-  const { refreshBalance, smartWalletBalance } = useBalance();
+  const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
+    useBalance();
 
   const {
     rate,
@@ -81,6 +87,8 @@ export const TransactionPreview = ({
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
   const [isOrderCreatedLogsFetched, setIsOrderCreatedLogsFetched] =
     useState<boolean>(false);
+  const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
+  const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
 
   const searchParams = useSearchParams();
 
@@ -109,12 +117,23 @@ export const TransactionPreview = ({
     (t) => t.symbol.toUpperCase() === token.toUpperCase(),
   )?.decimals;
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  const injectedWallet = isInjectedWallet
+    ? { address: injectedAddress, type: "injected_wallet" }
+    : null;
+
+  const smartWallet = isInjectedWallet
+    ? null
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+
+  const activeWallet = injectedWallet || smartWallet;
+
+  const balance = injectedWallet
+    ? injectedWalletBalance?.balances[token] || 0
+    : smartWalletBalance?.balances[token] || 0;
 
   const prepareCreateOrderParams = async () => {
-    const providerId = searchParams.get("lp") || searchParams.get("LP");
+    const providerId =
+      searchParams.get("provider") || searchParams.get("PROVIDER");
 
     // Prepare recipient data
     const recipient = {
@@ -123,6 +142,7 @@ export const TransactionPreview = ({
       institution: formValues.institution,
       memo: formValues.memo,
       ...(providerId && { providerId }),
+      nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
     };
 
     // Fetch aggregator public key
@@ -133,12 +153,12 @@ export const TransactionPreview = ({
     const params = {
       token: tokenAddress,
       amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-      rate: BigInt(rate * 100),
+      rate: BigInt(Math.round(rate * 100)),
       senderFeeRecipient: getAddress(
         "0x0000000000000000000000000000000000000000",
       ),
       senderFee: BigInt(0),
-      refundAddress: smartWallet?.address as `0x${string}`,
+      refundAddress: activeWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
 
@@ -147,64 +167,148 @@ export const TransactionPreview = ({
 
   const createOrder = async () => {
     try {
-      if (!client) {
-        throw new Error("Smart wallet not found");
+      if (isInjectedWallet && injectedProvider) {
+        // Injected wallet
+        if (!injectedReady) {
+          throw new Error("Injected wallet not ready");
+        }
+
+        const params = await prepareCreateOrderParams();
+        setCreatedAt(new Date().toISOString());
+
+        // Send approval transaction
+        const approvalTx = await injectedProvider.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: injectedAddress,
+              to: tokenAddress,
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [
+                  getGatewayContractAddress(
+                    selectedNetwork.chain.name,
+                  ) as `0x${string}`,
+                  parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+                ],
+              }),
+            },
+          ],
+        });
+
+        try {
+          const publicClient = createPublicClient({
+            chain: selectedNetwork.chain,
+            transport: http(getRpcUrl(selectedNetwork.chain.name)),
+          });
+
+          await publicClient.waitForTransactionReceipt({
+            hash: approvalTx as `0x${string}`,
+          });
+          toast.success("Token spending approved");
+          setIsGatewayApproved(true);
+        } catch (error) {
+          toast.error("Approval failed");
+          throw new Error("Approval transaction failed");
+        }
+
+        // Create order transaction
+        await injectedProvider.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: injectedAddress,
+              to: getGatewayContractAddress(
+                selectedNetwork.chain.name,
+              ) as `0x${string}`,
+              data: encodeFunctionData({
+                abi: gatewayAbi,
+                functionName: "createOrder",
+                args: [
+                  params.token,
+                  params.amount,
+                  params.rate,
+                  params.senderFeeRecipient,
+                  params.senderFee,
+                  params.refundAddress ?? "",
+                  params.messageHash,
+                ],
+              }),
+            },
+          ],
+        });
+        toast.success("Order created successfully");
+        setIsOrderCreated(true);
+
+        trackEvent("Swap started", {
+          "Entry point": "Transaction preview",
+          "Wallet type": "Injected wallet",
+        });
+      } else {
+        // Smart wallet
+        if (!client) {
+          throw new Error("Smart wallet not found");
+        }
+
+        await client.switchChain({
+          id: selectedNetwork.chain.id,
+        });
+
+        const params = await prepareCreateOrderParams();
+        setCreatedAt(new Date().toISOString());
+
+        await client.sendTransaction({
+          calls: [
+            // Approve gateway contract to spend token
+            {
+              to: tokenAddress,
+              data: encodeFunctionData({
+                abi: erc20Abi,
+                functionName: "approve",
+                args: [
+                  getGatewayContractAddress(
+                    selectedNetwork.chain.name,
+                  ) as `0x${string}`,
+                  parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+                ],
+              }),
+            },
+            // Create order
+            {
+              to: getGatewayContractAddress(
+                selectedNetwork.chain.name,
+              ) as `0x${string}`,
+              data: encodeFunctionData({
+                abi: gatewayAbi,
+                functionName: "createOrder",
+                args: [
+                  params.token,
+                  params.amount,
+                  params.rate,
+                  params.senderFeeRecipient,
+                  params.senderFee,
+                  params.refundAddress ?? "",
+                  params.messageHash,
+                ],
+              }),
+            },
+          ],
+        });
       }
 
-      await client.switchChain({
-        id: selectedNetwork.chain.id,
-      });
-
-      const params = await prepareCreateOrderParams();
-      setCreatedAt(new Date().toISOString());
-
-      await client?.sendTransaction({
-        calls: [
-          // Approve gateway contract to spend token
-          {
-            to: tokenAddress,
-            data: encodeFunctionData({
-              abi: erc20Abi,
-              functionName: "approve",
-              args: [
-                getGatewayContractAddress(
-                  selectedNetwork.chain.name,
-                ) as `0x${string}`,
-                parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-              ],
-            }),
-          },
-          // Create order
-          {
-            to: getGatewayContractAddress(
-              selectedNetwork.chain.name,
-            ) as `0x${string}`,
-            data: encodeFunctionData({
-              abi: gatewayAbi,
-              functionName: "createOrder",
-              args: [
-                params.token,
-                params.amount,
-                params.rate,
-                params.senderFeeRecipient,
-                params.senderFee,
-                params.refundAddress ?? "",
-                params.messageHash,
-              ],
-            }),
-          },
-        ],
-      });
-
       await getOrderId();
-      refreshBalance(); // Refresh balance after order is created
+
+      toast.success("Order created successfully");
+      refreshBalance();
 
       trackEvent("Swap started", {
         "Entry point": "Transaction preview",
+        "Wallet type": "Smart wallet",
       });
     } catch (e) {
       const error = e as BaseError;
-      setErrorMessage(error.shortMessage);
+      setErrorMessage(error.shortMessage || error.message);
       setIsConfirming(false);
       trackEvent("Swap Failed", {
         Amount: amountSent,
@@ -214,9 +318,9 @@ export const TransactionPreview = ({
           institution,
           supportedInstitutions,
         ),
-        "Noblocks balance": smartWalletBalance?.balances[token] || 0,
+        "Wallet balance": balance,
         "Swap date": createdAt,
-        "Reason for failure": error.shortMessage,
+        "Reason for failure": error.shortMessage || error.message,
         "Transaction duration": calculateDuration(
           createdAt,
           new Date().toISOString(),
@@ -226,12 +330,13 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
-    if (amountSent > (smartWalletBalance?.balances[token] || 0)) {
+    if (amountSent > balance) {
       toast.warning("Low balance. Fund your wallet.", {
         description: "Insufficient funds. Please add money to continue.",
       });
       return;
     }
+
     try {
       setIsConfirming(true);
       await createOrder();
@@ -249,10 +354,11 @@ export const TransactionPreview = ({
     const getOrderCreatedLogs = async () => {
       const publicClient = createPublicClient({
         chain: selectedNetwork.chain,
-        transport: http(),
+        transport: http(getRpcUrl(selectedNetwork.chain.name)),
       });
 
-      if (!publicClient || !user || isOrderCreatedLogsFetched) return;
+      if (!publicClient || !activeWallet?.address || isOrderCreatedLogsFetched)
+        return;
 
       try {
         if (currentStep !== "preview") {
@@ -269,11 +375,11 @@ export const TransactionPreview = ({
           abi: gatewayAbi,
           eventName: "OrderCreated",
           args: {
-            sender: smartWallet?.address as `0x${string}`,
+            sender: activeWallet.address as `0x${string}`,
             token: tokenAddress,
             amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
           },
-          fromBlock: toBlock - BigInt(2),
+          fromBlock: toBlock - BigInt(10),
           toBlock: toBlock,
         });
 
@@ -341,7 +447,7 @@ export const TransactionPreview = ({
             <p className="flex flex-grow items-center gap-1 font-medium text-text-body dark:text-white/80">
               {(key === "amount" || key === "fee") && (
                 <Image
-                  src={`/logos/${token.toLowerCase()}-logo.svg`}
+                  src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
                   alt={`${token} logo`}
                   width={14}
                   height={14}
@@ -372,6 +478,52 @@ export const TransactionPreview = ({
         </p>
       </div>
 
+      {/* Transaction Steps Indicator - Only show for injected wallet */}
+      {isInjectedWallet && (
+        <>
+          <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
+
+          <p className="text-gray-500 dark:text-white/50">
+            To confirm order, you&apos;ll be required to approve these two
+            permissions from your wallet
+          </p>
+
+          <div className="flex items-center justify-between pb-2 text-gray-500 dark:text-white/50">
+            <p>
+              <span>{isGatewayApproved ? 2 : 1}</span> of 2
+            </p>
+            <div className="flex gap-4">
+              <div className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5">
+                {isGatewayApproved ? (
+                  <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
+                ) : (
+                  <TbCircleDashed
+                    className={classNames(
+                      isConfirming ? "animate-spin" : "",
+                      "text-lg",
+                    )}
+                  />
+                )}
+                <p className="pr-1">Approve Gateway</p>
+              </div>
+
+              <div className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5">
+                {isOrderCreated ? (
+                  <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
+                ) : (
+                  <TbCircleDashed
+                    className={`text-lg ${
+                      isGatewayApproved ? "animate-spin" : ""
+                    }`}
+                  />
+                )}
+                <p className="pr-1">Create Order</p>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* CTAs */}
       <div className="flex gap-4 xsm:gap-6">
         <button
@@ -390,7 +542,7 @@ export const TransactionPreview = ({
         >
           {isConfirming ? (
             <span className="flex items-center justify-center gap-2">
-              <ImSpinner className="animate-spin" />
+              <ImSpinner className="animate-spin text-lg" />
               Confirming...
             </span>
           ) : (

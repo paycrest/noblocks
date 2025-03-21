@@ -1,8 +1,9 @@
 import JSEncrypt from "jsencrypt";
-import type { InstitutionProps, Token } from "./types";
+import type { InstitutionProps, Network, Token } from "./types";
 import { erc20Abi } from "viem";
 import { colors } from "./mocks";
 import { fetchRate } from "./api/aggregator";
+import { toast } from "sonner";
 
 /**
  * Concatenates and returns a string of class names.
@@ -132,6 +133,22 @@ export const getExplorerLink = (network: string, txHash: string) => {
   }
 };
 
+// write function to get rpc url for a given network
+export function getRpcUrl(network: string) {
+  switch (network) {
+    case "Polygon":
+      return `https://rpc.shield3.com/v3/0x89/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
+    case "BNB Smart Chain":
+      return `https://rpc.shield3.com/v3/0x38/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
+    case "Base":
+      return `https://rpc.shield3.com/v3/0x2105/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
+    case "Arbitrum One":
+      return `https://rpc.shield3.com/v3/0xa4b1/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
+    default:
+      return undefined;
+  }
+}
+
 /**
  * Fetches the supported tokens for the specified network.
  *
@@ -154,8 +171,8 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         name: "cNGN",
         symbol: "cNGN",
         decimals: 6,
-        address: "0xC930784d6e14e2FC2A1F49BE1068dc40f24762D3",
-        imageUrl: "/logos/cngn-logo.png",
+        address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
+        imageUrl: "/logos/cngn-logo.svg",
       },
     ],
     "Arbitrum One": [
@@ -193,8 +210,8 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         name: "cNGN",
         symbol: "cNGN",
         decimals: 6,
-        address: "0xa8AEA66B361a8d53e8865c62D142167Af28Af058",
-        imageUrl: "/logos/cngn-logo.png",
+        address: "0xa8aea66b361a8d53e8865c62d142167af28af058",
+        imageUrl: "/logos/cngn-logo.svg",
       },
     ],
     Polygon: [
@@ -211,6 +228,13 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         decimals: 6,
         address: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
         imageUrl: "/logos/usdt-logo.svg",
+      },
+      {
+        name: "cNGN",
+        symbol: "cNGN",
+        decimals: 6,
+        address: "0x52828daa48c1a9a06f37500882b42daf0be04c3b",
+        imageUrl: "/logos/cngn-logo.svg",
       },
     ],
     Scroll: [
@@ -371,28 +395,6 @@ export function getGatewayContractAddress(network = ""): string | undefined {
 }
 
 /**
- * An array of mobile money options available in Kenya.
- * Each option includes the name of the institution, a code, and the type.
- *
- * @constant {InstitutionProps[]} kenyaMobileMoneyOptions
- * @property {string} name - The name of the mobile money institution.
- * @property {string} code - The code representing the mobile money institution.
- * @property {string} type - The type of institution, which is "mobile-money" for all entries.
- */
-export const kenyaMobileMoneyOptions: InstitutionProps[] = [
-  {
-    name: "SAFARICOM (MPESA)",
-    code: "SAFAKEPC",
-    type: "mobile_money",
-  },
-  {
-    name: "AIRTEL",
-    code: "AIRTEL",
-    type: "mobile_money",
-  },
-];
-
-/**
  * Generates a time-based nonce string.
  *
  * The nonce is composed of a time component based on the current timestamp
@@ -445,6 +447,19 @@ export function clearFormState(formMethods: any) {
 }
 
 /**
+ * Determines if the app should use an injected wallet.
+ *
+ * @param searchParams - The URL search parameters to check for the 'injected' flag
+ * @returns boolean indicating whether to use injected wallet
+ */
+export function shouldUseInjectedWallet(
+  searchParams: URLSearchParams,
+): boolean {
+  const injectedParam = searchParams.get("injected");
+  return Boolean(injectedParam === "true" && window.ethereum);
+}
+
+/**
  * Generates a random color based on the provided name.
  *
  * @param name - The name of the recipient to generate a color for.
@@ -466,3 +481,126 @@ export const getRandomColor = (name: string) => {
 export const IS_MAIN_PRODUCTION_DOMAIN =
   typeof window !== "undefined" &&
   /^(?:www\.)?noblocks\.xyz$/.test(window.location.hostname);
+
+/**
+ * Detects the current injected wallet provider.
+ * @returns The name of the detected wallet provider or "Injected Wallet" if unknown
+ */
+export function detectWalletProvider(): string {
+  if (typeof window === "undefined" || !window.ethereum) {
+    return "Injected Wallet";
+  }
+
+  const ethereum = window.ethereum;
+
+  switch (true) {
+    case ethereum.isMetaMask:
+      return "MetaMask";
+    case ethereum.isCoinbaseWallet:
+      return "Coinbase Wallet";
+    case ethereum.isTrust:
+      return "Trust Wallet";
+    case ethereum.isBraveWallet:
+      return "Brave Wallet";
+    case ethereum.isBitKeep:
+      return "BitKeep Wallet";
+    case ethereum.isTokenPocket:
+      return "TokenPocket";
+    case ethereum.isOneInchIOSWallet || ethereum.isOneInchAndroidWallet:
+      return "1inch Wallet";
+    case ethereum.isMiniPay:
+      return "MiniPay";
+    default:
+      return "Injected Wallet";
+  }
+}
+
+/**
+ * Converts a number to a "0x" prefixed hex string.
+ * @param num - The number to convert
+ * @returns A "0x" prefixed hex string
+ * @throws Error if num is undefined or not a number
+ */
+function toHex(num: number | undefined): string {
+  if (typeof num !== "number") {
+    throw new Error(`Invalid chain ID: ${num}`);
+  }
+  return `0x${num.toString(16)}`;
+}
+
+/**
+ * Gets the network parameters for adding a new chain
+ */
+function getAddChainParameters(network: Network) {
+  const { chain } = network;
+  return {
+    chainId: toHex(chain.id),
+    chainName: chain.name,
+    nativeCurrency: chain.nativeCurrency,
+    rpcUrls: [chain.rpcUrls.default.http[0]],
+    blockExplorerUrls: [chain.blockExplorers?.default.url],
+  };
+}
+
+/**
+ * Handles network switching logic for both injected and non-injected wallets.
+ *
+ * @param network - The network object to switch to.
+ * @param useInjectedWallet - Boolean indicating if an injected wallet is being used.
+ * @param setSelectedNetwork - Function to update the selected network state.
+ * @param onSuccess - Callback function to execute on successful network switch.
+ * @param onError - Callback function to execute on network switch failure.
+ */
+export const handleNetworkSwitch = async (
+  network: Network,
+  useInjectedWallet: boolean,
+  setSelectedNetwork: (network: Network) => void,
+  onSuccess: () => void,
+  onError: (error: Error) => void,
+) => {
+  if (useInjectedWallet && window.ethereum) {
+    if (!network.chain?.id) {
+      throw new Error(`Missing chainId for network: ${network.chain?.name}`);
+    }
+
+    const chainId = toHex(network.chain.id);
+
+    try {
+      toast.promise(
+        (async () => {
+          try {
+            // First try to switch to the network
+            await window.ethereum.request({
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId }],
+            });
+          } catch (switchError: any) {
+            // This error code indicates that the chain has not been added to MetaMask.
+            if (switchError.code === 4902) {
+              await window.ethereum.request({
+                method: "wallet_addEthereumChain",
+                params: [getAddChainParameters(network)],
+              });
+            } else {
+              throw switchError;
+            }
+          }
+        })(),
+        {
+          loading: `Switching to ${network.chain.name}...`,
+          success: `Successfully switched to ${network.chain.name}`,
+          error: (err) => err.message,
+        },
+      );
+
+      setSelectedNetwork(network);
+      onSuccess();
+    } catch (error) {
+      console.error("Network switch error:", error);
+      onError(error as Error);
+    }
+  } else {
+    setSelectedNetwork(network);
+    onSuccess();
+  }
+};

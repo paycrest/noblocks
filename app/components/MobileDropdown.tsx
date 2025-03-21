@@ -13,7 +13,6 @@ import {
   AccessIcon,
   Setting07Icon,
   Wallet01Icon,
-  HelpCircleIcon,
   ArrowLeft02Icon,
   ArrowDown01Icon,
   CustomerService01Icon,
@@ -21,20 +20,27 @@ import {
 
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
-import { classNames, shortenAddress, fetchSupportedTokens } from "../utils";
+import {
+  classNames,
+  shortenAddress,
+  fetchSupportedTokens,
+  handleNetworkSwitch,
+  detectWalletProvider,
+} from "../utils";
 import { useLogout } from "@privy-io/react-auth";
 import { PiCheck } from "react-icons/pi";
 import { ImSpinner } from "react-icons/im";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { TransferModal } from "./TransferModal";
 import { networks } from "../mocks";
-import { Token } from "../types";
+import { Network, Token } from "../types";
 import { toast } from "sonner";
 import { useStep } from "../context/StepContext";
 import { STEPS } from "../types";
 import { FundWalletModal } from "./FundWalletModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import config from "@/app/lib/config";
+import { useInjectedWallet } from "../context";
 
 type View = "wallet" | "settings";
 
@@ -53,19 +59,20 @@ export const MobileDropdown = ({
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, exportWallet, linkEmail, updateEmail } = usePrivy();
-  const { allBalances, refreshBalance } = useBalance();
+  const { allBalances } = useBalance();
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
       onClose();
     },
   });
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  const smartWallet = isInjectedWallet
+    ? { address: injectedAddress }
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
   const { currentStep } = useStep();
 
@@ -104,8 +111,46 @@ export const MobileDropdown = ({
   const handleFundWalletClick = async (
     amount: string,
     tokenAddress: `0x${string}`,
+    onComplete?: (success: boolean) => void,
   ) => {
-    await handleFundWallet(smartWallet?.address ?? "", amount, tokenAddress);
+    await handleFundWallet(
+      smartWallet?.address ?? "",
+      amount,
+      tokenAddress,
+      onComplete,
+    );
+  };
+
+  const activeBalance = isInjectedWallet
+    ? allBalances.injectedWallet
+    : allBalances.smartWallet;
+
+  const handleNetworkSwitchWrapper = (network: Network) => {
+    if (currentStep !== STEPS.FORM) {
+      toast.error("Cannot switch networks during an active transaction");
+      return;
+    }
+
+    handleNetworkSwitch(
+      network,
+      isInjectedWallet,
+      setSelectedNetwork,
+      () => {
+        if (!isInjectedWallet) {
+          toast("Network switched successfully", {
+            description: `You are now swapping on ${network.chain.name} network`,
+          });
+        }
+      },
+      (error) => {
+        console.error("Failed to switch network:", error);
+        toast.error("Error switching network", {
+          description: error.message,
+        });
+      },
+    );
+
+    setIsNetworkListOpen(false);
   };
 
   return (
@@ -166,17 +211,15 @@ export const MobileDropdown = ({
                           <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
                             <div className="flex items-center gap-1">
                               <h3 className="font-light text-text-secondary dark:text-white/50">
-                                Noblocks Wallet
+                                {isInjectedWallet
+                                  ? detectWalletProvider()
+                                  : "Noblocks Wallet"}
                               </h3>
-                              <HelpCircleIcon
-                                className="size-4 text-gray-400 dark:text-white/30"
-                                strokeWidth={2}
-                              />
                             </div>
 
                             <div className="space-y-2">
                               {Object.entries(
-                                allBalances.smartWallet?.balances || {},
+                                activeBalance?.balances || {},
                               ).map(([token, balance]) => (
                                 <div
                                   key={token}
@@ -184,7 +227,6 @@ export const MobileDropdown = ({
                                 >
                                   {(() => {
                                     const imageUrl = getTokenImageUrl(token);
-
                                     return imageUrl ? (
                                       <Image
                                         src={imageUrl}
@@ -203,50 +245,49 @@ export const MobileDropdown = ({
                               ))}
                             </div>
 
-                            {/* Fund/Transfer Buttons */}
-                            <div className="grid grid-cols-2 gap-4">
-                              <button
-                                type="button"
-                                onClick={() => setIsTransferModalOpen(true)}
-                                className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
-                              >
-                                Transfer
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setIsFundModalOpen(true)}
-                                className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
-                              >
-                                Fund
-                              </button>
-                            </div>
+                            {!isInjectedWallet && (
+                              <div className="grid grid-cols-2 gap-4">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsTransferModalOpen(true)}
+                                  className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                                >
+                                  Transfer
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsFundModalOpen(true)}
+                                  className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                                >
+                                  Fund
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                           {/* Wallet Address Container */}
-                          <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
-                            <div className="flex items-center gap-2">
-                              <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                              <span className="text-sm text-text-secondary dark:text-white/50">
-                                Wallet Address
+                          {smartWallet?.address && (
+                            <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
+                              <div className="flex items-center gap-2">
+                                <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                                <span className="text-sm text-text-secondary dark:text-white/50">
+                                  Wallet Address
+                                </span>
+                              </div>
+
+                              <span className="block break-words text-sm font-medium dark:text-white/80">
+                                {smartWallet?.address ?? ""}
                               </span>
+
+                              <button
+                                type="button"
+                                onClick={handleCopyAddress}
+                                className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                              >
+                                <span>Copy</span>
+                              </button>
                             </div>
-
-                            <span className="block break-words text-sm font-medium dark:text-white/80">
-                              {shortenAddress(
-                                smartWallet?.address ?? "",
-                                14,
-                                20,
-                              )}
-                            </span>
-
-                            <button
-                              type="button"
-                              onClick={handleCopyAddress}
-                              className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
-                            >
-                              <span>Copy</span>
-                            </button>
-                          </div>
+                          )}
 
                           <div
                             className={classNames(
@@ -289,10 +330,6 @@ export const MobileDropdown = ({
                                       : "Network"}
                                   </motion.span>
                                 </AnimatePresence>
-                                <HelpCircleIcon
-                                  className="size-4 text-gray-400 dark:text-white/30"
-                                  strokeWidth={2}
-                                />
                               </div>
                               <AnimatePresence mode="wait">
                                 {!isNetworkListOpen && (
@@ -308,7 +345,7 @@ export const MobileDropdown = ({
                                       alt={selectedNetwork.chain.name}
                                       width={16}
                                       height={16}
-                                      className="size-4"
+                                      className="size-4 rounded-full"
                                     />
                                     <span className="text-text-body dark:text-white">
                                       {selectedNetwork.chain.name}
@@ -331,19 +368,9 @@ export const MobileDropdown = ({
                                     <button
                                       type="button"
                                       key={network.chain.name}
-                                      onClick={() => {
-                                        if (currentStep !== STEPS.FORM) {
-                                          toast.error(
-                                            "Cannot switch networks during an active transaction",
-                                          );
-                                          return;
-                                        }
-                                        setSelectedNetwork(network);
-                                        setIsNetworkListOpen(false);
-                                        toast("Network switched successfully", {
-                                          description: `You are now connected to ${network.chain.name} network`,
-                                        });
-                                      }}
+                                      onClick={() =>
+                                        handleNetworkSwitchWrapper(network)
+                                      }
                                       className="flex w-full items-center justify-between"
                                     >
                                       <div className="flex items-center gap-2 py-2.5">
@@ -397,7 +424,7 @@ export const MobileDropdown = ({
                           </div>
 
                           <div className="space-y-2 *:min-h-11">
-                            {user?.email ? (
+                            {!isInjectedWallet && user?.email ? (
                               <button
                                 type="button"
                                 onClick={updateEmail}
@@ -416,7 +443,7 @@ export const MobileDropdown = ({
                                   <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
                                 </div>
                               </button>
-                            ) : (
+                            ) : !isInjectedWallet ? (
                               <button
                                 type="button"
                                 onClick={linkEmail}
@@ -430,21 +457,23 @@ export const MobileDropdown = ({
                                 </div>
                                 <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
                               </button>
-                            )}
+                            ) : null}
 
-                            <button
-                              type="button"
-                              onClick={exportWallet}
-                              className="flex w-full items-center justify-between"
-                            >
-                              <div className="flex items-center gap-3">
-                                <AccessIcon className="size-5 text-outline-gray dark:text-white/50" />
-                                <span className="text-text-body dark:text-white/80">
-                                  Export wallet
-                                </span>
-                              </div>
-                              <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                            </button>
+                            {!isInjectedWallet && (
+                              <button
+                                type="button"
+                                onClick={exportWallet}
+                                className="flex w-full items-center justify-between"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <AccessIcon className="size-5 text-outline-gray dark:text-white/50" />
+                                  <span className="text-text-body dark:text-white/80">
+                                    Export wallet
+                                  </span>
+                                </div>
+                                <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                              </button>
+                            )}
 
                             <a
                               href={config.contactSupportUrl}
@@ -471,24 +500,26 @@ export const MobileDropdown = ({
                               <ThemeSwitch />
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsLoggingOut(true);
-                                logout();
-                              }}
-                              className="flex w-full items-center justify-between"
-                            >
-                              <div className="flex items-center gap-3">
-                                <Logout03Icon className="size-5 text-outline-gray dark:text-white/50" />
-                                <span className="text-text-body dark:text-white/80">
-                                  Sign out
-                                </span>
-                              </div>
-                              {isLoggingOut && (
-                                <ImSpinner className="size-4 animate-spin text-outline-gray" />
-                              )}
-                            </button>
+                            {!isInjectedWallet && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsLoggingOut(true);
+                                  logout();
+                                }}
+                                className="flex w-full items-center justify-between"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Logout03Icon className="size-5 text-outline-gray dark:text-white/50" />
+                                  <span className="text-text-body dark:text-white/80">
+                                    Sign out
+                                  </span>
+                                </div>
+                                {isLoggingOut && (
+                                  <ImSpinner className="size-4 animate-spin text-outline-gray" />
+                                )}
+                              </button>
+                            )}
                           </div>
                         </motion.div>
                       )}

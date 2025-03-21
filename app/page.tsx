@@ -2,7 +2,6 @@
 import { useForm } from "react-hook-form";
 import { useEffect, useState, useRef, Suspense, JSX } from "react";
 import { AnimatePresence } from "framer-motion";
-import Cookies from "js-cookie";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -28,7 +27,7 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "./context/StepContext";
 import { clearFormState } from "./utils";
-import { useNetwork } from "./context/NetworksContext";
+import { useInjectedWallet } from "./context/InjectedWalletContext";
 
 /**
  * Represents the Home component.
@@ -37,6 +36,7 @@ import { useNetwork } from "./context/NetworksContext";
 function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   const { authenticated, ready } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
+  const { isInjectedWallet, injectedReady } = useInjectedWallet();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -57,7 +57,6 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
 
-  // Form methods and watch
   const formMethods = useForm<FormData>({
     mode: "onChange",
     defaultValues: {
@@ -100,14 +99,14 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
 
   useEffect(
     function resetOnLogout() {
-      // Reset form if user logs out
-      if (!authenticated) {
+      // Reset form if user logs out (but not for injected wallet)
+      if (!authenticated && !isInjectedWallet) {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [authenticated],
+    [authenticated, isInjectedWallet],
   );
 
   useEffect(function ensureDefaultToken() {
@@ -121,7 +120,8 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   useEffect(
     function resetProviderErrorOnChange() {
       // Reset providerErrorShown on query param change
-      const newProvider = searchParams.get("lp") || searchParams.get("LP");
+      const newProvider =
+        searchParams.get("provider") || searchParams.get("PROVIDER");
       if (!failedProviders.current.has(newProvider || "")) {
         providerErrorShown.current = false;
       }
@@ -137,9 +137,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
         setIsFetchingInstitutions(true);
 
         const institutions = await fetchSupportedInstitutions(currencyValue);
-        setInstitutions(
-          institutions.filter((institution) => institution.type === "bank"),
-        );
+        setInstitutions(institutions);
 
         setIsFetchingInstitutions(false);
       }
@@ -159,7 +157,8 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
       const getRate = async (shouldUseProvider = true) => {
         setIsFetchingRate(true);
         try {
-          const lpParam = searchParams.get("lp") || searchParams.get("LP");
+          const lpParam =
+            searchParams.get("provider") || searchParams.get("PROVIDER");
 
           // Skip using provider if it's already failed
           const shouldSkipProvider =
@@ -178,7 +177,8 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
           setRate(rate.data);
         } catch (error) {
           if (error instanceof Error) {
-            const lpParam = searchParams.get("lp") || searchParams.get("LP");
+            const lpParam =
+              searchParams.get("provider") || searchParams.get("PROVIDER");
             if (
               shouldUseProvider &&
               lpParam &&
@@ -244,6 +244,11 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
     setCurrentStep(STEPS.FORM);
   };
 
+  const showLoading =
+    isPageLoading ||
+    (!ready && !isInjectedWallet) ||
+    (isInjectedWallet && !injectedReady);
+
   const renderStep = () => {
     switch (currentStep) {
       case STEPS.FORM:
@@ -289,13 +294,13 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
 
   return (
     <>
-      {isPageLoading || !ready ? (
+      {showLoading ? (
         <Preloader isLoading={true} />
       ) : (
         <>
           <Disclaimer />
           <CookieConsent />
-          <NetworkSelectionModal />
+          {!isInjectedWallet && <NetworkSelectionModal />}
 
           <AnimatePresence mode="wait">
             <AnimatedPage componentKey={currentStep}>

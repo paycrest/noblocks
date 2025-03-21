@@ -48,16 +48,12 @@ const DropdownContent = ({
 }) => (
   <ul
     aria-label="Dropdown items"
-    role="listbox"
     aria-labelledby="dropdown-items"
     className="px-2 font-normal max-sm:space-y-1"
   >
     {data?.map((item) => (
       <li
         key={item.name}
-        role="option"
-        aria-selected={selectedItem?.name === item.name}
-        aria-disabled={item.disabled}
         onClick={() => !item.disabled && handleChange(item)}
         className={classNames(
           "flex w-full items-center justify-between gap-2 rounded-lg p-2.5 text-left transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700 sm:py-2",

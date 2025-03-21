@@ -9,7 +9,12 @@ import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { darkModeConfig, lightModeConfig } from "./lib/privy-config";
 
 import config from "./lib/config";
-import { BalanceProvider, NetworkProvider, StepProvider } from "./context";
+import {
+  BalanceProvider,
+  InjectedWalletProvider,
+  NetworkProvider,
+  StepProvider,
+} from "./context";
 import { useActualTheme } from "./hooks/useActualTheme";
 
 function Providers({ children }: { children: ReactNode }) {
@@ -74,9 +79,11 @@ function PrivyConfigWrapper({
 function ContextProviders({ children }: { children: ReactNode }) {
   return (
     <NetworkProvider>
-      <StepProvider>
-        <BalanceProvider>{children}</BalanceProvider>
-      </StepProvider>
+      <InjectedWalletProvider>
+        <StepProvider>
+          <BalanceProvider>{children}</BalanceProvider>
+        </StepProvider>
+      </InjectedWalletProvider>
     </NetworkProvider>
   );
 }

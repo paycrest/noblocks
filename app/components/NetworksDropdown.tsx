@@ -2,14 +2,17 @@
 import Image from "next/image";
 import { toast } from "sonner";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { networks } from "../mocks";
-import { classNames } from "../utils";
+import {
+  classNames,
+  shouldUseInjectedWallet,
+  handleNetworkSwitch,
+} from "../utils";
 import { FlexibleDropdown } from "./FlexibleDropdown";
-import { useStep } from "../context/StepContext";
-import { useNetwork } from "../context/NetworksContext";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { ArrowDown01Icon } from "hugeicons-react";
+import { useNetwork, useStep } from "../context";
 
 interface NetworksDropdownProps {
   iconOnly?: boolean;
@@ -18,8 +21,10 @@ interface NetworksDropdownProps {
 export const NetworksDropdown = ({
   iconOnly = false,
 }: NetworksDropdownProps) => {
-  const { client } = useSmartWallets();
+  const searchParams = useSearchParams();
   const { isFormStep } = useStep();
+  const useInjectedWallet = shouldUseInjectedWallet(searchParams);
+
   iconOnly = !isFormStep;
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
@@ -29,20 +34,26 @@ export const NetworksDropdown = ({
 
   const handleNetworkSelect = async (networkName: string) => {
     const newNetwork = networks.find((net) => net.chain.name === networkName);
-    if (newNetwork && client) {
-      try {
-        setSelectedNetwork(newNetwork);
-        setDropdownSelectedItem(newNetwork.chain.name);
-        toast.success(`Network switched successfully`, {
-          description: `You are now swapping on ${newNetwork.chain.name} network`,
-        });
-      } catch (error) {
-        console.error("Failed to switch network:", error);
-        toast.error("Error switching network", {
-          description: (error as Error).message,
-        });
-        setDropdownSelectedItem(selectedNetwork.chain.name);
-      }
+    if (newNetwork) {
+      handleNetworkSwitch(
+        newNetwork,
+        useInjectedWallet,
+        setSelectedNetwork,
+        () => {
+          setDropdownSelectedItem(newNetwork.chain.name);
+          if (!useInjectedWallet) {
+            toast.success(`Network switched successfully`, {
+              description: `You are now swapping on ${newNetwork.chain.name} network`,
+            });
+          }
+        },
+        (error) => {
+          console.error("Failed to switch network:", error);
+          toast.error("Error switching network", {
+            description: error.message,
+          });
+        },
+      );
     }
   };
 
@@ -65,7 +76,6 @@ export const NetworksDropdown = ({
           id="networks-dropdown"
           aria-label="Toggle dropdown"
           aria-haspopup="true"
-          aria-expanded={isOpen}
           type="button"
           onClick={() => {
             toggleDropdown();
@@ -83,7 +93,7 @@ export const NetworksDropdown = ({
                   src={selectedNetwork.imageUrl ?? ""}
                   width={20}
                   height={20}
-                  className="size-5"
+                  className="size-5 rounded-full"
                 />
                 {!iconOnly && (
                   <p className="hidden sm:block">

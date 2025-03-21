@@ -2,24 +2,9 @@
 import { DialogTitle } from "@headlessui/react";
 import { motion } from "framer-motion";
 import { Cancel01Icon, InformationSquareIcon } from "hugeicons-react";
-import { AnimatedModal } from "../AnimatedComponents";
-import { SearchInput } from "./SearchInput";
-import { InstitutionProps } from "@/app/types";
-import { UseFormSetValue } from "react-hook-form";
-
-export interface SelectBankModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  filteredInstitutions: InstitutionProps[];
-  selectedInstitution: InstitutionProps | null;
-  setSelectedInstitution: (inst: InstitutionProps | null) => void;
-  setValue: UseFormSetValue<any>;
-  setIsManualEntry: (value: boolean) => void;
-  currency: string;
-  bankSearchTerm: string;
-  setBankSearchTerm: (val: string) => void;
-  isFetchingInstitutions: boolean;
-}
+import { AnimatedModal } from "@/app/components/AnimatedComponents";
+import { SearchInput } from "@/app/components/recipient/SearchInput";
+import { SelectBankModalProps } from "@/app/components/recipient/types";
 
 export const SelectBankModal = ({
   isOpen,

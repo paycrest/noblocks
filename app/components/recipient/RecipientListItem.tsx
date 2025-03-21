@@ -1,5 +1,5 @@
 import { Button } from "@headlessui/react";
-import { RecipientListItemProps } from "./types";
+import { RecipientListItemProps } from "@/app/components/recipient/types";
 import { classNames, getRandomColor } from "@/app/utils";
 import { Delete01Icon } from "hugeicons-react";
 

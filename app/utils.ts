@@ -260,7 +260,7 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         name: "Tether USD",
         symbol: "USDT",
         decimals: 6,
-        address: "0x617f3112bf5397d0467d315cc709ef968d9ba546",
+        address: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
         imageUrl: "/logos/usdt-logo.svg",
       },
       {
@@ -273,7 +273,7 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
       {
         name: "Celo Dollar",
         symbol: "cUSD",
-        decimals: 6,
+        decimals: 18,
         address: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
         imageUrl: "/logos/celo-logo.svg",
       },

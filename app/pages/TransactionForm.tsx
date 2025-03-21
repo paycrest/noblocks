@@ -1,4 +1,5 @@
 "use client";
+import { useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { ImSpinner, ImSpinner3 } from "react-icons/im";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
@@ -41,6 +42,7 @@ export const TransactionForm = ({
   onSubmit,
   stateProps,
 }: TransactionFormProps) => {
+  const searchParams = useSearchParams();
   // Destructure stateProps
   const { rate, isFetchingRate, setOrderId } = stateProps;
   const { authenticated, ready, login, user } = usePrivy();
@@ -136,6 +138,29 @@ export const TransactionForm = ({
   const removeCommas = (value: string): string => {
     return value.replace(/,/g, "");
   };
+
+  useEffect(function setDefaultValueOnPageLoad() {
+    // fields values are set in useEffect so that default values ("" & 0) can be retained when the form is submitted
+    // default values is also set here because `isReceiveInputActive` is used in aother useEffect (in this file) to set the final value of the input fields
+    // currency and token could have been set on the page level (app/page.tsx) but it's cleaner to have all loaded value at a place
+    const token = searchParams.get("token");
+    const currency = searchParams.get("currency");
+    const tokenAmount = parseInt(searchParams.get("tokenAmount") || "");
+    const fiatAmount = parseInt(searchParams.get("fiatAmount") || "");
+
+    if (token) formMethods.setValue("token", token);
+    if (currency) formMethods.setValue("currency", currency);
+
+    if (tokenAmount && fiatAmount) {
+      formMethods.setValue("amountReceived", fiatAmount);
+      setIsReceiveInputActive(true);
+    } else if (tokenAmount) {
+      formMethods.setValue("amountSent", tokenAmount);
+    } else if (fiatAmount) {
+      formMethods.setValue("amountReceived", fiatAmount);
+      setIsReceiveInputActive(true);
+    }
+  }, []);
 
   useEffect(
     function checkKycStatus() {

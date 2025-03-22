@@ -66,3 +66,24 @@ export const colors = [
   "bg-cyan-600",
   "bg-sky-600",
 ];
+
+
+export const currencyToCountryCode: Record<string, string> = {
+  KES: "ke",
+  NGN: "ng",
+  GHS: "gh",
+  BRL: "br",
+  ARS: "ar",
+  USD: "us",
+  EUR: "eu",
+  GBP: "gb",
+  ZAR: "za",
+  UGX: "ug",
+  TZS: "tz",
+  RWF: "rw",
+  INR: "in",
+  CAD: "ca",
+  AUD: "au",
+  JPY: "jp",
+  CNY: "cn",
+};

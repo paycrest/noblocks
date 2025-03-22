@@ -45,47 +45,61 @@ const DropdownContent = ({
   data: DropdownItem[];
   selectedItem?: DropdownItem;
   handleChange: (item: DropdownItem) => void;
-}) => (
-  <ul
-    aria-label="Dropdown items"
-    aria-labelledby="dropdown-items"
-    className="px-2 font-normal max-sm:space-y-1"
-  >
-    {data?.map((item) => (
-      <li
-        key={item.name}
-        onClick={() => !item.disabled && handleChange(item)}
-        className={classNames(
-          "flex w-full items-center justify-between gap-2 rounded-lg p-2.5 text-left transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700 sm:py-2",
-          item.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-        )}
-      >
-        <div className="flex items-center gap-3 sm:gap-2">
-          {item.imageUrl && (
-            <Image
-              src={item.imageUrl}
-              alt={item.name}
-              width={24}
-              height={24}
-              className="h-6 w-6 rounded-full object-fill"
-            />
+}) => {
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+
+  return (
+    <ul
+      aria-label="Dropdown items"
+      aria-labelledby="dropdown-items"
+      className="px-2 font-normal max-sm:space-y-1"
+    >
+      {data?.map((item) => (
+        <li
+          key={item.name}
+          onClick={() => !item.disabled && handleChange(item)}
+          className={classNames(
+            "flex w-full items-center justify-between gap-2 rounded-lg p-2.5 text-left transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700 sm:py-2",
+            item.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
           )}
-          <span className="text-text-body dark:text-white/80">
-            {item.label ?? item.name}
-          </span>
-        </div>
+        >
+          <div className="flex items-center gap-3 sm:gap-2">
+            {imageErrors[item.name] ? (
+              // Fallback: Show text-based fallback
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-600 font-bold">
+                {item.name.substring(0, 1)}
+              </div>
+            ) : (
+              // Show Image
+              item.imageUrl && (
+                <Image
+                  src={item.imageUrl}
+                  alt={item.name}
+                  width={24}
+                  height={24}
+                  className="h-6 w-6 rounded-full object-fill"
+                  onError={() => setImageErrors((prev) => ({ ...prev, [item.name]: true }))}
+                />
+              )
+            )}
+            <span className="text-text-body dark:text-white/80">
+              {item.label ?? item.name}
+            </span>
+          </div>
 
-        {!item.disabled && selectedItem?.name === item.name && (
-          <Tick02Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-        )}
+          {!item.disabled && selectedItem?.name === item.name && (
+            <Tick02Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+          )}
 
-        {item.disabled && (
-          <SquareLock02Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
-        )}
-      </li>
-    ))}
-  </ul>
-);
+          {item.disabled && (
+            <SquareLock02Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 
 export const FlexibleDropdown = ({
   defaultSelectedItem,

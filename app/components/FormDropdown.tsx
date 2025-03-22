@@ -35,7 +35,7 @@ export const FormDropdown = ({
     const countryCode = getCountryCode(item.name);
     return {
       ...item,
-      imageUrl: `https://flagcdn.com/h24/${countryCode}k.png`
+      imageUrl: `https://flagcdn.com/h24/${countryCode}.png`
     };
   });
 

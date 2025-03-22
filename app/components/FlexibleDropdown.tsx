@@ -65,7 +65,7 @@ const DropdownContent = ({
         >
           <div className="flex items-center gap-3 sm:gap-2">
             {imageErrors[item.name] ? (
-              // Fallback: Show text-based fallback
+              // Show text-based fallback
               <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-600 font-bold">
                 {item.name.substring(0, 1)}
               </div>

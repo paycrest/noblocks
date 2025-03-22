@@ -4,29 +4,29 @@ export const currencies = [
   {
     name: "KES",
     label: "Kenyan Shilling (KES)",
-    imageUrl: "/logos/kes-logo.svg",
+    imageUrl: "https://flagcdn.com/h24/ke.png",
   },
   {
     name: "NGN",
     label: "Nigerian Naira (NGN)",
-    imageUrl: "/logos/ngn-logo.svg",
+    imageUrl: "https://flagcdn.com/h24/ng.png",
   },
   {
     name: "GHS",
     label: "Ghanaian Cedi (GHS)",
-    imageUrl: "/logos/ghs-logo.svg",
+    imageUrl: "https://flagcdn.com/h24/gh.png",
     disabled: true,
   },
   {
     name: "BRL",
     label: "Brazilian Real (BRL)",
-    imageUrl: "/logos/brl-logo.png",
+    imageUrl: "https://flagcdn.com/h24/br.png",
     disabled: true,
   },
   {
     name: "ARS",
     label: "Argentine Peso (ARS)",
-    imageUrl: "/logos/ars-logo.png",
+    imageUrl: "https://flagcdn.com/h24/ar.png",
     disabled: true,
   },
 ];

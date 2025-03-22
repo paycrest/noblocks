@@ -38,6 +38,8 @@ import { trackEvent } from "../hooks/analytics";
 import { ImSpinner } from "react-icons/im";
 import { InformationSquareIcon } from "hugeicons-react";
 import { bsc } from "viem/chains";
+import { PiCheckCircleFill } from "react-icons/pi";
+import { TbCircleDashed } from "react-icons/tb";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -85,6 +87,8 @@ export const TransactionPreview = ({
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
   const [isOrderCreatedLogsFetched, setIsOrderCreatedLogsFetched] =
     useState<boolean>(false);
+  const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
+  const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
 
   const searchParams = useSearchParams();
 
@@ -203,6 +207,7 @@ export const TransactionPreview = ({
             hash: approvalTx as `0x${string}`,
           });
           toast.success("Token spending approved");
+          setIsGatewayApproved(true);
         } catch (error) {
           toast.error("Approval failed");
           throw new Error("Approval transaction failed");
@@ -232,6 +237,13 @@ export const TransactionPreview = ({
               }),
             },
           ],
+        });
+        toast.success("Order created successfully");
+        setIsOrderCreated(true);
+
+        trackEvent("Swap started", {
+          "Entry point": "Transaction preview",
+          "Wallet type": "Injected wallet",
         });
       } else {
         // Smart wallet
@@ -286,10 +298,13 @@ export const TransactionPreview = ({
       }
 
       await getOrderId();
-      refreshBalance(); // Refresh balance after order is created
+
+      toast.success("Order created successfully");
+      refreshBalance();
 
       trackEvent("Swap started", {
         "Entry point": "Transaction preview",
+        "Wallet type": "Smart wallet",
       });
     } catch (e) {
       const error = e as BaseError;
@@ -432,7 +447,7 @@ export const TransactionPreview = ({
             <p className="flex flex-grow items-center gap-1 font-medium text-text-body dark:text-white/80">
               {(key === "amount" || key === "fee") && (
                 <Image
-                  src={`/logos/${String(token)?.toLowerCase()}-logo.${token === "cNGN" ? "png" : "svg"}`}
+                  src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
                   alt={`${token} logo`}
                   width={14}
                   height={14}
@@ -463,6 +478,52 @@ export const TransactionPreview = ({
         </p>
       </div>
 
+      {/* Transaction Steps Indicator - Only show for injected wallet */}
+      {isInjectedWallet && (
+        <>
+          <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
+
+          <p className="text-gray-500 dark:text-white/50">
+            To confirm order, you&apos;ll be required to approve these two
+            permissions from your wallet
+          </p>
+
+          <div className="flex items-center justify-between pb-2 text-gray-500 dark:text-white/50">
+            <p>
+              <span>{isGatewayApproved ? 2 : 1}</span> of 2
+            </p>
+            <div className="flex gap-4">
+              <div className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5">
+                {isGatewayApproved ? (
+                  <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
+                ) : (
+                  <TbCircleDashed
+                    className={classNames(
+                      isConfirming ? "animate-spin" : "",
+                      "text-lg",
+                    )}
+                  />
+                )}
+                <p className="pr-1">Approve Gateway</p>
+              </div>
+
+              <div className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5">
+                {isOrderCreated ? (
+                  <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
+                ) : (
+                  <TbCircleDashed
+                    className={`text-lg ${
+                      isGatewayApproved ? "animate-spin" : ""
+                    }`}
+                  />
+                )}
+                <p className="pr-1">Create Order</p>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* CTAs */}
       <div className="flex gap-4 xsm:gap-6">
         <button
@@ -481,7 +542,7 @@ export const TransactionPreview = ({
         >
           {isConfirming ? (
             <span className="flex items-center justify-center gap-2">
-              <ImSpinner className="animate-spin" />
+              <ImSpinner className="animate-spin text-lg" />
               Confirming...
             </span>
           ) : (

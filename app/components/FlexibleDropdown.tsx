@@ -67,7 +67,7 @@ const DropdownContent = ({
               alt={item.name}
               width={24}
               height={24}
-              className="h-6 w-6 rounded-full object-cover"
+              className="h-6 w-6 rounded-full object-fill"
             />
           )}
           <span className="text-text-body dark:text-white/80">
@@ -231,7 +231,7 @@ export const FlexibleDropdown = ({
                                 alt={item.name}
                                 width={24}
                                 height={24}
-                                className="h-6 w-6 rounded-full object-cover"
+                                className="h-6 w-6 rounded-full object-fill"
                               />
                             )}
                             <span className="text-text-body dark:text-white/80">

@@ -52,7 +52,7 @@ export const FormDropdown = ({
                 src={selectedItem?.imageUrl ?? ""}
                 width={24}
                 height={24}
-                className="size-6 rounded-full object-contain"
+                className="size-6 rounded-full object-fill"
               />
               <p className="text-sm font-medium text-text-body dark:text-white">
                 {selectedItem?.name}

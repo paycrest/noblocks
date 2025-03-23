@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { useOutsideClick } from "../hooks";
 import { dropdownVariants } from "./AnimatedComponents";
@@ -11,6 +10,7 @@ import {
   DialogTitle,
   DialogBackdrop,
 } from "@headlessui/react";
+import FlagImage from "./FlagImage";
 
 export interface DropdownItem {
   name: string;
@@ -47,7 +47,6 @@ const DropdownContent = ({
   handleChange: (item: DropdownItem) => void;
 }) => {
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
-
   return (
     <ul
       aria-label="Dropdown items"
@@ -56,7 +55,7 @@ const DropdownContent = ({
     >
       {data?.map((item) => (
         <li
-          key={item.name}
+          key={item?.name}
           onClick={() => !item.disabled && handleChange(item)}
           className={classNames(
             "flex w-full items-center justify-between gap-2 rounded-lg p-2.5 text-left transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700 sm:py-2",
@@ -64,24 +63,7 @@ const DropdownContent = ({
           )}
         >
           <div className="flex items-center gap-3 sm:gap-2">
-            {imageErrors[item.name] ? (
-              // Show text-based fallback
-              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-600 font-bold">
-                {item.name.substring(0, 1)}
-              </div>
-            ) : (
-              // Show Image
-              item.imageUrl && (
-                <Image
-                  src={item.imageUrl}
-                  alt={item.name}
-                  width={24}
-                  height={24}
-                  className="h-6 w-6 rounded-full object-fill"
-                  onError={() => setImageErrors((prev) => ({ ...prev, [item.name]: true }))}
-                />
-              )
-            )}
+            { item && <FlagImage imageErrors={imageErrors} setImageErrors={setImageErrors} item={item} />}
             <span className="text-text-body dark:text-white/80">
               {item.label ?? item.name}
             </span>
@@ -116,6 +98,7 @@ export const FlexibleDropdown = ({
       ? data?.find((item) => item.name === defaultSelectedItem)
       : undefined,
   );
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
   const handleChange = (item: DropdownItem) => {
     setSelectedItem(item);
@@ -239,15 +222,7 @@ export const FlexibleDropdown = ({
                           )}
                         >
                           <div className="flex items-center gap-3">
-                            {item.imageUrl && (
-                              <Image
-                                src={item.imageUrl}
-                                alt={item.name}
-                                width={24}
-                                height={24}
-                                className="h-6 w-6 rounded-full object-fill"
-                              />
-                            )}
+                            {item && <FlagImage item={item}  imageErrors={imageErrors} setImageErrors={setImageErrors} />}
                             <span className="text-text-body dark:text-white/80">
                               {item.label ?? item.name}
                             </span>

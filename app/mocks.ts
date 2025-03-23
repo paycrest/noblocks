@@ -1,32 +1,27 @@
 import { arbitrum, base, bsc, polygon, celo } from "viem/chains";
 
-export const currencies = [
+export const acceptedCurrencies = [
   {
     name: "KES",
     label: "Kenyan Shilling (KES)",
-    imageUrl: "/logos/kes-logo.svg",
   },
   {
     name: "NGN",
     label: "Nigerian Naira (NGN)",
-    imageUrl: "/logos/ngn-logo.svg",
   },
   {
     name: "GHS",
     label: "Ghanaian Cedi (GHS)",
-    imageUrl: "/logos/ghs-logo.svg",
     disabled: true,
   },
   {
     name: "BRL",
     label: "Brazilian Real (BRL)",
-    imageUrl: "/logos/brl-logo.png",
     disabled: true,
   },
   {
     name: "ARS",
     label: "Argentine Peso (ARS)",
-    imageUrl: "/logos/ars-logo.png",
     disabled: true,
   },
 ];

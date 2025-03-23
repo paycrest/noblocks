@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { useOutsideClick } from "../hooks";
 import { dropdownVariants } from "./AnimatedComponents";
@@ -11,6 +10,7 @@ import {
   DialogTitle,
   DialogBackdrop,
 } from "@headlessui/react";
+import FlagImage from "./FlagImage";
 
 export interface DropdownItem {
   name: string;
@@ -45,47 +45,43 @@ const DropdownContent = ({
   data: DropdownItem[];
   selectedItem?: DropdownItem;
   handleChange: (item: DropdownItem) => void;
-}) => (
-  <ul
-    aria-label="Dropdown items"
-    aria-labelledby="dropdown-items"
-    className="px-2 font-normal max-sm:space-y-1"
-  >
-    {data?.map((item) => (
-      <li
-        key={item.name}
-        onClick={() => !item.disabled && handleChange(item)}
-        className={classNames(
-          "flex w-full items-center justify-between gap-2 rounded-lg p-2.5 text-left transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700 sm:py-2",
-          item.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
-        )}
-      >
-        <div className="flex items-center gap-3 sm:gap-2">
-          {item.imageUrl && (
-            <Image
-              src={item.imageUrl}
-              alt={item.name}
-              width={24}
-              height={24}
-              className="h-6 w-6 rounded-full object-cover"
-            />
+}) => {
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  return (
+    <ul
+      aria-label="Dropdown items"
+      aria-labelledby="dropdown-items"
+      className="px-2 font-normal max-sm:space-y-1"
+    >
+      {data?.map((item) => (
+        <li
+          key={item?.name}
+          onClick={() => !item.disabled && handleChange(item)}
+          className={classNames(
+            "flex w-full items-center justify-between gap-2 rounded-lg p-2.5 text-left transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700 sm:py-2",
+            item.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
           )}
-          <span className="text-text-body dark:text-white/80">
-            {item.label ?? item.name}
-          </span>
-        </div>
+        >
+          <div className="flex items-center gap-3 sm:gap-2">
+            { item && <FlagImage imageErrors={imageErrors} setImageErrors={setImageErrors} item={item} />}
+            <span className="text-text-body dark:text-white/80">
+              {item.label ?? item.name}
+            </span>
+          </div>
 
-        {!item.disabled && selectedItem?.name === item.name && (
-          <Tick02Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-        )}
+          {!item.disabled && selectedItem?.name === item.name && (
+            <Tick02Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+          )}
 
-        {item.disabled && (
-          <SquareLock02Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
-        )}
-      </li>
-    ))}
-  </ul>
-);
+          {item.disabled && (
+            <SquareLock02Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+};
+
 
 export const FlexibleDropdown = ({
   defaultSelectedItem,
@@ -102,6 +98,7 @@ export const FlexibleDropdown = ({
       ? data?.find((item) => item.name === defaultSelectedItem)
       : undefined,
   );
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
   const handleChange = (item: DropdownItem) => {
     setSelectedItem(item);
@@ -225,15 +222,7 @@ export const FlexibleDropdown = ({
                           )}
                         >
                           <div className="flex items-center gap-3">
-                            {item.imageUrl && (
-                              <Image
-                                src={item.imageUrl}
-                                alt={item.name}
-                                width={24}
-                                height={24}
-                                className="h-6 w-6 rounded-full object-cover"
-                              />
-                            )}
+                            {item && <FlagImage item={item}  imageErrors={imageErrors} setImageErrors={setImageErrors} />}
                             <span className="text-text-body dark:text-white/80">
                               {item.label ?? item.name}
                             </span>

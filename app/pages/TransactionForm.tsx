@@ -16,7 +16,7 @@ import {
   AnimatedModal,
 } from "../components";
 import type { TransactionFormProps, Token } from "../types";
-import { currencies } from "../mocks";
+import { acceptedCurrencies } from "../mocks";
 import {
   classNames,
   fetchSupportedTokens,
@@ -27,6 +27,7 @@ import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus, fetchRate } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
+import { currencyToCountryCode } from "../hooks";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -102,6 +103,14 @@ export const TransactionForm = ({
     name: token.symbol,
     imageUrl: token.imageUrl,
   }));
+  
+  const currencies = acceptedCurrencies.map(item => {
+    const countryCode = currencyToCountryCode(item.name);
+    return {
+      ...item,
+      imageUrl: `https://flagcdn.com/h24/${countryCode}.webp`
+    };
+  });
 
   const handleBalanceMaxClick = () => {
     if (balance > 0) {

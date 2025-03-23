@@ -1,7 +1,9 @@
+"use client"
 import { DropdownItem, FlexibleDropdown } from "./FlexibleDropdown";
-import Image from "next/image";
 import { classNames } from "../utils";
 import { ArrowDown01Icon } from "hugeicons-react";
+import FlagImage from "./FlagImage";
+import { useState } from "react";
 
 interface FormDropdownProps {
   defaultTitle: string;
@@ -19,7 +21,9 @@ export const FormDropdown = ({
   data,
   className,
   isCTA = false,
-}: FormDropdownProps) => {
+}: FormDropdownProps) => {  
+
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   return (
     <FlexibleDropdown
       data={data}
@@ -47,13 +51,7 @@ export const FormDropdown = ({
         >
           {selectedItem?.name ? (
             <div className="mr-1 flex items-center gap-1">
-              <Image
-                alt={selectedItem?.name}
-                src={selectedItem?.imageUrl ?? ""}
-                width={24}
-                height={24}
-                className="size-6 rounded-full object-contain"
-              />
+              <FlagImage item={selectedItem} imageErrors={imageErrors} setImageErrors={setImageErrors} />
               <p className="text-sm font-medium text-text-body dark:text-white">
                 {selectedItem?.name}
               </p>
@@ -64,7 +62,7 @@ export const FormDropdown = ({
             </p>
           )}
 
-          <div className={classNames(selectedItem?.name ? "ml-5" : "", "mr-1")}>
+          <div className={classNames(selectedItem?.name && !imageErrors[selectedItem?.name] ? "ml-5" : "", "mr-1")}>
             <ArrowDown01Icon
               className={classNames(
                 "size-4 transition-transform",

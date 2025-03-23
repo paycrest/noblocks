@@ -1,10 +1,9 @@
 "use client"
 import { DropdownItem, FlexibleDropdown } from "./FlexibleDropdown";
-import Image from "next/image";
 import { classNames } from "../utils";
 import { ArrowDown01Icon } from "hugeicons-react";
+import FlagImage from "./FlagImage";
 import { useState } from "react";
-import { currencyToCountryCode } from "../mocks";
 
 interface FormDropdownProps {
   defaultTitle: string;
@@ -23,48 +22,11 @@ export const FormDropdown = ({
   className,
   isCTA = false,
 }: FormDropdownProps) => {  
-   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
-  
-   const getCountryCode = (currencyCode: string): string => {
-     return currencyToCountryCode[currencyCode] || currencyCode.toLowerCase();
-   };
 
-  const filteredData = data.map(item => {
-    if (item.imageUrl) return item;
-    
-    const countryCode = getCountryCode(item.name);
-    return {
-      ...item,
-      imageUrl: `https://flagcdn.com/h24/${countryCode}.png`
-    };
-  });
-
-  const renderImageOrFallback = (item: DropdownItem) => {
-    if (imageErrors[item.name]) {
-      return (
-        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-600 font-bold">
-          {item.name.substring(0,1)}
-        </div>
-      );
-    };
-
-    return (
-      <Image
-        alt={`${item?.name} Flag`}
-        src={item?.imageUrl || ""}
-        width={24}
-        height={24}
-        className="size-6 rounded-full object-fill"
-        onError={() => {
-          setImageErrors(prev => ({ ...prev, [item.name]: true }));
-        }}
-      />
-    );
-  };
-
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   return (
     <FlexibleDropdown
-      data={filteredData}
+      data={data}
       defaultSelectedItem={defaultSelectedItem}
       onSelect={onSelect}
       className={className}
@@ -89,7 +51,7 @@ export const FormDropdown = ({
         >
           {selectedItem?.name ? (
             <div className="mr-1 flex items-center gap-1">
-             {renderImageOrFallback(selectedItem)}
+              <FlagImage item={selectedItem} imageErrors={imageErrors} setImageErrors={setImageErrors} />
               <p className="text-sm font-medium text-text-body dark:text-white">
                 {selectedItem?.name}
               </p>

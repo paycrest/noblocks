@@ -16,6 +16,7 @@ import {
   ArrowLeft02Icon,
   ArrowDown01Icon,
   CustomerService01Icon,
+  Clock01Icon,
 } from "hugeicons-react";
 
 import { useNetwork } from "../context/NetworksContext";
@@ -41,6 +42,7 @@ import { FundWalletModal } from "./FundWalletModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
+import { TransactionModal } from "./TransactionModal";
 
 type View = "wallet" | "settings";
 
@@ -56,6 +58,7 @@ export const MobileDropdown = ({
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, exportWallet, linkEmail, updateEmail } = usePrivy();
@@ -188,6 +191,14 @@ export const MobileDropdown = ({
                               Wallet
                             </h2>
                             <div className="flex items-center">
+                              <button
+                                type="button"
+                                title="Transactions"
+                                onClick={() => setIsTransactionModalOpen(true)}
+                                className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
+                              >
+                                <Clock01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                              </button>
                               <button
                                 type="button"
                                 title="Settings"
@@ -541,6 +552,10 @@ export const MobileDropdown = ({
         isOpen={isFundModalOpen}
         onClose={() => setIsFundModalOpen(false)}
         onFund={handleFundWalletClick}
+      />
+      <TransactionModal 
+        isOpen={isTransactionModalOpen}
+        onClose={() => setIsTransactionModalOpen(false)}
       />
     </>
   );

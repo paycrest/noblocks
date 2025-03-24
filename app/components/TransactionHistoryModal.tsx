@@ -161,7 +161,7 @@ export const TransactionHistoryModal = ({
                                             {transaction.currency}
                                           </span>
                                         </div>
-                                        <div className="flex items-center gap-1">
+                                        <div className="mt-[0.75rem] flex items-center gap-1">
                                           <span className="text-xs text-text-disabled dark:text-white/30">
                                             {transaction.time}
                                           </span>
@@ -259,8 +259,9 @@ const TransactionDetails = ({ transaction }: { transaction: Transaction }) => {
       </p>
 
       <div className="space-y-0 pt-4">
-        <div className="flex justify-between border-b border-gray-700/10 py-[14px] dark:border-white/10">
-          <span className="text-sm text-gray-500 dark:text-white/50">
+        <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
+        <div className="flex justify-between py-[14px] dark:border-white/10">
+          <span className="text-sm text-gray-500 dark:text-white/80">
             Amount
           </span>
           <span className="text-sm dark:text-white">
@@ -268,13 +269,13 @@ const TransactionDetails = ({ transaction }: { transaction: Transaction }) => {
           </span>
         </div>
 
-        <div className="flex justify-between border-b border-gray-700/10 py-[14px] dark:border-white/10">
-          <span className="text-sm text-gray-500 dark:text-white/50">Fees</span>
+        <div className="flex justify-between py-[14px] dark:border-white/10">
+          <span className="text-sm text-gray-500 dark:text-white/80">Fees</span>
           <span className="text-sm dark:text-white">{transaction.fees}</span>
         </div>
 
-        <div className="flex justify-between border-b border-gray-700/10 py-[14px] dark:border-white/10">
-          <span className="text-sm text-gray-500 dark:text-white/50">
+        <div className="flex justify-between py-[14px] dark:border-white/10">
+          <span className="text-sm text-gray-500 dark:text-white/80">
             Recipient
           </span>
           <span className="text-sm dark:text-white">
@@ -282,46 +283,48 @@ const TransactionDetails = ({ transaction }: { transaction: Transaction }) => {
           </span>
         </div>
 
-        <div className="flex justify-between border-b border-gray-700/10 py-[14px] dark:border-white/10">
-          <span className="text-sm text-gray-500 dark:text-white/50">Bank</span>
+        <div className="flex justify-between py-[14px] dark:border-white/10">
+          <span className="text-sm text-gray-500 dark:text-white/80">Bank</span>
           <span className="text-sm dark:text-white">{transaction.bank}</span>
         </div>
 
-        <div className="flex justify-between border-b border-gray-700/10 py-[14px] dark:border-white/10">
-          <span className="text-sm text-gray-500 dark:text-white/50">
+        <div className="flex justify-between py-[14px] dark:border-white/10">
+          <span className="text-sm text-gray-500 dark:text-white/80">
             Account
           </span>
           <span className="text-sm dark:text-white">{transaction.account}</span>
         </div>
 
-        <div className="flex justify-between border-b border-gray-700/10 py-[14px] dark:border-white/10">
-          <span className="text-sm text-gray-500 dark:text-white/50">Memo</span>
+        <div className="flex justify-between py-[14px] dark:border-white/10">
+          <span className="text-sm text-gray-500 dark:text-white/80">Memo</span>
           <span className="text-sm dark:text-white">{transaction.memo}</span>
         </div>
 
-        <div className="flex justify-between border-b border-gray-700/10 py-[14px] dark:border-white/10">
-          <span className="text-sm text-gray-500 dark:text-white/50">Date</span>
+        <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
+
+        <div className="flex justify-between py-[14px] dark:border-white/10">
+          <span className="text-sm text-gray-500 dark:text-white/80">Date</span>
           <span className="text-sm dark:text-white">
             {transaction.time} 1{transaction.day}
           </span>
         </div>
 
-        <div className="flex justify-between border-b border-gray-700/10 py-[14px] dark:border-white/10">
-          <span className="text-sm text-gray-500 dark:text-white/50">
+        <div className="flex justify-between py-[14px] dark:border-white/10">
+          <span className="text-sm text-gray-500 dark:text-white/80">
             Transaction status
           </span>
           <span className="text-sm dark:text-white">{transaction.status}</span>
         </div>
 
-        <div className="flex justify-between border-b border-gray-700/10 py-[14px] dark:border-white/10">
-          <span className="text-sm text-gray-500 dark:text-white/50">
+        <div className="flex justify-between py-[14px] dark:border-white/10">
+          <span className="text-sm text-gray-500 dark:text-white/80">
             Fund status
           </span>
           <span className="text-sm dark:text-white">Deposited</span>
         </div>
 
-        <div className="flex justify-between border-b border-gray-700/10 py-[14px] dark:border-white/10">
-          <span className="text-sm text-gray-500 dark:text-white/50">
+        <div className="flex justify-between py-[14px] dark:border-white/10">
+          <span className="text-sm text-gray-500 dark:text-white/80">
             Time spent
           </span>
           <span className="text-sm dark:text-white">
@@ -330,7 +333,7 @@ const TransactionDetails = ({ transaction }: { transaction: Transaction }) => {
         </div>
 
         <div className="flex justify-between py-[14px]">
-          <span className="text-sm text-gray-500 dark:text-white/50">
+          <span className="text-sm text-gray-500 dark:text-white/80">
             Onchain receipt
           </span>
           <Link href="#" className="text-sm text-[#8B85F4]">

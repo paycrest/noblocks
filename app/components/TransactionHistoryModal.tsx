@@ -216,11 +216,7 @@ const TransactionDetails = ({ transaction }: { transaction: Transaction }) => {
       <div className="mt-4 flex items-center gap-2">
         <div className="relative">
           <Image
-            src={
-              transaction?.currency === "USDC"
-                ? "/logos/usdc-logo.svg"
-                : "/logos/usdt-logo.svg"
-            }
+            src={`/logos/${String(transaction.currency)?.toLowerCase()}-logo.svg`}
             alt={transaction.currency}
             width={20}
             height={20}
@@ -229,11 +225,11 @@ const TransactionDetails = ({ transaction }: { transaction: Transaction }) => {
           />
           <div className="absolute -right-[76%] -top-[1px] z-10 h-fit w-fit rounded-full border-[2px] border-white dark:border-surface-overlay">
             <Image
-              src={
-                transaction?.currency === "USDC"
-                  ? "/logos/usdt-logo.svg"
-                  : "/logos/usdc-logo.svg"
-              }
+              src={`/logos/${
+                String(transaction.currency)?.toLowerCase() === "usdc"
+                  ? "usdt"
+                  : "usdc"
+              }-logo.svg`}
               alt={transaction.currency}
               width={20}
               height={20}
@@ -242,6 +238,7 @@ const TransactionDetails = ({ transaction }: { transaction: Transaction }) => {
             />
           </div>
         </div>
+
         <span className="ml-2 text-base font-medium dark:text-white">
           Swapped {transaction.amount} {transaction.currency}
         </span>

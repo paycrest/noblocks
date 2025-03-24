@@ -42,7 +42,7 @@ import { FundWalletModal } from "./FundWalletModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
-import { TransactionModal } from "./TransactionModal";
+import { TransactionHistoryModal } from "./TransactionHistoryModal";
 
 type View = "wallet" | "settings";
 
@@ -58,7 +58,8 @@ export const MobileDropdown = ({
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const [isTransactionHistoryModalOpen, setIsTransactionHistoryModalOpen] =
+    useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, exportWallet, linkEmail, updateEmail } = usePrivy();
@@ -194,7 +195,9 @@ export const MobileDropdown = ({
                               <button
                                 type="button"
                                 title="Transactions"
-                                onClick={() => setIsTransactionModalOpen(true)}
+                                onClick={() =>
+                                  setIsTransactionHistoryModalOpen(true)
+                                }
                                 className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
                               >
                                 <Clock01Icon className="size-5 text-outline-gray dark:text-white/50" />
@@ -553,9 +556,9 @@ export const MobileDropdown = ({
         onClose={() => setIsFundModalOpen(false)}
         onFund={handleFundWalletClick}
       />
-      <TransactionModal 
-        isOpen={isTransactionModalOpen}
-        onClose={() => setIsTransactionModalOpen(false)}
+      <TransactionHistoryModal
+        isOpen={isTransactionHistoryModalOpen}
+        onClose={() => setIsTransactionHistoryModalOpen(false)}
       />
     </>
   );

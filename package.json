@@ -28,11 +28,9 @@
     "axios": "^1.7.9",
     "date-fns": "^4.1.0",
     "framer-motion": "^11.17.0",
-    "html2canvas": "^1.4.1",
     "hugeicons-react": "^0.3.0",
     "js-cookie": "^3.0.5",
     "jsencrypt": "^3.3.2",
-    "jspdf": "^2.5.2",
     "mixpanel-browser": "^2.58.0",
     "next": "15.2.0",
     "next-themes": "^0.4.4",
@@ -43,8 +41,7 @@
     "react-icons": "^5.4.0",
     "react-qrcode-logo": "^3.0.0",
     "sonner": "^1.7.1",
-    "viem": "^2.22.7",
-    "wagmi": "^2.14.7"
+    "viem": "^2.22.7"
   },
   "devDependencies": {
     "@types/js-cookie": "^3.0.6",

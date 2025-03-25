@@ -1,5 +1,0 @@
-{
-  "github.copilot.chat.commitMessageGeneration.instructions": [{
-  "text": "Be extremely detailed with the file changes and the reason for the change. Generate commit message by following the Conventional Commits specifications. The commit title should have a 50 character limit and the commit body should have a 72 character limit per line.",
-}],
-}

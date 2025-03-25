@@ -3,6 +3,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
+import { AnimatePresence } from "framer-motion";
 
 import {
   calculateDuration,
@@ -40,6 +41,8 @@ import { InformationSquareIcon } from "hugeicons-react";
 import { bsc } from "viem/chains";
 import { PiCheckCircleFill } from "react-icons/pi";
 import { TbCircleDashed } from "react-icons/tb";
+import { AnimatedComponent, fadeInOut } from "../components";
+import { TransactionHelperText } from "../components/TransactionHelperText";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -89,6 +92,7 @@ export const TransactionPreview = ({
     useState<boolean>(false);
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
+  const [showHelperText, setShowHelperText] = useState<boolean>(false);
 
   const searchParams = useSearchParams();
 
@@ -409,9 +413,17 @@ export const TransactionPreview = ({
     // Set up polling
     intervalId = setInterval(getOrderCreatedLogs, 2000);
 
+    // Show helper text after 45 seconds if order isn't found
+    const timeoutId = setTimeout(() => {
+      if (!isOrderCreatedLogsFetched) {
+        setShowHelperText(true);
+      }
+    }, 45000);
+
     // Cleanup function
     return () => {
       if (intervalId) clearInterval(intervalId);
+      clearTimeout(timeoutId);
     };
   };
 
@@ -550,6 +562,16 @@ export const TransactionPreview = ({
           )}
         </button>
       </div>
+
+      {/* Helper text for long-running transactions */}
+      <TransactionHelperText
+        title="Taking too long?"
+        message="Your order has been submitted. You can safely refresh this
+                  page - your transaction will continue processing and your
+                  funds will either be settled or refunded automatically."
+        isVisible={isConfirming && !isOrderCreatedLogsFetched}
+        showAfterMs={45000}
+      />
     </div>
   );
 };

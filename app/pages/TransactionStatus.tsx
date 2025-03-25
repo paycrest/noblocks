@@ -42,8 +42,13 @@ import { trackEvent } from "../hooks/analytics";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";
-import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
+import {
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  InformationSquareIcon,
+} from "hugeicons-react";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
+import { TransactionHelperText } from "../components/TransactionHelperText";
 
 /**
  * Renders the transaction status component.
@@ -82,6 +87,7 @@ export function TransactionStatus({
   const [isGettingReceipt, setIsGettingReceipt] = useState(false);
   const [addToBeneficiaries, setAddToBeneficiaries] = useState(false);
   const [isTracked, setIsTracked] = useState(false);
+  const [showHelperText, setShowHelperText] = useState<boolean>(false);
 
   const { watch } = formMethods;
   const token = watch("token") || "";
@@ -205,6 +211,21 @@ export function TransactionStatus({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isTracked, transactionStatus, completedAt],
   );
+
+  useEffect(() => {
+    // Show helper text after 60 seconds if the transaction is still pending or processing
+    let timeoutId: NodeJS.Timeout;
+
+    if (["pending", "processing"].includes(transactionStatus)) {
+      timeoutId = setTimeout(() => {
+        setShowHelperText(true);
+      }, 60000);
+    }
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [transactionStatus]);
 
   const StatusIndicator = () => (
     <AnimatePresence mode="wait">
@@ -449,7 +470,7 @@ export function TransactionStatus({
           </div>
         </div>
 
-        <div className="flex max-w-xs flex-col items-start gap-4">
+        <div className="flex flex-col items-start gap-4 sm:max-w-xs">
           <StatusIndicator />
 
           <AnimatedComponent
@@ -507,6 +528,18 @@ export function TransactionStatus({
           >
             {getPaymentMessage()}
           </AnimatedComponent>
+
+          {/* Helper text for long-running transactions */}
+          <TransactionHelperText
+            isVisible={["processing", "fulfilled"].includes(transactionStatus)}
+            title="Taking longer than expected?"
+            message="Your transaction is still processing. You can safely
+                    refresh or leave this page - your funds will either be
+                    settled or automatically refunded if the transaction
+                    fails."
+            showAfterMs={60000}
+            className="w-full space-y-4"
+          />
 
           <AnimatePresence>
             {["validated", "settled", "refunded"].includes(

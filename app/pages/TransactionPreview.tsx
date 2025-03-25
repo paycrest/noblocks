@@ -92,7 +92,6 @@ export const TransactionPreview = ({
     useState<boolean>(false);
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
-  const [showHelperText, setShowHelperText] = useState<boolean>(false);
 
   const searchParams = useSearchParams();
 
@@ -413,17 +412,9 @@ export const TransactionPreview = ({
     // Set up polling
     intervalId = setInterval(getOrderCreatedLogs, 2000);
 
-    // Show helper text after 45 seconds if order isn't found
-    const timeoutId = setTimeout(() => {
-      if (!isOrderCreatedLogsFetched) {
-        setShowHelperText(true);
-      }
-    }, 45000);
-
     // Cleanup function
     return () => {
       if (intervalId) clearInterval(intervalId);
-      clearTimeout(timeoutId);
     };
   };
 

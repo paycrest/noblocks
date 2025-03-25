@@ -87,7 +87,6 @@ export function TransactionStatus({
   const [isGettingReceipt, setIsGettingReceipt] = useState(false);
   const [addToBeneficiaries, setAddToBeneficiaries] = useState(false);
   const [isTracked, setIsTracked] = useState(false);
-  const [showHelperText, setShowHelperText] = useState<boolean>(false);
 
   const { watch } = formMethods;
   const token = watch("token") || "";
@@ -211,21 +210,6 @@ export function TransactionStatus({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isTracked, transactionStatus, completedAt],
   );
-
-  useEffect(() => {
-    // Show helper text after 60 seconds if the transaction is still pending or processing
-    let timeoutId: NodeJS.Timeout;
-
-    if (["pending", "processing"].includes(transactionStatus)) {
-      timeoutId = setTimeout(() => {
-        setShowHelperText(true);
-      }, 60000);
-    }
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [transactionStatus]);
 
   const StatusIndicator = () => (
     <AnimatePresence mode="wait">

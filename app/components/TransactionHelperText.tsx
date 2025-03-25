@@ -47,7 +47,7 @@ export const TransactionHelperText = ({
         <AnimatedComponent variant={fadeInOut} className={className}>
           <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
 
-          <div className="space-y-2 rounded-xl bg-background-neutral px-4 py-3 dark:bg-white/5">
+          <div className="space-y-2 rounded-xl bg-background-neutral px-4 py-3 text-sm dark:bg-white/5">
             <p className="font-medium text-text-body dark:text-white/80">
               {title}
             </p>

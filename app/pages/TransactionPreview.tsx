@@ -3,7 +3,6 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
-import { AnimatePresence } from "framer-motion";
 
 import {
   calculateDuration,
@@ -38,11 +37,8 @@ import { fetchAggregatorPublicKey } from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics";
 import { ImSpinner } from "react-icons/im";
 import { InformationSquareIcon } from "hugeicons-react";
-import { bsc } from "viem/chains";
 import { PiCheckCircleFill } from "react-icons/pi";
 import { TbCircleDashed } from "react-icons/tb";
-import { AnimatedComponent, fadeInOut } from "../components";
-import { TransactionHelperText } from "../components/TransactionHelperText";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -553,16 +549,6 @@ export const TransactionPreview = ({
           )}
         </button>
       </div>
-
-      {/* Helper text for long-running transactions */}
-      <TransactionHelperText
-        title="Taking too long?"
-        message="Your order has been submitted. You can safely refresh this
-                  page - your transaction will continue processing and your
-                  funds will either be settled or refunded automatically."
-        isVisible={isConfirming && !isOrderCreatedLogsFetched}
-        showAfterMs={45000}
-      />
     </div>
   );
 };

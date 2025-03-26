@@ -19,6 +19,7 @@ interface Transaction {
   type: string;
   amount: string;
   currency: string;
+  swappedCurrency?: string;
   nativeValue: string;
   time: string;
   status: string;
@@ -125,9 +126,9 @@ export const TransactionHistoryModal = ({
                           </button>
                         </div>
 
-                        <div className="scrollbar-hide max-h-[80vh] overflow-y-auto pb-4 px-5">
+                        <div className="scrollbar-hide max-h-[80vh] overflow-y-auto pb-4">
                           {transactions.map((group) => (
-                            <div key={group.id} className="space-y-3 pb-6">
+                            <div key={group.id} className="space-y-3">
                               <div className="flex items-center justify-between gap-x-6">
                                 <h3 className="text-sm font-medium text-text-secondary dark:text-white/50">
                                   {group.date}
@@ -135,7 +136,7 @@ export const TransactionHistoryModal = ({
                                 <div className="w-2/3 border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
                               </div>
                               <div className="space-y-2">
-                                {group.items.map((transaction) => (
+                                {group.items.map((transaction: Transaction) => (
                                   <div
                                     key={transaction.id}
                                     onClick={() =>
@@ -225,11 +226,7 @@ const TransactionDetails = ({ transaction }: { transaction: Transaction }) => {
           />
           <div className="absolute -right-[76%] -top-[1px] z-10 h-fit w-fit rounded-full border-[2px] border-white dark:border-surface-overlay">
             <Image
-              src={`/logos/${
-                String(transaction.currency)?.toLowerCase() === "usdc"
-                  ? "usdt"
-                  : "usdc"
-              }-logo.svg`}
+              src={`/logos/${String(transaction.swappedCurrency)?.toLowerCase()}-logo.svg`}
               alt={transaction.currency}
               width={20}
               height={20}

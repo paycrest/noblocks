@@ -125,9 +125,9 @@ export const TransactionHistoryModal = ({
                           </button>
                         </div>
 
-                        <div className="scrollbar-hide max-h-[80vh] overflow-y-auto pb-4">
+                        <div className="scrollbar-hide max-h-[80vh] overflow-y-auto pb-4 px-5">
                           {transactions.map((group) => (
-                            <div key={group.id} className="space-y-3">
+                            <div key={group.id} className="space-y-3 pb-6">
                               <div className="flex items-center justify-between gap-x-6">
                                 <h3 className="text-sm font-medium text-text-secondary dark:text-white/50">
                                   {group.date}
@@ -258,7 +258,7 @@ const TransactionDetails = ({ transaction }: { transaction: Transaction }) => {
       <div className="space-y-0 pt-4">
         <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
         <div className="flex justify-between py-[14px] dark:border-white/10">
-          <span className="text-sm text-gray-500 dark:text-white/80">
+          <span className="text-sm text-gray-500 dark:text-white/50">
             Amount
           </span>
           <span className="text-sm dark:text-white">

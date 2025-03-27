@@ -162,11 +162,8 @@ export const MobileDropdown = ({
     setIsLoggingOut(true);
     try {
       // Disconnect external wallet if connected
-      if (isInjectedWallet) {
-        await disconnectWallet();
-      }
-
       await logout();
+      await disconnectWallet();
       onClose();
     } catch (error) {
       console.error("Error during logout:", error);

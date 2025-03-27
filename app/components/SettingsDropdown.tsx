@@ -70,12 +70,8 @@ export const SettingsDropdown = () => {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      // Disconnect external wallet if connected
-      if (isInjectedWallet) {
-        await disconnectWallet();
-      }
-      
       await logout();
+      await disconnectWallet();
     } catch (error) {
       console.error("Error during logout:", error);
       // Still proceed with logout even if wallet disconnection fails

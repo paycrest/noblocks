@@ -195,10 +195,10 @@ export const TransactionForm = ({
       formMethods.setValue("amountReceived", fiatAmount);
       setIsReceiveInputActive(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-
     // Setting first render to false
     isFirsRender.current = false;
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(function initSelectedToken() {

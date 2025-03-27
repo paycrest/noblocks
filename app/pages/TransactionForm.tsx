@@ -1,9 +1,10 @@
 "use client";
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ImSpinner, ImSpinner3 } from "react-icons/im";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 import {
   AnimatedComponent,
@@ -62,6 +63,7 @@ export const TransactionForm = ({
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [formattedSentAmount, setFormattedSentAmount] = useState("");
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
+  const isFirsRender = useRef(true);
 
   const {
     handleSubmit,
@@ -161,10 +163,19 @@ export const TransactionForm = ({
       searchParams.get("fiatAmount") || "0",
     ).toFixed(2);
 
-    const supportedTokens = ["USDC", "USDT", "cNGN"];
+    const supportedTokens = tokens.map((tokenElement) => tokenElement.name);
 
     if (token && supportedTokens.includes(token)) {
       formMethods.setValue("token", token);
+    }
+
+    // Check's if not first render to prevent display of error 2nd time
+    if (!isFirsRender.current && token && !supportedTokens.includes(token)) {
+      toast.error("Unsupported Token", {
+        description: String(
+          `${token} token is not supported on the current network. Please choose a valid token to proceed with the transaction.`,
+        ),
+      });
     }
 
     if (currency) {
@@ -185,6 +196,9 @@ export const TransactionForm = ({
       setIsReceiveInputActive(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    // Setting first render to false
+    isFirsRender.current = false;
   }, []);
 
   useEffect(function initSelectedToken() {

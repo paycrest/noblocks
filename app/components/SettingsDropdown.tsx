@@ -19,6 +19,9 @@ import {
 import { toast } from "sonner";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
+import { createWalletClient, custom } from 'viem'
+import { trackEvent } from '../hooks/analytics'
+import { useWalletDisconnect } from '../hooks/useWalletDisconnect';
 
 export const SettingsDropdown = () => {
   const { user, exportWallet, updateEmail } = usePrivy();
@@ -62,9 +65,22 @@ export const SettingsDropdown = () => {
     },
   });
 
-  const handleLogout = () => {
+  const { disconnectWallet } = useWalletDisconnect();
+
+  const handleLogout = async () => {
     setIsLoggingOut(true);
-    logout();
+    try {
+      // Disconnect external wallet if connected
+      if (isInjectedWallet) {
+        await disconnectWallet();
+      }
+      
+      await logout();
+    } catch (error) {
+      console.error("Error during logout:", error);
+      // Still proceed with logout even if wallet disconnection fails
+      await logout();
+    }
   };
 
   return (

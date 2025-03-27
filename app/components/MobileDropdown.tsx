@@ -41,6 +41,9 @@ import { FundWalletModal } from "./FundWalletModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
+import { createWalletClient, custom } from 'viem'
+import { trackEvent } from '../hooks/analytics'
+import { useWalletDisconnect } from '../hooks/useWalletDisconnect';
 
 type View = "wallet" | "settings";
 
@@ -75,6 +78,8 @@ export const MobileDropdown = ({
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
   const { currentStep } = useStep();
+
+  const { disconnectWallet } = useWalletDisconnect();
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(smartWallet?.address ?? "");
@@ -151,6 +156,24 @@ export const MobileDropdown = ({
     );
 
     setIsNetworkListOpen(false);
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      // Disconnect external wallet if connected
+      if (isInjectedWallet) {
+        await disconnectWallet();
+      }
+
+      await logout();
+      onClose();
+    } catch (error) {
+      console.error("Error during logout:", error);
+      // Still proceed with logout even if wallet disconnection fails
+      await logout();
+      onClose();
+    }
   };
 
   return (
@@ -503,10 +526,7 @@ export const MobileDropdown = ({
                             {!isInjectedWallet && (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setIsLoggingOut(true);
-                                  logout();
-                                }}
+                                onClick={handleLogout}
                                 className="flex w-full items-center justify-between"
                               >
                                 <div className="flex items-center gap-3">

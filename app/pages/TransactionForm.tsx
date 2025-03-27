@@ -173,7 +173,7 @@ export const TransactionForm = ({
     if (!isFirsRender.current && token && !supportedTokens.includes(token)) {
       toast.error("Unsupported Token", {
         description: String(
-          `${token} token is not supported on the current network. Please choose a valid token to proceed with the transaction.`,
+          `${token} token is not supported on the current network.`,
         ),
       });
     }

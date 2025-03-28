@@ -42,8 +42,13 @@ import { trackEvent } from "../hooks/analytics";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";
-import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
+import {
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  InformationSquareIcon,
+} from "hugeicons-react";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
+import { TransactionHelperText } from "../components/TransactionHelperText";
 
 /**
  * Renders the transaction status component.
@@ -449,7 +454,7 @@ export function TransactionStatus({
           </div>
         </div>
 
-        <div className="flex max-w-xs flex-col items-start gap-4">
+        <div className="flex flex-col items-start gap-4 sm:max-w-xs">
           <StatusIndicator />
 
           <AnimatedComponent
@@ -507,6 +512,18 @@ export function TransactionStatus({
           >
             {getPaymentMessage()}
           </AnimatedComponent>
+
+          {/* Helper text for long-running transactions */}
+          <TransactionHelperText
+            isVisible={["processing", "fulfilled"].includes(transactionStatus)}
+            title="Taking longer than expected?"
+            message="Your transaction is still processing. You can safely
+                    refresh or leave this page - your funds will either be
+                    settled or automatically refunded if the transaction
+                    fails."
+            showAfterMs={60000}
+            className="w-full space-y-4"
+          />
 
           <AnimatePresence>
             {["validated", "settled", "refunded"].includes(

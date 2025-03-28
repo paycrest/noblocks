@@ -163,7 +163,9 @@ export const MobileDropdown = ({
     try {
       // Disconnect external wallet if connected
       await logout();
-      await disconnectWallet();
+      if (window.ethereum) {
+        await disconnectWallet();
+      }
       onClose();
     } catch (error) {
       console.error("Error during logout:", error);

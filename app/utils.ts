@@ -144,6 +144,8 @@ export function getRpcUrl(network: string) {
       return `https://rpc.shield3.com/v3/0x2105/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
     case "Arbitrum One":
       return `https://rpc.shield3.com/v3/0xa4b1/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
+    case "Celo":
+      return `https://rpc.shield3.com/v3/celo-mainnet/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
     default:
       return undefined;
   }

@@ -105,12 +105,12 @@ export const TransactionForm = ({
     name: token.symbol,
     imageUrl: token.imageUrl,
   }));
-  
-  const currencies = acceptedCurrencies.map(item => {
+
+  const currencies = acceptedCurrencies.map((item) => {
     const countryCode = currencyToCountryCode(item.name);
     return {
       ...item,
-      imageUrl: `https://flagcdn.com/h24/${countryCode}.webp`
+      imageUrl: `https://flagcdn.com/h24/${countryCode}.webp`,
     };
   });
 
@@ -201,11 +201,18 @@ export const TransactionForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(function initSelectedToken() {
-    if (!fetchedTokens.find(t => t.symbol === token) && fetchedTokens.length > 0) {
-      setValue('token', fetchedTokens[0].symbol);
-    }
-  }, [selectedNetwork.chain.name]);
+  useEffect(
+    function initSelectedToken() {
+      if (
+        !fetchedTokens.find((t) => t.symbol === token) &&
+        fetchedTokens.length > 0
+      ) {
+        setValue("token", fetchedTokens[0].symbol);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedNetwork.chain.name],
+  );
 
   useEffect(
     function checkKycStatus() {
@@ -352,7 +359,7 @@ export const TransactionForm = ({
 
       registerFormFields();
     },
-    [token, currency, formMethods],
+    [token, currency, formMethods, currencies],
   );
 
   const { isEnabled, buttonText, buttonAction } = useSwapButton({

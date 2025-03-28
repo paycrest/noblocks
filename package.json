@@ -23,7 +23,6 @@
     "@headlessui/react": "^2.2.0",
     "@helia/dag-json": "^4.0.3",
     "@helia/ipns": "^8.2.0",
-    "@helia/json": "^4.0.3",
     "@hotjar/browser": "^1.0.9",
     "@libp2p/crypto": "^5.0.15",
     "@privy-io/react-auth": "^2.4.3",
@@ -33,11 +32,9 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^11.17.0",
     "helia": "^5.3.0",
-    "html2canvas": "^1.4.1",
     "hugeicons-react": "^0.3.0",
     "js-cookie": "^3.0.5",
     "jsencrypt": "^3.3.2",
-    "jspdf": "^2.5.2",
     "mixpanel-browser": "^2.58.0",
     "multiformats": "^13.3.2",
     "next": "15.2.0",
@@ -49,9 +46,7 @@
     "react-icons": "^5.4.0",
     "react-qrcode-logo": "^3.0.0",
     "sonner": "^1.7.1",
-    "uint8arrays": "^5.1.0",
-    "viem": "^2.22.7",
-    "wagmi": "^2.14.7"
+    "viem": "^2.22.7"
   },
   "devDependencies": {
     "@types/js-cookie": "^3.0.6",

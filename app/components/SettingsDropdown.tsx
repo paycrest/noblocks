@@ -71,7 +71,9 @@ export const SettingsDropdown = () => {
     setIsLoggingOut(true);
     try {
       await logout();
-      await disconnectWallet();
+      if (window.ethereum) {
+        await disconnectWallet();
+      }
     } catch (error) {
       console.error("Error during logout:", error);
       // Still proceed with logout even if wallet disconnection fails

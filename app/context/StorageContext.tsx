@@ -4,7 +4,6 @@ import { ipns } from "@helia/ipns";
 import { generateKeyPair } from "@libp2p/crypto/keys";
 import { useState, useEffect, createContext, useContext } from "react";
 import { CID } from "multiformats/cid";
-import { toast } from "sonner";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useInjectedWallet } from "./InjectedWalletContext";
 
@@ -253,6 +252,14 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       console.log(
         `Data encrypted and stored in IPFS with CID: ${cid.toString()}`,
       );
+
+      // Pin the data to ensure it persists
+      try {
+        await helia.pins.add(cid);
+        console.log(`Pinned data with CID: ${cid.toString()}`);
+      } catch (pinError) {
+        throw new Error("Failed to pin data");
+      }
 
       // Get or create IPNS key
       const privateKey = await getIpnsKey(walletAddress, key);

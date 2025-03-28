@@ -317,7 +317,7 @@ export async function fetchWalletBalance(
         balances[token.symbol] = isNaN(balance) ? 0 : balance;
         return balances[token.symbol];
       } catch (error) {
-        // console.error(`Error fetching balance for ${token.symbol}:`, error);s
+        console.error(`Error fetching balance for ${token.symbol}:`, error);
         balances[token.symbol] = 0;
         return 0;
       }

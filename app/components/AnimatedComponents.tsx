@@ -54,6 +54,19 @@ export const fadeInRight = {
   exit: { opacity: 0, x: 20 },
 };
 
+
+export const slideUpAnimation = {
+    initial: { y: "100%", opacity: 0 },
+    animate: { y: 0, opacity: 1 },
+    exit: { y: "100%", opacity: 0 },
+    transition: {
+      type: "spring",
+      stiffness: 300,
+      damping: 30,
+      duration: 0.2,
+    },
+  };
+
 export const dropdownVariants = {
   open: {
     opacity: 1,

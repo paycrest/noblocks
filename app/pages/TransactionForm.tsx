@@ -207,6 +207,7 @@ export const TransactionForm = ({
         setValue("token", fetchedTokens[0].symbol);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedNetwork.chain.name],
   );
 
@@ -358,7 +359,7 @@ export const TransactionForm = ({
 
       registerFormFields();
     },
-    [token, currency, formMethods],
+    [token, currency, formMethods, currencies],
   );
 
   const { isEnabled, buttonText, buttonAction } = useSwapButton({

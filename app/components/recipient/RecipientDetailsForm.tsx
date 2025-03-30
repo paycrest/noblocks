@@ -172,7 +172,8 @@ export const RecipientDetailsForm = ({
       if (
         !institution ||
         !accountIdentifier ||
-        accountIdentifier.toString().length < 10
+        accountIdentifier.toString().length <
+          (selectedInstitution?.code === "SAFAKEPC" ? 6 : 10)
       )
         return;
 

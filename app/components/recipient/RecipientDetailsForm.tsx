@@ -76,6 +76,7 @@ export const RecipientDetailsForm = ({
    * @type {Array<InstitutionProps>}
    */
   const filteredInstitutions: Array<InstitutionProps> = useMemo(() => {
+    console.log(institutions);
     const filtered =
       institutions?.filter((item) =>
         item.name.toLowerCase().includes(bankSearchTerm.toLowerCase()),
@@ -85,6 +86,14 @@ export const RecipientDetailsForm = ({
       // Sort mobile money first, then alphabetically within each type
       if (a.type === "mobile_money" && b.type !== "mobile_money") return -1;
       if (a.type !== "mobile_money" && b.type === "mobile_money") return 1;
+      if (a.code === "OPAYNGPC" && b.code !== "OPAYNGPC") return -1;
+      if (a.code !== "OPAYNGPC" && b.code === "OPAYNGPC") return 1;
+      if (a.code === "PALMNGPC" && b.code !== "PALMNGPC") return -1;
+      if (a.code !== "PALMNGPC" && b.code === "PALMNGPC") return 1;
+      if (a.code === "MONINGPC" && b.code !== "MONINGPC") return -1;
+      if (a.code !== "MONINGPC" && b.code === "MONINGPC") return 1;
+      if (a.code === "KUDANGPC" && b.code !== "KUDANGPC") return -1;
+      if (a.code !== "KUDANGPC" && b.code === "KUDANGPC") return 1;
       return a.name.localeCompare(b.name);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -95,9 +104,7 @@ export const RecipientDetailsForm = ({
     setSelectedInstitution({
       name: recipient.institution,
       code: recipient.institutionCode,
-      type: recipient.institutionCode.startsWith("MPESA")
-        ? "mobile_money"
-        : "bank",
+      type: recipient.type,
     });
     setValue("institution", recipient.institutionCode);
     setValue("accountIdentifier", recipient.accountIdentifier);
@@ -270,7 +277,7 @@ export const RecipientDetailsForm = ({
                 <p className="truncate">{selectedInstitution.name}</p>
               ) : (
                 <p className="text-text-placeholder dark:text-white/30">
-                  Select bank
+                  Select institution
                 </p>
               )}
               {isFetchingInstitutions ? (
@@ -297,7 +304,7 @@ export const RecipientDetailsForm = ({
                   message: "Account number is required",
                 },
                 minLength: {
-                  value: 10,
+                  value: selectedInstitution?.code === "SAFAKEPC" ? 6 : 10,
                   message: "Account number is invalid",
                 },
                 onChange: () => setIsManualEntry(true),

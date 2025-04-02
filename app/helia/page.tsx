@@ -246,24 +246,23 @@ export default function HeliaTestPage() {
       setIsLoadingFromIpns(true);
       toast.info("Loading via IPNS resolution...");
 
-      // Force IPNS resolution
+      // Force a refresh instead since we don't have IPNS
       const data = await storage.retrieve("transactions", {
         force: true,
-        useIpns: true, // Add this optional param to your StorageContext
       });
 
       if (data && Array.isArray(data)) {
         setTransactions(data);
-        toast.success(`Loaded ${data.length} transactions via IPNS`);
+        toast.success(`Loaded ${data.length} transactions`);
       } else {
         setTransactions([]);
-        toast.info("No transactions found via IPNS");
+        toast.info("No transactions found");
       }
     } catch (error) {
-      console.error("Error loading via IPNS:", error);
+      console.error("Error loading:", error);
       toast.error(error instanceof Error ? error.message : String(error));
       setDebugInfo(
-        `IPNS Error: ${error instanceof Error ? error.message : String(error)}`,
+        `Error: ${error instanceof Error ? error.message : String(error)}`,
       );
       setTransactions([]);
     } finally {
@@ -271,14 +270,12 @@ export default function HeliaTestPage() {
     }
   };
 
-  // Remove automatic loading (commenting out this useEffect)
-  /* 
+  // Re-enable automatic loading
   useEffect(() => {
     if (ready && authenticated && storage?.isInitialized && !isLoading) {
       loadTransactions({ forceRefresh: false });
     }
-  }, [ready, authenticated, storage?.isInitialized, getWalletAddress()]);
-  */
+  }, [ready, authenticated, storage?.isInitialized]);
 
   // Authentication check
   if (!ready) {

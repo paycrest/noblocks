@@ -1,11 +1,7 @@
-import { createHelia } from "helia";
-import { dagJson } from "@helia/dag-json";
-import { ipns } from "@helia/ipns";
-import { generateKeyPair } from "@libp2p/crypto/keys";
-import { useState, useEffect, createContext, useContext } from "react";
-import { CID } from "multiformats/cid";
+import { useState, createContext, useContext } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useInjectedWallet } from "./InjectedWalletContext";
+import { pinata } from "@/app/lib/pinata-config";
 
 /**
  * Type definition for the Storage Context
@@ -17,7 +13,6 @@ type StorageContextType = {
     options?: {
       force?: boolean;
       directCid?: string;
-      useIpns?: boolean;
     },
   ) => Promise<any>;
   isInitialized: boolean;
@@ -27,43 +22,17 @@ type StorageContextType = {
 const StorageContext = createContext<StorageContextType>(null);
 
 /**
- * StorageProvider component - Wallet-encrypted storage with IPNS
+ * StorageProvider component - Pinata-based storage
  */
 export function StorageProvider({ children }: { children: React.ReactNode }) {
-  const [helia, setHelia] = useState<any>(null);
-  const [dagInstance, setDagInstance] = useState<any>(null);
-  const [ipnsInstance, setIpnsInstance] = useState<any>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(true); // Pinata is ready immediately
   const [isLoading, setIsLoading] = useState(false);
-  // Store IPNS keys with their names
-  const [ipnsKeys, setIpnsKeys] = useState<Record<string, any>>({});
 
   // Wallet-related hooks
   const { wallets } = useWallets();
   const { signMessage } = usePrivy();
   const { isInjectedWallet, injectedAddress, injectedProvider } =
     useInjectedWallet();
-
-  // Initialize Helia on component mount
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const heliaNode = await createHelia();
-        const dagApi = dagJson(heliaNode);
-        const ipnsApi = ipns(heliaNode);
-
-        setHelia(heliaNode);
-        setDagInstance(dagApi);
-        setIpnsInstance(ipnsApi);
-        setIsInitialized(true);
-        console.log("Helia initialized with DAG JSON and IPNS support");
-      } catch (error) {
-        console.error("Failed to initialize Helia:", error);
-      }
-    };
-
-    init();
-  }, []);
 
   /**
    * Get the wallet address to use for storage
@@ -85,11 +54,8 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * Sign a message to derive an encryption key
-   * @param message - Message to sign
-   * @returns Signature string
    */
   const signForEncryption = async (message: string): Promise<string> => {
-    // Add a specific salt to make sure the message is consistent
     const saltedMessage = `noblocks-storage:${message}`;
 
     if (isInjectedWallet && injectedProvider) {
@@ -127,7 +93,6 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * Derive an encryption key from a signature
-   * @param signature - Wallet signature
    */
   const deriveEncryptionKey = async (signature: string): Promise<CryptoKey> => {
     const encoder = new TextEncoder();
@@ -139,7 +104,6 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       ["deriveKey"],
     );
 
-    // Use PBKDF2 to derive a key suitable for AES-GCM
     return crypto.subtle.deriveKey(
       {
         name: "PBKDF2",
@@ -156,8 +120,6 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * Encrypt data using AES-GCM
-   * @param data - Data to encrypt
-   * @param key - Encryption key
    */
   const encryptData = async (data: any, key: CryptoKey): Promise<object> => {
     const encoder = new TextEncoder();
@@ -178,8 +140,6 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * Decrypt data using AES-GCM
-   * @param encrypted - Encrypted data object
-   * @param key - Decryption key
    */
   const decryptData = async (encrypted: any, key: CryptoKey): Promise<any> => {
     const decoder = new TextDecoder();
@@ -196,40 +156,9 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
   };
 
   /**
-   * Generate or get an IPNS key for publishing
-   * @param walletAddress - The user's wallet address
-   * @param key - Storage key
-   */
-  const getIpnsKey = async (
-    walletAddress: string,
-    key: string,
-  ): Promise<any> => {
-    const ipnsKeyName = `eth-${walletAddress}-${key}`;
-
-    // Check if we already have this key in memory
-    let privateKey = ipnsKeys[ipnsKeyName];
-
-    if (!privateKey) {
-      // Generate a new key if none exists
-      privateKey = await generateKeyPair("Ed25519");
-      setIpnsKeys((prev) => ({ ...prev, [ipnsKeyName]: privateKey }));
-      console.log(`Generated new IPNS key: ${ipnsKeyName}`);
-    }
-
-    return privateKey;
-  };
-
-  /**
-   * Save encrypted data to IPFS and publish to IPNS
-   * @param key - Storage key
-   * @param data - Data to store
-   * @returns CID string of stored data
+   * Save encrypted data using Pinata
    */
   const save = async (key: string, data: any): Promise<string> => {
-    if (!isInitialized || !dagInstance || !ipnsInstance) {
-      throw new Error("Storage not initialized");
-    }
-
     setIsLoading(true);
     try {
       const walletAddress = getWalletAddress();
@@ -247,34 +176,23 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       // Encrypt the data
       const encrypted = await encryptData(data, encryptionKey);
 
-      // Store encrypted data in IPFS
-      const cid = await dagInstance.add(encrypted);
-      console.log(
-        `Data encrypted and stored in IPFS with CID: ${cid.toString()}`,
-      );
+      // Convert encrypted data to JSON and create a Blob
+      const jsonBlob = new Blob([JSON.stringify(encrypted)], {
+        type: "application/json",
+      });
+      const file = new File([jsonBlob], `${key}-${walletAddress}.json`, {
+        type: "application/json",
+      });
 
-      // Pin the data to ensure it persists
-      try {
-        await helia.pins.add(cid);
-        console.log(`Pinned data with CID: ${cid.toString()}`);
-      } catch (pinError) {
-        throw new Error("Failed to pin data");
-      }
-
-      // Get or create IPNS key
-      const privateKey = await getIpnsKey(walletAddress, key);
-
-      // Publish to IPNS
-      console.time("IPNS publish");
-      await ipnsInstance.publish(privateKey, cid);
-      console.timeEnd("IPNS publish");
-      console.log(`Published to IPNS with key: eth-${walletAddress}-${key}`);
+      // Upload to Pinata
+      const { cid } = await pinata.upload.public.file(file);
+      console.log(`Data encrypted and stored with CID: ${cid}`);
 
       // Store a local cache of the CID for faster retrieval
       const storageKey = `eth-${walletAddress}-${key}`;
-      localStorage.setItem(storageKey, cid.toString());
+      localStorage.setItem(storageKey, cid);
 
-      return cid.toString();
+      return cid;
     } catch (error) {
       console.error("Error saving data:", error);
       throw error instanceof Error
@@ -286,23 +204,15 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
   };
 
   /**
-   * Retrieve and decrypt data from IPFS/IPNS
-   * @param key - Storage key
-   * @param options - Options for retrieval
-   * @returns Decrypted data
+   * Retrieve and decrypt data using Pinata
    */
   const retrieve = async (
     key: string,
     options?: {
       force?: boolean;
       directCid?: string;
-      useIpns?: boolean;
     },
   ): Promise<any> => {
-    if (!isInitialized || !dagInstance) {
-      throw new Error("Storage not initialized");
-    }
-
     setIsLoading(true);
     try {
       const walletAddress = getWalletAddress();
@@ -313,8 +223,6 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
 
       // Use the same signature process to derive the same key
       const signature = await signForEncryption(message);
-      console.log("Decryption signature:", signature.substring(0, 20) + "...");
-
       const decryptionKey = await deriveEncryptionKey(signature);
 
       let cidToUse: string | null = null;
@@ -323,109 +231,34 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
       if (options?.directCid) {
         console.log(`Using provided direct CID: ${options.directCid}`);
         cidToUse = options.directCid;
-      }
-      // If useIpns is true, always try IPNS resolution
-      else if (options?.useIpns && ipnsInstance) {
-        try {
-          console.log("Forcing IPNS resolution...");
-          const privateKey = await getIpnsKey(walletAddress, key);
-          console.log("Using IPNS key with publicKey:", privateKey.publicKey);
-
-          // Resolve the latest CID from IPNS
-          const result = await ipnsInstance.resolve(privateKey.publicKey);
-          cidToUse = result.cid.toString();
-          console.log(`Resolved from IPNS to CID: ${cidToUse}`);
-
-          // Update the cache
-          if (cidToUse) {
-            const storageKey = `eth-${walletAddress}-${key}`;
-            localStorage.setItem(storageKey, cidToUse);
-            console.log(`Updated localStorage with new CID: ${cidToUse}`);
-          }
-        } catch (error) {
-          console.error("IPNS resolution failed:", error);
-          throw error;
-        }
-      }
-      // Normal flow: check localStorage or use IPNS based on force flag
-      else {
-        // Check localStorage first for faster retrieval
+      } else {
+        // Check localStorage first
         const storageKey = `eth-${walletAddress}-${key}`;
-        const cachedCid = localStorage.getItem(storageKey);
-        console.log(
-          `Retrieved from localStorage key ${storageKey}: CID:`,
-          cachedCid,
-        );
-
-        // If force is true or no cached CID, try to resolve from IPNS
-        if (options?.force || !cachedCid) {
-          if (ipnsInstance) {
-            try {
-              console.log(
-                "No cached CID or force refresh, trying IPNS resolution",
-              );
-              // Get the IPNS key
-              const privateKey = await getIpnsKey(walletAddress, key);
-              console.log(
-                "Using IPNS key with publicKey:",
-                privateKey.publicKey,
-              );
-
-              // Resolve the latest CID from IPNS
-              const result = await ipnsInstance.resolve(privateKey.publicKey);
-              cidToUse = result.cid.toString();
-              console.log(`Resolved IPNS to CID: ${cidToUse}`);
-
-              // Update the cache
-              if (cidToUse) {
-                localStorage.setItem(storageKey, cidToUse);
-                console.log(`Updated localStorage with new CID: ${cidToUse}`);
-              }
-            } catch (error) {
-              console.warn(
-                "IPNS resolution failed, falling back to cached CID:",
-                error,
-              );
-              cidToUse = cachedCid;
-            }
-          } else {
-            cidToUse = cachedCid;
-          }
-        } else {
-          console.log("Using cached CID from localStorage");
-          cidToUse = cachedCid;
-        }
+        cidToUse = localStorage.getItem(storageKey);
       }
 
       if (!cidToUse) {
         throw new Error("No stored data found");
       }
 
-      // Parse the CID
-      console.log(`Retrieving data with CID: ${cidToUse}`);
-      const cid = CID.parse(cidToUse);
+      // Get the gateway URL for the CID
+      const url = await pinata.gateways.public.convert(cidToUse);
 
-      // Retrieve encrypted data from IPFS
-      console.log(`Fetching from IPFS with CID: ${cid.toString()}`);
-      const encryptedData = await dagInstance.get(cid);
-      console.log(
-        "Retrieved data structure:",
-        JSON.stringify(encryptedData).substring(0, 100) + "...",
-      );
+      // Fetch the encrypted data
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch data from Pinata");
+      }
 
+      const encryptedData = await response.json();
+
+      // Validate the encrypted data structure
       if (!encryptedData || !encryptedData.iv || !encryptedData.encryptedData) {
-        console.error("Invalid data format:", encryptedData);
         throw new Error("Invalid encrypted data format");
       }
 
       // Decrypt the data
-      console.log(
-        "Attempting decryption with iv length:",
-        encryptedData.iv.length,
-      );
-      console.log("Encrypted data length:", encryptedData.encryptedData.length);
       const decryptedData = await decryptData(encryptedData, decryptionKey);
-      console.log("Decryption successful");
       return decryptedData;
     } catch (error) {
       console.error("Error retrieving data:", error);

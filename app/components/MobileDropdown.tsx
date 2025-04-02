@@ -455,7 +455,7 @@ export const MobileDropdown = ({
                               className="flex w-full items-center gap-2.5"
                             >
                               <Key01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-                              <p className="text-left">
+                              <p className="text-left text-text-body dark:text-white/80">
                                 {user?.mfaMethods?.length
                                   ? "Manage MFA"
                                   : "Enable MFA"}

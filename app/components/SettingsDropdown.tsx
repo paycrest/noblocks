@@ -1,7 +1,12 @@
 "use client";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRef, useState } from "react";
-import { useLinkAccount, useLogout, usePrivy } from "@privy-io/react-auth";
+import {
+  useLinkAccount,
+  useLogout,
+  usePrivy,
+  useMfaEnrollment,
+} from "@privy-io/react-auth";
 import { ImSpinner } from "react-icons/im";
 import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
@@ -15,16 +20,18 @@ import {
   Mail01Icon,
   Setting07Icon,
   Wallet01Icon,
+  Key01Icon,
 } from "hugeicons-react";
 import { toast } from "sonner";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
-import { createWalletClient, custom } from 'viem'
-import { trackEvent } from '../hooks/analytics'
-import { useWalletDisconnect } from '../hooks/useWalletDisconnect';
+import { createWalletClient, custom } from "viem";
+import { trackEvent } from "../hooks/analytics";
+import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 
 export const SettingsDropdown = () => {
   const { user, exportWallet, updateEmail } = usePrivy();
+  const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
@@ -142,6 +149,25 @@ export const SettingsDropdown = () => {
                   )}
                 </button>
               </li>
+
+              <li
+                role="menuitem"
+                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+              >
+                <button
+                  type="button"
+                  className="group flex w-full items-center justify-between gap-4"
+                  onClick={showMfaEnrollmentModal}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Key01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                    <p>
+                      {user?.mfaMethods?.length ? "Manage MFA" : "Enable MFA"}
+                    </p>
+                  </div>
+                </button>
+              </li>
+
               {!isInjectedWallet &&
                 (user?.email ? (
                   <li

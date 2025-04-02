@@ -3,7 +3,7 @@ import Image from "next/image";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
 import {
   Cancel01Icon,
   ArrowRight01Icon,
@@ -16,6 +16,7 @@ import {
   ArrowLeft02Icon,
   ArrowDown01Icon,
   CustomerService01Icon,
+  Key01Icon,
 } from "hugeicons-react";
 
 import { useNetwork } from "../context/NetworksContext";
@@ -41,9 +42,9 @@ import { FundWalletModal } from "./FundWalletModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
-import { createWalletClient, custom } from 'viem'
-import { trackEvent } from '../hooks/analytics'
-import { useWalletDisconnect } from '../hooks/useWalletDisconnect';
+import { createWalletClient, custom } from "viem";
+import { trackEvent } from "../hooks/analytics";
+import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 
 type View = "wallet" | "settings";
 
@@ -80,6 +81,8 @@ export const MobileDropdown = ({
   const { currentStep } = useStep();
 
   const { disconnectWallet } = useWalletDisconnect();
+
+  const { showMfaEnrollmentModal } = useMfaEnrollment();
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(smartWallet?.address ?? "");
@@ -446,6 +449,19 @@ export const MobileDropdown = ({
                           </div>
 
                           <div className="space-y-2 *:min-h-11">
+                            <button
+                              type="button"
+                              onClick={showMfaEnrollmentModal}
+                              className="flex w-full items-center gap-2.5"
+                            >
+                              <Key01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                              <p className="text-left">
+                                {user?.mfaMethods?.length
+                                  ? "Manage MFA"
+                                  : "Enable MFA"}
+                              </p>
+                            </button>
+
                             {!isInjectedWallet && user?.email ? (
                               <button
                                 type="button"

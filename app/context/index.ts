@@ -5,3 +5,4 @@ export {
   InjectedWalletProvider,
   useInjectedWallet,
 } from "./InjectedWalletContext";
+export { StorageProvider, useStorage } from "./StorageContext";

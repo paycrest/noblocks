@@ -82,13 +82,24 @@ export const TransferModal = ({
     try {
       const fetchedTokens: Token[] =
         fetchSupportedTokens(client?.chain.name) || [];
-      const tokenAddress = fetchedTokens.find(
-        (t) => t.symbol.toUpperCase() === token,
-      )?.address as `0x${string}`;
-      const tokenDecimals = fetchedTokens.find(
-        (t) => t.symbol.toUpperCase() === data.token,
-      )?.decimals;
+
+      const searchToken = token.toUpperCase();
+      const tokenData = fetchedTokens.find(
+        (t) => t.symbol.toUpperCase() === searchToken,
+      );
+
+      const tokenAddress = tokenData?.address as `0x${string}`;
+      const tokenDecimals = tokenData?.decimals;
+
+      if (!tokenAddress || tokenDecimals === undefined) {
+        setErrorMessage(`Token data not found for ${token}.`);
+        throw new Error(
+          `Token data not found for ${token}. Available tokens: ${fetchedTokens.map((t) => t.symbol).join(", ")}`,
+        );
+      }
+
       setIsConfirming(true);
+
       await client?.sendTransaction({
         to: tokenAddress,
         data: encodeFunctionData({
@@ -96,7 +107,7 @@ export const TransferModal = ({
           functionName: "transfer",
           args: [
             data.recipientAddress as `0x${string}`,
-            parseUnits(data.amount.toString(), tokenDecimals!),
+            parseUnits(data.amount.toString(), tokenDecimals),
           ],
         }),
       });
@@ -111,8 +122,15 @@ export const TransferModal = ({
       setIsConfirming(false);
       reset();
     } catch (e: any) {
+      console.error("Transfer failed:", {
+        error: e,
+        shortMessage: (e as BaseError).shortMessage,
+        fullError: e.toString(),
+        token,
+        availableTokens: fetchedTokens.map((t) => t.symbol),
+      });
       onClose();
-      setErrorMessage((e as BaseError).shortMessage);
+      setErrorMessage((e as BaseError).shortMessage || e.message);
       setErrorCount((prevCount) => prevCount + 1);
       setIsConfirming(false);
     }

@@ -37,7 +37,6 @@ import { fetchAggregatorPublicKey } from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics";
 import { ImSpinner } from "react-icons/im";
 import { InformationSquareIcon } from "hugeicons-react";
-import { bsc } from "viem/chains";
 import { PiCheckCircleFill } from "react-icons/pi";
 import { TbCircleDashed } from "react-icons/tb";
 

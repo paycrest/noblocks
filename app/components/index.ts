@@ -35,6 +35,7 @@ export { RecipientDetailsForm } from "./recipient/RecipientDetailsForm";
 export { SearchInput } from "./recipient/SearchInput";
 export { RecipientListItem } from "./recipient/RecipientListItem";
 export { SavedBeneficiariesModal } from "./recipient/SavedBeneficiariesModal";
+export { TransactionHelperText } from "./TransactionHelperText";
 export {
   inputClasses,
   primaryBtnClasses,

@@ -63,7 +63,7 @@ export const TransactionForm = ({
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [formattedSentAmount, setFormattedSentAmount] = useState("");
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
-  const isFirsRender = useRef(true);
+  const isFirstRender = useRef(true);
 
   const {
     handleSubmit,
@@ -105,12 +105,12 @@ export const TransactionForm = ({
     name: token.symbol,
     imageUrl: token.imageUrl,
   }));
-  
-  const currencies = acceptedCurrencies.map(item => {
+
+  const currencies = acceptedCurrencies.map((item) => {
     const countryCode = currencyToCountryCode(item.name);
     return {
       ...item,
-      imageUrl: `https://flagcdn.com/h24/${countryCode}.webp`
+      imageUrl: `https://flagcdn.com/h24/${countryCode}.webp`,
     };
   });
 
@@ -151,9 +151,6 @@ export const TransactionForm = ({
   };
 
   useEffect(function setDefaultValueOnPageLoad() {
-    // fields values are set in useEffect so that default values ("" & 0) can be retained when the form is submitted
-    // default values is also set here because `isReceiveInputActive` is used in aother useEffect (in this file) to set the final value of the input fields
-    // currency and token could have been set on the page level (app/page.tsx) but it's cleaner to have all loaded value at a place
     const token = searchParams.get("token");
     const currency = searchParams.get("currency");
     const tokenAmount = +parseFloat(
@@ -170,7 +167,7 @@ export const TransactionForm = ({
     }
 
     // Check's if not first render to prevent display of error 2nd time
-    if (!isFirsRender.current && token && !supportedTokens.includes(token)) {
+    if (!isFirstRender.current && token && !supportedTokens.includes(token)) {
       toast.error("Unsupported Token", {
         description: String(
           `${token} token is not supported on the current network.`,
@@ -196,16 +193,22 @@ export const TransactionForm = ({
       setIsReceiveInputActive(true);
     }
     // Setting first render to false
-    isFirsRender.current = false;
+    isFirstRender.current = false;
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(function initSelectedToken() {
-    if (!fetchedTokens.find(t => t.symbol === token) && fetchedTokens.length > 0) {
-      setValue('token', fetchedTokens[0].symbol);
-    }
-  }, [selectedNetwork.chain.name]);
+  useEffect(
+    function initSelectedToken() {
+      if (
+        !fetchedTokens.find((t) => t.symbol === token) &&
+        fetchedTokens.length > 0
+      ) {
+        setValue("token", fetchedTokens[0].symbol);
+      }
+    },
+    [selectedNetwork.chain.name],
+  );
 
   useEffect(
     function checkKycStatus() {
@@ -278,6 +281,7 @@ export const TransactionForm = ({
     function registerFieldsWithValidation() {
       async function registerFormFields() {
         let maxAmountSentValue = 10000;
+        let minAmountSentValue = 0.5;
 
         if (token === "cNGN") {
           try {
@@ -293,9 +297,11 @@ export const TransactionForm = ({
               Number(rate.data) > 0
             ) {
               maxAmountSentValue = 10000 * Number(rate.data);
+              // Set minimum value to the NGN equivalent of 0.5 USD
+              minAmountSentValue = 0.5 * Number(rate.data);
             }
           } catch (error) {
-            console.error("Error fetching rate for cNGN max amount:", error);
+            console.error("Error fetching rate for cNGN amount limits:", error);
           }
         }
 
@@ -303,8 +309,8 @@ export const TransactionForm = ({
           required: { value: true, message: "Amount is required" },
           disabled: !token,
           min: {
-            value: 0.5,
-            message: "Minimum amount is 0.5",
+            value: minAmountSentValue,
+            message: `Minimum amount is ${formatNumberWithCommas(minAmountSentValue)}`,
           },
           max: {
             value: maxAmountSentValue,

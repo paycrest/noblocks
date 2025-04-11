@@ -13,6 +13,7 @@ import {
   fadeInOut,
   slideInOut,
   primaryBtnClasses,
+  Confetti,
 } from "../components";
 import {
   FarcasterIconDarkTheme,
@@ -414,6 +415,8 @@ export function TransactionStatus({
 
   return (
     <>
+      {["validated", "settled"].includes(transactionStatus) && <Confetti />}
+
       <AnimatedComponent
         variant={slideInOut}
         className="flex w-full justify-center gap-[4.5rem]"

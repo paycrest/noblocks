@@ -13,7 +13,6 @@ import {
   fadeInOut,
   slideInOut,
   primaryBtnClasses,
-  Confetti,
 } from "../components";
 import {
   FarcasterIconDarkTheme,
@@ -50,6 +49,7 @@ import {
 } from "hugeicons-react";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { TransactionHelperText } from "../components/TransactionHelperText";
+import { useConfetti } from "../hooks/useConfetti";
 
 /**
  * Renders the transaction status component.
@@ -88,6 +88,8 @@ export function TransactionStatus({
   const [isGettingReceipt, setIsGettingReceipt] = useState(false);
   const [addToBeneficiaries, setAddToBeneficiaries] = useState(false);
   const [isTracked, setIsTracked] = useState(false);
+
+  const fireConfetti = useConfetti();
 
   const { watch } = formMethods;
   const token = watch("token") || "";
@@ -210,6 +212,15 @@ export function TransactionStatus({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isTracked, transactionStatus, completedAt],
+  );
+
+  useEffect(
+    function fireConfettiOnSuccess() {
+      if (["validated", "settled"].includes(transactionStatus)) {
+        fireConfetti();
+      }
+    },
+    [transactionStatus, fireConfetti],
   );
 
   const StatusIndicator = () => (
@@ -415,8 +426,6 @@ export function TransactionStatus({
 
   return (
     <>
-      {["validated", "settled"].includes(transactionStatus) && <Confetti />}
-
       <AnimatedComponent
         variant={slideInOut}
         className="flex w-full justify-center gap-[4.5rem]"

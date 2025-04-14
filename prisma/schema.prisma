@@ -1,0 +1,67 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String        @id // This will be the Privy DID
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  email         String?
+  transactions  Transaction[]
+  wallets       Wallet[]
+}
+
+model Wallet {
+  id            String        @id @default(cuid())
+  address       String
+  chainType     String        // ethereum, solana, etc.
+  walletType    String        // metamask, privy, etc.
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  transactions  Transaction[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([address, chainType])
+}
+
+model Transaction {
+  id                String    @id @default(cuid())
+  orderId           String    @unique // External order ID from aggregator
+  userId            String
+  walletId          String
+  amount            Decimal
+  token             String    // USDC, DAI, etc.
+  recipientAccount  String    // Bank account or mobile money number
+  recipientName     String
+  institution       String    // Bank or mobile money provider
+  currency         String    // Target fiat currency
+  status           TransactionStatus
+  provider         String?   // Liquidity provider if any
+  memo             String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  completedAt      DateTime?
+  txHash           String?   // Blockchain transaction hash
+  user             User      @relation(fields: [userId], references: [id])
+  wallet           Wallet    @relation(fields: [walletId], references: [id])
+
+  @@index([userId])
+  @@index([orderId])
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}

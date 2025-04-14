@@ -5,7 +5,6 @@ import type {
   UseFormRegister,
   UseFormHandleSubmit,
   UseFormReturn,
-  UseFormSetValue,
 } from "react-hook-form";
 
 export type InstitutionProps = {
@@ -37,7 +36,7 @@ export type Step = (typeof STEPS)[keyof typeof STEPS];
 
 export type TransactionFormProps = {
   onSubmit: any;
-  formMethods: UseFormReturn<FormData, any, undefined>;
+  formMethods: UseFormReturn<FormData, any, FormData>;
   stateProps: StateProps;
 };
 
@@ -48,7 +47,7 @@ export type TransactionPreviewProps = {
 };
 
 export type RecipientDetailsFormProps = {
-  formMethods: UseFormReturn<FormData, any, undefined>;
+  formMethods: UseFormReturn<FormData, any, FormData>;
   stateProps: StateProps;
 };
 
@@ -61,7 +60,7 @@ export type RecipientDetails = {
 };
 
 export type FormMethods = {
-  handleSubmit: UseFormHandleSubmit<FormData, undefined>;
+  handleSubmit: UseFormHandleSubmit<FormData, FormData>;
   register: UseFormRegister<FormData>;
   watch: (name: string) => string | number | undefined;
   formState: {

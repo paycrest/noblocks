@@ -128,6 +128,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://scrollscan.com/tx/${txHash}`;
     case "Celo":
       return `https://celoscan.io/tx/${txHash}`;
+    case "Lisk":
+      return `https://blockscout.lisk.com/tx/${txHash}`;
     default:
       return "";
   }
@@ -146,6 +148,8 @@ export function getRpcUrl(network: string) {
       return `https://rpc.shield3.com/v3/0xa4b1/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
     case "Celo":
       return `https://rpc.shield3.com/v3/celo-mainnet/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
+    case "Lisk":
+      return `https://rpc.api.lisk.com`;
     default:
       return undefined;
   }
@@ -280,6 +284,15 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         imageUrl: "/logos/celo-logo.svg",
       },
     ],
+    Lisk: [
+      {
+        name: "Tether USD",
+        symbol: "USDT",
+        decimals: 6,
+        address: "0x05D032ac25d322df992303dCa074EE7392C117b9",
+        imageUrl: "/logos/usdt-logo.svg",
+      },
+    ],
   };
 
   return tokens[network];
@@ -393,6 +406,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Scroll: "0x663c5bfe7d44ba946c2dd4b2d1cf9580319f9338",
     Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
     Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
+    Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
   }[network];
 }
 

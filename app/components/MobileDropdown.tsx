@@ -3,7 +3,7 @@ import Image from "next/image";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
 import {
   Cancel01Icon,
   ArrowRight01Icon,
@@ -17,6 +17,7 @@ import {
   ArrowDown01Icon,
   CustomerService01Icon,
   Clock01Icon,
+  Key01Icon,
 } from "hugeicons-react";
 
 import { useNetwork } from "../context/NetworksContext";
@@ -43,6 +44,9 @@ import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
 import { TransactionHistoryModal } from "./TransactionHistoryModal";
+import { createWalletClient, custom } from "viem";
+import { trackEvent } from "../hooks/analytics";
+import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 
 type View = "wallet" | "settings";
 
@@ -79,6 +83,10 @@ export const MobileDropdown = ({
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
   const { currentStep } = useStep();
+
+  const { disconnectWallet } = useWalletDisconnect();
+
+  const { showMfaEnrollmentModal } = useMfaEnrollment();
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(smartWallet?.address ?? "");
@@ -155,6 +163,23 @@ export const MobileDropdown = ({
     );
 
     setIsNetworkListOpen(false);
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      // Disconnect external wallet if connected
+      await logout();
+      if (window.ethereum) {
+        await disconnectWallet();
+      }
+      onClose();
+    } catch (error) {
+      console.error("Error during logout:", error);
+      // Still proceed with logout even if wallet disconnection fails
+      await logout();
+      onClose();
+    }
   };
 
   return (
@@ -438,6 +463,19 @@ export const MobileDropdown = ({
                           </div>
 
                           <div className="space-y-2 *:min-h-11">
+                            <button
+                              type="button"
+                              onClick={showMfaEnrollmentModal}
+                              className="flex w-full items-center gap-2.5"
+                            >
+                              <Key01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                              <p className="text-left text-text-body dark:text-white/80">
+                                {user?.mfaMethods?.length
+                                  ? "Manage MFA"
+                                  : "Enable MFA"}
+                              </p>
+                            </button>
+
                             {!isInjectedWallet && user?.email ? (
                               <button
                                 type="button"
@@ -517,10 +555,7 @@ export const MobileDropdown = ({
                             {!isInjectedWallet && (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setIsLoggingOut(true);
-                                  logout();
-                                }}
+                                onClick={handleLogout}
                                 className="flex w-full items-center justify-between"
                               >
                                 <div className="flex items-center gap-3">

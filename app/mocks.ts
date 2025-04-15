@@ -39,10 +39,10 @@ export const networks = [
     chain: bsc,
     imageUrl: "/logos/bnb-smart-chain-logo.svg",
   },
-  {
-    chain: celo,
-    imageUrl: "/logos/celo-logo.svg",
-  },
+  // {
+  //   chain: celo,
+  //   imageUrl: "/logos/celo-logo.svg",
+  // },
   {
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",

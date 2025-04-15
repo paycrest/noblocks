@@ -42,8 +42,14 @@ import { trackEvent } from "../hooks/analytics";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";
-import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
+import {
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  InformationSquareIcon,
+} from "hugeicons-react";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
+import { TransactionHelperText } from "../components/TransactionHelperText";
+import { useConfetti } from "../hooks/useConfetti";
 
 /**
  * Renders the transaction status component.
@@ -82,6 +88,8 @@ export function TransactionStatus({
   const [isGettingReceipt, setIsGettingReceipt] = useState(false);
   const [addToBeneficiaries, setAddToBeneficiaries] = useState(false);
   const [isTracked, setIsTracked] = useState(false);
+
+  const fireConfetti = useConfetti();
 
   const { watch } = formMethods;
   const token = watch("token") || "";
@@ -204,6 +212,15 @@ export function TransactionStatus({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isTracked, transactionStatus, completedAt],
+  );
+
+  useEffect(
+    function fireConfettiOnSuccess() {
+      if (["validated", "settled"].includes(transactionStatus)) {
+        fireConfetti();
+      }
+    },
+    [transactionStatus, fireConfetti],
   );
 
   const StatusIndicator = () => (
@@ -449,7 +466,7 @@ export function TransactionStatus({
           </div>
         </div>
 
-        <div className="flex max-w-xs flex-col items-start gap-4">
+        <div className="flex flex-col items-start gap-4 sm:max-w-xs">
           <StatusIndicator />
 
           <AnimatedComponent
@@ -508,6 +525,18 @@ export function TransactionStatus({
             {getPaymentMessage()}
           </AnimatedComponent>
 
+          {/* Helper text for long-running transactions */}
+          <TransactionHelperText
+            isVisible={["processing", "fulfilled"].includes(transactionStatus)}
+            title="Taking longer than expected?"
+            message="Your transaction is still processing. You can safely
+                    refresh or leave this page - your funds will either be
+                    settled or automatically refunded if the transaction
+                    fails."
+            showAfterMs={60000}
+            className="w-full space-y-4"
+          />
+
           <AnimatePresence>
             {["validated", "settled", "refunded"].includes(
               transactionStatus,
@@ -516,7 +545,7 @@ export function TransactionStatus({
                 <AnimatedComponent
                   variant={slideInOut}
                   delay={0.5}
-                  className="flex w-full flex-wrap gap-3 max-sm:hidden"
+                  className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
                 >
                   {["validated", "settled"].includes(transactionStatus) && (
                     <button
@@ -539,6 +568,7 @@ export function TransactionStatus({
                       : "New payment"}
                   </button>
                 </AnimatedComponent>
+
                 {["validated", "settled"].includes(transactionStatus) && (
                   <div className="flex gap-2">
                     <Checkbox
@@ -554,7 +584,7 @@ export function TransactionStatus({
                         <title>
                           {addToBeneficiaries
                             ? "Remove from beneficiaries"
-                            : "Add to beneficiaries"}
+                            : "Add to your beneficiaries"}
                         </title>
                         <path
                           d="M3 8L6 11L11 3.5"
@@ -601,7 +631,7 @@ export function TransactionStatus({
                 className="flex w-full flex-col gap-4 text-gray-500 dark:text-white/50"
               >
                 <div className="flex items-center justify-between gap-1">
-                  <p className="flex-1">Status</p>
+                  <p className="flex-1">Transaction status</p>
                   <div className="flex flex-1 items-center gap-1">
                     <p
                       className={classNames(
@@ -693,46 +723,6 @@ export function TransactionStatus({
                   </a>
                 </div>
               </AnimatedComponent>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {["validated", "settled", "refunded"].includes(
-              transactionStatus,
-            ) && (
-              <>
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.5}
-                  className="mt-10 w-full space-y-4 sm:hidden"
-                >
-                  <div className="flex w-full flex-col gap-3">
-                    {["validated", "settled"].includes(transactionStatus) && (
-                      <button
-                        type="button"
-                        onClick={handleGetReceipt}
-                        className={classNames(
-                          secondaryBtnClasses,
-                          "w-full flex-1",
-                        )}
-                        disabled={isGettingReceipt}
-                      >
-                        {isGettingReceipt ? "Generating..." : "Get receipt"}
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={handleBackButtonClick}
-                      className={classNames(primaryBtnClasses, "w-full flex-1")}
-                    >
-                      {transactionStatus === "refunded"
-                        ? "Retry transaction"
-                        : "New payment"}
-                    </button>
-                  </div>
-                </AnimatedComponent>
-              </>
             )}
           </AnimatePresence>
         </div>

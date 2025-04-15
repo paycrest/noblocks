@@ -23,12 +23,12 @@ export const SelectBankModal = ({
     <AnimatedModal isOpen={isOpen} onClose={onClose} maxWidth="28.5rem">
       <div className="flex items-center justify-between">
         <DialogTitle className="text-lg font-semibold dark:text-white sm:text-base">
-          Select Bank
+          Select institution
         </DialogTitle>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close select bank modal"
+          aria-label="Close select institution modal"
           className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
         >
           <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
@@ -39,7 +39,7 @@ export const SelectBankModal = ({
         <SearchInput
           value={bankSearchTerm}
           onChange={setBankSearchTerm}
-          placeholder="Search banks..."
+          placeholder="Search institutions..."
           autoFocus={isOpen}
         />
       </div>

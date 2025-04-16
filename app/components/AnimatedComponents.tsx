@@ -25,33 +25,33 @@ export const fadeInOut = {
 };
 
 export const slideInOut = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -20 },
+  initial: { ...fadeInOut.initial, y: 20 },
+  animate: { ...fadeInOut.animate, y: 0 },
+  exit: { ...fadeInOut.exit, y: -20 },
 };
 
 export const slideInDown = {
-  initial: { opacity: 0, y: -20 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -20 },
+  initial: { ...fadeInOut.initial, y: -20 },
+  animate: { ...fadeInOut.animate, y: 0 },
+  exit: { ...fadeInOut.exit, y: -20 },
 };
 
 export const scaleInOut = {
-  initial: { scale: 0 },
-  animate: { scale: 1 },
-  exit: { scale: 0 },
+  initial: { ...fadeInOut.initial, scale: 0 },
+  animate: { ...fadeInOut.animate, scale: 1 },
+  exit: { ...fadeInOut.exit, scale: 0 },
 };
 
 export const fadeInLeft = {
-  initial: { opacity: 0, x: -20 },
-  animate: { opacity: 1, x: 0 },
-  exit: { opacity: 0, x: -20 },
+  initial: { ...fadeInOut.initial, x: -20 },
+  animate: { ...fadeInOut.animate, x: 0 },
+  exit: { ...fadeInOut.exit, x: -20 },
 };
 
 export const fadeInRight = {
-  initial: { opacity: 0, x: 20 },
-  animate: { opacity: 1, x: 0 },
-  exit: { opacity: 0, x: 20 },
+  initial: { ...fadeInOut.initial, x: 20 },
+  animate: { ...fadeInOut.animate, x: 0 },
+  exit: { ...fadeInOut.exit, x: 20 },
 };
 
 export const slideUpAnimation = {

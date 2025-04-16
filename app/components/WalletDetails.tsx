@@ -20,7 +20,12 @@ import { useInjectedWallet } from "../context";
 import { toast } from "sonner";
 import { Dialog } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { sidebarAnimation } from "./AnimatedComponents";
+import {
+  sidebarAnimation,
+  fadeInOut,
+  fadeInLeft,
+  fadeInRight,
+} from "./AnimatedComponents";
 import { TransactionList } from "./transaction/TransactionList";
 import { TransactionDetails } from "./transaction/TransactionDetails";
 import type { Transaction } from "./transaction/types";
@@ -241,62 +246,79 @@ export const WalletDetails = () => {
                     </div>
 
                     <div className="mt-6 flex-grow overflow-y-scroll">
-                      {activeTab === "balances" && activeBalance?.balances && (
-                        <div className="h-full space-y-4 overflow-y-auto pb-16">
-                          {Object.entries(activeBalance.balances).map(
-                            ([token, balance]) => (
-                              <div
-                                key={token}
-                                className="flex items-center justify-between text-sm"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="relative">
-                                    <Image
-                                      src={`/logos/${token.toLowerCase()}-logo.svg`}
-                                      alt={token}
-                                      width={32}
-                                      height={32}
-                                      className="size-8 rounded-full"
-                                    />
-                                    <Image
-                                      src={selectedNetwork.imageUrl}
-                                      alt={selectedNetwork.chain.name}
-                                      width={16}
-                                      height={16}
-                                      className="absolute -bottom-1 -right-1 size-4 rounded-full"
-                                    />
+                      <AnimatePresence mode="wait">
+                        {activeTab === "balances" && (
+                          <motion.div
+                            key="balances"
+                            variants={fadeInLeft}
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            className="h-full space-y-4 overflow-y-auto pb-16"
+                          >
+                            {Object.entries(activeBalance?.balances || {}).map(
+                              ([token, balance]) => (
+                                <div
+                                  key={token}
+                                  className="flex items-center justify-between text-sm"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                      <Image
+                                        src={`/logos/${token.toLowerCase()}-logo.svg`}
+                                        alt={token}
+                                        width={32}
+                                        height={32}
+                                        className="size-8 rounded-full"
+                                      />
+                                      <Image
+                                        src={selectedNetwork.imageUrl}
+                                        alt={selectedNetwork.chain.name}
+                                        width={16}
+                                        height={16}
+                                        className="absolute -bottom-1 -right-1 size-4 rounded-full"
+                                      />
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className="text-text-body dark:text-white/80">
+                                        {token}
+                                      </span>
+                                      <span className="text-text-secondary dark:text-white/50">
+                                        {balance}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div className="flex flex-col">
+                                  <div className="flex flex-col items-end">
                                     <span className="text-text-body dark:text-white/80">
-                                      {token}
+                                      $1,234.56
                                     </span>
-                                    <span className="text-text-secondary dark:text-white/50">
-                                      {balance}
-                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      <ArrowUp04Icon className="size-3 text-green-500" />
+                                      <span className="text-sm text-text-secondary dark:text-white/50">
+                                        2.5%
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="flex flex-col items-end">
-                                  <span className="text-text-body dark:text-white/80">
-                                    $1,234.56
-                                  </span>
-                                  <div className="flex items-center gap-1">
-                                    <ArrowUp04Icon className="size-3 text-green-500" />
-                                    <span className="text-sm text-text-secondary dark:text-white/50">
-                                      2.5%
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            ),
-                          )}
-                        </div>
-                      )}
+                              ),
+                            )}
+                          </motion.div>
+                        )}
 
-                      {activeTab === "transactions" && (
-                        <TransactionList
-                          onSelectTransaction={setSelectedTransaction}
-                        />
-                      )}
+                        {activeTab === "transactions" && (
+                          <motion.div
+                            key="transactions"
+                            variants={fadeInRight}
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                          >
+                            <TransactionList
+                              onSelectTransaction={setSelectedTransaction}
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
                 )}

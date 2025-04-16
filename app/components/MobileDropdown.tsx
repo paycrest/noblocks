@@ -44,7 +44,7 @@ import { FundWalletModal } from "./FundWalletModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
-import { TransactionHistoryModal } from "./TransactionHistoryModal";
+import { TransactionHistoryModal } from "./transaction/TransactionHistoryModal";
 import { createWalletClient, custom } from "viem";
 import { trackEvent } from "../hooks/analytics";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";

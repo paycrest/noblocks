@@ -22,7 +22,7 @@ const getStoredNetwork = (): Network => {
 };
 
 const setStoredNetwork = (network: Network) => {
-  localStorage.setItem(STORAGE_KEY, network.chain.name);
+  localStorage.setItem(STORAGE_KEY, network.chain.name ?? "");
 };
 
 const switchNetwork = async (network: Network) => {

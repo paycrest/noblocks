@@ -1,4 +1,4 @@
-import { arbitrum, base, bsc, polygon, celo } from "viem/chains";
+import { arbitrum, base, bsc, polygon, celo } from "thirdweb/chains";
 
 export const acceptedCurrencies = [
   {

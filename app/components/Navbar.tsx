@@ -3,6 +3,9 @@ import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
 import { usePathname } from "next/navigation";
+import { ConnectButton, useConnect } from "thirdweb/react";
+import { inAppWallet, createWallet } from "thirdweb/wallets";
+import { ethereum } from "thirdweb/chains";
 
 import {
   NoblocksLogo,
@@ -25,6 +28,30 @@ import { MobileDropdown } from "./MobileDropdown";
 import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
+import { client } from "../lib/thirdweb-config";
+
+const wallets = [
+  inAppWallet({
+    auth: {
+      options: [
+        "email",
+        "passkey",
+        "google",
+        "phone",
+        "apple",
+        "facebook",
+        "x",
+        "farcaster",
+      ],
+    },
+  }),
+  createWallet("io.metamask"),
+  createWallet("com.coinbase.wallet"),
+  createWallet("me.rainbow"),
+  createWallet("io.rabby"),
+  createWallet("com.trustwallet.app"),
+  createWallet("io.zerion.wallet"),
+];
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -34,6 +61,7 @@ export const Navbar = () => {
   const pathname = usePathname();
   const { selectedNetwork } = useNetwork();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { connect, isConnecting, error } = useConnect();
 
   const { ready, authenticated, user } = usePrivy();
 
@@ -194,7 +222,7 @@ export const Navbar = () => {
               >
                 <Image
                   src={selectedNetwork.imageUrl}
-                  alt={selectedNetwork.chain.name}
+                  alt={selectedNetwork.chain.name ?? ""}
                   width={20}
                   height={20}
                   className="size-5 rounded-full"
@@ -214,13 +242,23 @@ export const Navbar = () => {
             </>
           ) : (
             !isInjectedWallet && (
-              <button
-                type="button"
-                className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}
-                onClick={() => login()}
-              >
-                Sign in
-              </button>
+              // <button
+              //   type="button"
+              //   className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}
+              //   onClick={() => login()}
+              // >
+              //   Sign in
+              // </button>
+              <ConnectButton
+                client={client}
+                wallets={wallets}
+                connectButton={{ label: "Sign in" }}
+                connectModal={{ size: "compact"}}
+                accountAbstraction={{
+                  chain: selectedNetwork.chain, // replace with the chain you want
+                  sponsorGas: true,
+                }}
+              />
             )
           )}
         </div>

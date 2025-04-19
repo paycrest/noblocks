@@ -3,6 +3,7 @@ import { Toaster } from "sonner";
 import { type ReactNode } from "react";
 import { ThemeProvider } from "next-themes";
 
+import { ThirdwebProvider } from "thirdweb/react";
 import { PrivyProvider } from "@privy-io/react-auth";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
@@ -24,9 +25,11 @@ function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
-        <PrivyConfigWrapper privyAppId={privyAppId}>
-          {children}
-        </PrivyConfigWrapper>
+        <ThirdwebProvider>
+          <PrivyConfigWrapper privyAppId={privyAppId}>
+            {children}
+          </PrivyConfigWrapper>
+        </ThirdwebProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

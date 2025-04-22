@@ -47,7 +47,7 @@ export type TransactionPreviewProps = {
 };
 
 export type RecipientDetailsFormProps = {
-  formMethods: UseFormReturn<FormData, any, FormData>;
+  formMethods: UseFormReturn<FormData, any, undefined>;
   stateProps: StateProps;
 };
 
@@ -60,7 +60,7 @@ export type RecipientDetails = {
 };
 
 export type FormMethods = {
-  handleSubmit: UseFormHandleSubmit<FormData, FormData>;
+  handleSubmit: UseFormHandleSubmit<FormData, undefined>;
   register: UseFormRegister<FormData>;
   watch: (name: string) => string | number | undefined;
   formState: {

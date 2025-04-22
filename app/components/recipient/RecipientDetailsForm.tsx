@@ -203,7 +203,7 @@ export const RecipientDetailsForm = ({
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [accountIdentifier, institution, setValue, isManualEntry]);
+  }, [accountIdentifier, institution, setValue, isManualEntry, selectedInstitution?.code]);
 
   useEffect(() => {
     // Initialize selected institution if form has values

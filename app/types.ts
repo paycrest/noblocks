@@ -36,7 +36,7 @@ export type Step = (typeof STEPS)[keyof typeof STEPS];
 
 export type TransactionFormProps = {
   onSubmit: any;
-  formMethods: UseFormReturn<FormData, any, FormData>;
+  formMethods: UseFormReturn<FormData, any, undefined>;
   stateProps: StateProps;
 };
 

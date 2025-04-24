@@ -106,11 +106,26 @@ export const NetworkSelectionModal = () => {
                   >
                     <div className="flex items-center gap-3">
                       <Image
-                        src={network.imageUrl}
+                        src={
+                          typeof network.imageUrl === "string"
+                            ? network.imageUrl
+                            : network.imageUrl.dark
+                        }
                         alt={network.chain.name}
                         width={24}
                         height={24}
-                        className="size-6"
+                        className="size-6 dark:hidden"
+                      />
+                      <Image
+                        src={
+                          typeof network.imageUrl === "string"
+                            ? network.imageUrl
+                            : network.imageUrl.light
+                        }
+                        alt={network.chain.name}
+                        width={24}
+                        height={24}
+                        className="hidden size-6 dark:block"
                       />
                       <span className="text-text-body dark:text-white/80">
                         {network.chain.name}

@@ -60,7 +60,14 @@ export const NetworksDropdown = ({
   const dropdownNetworks = networks.map((network) => {
     return {
       name: network.chain.name,
-      imageUrl: network.imageUrl,
+      imageUrl:
+        typeof network.imageUrl === "string"
+          ? network.imageUrl
+          : network.imageUrl.light,
+      darkImageUrl:
+        typeof network.imageUrl === "string"
+          ? network.imageUrl
+          : network.imageUrl.dark,
     };
   });
 
@@ -90,10 +97,25 @@ export const NetworksDropdown = ({
               <div className="flex items-center gap-2">
                 <Image
                   alt={selectedNetwork.chain.name}
-                  src={selectedNetwork.imageUrl ?? ""}
+                  src={
+                    typeof selectedNetwork.imageUrl === "string"
+                      ? selectedNetwork.imageUrl
+                      : selectedNetwork.imageUrl.dark
+                  }
                   width={20}
                   height={20}
-                  className="size-5 rounded-full"
+                  className="size-5 rounded-full dark:hidden"
+                />
+                <Image
+                  alt={selectedNetwork.chain.name}
+                  src={
+                    typeof selectedNetwork.imageUrl === "string"
+                      ? selectedNetwork.imageUrl
+                      : selectedNetwork.imageUrl.light
+                  }
+                  width={20}
+                  height={20}
+                  className="hidden size-5 rounded-full dark:block"
                 />
                 {!iconOnly && (
                   <p className="hidden sm:block">

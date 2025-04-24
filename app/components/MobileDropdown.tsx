@@ -366,11 +366,28 @@ export const MobileDropdown = ({
                                     className="flex items-center gap-2"
                                   >
                                     <Image
-                                      src={selectedNetwork.imageUrl}
+                                      src={
+                                        typeof selectedNetwork.imageUrl ===
+                                        "string"
+                                          ? selectedNetwork.imageUrl
+                                          : selectedNetwork.imageUrl.dark
+                                      }
                                       alt={selectedNetwork.chain.name}
                                       width={16}
                                       height={16}
-                                      className="size-4 rounded-full"
+                                      className="size-4 rounded-full dark:hidden"
+                                    />
+                                    <Image
+                                      src={
+                                        typeof selectedNetwork.imageUrl ===
+                                        "string"
+                                          ? selectedNetwork.imageUrl
+                                          : selectedNetwork.imageUrl.light
+                                      }
+                                      alt={selectedNetwork.chain.name}
+                                      width={16}
+                                      height={16}
+                                      className="hidden size-4 rounded-full dark:block"
                                     />
                                     <span className="text-text-body dark:text-white">
                                       {selectedNetwork.chain.name}
@@ -400,11 +417,26 @@ export const MobileDropdown = ({
                                     >
                                       <div className="flex items-center gap-2 py-2.5">
                                         <Image
-                                          src={network.imageUrl}
+                                          src={
+                                            typeof network.imageUrl === "string"
+                                              ? network.imageUrl
+                                              : network.imageUrl.dark
+                                          }
                                           alt={network.chain.name}
                                           width={24}
                                           height={24}
-                                          className="size-6"
+                                          className="size-6 dark:hidden"
+                                        />
+                                        <Image
+                                          src={
+                                            typeof network.imageUrl === "string"
+                                              ? network.imageUrl
+                                              : network.imageUrl.light
+                                          }
+                                          alt={network.chain.name}
+                                          width={24}
+                                          height={24}
+                                          className="hidden size-6 dark:block"
                                         />
                                         <span className="text-text-body dark:text-white/80">
                                           {network.chain.name}

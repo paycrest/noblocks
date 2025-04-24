@@ -45,7 +45,10 @@ export const networks = [
   // },
   {
     chain: lisk,
-    imageUrl: "/logos/lisk-logo.svg",
+    imageUrl: {
+      light: "/logos/lisk-logo-dark.svg",
+      dark: "/logos/lisk-logo-light.svg",
+    },
   },
   {
     chain: polygon,

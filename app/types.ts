@@ -239,5 +239,10 @@ export type Config = {
 
 export type Network = {
   chain: any;
-  imageUrl: string;
+  imageUrl:
+    | string
+    | {
+        light: string;
+        dark: string;
+      };
 };

@@ -449,18 +449,20 @@ export const MobileDropdown = ({
                           </div>
 
                           <div className="space-y-2 *:min-h-11">
-                            <button
-                              type="button"
-                              onClick={showMfaEnrollmentModal}
-                              className="flex w-full items-center gap-2.5"
-                            >
-                              <Key01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-                              <p className="text-left text-text-body dark:text-white/80">
-                                {user?.mfaMethods?.length
-                                  ? "Manage MFA"
-                                  : "Enable MFA"}
-                              </p>
-                            </button>
+                            {!isInjectedWallet && (
+                              <button
+                                type="button"
+                                onClick={showMfaEnrollmentModal}
+                                className="flex w-full items-center gap-2.5"
+                              >
+                                <Key01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                                <p className="text-left text-text-body dark:text-white/80">
+                                  {user?.mfaMethods?.length
+                                    ? "Manage MFA"
+                                    : "Enable MFA"}
+                                </p>
+                              </button>
+                            )}
 
                             {!isInjectedWallet && user?.email ? (
                               <button

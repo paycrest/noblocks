@@ -24,7 +24,6 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import {
   classNames,
-  shortenAddress,
   fetchSupportedTokens,
   handleNetworkSwitch,
   detectWalletProvider,
@@ -45,8 +44,6 @@ import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
 import { TransactionHistoryModal } from "./transaction/TransactionHistoryModal";
-import { createWalletClient, custom } from "viem";
-import { trackEvent } from "../hooks/analytics";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { useActualTheme } from "../hooks/useActualTheme";
 
@@ -228,6 +225,7 @@ export const MobileDropdown = ({
                                   setIsTransactionHistoryModalOpen(true)
                                 }
                                 className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
+                                hidden // TODO: coming soon feature
                               >
                                 <Clock01Icon className="size-5 text-outline-gray dark:text-white/50" />
                               </button>

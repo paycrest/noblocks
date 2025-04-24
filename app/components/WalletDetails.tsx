@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { classNames, formatCurrency, shortenAddress } from "../utils";
 import { useBalance } from "../context/BalanceContext";
 import { usePrivy } from "@privy-io/react-auth";
@@ -7,11 +7,11 @@ import { useNetwork } from "../context/NetworksContext";
 import { TransferModal } from "./TransferModal";
 import {
   ArrowRight03Icon,
-  ArrowUp04Icon,
   Copy01Icon,
   Wallet01Icon,
   ArrowLeft02Icon,
   ArrowDown01Icon,
+  Clock01Icon,
 } from "hugeicons-react";
 import Image from "next/image";
 import { FundWalletModal } from "./FundWalletModal";
@@ -20,18 +20,15 @@ import { useInjectedWallet } from "../context";
 import { toast } from "sonner";
 import { Dialog } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  sidebarAnimation,
-  fadeInOut,
-  fadeInLeft,
-  fadeInRight,
-} from "./AnimatedComponents";
-import { TransactionList } from "./transaction/TransactionList";
+import { sidebarAnimation, fadeInOut } from "./AnimatedComponents";
+// import { TransactionList } from "./transaction/TransactionList";
 import { TransactionDetails } from "./transaction/TransactionDetails";
 import type { Transaction } from "./transaction/types";
 import { PiCheck } from "react-icons/pi";
+import { fetchRate } from "../api/aggregator";
 
 export const WalletDetails = () => {
+  const [rate, setRate] = useState<number>(0);
   const [isTransferModalOpen, setIsTransferModalOpen] =
     useState<boolean>(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
@@ -86,6 +83,26 @@ export const WalletDetails = () => {
   const handleBackToList = () => {
     setSelectedTransaction(null);
   };
+
+  useEffect(() => {
+    const getCNGNRate = async () => {
+      try {
+        const rateResponse = await fetchRate({
+          token: "USDT",
+          amount: 1,
+          currency: "NGN",
+        });
+
+        if (rateResponse?.data && typeof rateResponse.data === "string") {
+          setRate(Number(rateResponse.data));
+        }
+      } catch (error) {
+        console.error("Error fetching CNGN rate:", error);
+      }
+    };
+
+    getCNGNRate();
+  }, []);
 
   return (
     <>
@@ -222,7 +239,7 @@ export const WalletDetails = () => {
                         onClick={() => setActiveTab("balances")}
                         title="View balances"
                         className={classNames(
-                          "text-sm font-medium",
+                          "text-sm font-medium transition-colors",
                           activeTab === "balances"
                             ? "text-text-body dark:text-white"
                             : "text-text-disabled dark:text-white/30",
@@ -235,7 +252,7 @@ export const WalletDetails = () => {
                         onClick={() => setActiveTab("transactions")}
                         title="View transactions"
                         className={classNames(
-                          "text-sm font-medium",
+                          "text-sm font-medium transition-colors",
                           activeTab === "transactions"
                             ? "text-text-body dark:text-white"
                             : "text-text-disabled dark:text-white/30",
@@ -247,10 +264,10 @@ export const WalletDetails = () => {
 
                     <div className="mt-6 flex-grow overflow-y-scroll">
                       <AnimatePresence mode="wait">
-                        {activeTab === "balances" && (
+                        {activeTab === "balances" ? (
                           <motion.div
                             key="balances"
-                            variants={fadeInLeft}
+                            variants={fadeInOut}
                             initial="initial"
                             animate="animate"
                             exit="exit"
@@ -290,32 +307,46 @@ export const WalletDetails = () => {
                                   </div>
                                   <div className="flex flex-col items-end">
                                     <span className="text-text-body dark:text-white/80">
-                                      $1,234.56
+                                      {token.toUpperCase() === "CNGN" ? (
+                                        <span>
+                                          $
+                                          {(
+                                            (balance || 0) / (rate || 1)
+                                          ).toFixed(2)}
+                                        </span>
+                                      ) : (
+                                        <span>
+                                          ${(balance || 0).toFixed(2)}
+                                        </span>
+                                      )}
                                     </span>
-                                    <div className="flex items-center gap-1">
-                                      <ArrowUp04Icon className="size-3 text-green-500" />
-                                      <span className="text-sm text-text-secondary dark:text-white/50">
-                                        2.5%
-                                      </span>
-                                    </div>
                                   </div>
                                 </div>
                               ),
                             )}
                           </motion.div>
-                        )}
-
-                        {activeTab === "transactions" && (
+                        ) : (
                           <motion.div
                             key="transactions"
-                            variants={fadeInRight}
+                            variants={fadeInOut}
                             initial="initial"
                             animate="animate"
                             exit="exit"
+                            className="flex h-full flex-col items-center justify-center gap-4 text-center"
                           >
-                            <TransactionList
-                              onSelectTransaction={setSelectedTransaction}
-                            />
+                            <div className="rounded-full bg-accent-gray p-4 dark:bg-white/10">
+                              <Clock01Icon className="size-8 text-text-secondary dark:text-white/50" />
+                            </div>
+                            <h3 className="text-lg font-medium text-text-body dark:text-white">
+                              Transactions Coming Soon
+                            </h3>
+                            <p className="text-sm text-text-secondary dark:text-white/50">
+                              We're working on bringing you a detailed
+                              transaction history. Stay tuned!
+                            </p>
+
+                            {/* TODO: feature coming soon */}
+                            {/* <TransactionDetails transaction={selectedTransaction} /> */}
                           </motion.div>
                         )}
                       </AnimatePresence>

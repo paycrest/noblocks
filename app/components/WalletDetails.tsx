@@ -289,11 +289,28 @@ export const WalletDetails = () => {
                                         className="size-8 rounded-full"
                                       />
                                       <Image
-                                        src={selectedNetwork.imageUrl}
+                                        src={
+                                          typeof selectedNetwork.imageUrl ===
+                                          "string"
+                                            ? selectedNetwork.imageUrl
+                                            : selectedNetwork.imageUrl.dark
+                                        }
                                         alt={selectedNetwork.chain.name}
                                         width={16}
                                         height={16}
-                                        className="absolute -bottom-1 -right-1 size-4 rounded-full"
+                                        className="absolute -bottom-1 -right-1 hidden size-4 rounded-full dark:block"
+                                      />
+                                      <Image
+                                        src={
+                                          typeof selectedNetwork.imageUrl ===
+                                          "string"
+                                            ? selectedNetwork.imageUrl
+                                            : selectedNetwork.imageUrl.light
+                                        }
+                                        alt={selectedNetwork.chain.name}
+                                        width={16}
+                                        height={16}
+                                        className="absolute -bottom-1 -right-1 block size-4 rounded-full dark:hidden"
                                       />
                                     </div>
                                     <div className="flex flex-col">

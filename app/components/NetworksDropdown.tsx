@@ -9,10 +9,12 @@ import {
   classNames,
   shouldUseInjectedWallet,
   handleNetworkSwitch,
+  getNetworkImageUrl,
 } from "../utils";
 import { FlexibleDropdown } from "./FlexibleDropdown";
 import { ArrowDown01Icon } from "hugeicons-react";
 import { useNetwork, useStep } from "../context";
+import { useActualTheme } from "../hooks/useActualTheme";
 
 interface NetworksDropdownProps {
   iconOnly?: boolean;
@@ -24,6 +26,7 @@ export const NetworksDropdown = ({
   const searchParams = useSearchParams();
   const { isFormStep } = useStep();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
+  const isDark = useActualTheme();
 
   iconOnly = !isFormStep;
 
@@ -57,19 +60,10 @@ export const NetworksDropdown = ({
     }
   };
 
-  const dropdownNetworks = networks.map((network) => {
-    return {
-      name: network.chain.name,
-      imageUrl:
-        typeof network.imageUrl === "string"
-          ? network.imageUrl
-          : network.imageUrl.light,
-      darkImageUrl:
-        typeof network.imageUrl === "string"
-          ? network.imageUrl
-          : network.imageUrl.dark,
-    };
-  });
+  const dropdownNetworks = networks.map((network) => ({
+    name: network.chain.name,
+    imageUrl: getNetworkImageUrl(network, isDark),
+  }));
 
   return (
     <FlexibleDropdown
@@ -97,25 +91,10 @@ export const NetworksDropdown = ({
               <div className="flex items-center gap-2">
                 <Image
                   alt={selectedNetwork.chain.name}
-                  src={
-                    typeof selectedNetwork.imageUrl === "string"
-                      ? selectedNetwork.imageUrl
-                      : selectedNetwork.imageUrl.dark
-                  }
+                  src={getNetworkImageUrl(selectedNetwork, isDark)}
                   width={20}
                   height={20}
-                  className="size-5 rounded-full dark:hidden"
-                />
-                <Image
-                  alt={selectedNetwork.chain.name}
-                  src={
-                    typeof selectedNetwork.imageUrl === "string"
-                      ? selectedNetwork.imageUrl
-                      : selectedNetwork.imageUrl.light
-                  }
-                  width={20}
-                  height={20}
-                  className="hidden size-5 rounded-full dark:block"
+                  className="size-5 rounded-full"
                 />
                 {!iconOnly && (
                   <p className="hidden sm:block">

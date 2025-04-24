@@ -9,8 +9,13 @@ import { usePrivy } from "@privy-io/react-auth";
 import { networks } from "../mocks";
 import { useNetwork } from "../context/NetworksContext";
 import { AnimatedModal } from "./AnimatedComponents";
-import { shouldUseInjectedWallet, handleNetworkSwitch } from "../utils";
+import {
+  shouldUseInjectedWallet,
+  handleNetworkSwitch,
+  getNetworkImageUrl,
+} from "../utils";
 import { useSearchParams } from "next/navigation";
+import { useActualTheme } from "../hooks/useActualTheme";
 
 export const NetworkSelectionModal = () => {
   const searchParams = useSearchParams();
@@ -20,6 +25,7 @@ export const NetworkSelectionModal = () => {
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { authenticated, user } = usePrivy();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
+  const isDark = useActualTheme();
 
   useEffect(() => {
     if (!hasCheckedStorage && authenticated && user?.wallet?.address) {
@@ -106,26 +112,11 @@ export const NetworkSelectionModal = () => {
                   >
                     <div className="flex items-center gap-3">
                       <Image
-                        src={
-                          typeof network.imageUrl === "string"
-                            ? network.imageUrl
-                            : network.imageUrl.dark
-                        }
+                        src={getNetworkImageUrl(network, isDark)}
                         alt={network.chain.name}
                         width={24}
                         height={24}
-                        className="size-6 dark:hidden"
-                      />
-                      <Image
-                        src={
-                          typeof network.imageUrl === "string"
-                            ? network.imageUrl
-                            : network.imageUrl.light
-                        }
-                        alt={network.chain.name}
-                        width={24}
-                        height={24}
-                        className="hidden size-6 dark:block"
+                        className="size-6"
                       />
                       <span className="text-text-body dark:text-white/80">
                         {network.chain.name}

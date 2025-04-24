@@ -46,8 +46,8 @@ export const networks = [
   {
     chain: lisk,
     imageUrl: {
-      light: "/logos/lisk-logo-dark.svg",
-      dark: "/logos/lisk-logo-light.svg",
+      light: "/logos/lisk-logo-light.svg",
+      dark: "/logos/lisk-logo-dark.svg",
     },
   },
   {

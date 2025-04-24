@@ -27,6 +27,7 @@ import {
   fetchSupportedTokens,
   handleNetworkSwitch,
   detectWalletProvider,
+  getNetworkImageUrl,
 } from "../utils";
 import { useLogout } from "@privy-io/react-auth";
 import { PiCheck } from "react-icons/pi";
@@ -45,6 +46,7 @@ import { useInjectedWallet } from "../context";
 import { createWalletClient, custom } from "viem";
 import { trackEvent } from "../hooks/analytics";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
+import { useActualTheme } from "../hooks/useActualTheme";
 
 type View = "wallet" | "settings";
 
@@ -177,6 +179,8 @@ export const MobileDropdown = ({
       onClose();
     }
   };
+
+  const isDark = useActualTheme();
 
   return (
     <>
@@ -366,28 +370,24 @@ export const MobileDropdown = ({
                                     className="flex items-center gap-2"
                                   >
                                     <Image
-                                      src={
-                                        typeof selectedNetwork.imageUrl ===
-                                        "string"
-                                          ? selectedNetwork.imageUrl
-                                          : selectedNetwork.imageUrl.dark
-                                      }
+                                      src={getNetworkImageUrl(
+                                        selectedNetwork,
+                                        isDark,
+                                      )}
                                       alt={selectedNetwork.chain.name}
                                       width={16}
                                       height={16}
-                                      className="size-4 rounded-full dark:hidden"
+                                      className="size-4 rounded-full"
                                     />
                                     <Image
-                                      src={
-                                        typeof selectedNetwork.imageUrl ===
-                                        "string"
-                                          ? selectedNetwork.imageUrl
-                                          : selectedNetwork.imageUrl.light
-                                      }
+                                      src={getNetworkImageUrl(
+                                        selectedNetwork,
+                                        isDark,
+                                      )}
                                       alt={selectedNetwork.chain.name}
                                       width={16}
                                       height={16}
-                                      className="hidden size-4 rounded-full dark:block"
+                                      className="hidden size-4 rounded-full"
                                     />
                                     <span className="text-text-body dark:text-white">
                                       {selectedNetwork.chain.name}
@@ -417,22 +417,20 @@ export const MobileDropdown = ({
                                     >
                                       <div className="flex items-center gap-2 py-2.5">
                                         <Image
-                                          src={
-                                            typeof network.imageUrl === "string"
-                                              ? network.imageUrl
-                                              : network.imageUrl.dark
-                                          }
+                                          src={getNetworkImageUrl(
+                                            network,
+                                            isDark,
+                                          )}
                                           alt={network.chain.name}
                                           width={24}
                                           height={24}
-                                          className="size-6 dark:hidden"
+                                          className="size-6"
                                         />
                                         <Image
-                                          src={
-                                            typeof network.imageUrl === "string"
-                                              ? network.imageUrl
-                                              : network.imageUrl.light
-                                          }
+                                          src={getNetworkImageUrl(
+                                            network,
+                                            isDark,
+                                          )}
                                           alt={network.chain.name}
                                           width={24}
                                           height={24}

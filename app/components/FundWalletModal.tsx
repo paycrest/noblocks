@@ -7,9 +7,10 @@ import { AnimatedModal } from "./AnimatedComponents";
 import { useNetwork } from "../context/NetworksContext";
 import { FormDropdown } from "./FormDropdown";
 import { primaryBtnClasses } from "./Styles";
-import { classNames, fetchSupportedTokens } from "../utils";
+import { classNames, fetchSupportedTokens, getNetworkImageUrl } from "../utils";
 import { trackEvent } from "../hooks/analytics";
 import type { Token } from "../types";
+import { useActualTheme } from "../hooks/useActualTheme";
 
 type FundFormData = {
   amount: number;
@@ -34,6 +35,7 @@ export const FundWalletModal = ({
   const { selectedNetwork } = useNetwork();
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
   const [fundingInProgress, setFundingInProgress] = useState<boolean>(false);
+  const isDark = useActualTheme();
 
   const formMethods = useForm<FundFormData>({ mode: "onChange" });
   const {
@@ -219,7 +221,7 @@ export const FundWalletModal = ({
               <p className="text-text-secondary dark:text-white/50">Network</p>
               <div className="flex items-center gap-2">
                 <Image
-                  src={selectedNetwork.imageUrl}
+                  src={getNetworkImageUrl(selectedNetwork, isDark)}
                   alt={selectedNetwork.chain.name}
                   width={16}
                   height={16}

@@ -16,6 +16,7 @@ import {
   FundWalletModal,
   AnimatedModal,
 } from "../components";
+import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
 import { acceptedCurrencies } from "../mocks";
 import {
@@ -40,9 +41,9 @@ import { currencyToCountryCode } from "../hooks";
  * @param stateProps - State properties for the form.
  */
 export const TransactionForm = ({
+  stateProps,
   formMethods,
   onSubmit,
-  stateProps,
 }: TransactionFormProps) => {
   const searchParams = useSearchParams();
   // Destructure stateProps
@@ -50,7 +51,7 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, injectedWalletBalance } = useBalance();
+  const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   const embeddedWalletAddress = wallets.find(
@@ -318,7 +319,7 @@ export const TransactionForm = ({
             message: `Maximum amount is ${formatNumberWithCommas(maxAmountSentValue)}`,
           },
           validate: {
-            decimals: (value) => {
+            decimals: (value: number) => {
               const decimals = value.toString().split(".")[1];
               return (
                 !decimals ||
@@ -506,7 +507,6 @@ export const TransactionForm = ({
         <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
           <h3 className="px-2 py-1 text-base font-medium">Swap</h3>
 
-          {/* Amount to send & token with wallet balance */}
           <div className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-surface-canvas">
             <div className="flex items-center justify-between">
               <label
@@ -516,28 +516,34 @@ export const TransactionForm = ({
                 Send
               </label>
               <AnimatePresence>
-                {token && activeBalance && balance !== undefined && (
+                {token && activeBalance && (
                   <AnimatedComponent
                     variant={slideInOut}
                     className="flex items-center gap-2"
                   >
                     <Wallet01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
-                    <span
-                      className={amountSent > balance ? "text-red-500" : ""}
-                    >
-                      {formatNumberWithCommasForDisplay(balance)} {token}
-                    </span>
-                    {balance > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleBalanceMaxClick}
-                        className={classNames(
-                          "font-medium text-lavender-500 dark:text-lavender-500",
-                          balance === 0 ? "hidden" : "",
+                    {isLoading ? (
+                      <BalanceSkeleton className="w-24" />
+                    ) : (
+                      <>
+                        <span
+                          className={amountSent > balance ? "text-red-500" : ""}
+                        >
+                          {formatNumberWithCommasForDisplay(balance)} {token}
+                        </span>
+                        {balance > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleBalanceMaxClick}
+                            className={classNames(
+                              "font-medium text-lavender-500 dark:text-lavender-500",
+                              balance === 0 ? "hidden" : "",
+                            )}
+                          >
+                            Max
+                          </button>
                         )}
-                      >
-                        Max
-                      </button>
+                      </>
                     )}
                   </AnimatedComponent>
                 )}

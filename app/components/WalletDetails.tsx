@@ -1,6 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
-import { classNames, formatCurrency, shortenAddress } from "../utils";
+import {
+  classNames,
+  formatCurrency,
+  getNetworkImageUrl,
+  shortenAddress,
+} from "../utils";
 import { useBalance } from "../context/BalanceContext";
 import { usePrivy } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
@@ -26,6 +31,8 @@ import { TransactionDetails } from "./transaction/TransactionDetails";
 import type { Transaction } from "./transaction/types";
 import { PiCheck } from "react-icons/pi";
 import { fetchRate } from "../api/aggregator";
+import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
+import { useActualTheme } from "../hooks/useActualTheme";
 
 export const WalletDetails = () => {
   const [rate, setRate] = useState<number>(0);
@@ -41,9 +48,10 @@ export const WalletDetails = () => {
   const [isAddressCopied, setIsAddressCopied] = useState(false);
 
   const { selectedNetwork } = useNetwork();
-  const { allBalances } = useBalance();
+  const { allBalances, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user } = usePrivy();
+  const isDark = useActualTheme();
 
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
 
@@ -117,7 +125,11 @@ export const WalletDetails = () => {
         <Wallet01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
         <div className="h-9 w-px border-r border-dashed border-border-light dark:border-white/10" />
         <div className="flex items-center gap-1.5 dark:text-white/80">
-          <p>{formatCurrency(activeBalance?.total ?? 0, "USD", "en-US")}</p>
+          {isLoading ? (
+            <BalanceSkeleton />
+          ) : (
+            <p>{formatCurrency(activeBalance?.total ?? 0, "USD", "en-US")}</p>
+          )}
           <ArrowDown01Icon
             aria-label="Caret down"
             className={classNames(
@@ -273,73 +285,63 @@ export const WalletDetails = () => {
                             exit="exit"
                             className="h-full space-y-4 overflow-y-auto pb-16"
                           >
-                            {Object.entries(activeBalance?.balances || {}).map(
-                              ([token, balance]) => (
-                                <div
-                                  key={token}
-                                  className="flex items-center justify-between text-sm"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <div className="relative">
-                                      <Image
-                                        src={`/logos/${token.toLowerCase()}-logo.svg`}
-                                        alt={token}
-                                        width={32}
-                                        height={32}
-                                        className="size-8 rounded-full"
-                                      />
-                                      <Image
-                                        src={
-                                          typeof selectedNetwork.imageUrl ===
-                                          "string"
-                                            ? selectedNetwork.imageUrl
-                                            : selectedNetwork.imageUrl.dark
-                                        }
-                                        alt={selectedNetwork.chain.name}
-                                        width={16}
-                                        height={16}
-                                        className="absolute -bottom-1 -right-1 hidden size-4 rounded-full dark:block"
-                                      />
-                                      <Image
-                                        src={
-                                          typeof selectedNetwork.imageUrl ===
-                                          "string"
-                                            ? selectedNetwork.imageUrl
-                                            : selectedNetwork.imageUrl.light
-                                        }
-                                        alt={selectedNetwork.chain.name}
-                                        width={16}
-                                        height={16}
-                                        className="absolute -bottom-1 -right-1 block size-4 rounded-full dark:hidden"
-                                      />
+                            {isLoading ? (
+                              <BalanceCardSkeleton />
+                            ) : (
+                              Object.entries(activeBalance?.balances || {}).map(
+                                ([token, balance]) => (
+                                  <div
+                                    key={token}
+                                    className="flex items-center justify-between text-sm"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div className="relative">
+                                        <Image
+                                          src={`/logos/${token.toLowerCase()}-logo.svg`}
+                                          alt={token}
+                                          width={32}
+                                          height={32}
+                                          className="size-8 rounded-full"
+                                        />
+                                        <Image
+                                          src={getNetworkImageUrl(
+                                            selectedNetwork,
+                                            isDark,
+                                          )}
+                                          alt={selectedNetwork.chain.name}
+                                          width={16}
+                                          height={16}
+                                          className="absolute -bottom-1 -right-1 size-4 rounded-full"
+                                        />
+                                      </div>
+                                      <div className="flex flex-col">
+                                        <span className="text-text-body dark:text-white/80">
+                                          {token}
+                                        </span>
+                                        <span className="text-text-secondary dark:text-white/50">
+                                          {balance}
+                                        </span>
+                                      </div>
                                     </div>
-                                    <div className="flex flex-col">
+                                    <div className="flex flex-col items-end">
                                       <span className="text-text-body dark:text-white/80">
-                                        {token}
-                                      </span>
-                                      <span className="text-text-secondary dark:text-white/50">
-                                        {balance}
+                                        {token.toUpperCase() === "CNGN" ? (
+                                          <span>
+                                            $
+                                            {(
+                                              (balance || 0) / (rate || 1)
+                                            ).toFixed(2)}
+                                          </span>
+                                        ) : (
+                                          <span>
+                                            ${(balance || 0).toFixed(2)}
+                                          </span>
+                                        )}
                                       </span>
                                     </div>
                                   </div>
-                                  <div className="flex flex-col items-end">
-                                    <span className="text-text-body dark:text-white/80">
-                                      {token.toUpperCase() === "CNGN" ? (
-                                        <span>
-                                          $
-                                          {(
-                                            (balance || 0) / (rate || 1)
-                                          ).toFixed(2)}
-                                        </span>
-                                      ) : (
-                                        <span>
-                                          ${(balance || 0).toFixed(2)}
-                                        </span>
-                                      )}
-                                    </span>
-                                  </div>
-                                </div>
-                              ),
+                                ),
+                              )
                             )}
                           </motion.div>
                         ) : (

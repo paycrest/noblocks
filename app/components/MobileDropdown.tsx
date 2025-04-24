@@ -46,8 +46,7 @@ import { useInjectedWallet } from "../context";
 import { TransactionHistoryModal } from "./transaction/TransactionHistoryModal";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { useActualTheme } from "../hooks/useActualTheme";
-
-type View = "wallet" | "settings";
+import { BalanceCardSkeleton } from "./BalanceSkeleton";
 
 export const MobileDropdown = ({
   isOpen,
@@ -56,7 +55,9 @@ export const MobileDropdown = ({
   isOpen: boolean;
   onClose: () => void;
 }) => {
-  const [currentView, setCurrentView] = useState<View>("wallet");
+  const [currentView, setCurrentView] = useState<"wallet" | "settings">(
+    "wallet",
+  );
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -66,11 +67,10 @@ export const MobileDropdown = ({
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, exportWallet, linkEmail, updateEmail } = usePrivy();
-  const { allBalances } = useBalance();
+  const { allBalances, isLoading } = useBalance();
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
-      onClose();
     },
   });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
@@ -172,12 +172,10 @@ export const MobileDropdown = ({
       if (window.ethereum) {
         await disconnectWallet();
       }
-      onClose();
     } catch (error) {
       console.error("Error during logout:", error);
       // Still proceed with logout even if wallet disconnection fails
       await logout();
-      onClose();
     }
   };
 
@@ -259,51 +257,35 @@ export const MobileDropdown = ({
                             </div>
 
                             <div className="space-y-2">
-                              {Object.entries(
-                                activeBalance?.balances || {},
-                              ).map(([token, balance]) => (
-                                <div
-                                  key={token}
-                                  className="flex items-center gap-1"
-                                >
-                                  {(() => {
-                                    const imageUrl = getTokenImageUrl(token);
-                                    return imageUrl ? (
-                                      <Image
-                                        src={imageUrl}
-                                        alt={token}
-                                        width={14}
-                                        height={14}
-                                        className="size-3.5"
-                                      />
-                                    ) : null;
-                                  })()}
-
-                                  <span className="font-medium dark:text-white/80">
-                                    {balance} {token}
-                                  </span>
-                                </div>
-                              ))}
+                              {isLoading ? (
+                                <BalanceCardSkeleton />
+                              ) : (
+                                Object.entries(
+                                  activeBalance?.balances || {},
+                                ).map(([token, balance]) => (
+                                  <div
+                                    key={token}
+                                    className="flex items-center gap-1"
+                                  >
+                                    {(() => {
+                                      const imageUrl = getTokenImageUrl(token);
+                                      return imageUrl ? (
+                                        <Image
+                                          src={imageUrl}
+                                          alt={token}
+                                          width={14}
+                                          height={14}
+                                          className="size-3.5"
+                                        />
+                                      ) : null;
+                                    })()}
+                                    <span className="font-medium dark:text-white/80">
+                                      {balance} {token}
+                                    </span>
+                                  </div>
+                                ))
+                              )}
                             </div>
-
-                            {!isInjectedWallet && (
-                              <div className="grid grid-cols-2 gap-4">
-                                <button
-                                  type="button"
-                                  onClick={() => setIsTransferModalOpen(true)}
-                                  className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
-                                >
-                                  Transfer
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setIsFundModalOpen(true)}
-                                  className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
-                                >
-                                  Fund
-                                </button>
-                              </div>
-                            )}
                           </div>
 
                           {/* Wallet Address Container */}

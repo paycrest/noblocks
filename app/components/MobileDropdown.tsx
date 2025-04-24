@@ -27,6 +27,7 @@ import {
   fetchSupportedTokens,
   handleNetworkSwitch,
   detectWalletProvider,
+  getNetworkImageUrl,
 } from "../utils";
 import { useLogout } from "@privy-io/react-auth";
 import { PiCheck } from "react-icons/pi";
@@ -45,6 +46,7 @@ import { useInjectedWallet } from "../context";
 import { createWalletClient, custom } from "viem";
 import { trackEvent } from "../hooks/analytics";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
+import { useActualTheme } from "../hooks/useActualTheme";
 
 type View = "wallet" | "settings";
 
@@ -177,6 +179,8 @@ export const MobileDropdown = ({
       onClose();
     }
   };
+
+  const isDark = useActualTheme();
 
   return (
     <>
@@ -366,11 +370,24 @@ export const MobileDropdown = ({
                                     className="flex items-center gap-2"
                                   >
                                     <Image
-                                      src={selectedNetwork.imageUrl}
+                                      src={getNetworkImageUrl(
+                                        selectedNetwork,
+                                        isDark,
+                                      )}
                                       alt={selectedNetwork.chain.name}
                                       width={16}
                                       height={16}
                                       className="size-4 rounded-full"
+                                    />
+                                    <Image
+                                      src={getNetworkImageUrl(
+                                        selectedNetwork,
+                                        isDark,
+                                      )}
+                                      alt={selectedNetwork.chain.name}
+                                      width={16}
+                                      height={16}
+                                      className="hidden size-4 rounded-full"
                                     />
                                     <span className="text-text-body dark:text-white">
                                       {selectedNetwork.chain.name}
@@ -400,11 +417,24 @@ export const MobileDropdown = ({
                                     >
                                       <div className="flex items-center gap-2 py-2.5">
                                         <Image
-                                          src={network.imageUrl}
+                                          src={getNetworkImageUrl(
+                                            network,
+                                            isDark,
+                                          )}
                                           alt={network.chain.name}
                                           width={24}
                                           height={24}
                                           className="size-6"
+                                        />
+                                        <Image
+                                          src={getNetworkImageUrl(
+                                            network,
+                                            isDark,
+                                          )}
+                                          alt={network.chain.name}
+                                          width={24}
+                                          height={24}
+                                          className="hidden size-6 dark:block"
                                         />
                                         <span className="text-text-body dark:text-white/80">
                                           {network.chain.name}

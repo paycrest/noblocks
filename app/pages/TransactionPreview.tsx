@@ -454,12 +454,33 @@ export const TransactionPreview = ({
               )}
 
               {key === "network" && (
-                <Image
-                  src={`/logos/${value.toLowerCase().replace(/ /g, "-")}-logo.svg`}
-                  alt={`${value} logo`}
-                  width={14}
-                  height={14}
-                />
+                <>
+                  {value.toLowerCase() === "lisk" ? (
+                    <>
+                      <Image
+                        src="/logos/lisk-logo-dark.svg"
+                        alt={`${value} logo`}
+                        width={14}
+                        height={14}
+                        className="dark:hidden"
+                      />
+                      <Image
+                        src="/logos/lisk-logo-light.svg"
+                        alt={`${value} logo`}
+                        width={14}
+                        height={14}
+                        className="hidden dark:block"
+                      />
+                    </>
+                  ) : (
+                    <Image
+                      src={`/logos/${value.toLowerCase().replace(/ /g, "-")}-logo.svg`}
+                      alt={`${value} logo`}
+                      width={14}
+                      height={14}
+                    />
+                  )}
+                </>
               )}
 
               {value}

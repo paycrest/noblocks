@@ -620,3 +620,16 @@ export const handleNetworkSwitch = async (
     onSuccess();
   }
 };
+
+/**
+ * Gets the appropriate network logo URL based on the current theme
+ * @param network - The network object containing imageUrl
+ * @param isDark - Boolean indicating if dark theme is active
+ * @returns The URL string for the network logo
+ */
+export function getNetworkImageUrl(network: Network, isDark: boolean): string {
+  if (typeof network.imageUrl === "string") {
+    return network.imageUrl;
+  }
+  return isDark ? network.imageUrl.dark : network.imageUrl.light;
+}

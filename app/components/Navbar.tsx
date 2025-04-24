@@ -193,11 +193,26 @@ export const Navbar = () => {
                 onClick={() => setIsMobileDropdownOpen(true)}
               >
                 <Image
-                  src={selectedNetwork.imageUrl}
+                  src={
+                    typeof selectedNetwork.imageUrl === "string"
+                      ? selectedNetwork.imageUrl
+                      : selectedNetwork.imageUrl.dark
+                  }
                   alt={selectedNetwork.chain.name}
                   width={20}
                   height={20}
-                  className="size-5 rounded-full"
+                  className="size-5 rounded-full dark:hidden"
+                />
+                <Image
+                  src={
+                    typeof selectedNetwork.imageUrl === "string"
+                      ? selectedNetwork.imageUrl
+                      : selectedNetwork.imageUrl.light
+                  }
+                  alt={selectedNetwork.chain.name}
+                  width={20}
+                  height={20}
+                  className="hidden size-5 rounded-full dark:block"
                 />
                 <span className="font-medium dark:text-white">
                   {shortenAddress(activeWallet?.address ?? "", 6)}

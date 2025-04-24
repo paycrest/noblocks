@@ -9,10 +9,12 @@ import {
   classNames,
   shouldUseInjectedWallet,
   handleNetworkSwitch,
+  getNetworkImageUrl,
 } from "../utils";
 import { FlexibleDropdown } from "./FlexibleDropdown";
 import { ArrowDown01Icon } from "hugeicons-react";
 import { useNetwork, useStep } from "../context";
+import { useActualTheme } from "../hooks/useActualTheme";
 
 interface NetworksDropdownProps {
   iconOnly?: boolean;
@@ -24,6 +26,7 @@ export const NetworksDropdown = ({
   const searchParams = useSearchParams();
   const { isFormStep } = useStep();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
+  const isDark = useActualTheme();
 
   iconOnly = !isFormStep;
 
@@ -57,12 +60,10 @@ export const NetworksDropdown = ({
     }
   };
 
-  const dropdownNetworks = networks.map((network) => {
-    return {
-      name: network.chain.name,
-      imageUrl: network.imageUrl,
-    };
-  });
+  const dropdownNetworks = networks.map((network) => ({
+    name: network.chain.name,
+    imageUrl: getNetworkImageUrl(network, isDark),
+  }));
 
   return (
     <FlexibleDropdown
@@ -90,7 +91,7 @@ export const NetworksDropdown = ({
               <div className="flex items-center gap-2">
                 <Image
                   alt={selectedNetwork.chain.name}
-                  src={selectedNetwork.imageUrl ?? ""}
+                  src={getNetworkImageUrl(selectedNetwork, isDark)}
                   width={20}
                   height={20}
                   className="size-5 rounded-full"

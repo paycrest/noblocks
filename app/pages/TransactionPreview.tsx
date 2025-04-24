@@ -462,14 +462,14 @@ export const TransactionPreview = ({
                         alt={`${value} logo`}
                         width={14}
                         height={14}
-                        className="dark:hidden"
+                        className="hidden dark:block"
                       />
                       <Image
                         src="/logos/lisk-logo-light.svg"
                         alt={`${value} logo`}
                         width={14}
                         height={14}
-                        className="hidden dark:block"
+                        className="block dark:hidden"
                       />
                     </>
                   ) : (

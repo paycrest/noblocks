@@ -29,6 +29,7 @@ interface BalanceContextProps {
     injectedWallet: WalletBalances | null;
   };
   refreshBalance: () => void;
+  isLoading: boolean;
 }
 
 const BalanceContext = createContext<BalanceContextProps | undefined>(
@@ -49,82 +50,95 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     useState<WalletBalances | null>(null);
   const [injectedWalletBalance, setInjectedWalletBalance] =
     useState<WalletBalances | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const fetchBalances = async () => {
-    if (ready && !isInjectedWallet) {
-      const smartWalletAccount = user?.linkedAccounts.find(
-        (account) => account.type === "smart_wallet",
-      );
-      const externalWalletAccount = wallets.find(
-        (account) => account.connectorType === "injected",
-      );
+    setIsLoading(true);
 
-      if (client) {
-        await client.switchChain({
-          id: selectedNetwork.chain.id,
-        });
-      }
-
-      await externalWalletAccount?.switchChain(selectedNetwork.chain.id);
-
-      const publicClient = createPublicClient({
-        chain: selectedNetwork.chain,
-        transport: http(
-          selectedNetwork.chain.id === bsc.id
-            ? "https://bsc-dataseed.bnbchain.org/"
-            : undefined,
-        ),
-      });
-
-      if (smartWalletAccount) {
-        const result = await fetchWalletBalance(
-          publicClient,
-          smartWalletAccount.address,
+    try {
+      if (ready && !isInjectedWallet) {
+        const smartWalletAccount = user?.linkedAccounts.find(
+          (account) => account.type === "smart_wallet",
         );
-        setSmartWalletBalance(result);
-      } else {
-        setSmartWalletBalance(null);
-      }
-
-      if (externalWalletAccount) {
-        const result = await fetchWalletBalance(
-          publicClient,
-          externalWalletAccount.address,
+        const externalWalletAccount = wallets.find(
+          (account) => account.connectorType === "injected",
         );
-        setExternalWalletBalance(result);
-      } else {
-        setExternalWalletBalance(null);
-      }
 
-      setInjectedWalletBalance(null);
-    } else if (
-      isInjectedWallet &&
-      injectedReady &&
-      injectedAddress &&
-      injectedProvider
-    ) {
-      try {
-        // Create a public client for the injected provider's chain
+        if (client) {
+          await client.switchChain({
+            id: selectedNetwork.chain.id,
+          });
+        }
+
+        await externalWalletAccount?.switchChain(selectedNetwork.chain.id);
+
         const publicClient = createPublicClient({
           chain: selectedNetwork.chain,
-          transport: http(getRpcUrl(selectedNetwork.chain.name)),
+          transport: http(
+            selectedNetwork.chain.id === bsc.id
+              ? "https://bsc-dataseed.bnbchain.org/"
+              : undefined,
+          ),
         });
 
-        const result = await fetchWalletBalance(publicClient, injectedAddress);
-        setInjectedWalletBalance(result);
+        if (smartWalletAccount) {
+          const result = await fetchWalletBalance(
+            publicClient,
+            smartWalletAccount.address,
+          );
+          setSmartWalletBalance(result);
+        } else {
+          setSmartWalletBalance(null);
+        }
 
-        setSmartWalletBalance(null);
-        setExternalWalletBalance(null);
-      } catch (error) {
-        console.error("Error fetching injected wallet balance:", error);
+        if (externalWalletAccount) {
+          const result = await fetchWalletBalance(
+            publicClient,
+            externalWalletAccount.address,
+          );
+          setExternalWalletBalance(result);
+        } else {
+          setExternalWalletBalance(null);
+        }
+
         setInjectedWalletBalance(null);
+      } else if (
+        isInjectedWallet &&
+        injectedReady &&
+        injectedAddress &&
+        injectedProvider
+      ) {
+        try {
+          const publicClient = createPublicClient({
+            chain: selectedNetwork.chain,
+            transport: http(getRpcUrl(selectedNetwork.chain.name)),
+          });
+
+          const result = await fetchWalletBalance(
+            publicClient,
+            injectedAddress,
+          );
+          setInjectedWalletBalance(result);
+
+          setSmartWalletBalance(null);
+          setExternalWalletBalance(null);
+        } catch (error) {
+          console.error("Error fetching injected wallet balance:", error);
+          setInjectedWalletBalance(null);
+        }
       }
+    } catch (error) {
+      console.error("Error fetching balances:", error);
+      setSmartWalletBalance(null);
+      setExternalWalletBalance(null);
+      setInjectedWalletBalance(null);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
     fetchBalances();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     ready,
     user,
@@ -133,10 +147,6 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     injectedReady,
     injectedAddress,
   ]);
-
-  const refreshBalance = () => {
-    fetchBalances();
-  };
 
   const allBalances = {
     smartWallet: smartWalletBalance,
@@ -151,7 +161,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         externalWalletBalance,
         injectedWalletBalance,
         allBalances,
-        refreshBalance,
+        refreshBalance: fetchBalances,
+        isLoading,
       }}
     >
       {children}

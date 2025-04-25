@@ -18,6 +18,7 @@ import {
   shortenAddress,
   IS_MAIN_PRODUCTION_DOMAIN,
   classNames,
+  getNetworkImageUrl,
 } from "../utils";
 import { ArrowDown01Icon } from "hugeicons-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -25,6 +26,7 @@ import { MobileDropdown } from "./MobileDropdown";
 import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
+import { useActualTheme } from "../hooks/useActualTheme";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -34,6 +36,7 @@ export const Navbar = () => {
   const pathname = usePathname();
   const { selectedNetwork } = useNetwork();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const isDark = useActualTheme();
 
   const { ready, authenticated, user } = usePrivy();
 
@@ -193,26 +196,11 @@ export const Navbar = () => {
                 onClick={() => setIsMobileDropdownOpen(true)}
               >
                 <Image
-                  src={
-                    typeof selectedNetwork.imageUrl === "string"
-                      ? selectedNetwork.imageUrl
-                      : selectedNetwork.imageUrl.dark
-                  }
+                  src={getNetworkImageUrl(selectedNetwork, isDark)}
                   alt={selectedNetwork.chain.name}
                   width={20}
                   height={20}
-                  className="size-5 rounded-full dark:hidden"
-                />
-                <Image
-                  src={
-                    typeof selectedNetwork.imageUrl === "string"
-                      ? selectedNetwork.imageUrl
-                      : selectedNetwork.imageUrl.light
-                  }
-                  alt={selectedNetwork.chain.name}
-                  width={20}
-                  height={20}
-                  className="hidden size-5 rounded-full dark:block"
+                  className="size-5 rounded-full"
                 />
                 <span className="font-medium dark:text-white">
                   {shortenAddress(activeWallet?.address ?? "", 6)}

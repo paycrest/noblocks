@@ -360,7 +360,7 @@ export const WalletDetails = () => {
                               Transactions Coming Soon
                             </h3>
                             <p className="text-sm text-text-secondary dark:text-white/50">
-                              We're working on bringing you a detailed
+                              We&apos;re working on bringing you a detailed
                               transaction history. Stay tuned!
                             </p>
 

@@ -139,6 +139,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     fetchBalances();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     ready,
     user,

@@ -12,6 +12,7 @@ import {
   formatNumberWithCommas,
   getGatewayContractAddress,
   getInstitutionNameByCode,
+  getNetworkImageUrl,
   getRpcUrl,
   publicKeyEncrypt,
 } from "../utils";
@@ -39,6 +40,7 @@ import { ImSpinner } from "react-icons/im";
 import { InformationSquareIcon } from "hugeicons-react";
 import { PiCheckCircleFill } from "react-icons/pi";
 import { TbCircleDashed } from "react-icons/tb";
+import { useActualTheme } from "../hooks/useActualTheme";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -51,6 +53,7 @@ export const TransactionPreview = ({
   stateProps,
   createdAt,
 }: TransactionPreviewProps) => {
+  const isDark = useActualTheme();
   const { user } = usePrivy();
   const { client } = useSmartWallets();
   const { isInjectedWallet, injectedAddress, injectedProvider, injectedReady } =
@@ -454,33 +457,12 @@ export const TransactionPreview = ({
               )}
 
               {key === "network" && (
-                <>
-                  {value.toLowerCase() === "lisk" ? (
-                    <>
-                      <Image
-                        src="/logos/lisk-logo-dark.svg"
-                        alt={`${value} logo`}
-                        width={14}
-                        height={14}
-                        className="dark:hidden"
-                      />
-                      <Image
-                        src="/logos/lisk-logo-light.svg"
-                        alt={`${value} logo`}
-                        width={14}
-                        height={14}
-                        className="hidden dark:block"
-                      />
-                    </>
-                  ) : (
-                    <Image
-                      src={`/logos/${value.toLowerCase().replace(/ /g, "-")}-logo.svg`}
-                      alt={`${value} logo`}
-                      width={14}
-                      height={14}
-                    />
-                  )}
-                </>
+                <Image
+                  src={getNetworkImageUrl(selectedNetwork, isDark)}
+                  alt={selectedNetwork.chain.name}
+                  width={14}
+                  height={14}
+                />
               )}
 
               {value}

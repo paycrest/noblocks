@@ -42,7 +42,7 @@ const switchNetwork = async (network: Network) => {
 };
 
 export function NetworkProvider({ children }: { children: React.ReactNode }) {
-  const [selectedNetwork, setSelectedNetwork] = useState(networks[0]);
+  const [selectedNetwork, setSelectedNetwork] = useState<Network>(networks[0]);
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
 
   const handleNetworkChange = async (network: Network) => {

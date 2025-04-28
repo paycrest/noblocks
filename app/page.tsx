@@ -168,8 +168,11 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
               ? lpParam
               : undefined;
 
+          // Convert USDbC to USDC for rate fetching
+          const rateToken = token === "USDbC" ? "USDC" : token;
+
           const rate = await fetchRate({
-            token,
+            token: rateToken,
             amount: amountSent || 1,
             currency,
             providerId,

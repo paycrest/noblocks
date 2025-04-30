@@ -240,11 +240,11 @@ export type Config = {
 export type Network = {
   chain: any;
   imageUrl:
-    | string
-    | {
-        light: string;
-        dark: string;
-      };
+  | string
+  | {
+    light: string;
+    dark: string;
+  };
 };
 
 export interface Transaction {
@@ -264,4 +264,63 @@ export interface Transaction {
   memo?: string;
   fundStatus?: string;
   timeSpent?: string;
+}
+
+// tx history API endpoints types
+export type TransactionStatus = 'pending' | 'completed' | 'failed';
+export type TransactionHistoryType = 'swap' | 'transfer';
+
+export interface Recipient {
+  name: string;
+  bank: string;
+  account: string;
+}
+
+export interface TransactionHistory {
+  id: string;
+  wallet_address: string;
+  transaction_type: TransactionHistoryType;
+  from_currency: string;
+  to_currency: string;
+  amount_sent: number;
+  amount_received: number;
+  fee: number;
+  recipient: Recipient;
+  status: TransactionStatus;
+  memo?: string;
+  timestamp: string;
+  tx_hash?: string;
+  time_spent?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TransactionCreateInput {
+  walletAddress: string;
+  transactionType: TransactionHistoryType;
+  fromCurrency: string;
+  toCurrency: string;
+  amountSent: number;
+  amountReceived: number;
+  fee: number;
+  recipient: Recipient;
+  status: TransactionStatus;
+  memo?: string;
+  txHash?: string;
+}
+
+export interface TransactionResponse {
+  success: boolean;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    transactions: TransactionHistory[];
+  };
+}
+
+export interface TransactionUpdateInput {
+  status: TransactionStatus;
+  timeSpent?: string;
+  txHash?: string;
 }

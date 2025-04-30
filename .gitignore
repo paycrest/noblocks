@@ -29,6 +29,9 @@ yarn-error.log*
 # local env files
 .env
 .env*.local
+keys/rsa.key.pub
+keys/rsa.key
+keys
 
 # vercel
 .vercel

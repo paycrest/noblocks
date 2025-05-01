@@ -32,6 +32,7 @@ yarn-error.log*
 keys/rsa.key.pub
 keys/rsa.key
 keys
+PR_DESCRIPTION.md
 
 # vercel
 .vercel

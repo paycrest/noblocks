@@ -26,7 +26,7 @@ export async function rateLimit(request: NextRequest) {
       return {
         success: false,
         remaining: 0,
-        reset: 60 // Block duration in seconds
+        reset: 60
       };
     }
 
@@ -49,7 +49,7 @@ export function withRateLimit(handler: Function) {
         {
           status: 429,
           headers: {
-            'X-RateLimit-Remaining': limiter.remaining.toString(),
+            'X-RateLimit-Remaining': limiter.remaining?.toString() ?? '0',
             'X-RateLimit-Reset': (limiter.reset || 60).toString()
           }
         }

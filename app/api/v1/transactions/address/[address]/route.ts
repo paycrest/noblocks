@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authMiddleware } from '@/middleware/auth';
 import { supabaseAdmin } from '@/app/lib/supabase';
 import type { TransactionHistory, TransactionResponse } from '@/app/types';
 import { withRateLimit } from '@/app/lib/rate-limit';
 
 export const GET = withRateLimit(async (
     request: NextRequest,
-    { params }: { params: { address: string } }
+    context?: { params?: { address: string } }
 ) => {
     try {
+        // Get address from params or URL
+        const address = context?.params?.address ||
+            request.nextUrl.pathname.split('/').pop();
 
-        const { address } = params;
+        if (!address) {
+            return NextResponse.json(
+                { success: false, error: 'Missing wallet address' },
+                { status: 400 }
+            );
+        }
+
         const searchParams = request.nextUrl.searchParams;
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '20');
@@ -25,6 +33,7 @@ export const GET = withRateLimit(async (
             .range(offset, offset + limit - 1);
 
         if (error) {
+            console.error('Supabase error:', error);
             throw error;
         }
 

@@ -1,34 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authMiddleware } from "@/middleware/auth";
-import { supabaseAdmin } from "@/app/lib/supabase";
+import { supabaseAdmin } from '@/app/lib/supabase';
 import { withRateLimit } from '@/app/lib/rate-limit';
 import type { Transaction, TransactionHistory, TransactionResponse } from '@/app/types';
 
+// Route handler for GET requests
 export const GET = withRateLimit(async (request: NextRequest) => {
     try {
-        // // Rate limiting
-        // const limiter = await rateLimit(request);
-        // if (!limiter.success) {
-        //     return NextResponse.json(
-        //         { success: false, error: 'Too many requests' },
-        //         { status: 429 }
-        //     );
-        // }
+        // Get the wallet address from the header set by the middleware
+        const walletAddress = request.headers.get('x-wallet-address');
 
-        // Validate JWT
-        // const authResult = await authMiddleware(request);
-        // if (authResult instanceof NextResponse) {
-        //     return authResult;
-        // }
+        if (!walletAddress) {
+            return NextResponse.json(
+                { success: false, error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
 
-        // const walletAddress = authResult;
-        // const walletAddress = " 0xb17cC6D4EfBB38167509A3c1d2741A55aC305cF6"
         const searchParams = request.nextUrl.searchParams;
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '20');
         const offset = (page - 1) * limit;
 
-        // Query transactions
         const { data: transactions, error, count } = await supabaseAdmin
             .from('transactions')
             .select('*', { count: 'exact' })
@@ -36,6 +28,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             .range(offset, offset + limit - 1);
 
         if (error) {
+            console.error("Supabase query error:", error);
             throw error;
         }
 
@@ -57,35 +50,30 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             { status: 500 }
         );
     }
-})
+});
 
+// Route handler for POST requests
 export const POST = withRateLimit(async (request: NextRequest) => {
     try {
-        // Rate limiting
-        // const limiter = await rateLimit(request);
-        // if (!limiter.success) {
-        //     return NextResponse.json(
-        //         { success: false, error: 'Too many requests' },
-        //         { status: 429 }
-        //     );
-        // }
+        // Get the wallet address from the header set by the middleware
+        const walletAddress = request.headers.get('x-wallet-address');
 
-        // Validate JWT
-        // const authResult = await authMiddleware(request);
-        // if (authResult instanceof NextResponse) {
-        //     return authResult;
-        // }
+        if (!walletAddress) {
+            return NextResponse.json(
+                { success: false, error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
 
-        // const walletAddress = authResult;
         const body = await request.json();
 
-        // Validate wallet address matches JWT
-        // if (body.walletAddress !== walletAddress) {
-        //     return NextResponse.json(
-        //         { success: false, error: 'Unauthorized' },
-        //         { status: 403 }
-        //     );
-        // }
+        // Validate that the transaction is for the authenticated wallet
+        if (body.walletAddress !== walletAddress) {
+            return NextResponse.json(
+                { success: false, error: 'Unauthorized: Wallet address mismatch' },
+                { status: 403 }
+            );
+        }
 
         // Insert transaction
         const { data, error } = await supabaseAdmin.from('transactions').insert({
@@ -99,6 +87,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             recipient: body.recipient,
             status: body.status,
             memo: body.memo,
+            time_spent: body.time_spent,
             tx_hash: body.txHash,
         }).select().single();
 

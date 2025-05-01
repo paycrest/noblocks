@@ -30,7 +30,7 @@ export async function rateLimit(request: NextRequest) {
 }
 
 export function withRateLimit(handler: Function) {
-  return async (request: NextRequest) => {
+  return async (request: NextRequest, context: any) => {
     const limiter = await rateLimit(request);
 
     const headers = {
@@ -45,10 +45,15 @@ export function withRateLimit(handler: Function) {
       );
     }
 
-    const response = await handler(request);
-    Object.entries(headers).forEach(([key, value]) => {
-      response.headers.set(key, value);
-    });
+    const response = await handler(request, context);
+
+    // Add rate limit headers to the response
+    if (response && response.headers) {
+      Object.entries(headers).forEach(([key, value]) => {
+        response.headers.set(key, value);
+      });
+    }
+
     return response;
   };
 }

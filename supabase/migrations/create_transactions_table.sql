@@ -1,9 +1,4 @@
--- Drop existing table (backup data first if needed)
-
-drop table if exists transactions;
-
-
-create table transactions ( id uuid default gen_random_uuid() primary key, wallet_address text not null, transaction_type text not null, from_currency text not null, to_currency text not null, amount_sent numeric not null, amount_received numeric not null, fee numeric not null, recipient bytea not null, status text not null, memo text, tx_hash text, time_spent text, created_at timestamp with time zone default timezone('utc'::text, now()) not null, updated_at timestamp with time zone default timezone('utc'::text, now()) not null);
+create table transactions (id uuid default gen_random_uuid() primary key, wallet_address text not null, transaction_type text not null, from_currency text not null, to_currency text not null, amount_sent numeric not null, amount_received numeric not null, fee numeric not null, recipient bytea not null, status text not null, memo text, tx_hash text, time_spent text, created_at timestamp with time zone default timezone('utc'::text, now()) not null, updated_at timestamp with time zone default timezone('utc'::text, now()) not null);
 
 -- Create indices
 

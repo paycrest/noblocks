@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'; // Import necessary modules and configuration
-import { verifyJWT } from '@/app/lib/jwt';
+import { DEFAULT_PRIVY_CONFIG, verifyJWT } from '@/app/lib/jwt';
 import { supabaseAdmin } from '@/app/lib/supabase';
 import { getWalletAddressFromPrivyUserId } from '@/app/lib/privy';
 
@@ -11,7 +11,8 @@ export async function middleware(req: NextRequest) {
     }
 
     try {
-        const { payload } = await verifyJWT(token);
+        const { payload, provider } = await verifyJWT(token, DEFAULT_PRIVY_CONFIG);
+        console.log('Provider:', provider);
         const privyUserId = payload.sub;
 
         if (!privyUserId) {

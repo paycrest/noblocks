@@ -1,38 +1,79 @@
 import { jwtVerify, createRemoteJWKSet } from 'jose';
 
+export type JWTProvider = 'privy' | 'thirdweb';
+
+export interface JWTProviderConfig {
+    provider: JWTProvider;
+    privy?: {
+        jwksUrl: string;
+        issuer: string;
+        algorithms: string[];
+    };
+    thirdweb?: {
+        clientId: string;
+        domain: string;
+        privateKey: string;
+    };
+}
+
 export interface JWTPayload {
-    sub: string; // User ID (e.g., did:privy:...)
+    sub: string; // User ID (e.g., did:privy:...) or wallet address
     [key: string]: any;
 }
 
 export interface VerifyJWTResult {
     payload: JWTPayload;
+    provider: JWTProvider;
 }
 
-// Privy JWT verification configuration
-const PRIVY_JWKS_URL = process.env.NEXT_PRIVY_JWKS_URL
-const PRIVY_ISSUER = process.env.NEXT_PUBLIC_PRIVY_ISSUER;
-const PRIVY_ALGORITHMS = ['ES256'];
+export const DEFAULT_PRIVY_CONFIG: JWTProviderConfig = {
+    provider: 'privy',
+    privy: {
+        jwksUrl: process.env.NEXT_PRIVY_JWKS_URL || '',
+        issuer: process.env.NEXT_PUBLIC_PRIVY_ISSUER || '',
+        algorithms: ['ES256'],
+    },
+};
+
+export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
+    provider: 'thirdweb',
+    thirdweb: {
+        clientId: process.env.NEXT_THIRDWEB_CLIENT_ID || '',
+        domain: process.env.NEXT_THIRDWEB_DOMAIN || '',
+        privateKey: process.env.NEXT_THIRDWEB_PRIVATE_KEY || '',
+    },
+};
 
 /**
- * Verifies a Privy JWT token and returns the payload if valid
+ * Verifies a JWT token for either Privy or Thirdweb provider
+ * @param token - The JWT token to verify
+ * @param config - Configuration for the JWT provider
+ * @returns The verified payload and provider
+ * @throws Error if verification fails
  */
-export async function verifyJWT(token: string): Promise<VerifyJWTResult> {
+export async function verifyJWT(token: string, config: JWTProviderConfig): Promise<VerifyJWTResult> {
     try {
-        // Create JWKS (JSON Web Key Set) from Privy's public endpoint
-        const jwks = createRemoteJWKSet(new URL(PRIVY_JWKS_URL || ""));
+        if (config.provider === 'privy' && config.privy) {
+            const jwks = createRemoteJWKSet(new URL(config.privy.jwksUrl));
+            const { payload } = await jwtVerify(token, jwks, {
+                issuer: config.privy.issuer,
+                algorithms: config.privy.algorithms,
+            });
 
-        // Verify the token
-        const { payload } = await jwtVerify(token, jwks, {
-            issuer: PRIVY_ISSUER,
-            algorithms: PRIVY_ALGORITHMS,
-        });
+            return {
+                payload: payload as JWTPayload,
+                provider: config.provider,
+            };
+        } else if (config.provider === 'thirdweb' && config.thirdweb) {
+            // Placeholder for thirdweb JWT verification
+            // TODO: Thirdweb verification will be implemented when ready to migrate
+            throw new Error('Thirdweb JWT verification not implemented yet');
 
-        return { payload: payload as JWTPayload };
+        } else {
+            throw new Error('Invalid JWT provider configuration');
+        }
     } catch (error) {
-        // Handle specific error cases
         if (error instanceof Error) {
-
             if (error.message.includes('jwt expired')) {
                 throw new Error('JWT has expired');
             }
@@ -43,8 +84,6 @@ export async function verifyJWT(token: string): Promise<VerifyJWTResult> {
                 throw new Error('Failed to fetch JWKS from Privy');
             }
         }
-
-        // Generic error case
-        throw new Error(`JWT verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        throw new Error(`JWT verification failed: ${error instanceof Error ? error.message : 'Unknown error'} `);
     }
 }

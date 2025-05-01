@@ -1,46 +1,5 @@
 import { jwtVerify, createRemoteJWKSet } from 'jose';
-
-export type JWTProvider = 'privy' | 'thirdweb';
-
-export interface JWTProviderConfig {
-    provider: JWTProvider;
-    privy?: {
-        jwksUrl: string;
-        issuer: string;
-        algorithms: string[];
-    };
-    thirdweb?: {
-        clientId: string;
-        domain: string;
-    };
-}
-
-export interface JWTPayload {
-    sub: string; // User ID (e.g., did:privy:...) or wallet address
-    [key: string]: any;
-}
-
-export interface VerifyJWTResult {
-    payload: JWTPayload;
-    provider: JWTProvider;
-}
-
-export const DEFAULT_PRIVY_CONFIG: JWTProviderConfig = {
-    provider: 'privy',
-    privy: {
-        jwksUrl: process.env.PRIVY_JWKS_URL || '',
-        issuer: process.env.PRIVY_ISSUER || '',
-        algorithms: ['ES256'],
-    },
-};
-
-export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
-    provider: 'thirdweb',
-    thirdweb: {
-        clientId: process.env.THIRDWEB_CLIENT_ID || '',
-        domain: process.env.THIRDWEB_DOMAIN || '',
-    },
-};
+import { JWTPayload, JWTProviderConfig, VerifyJWTResult } from '@/app/types';
 
 /**
  * Verifies a JWT token for either Privy or Thirdweb provider

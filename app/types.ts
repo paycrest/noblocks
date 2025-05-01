@@ -324,3 +324,28 @@ export interface TransactionUpdateInput {
   timeSpent?: string;
   txHash?: string;
 }
+
+export type JWTProvider = 'privy' | 'thirdweb';
+
+export interface JWTProviderConfig {
+  provider: JWTProvider;
+  privy?: {
+    jwksUrl: string;
+    issuer: string;
+    algorithms: string[];
+  };
+  thirdweb?: {
+    clientId: string;
+    domain: string;
+  };
+}
+
+export interface JWTPayload {
+  sub: string; // User ID (e.g., did:privy:...) or wallet address
+  [key: string]: any;
+}
+
+export interface VerifyJWTResult {
+  payload: JWTPayload;
+  provider: JWTProvider;
+}

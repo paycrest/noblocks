@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'; // Import necessary modules and configuration
-import { DEFAULT_PRIVY_CONFIG, verifyJWT } from '@/app/lib/jwt';
+import { verifyJWT } from '@/app/lib/jwt';
 import { supabaseAdmin } from '@/app/lib/supabase';
 import { getWalletAddressFromPrivyUserId } from '@/app/lib/privy';
+import { DEFAULT_PRIVY_CONFIG } from '@/app/lib/config';
 
 // Middleware function to set wallet address for RLS and add it to the response headers
 export async function middleware(req: NextRequest) {

@@ -2,7 +2,7 @@ import { PrivyClient, LinkedAccountWithMetadata, WalletWithMetadata } from '@pri
 
 export function getPrivyClient(): PrivyClient {
     return new PrivyClient(
-        process.env.PRIVY_APP_ID!,
+        process.env.NEXT_PUBLIC_PRIVY_APP_ID!,
         process.env.PRIVY_APP_SECRET!
     );
 }

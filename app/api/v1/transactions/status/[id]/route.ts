@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-// import { authMiddleware } from '@/middleware/auth';
 import { supabaseAdmin } from '@/app/lib/supabase';
 import { withRateLimit } from '@/app/lib/rate-limit';
 
@@ -8,16 +7,10 @@ export const PUT = withRateLimit(async (
     { params }: { params: { id: string } }
 ) => {
     try {
-        // const authResult = await authMiddleware(request);
-        // if ('status' in authResult) {
-        //   return authResult;
-        // }
 
-        // const { walletAddress } = authResult;
         const { id } = params;
         const body = await request.json();
 
-        // Verify transaction belongs to wallet
         const { data: transaction, error: fetchError } = await supabaseAdmin
             .from('transactions')
             .select('wallet_address')
@@ -31,14 +24,6 @@ export const PUT = withRateLimit(async (
             );
         }
 
-        // if (transaction.wallet_address !== walletAddress) {
-        //   return NextResponse.json(
-        //     { success: false, error: 'Unauthorized' },
-        //     { status: 403 }
-        //   );
-        // }
-
-        // Update transaction
         const { data, error } = await supabaseAdmin
             .from('transactions')
             .update({

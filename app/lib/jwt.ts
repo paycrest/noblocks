@@ -12,7 +12,6 @@ export interface JWTProviderConfig {
     thirdweb?: {
         clientId: string;
         domain: string;
-        privateKey: string;
     };
 }
 
@@ -29,8 +28,8 @@ export interface VerifyJWTResult {
 export const DEFAULT_PRIVY_CONFIG: JWTProviderConfig = {
     provider: 'privy',
     privy: {
-        jwksUrl: process.env.NEXT_PRIVY_JWKS_URL || '',
-        issuer: process.env.NEXT_PUBLIC_PRIVY_ISSUER || '',
+        jwksUrl: process.env.PRIVY_JWKS_URL || '',
+        issuer: process.env.PRIVY_ISSUER || '',
         algorithms: ['ES256'],
     },
 };
@@ -38,9 +37,8 @@ export const DEFAULT_PRIVY_CONFIG: JWTProviderConfig = {
 export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
     provider: 'thirdweb',
     thirdweb: {
-        clientId: process.env.NEXT_THIRDWEB_CLIENT_ID || '',
-        domain: process.env.NEXT_THIRDWEB_DOMAIN || '',
-        privateKey: process.env.NEXT_THIRDWEB_PRIVATE_KEY || '',
+        clientId: process.env.THIRDWEB_CLIENT_ID || '',
+        domain: process.env.THIRDWEB_DOMAIN || '',
     },
 };
 

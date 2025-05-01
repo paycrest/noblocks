@@ -28,9 +28,6 @@ export const PUT = withRateLimit(async (
             .from('transactions')
             .update({
                 status: body.status,
-                time_spent: body.timeSpent,
-                tx_hash: body.txHash,
-                updated_at: new Date().toISOString(),
             })
             .eq('id', id)
             .select()

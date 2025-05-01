@@ -11,14 +11,14 @@ export async function middleware(req: NextRequest) {
     }
 
     try {
-        const { payload, provider } = await verifyJWT(token, DEFAULT_PRIVY_CONFIG);
-        console.log('Provider:', provider);
+        const { payload } = await verifyJWT(token, DEFAULT_PRIVY_CONFIG);
         const privyUserId = payload.sub;
 
         if (!privyUserId) {
             return NextResponse.json({ error: 'Invalid JWT: Missing subject' }, { status: 401 });
         }
         const walletAddress = await getWalletAddressFromPrivyUserId(privyUserId);
+
         try {
             const { error } = await supabaseAdmin.rpc('set_current_wallet_address', {
                 wallet_address: walletAddress,

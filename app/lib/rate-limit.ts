@@ -18,44 +18,37 @@ export async function rateLimit(request: NextRequest) {
     return {
       success: true,
       remaining: rateLimitResult.remainingPoints,
-      reset: Math.ceil(rateLimitResult.msBeforeNext / 1000)
+      reset: Math.ceil(rateLimitResult.msBeforeNext / 1000),
     };
   } catch (error) {
-    if (error instanceof Error) {
-      // Rate limit exceeded
-      return {
-        success: false,
-        remaining: 0,
-        reset: 60
-      };
-    }
-
-    // If rate limiting fails, allow the request
-    return { success: true };
+    return {
+      success: false,
+      remaining: 0,
+      reset: 60,
+    };
   }
 }
 
-// Middleware wrapper for API routes
 export function withRateLimit(handler: Function) {
   return async (request: NextRequest) => {
     const limiter = await rateLimit(request);
 
+    const headers = {
+      'X-RateLimit-Remaining': limiter.remaining.toString(),
+      'X-RateLimit-Reset': limiter.reset.toString(),
+    };
+
     if (!limiter.success) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Too many requests'
-        },
-        {
-          status: 429,
-          headers: {
-            'X-RateLimit-Remaining': limiter.remaining?.toString() ?? '0',
-            'X-RateLimit-Reset': (limiter.reset || 60).toString()
-          }
-        }
+        { success: false, error: 'Too many requests' },
+        { status: 429, headers }
       );
     }
 
-    return handler(request);
+    const response = await handler(request);
+    Object.entries(headers).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+    return response;
   };
 }

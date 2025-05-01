@@ -66,9 +66,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         }
 
         const body = await request.json();
-
-        // Validate that the transaction is for the authenticated wallet
-        if (body.walletAddress !== walletAddress) {
+        // Normalize wallet addresses to lowercase for comparison
+        if (body.walletAddress.toLowerCase() !== walletAddress.toLowerCase()) {
             return NextResponse.json(
                 { success: false, error: 'Unauthorized: Wallet address mismatch' },
                 { status: 403 }

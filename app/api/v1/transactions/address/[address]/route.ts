@@ -11,7 +11,7 @@ export const GET = withRateLimit(async (
         // Get address from params or URL
         const address = context?.params?.address ||
             request.nextUrl.pathname.split('/').pop();
-
+        
         if (!address) {
             return NextResponse.json(
                 { success: false, error: 'Missing wallet address' },

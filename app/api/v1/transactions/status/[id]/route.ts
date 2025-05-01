@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+// import { authMiddleware } from '@/middleware/auth';
 import { supabaseAdmin } from '@/app/lib/supabase';
 import { withRateLimit } from '@/app/lib/rate-limit';
 
@@ -7,7 +8,6 @@ export const PUT = withRateLimit(async (
     { params }: { params: { id: string } }
 ) => {
     try {
-
         const { id } = params;
         const body = await request.json();
 
@@ -24,6 +24,7 @@ export const PUT = withRateLimit(async (
             );
         }
 
+        // Update transaction
         const { data, error } = await supabaseAdmin
             .from('transactions')
             .update({

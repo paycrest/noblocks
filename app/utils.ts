@@ -180,13 +180,6 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
         imageUrl: "/logos/cngn-logo.svg",
       },
-      {
-        name: "USDbC Coin",
-        symbol: "USDbC",
-        decimals: 6,
-        address: "0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA",
-        imageUrl: "/logos/usdbc-logo.svg",
-      },
     ],
     "Arbitrum One": [
       {

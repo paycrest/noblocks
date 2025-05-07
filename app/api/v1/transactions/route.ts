@@ -7,7 +7,7 @@ import type { Transaction, TransactionHistory, TransactionResponse } from '@/app
 export const GET = withRateLimit(async (request: NextRequest) => {
     try {
         // Get the wallet address from the header set by the middleware
-        const walletAddress = request.headers.get('x-wallet-address');
+        const walletAddress = request.headers.get('x-wallet-address')?.toLowerCase();
 
         if (!walletAddress) {
             return NextResponse.json(
@@ -24,6 +24,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         const { data: transactions, error, count } = await supabaseAdmin
             .from('transactions')
             .select('*', { count: 'exact' })
+            .eq('wallet_address', walletAddress)
             .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
 
@@ -66,8 +67,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         }
 
         const body = await request.json();
-        // Normalize wallet addresses to lowercase for comparison
-        if (body.walletAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+        // Normalize wallet addresses to lowercase for comparison and storage
+        const normalizedBodyWalletAddress = body.walletAddress.toLowerCase();
+
+        if (normalizedBodyWalletAddress !== walletAddress) {
             return NextResponse.json(
                 { success: false, error: 'Unauthorized: Wallet address mismatch' },
                 { status: 403 }
@@ -76,7 +79,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
         // Insert transaction
         const { data, error } = await supabaseAdmin.from('transactions').insert({
-            wallet_address: body.walletAddress,
+            wallet_address: normalizedBodyWalletAddress,
             transaction_type: body.transactionType,
             from_currency: body.fromCurrency,
             to_currency: body.toCurrency,
@@ -85,7 +88,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             fee: body.fee,
             recipient: body.recipient,
             status: body.status,
-            memo: body.memo,
             time_spent: body.time_spent,
             tx_hash: body.txHash,
         }).select().single();

@@ -7,7 +7,6 @@ export function getPrivyClient(): PrivyClient {
     );
 }
 
-
 function isWalletAccount(account: LinkedAccountWithMetadata): account is WalletWithMetadata {
     return account.type === 'wallet';
 }

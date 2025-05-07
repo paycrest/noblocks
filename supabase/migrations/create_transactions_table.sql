@@ -1,50 +1,59 @@
-create table transactions (id uuid default gen_random_uuid() primary key, wallet_address text not null, transaction_type text not null, from_currency text not null, to_currency text not null, amount_sent numeric not null, amount_received numeric not null, fee numeric not null, recipient bytea not null, status text not null, memo text, tx_hash text, time_spent text, created_at timestamp with time zone default timezone('utc'::text, now()) not null, updated_at timestamp with time zone default timezone('utc'::text, now()) not null);
+-- Drop existing table if needed (optional)
+-- DROP TABLE IF EXISTS transactions;
+ -- Create the transactions table with proper JSON support for recipient
+
+CREATE TABLE transactions ( id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+                                                                      wallet_address TEXT NOT NULL,
+                                                                                          transaction_type TEXT NOT NULL CHECK (transaction_type IN ('swap',
+                                                                                                                                                     'transfer')), from_currency TEXT NOT NULL,
+                                                                                                                                                                                      to_currency TEXT NOT NULL,
+                                                                                                                                                                                                       amount_sent NUMERIC NOT NULL,
+                                                                                                                                                                                                                           amount_received NUMERIC NOT NULL,
+                                                                                                                                                                                                                                                   fee NUMERIC NOT NULL,
+                                                                                                                                                                                                                                                               recipient JSONB NOT NULL, -- Changed to JSONB to store structured recipient data
+ status TEXT NOT NULL CHECK (status IN ('pending',
+                                        'completed',
+                                        'failed')), tx_hash TEXT, time_spent TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+                                                                                                                                                            updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL);
 
 -- Create indices
 
-create index idx_transactions_wallet_address on transactions(wallet_address);
+CREATE INDEX idx_transactions_wallet_address ON transactions(wallet_address);
 
 
-create index idx_transactions_created_at on transactions(created_at desc);
+CREATE INDEX idx_transactions_created_at ON transactions(created_at DESC);
 
 -- Enable RLS
 
-alter table transactions enable row level security;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 
 -- Create function to set wallet address
 
-create or replace function set_current_wallet_address(wallet_address text) returns void as $$
-begin
-  perform set_config('app.current_wallet_address', wallet_address, false);
-end;
-$$ language plpgsql security definer;
+CREATE OR REPLACE FUNCTION set_current_wallet_address(wallet_address TEXT) RETURNS VOID AS $$
+BEGIN
+  PERFORM set_config('app.current_wallet_address', wallet_address, FALSE);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant permissions
-GRANT EXECUTE ON FUNCTION set_current_wallet_address(text) TO service_role;
+GRANT EXECUTE ON FUNCTION set_current_wallet_address(TEXT) TO service_role;
 
-GRANT EXECUTE ON FUNCTION set_current_wallet_address(text) TO authenticated;
+GRANT EXECUTE ON FUNCTION set_current_wallet_address(TEXT) TO authenticated;
 
-GRANT EXECUTE ON FUNCTION set_current_wallet_address(text) TO anon;
+GRANT EXECUTE ON FUNCTION set_current_wallet_address(TEXT) TO anon;
 
 -- RLS policies
 
-create policy "Users can read own transactions" on transactions
-for
-select using (wallet_address = current_setting('app.current_wallet_address', true));
+CREATE POLICY "Users can read own transactions" ON transactions
+FOR
+SELECT USING (wallet_address = current_setting('app.current_wallet_address', TRUE));
 
 
-create policy "Users can insert own transactions" on transactions
-for
-insert with check (wallet_address = current_setting('app.current_wallet_address', true));
+CREATE POLICY "Users can insert own transactions" ON transactions
+FOR
+INSERT WITH CHECK (wallet_address = current_setting('app.current_wallet_address', TRUE));
 
 
-create policy "Users can update own transactions" on transactions
-for
-update using (wallet_address = current_setting('app.current_wallet_address', true));
-
-
-create policy "Service role can access all transactions" on transactions using (auth.role() = 'service_role');
-
--- Enable pgcrypto
-
-create extension if not exists pgcrypto;
+CREATE POLICY "Users can update own transactions" ON transactions
+FOR
+UPDATE USING (wallet_address = current_setting('app.current_wallet_address', TRUE));

@@ -5,7 +5,7 @@ import { getWalletAddressFromPrivyUserId } from '@/app/lib/privy';
 import { DEFAULT_PRIVY_CONFIG } from '@/app/lib/config';
 
 // Middleware function to set wallet address for RLS and add it to the response headers
-export async function middleware(req: NextRequest) {
+export async function authorizationMiddleware(req: NextRequest) {
     const token = req.headers.get('Authorization')?.replace('Bearer ', '');
     if (!token) {
         return NextResponse.json({ error: 'Missing JWT' }, { status: 401 });

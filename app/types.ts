@@ -271,9 +271,10 @@ export type TransactionStatus = 'pending' | 'completed' | 'failed';
 export type TransactionHistoryType = 'swap' | 'transfer';
 
 export interface Recipient {
-  name: string;
-  bank: string;
-  account: string;
+  account_name: string;
+  institution: string;
+  account_identifier: string;
+  memo?: string;
 }
 
 export interface TransactionHistory {
@@ -287,8 +288,6 @@ export interface TransactionHistory {
   fee: number;
   recipient: Recipient;
   status: TransactionStatus;
-  memo?: string;
-  timestamp: string;
   tx_hash?: string;
   time_spent?: string;
   created_at: string;
@@ -305,7 +304,6 @@ export interface TransactionCreateInput {
   fee: number;
   recipient: Recipient;
   status: TransactionStatus;
-  memo?: string;
   txHash?: string;
 }
 

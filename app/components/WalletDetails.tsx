@@ -28,7 +28,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { sidebarAnimation, fadeInOut } from "./AnimatedComponents";
 // import { TransactionList } from "./transaction/TransactionList";
 import { TransactionDetails } from "./transaction/TransactionDetails";
-import type { Transaction } from "./transaction/types";
+import type { Transaction } from "../types";
 import { PiCheck } from "react-icons/pi";
 import { fetchRate } from "../api/aggregator";
 import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";

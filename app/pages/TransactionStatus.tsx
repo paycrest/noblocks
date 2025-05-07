@@ -31,7 +31,7 @@ import {
   getInstitutionNameByCode,
   getSavedRecipients,
 } from "../utils";
-import { fetchOrderDetails } from "../api/aggregator";
+import { fetchOrderDetails, saveTransaction } from "../api/aggregator";
 import {
   STEPS,
   type OrderDetailsData,
@@ -50,6 +50,7 @@ import {
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
+import { usePrivy } from "@privy-io/react-auth";
 
 /**
  * Renders the transaction status component.
@@ -79,7 +80,11 @@ export function TransactionStatus({
   const { selectedNetwork } = useNetwork();
   const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
     useBalance();
-  const { isInjectedWallet } = useInjectedWallet();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { user, getAccessToken } = usePrivy();
+  const isSmartWallet = user?.linkedAccounts.some(
+    (account: { type: string }) => account.type === "smart_wallet",
+  );
 
   const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
@@ -88,6 +93,7 @@ export function TransactionStatus({
   const [isGettingReceipt, setIsGettingReceipt] = useState(false);
   const [addToBeneficiaries, setAddToBeneficiaries] = useState(false);
   const [isTracked, setIsTracked] = useState(false);
+  const [isSavingTransaction, setIsSavingTransaction] = useState(false);
 
   const fireConfetti = useConfetti();
 
@@ -97,6 +103,65 @@ export function TransactionStatus({
   const amount = watch("amountSent") || 0;
   const fiat = Number(watch("amountReceived")) || 0;
   const recipientName = String(watch("recipientName")) || "";
+
+  const saveTransactionData = async () => {
+    if (!isSmartWallet || isSavingTransaction) return;
+    setIsSavingTransaction(true);
+
+    try {
+      const smartWallet = user?.linkedAccounts.find(
+        (account) => account.type === "smart_wallet",
+      );
+
+      if (!smartWallet?.address) {
+        throw new Error("Smart wallet address not found");
+      }
+
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error("No access token available");
+      }
+
+      const transactionData = {
+        walletAddress: smartWallet.address,
+        transactionType: "swap" as const,
+        fromCurrency: String(token),
+        toCurrency: String(currency),
+        amountSent: Number(amount),
+        amountReceived: Number(fiat),
+        fee: 0,
+        recipient: {
+          account_name: String(recipientName),
+          institution:
+            getInstitutionNameByCode(
+              String(formMethods.watch("institution")),
+              supportedInstitutions,
+            ) || "Unknown Bank",
+          account_identifier: String(formMethods.watch("accountIdentifier")),
+        },
+        status: (transactionStatus === "refunded"
+          ? "failed"
+          : transactionStatus === "validated" || transactionStatus === "settled"
+            ? "completed"
+            : "pending") as "pending" | "completed" | "failed",
+        memo: formMethods.watch("memo")
+          ? String(formMethods.watch("memo"))
+          : undefined,
+        timeSpent: calculateDuration(createdAt, completedAt),
+        txHash: createdHash,
+      };
+
+      const response = await saveTransaction(transactionData, accessToken);
+      if (!response.success) {
+        throw new Error(response.error);
+      }
+    } catch (error) {
+      console.error("Error saving transaction:", error);
+      toast.error("Failed to save transaction");
+    } finally {
+      setIsSavingTransaction(false);
+    }
+  };
 
   useEffect(
     function pollOrderDetails() {
@@ -132,6 +197,14 @@ export function TransactionStatus({
                 refreshBalance();
               }
               clearInterval(intervalId);
+              // Save transaction when it's completed
+              if (
+                ["validated", "settled", "refunded"].includes(
+                  orderDetailsResponse.data.status,
+                )
+              ) {
+                saveTransactionData();
+              }
             }
 
             if (orderDetailsResponse.data.status === "processing") {
@@ -425,308 +498,297 @@ export function TransactionStatus({
   };
 
   return (
-    <>
-      <AnimatedComponent
-        variant={slideInOut}
-        className="flex w-full justify-center gap-[4.5rem]"
-      >
-        <div className="hidden flex-col gap-2 sm:flex">
-          <div className="flex w-fit flex-col items-end gap-2 text-neutral-900 dark:text-white/80">
-            <AnimatedComponent
-              variant={slideInOut}
-              delay={0.2}
-              className="flex items-center gap-1 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5"
-            >
-              {token && (
-                <Image
-                  src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
-                  alt={`${token} logo`}
-                  width={14}
-                  height={14}
-                />
-              )}
-              <p className="whitespace-nowrap pr-4 font-medium">
-                {formatNumberWithCommas(amount)} {token}
-              </p>
-            </AnimatedComponent>
-            <Image
-              src={getImageSrc()}
-              alt="Progress"
-              width={200}
-              height={200}
-              className="w-auto"
-            />
-            <AnimatedComponent
-              variant={slideInOut}
-              delay={0.4}
-              className="max-w-60 truncate whitespace-nowrap rounded-full bg-gray-50 px-3 py-1 capitalize dark:bg-white/5"
-            >
-              {(recipientName ?? "").toLowerCase().split(" ")[0]}
-            </AnimatedComponent>
-          </div>
-        </div>
-
-        <div className="flex flex-col items-start gap-4 sm:max-w-xs">
-          <StatusIndicator />
-
+    <div className="flex w-full justify-center gap-[4.5rem]">
+      <div className="hidden flex-col gap-2 sm:flex">
+        <div className="flex w-fit flex-col items-end gap-2 text-neutral-900 dark:text-white/80">
           <AnimatedComponent
             variant={slideInOut}
             delay={0.2}
-            className="text-xl font-medium text-neutral-900 dark:text-white/80"
+            className="flex items-center gap-1 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5"
           >
-            {transactionStatus === "refunded"
-              ? "Oops! Transaction failed"
-              : !["validated", "settled"].includes(transactionStatus)
-                ? "Processing payment..."
-                : "Transaction successful"}
+            {token && (
+              <Image
+                src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
+                alt={`${token} logo`}
+                width={14}
+                height={14}
+              />
+            )}
+            <p className="whitespace-nowrap pr-4 font-medium">
+              {formatNumberWithCommas(amount)} {token}
+            </p>
           </AnimatedComponent>
-
-          <div className="flex w-full items-center gap-2 text-neutral-900 dark:text-white/80 sm:hidden">
-            <AnimatedComponent
-              variant={slideInOut}
-              delay={0.2}
-              className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5"
-            >
-              {token && (
-                <Image
-                  src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
-                  alt={`${token} logo`}
-                  width={14}
-                  height={14}
-                />
-              )}
-              <p className="whitespace-nowrap pr-0.5 font-medium">
-                {amount} {token}
-              </p>
-            </AnimatedComponent>
-            <Image
-              src={`/images/horizontal-stepper${resolvedTheme === "dark" ? "-dark" : ""}.svg`}
-              alt="Progress"
-              width={200}
-              height={200}
-              className="-mr-1.5 mt-1 size-auto"
-            />
-            <AnimatedComponent
-              variant={slideInOut}
-              delay={0.4}
-              className="max-w-28 truncate rounded-full bg-gray-50 px-3 py-1 capitalize dark:bg-white/5"
-            >
-              {(recipientName ?? "").toLowerCase().split(" ")[0]}
-            </AnimatedComponent>
-          </div>
-
-          <hr className="w-full border-dashed border-border-light dark:border-white/10 sm:hidden" />
-
+          <Image
+            src={getImageSrc()}
+            alt="Progress"
+            width={200}
+            height={200}
+            className="w-auto"
+          />
           <AnimatedComponent
             variant={slideInOut}
             delay={0.4}
-            className="text-sm leading-normal text-gray-500 dark:text-white/50"
+            className="max-w-60 truncate whitespace-nowrap rounded-full bg-gray-50 px-3 py-1 capitalize dark:bg-white/5"
           >
-            {getPaymentMessage()}
+            {(recipientName ?? "").toLowerCase().split(" ")[0]}
           </AnimatedComponent>
+        </div>
+      </div>
 
-          {/* Helper text for long-running transactions */}
-          <TransactionHelperText
-            isVisible={["processing", "fulfilled"].includes(transactionStatus)}
-            title="Taking longer than expected?"
-            message="Your transaction is still processing. You can safely
-                    refresh or leave this page - your funds will either be
-                    settled or automatically refunded if the transaction
-                    fails."
-            showAfterMs={60000}
-            className="w-full space-y-4"
+      <div className="flex flex-col items-start gap-4 sm:max-w-xs">
+        <StatusIndicator />
+
+        <AnimatedComponent
+          variant={slideInOut}
+          delay={0.2}
+          className="text-xl font-medium text-neutral-900 dark:text-white/80"
+        >
+          {transactionStatus === "refunded"
+            ? "Oops! Transaction failed"
+            : !["validated", "settled"].includes(transactionStatus)
+              ? "Processing payment..."
+              : "Transaction successful"}
+        </AnimatedComponent>
+
+        <div className="flex w-full items-center gap-2 text-neutral-900 dark:text-white/80 sm:hidden">
+          <AnimatedComponent
+            variant={slideInOut}
+            delay={0.2}
+            className="flex items-center gap-2 rounded-full bg-gray-50 px-2 py-1 dark:bg-white/5"
+          >
+            {token && (
+              <Image
+                src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
+                alt={`${token} logo`}
+                width={14}
+                height={14}
+              />
+            )}
+            <p className="whitespace-nowrap pr-0.5 font-medium">
+              {amount} {token}
+            </p>
+          </AnimatedComponent>
+          <Image
+            src={`/images/horizontal-stepper${resolvedTheme === "dark" ? "-dark" : ""}.svg`}
+            alt="Progress"
+            width={200}
+            height={200}
+            className="-mr-1.5 mt-1 size-auto"
           />
+          <AnimatedComponent
+            variant={slideInOut}
+            delay={0.4}
+            className="max-w-28 truncate rounded-full bg-gray-50 px-3 py-1 capitalize dark:bg-white/5"
+          >
+            {(recipientName ?? "").toLowerCase().split(" ")[0]}
+          </AnimatedComponent>
+        </div>
 
-          <AnimatePresence>
-            {["validated", "settled", "refunded"].includes(
-              transactionStatus,
-            ) && (
-              <>
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.5}
-                  className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
-                >
-                  {["validated", "settled"].includes(transactionStatus) && (
-                    <button
-                      type="button"
-                      onClick={handleGetReceipt}
-                      className={`w-fit ${secondaryBtnClasses}`}
-                      disabled={isGettingReceipt}
-                    >
-                      {isGettingReceipt ? "Generating..." : "Get receipt"}
-                    </button>
-                  )}
+        <hr className="w-full border-dashed border-border-light dark:border-white/10 sm:hidden" />
 
-                  <button
-                    type="button"
-                    onClick={handleBackButtonClick}
-                    className={`w-fit ${primaryBtnClasses}`}
-                  >
-                    {transactionStatus === "refunded"
-                      ? "Retry transaction"
-                      : "New payment"}
-                  </button>
-                </AnimatedComponent>
+        <AnimatedComponent
+          variant={slideInOut}
+          delay={0.4}
+          className="text-sm leading-normal text-gray-500 dark:text-white/50"
+        >
+          {getPaymentMessage()}
+        </AnimatedComponent>
 
-                {["validated", "settled"].includes(transactionStatus) && (
-                  <div className="flex gap-2">
-                    <Checkbox
-                      checked={addToBeneficiaries}
-                      onChange={handleAddToBeneficiariesChange}
-                      className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
-                    >
-                      <svg
-                        className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
-                        viewBox="0 0 14 14"
-                        fill="none"
-                      >
-                        <title>
-                          {addToBeneficiaries
-                            ? "Remove from beneficiaries"
-                            : "Add to your beneficiaries"}
-                        </title>
-                        <path
-                          d="M3 8L6 11L11 3.5"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </Checkbox>
-                    <label className="text-text-body dark:text-white/80">
-                      Add{" "}
-                      {(recipientName ?? "")
-                        .split(" ")[0]
-                        .charAt(0)
-                        .toUpperCase() +
-                        (recipientName ?? "")
-                          .toLowerCase()
-                          .split(" ")[0]
-                          .slice(1)}{" "}
-                      to beneficiaries
-                    </label>
-                  </div>
-                )}
-              </>
-            )}
-          </AnimatePresence>
+        {/* Helper text for long-running transactions */}
+        <TransactionHelperText
+          isVisible={["processing", "fulfilled"].includes(transactionStatus)}
+          title="Taking longer than expected?"
+          message="Your transaction is still processing. You can safely
+                  refresh or leave this page - your funds will either be
+                  settled or automatically refunded if the transaction
+                  fails."
+          showAfterMs={60000}
+          className="w-full space-y-4"
+        />
 
+        <AnimatePresence>
           {["validated", "settled", "refunded"].includes(transactionStatus) && (
-            <hr className="w-full border-dashed border-border-light dark:border-white/10" />
-          )}
-
-          <AnimatePresence>
-            {["validated", "settled", "refunded"].includes(
-              transactionStatus,
-            ) && (
-              <AnimatedComponent
-                variant={{
-                  ...fadeInOut,
-                  animate: { opacity: 1, height: "auto" },
-                  initial: { opacity: 0, height: 0 },
-                  exit: { opacity: 0, height: 0 },
-                }}
-                delay={0.7}
-                className="flex w-full flex-col gap-4 text-gray-500 dark:text-white/50"
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <p className="flex-1">Transaction status</p>
-                  <div className="flex flex-1 items-center gap-1">
-                    <p
-                      className={classNames(
-                        transactionStatus === "refunded"
-                          ? "text-red-600"
-                          : "text-green-600",
-                      )}
-                    >
-                      {transactionStatus === "refunded"
-                        ? "Failed"
-                        : "Completed"}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-1">
-                  <p className="flex-1">Time spent</p>
-                  <p className="flex-1">
-                    {calculateDuration(createdAt, completedAt)}
-                  </p>
-                </div>
-                <div className="flex items-center justify-between gap-1">
-                  <p className="flex-1">Onchain receipt</p>
-                  <p className="flex-1">
-                    <a
-                      href={getExplorerLink(
-                        selectedNetwork.chain.name,
-                        `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
-                      )}
-                      className="text-lavender-500 hover:underline dark:text-lavender-500"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      View in explorer
-                    </a>
-                  </p>
-                </div>
-              </AnimatedComponent>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {["validated", "settled"].includes(transactionStatus) && (
+            <>
               <AnimatedComponent
                 variant={slideInOut}
-                delay={0.8}
-                className="w-full space-y-4 text-gray-500 dark:text-white/50"
+                delay={0.5}
+                className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
               >
-                <hr className="w-full border-dashed border-border-light dark:border-white/10" />
-
-                <p>Help spread the word</p>
-
-                <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
-                  <YellowHeart className="size-8 flex-shrink-0" />
-                  <p>
-                    Yay! I just swapped {token} for {currency} in{" "}
-                    {calculateDuration(createdAt, completedAt)} on noblocks.xyz
-                  </p>
-                  <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <a
-                    aria-label="Share on Twitter"
-                    rel="noopener noreferrer"
-                    target="_blank"
-                    href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
-                    className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                {["validated", "settled"].includes(transactionStatus) && (
+                  <button
+                    type="button"
+                    onClick={handleGetReceipt}
+                    className={`w-fit ${secondaryBtnClasses}`}
+                    disabled={isGettingReceipt}
                   >
-                    {resolvedTheme === "dark" ? (
-                      <XIconDarkTheme className="size-5" />
-                    ) : (
-                      <XIconLightTheme className="size-5" />
-                    )}
-                    X (Twitter)
-                  </a>
-                  <a
-                    aria-label="Share on Warpcast"
-                    rel="noopener noreferrer"
-                    target="_blank"
-                    href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
-                    className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
-                  >
-                    {resolvedTheme === "dark" ? (
-                      <FarcasterIconDarkTheme className="size-5" />
-                    ) : (
-                      <FarcasterIconLightTheme className="size-5" />
-                    )}
-                    Warpcast
-                  </a>
-                </div>
+                    {isGettingReceipt ? "Generating..." : "Get receipt"}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleBackButtonClick}
+                  className={`w-fit ${primaryBtnClasses}`}
+                >
+                  {transactionStatus === "refunded"
+                    ? "Retry transaction"
+                    : "New payment"}
+                </button>
               </AnimatedComponent>
-            )}
-          </AnimatePresence>
-        </div>
-      </AnimatedComponent>
-    </>
+
+              {["validated", "settled"].includes(transactionStatus) && (
+                <div className="flex gap-2">
+                  <Checkbox
+                    checked={addToBeneficiaries}
+                    onChange={handleAddToBeneficiariesChange}
+                    className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
+                  >
+                    <svg
+                      className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                    >
+                      <title>
+                        {addToBeneficiaries
+                          ? "Remove from beneficiaries"
+                          : "Add to your beneficiaries"}
+                      </title>
+                      <path
+                        d="M3 8L6 11L11 3.5"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </Checkbox>
+                  <label className="text-text-body dark:text-white/80">
+                    Add{" "}
+                    {(recipientName ?? "")
+                      .split(" ")[0]
+                      .charAt(0)
+                      .toUpperCase() +
+                      (recipientName ?? "")
+                        .toLowerCase()
+                        .split(" ")[0]
+                        .slice(1)}{" "}
+                    to beneficiaries
+                  </label>
+                </div>
+              )}
+            </>
+          )}
+        </AnimatePresence>
+
+        {["validated", "settled", "refunded"].includes(transactionStatus) && (
+          <hr className="w-full border-dashed border-border-light dark:border-white/10" />
+        )}
+
+        <AnimatePresence>
+          {["validated", "settled", "refunded"].includes(transactionStatus) && (
+            <AnimatedComponent
+              variant={{
+                ...fadeInOut,
+                animate: { opacity: 1, height: "auto" },
+                initial: { opacity: 0, height: 0 },
+                exit: { opacity: 0, height: 0 },
+              }}
+              delay={0.7}
+              className="flex w-full flex-col gap-4 text-gray-500 dark:text-white/50"
+            >
+              <div className="flex items-center justify-between gap-1">
+                <p className="flex-1">Transaction status</p>
+                <div className="flex flex-1 items-center gap-1">
+                  <p
+                    className={classNames(
+                      transactionStatus === "refunded"
+                        ? "text-red-600"
+                        : "text-green-600",
+                    )}
+                  >
+                    {transactionStatus === "refunded" ? "Failed" : "Completed"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-1">
+                <p className="flex-1">Time spent</p>
+                <p className="flex-1">
+                  {calculateDuration(createdAt, completedAt)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-1">
+                <p className="flex-1">Onchain receipt</p>
+                <p className="flex-1">
+                  <a
+                    href={getExplorerLink(
+                      selectedNetwork.chain.name,
+                      `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
+                    )}
+                    className="text-lavender-500 hover:underline dark:text-lavender-500"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    View in explorer
+                  </a>
+                </p>
+              </div>
+            </AnimatedComponent>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {["validated", "settled"].includes(transactionStatus) && (
+            <AnimatedComponent
+              variant={slideInOut}
+              delay={0.8}
+              className="w-full space-y-4 text-gray-500 dark:text-white/50"
+            >
+              <hr className="w-full border-dashed border-border-light dark:border-white/10" />
+
+              <p>Help spread the word</p>
+
+              <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
+                <YellowHeart className="size-8 flex-shrink-0" />
+                <p>
+                  Yay! I just swapped {token} for {currency} in{" "}
+                  {calculateDuration(createdAt, completedAt)} on noblocks.xyz
+                </p>
+                <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <a
+                  aria-label="Share on Twitter"
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
+                  className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                >
+                  {resolvedTheme === "dark" ? (
+                    <XIconDarkTheme className="size-5" />
+                  ) : (
+                    <XIconLightTheme className="size-5" />
+                  )}
+                  X (Twitter)
+                </a>
+                <a
+                  aria-label="Share on Warpcast"
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
+                  className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                >
+                  {resolvedTheme === "dark" ? (
+                    <FarcasterIconDarkTheme className="size-5" />
+                  ) : (
+                    <FarcasterIconLightTheme className="size-5" />
+                  )}
+                  Warpcast
+                </a>
+              </div>
+            </AnimatedComponent>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
   );
 }

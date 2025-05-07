@@ -7,8 +7,8 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { pdf } from "@react-pdf/renderer";
 import { PDFReceipt } from "../PDFReceipt";
-import { Transaction } from "./types";
-import { classNames } from "../../utils";
+import type { Transaction } from "../../types";
+import { classNames, formatNumberWithCommas } from "../../utils";
 
 const DetailRow = ({
   label,
@@ -36,41 +36,41 @@ const Divider = () => (
 );
 
 const CurrencyLogos = ({
-  mainCurrency,
-  swappedCurrency,
+  fromCurrency,
+  toCurrency,
 }: {
-  mainCurrency: string;
-  swappedCurrency?: string;
+  fromCurrency: string;
+  toCurrency: string;
 }) => (
   <div className="relative">
     <Image
-      src={`/logos/${mainCurrency.toLowerCase()}-logo.svg`}
-      alt={mainCurrency}
+      src={`/logos/${fromCurrency.toLowerCase()}-logo.svg`}
+      alt={fromCurrency}
       width={20}
       height={20}
       quality={90}
       className="rounded-full"
     />
-    {swappedCurrency && (
-      <div className="absolute -right-[76%] -top-[1px] z-10 h-fit w-fit rounded-full border-[2px] border-white dark:border-surface-overlay">
-        <Image
-          src={`/logos/${swappedCurrency.toLowerCase()}-logo.svg`}
-          alt={swappedCurrency}
-          width={20}
-          height={20}
-          quality={90}
-          className="rounded-full"
-        />
-      </div>
-    )}
+    <div className="absolute -right-[76%] -top-[1px] z-10 h-fit w-fit rounded-full border-[2px] border-white dark:border-surface-overlay">
+      <Image
+        src={`/logos/${toCurrency.toLowerCase()}-logo.svg`}
+        alt={toCurrency}
+        width={20}
+        height={20}
+        quality={90}
+        className="rounded-full"
+      />
+    </div>
   </div>
 );
 
-export const TransactionDetails = ({
-  transaction,
-}: {
-  transaction: Transaction;
-}) => {
+interface TransactionDetailsProps {
+  transaction: Transaction | null;
+}
+
+export function TransactionDetails({ transaction }: TransactionDetailsProps) {
+  if (!transaction) return null;
+
   const [isLoading, setIsLoading] = useState(false);
 
   const handleGetReceipt = async () => {
@@ -78,26 +78,24 @@ export const TransactionDetails = ({
     try {
       const mockOrderDetails = {
         orderId: transaction.id,
-        amount: transaction.amount,
-        token: transaction.currency,
+        amount: transaction.amount_sent.toString(),
+        token: transaction.from_currency,
         network: "Arbitrum One",
         settlePercent: "100",
         status: transaction.status,
-        txHash: "0x123...",
+        txHash: transaction.tx_hash || "",
         settlements: [],
         txReceipts: [],
-        updatedAt: new Date().toISOString(),
+        updatedAt: transaction.created_at,
       };
 
       const mockFormData = {
-        recipientName: transaction.recipient || "Unknown Recipient",
-        accountIdentifier: transaction.account || "N/A",
-        institution: transaction.bank || "Unknown Bank",
+        recipientName: transaction.recipient.account_name,
+        accountIdentifier: transaction.recipient.account_identifier,
+        institution: transaction.recipient.institution,
         memo: transaction.memo || "No memo",
-        amountReceived:
-          parseFloat(transaction.nativeValue.split(" ")[1].replace(/,/g, "")) ||
-          0,
-        currency: transaction.nativeValue.split(" ")[0] || "NGN",
+        amountReceived: transaction.amount_received,
+        currency: transaction.to_currency,
       };
 
       const blob = await pdf(
@@ -129,49 +127,114 @@ export const TransactionDetails = ({
       <div className="flex-grow space-y-4">
         <div className="flex items-center gap-4">
           <CurrencyLogos
-            mainCurrency={transaction.currency}
-            swappedCurrency={transaction.swappedCurrency}
+            fromCurrency={transaction.from_currency}
+            toCurrency={transaction.to_currency}
           />
           <span className="ml-2 text-lg dark:text-white/80">
             Swapped{" "}
             <span className="dark:text-white">
-              {transaction.amount} {transaction.currency}
+              {formatNumberWithCommas(transaction.amount_sent)}{" "}
+              {transaction.from_currency} →{" "}
+              {formatNumberWithCommas(transaction.amount_received)}{" "}
+              {transaction.to_currency}
             </span>
           </span>
         </div>
 
-        <p
-          className={classNames(
-            "text-sm",
-            transaction.status === "Completed"
-              ? "text-green-500"
-              : "text-red-500",
-          )}
-        >
-          {transaction.status}
-        </p>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-white/50">Amount</p>
+            <p className="font-medium text-text-body dark:text-white">
+              {formatNumberWithCommas(transaction.amount_sent)}{" "}
+              {transaction.from_currency} →{" "}
+              {formatNumberWithCommas(transaction.amount_received)}{" "}
+              {transaction.to_currency}
+            </p>
+          </div>
 
-        <div>
-          <Divider />
-          <DetailRow label="Amount" value={transaction.nativeValue} />
-          <DetailRow label="Fees" value={transaction.fees} />
-          <DetailRow label="Recipient" value={transaction.recipient} />
-          <DetailRow label="Bank" value={transaction.bank} />
-          <DetailRow label="Account" value={transaction.account} />
-          <DetailRow label="Memo" value={transaction.memo} />
-          <Divider />
-          <DetailRow
-            label="Date"
-            value={`${transaction.time} ${transaction.day}`}
-          />
-          <DetailRow label="Transaction status" value={transaction.status} />
-          <DetailRow label="Fund status" value="Deposited" />
-          <DetailRow label="Time spent" value={transaction.timeSpent} />
-          <DetailRow
-            label="Onchain receipt"
-            value="View in explorer"
-            linkHref="#"
-          />
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-white/50">
+              Recipient
+            </p>
+            <p className="font-medium text-text-body dark:text-white">
+              {transaction.recipient.account_name}
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-white/50">Bank</p>
+            <p className="font-medium text-text-body dark:text-white">
+              {transaction.recipient.institution}
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-white/50">Account</p>
+            <p className="font-medium text-text-body dark:text-white">
+              {transaction.recipient.account_identifier}
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-white/50">Status</p>
+            <span
+              className={`rounded-full px-2 py-1 text-xs ${
+                transaction.status === "completed" ||
+                transaction.status === "settled"
+                  ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                  : transaction.status === "failed" ||
+                      transaction.status === "refunded"
+                    ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+                    : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
+              }`}
+            >
+              {transaction.status}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 dark:text-white/50">Date</p>
+            <p className="font-medium text-text-body dark:text-white">
+              {new Date(transaction.created_at).toLocaleString()}
+            </p>
+          </div>
+
+          {transaction.time_spent && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-500 dark:text-white/50">
+                Time spent
+              </p>
+              <p className="font-medium text-text-body dark:text-white">
+                {transaction.time_spent}
+              </p>
+            </div>
+          )}
+
+          {transaction.memo && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-500 dark:text-white/50">Memo</p>
+              <p className="font-medium text-text-body dark:text-white">
+                {transaction.memo}
+              </p>
+            </div>
+          )}
+
+          {transaction.tx_hash && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-500 dark:text-white/50">
+                Transaction hash
+              </p>
+              <a
+                href={`https://etherscan.io/tx/${transaction.tx_hash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-lavender-500 hover:underline"
+              >
+                {transaction.tx_hash.slice(0, 6)}...
+                {transaction.tx_hash.slice(-4)}
+              </a>
+            </div>
+          )}
         </div>
       </div>
 
@@ -195,4 +258,4 @@ export const TransactionDetails = ({
       </div>
     </motion.div>
   );
-};
+}

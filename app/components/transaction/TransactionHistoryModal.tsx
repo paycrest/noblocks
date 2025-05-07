@@ -6,7 +6,7 @@ import { Cancel01Icon, ArrowLeft02Icon } from "hugeicons-react";
 import { slideUpAnimation } from "../AnimatedComponents";
 import { TransactionList } from "./TransactionList";
 import { TransactionDetails } from "./TransactionDetails";
-import type { Transaction } from "./types";
+import type { Transaction } from "../../types";
 
 interface TransactionHistoryModalProps {
   isOpen: boolean;

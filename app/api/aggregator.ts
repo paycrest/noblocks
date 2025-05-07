@@ -9,6 +9,9 @@ import type {
   InitiateKYCResponse,
   KYCStatusResponse,
   OrderDetailsResponse,
+  Transaction,
+  TransactionResponse,
+  TransactionCreateInput,
 } from "../types";
 
 const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
@@ -126,3 +129,36 @@ export const detectUserLocation = async (): Promise<string> => {
     return "";
   }
 };
+
+export async function fetchTransactions(
+  address: string,
+  accessToken: string,
+  page: number = 1,
+  limit: number = 20,
+) {
+  const response = await axios.get<TransactionResponse>(
+    `/api/v1/transactions/address/${address}?page=${page}&limit=${limit}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+  return response.data;
+}
+
+export async function saveTransaction(
+  transaction: TransactionCreateInput,
+  accessToken: string,
+) {
+  const response = await axios.post<{ success: boolean; error?: string }>(
+    "/api/v1/transactions",
+    transaction,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+  return response.data;
+}

@@ -240,35 +240,47 @@ export type Config = {
 export type Network = {
   chain: any;
   imageUrl:
-  | string
-  | {
-    light: string;
-    dark: string;
-  };
+    | string
+    | {
+        light: string;
+        dark: string;
+      };
 };
 
 export interface Transaction {
   id: string;
-  type: string;
-  amount: string;
-  currency: string;
-  swappedCurrency?: string;
-  nativeValue: string;
-  time: string;
+  wallet_address: string;
+  transaction_type: string;
+  from_currency: string;
+  to_currency: string;
+  amount_sent: number;
+  amount_received: number;
+  fee: number;
+  recipient: {
+    account_name: string;
+    institution: string;
+    account_identifier: string;
+  };
   status: string;
-  fees?: string;
-  day?: string;
-  recipient?: string;
-  bank?: string;
-  account?: string;
   memo?: string;
-  fundStatus?: string;
-  timeSpent?: string;
+  created_at: string;
+  time_spent?: string;
+  tx_hash?: string;
+}
+
+export interface TransactionResponse {
+  success: boolean;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    transactions: Transaction[];
+  };
 }
 
 // tx history API endpoints types
-export type TransactionStatus = 'pending' | 'completed' | 'failed';
-export type TransactionHistoryType = 'swap' | 'transfer';
+export type TransactionStatus = "pending" | "completed" | "failed";
+export type TransactionHistoryType = "swap" | "transfer";
 
 export interface Recipient {
   account_name: string;
@@ -307,23 +319,13 @@ export interface TransactionCreateInput {
   txHash?: string;
 }
 
-export interface TransactionResponse {
-  success: boolean;
-  data: {
-    total: number;
-    page: number;
-    limit: number;
-    transactions: TransactionHistory[];
-  };
-}
-
 export interface TransactionUpdateInput {
   status: TransactionStatus;
   timeSpent?: string;
   txHash?: string;
 }
 
-export type JWTProvider = 'privy' | 'thirdweb';
+export type JWTProvider = "privy" | "thirdweb";
 
 export interface JWTProviderConfig {
   provider: JWTProvider;

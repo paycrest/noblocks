@@ -5,14 +5,16 @@ import { withRateLimit } from '@/app/lib/rate-limit';
 
 export const GET = withRateLimit(async (
     request: NextRequest,
-    context?: { params?: { address: string } }
+    context: { params: Promise<{ address: string }> }
 ) => {
     try {
-        // Get address from params or URL
-        const address = context?.params?.address ||
-            request.nextUrl.pathname.split('/').pop();
-        
-        if (!address) {
+        // Await params to get the address
+        const { address } = await context.params;
+
+        // Fallback to URL pathname if address is not in params
+        const finalAddress = address || request.nextUrl.pathname.split('/').pop();
+
+        if (!finalAddress) {
             return NextResponse.json(
                 { success: false, error: 'Missing wallet address' },
                 { status: 400 }

@@ -17,19 +17,16 @@ export default function TestTransactionsPage() {
   const [total, setTotal] = useState(0);
   const limit = 20;
 
+
   const isSmartWallet = user?.linkedAccounts.some(
     (account) => account.type === "smart_wallet",
   );
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
-
   const embeddedWallet = user?.linkedAccounts.find(
-    (account) => account.type === "wallet",
-  );
+    (account) => account.type === "wallet" && account.connectorType === "embedded"
+  ) as { address: string } | undefined;
 
-  const walletAddress = smartWallet?.address || embeddedWallet?.address;
+  const walletAddress = embeddedWallet?.address;
 
   const fetchTransactionData = async () => {
     if (!walletAddress) return;
@@ -39,6 +36,7 @@ export default function TestTransactionsPage() {
       if (!accessToken) {
         throw new Error("No access token available");
       }
+
       const data = await fetchTransactions(
         walletAddress,
         accessToken,
@@ -68,16 +66,17 @@ export default function TestTransactionsPage() {
 
       const mockTransaction = {
         walletAddress,
-        transactionType: "swap" as const,
-        fromCurrency: "USDC",
-        toCurrency: "NGN",
-        amountSent: 100,
-        amountReceived: 150000,
-        fee: 1.5,
+        transactionType: "transfer" as const,
+        fromCurrency: "UGX",
+        toCurrency: "KES",
+        amountSent: 400,
+        amountReceived: 90000,
+        fee: 200,
         recipient: {
           account_name: "John Doe",
           institution: "First Bank",
           account_identifier: "1234567890",
+          memo: "For Feeding"
         },
         status: "completed" as const,
         txHash: "0x" + Math.random().toString(16).slice(2),
@@ -187,13 +186,12 @@ export default function TestTransactionsPage() {
                     </p>
                   </div>
                   <span
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      tx.status === "completed"
-                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                        : tx.status === "failed"
-                          ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                          : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                    }`}
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${tx.status === "completed"
+                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                      : tx.status === "failed"
+                        ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                      }`}
                   >
                     {tx.status}
                   </span>

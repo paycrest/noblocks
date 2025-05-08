@@ -33,6 +33,7 @@ import { PiCheck } from "react-icons/pi";
 import { fetchRate } from "../api/aggregator";
 import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { TransactionList } from "./transaction/TransactionList";
 
 export const WalletDetails = () => {
   const [rate, setRate] = useState<number>(0);
@@ -353,19 +354,9 @@ export const WalletDetails = () => {
                             exit="exit"
                             className="flex h-full flex-col items-center justify-center gap-4 text-center"
                           >
-                            <div className="rounded-full bg-accent-gray p-4 dark:bg-white/10">
-                              <Clock01Icon className="size-8 text-text-secondary dark:text-white/50" />
-                            </div>
-                            <h3 className="text-lg font-medium text-text-body dark:text-white">
-                              Transactions Coming Soon
-                            </h3>
-                            <p className="text-sm text-text-secondary dark:text-white/50">
-                              We&apos;re working on bringing you a detailed
-                              transaction history. Stay tuned!
-                            </p>
-
-                            {/* TODO: feature coming soon */}
-                            {/* <TransactionDetails transaction={selectedTransaction} /> */}
+                            <TransactionList
+                              onSelectTransaction={setSelectedTransaction}
+                            />
                           </motion.div>
                         )}
                       </AnimatePresence>

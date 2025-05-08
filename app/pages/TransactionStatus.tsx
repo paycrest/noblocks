@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { AnimatePresence } from "framer-motion";
 import { PiSpinnerBold } from "react-icons/pi";
 import { Checkbox } from "@headlessui/react";
@@ -94,6 +94,7 @@ export function TransactionStatus({
   const [addToBeneficiaries, setAddToBeneficiaries] = useState(false);
   const [isTracked, setIsTracked] = useState(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
+  const [hasShownConfetti, setHasShownConfetti] = useState(false);
 
   const fireConfetti = useConfetti();
 
@@ -103,6 +104,18 @@ export function TransactionStatus({
   const amount = watch("amountSent") || 0;
   const fiat = Number(watch("amountReceived")) || 0;
   const recipientName = String(watch("recipientName")) || "";
+  const accountIdentifier = watch("accountIdentifier") || "";
+  const institution = watch("institution") || "";
+
+  // Check if recipient is already in beneficiaries
+  const isRecipientInBeneficiaries = useMemo(() => {
+    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
+    return savedRecipients.some(
+      (r: { accountIdentifier: string; institutionCode: string }) =>
+        r.accountIdentifier === accountIdentifier &&
+        r.institutionCode === institution,
+    );
+  }, [accountIdentifier, institution]);
 
   const saveTransactionData = async () => {
     if (!isSmartWallet || isSavingTransaction) return;
@@ -233,20 +246,6 @@ export function TransactionStatus({
     [orderId, transactionStatus],
   );
 
-  // Check if the recipient is saved in the beneficiaries list
-  useEffect(
-    function checkRecipientInBeneficiaries() {
-      const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
-      const isRecipientSaved = savedRecipients.some(
-        (r: { accountIdentifier: string; institutionCode: string }) =>
-          r.accountIdentifier === formMethods.watch("accountIdentifier") &&
-          r.institutionCode === formMethods.watch("institution"),
-      );
-      setAddToBeneficiaries(isRecipientSaved);
-    },
-    [formMethods],
-  );
-
   useEffect(
     function trackTransactionEvents() {
       // Only track if we haven't tracked yet and have all required data
@@ -289,11 +288,15 @@ export function TransactionStatus({
 
   useEffect(
     function fireConfettiOnSuccess() {
-      if (["validated", "settled"].includes(transactionStatus)) {
+      if (
+        ["validated", "settled"].includes(transactionStatus) &&
+        !hasShownConfetti
+      ) {
         fireConfetti();
+        setHasShownConfetti(true);
       }
     },
-    [transactionStatus, fireConfetti],
+    [transactionStatus, fireConfetti, hasShownConfetti],
   );
 
   const StatusIndicator = () => (
@@ -624,6 +627,51 @@ export function TransactionStatus({
                     {isGettingReceipt ? "Generating..." : "Get receipt"}
                   </button>
                 )}
+              </AnimatedComponent>
+
+                {["validated", "settled"].includes(transactionStatus) &&
+                  !isRecipientInBeneficiaries && (
+                    <div className="flex gap-2">
+                      <Checkbox
+                        checked={addToBeneficiaries}
+                        onChange={handleAddToBeneficiariesChange}
+                        className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
+                      >
+                        <svg
+                          className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
+                          viewBox="0 0 14 14"
+                          fill="none"
+                        >
+                          <title>
+                            {addToBeneficiaries
+                              ? "Remove from beneficiaries"
+                              : "Add to your beneficiaries"}
+                          </title>
+                          <path
+                            d="M3 8L6 11L11 3.5"
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </Checkbox>
+                      <label className="text-text-body dark:text-white/80">
+                        Add{" "}
+                        {(recipientName ?? "")
+                          .split(" ")[0]
+                          .charAt(0)
+                          .toUpperCase() +
+                          (recipientName ?? "")
+                            .toLowerCase()
+                            .split(" ")[0]
+                            .slice(1)}{" "}
+                        to beneficiaries
+                      </label>
+                    </div>
+                  )}
+              </>
+            )}
+          </AnimatePresence>
 
                 <button
                   type="button"

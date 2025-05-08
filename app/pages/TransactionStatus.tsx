@@ -82,9 +82,13 @@ export function TransactionStatus({
     useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user, getAccessToken } = usePrivy();
-  const isSmartWallet = user?.linkedAccounts.some(
-    (account: { type: string }) => account.type === "smart_wallet",
-  );
+
+  const embeddedWallet = user?.linkedAccounts.find(
+    (account) =>
+      account.type === "wallet" && account.connectorType === "embedded",
+  ) as { address: string } | undefined;
+
+  const walletAddress = embeddedWallet?.address;
 
   const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
@@ -118,25 +122,17 @@ export function TransactionStatus({
   }, [accountIdentifier, institution]);
 
   const saveTransactionData = async () => {
-    if (!isSmartWallet || isSavingTransaction) return;
+    if (!walletAddress || isSavingTransaction) return;
     setIsSavingTransaction(true);
 
     try {
-      const smartWallet = user?.linkedAccounts.find(
-        (account) => account.type === "smart_wallet",
-      );
-
-      if (!smartWallet?.address) {
-        throw new Error("Smart wallet address not found");
-      }
-
       const accessToken = await getAccessToken();
       if (!accessToken) {
         throw new Error("No access token available");
       }
 
       const transactionData = {
-        walletAddress: smartWallet.address,
+        walletAddress,
         transactionType: "swap" as const,
         fromCurrency: String(token),
         toCurrency: String(currency),

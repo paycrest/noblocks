@@ -19,16 +19,15 @@ export function TransactionList({ onSelectTransaction }: TransactionListProps) {
   const [total, setTotal] = useState(0);
   const limit = 20;
 
-  const isSmartWallet = user?.linkedAccounts.some(
-    (account) => account.type === "smart_wallet",
-  );
+  const embeddedWallet = user?.linkedAccounts.find(
+    (account) =>
+      account.type === "wallet" && account.connectorType === "embedded",
+  ) as { address: string } | undefined;
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
+  const walletAddress = embeddedWallet?.address;
 
   const fetchTransactionData = async () => {
-    if (!isSmartWallet || !smartWallet?.address) return;
+    if (!walletAddress) return;
     setLoading(true);
     try {
       const accessToken = await getAccessToken();
@@ -36,7 +35,7 @@ export function TransactionList({ onSelectTransaction }: TransactionListProps) {
         throw new Error("No access token available");
       }
       const data = await fetchTransactions(
-        smartWallet.address,
+        walletAddress,
         accessToken,
         page,
         limit,
@@ -54,19 +53,19 @@ export function TransactionList({ onSelectTransaction }: TransactionListProps) {
   };
 
   useEffect(() => {
-    if (isSmartWallet && smartWallet?.address) {
+    if (walletAddress) {
       fetchTransactionData();
     }
-  }, [isSmartWallet, smartWallet?.address, page]);
+  }, [walletAddress, page]);
 
-  if (!isSmartWallet) {
+  if (!walletAddress) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
         <p className="text-gray-500 dark:text-white/50">
-          Transaction history is only available for smart wallets.
+          Transaction history is only available for embedded wallets.
         </p>
         <p className="mt-2 text-sm text-gray-400 dark:text-white/30">
-          Please use a smart wallet to view your transaction history.
+          Please use an embedded wallet to view your transaction history.
         </p>
       </div>
     );

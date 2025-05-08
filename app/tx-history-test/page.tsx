@@ -17,13 +17,9 @@ export default function TestTransactionsPage() {
   const [total, setTotal] = useState(0);
   const limit = 20;
 
-
-  const isSmartWallet = user?.linkedAccounts.some(
-    (account) => account.type === "smart_wallet",
-  );
-
   const embeddedWallet = user?.linkedAccounts.find(
-    (account) => account.type === "wallet" && account.connectorType === "embedded"
+    (account) =>
+      account.type === "wallet" && account.connectorType === "embedded",
   ) as { address: string } | undefined;
 
   const walletAddress = embeddedWallet?.address;
@@ -64,19 +60,60 @@ export default function TestTransactionsPage() {
         throw new Error("No access token available");
       }
 
+      // Generate random transaction data
+      const currencies = ["UGX", "KES", "NGN", "GHS", "ZAR", "EGP"];
+      const banks = [
+        "First Bank",
+        "Standard Bank",
+        "Access Bank",
+        "Zenith Bank",
+        "UBA",
+        "GTBank",
+      ];
+      const names = [
+        "John Doe",
+        "Jane Smith",
+        "Alice Johnson",
+        "Bob Williams",
+        "Emma Brown",
+        "Michael Davis",
+      ];
+      const memos = [
+        "For Feeding",
+        "School Fees",
+        "Rent Payment",
+        "Medical Bills",
+        "Business Payment",
+        "Family Support",
+      ];
+
+      const randomAmount = Math.floor(Math.random() * 1000) + 100;
+      const randomReceived = Math.floor(Math.random() * 100000) + 10000;
+      const randomFee = Math.floor(Math.random() * 100) + 10;
+      const randomFromCurrency =
+        currencies[Math.floor(Math.random() * currencies.length)];
+      const randomToCurrency =
+        currencies[Math.floor(Math.random() * currencies.length)];
+      const randomBank = banks[Math.floor(Math.random() * banks.length)];
+      const randomName = names[Math.floor(Math.random() * names.length)];
+      const randomMemo = memos[Math.floor(Math.random() * memos.length)];
+      const randomAccountId = Math.floor(Math.random() * 10000000000)
+        .toString()
+        .padStart(10, "0");
+
       const mockTransaction = {
         walletAddress,
         transactionType: "transfer" as const,
-        fromCurrency: "UGX",
-        toCurrency: "KES",
-        amountSent: 400,
-        amountReceived: 90000,
-        fee: 200,
+        fromCurrency: randomFromCurrency,
+        toCurrency: randomToCurrency,
+        amountSent: randomAmount,
+        amountReceived: randomReceived,
+        fee: randomFee,
         recipient: {
-          account_name: "John Doe",
-          institution: "First Bank",
-          account_identifier: "1234567890",
-          memo: "For Feeding"
+          account_name: randomName,
+          institution: randomBank,
+          account_identifier: randomAccountId,
+          memo: randomMemo,
         },
         status: "completed" as const,
         txHash: "0x" + Math.random().toString(16).slice(2),
@@ -128,8 +165,7 @@ export default function TestTransactionsPage() {
             Test Transactions
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-white/50">
-            Using {isSmartWallet ? "smart wallet" : "embedded wallet"} address:{" "}
-            {walletAddress}
+            Using embedded wallet address: {walletAddress}
           </p>
         </div>
         <button
@@ -186,12 +222,13 @@ export default function TestTransactionsPage() {
                     </p>
                   </div>
                   <span
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${tx.status === "completed"
-                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                      : tx.status === "failed"
-                        ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                      }`}
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      tx.status === "completed"
+                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                        : tx.status === "failed"
+                          ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                          : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                    }`}
                   >
                     {tx.status}
                   </span>

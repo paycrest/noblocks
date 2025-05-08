@@ -137,10 +137,11 @@ export async function fetchTransactions(
   limit: number = 20,
 ) {
   const response = await axios.get<TransactionResponse>(
-    `/api/v1/transactions/address/${address}?page=${page}&limit=${limit}`,
+    `/api/v1/transactions?page=${page}&limit=${limit}`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        "x-wallet-address": address.toLowerCase(),
       },
     },
   );

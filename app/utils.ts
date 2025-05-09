@@ -5,6 +5,23 @@ import { colors } from "./mocks";
 import { fetchRate } from "./api/aggregator";
 import { toast } from "sonner";
 
+export const SUPPORTED_TOKENS = {
+  USDC: "usdc",
+  USDT: "usdt",
+  DAI: "dai",
+  CNGN: "cngn",
+  CELO: "celo",
+  ETH: "ethereum",
+  MATIC: "polygon",
+  BNB: "bnb-smart-chain",
+  ARB: "arbitrum-one",
+  OP: "op-mainnet",
+  TRX: "tron",
+  LISK: "lisk",
+  SCROLL: "scroll",
+  BASE: "base",
+} as const;
+
 /**
  * Concatenates and returns a string of class names.
  *

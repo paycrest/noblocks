@@ -249,19 +249,103 @@ export type Network = {
 
 export interface Transaction {
   id: string;
-  type: string;
-  amount: string;
-  currency: string;
-  swappedCurrency?: string;
-  nativeValue: string;
-  time: string;
+  wallet_address: string;
+  transaction_type: string;
+  from_currency: string;
+  to_currency: string;
+  amount_sent: number;
+  amount_received: number;
+  fee: number;
+  recipient: {
+    account_name: string;
+    institution: string;
+    account_identifier: string;
+  };
   status: string;
-  fees?: string;
-  day?: string;
-  recipient?: string;
-  bank?: string;
-  account?: string;
   memo?: string;
-  fundStatus?: string;
+  created_at: string;
+  time_spent?: string;
+  tx_hash?: string;
+}
+
+export interface TransactionResponse {
+  success: boolean;
+  data: {
+    total: number;
+    page: number;
+    limit: number;
+    transactions: Transaction[];
+  };
+}
+
+// tx history API endpoints types
+export type TransactionStatus = "pending" | "completed" | "failed";
+export type TransactionHistoryType = "swap" | "transfer";
+
+export interface Recipient {
+  account_name: string;
+  institution: string;
+  account_identifier: string;
+  memo?: string;
+}
+
+export interface TransactionHistory {
+  id: string;
+  wallet_address: string;
+  transaction_type: TransactionHistoryType;
+  from_currency: string;
+  to_currency: string;
+  amount_sent: number;
+  amount_received: number;
+  fee: number;
+  recipient: Recipient;
+  status: TransactionStatus;
+  tx_hash?: string;
+  time_spent?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TransactionCreateInput {
+  walletAddress: string;
+  transactionType: TransactionHistoryType;
+  fromCurrency: string;
+  toCurrency: string;
+  amountSent: number;
+  amountReceived: number;
+  fee: number;
+  recipient: Recipient;
+  status: TransactionStatus;
+  txHash?: string;
+}
+
+export interface TransactionUpdateInput {
+  status: TransactionStatus;
   timeSpent?: string;
+  txHash?: string;
+}
+
+export type JWTProvider = "privy" | "thirdweb";
+
+export interface JWTProviderConfig {
+  provider: JWTProvider;
+  privy?: {
+    jwksUrl: string;
+    issuer: string;
+    algorithms: string[];
+  };
+  thirdweb?: {
+    clientId: string;
+    domain: string;
+  };
+}
+
+export interface JWTPayload {
+  sub: string; // User ID (e.g., did:privy:...) or wallet address
+  [key: string]: any;
+}
+
+export interface VerifyJWTResult {
+  payload: JWTPayload;
+  provider: JWTProvider;
 }

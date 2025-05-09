@@ -6,7 +6,7 @@ import { Cancel01Icon, ArrowLeft02Icon } from "hugeicons-react";
 import { slideUpAnimation } from "../AnimatedComponents";
 import { TransactionList } from "./TransactionList";
 import { TransactionDetails } from "./TransactionDetails";
-import type { Transaction } from "./types";
+import type { Transaction } from "../../types";
 
 interface TransactionHistoryModalProps {
   isOpen: boolean;
@@ -87,7 +87,7 @@ export const TransactionHistoryModal = ({
                           />
                         </div>
 
-                        <div className="scrollbar-hide max-h-[80vh] overflow-y-auto pb-4">
+                        <div className="scrollbar-hide max-h-[80vh] w-full overflow-y-auto pb-4">
                           <TransactionDetails
                             transaction={selectedTransaction}
                           />

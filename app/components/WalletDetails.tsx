@@ -28,11 +28,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { sidebarAnimation, fadeInOut } from "./AnimatedComponents";
 // import { TransactionList } from "./transaction/TransactionList";
 import { TransactionDetails } from "./transaction/TransactionDetails";
-import type { Transaction } from "./transaction/types";
+import type { Transaction } from "../types";
 import { PiCheck } from "react-icons/pi";
 import { fetchRate } from "../api/aggregator";
 import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { TransactionList } from "./transaction/TransactionList";
 
 export const WalletDetails = () => {
   const [rate, setRate] = useState<number>(0);
@@ -174,7 +175,7 @@ export const WalletDetails = () => {
                         Back
                       </button>
                     </div>
-                    <div className="scrollbar-hide -mx-6 flex-1 overflow-y-auto px-5">
+                    <div className="scrollbar-hide flex-1 overflow-y-auto">
                       <TransactionDetails transaction={selectedTransaction} />
                     </div>
                   </div>
@@ -274,7 +275,7 @@ export const WalletDetails = () => {
                       </button>
                     </div>
 
-                    <div className="mt-6 flex-grow overflow-y-scroll">
+                    <div className="scrollbar-hide mt-6 w-full flex-grow overflow-y-scroll">
                       <AnimatePresence mode="wait">
                         {activeTab === "balances" ? (
                           <motion.div
@@ -351,21 +352,11 @@ export const WalletDetails = () => {
                             initial="initial"
                             animate="animate"
                             exit="exit"
-                            className="flex h-full flex-col items-center justify-center gap-4 text-center"
+                            className="flex h-full flex-col items-center gap-4 text-center"
                           >
-                            <div className="rounded-full bg-accent-gray p-4 dark:bg-white/10">
-                              <Clock01Icon className="size-8 text-text-secondary dark:text-white/50" />
-                            </div>
-                            <h3 className="text-lg font-medium text-text-body dark:text-white">
-                              Transactions Coming Soon
-                            </h3>
-                            <p className="text-sm text-text-secondary dark:text-white/50">
-                              We&apos;re working on bringing you a detailed
-                              transaction history. Stay tuned!
-                            </p>
-
-                            {/* TODO: feature coming soon */}
-                            {/* <TransactionDetails transaction={selectedTransaction} /> */}
+                            <TransactionList
+                              onSelectTransaction={setSelectedTransaction}
+                            />
                           </motion.div>
                         )}
                       </AnimatePresence>

@@ -87,7 +87,7 @@ export const TransactionHistoryModal = ({
                           />
                         </div>
 
-                        <div className="scrollbar-hide max-h-[80vh] overflow-y-auto pb-4">
+                        <div className="scrollbar-hide max-h-[80vh] w-full overflow-y-auto pb-4">
                           <TransactionDetails
                             transaction={selectedTransaction}
                           />

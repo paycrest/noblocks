@@ -68,6 +68,16 @@ Body:
 }
 ```
 
+### Update Transaction Status
+
+```typescript
+PUT /api/v1/transactions/status/:id
+Body:
+{
+    status: string;
+}
+```
+
 ## Security
 
 ### Row Level Security
@@ -91,12 +101,10 @@ Body:
 
 ## Error Handling
 
-Common transaction errors:
-
-- Invalid wallet address
-- Insufficient funds
-- Network errors
-- Rate limit exceeded
+- 401: Unauthorized - Missing or invalid wallet address
+- 403: Forbidden - Wallet address mismatch
+- 404: Not Found - Transaction not found
+- 500: Internal Server Error - Server-side error
 
 ## Best Practices
 

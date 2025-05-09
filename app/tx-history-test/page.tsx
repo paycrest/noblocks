@@ -61,7 +61,22 @@ export default function TestTransactionsPage() {
       }
 
       // Generate random transaction data
-      const currencies = ["UGX", "KES", "NGN", "GHS", "ZAR", "EGP"];
+      const currencies = [
+        "USDC",
+        "USDT",
+        "DAI",
+        "CNGN",
+        "CELO",
+        "ETH",
+        "MATIC",
+        "BNB",
+        "ARB",
+        "OP",
+        "TRX",
+        "LISK",
+        "SCROLL",
+        "BASE",
+      ];
       const banks = [
         "First Bank",
         "Standard Bank",

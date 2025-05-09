@@ -43,3 +43,6 @@ next-env.d.ts
 
 # editor
 .vscode
+
+# cursor
+.cursor/

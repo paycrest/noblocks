@@ -1,23 +1,123 @@
 "use client";
-import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import Image from "next/image";
+import { classNames, SUPPORTED_TOKENS } from "../../utils";
+import type { Transaction } from "../../types";
+import { useEffect, useState } from "react";
+import { fetchTransactions } from "../../api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "sonner";
-import { fetchTransactions } from "../../api/aggregator";
-import type { Transaction } from "../../types";
 import { PiSpinnerBold } from "react-icons/pi";
-import { formatNumberWithCommas } from "../../utils";
+import { useActualTheme } from "../../hooks/useActualTheme";
 
 interface TransactionListProps {
-  onSelectTransaction: (transaction: Transaction) => void;
+  onSelectTransaction: (t: Transaction) => void;
 }
 
-export function TransactionList({ onSelectTransaction }: TransactionListProps) {
+const Divider = () => (
+  <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
+);
+
+export const TransactionListItem = ({
+  transaction,
+  onClick,
+}: {
+  transaction: Transaction;
+  onClick: () => void;
+}) => {
+  const tokenKey =
+    transaction.from_currency.toUpperCase() as keyof typeof SUPPORTED_TOKENS;
+  const tokenLogo = SUPPORTED_TOKENS[tokenKey] || "usdc";
+  const isDark = useActualTheme();
+
+  return (
+    <div
+      onClick={onClick}
+      className="group flex cursor-pointer items-start justify-between rounded-xl px-2 py-2 transition-all hover:bg-gray-50 dark:hover:bg-white/5"
+    >
+      <div className="flex items-center gap-2">
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center gap-x-2">
+            <Image
+              src={
+                tokenLogo === "lisk"
+                  ? isDark
+                    ? "/logos/lisk-logo-dark.svg"
+                    : "/logos/lisk-logo-light.svg"
+                  : `/logos/${tokenLogo}-logo.svg`
+              }
+              alt={transaction.from_currency}
+              width={16}
+              height={16}
+              quality={90}
+            />
+            <span className="capitalize dark:text-white/80">
+              {transaction.transaction_type} {transaction.amount_sent}{" "}
+              {transaction.from_currency}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-text-disabled dark:text-white/30">
+              {new Date(transaction.created_at).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+            <span className="size-1 bg-icon-outline-disabled dark:bg-white/5"></span>
+            <span
+              className={classNames(
+                transaction.status === "completed"
+                  ? "text-green-500"
+                  : "text-red-500",
+                "capitalize",
+              )}
+            >
+              {transaction.status}
+            </span>
+          </div>
+        </div>
+      </div>
+      <motion.span
+        className="text-sm text-text-secondary dark:text-white/50"
+        initial={{ x: 0 }}
+        whileHover={{ x: -4 }}
+        transition={{ duration: 0.2 }}
+      >
+        {transaction.amount_received.toLocaleString()} {transaction.to_currency}
+      </motion.span>
+    </div>
+  );
+};
+
+const getRelativeDate = (date: Date): string => {
+  const now = new Date();
+  const diffTime = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return "Today";
+  } else if (diffDays === 1) {
+    return "Yesterday";
+  } else if (diffDays < 7) {
+    return `${diffDays} days ago`;
+  } else if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `${weeks} ${weeks === 1 ? "week" : "weeks"} ago`;
+  } else if (diffDays < 365) {
+    const months = Math.floor(diffDays / 30);
+    return `${months} ${months === 1 ? "month" : "months"} ago`;
+  } else {
+    const years = Math.floor(diffDays / 365);
+    return `${years} ${years === 1 ? "year" : "years"} ago`;
+  }
+};
+
+export const TransactionList = ({
+  onSelectTransaction,
+}: TransactionListProps) => {
   const { user, getAccessToken } = usePrivy();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const limit = 20;
 
   const embeddedWallet = user?.linkedAccounts.find(
     (account) =>
@@ -34,15 +134,10 @@ export function TransactionList({ onSelectTransaction }: TransactionListProps) {
       if (!accessToken) {
         throw new Error("No access token available");
       }
-      const data = await fetchTransactions(
-        walletAddress,
-        accessToken,
-        page,
-        limit,
-      );
+
+      const data = await fetchTransactions(walletAddress, accessToken);
       if (data.success) {
         setTransactions(data.data.transactions);
-        setTotal(data.data.total);
       }
     } catch (error) {
       console.error("Error fetching transactions:", error);
@@ -56,20 +151,7 @@ export function TransactionList({ onSelectTransaction }: TransactionListProps) {
     if (walletAddress) {
       fetchTransactionData();
     }
-  }, [walletAddress, page]);
-
-  if (!walletAddress) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 text-center">
-        <p className="text-gray-500 dark:text-white/50">
-          Transaction history is only available for embedded wallets.
-        </p>
-        <p className="mt-2 text-sm text-gray-400 dark:text-white/30">
-          Please use an embedded wallet to view your transaction history.
-        </p>
-      </div>
-    );
-  }
+  }, [walletAddress]);
 
   if (loading) {
     return (
@@ -81,7 +163,7 @@ export function TransactionList({ onSelectTransaction }: TransactionListProps) {
 
   if (transactions.length === 0) {
     return (
-      <div className="flex h-40 flex-col items-center justify-center gap-2 text-center">
+      <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-8 text-center dark:border-white/10 dark:bg-white/5">
         <p className="text-lg font-medium text-gray-900 dark:text-white">
           No transactions yet
         </p>
@@ -92,64 +174,49 @@ export function TransactionList({ onSelectTransaction }: TransactionListProps) {
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="scrollbar-hide max-h-[60vh] space-y-2 overflow-y-auto">
-        {transactions.map((tx) => (
-          <button
-            key={tx.id}
-            onClick={() => onSelectTransaction(tx)}
-            className="w-full rounded-lg border border-border-light p-4 text-left hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-text-body dark:text-white">
-                  {formatNumberWithCommas(tx.amount_sent)} {tx.from_currency} →{" "}
-                  {formatNumberWithCommas(tx.amount_received)} {tx.to_currency}
-                </p>
-                <p className="mt-1 text-sm text-gray-500 dark:text-white/50">
-                  To: {tx.recipient.account_name} ({tx.recipient.institution})
-                </p>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <span
-                  className={`rounded-full px-2 py-1 text-xs ${
-                    tx.status === "completed" || tx.status === "settled"
-                      ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                      : tx.status === "failed" || tx.status === "refunded"
-                        ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400"
-                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400"
-                  }`}
-                >
-                  {tx.status}
-                </span>
-                <span className="text-xs text-gray-500 dark:text-white/50">
-                  {new Date(tx.created_at).toLocaleDateString()}
-                </span>
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
+  // Group transactions by date
+  const groupedTransactions = transactions.reduce(
+    (groups, transaction) => {
+      const date = new Date(transaction.created_at);
+      const relativeDate = getRelativeDate(date);
 
-      {total > limit && (
-        <div className="flex justify-center gap-2 pt-4">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="rounded-lg border border-border-light px-4 py-2 text-sm disabled:opacity-50 dark:border-white/5"
-          >
-            Previous
-          </button>
-          <button
-            onClick={() => setPage((p) => p + 1)}
-            disabled={page * limit >= total}
-            className="rounded-lg border border-border-light px-4 py-2 text-sm disabled:opacity-50 dark:border-white/5"
-          >
-            Next
-          </button>
+      if (!groups[relativeDate]) {
+        groups[relativeDate] = [];
+      }
+      groups[relativeDate].push(transaction);
+      return groups;
+    },
+    {} as Record<string, Transaction[]>,
+  );
+
+  // Sort groups by date (most recent first)
+  const sortedGroups = Object.entries(groupedTransactions).sort((a, b) => {
+    const dateA = new Date(a[1][0].created_at);
+    const dateB = new Date(b[1][0].created_at);
+    return dateB.getTime() - dateA.getTime();
+  });
+
+  return (
+    <div className="scrollbar-hide max-h-[80vh] w-full space-y-6 overflow-y-auto">
+      {sortedGroups.map(([date, transactions]) => (
+        <div key={date} className="space-y-3">
+          <div className="flex items-center justify-between gap-x-6">
+            <h3 className="whitespace-nowrap text-sm font-medium text-text-secondary dark:text-white/50">
+              {date}
+            </h3>
+            <Divider />
+          </div>
+          <div className="space-y-2">
+            {transactions.map((transaction) => (
+              <TransactionListItem
+                key={transaction.id}
+                transaction={transaction}
+                onClick={() => onSelectTransaction(transaction)}
+              />
+            ))}
+          </div>
         </div>
-      )}
+      ))}
     </div>
   );
-}
+};

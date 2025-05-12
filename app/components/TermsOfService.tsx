@@ -524,7 +524,7 @@ export const TermsOfService = () => {
       <p>8.1 Data Collection</p>
       <p>
         Please refer to our{" "}
-        <Link href="/privacy_policy" className="text-blue-500 hover:underline">
+        <Link href="/privacy-policy" className="text-blue-500 hover:underline">
           Privacy Policy
         </Link>{" "}
         for information about how we collect, use, and share information from

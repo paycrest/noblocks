@@ -650,3 +650,102 @@ export function getNetworkImageUrl(network: Network, isDark: boolean): string {
   }
   return isDark ? network.imageUrl.dark : network.imageUrl.light;
 }
+
+/**
+ * Converts a currency code to its corresponding country code.
+ * For most currencies, returns the first two letters of the currency code in lowercase.
+ * For special cases like XAF, XOF etc, returns specific country codes from the overrides.
+ *
+ * @param currency - The currency code (e.g. "USD", "XAF", "NGN")
+ * @returns The two-letter country code in lowercase
+ */
+export const currencyToCountryCode = (currency: string) => {
+  const currencyOverrides: Record<string, string> = {
+    XAF: "cm", // Central African CFA Franc (Cameroon)
+    XOF: "sn", // West African CFA Franc (Senegal)
+    XCD: "ag", // East Caribbean Dollar (Antigua & Barbuda)
+    XPF: "nc", // CFP Franc (New Caledonia)
+    XDR: "", // No country (IMF Special Drawing Rights)
+  };
+
+  return currencyOverrides[currency] || currency.slice(0, 2).toLowerCase();
+};
+
+export const generatePaginationItems = (
+  currentPage: number,
+  totalPages: number,
+) => {
+  const items = [];
+  const maxVisiblePages = 5;
+
+  if (totalPages <= maxVisiblePages) {
+    // If total pages is less than max visible, show all pages
+    for (let i = 1; i <= totalPages; i++) {
+      items.push(i);
+    }
+  } else {
+    // Always show first page
+    items.push(1);
+
+    // Calculate start and end of visible pages
+    let start = Math.max(2, currentPage - 1);
+    let end = Math.min(totalPages - 1, currentPage + 1);
+
+    // Adjust if at the start
+    if (currentPage <= 2) {
+      end = 4;
+    }
+    // Adjust if at the end
+    if (currentPage >= totalPages - 1) {
+      start = totalPages - 3;
+    }
+
+    // Add ellipsis after first page if needed
+    if (start > 2) {
+      items.push("...");
+    }
+
+    // Add middle pages
+    for (let i = start; i <= end; i++) {
+      items.push(i);
+    }
+
+    // Add ellipsis before last page if needed
+    if (end < totalPages - 1) {
+      items.push("...");
+    }
+
+    // Always show last page
+    items.push(totalPages);
+  }
+
+  return items;
+};
+
+/**
+ * Formats a date into a relative time string (e.g., "Today", "Yesterday", "2 days ago")
+ * @param date - The date to format
+ * @returns A string representing the relative time
+ */
+export const getRelativeDate = (date: Date): string => {
+  const now = new Date();
+  const diffTime = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return "Today";
+  } else if (diffDays === 1) {
+    return "Yesterday";
+  } else if (diffDays < 7) {
+    return `${diffDays} days ago`;
+  } else if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `${weeks} ${weeks === 1 ? "week" : "weeks"} ago`;
+  } else if (diffDays < 365) {
+    const months = Math.floor(diffDays / 30);
+    return `${months} ${months === 1 ? "month" : "months"} ago`;
+  } else {
+    const years = Math.floor(diffDays / 365);
+    return `${years} ${years === 1 ? "year" : "years"} ago`;
+  }
+};

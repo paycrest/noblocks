@@ -95,9 +95,42 @@ Body:
 
 1. User initiates transaction
 2. System validates wallet address
-3. Transaction is created in database
-4. Status is updated as transaction progresses
-5. Final status and hash are recorded
+3. Transaction is created in database with status "incomplete"
+4. Transaction ID is stored in localStorage for subsequent updates
+5. Status is updated as transaction progresses through the following states:
+   - incomplete: Initial state when transaction is created
+   - pending: Order has been created but not yet processed
+   - processing: Transaction is being processed
+   - fulfilled: Transaction has been fulfilled but not yet settled
+   - completed: Transaction has been validated and settled
+   - refunded: Transaction failed and funds were refunded
+6. Final status and hash are recorded
+
+## Transaction Status Updates
+
+The application uses a request ID system to handle race conditions when multiple status updates are triggered. Only the latest update attempt will complete, older ones will be skipped.
+
+### Status Update Flow
+
+1. Transaction is created in `TransactionPreview` with status "incomplete"
+2. Transaction ID is stored in localStorage as 'currentTransactionId'
+3. Status updates in `TransactionStatus` use the stored transaction ID
+4. Each status update is tracked with a request ID to prevent race conditions
+5. Only the most recent status update will be processed
+
+### Status Mapping
+
+The application maps blockchain transaction statuses to internal statuses:
+
+```typescript
+const status = transactionStatus === "refunded"
+  ? "refunded"
+  : transactionStatus === "validated" || transactionStatus === "settled"
+    ? "completed"
+    : transactionStatus === "fulfilled"
+      ? "fulfilled"
+      : "incomplete";
+```
 
 ## Error Handling
 

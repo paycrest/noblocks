@@ -26,14 +26,13 @@ import { toast } from "sonner";
 import { Dialog } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { sidebarAnimation, fadeInOut } from "./AnimatedComponents";
-// import { TransactionList } from "./transaction/TransactionList";
 import { TransactionDetails } from "./transaction/TransactionDetails";
-import type { Transaction } from "../types";
+import type { TransactionHistory } from "../types";
 import { PiCheck } from "react-icons/pi";
 import { fetchRate } from "../api/aggregator";
 import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
 import { useActualTheme } from "../hooks/useActualTheme";
-import { TransactionList } from "./transaction/TransactionList";
+import TransactionList from "./transaction/TransactionList";
 
 export const WalletDetails = () => {
   const [rate, setRate] = useState<number>(0);
@@ -45,7 +44,7 @@ export const WalletDetails = () => {
   );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] =
-    useState<Transaction | null>(null);
+    useState<TransactionHistory | null>(null);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
 
   const { selectedNetwork } = useNetwork();
@@ -54,16 +53,20 @@ export const WalletDetails = () => {
   const { user } = usePrivy();
   const isDark = useActualTheme();
 
+  // Custom hook for handling wallet funding
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
 
+  // Determine active wallet based on wallet type
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
+  // Get appropriate balance based on wallet type
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
     : allBalances.smartWallet;
 
+  // Handler for funding wallet with specified amount and token
   const handleFundWalletClick = async (
     amount: string,
     tokenAddress: `0x${string}`,
@@ -77,11 +80,13 @@ export const WalletDetails = () => {
     );
   };
 
+  // Close sidebar and reset selected transaction
   const handleSidebarClose = () => {
     setIsSidebarOpen(false);
     setSelectedTransaction(null);
   };
 
+  // Copy wallet address to clipboard with feedback
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(activeWallet?.address ?? "");
     setIsAddressCopied(true);
@@ -89,10 +94,12 @@ export const WalletDetails = () => {
     setTimeout(() => setIsAddressCopied(false), 2000);
   };
 
+  // Reset selected transaction to show transaction list
   const handleBackToList = () => {
     setSelectedTransaction(null);
   };
 
+  // Fetch CNGN rate on component mount
   useEffect(() => {
     const getCNGNRate = async () => {
       try {
@@ -115,6 +122,7 @@ export const WalletDetails = () => {
 
   return (
     <>
+      {/* Wallet balance button in header */}
       <button
         type="button"
         title="Wallet balance"
@@ -141,6 +149,7 @@ export const WalletDetails = () => {
         </div>
       </button>
 
+      {/* Sidebar dialog for wallet details */}
       <AnimatePresence>
         {isSidebarOpen && (
           <Dialog
@@ -150,6 +159,7 @@ export const WalletDetails = () => {
             open={isSidebarOpen}
           >
             <div className="flex h-full">
+              {/* Backdrop overlay */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -158,11 +168,13 @@ export const WalletDetails = () => {
                 onClick={handleSidebarClose}
               />
 
+              {/* Sidebar content */}
               <motion.div
                 {...sidebarAnimation}
                 className="z-50 my-4 ml-auto mr-4 flex h-[calc(100%-32px)] w-full max-w-[396px] flex-col overflow-hidden rounded-[20px] border border-border-light bg-white shadow-lg dark:border-white/5 dark:bg-surface-overlay"
               >
                 {selectedTransaction ? (
+                  // Transaction details view for selected transaction
                   <div className="flex h-full flex-col p-6">
                     <div className="mb-6 flex items-center gap-3">
                       <button
@@ -180,7 +192,9 @@ export const WalletDetails = () => {
                     </div>
                   </div>
                 ) : (
+                  // Main wallet view
                   <div className="flex h-full flex-col p-5">
+                    {/* Header with close button */}
                     <div className="flex items-center justify-between">
                       <h2 className="text-lg font-semibold text-text-body dark:text-white">
                         Wallet
@@ -195,6 +209,7 @@ export const WalletDetails = () => {
                       </button>
                     </div>
 
+                    {/* Wallet info card */}
                     <div className="mt-6 space-y-6 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/10">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
@@ -204,6 +219,7 @@ export const WalletDetails = () => {
                           </p>
                         </div>
                         <button
+                          type="button"
                           onClick={handleCopyAddress}
                           title="Copy wallet address"
                           className="rounded-lg p-2 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
@@ -246,6 +262,7 @@ export const WalletDetails = () => {
                       )}
                     </div>
 
+                    {/* Tab navigation */}
                     <div className="mt-6 flex items-center gap-6">
                       <button
                         type="button"
@@ -275,9 +292,11 @@ export const WalletDetails = () => {
                       </button>
                     </div>
 
+                    {/* Tab content */}
                     <div className="scrollbar-hide mt-6 w-full flex-grow overflow-y-scroll">
                       <AnimatePresence mode="wait">
                         {activeTab === "balances" ? (
+                          // Balances tab content
                           <motion.div
                             key="balances"
                             variants={fadeInOut}
@@ -346,6 +365,7 @@ export const WalletDetails = () => {
                             )}
                           </motion.div>
                         ) : (
+                          // Transactions tab content
                           <motion.div
                             key="transactions"
                             variants={fadeInOut}
@@ -369,6 +389,7 @@ export const WalletDetails = () => {
         )}
       </AnimatePresence>
 
+      {/* Transfer and Fund modals */}
       {!isInjectedWallet && (
         <>
           <TransferModal

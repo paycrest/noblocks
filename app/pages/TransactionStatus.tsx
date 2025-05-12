@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
 import { PiSpinnerBold } from "react-icons/pi";
 import { Checkbox } from "@headlessui/react";
@@ -31,7 +31,11 @@ import {
   getInstitutionNameByCode,
   getSavedRecipients,
 } from "../utils";
-import { fetchOrderDetails, saveTransaction } from "../api/aggregator";
+import {
+  fetchOrderDetails,
+  saveTransaction,
+  updateTransactionDetails,
+} from "../api/aggregator";
 import {
   STEPS,
   type OrderDetailsData,
@@ -88,17 +92,14 @@ export function TransactionStatus({
       account.type === "wallet" && account.connectorType === "embedded",
   ) as { address: string } | undefined;
 
-  const walletAddress = embeddedWallet?.address;
-
   const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
   const [createdHash, setCreatedHash] = useState("");
-
   const [isGettingReceipt, setIsGettingReceipt] = useState(false);
   const [addToBeneficiaries, setAddToBeneficiaries] = useState(false);
   const [isTracked, setIsTracked] = useState(false);
-  const [isSavingTransaction, setIsSavingTransaction] = useState(false);
   const [hasShownConfetti, setHasShownConfetti] = useState(false);
+  const latestRequestIdRef = useRef<number>(0);
 
   const fireConfetti = useConfetti();
 
@@ -121,9 +122,16 @@ export function TransactionStatus({
     );
   }, [accountIdentifier, institution]);
 
+  /**
+   * Updates transaction status in the backend
+   * Uses a request ID system to handle race conditions when multiple updates are triggered
+   * Only the latest update attempt will complete, older ones will be skipped
+   */
   const saveTransactionData = async () => {
-    if (!walletAddress || isSavingTransaction) return;
-    setIsSavingTransaction(true);
+    if (!embeddedWallet?.address) return;
+
+    // Increment request ID to mark this as the latest request
+    const requestId = ++latestRequestIdRef.current;
 
     try {
       const accessToken = await getAccessToken();
@@ -131,47 +139,51 @@ export function TransactionStatus({
         throw new Error("No access token available");
       }
 
-      const transactionData = {
-        walletAddress,
-        transactionType: "swap" as const,
-        fromCurrency: String(token),
-        toCurrency: String(currency),
-        amountSent: Number(amount),
-        amountReceived: Number(fiat),
-        fee: 0,
-        recipient: {
-          account_name: String(recipientName),
-          institution:
-            getInstitutionNameByCode(
-              String(formMethods.watch("institution")),
-              supportedInstitutions,
-            ) || "Unknown Bank",
-          account_identifier: String(formMethods.watch("accountIdentifier")),
-        },
-        status: (transactionStatus === "refunded"
-          ? "failed"
-          : transactionStatus === "validated" || transactionStatus === "settled"
-            ? "completed"
-            : "pending") as "pending" | "completed" | "failed",
-        memo: formMethods.watch("memo")
-          ? String(formMethods.watch("memo"))
-          : undefined,
-        timeSpent: calculateDuration(createdAt, completedAt),
-        txHash: createdHash,
-      };
-
-      const response = await saveTransaction(transactionData, accessToken);
-      if (!response.success) {
-        throw new Error(response.error);
+      // Get the stored transaction ID
+      const transactionId = localStorage.getItem("currentTransactionId");
+      if (!transactionId) {
+        console.error("No transaction ID found");
+        return;
       }
-    } catch (error) {
-      console.error("Error saving transaction:", error);
-      toast.error("Failed to save transaction");
-    } finally {
-      setIsSavingTransaction(false);
+
+      // If this is no longer the latest request, skip saving
+      if (requestId !== latestRequestIdRef.current) {
+        return;
+      }
+
+      // Calculate time spent
+      const timeSpent = calculateDuration(createdAt, new Date().toISOString());
+
+      // Check again before making the API call
+      if (requestId !== latestRequestIdRef.current) {
+        return;
+      }
+
+      const response = await updateTransactionDetails(
+        transactionId,
+        createdHash || "",
+        timeSpent,
+        accessToken,
+        embeddedWallet.address,
+        transactionStatus,
+      );
+
+      if (!response.success) {
+        throw new Error("Failed to update transaction details");
+      }
+    } catch (error: unknown) {
+      // Only log if this is still the latest request
+      if (requestId === latestRequestIdRef.current) {
+        console.error("Error updating transaction:", error);
+      }
     }
   };
 
+  /**
+   * Polls the order details endpoint every 5 seconds to check transaction status
+   * Updates local state when status changes
+   * Saves transaction data when status is final (validated/settled/refunded)
+   */
   useEffect(
     function pollOrderDetails() {
       let intervalId: NodeJS.Timeout;
@@ -206,14 +218,7 @@ export function TransactionStatus({
                 refreshBalance();
               }
               clearInterval(intervalId);
-              // Save transaction when it's completed
-              if (
-                ["validated", "settled", "refunded"].includes(
-                  orderDetailsResponse.data.status,
-                )
-              ) {
-                saveTransactionData();
-              }
+              saveTransactionData();
             }
 
             if (orderDetailsResponse.data.status === "processing") {
@@ -242,6 +247,10 @@ export function TransactionStatus({
     [orderId, transactionStatus],
   );
 
+  /**
+   * Tracks transaction events for analytics
+   * Only tracks once per transaction when status is final
+   */
   useEffect(
     function trackTransactionEvents() {
       // Only track if we haven't tracked yet and have all required data
@@ -282,6 +291,10 @@ export function TransactionStatus({
     [isTracked, transactionStatus, completedAt],
   );
 
+  /**
+   * Shows confetti animation when transaction is successful
+   * Only shows once per transaction
+   */
   useEffect(
     function fireConfettiOnSuccess() {
       if (
@@ -295,6 +308,10 @@ export function TransactionStatus({
     [transactionStatus, fireConfetti, hasShownConfetti],
   );
 
+  /**
+   * Renders the appropriate status indicator based on transaction status
+   * Shows checkmark for success, X for failure, or spinner for pending states
+   */
   const StatusIndicator = () => (
     <AnimatePresence mode="wait">
       {["validated", "settled"].includes(transactionStatus) ? (

@@ -6,17 +6,18 @@ import { ImSpinner } from "react-icons/im";
 import { toast } from "sonner";
 import { pdf } from "@react-pdf/renderer";
 import { PDFReceipt } from "../PDFReceipt";
-import type { Transaction } from "../../types";
+import type { TransactionHistory } from "../../types";
 import {
   getExplorerLink,
   formatNumberWithCommas,
   SUPPORTED_TOKENS,
+  currencyToCountryCode,
 } from "../../utils";
 import { useNetwork } from "../../context/NetworksContext";
 import { useActualTheme } from "../../hooks/useActualTheme";
 
 interface TransactionDetailsProps {
-  transaction: Transaction | null;
+  transaction: TransactionHistory | null;
 }
 
 const Divider = () => (
@@ -53,7 +54,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         recipientName: transaction.recipient.account_name,
         accountIdentifier: transaction.recipient.account_identifier,
         institution: transaction.recipient.institution,
-        memo: transaction.memo || "No memo",
+        memo: transaction.recipient.memo || "No memo",
         amountReceived: transaction.amount_received,
         currency: transaction.to_currency,
       };
@@ -89,10 +90,10 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             {(() => {
               const fromKey =
                 transaction.from_currency.toUpperCase() as keyof typeof SUPPORTED_TOKENS;
-              const toKey =
-                transaction.to_currency.toUpperCase() as keyof typeof SUPPORTED_TOKENS;
               const fromLogo = SUPPORTED_TOKENS[fromKey] || "usdc";
-              const toLogo = SUPPORTED_TOKENS[toKey] || "usdc";
+              const toCountryCode = currencyToCountryCode(
+                transaction.to_currency,
+              );
               return (
                 <>
                   <Image
@@ -109,13 +110,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                     className="rounded-full border border-white dark:border-surface-canvas"
                   />
                   <Image
-                    src={
-                      toLogo === "lisk"
-                        ? isDark
-                          ? "/logos/lisk-logo-dark.svg"
-                          : "/logos/lisk-logo-light.svg"
-                        : `/logos/${toLogo}-logo.svg`
-                    }
+                    src={`https://flagcdn.com/h24/${toCountryCode}.webp`}
                     alt={transaction.to_currency}
                     width={20}
                     height={20}
@@ -126,7 +121,11 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             })()}
           </div>
           <div className="ml-2 text-lg font-medium capitalize leading-6 text-text-body dark:text-white/80">
-            {transaction.transaction_type}{" "}
+            {transaction.transaction_type === "transfer"
+              ? "Transferred"
+              : transaction.transaction_type === "swap"
+                ? "Swapped"
+                : transaction.transaction_type}{" "}
             <span className="font-semibold text-text-body dark:text-white">
               {formatNumberWithCommas(transaction.amount_sent)}{" "}
               {transaction.from_currency}
@@ -134,9 +133,16 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[14px] font-normal leading-5 text-green-600 dark:text-green-500">
-            {transaction.status.charAt(0).toUpperCase() +
-              transaction.status.slice(1)}
+          <span
+            className={`${
+              transaction.status === "completed"
+                ? "text-green-500"
+                : transaction.status === "refunded"
+                  ? "text-red-500"
+                  : "text-yellow-500"
+            } text-sm capitalize`}
+          >
+            {transaction.status}
           </span>
         </div>
       </div>
@@ -153,10 +159,10 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
           }
         />
         <DetailRow
-          label="Fees"
+          label="Rate"
           value={
             <span className="text-text-accent-gray dark:text-white/80">
-              Gasless
+              {transaction.fee}
             </span>
           }
         />
@@ -180,16 +186,16 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
           label="Account"
           value={
             <span className="text-text-accent-gray dark:text-white/80">
-              memo {transaction.recipient.account_identifier}
+              {transaction.recipient.account_identifier}
             </span>
           }
         />
-        {transaction.memo && (
+        {transaction.recipient.memo && (
           <DetailRow
             label="Memo"
             value={
               <span className="text-text-accent-gray dark:text-white/80">
-                {transaction.memo}
+                {transaction.recipient.memo}
               </span>
             }
           />
@@ -251,22 +257,24 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         )}
       </div>
       <div className="flex-1" />
-      <button
-        type="button"
-        title="Download transaction receipt"
-        onClick={handleGetReceipt}
-        disabled={isLoading}
-        className="w-full rounded-xl bg-accent-gray py-2.5 text-[14px] font-medium text-text-body transition-all hover:bg-[#EBEBEF] focus:outline-none disabled:opacity-70 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
-      >
-        {isLoading ? (
-          <div className="flex items-center justify-center gap-2">
-            <ImSpinner className="size-5 animate-spin text-text-body dark:text-white" />
-            <span>Generating receipt...</span>
-          </div>
-        ) : (
-          "Get receipt"
-        )}
-      </button>
+      {transaction.status === "completed" && (
+        <button
+          type="button"
+          title="Download transaction receipt"
+          onClick={handleGetReceipt}
+          disabled={isLoading}
+          className="w-full rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-text-body transition-all hover:bg-[#EBEBEF] focus:outline-none disabled:opacity-70 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+        >
+          {isLoading ? (
+            <div className="flex items-center justify-center gap-2">
+              <ImSpinner className="size-5 animate-spin text-text-body dark:text-white" />
+              <span>Generating receipt...</span>
+            </div>
+          ) : (
+            "Get receipt"
+          )}
+        </button>
+      )}
     </motion.div>
   );
 }
@@ -280,10 +288,10 @@ function DetailRow({
 }) {
   return (
     <div className="flex w-full items-center justify-between">
-      <div className="text-[14px] font-normal leading-5 text-text-secondary dark:text-white/50">
+      <div className="text-sm font-normal leading-5 text-text-secondary dark:text-white/50">
         {label}
       </div>
-      <div className="max-w-[60%] break-words text-right text-[14px] font-normal leading-5 text-text-accent-gray dark:text-white/80">
+      <div className="max-w-[60%] break-words text-right text-sm font-normal leading-5 text-text-accent-gray dark:text-white/80">
         {value}
       </div>
     </div>

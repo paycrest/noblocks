@@ -247,39 +247,23 @@ export type Network = {
       };
 };
 
-export interface Transaction {
-  id: string;
-  wallet_address: string;
-  transaction_type: string;
-  from_currency: string;
-  to_currency: string;
-  amount_sent: number;
-  amount_received: number;
-  fee: number;
-  recipient: {
-    account_name: string;
-    institution: string;
-    account_identifier: string;
-  };
-  status: string;
-  memo?: string;
-  created_at: string;
-  time_spent?: string;
-  tx_hash?: string;
-}
-
 export interface TransactionResponse {
   success: boolean;
   data: {
     total: number;
     page: number;
     limit: number;
-    transactions: Transaction[];
+    transactions: TransactionHistory[];
   };
 }
 
+export interface SaveTransactionResponse {
+  success: boolean;
+  data: TransactionHistory;
+}
+
 // tx history API endpoints types
-export type TransactionStatus = "pending" | "completed" | "failed";
+export type TransactionStatus = "completed" | "incomplete" | "refunded";
 export type TransactionHistoryType = "swap" | "transfer";
 
 export interface Recipient {
@@ -317,6 +301,7 @@ export interface TransactionCreateInput {
   recipient: Recipient;
   status: TransactionStatus;
   txHash?: string;
+  timeSpent?: string;
 }
 
 export interface TransactionUpdateInput {

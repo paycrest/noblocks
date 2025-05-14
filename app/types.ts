@@ -288,6 +288,7 @@ export interface TransactionHistory {
   time_spent?: string;
   created_at: string;
   updated_at: string;
+  order_id?: string;
 }
 
 export interface TransactionCreateInput {
@@ -302,6 +303,7 @@ export interface TransactionCreateInput {
   status: TransactionStatus;
   txHash?: string;
   timeSpent?: string;
+  orderId?: string;
 }
 
 export interface TransactionUpdateInput {

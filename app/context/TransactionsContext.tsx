@@ -3,7 +3,6 @@ import type { TransactionHistory, TransactionStatus } from "../types";
 import {
   fetchTransactions,
   fetchOrderDetails,
-  updateTransactionStatus,
   updateTransactionDetails,
 } from "../api/aggregator";
 import { useNetwork } from "./NetworksContext";
@@ -76,8 +75,7 @@ export function TransactionsProvider({
             } else if (Array.isArray(orderData.txReceipts)) {
               // Prefer validated, settled, then pending
               const relevantReceipt = orderData.txReceipts.find(
-                (r: { status: string }) =>
-                  ["validated", "settled", "pending"].includes(r.status),
+                (r: { status: string }) => r.status === "pending",
               );
               newTxHash = relevantReceipt?.txHash;
             }

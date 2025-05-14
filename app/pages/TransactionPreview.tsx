@@ -72,6 +72,7 @@ export const TransactionPreview = ({
     rate,
     formValues,
     institutions: supportedInstitutions,
+    orderId,
     setOrderId,
     setCreatedAt,
     setTransactionStatus,
@@ -96,6 +97,7 @@ export const TransactionPreview = ({
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
+  const [transactionHash, setTransactionHash] = useState<string>("");
 
   const searchParams = useSearchParams();
 
@@ -311,38 +313,9 @@ export const TransactionPreview = ({
 
       await getOrderId();
 
+      await saveTransactionData();
+
       toast.success("Order created successfully");
-      // Save transaction with unresolved status
-
-      if (embeddedWallet?.address) {
-        const transaction: TransactionCreateInput = {
-          walletAddress: embeddedWallet?.address,
-          transactionType: "swap",
-          fromCurrency: token,
-          toCurrency: currency,
-          amountSent: Number(amountSent),
-          amountReceived: Number(amountReceived),
-          fee: Number(rate),
-          recipient: {
-            account_name: recipientName,
-            institution: formValues.institution,
-            account_identifier: formValues.accountIdentifier,
-            ...(formValues.memo && { memo: formValues.memo }),
-          },
-          status: "incomplete",
-        };
-
-        try {
-          const accessToken = await getAccessToken();
-          if (!accessToken) {
-            throw new Error("No access token available");
-          }
-          await saveTransaction(transaction, accessToken);
-        } catch (error) {
-          console.error("Error saving transaction:", error);
-          // Don't show error toast as this is a background operation
-        }
-      }
 
       refreshBalance();
 
@@ -416,7 +389,9 @@ export const TransactionPreview = ({
           account_identifier: formValues.accountIdentifier,
           ...(formValues.memo && { memo: formValues.memo }),
         },
-        status: "incomplete",
+        status: "pending",
+        orderId: orderId,
+        txHash: transactionHash,
       };
 
       const response = await saveTransaction(transaction, accessToken);
@@ -482,9 +457,8 @@ export const TransactionPreview = ({
           setOrderId(decodedLog.args.orderId);
           setCreatedAt(new Date().toISOString());
           setTransactionStatus("pending");
+          setTransactionHash(logs[0].transactionHash);
           setCurrentStep("status");
-
-          await saveTransactionData();
         }
       } catch (error) {
         console.error("Error fetching OrderCreated logs:", error);

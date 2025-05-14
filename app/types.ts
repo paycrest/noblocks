@@ -171,6 +171,7 @@ export type StateProps = {
   selectedRecipient: RecipientDetails | null;
   setSelectedRecipient: (recipient: RecipientDetails | null) => void;
   setCreatedAt: (createdAt: string) => void;
+  orderId: string;
   setOrderId: (orderId: string) => void;
   setTransactionStatus: (status: TransactionStatusType) => void;
 };
@@ -263,7 +264,12 @@ export interface SaveTransactionResponse {
 }
 
 // tx history API endpoints types
-export type TransactionStatus = "completed" | "incomplete" | "refunded";
+export type TransactionStatus =
+  | "completed"
+  | "pending"
+  | "processing"
+  | "fulfilled"
+  | "refunded";
 export type TransactionHistoryType = "swap" | "transfer";
 
 export interface Recipient {
@@ -335,4 +341,17 @@ export interface JWTPayload {
 export interface VerifyJWTResult {
   payload: JWTPayload;
   provider: JWTProvider;
+}
+
+export interface UpdateTransactionStatusPayload {
+  transactionId: string;
+  status: string;
+  accessToken: string;
+  walletAddress: string;
+}
+
+export interface UpdateTransactionDetailsPayload
+  extends UpdateTransactionStatusPayload {
+  txHash?: string;
+  timeSpent?: string;
 }

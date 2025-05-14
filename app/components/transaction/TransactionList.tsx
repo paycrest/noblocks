@@ -29,6 +29,15 @@ const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
 );
 
+// Add status color mapping
+const STATUS_COLOR_MAP: Record<string, string> = {
+  completed: "text-green-500",
+  refunded: "text-red-500",
+  fulfilled: "text-blue-500",
+  pending: "text-orange-500",
+  processing: "text-yellow-500",
+};
+
 // Individual transaction list item component
 export const TransactionListItem = ({
   transaction,
@@ -79,9 +88,8 @@ export const TransactionListItem = ({
             <span className="size-1 bg-icon-outline-disabled dark:bg-white/5"></span>
             <span
               className={classNames(
-                transaction.status === "completed"
-                  ? "text-green-500"
-                  : "text-red-500",
+                STATUS_COLOR_MAP[transaction.status] ||
+                  "text-text-secondary dark:text-white/50",
                 "capitalize",
               )}
             >
@@ -268,15 +276,11 @@ export default function TransactionList({
                               </span>
                               <span className="size-1 bg-icon-outline-disabled dark:bg-white/5"></span>
                               <span
-                                className={`${
-                                  transaction.status === "completed"
-                                    ? "text-green-500"
-                                    : transaction.status === "refunded"
-                                      ? "text-red-500"
-                                      : transaction.status === "fulfilled"
-                                        ? "text-blue-500"
-                                        : "text-yellow-500"
-                                } capitalize`}
+                                className={classNames(
+                                  STATUS_COLOR_MAP[transaction.status] ||
+                                    "text-text-secondary dark:text-white/50",
+                                  "capitalize",
+                                )}
                               >
                                 {transaction.status}
                               </span>

@@ -24,6 +24,14 @@ const Divider = () => (
   <div className="my-4 w-full border-t border-dashed border-border-light dark:border-white/10" />
 );
 
+const STATUS_COLOR_MAP: Record<string, string> = {
+  completed: "text-green-500",
+  refunded: "text-red-500",
+  fulfilled: "text-blue-500",
+  pending: "text-orange-500",
+  processing: "text-yellow-500",
+};
+
 export function TransactionDetails({ transaction }: TransactionDetailsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const { selectedNetwork } = useNetwork();
@@ -39,7 +47,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
     setIsLoading(true);
     try {
       const orderDetailsData = {
-        orderId: transaction.id,
+        orderId: transaction.order_id || "",
         amount: transaction.amount_sent.toString(),
         token: transaction.from_currency,
         network: selectedNetwork?.chain?.name || "",
@@ -134,13 +142,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         </div>
         <div className="flex items-center gap-2">
           <span
-            className={`${
-              transaction.status === "completed"
-                ? "text-green-500"
-                : transaction.status === "refunded"
-                  ? "text-red-500"
-                  : "text-yellow-500"
-            } text-sm capitalize`}
+            className={`${STATUS_COLOR_MAP[transaction.status] || "text-text-secondary dark:text-white/50"} text-sm capitalize`}
           >
             {transaction.status}
           </span>

@@ -12,6 +12,8 @@ import type {
   TransactionResponse,
   TransactionCreateInput,
   SaveTransactionResponse,
+  UpdateTransactionDetailsPayload,
+  UpdateTransactionStatusPayload,
 } from "../types";
 
 const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
@@ -236,15 +238,19 @@ export async function saveTransaction(
  * @returns {Promise<SaveTransactionResponse>} The update response
  * @throws {Error} If the API request fails
  */
-export async function updateTransactionStatus(
-  transactionId: string,
-  status: string,
-  accessToken: string,
-  walletAddress: string,
-): Promise<SaveTransactionResponse> {
+export async function updateTransactionStatus({
+  transactionId,
+  status,
+  accessToken,
+  walletAddress,
+}: UpdateTransactionStatusPayload): Promise<SaveTransactionResponse> {
+  const finalStatus = ["validated", "settled"].includes(status)
+    ? "completed"
+    : status;
+
   const response = await axios.put(
     `/api/v1/transactions/status/${transactionId}`,
-    { status },
+    { status: finalStatus },
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -256,35 +262,32 @@ export async function updateTransactionStatus(
 }
 
 /**
- * Updates transaction details (txHash, timeSpent, and status)
- * @param {string} transactionId - The ID of the transaction to update
- * @param {string} txHash - The transaction hash
- * @param {string} timeSpent - The time spent on the transaction
- * @param {string} accessToken - The access token for authentication
- * @param {string} walletAddress - The wallet address for authorization
- * @param {string} transactionStatus - The current transaction status
+ * Updates the details of a transaction including status, hash, and time spent
+ * @param {Object} params - The parameters object
+ * @param {string} params.transactionId - The ID of the transaction to update
+ * @param {string} params.status - The new status to set
+ * @param {string} [params.txHash] - The transaction hash (optional)
+ * @param {string} [params.timeSpent] - The time spent on the transaction (optional)
+ * @param {string} params.accessToken - The access token for authentication
+ * @param {string} params.walletAddress - The wallet address for authorization
  * @returns {Promise<SaveTransactionResponse>} The update response
  * @throws {Error} If the API request fails
  */
-export async function updateTransactionDetails(
-  transactionId: string,
-  txHash: string,
-  timeSpent: string,
-  accessToken: string,
-  walletAddress: string,
-  transactionStatus: string,
-): Promise<SaveTransactionResponse> {
-  // Map transaction status to our internal status format
-  const status =
-    transactionStatus === "refunded"
-      ? "refunded"
-      : transactionStatus === "validated" || transactionStatus === "settled"
-        ? "completed"
-        : "incomplete";
+export async function updateTransactionDetails({
+  transactionId,
+  status,
+  txHash,
+  timeSpent,
+  accessToken,
+  walletAddress,
+}: UpdateTransactionDetailsPayload): Promise<SaveTransactionResponse> {
+  const finalStatus = ["validated", "settled"].includes(status)
+    ? "completed"
+    : status;
 
   const response = await axios.put(
     `/api/v1/transactions/${transactionId}`,
-    { txHash, timeSpent, status },
+    { txHash, timeSpent, status: finalStatus },
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,

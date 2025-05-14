@@ -159,14 +159,14 @@ export function TransactionStatus({
         return;
       }
 
-      const response = await updateTransactionDetails(
+      const response = await updateTransactionDetails({
         transactionId,
-        createdHash || "",
+        status: transactionStatus,
+        txHash: createdHash,
         timeSpent,
         accessToken,
-        embeddedWallet.address,
-        transactionStatus,
-      );
+        walletAddress: embeddedWallet.address,
+      });
 
       if (!response.success) {
         throw new Error("Failed to update transaction details");
@@ -218,16 +218,26 @@ export function TransactionStatus({
                 refreshBalance();
               }
               clearInterval(intervalId);
-              saveTransactionData();
+
+              if (["validated", "refunded"].includes(transactionStatus)) {
+                // save once on validation, skip on settled
+                saveTransactionData();
+              }
             }
 
-            if (orderDetailsResponse.data.status === "processing") {
+            if (
+              ["pending", "processing"].includes(
+                orderDetailsResponse.data.status,
+              )
+            ) {
               const createdReceipt = orderDetailsResponse.data.txReceipts.find(
                 (txReceipt) => txReceipt.status === "pending",
               );
 
               if (createdReceipt) {
                 setCreatedHash(createdReceipt.txHash);
+
+                saveTransactionData();
               }
             }
           }

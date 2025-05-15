@@ -522,7 +522,7 @@ export const MobileDropdown = ({
                               </button>
                             ) : null}
 
-                            {!isInjectedWallet && (
+                            {/* {!isInjectedWallet && (
                               <button
                                 type="button"
                                 onClick={exportWallet}
@@ -536,7 +536,7 @@ export const MobileDropdown = ({
                                 </div>
                                 <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
                               </button>
-                            )}
+                            )} */}
 
                             <a
                               href={config.contactSupportUrl}

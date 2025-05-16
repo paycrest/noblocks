@@ -17,7 +17,11 @@ import {
   publicKeyEncrypt,
 } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
-import type { Token, TransactionPreviewProps } from "../types";
+import type {
+  Token,
+  TransactionPreviewProps,
+  TransactionCreateInput,
+} from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components";
 import { gatewayAbi } from "../api/abi";
 import { usePrivy } from "@privy-io/react-auth";
@@ -34,7 +38,7 @@ import {
 } from "viem";
 import { useBalance, useInjectedWallet, useStep } from "../context";
 
-import { fetchAggregatorPublicKey } from "../api/aggregator";
+import { fetchAggregatorPublicKey, saveTransaction } from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics";
 import { ImSpinner } from "react-icons/im";
 import { InformationSquareIcon } from "hugeicons-react";
@@ -54,7 +58,7 @@ export const TransactionPreview = ({
   createdAt,
 }: TransactionPreviewProps) => {
   const isDark = useActualTheme();
-  const { user } = usePrivy();
+  const { user, getAccessToken } = usePrivy();
   const { client } = useSmartWallets();
   const { isInjectedWallet, injectedAddress, injectedProvider, injectedReady } =
     useInjectedWallet();
@@ -68,6 +72,7 @@ export const TransactionPreview = ({
     rate,
     formValues,
     institutions: supportedInstitutions,
+    orderId,
     setOrderId,
     setCreatedAt,
     setTransactionStatus,
@@ -91,8 +96,15 @@ export const TransactionPreview = ({
     useState<boolean>(false);
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
+  const [isSavingTransaction, setIsSavingTransaction] = useState(false);
+  const [transactionHash, setTransactionHash] = useState<string>("");
 
   const searchParams = useSearchParams();
+
+  const embeddedWallet = user?.linkedAccounts.find(
+    (account) =>
+      account.type === "wallet" && account.connectorType === "embedded",
+  ) as { address: string } | undefined;
 
   // Rendered tsx info
   const renderedInfo = {
@@ -301,7 +313,10 @@ export const TransactionPreview = ({
 
       await getOrderId();
 
+      await saveTransactionData();
+
       toast.success("Order created successfully");
+
       refreshBalance();
 
       trackEvent("Swap started", {
@@ -347,6 +362,50 @@ export const TransactionPreview = ({
       setErrorMessage(error.shortMessage);
       setErrorCount((prevCount: number) => prevCount + 1);
       setIsConfirming(false);
+    }
+  };
+
+  const saveTransactionData = async () => {
+    if (!embeddedWallet?.address || isSavingTransaction) return;
+    setIsSavingTransaction(true);
+
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error("No access token available");
+      }
+
+      const transaction: TransactionCreateInput = {
+        walletAddress: embeddedWallet.address,
+        transactionType: "transfer",
+        fromCurrency: currency,
+        toCurrency: currency,
+        amountSent: Number(amountSent),
+        amountReceived: Number(amountReceived),
+        fee: Number(rate),
+        recipient: {
+          account_name: recipientName,
+          institution: formValues.institution,
+          account_identifier: formValues.accountIdentifier,
+          ...(formValues.memo && { memo: formValues.memo }),
+        },
+        status: "pending",
+        orderId: orderId,
+        txHash: transactionHash,
+      };
+
+      const response = await saveTransaction(transaction, accessToken);
+      if (!response.success) {
+        throw new Error("Failed to save transaction");
+      }
+
+      // Store the transaction ID in localStorage
+      localStorage.setItem("currentTransactionId", response.data.id);
+    } catch (error) {
+      console.error("Error saving transaction:", error);
+      // Don't show error toast as this is a background operation
+    } finally {
+      setIsSavingTransaction(false);
     }
   };
 
@@ -398,6 +457,7 @@ export const TransactionPreview = ({
           setOrderId(decodedLog.args.orderId);
           setCreatedAt(new Date().toISOString());
           setTransactionStatus("pending");
+          setTransactionHash(logs[0].transactionHash);
           setCurrentStep("status");
         }
       } catch (error) {

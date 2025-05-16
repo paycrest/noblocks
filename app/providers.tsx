@@ -15,6 +15,7 @@ import {
   NetworkProvider,
   StepProvider,
 } from "./context";
+import { TransactionsProvider } from "./context/TransactionsContext";
 import { useActualTheme } from "./hooks/useActualTheme";
 
 function Providers({ children }: { children: ReactNode }) {
@@ -81,7 +82,9 @@ function ContextProviders({ children }: { children: ReactNode }) {
     <NetworkProvider>
       <InjectedWalletProvider>
         <StepProvider>
-          <BalanceProvider>{children}</BalanceProvider>
+          <BalanceProvider>
+            <TransactionsProvider>{children}</TransactionsProvider>
+          </BalanceProvider>
         </StepProvider>
       </InjectedWalletProvider>
     </NetworkProvider>

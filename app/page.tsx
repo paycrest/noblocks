@@ -57,7 +57,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
 
-  const formMethods = useForm<FormData>({
+  const formMethods = useForm<FormData, any, undefined>({
     mode: "onChange",
     defaultValues: {
       token: "USDC",

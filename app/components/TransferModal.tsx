@@ -220,137 +220,140 @@ export const TransferModal = ({
     </div>
   );
 
-  return isTransferSuccess ? (
-    renderSuccessView()
-  ) : (
+  return (
     <AnimatedModal isOpen={isOpen} onClose={handleModalClose}>
-      <div className="grid gap-6">
-        <div className="flex items-center justify-between gap-4">
-          <button
-            type="button"
-            title="Go back"
-            onClick={handleModalClose}
-            className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 sm:hidden"
-          >
-            <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
-          </button>
-          <h2 className="text-lg font-semibold text-text-body dark:text-white sm:flex-1">
-            Transfer
-          </h2>
-          <button
-            type="button"
-            aria-label="Close transfer modal"
-            onClick={handleModalClose}
-            className="hidden rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 sm:block"
-          >
-            <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
-          </button>
-          <div className="w-10 sm:hidden" />
-        </div>
-        <form
-          onSubmit={handleSubmit(handleTransfer)}
-          className="z-50 space-y-4 text-neutral-900 transition-all *:text-sm dark:text-white"
-          noValidate
-        >
-          <div className="grid gap-3.5 rounded-[20px] border border-border-light px-4 py-3 dark:border-white/10">
-            <label
-              htmlFor="amount"
-              className="text-text-secondary dark:text-white/50"
+      {isTransferSuccess ? (
+        renderSuccessView()
+      ) : (
+        <div className="grid gap-6">
+          <div className="flex items-center justify-between gap-4">
+            <button
+              type="button"
+              title="Go back"
+              onClick={handleModalClose}
+              className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 sm:hidden"
             >
-              Amount
-            </label>
+              <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
+            </button>
+            <h2 className="text-lg font-semibold text-text-body dark:text-white sm:flex-1">
+              Transfer
+            </h2>
+            <button
+              type="button"
+              aria-label="Close transfer modal"
+              onClick={handleModalClose}
+              className="hidden rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 sm:block"
+            >
+              <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+            </button>
+            <div className="w-10 sm:hidden" />
+          </div>
+          <form
+            onSubmit={handleSubmit(handleTransfer)}
+            className="z-50 space-y-4 text-neutral-900 transition-all *:text-sm dark:text-white"
+            noValidate
+          >
+            <div className="grid gap-3.5 rounded-[20px] border border-border-light px-4 py-3 dark:border-white/10">
+              <label
+                htmlFor="amount"
+                className="text-text-secondary dark:text-white/50"
+              >
+                Amount
+              </label>
 
-            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <input
+                  id="amount"
+                  type="number"
+                  step="0.0001"
+                  {...register("amount", {
+                    required: {
+                      value: true,
+                      message: "Amount is required",
+                    },
+                    disabled: !token,
+                    min: {
+                      value: 0.0001,
+                      message: `Min. amount is 0.0001`,
+                    },
+                    max: {
+                      value: tokenBalance,
+                      message: `Max. amount is ${tokenBalance}`,
+                    },
+                    pattern: {
+                      value: /^\d+(\.\d{1,4})?$/,
+                      message: "Invalid amount",
+                    },
+                  })}
+                  className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
+                    errors.amount
+                      ? "text-red-500 dark:text-red-500"
+                      : "text-neutral-900 dark:text-white/80"
+                  }`}
+                  placeholder="0"
+                  title="Enter amount to send"
+                />
+
+                <FormDropdown
+                  defaultTitle="Select token"
+                  data={tokens}
+                  defaultSelectedItem={token}
+                  onSelect={(selectedToken) => setValue("token", selectedToken)}
+                  className="min-w-44"
+                />
+              </div>
+            </div>
+
+            {renderBalanceSection()}
+
+            {/* Recipient Address */}
+            <div className="relative">
+              <Wallet01Icon
+                className={classNames(
+                  "absolute left-3 top-3.5 size-4 text-icon-outline-secondary transition-colors dark:text-white/50",
+                )}
+              />
               <input
-                id="amount"
-                type="number"
-                step="0.0001"
-                {...register("amount", {
+                type="text"
+                id="recipient-address"
+                {...register("recipientAddress", {
                   required: {
                     value: true,
-                    message: "Amount is required",
-                  },
-                  disabled: !token,
-                  min: {
-                    value: 0.0001,
-                    message: `Min. amount is 0.0001`,
-                  },
-                  max: {
-                    value: tokenBalance,
-                    message: `Max. amount is ${tokenBalance}`,
+                    message: "Recipient address is required",
                   },
                   pattern: {
-                    value: /^\d+(\.\d{1,4})?$/,
-                    message: "Invalid amount",
+                    value: /^0x[a-fA-F0-9]{40}$/,
+                    message: "Invalid wallet address format",
+                  },
+                  validate: {
+                    length: (value) =>
+                      value.length === 42 ||
+                      "Address must be 42 characters long",
+                    prefix: (value) =>
+                      value.startsWith("0x") || "Address must start with 0x",
                   },
                 })}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                  errors.amount
+                className={classNames(
+                  "min-h-11 w-full rounded-xl border border-border-input bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
+                  errors.recipientAddress
                     ? "text-red-500 dark:text-red-500"
-                    : "text-neutral-900 dark:text-white/80"
-                }`}
-                placeholder="0"
-                title="Enter amount to send"
-              />
-
-              <FormDropdown
-                defaultTitle="Select token"
-                data={tokens}
-                defaultSelectedItem={token}
-                onSelect={(selectedToken) => setValue("token", selectedToken)}
-                className="min-w-44"
+                    : "text-neutral-900 dark:text-white/80",
+                )}
+                placeholder="Recipient wallet address"
+                maxLength={42}
               />
             </div>
-          </div>
 
-          {renderBalanceSection()}
-
-          {/* Recipient Address */}
-          <div className="relative">
-            <Wallet01Icon
-              className={classNames(
-                "absolute left-3 top-3.5 size-4 text-icon-outline-secondary transition-colors dark:text-white/50",
-              )}
-            />
-            <input
-              type="text"
-              id="recipient-address"
-              {...register("recipientAddress", {
-                required: {
-                  value: true,
-                  message: "Recipient address is required",
-                },
-                pattern: {
-                  value: /^0x[a-fA-F0-9]{40}$/,
-                  message: "Invalid wallet address format",
-                },
-                validate: {
-                  length: (value) =>
-                    value.length === 42 || "Address must be 42 characters long",
-                  prefix: (value) =>
-                    value.startsWith("0x") || "Address must start with 0x",
-                },
-              })}
-              className={classNames(
-                "min-h-11 w-full rounded-xl border border-border-input bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
-                errors.recipientAddress
-                  ? "text-red-500 dark:text-red-500"
-                  : "text-neutral-900 dark:text-white/80",
-              )}
-              placeholder="Recipient wallet address"
-              maxLength={42}
-            />
-          </div>
-
-          <button
-            type="submit"
-            className={classNames(primaryBtnClasses, "w-full")}
-            disabled={!isValid || !isDirty || isConfirming}
-          >
-            {isConfirming ? "Confirming..." : "Confirm transfer"}
-          </button>
-        </form>
-      </div>
+            <button
+              type="submit"
+              className={classNames(primaryBtnClasses, "w-full")}
+              disabled={!isValid || !isDirty || isConfirming}
+            >
+              {isConfirming ? "Confirming..." : "Confirm transfer"}
+            </button>
+          </form>
+        </div>
+      )}
     </AnimatedModal>
   );
 };

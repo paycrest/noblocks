@@ -285,6 +285,25 @@ export const MobileDropdown = ({
                                 ))
                               )}
                             </div>
+
+                            {!isInjectedWallet && !isLoading && (
+                              <div className="grid grid-cols-2 gap-4">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsTransferModalOpen(true)}
+                                  className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                                >
+                                  Transfer
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsFundModalOpen(true)}
+                                  className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                                >
+                                  Fund
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                           {/* Wallet Address Container */}

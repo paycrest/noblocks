@@ -1,113 +1,78 @@
 "use client";
 import { useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
-import { ImSpinner } from "react-icons/im";
 import { motion } from "framer-motion";
+import { ImSpinner } from "react-icons/im";
 import { toast } from "sonner";
 import { pdf } from "@react-pdf/renderer";
 import { PDFReceipt } from "../PDFReceipt";
-import { Transaction } from "./types";
-import { classNames } from "../../utils";
+import type { TransactionHistory } from "../../types";
+import {
+  getExplorerLink,
+  formatNumberWithCommas,
+  SUPPORTED_TOKENS,
+  currencyToCountryCode,
+} from "../../utils";
+import { useNetwork } from "../../context/NetworksContext";
+import { useActualTheme } from "../../hooks/useActualTheme";
 
-const DetailRow = ({
-  label,
-  value,
-  linkHref,
-}: {
-  label: string;
-  value: React.ReactNode;
-  linkHref?: string;
-}) => (
-  <div className="flex justify-between py-3.5 dark:border-white/10">
-    <span className="text-sm text-gray-500 dark:text-white/50">{label}</span>
-    {linkHref ? (
-      <Link href={linkHref} className="text-sm text-[#8B85F4]">
-        {value}
-      </Link>
-    ) : (
-      <span className="text-sm dark:text-white/80">{value}</span>
-    )}
-  </div>
-);
+interface TransactionDetailsProps {
+  transaction: TransactionHistory | null;
+}
 
 const Divider = () => (
-  <div className="my-2 w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
+  <div className="my-4 w-full border-t border-dashed border-border-light dark:border-white/10" />
 );
 
-const CurrencyLogos = ({
-  mainCurrency,
-  swappedCurrency,
-}: {
-  mainCurrency: string;
-  swappedCurrency?: string;
-}) => (
-  <div className="relative">
-    <Image
-      src={`/logos/${mainCurrency.toLowerCase()}-logo.svg`}
-      alt={mainCurrency}
-      width={20}
-      height={20}
-      quality={90}
-      className="rounded-full"
-    />
-    {swappedCurrency && (
-      <div className="absolute -right-[76%] -top-[1px] z-10 h-fit w-fit rounded-full border-[2px] border-white dark:border-surface-overlay">
-        <Image
-          src={`/logos/${swappedCurrency.toLowerCase()}-logo.svg`}
-          alt={swappedCurrency}
-          width={20}
-          height={20}
-          quality={90}
-          className="rounded-full"
-        />
-      </div>
-    )}
-  </div>
-);
+const STATUS_COLOR_MAP: Record<string, string> = {
+  completed: "text-green-500",
+  refunded: "text-red-500",
+  fulfilled: "text-blue-500",
+  pending: "text-orange-500",
+  processing: "text-yellow-500",
+};
 
-export const TransactionDetails = ({
-  transaction,
-}: {
-  transaction: Transaction;
-}) => {
+export function TransactionDetails({ transaction }: TransactionDetailsProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const { selectedNetwork } = useNetwork();
+  const isDark = useActualTheme();
+  if (!transaction) return null;
+
+  const explorerUrl =
+    transaction.tx_hash && selectedNetwork?.chain?.name
+      ? getExplorerLink(selectedNetwork.chain.name, transaction.tx_hash)
+      : undefined;
 
   const handleGetReceipt = async () => {
     setIsLoading(true);
     try {
-      const mockOrderDetails = {
-        orderId: transaction.id,
-        amount: transaction.amount,
-        token: transaction.currency,
-        network: "Arbitrum One",
+      const orderDetailsData = {
+        orderId: transaction.order_id || "",
+        amount: transaction.amount_sent.toString(),
+        token: transaction.from_currency,
+        network: selectedNetwork?.chain?.name || "",
         settlePercent: "100",
         status: transaction.status,
-        txHash: "0x123...",
+        txHash: transaction.tx_hash || "",
         settlements: [],
         txReceipts: [],
-        updatedAt: new Date().toISOString(),
+        updatedAt: transaction.created_at,
       };
-
-      const mockFormData = {
-        recipientName: transaction.recipient || "Unknown Recipient",
-        accountIdentifier: transaction.account || "N/A",
-        institution: transaction.bank || "Unknown Bank",
-        memo: transaction.memo || "No memo",
-        amountReceived:
-          parseFloat(transaction.nativeValue.split(" ")[1].replace(/,/g, "")) ||
-          0,
-        currency: transaction.nativeValue.split(" ")[0] || "NGN",
+      const formData = {
+        recipientName: transaction.recipient.account_name,
+        accountIdentifier: transaction.recipient.account_identifier,
+        institution: transaction.recipient.institution,
+        memo: transaction.recipient.memo || "No memo",
+        amountReceived: transaction.amount_received,
+        currency: transaction.to_currency,
       };
-
       const blob = await pdf(
         <PDFReceipt
-          data={mockOrderDetails}
-          formData={mockFormData}
+          data={orderDetailsData}
+          formData={formData}
           supportedInstitutions={[]}
         />,
       ).toBlob();
-
       const pdfUrl = URL.createObjectURL(blob);
       window.open(pdfUrl, "_blank");
     } catch (error) {
@@ -120,79 +85,217 @@ export const TransactionDetails = ({
 
   return (
     <motion.div
-      className="flex h-full flex-col"
+      className="flex h-full w-full flex-col gap-4"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.2 }}
     >
-      <div className="flex-grow space-y-4">
-        <div className="flex items-center gap-4">
-          <CurrencyLogos
-            mainCurrency={transaction.currency}
-            swappedCurrency={transaction.swappedCurrency}
-          />
-          <span className="ml-2 text-lg dark:text-white/80">
-            Swapped{" "}
-            <span className="dark:text-white">
-              {transaction.amount} {transaction.currency}
+      {/* Top: Token icons, swapped amount, status */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <div className="flex -space-x-2">
+            {(() => {
+              const fromKey =
+                transaction.from_currency.toUpperCase() as keyof typeof SUPPORTED_TOKENS;
+              const fromLogo = SUPPORTED_TOKENS[fromKey] || "usdc";
+              const toCountryCode = currencyToCountryCode(
+                transaction.to_currency,
+              );
+              return (
+                <>
+                  <Image
+                    src={
+                      fromLogo === "lisk"
+                        ? isDark
+                          ? "/logos/lisk-logo-dark.svg"
+                          : "/logos/lisk-logo-light.svg"
+                        : `/logos/${fromLogo}-logo.svg`
+                    }
+                    alt={transaction.from_currency}
+                    width={20}
+                    height={20}
+                    className="rounded-full border border-white dark:border-surface-canvas"
+                  />
+                  <Image
+                    src={`https://flagcdn.com/h24/${toCountryCode}.webp`}
+                    alt={transaction.to_currency}
+                    width={20}
+                    height={20}
+                    className="rounded-full border border-white dark:border-surface-canvas"
+                  />
+                </>
+              );
+            })()}
+          </div>
+          <div className="ml-2 text-lg font-medium capitalize leading-6 text-text-body dark:text-white/80">
+            {transaction.transaction_type === "transfer"
+              ? "Transferred"
+              : transaction.transaction_type === "swap"
+                ? "Swapped"
+                : transaction.transaction_type}{" "}
+            <span className="font-semibold text-text-body dark:text-white">
+              {formatNumberWithCommas(transaction.amount_sent)}{" "}
+              {transaction.from_currency}
             </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className={`${STATUS_COLOR_MAP[transaction.status] || "text-text-secondary dark:text-white/50"} text-sm capitalize`}
+          >
+            {transaction.status}
           </span>
         </div>
-
-        <p
-          className={classNames(
-            "text-sm",
-            transaction.status === "Completed"
-              ? "text-green-500"
-              : "text-red-500",
-          )}
-        >
-          {transaction.status}
-        </p>
-
-        <div>
-          <Divider />
-          <DetailRow label="Amount" value={transaction.nativeValue} />
-          <DetailRow label="Fees" value={transaction.fees} />
-          <DetailRow label="Recipient" value={transaction.recipient} />
-          <DetailRow label="Bank" value={transaction.bank} />
-          <DetailRow label="Account" value={transaction.account} />
-          <DetailRow label="Memo" value={transaction.memo} />
-          <Divider />
+      </div>
+      <Divider />
+      {/* Details section 1 */}
+      <div className="flex flex-col gap-5 px-1 pb-1">
+        <DetailRow
+          label="Amount"
+          value={
+            <span className="text-text-accent-gray dark:text-white/80">
+              {transaction.to_currency}{" "}
+              {formatNumberWithCommas(transaction.amount_received)}
+            </span>
+          }
+        />
+        <DetailRow
+          label="Rate"
+          value={
+            <span className="text-text-accent-gray dark:text-white/80">
+              {transaction.fee}
+            </span>
+          }
+        />
+        <DetailRow
+          label="Recipient"
+          value={
+            <span className="text-text-accent-gray dark:text-white/80">
+              {transaction.recipient.account_name}
+            </span>
+          }
+        />
+        <DetailRow
+          label="Bank"
+          value={
+            <span className="text-text-accent-gray dark:text-white/80">
+              {transaction.recipient.institution}
+            </span>
+          }
+        />
+        <DetailRow
+          label="Account"
+          value={
+            <span className="text-text-accent-gray dark:text-white/80">
+              {transaction.recipient.account_identifier}
+            </span>
+          }
+        />
+        {transaction.recipient.memo && (
           <DetailRow
-            label="Date"
-            value={`${transaction.time} ${transaction.day}`}
+            label="Memo"
+            value={
+              <span className="text-text-accent-gray dark:text-white/80">
+                {transaction.recipient.memo}
+              </span>
+            }
           />
-          <DetailRow label="Transaction status" value={transaction.status} />
-          <DetailRow label="Fund status" value="Deposited" />
-          <DetailRow label="Time spent" value={transaction.timeSpent} />
+        )}
+      </div>
+      <Divider />
+      {/* Details section 2 */}
+      <div className="flex flex-col gap-5 px-1">
+        <DetailRow
+          label="Date"
+          value={
+            <span className="text-text-secondary dark:text-white/50">
+              {new Date(transaction.created_at).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+              {"  "}
+              {new Date(transaction.created_at).toLocaleDateString([], {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })}
+            </span>
+          }
+        />
+        <DetailRow
+          label="Transaction status"
+          value={
+            <span className="text-text-secondary dark:text-white/50">
+              {transaction.status.charAt(0).toUpperCase() +
+                transaction.status.slice(1)}
+            </span>
+          }
+        />
+        {transaction.time_spent && (
+          <DetailRow
+            label="Time spent"
+            value={
+              <span className="text-text-secondary dark:text-white/50">
+                {transaction.time_spent}
+              </span>
+            }
+          />
+        )}
+        {explorerUrl && (
           <DetailRow
             label="Onchain receipt"
-            value="View in explorer"
-            linkHref="#"
+            value={
+              <a
+                href={explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-lavender-500 hover:underline"
+              >
+                View in explorer
+              </a>
+            }
           />
-        </div>
+        )}
       </div>
-
-      <div className="mt-auto pt-4">
+      <div className="flex-1" />
+      {transaction.status === "completed" && (
         <button
           type="button"
           title="Download transaction receipt"
           onClick={handleGetReceipt}
           disabled={isLoading}
-          className="w-full rounded-xl bg-[#F7F7F8] py-3 font-medium text-[#121217] transition-all hover:bg-[#EBEBEF] focus:outline-none disabled:opacity-70 dark:bg-[#363636] dark:text-white dark:hover:bg-[#363636]/80"
+          className="w-full rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-text-body transition-all hover:bg-[#EBEBEF] focus:outline-none disabled:opacity-70 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
         >
           {isLoading ? (
             <div className="flex items-center justify-center gap-2">
-              <ImSpinner className="size-4 animate-spin text-white" />
+              <ImSpinner className="size-5 animate-spin text-text-body dark:text-white" />
               <span>Generating receipt...</span>
             </div>
           ) : (
             "Get receipt"
           )}
         </button>
-      </div>
+      )}
     </motion.div>
   );
-};
+}
+
+function DetailRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex w-full items-center justify-between">
+      <div className="text-sm font-normal leading-5 text-text-secondary dark:text-white/50">
+        {label}
+      </div>
+      <div className="max-w-[60%] break-words text-right text-sm font-normal leading-5 text-text-accent-gray dark:text-white/80">
+        {value}
+      </div>
+    </div>
+  );
+}

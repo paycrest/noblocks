@@ -29,7 +29,7 @@ import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus, fetchRate } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
-import { currencyToCountryCode } from "../hooks";
+import { currencyToCountryCode } from "../utils";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.

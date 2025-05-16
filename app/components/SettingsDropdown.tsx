@@ -207,7 +207,7 @@ export const SettingsDropdown = () => {
                     </button>
                   </li>
                 ))}
-              {!isInjectedWallet && (
+              {/* {!isInjectedWallet && (
                 <li
                   role="menuitem"
                   className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
@@ -216,7 +216,7 @@ export const SettingsDropdown = () => {
                   <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                   <p>Export wallet</p>
                 </li>
-              )}
+              )} */}
               <li
                 role="menuitem"
                 className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"

@@ -29,6 +29,10 @@ yarn-error.log*
 # local env files
 .env
 .env*.local
+keys/rsa.key.pub
+keys/rsa.key
+keys
+PR_DESCRIPTION.md
 
 # vercel
 .vercel
@@ -39,3 +43,6 @@ next-env.d.ts
 
 # editor
 .vscode
+
+# cursor
+.cursor/

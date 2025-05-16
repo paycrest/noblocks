@@ -9,3 +9,5 @@ export const outlineBtnClasses = `${baseBtnClasses} border border-border-input t
 
 export const inputClasses =
   "w-full rounded-xl border border-border-input bg-transparent bg-white py-2 px-4 text-sm text-neutral-900 transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-white/20 dark:bg-neutral-900 dark:text-white/80 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900 disabled:cursor-not-allowed";
+
+export const whiteBtnClasses = `${baseBtnClasses} bg-white text-text-body shadow hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-400`;

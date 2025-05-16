@@ -6,6 +6,7 @@ import { Inter } from "next/font/google";
 import Providers from "./providers";
 import MainContent from "./mainContent";
 import { Footer, Navbar } from "./components";
+import MigrationBanner from "./components/migration/MigrationBanner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -54,7 +55,8 @@ export default function RootLayout({
         <Providers>
           <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
             <Navbar />
-            <div className="relative mx-auto flex min-h-dvh flex-col items-center px-5 pt-24 transition-all">
+            <MigrationBanner />
+            <div className="relative mx-auto flex min-h-dvh flex-col items-center px-5 pt-52 transition-all">
               <MainContent>{children}</MainContent>
               <Footer />
             </div>

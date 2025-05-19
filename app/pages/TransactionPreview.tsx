@@ -97,7 +97,6 @@ export const TransactionPreview = ({
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
-  const [transactionHash, setTransactionHash] = useState<string>("");
 
   const searchParams = useSearchParams();
 
@@ -313,8 +312,6 @@ export const TransactionPreview = ({
 
       await getOrderId();
 
-      await saveTransactionData();
-
       toast.success("Order created successfully");
 
       refreshBalance();
@@ -365,7 +362,13 @@ export const TransactionPreview = ({
     }
   };
 
-  const saveTransactionData = async () => {
+  const saveTransactionData = async ({
+    orderId,
+    txHash,
+  }: {
+    orderId: string;
+    txHash: `0x${string}`;
+  }) => {
     if (!embeddedWallet?.address || isSavingTransaction) return;
     setIsSavingTransaction(true);
 
@@ -378,20 +381,23 @@ export const TransactionPreview = ({
       const transaction: TransactionCreateInput = {
         walletAddress: embeddedWallet.address,
         transactionType: "transfer",
-        fromCurrency: currency,
+        fromCurrency: token,
         toCurrency: currency,
         amountSent: Number(amountSent),
         amountReceived: Number(amountReceived),
         fee: Number(rate),
         recipient: {
           account_name: recipientName,
-          institution: formValues.institution,
-          account_identifier: formValues.accountIdentifier,
-          ...(formValues.memo && { memo: formValues.memo }),
+          institution: getInstitutionNameByCode(
+            institution,
+            supportedInstitutions,
+          ) as string,
+          account_identifier: accountIdentifier,
+          ...(memo && { memo }),
         },
         status: "pending",
         orderId: orderId,
-        txHash: transactionHash,
+        txHash: txHash,
       };
 
       const response = await saveTransaction(transaction, accessToken);
@@ -455,9 +461,14 @@ export const TransactionPreview = ({
           setIsOrderCreatedLogsFetched(true);
           clearInterval(intervalId);
           setOrderId(decodedLog.args.orderId);
+
+          await saveTransactionData({
+            orderId: decodedLog.args.orderId,
+            txHash: logs[0].transactionHash,
+          });
+
           setCreatedAt(new Date().toISOString());
           setTransactionStatus("pending");
-          setTransactionHash(logs[0].transactionHash);
           setCurrentStep("status");
         }
       } catch (error) {

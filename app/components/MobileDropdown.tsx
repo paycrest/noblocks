@@ -188,7 +188,7 @@ export const MobileDropdown = ({
           <Dialog
             open={isOpen}
             onClose={onClose}
-            className="relative z-50 sm:hidden"
+            className="relative z-50 max-h-[90vh] sm:hidden"
           >
             <motion.div
               initial={{ opacity: 0 }}
@@ -201,7 +201,7 @@ export const MobileDropdown = ({
             <div className="fixed inset-0">
               <div className="flex h-full items-end">
                 <motion.div {...slideUpAnimation} className="w-full">
-                  <DialogPanel className="relative w-full overflow-visible rounded-t-[30px] border border-border-light bg-white px-5 pb-12 pt-6 shadow-xl *:text-sm dark:border-white/5 dark:bg-surface-overlay">
+                  <DialogPanel className="scrollbar-hide relative max-h-[90vh] w-full overflow-visible overflow-y-scroll rounded-t-[30px] border border-border-light bg-white px-5 pb-12 pt-6 shadow-xl *:text-sm dark:border-white/5 dark:bg-surface-overlay">
                     <AnimatePresence mode="wait">
                       {currentView === "wallet" && (
                         <motion.div
@@ -391,16 +391,6 @@ export const MobileDropdown = ({
                                       height={16}
                                       className="size-4 rounded-full"
                                     />
-                                    <Image
-                                      src={getNetworkImageUrl(
-                                        selectedNetwork,
-                                        isDark,
-                                      )}
-                                      alt={selectedNetwork.chain.name}
-                                      width={16}
-                                      height={16}
-                                      className="hidden size-4 rounded-full"
-                                    />
                                     <span className="text-text-body dark:text-white">
                                       {selectedNetwork.chain.name}
                                     </span>
@@ -437,16 +427,6 @@ export const MobileDropdown = ({
                                           width={24}
                                           height={24}
                                           className="size-6"
-                                        />
-                                        <Image
-                                          src={getNetworkImageUrl(
-                                            network,
-                                            isDark,
-                                          )}
-                                          alt={network.chain.name}
-                                          width={24}
-                                          height={24}
-                                          className="hidden size-6 dark:block"
                                         />
                                         <span className="text-text-body dark:text-white/80">
                                           {network.chain.name}

@@ -12,6 +12,7 @@ import {
   formatNumberWithCommas,
   SUPPORTED_TOKENS,
   currencyToCountryCode,
+  formatCurrency,
 } from "../../utils";
 import { useNetwork } from "../../context/NetworksContext";
 import { useActualTheme } from "../../hooks/useActualTheme";
@@ -142,7 +143,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         </div>
         <div className="flex items-center gap-2">
           <span
-            className={`${STATUS_COLOR_MAP[transaction.status] || "text-text-secondary dark:text-white/50"} text-sm capitalize`}
+            className={`${STATUS_COLOR_MAP[transaction.status] || "text-text-secondary dark:text-white/50"} text-sm`}
           >
             {transaction.status}
           </span>
@@ -155,8 +156,11 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
           label="Amount"
           value={
             <span className="text-text-accent-gray dark:text-white/80">
-              {transaction.to_currency}{" "}
-              {formatNumberWithCommas(transaction.amount_received)}
+              {formatCurrency(
+                transaction.amount_received ?? 0,
+                transaction.to_currency,
+                `en-${transaction.to_currency.slice(0, 2)}`,
+              )}
             </span>
           }
         />
@@ -164,15 +168,19 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
           label="Rate"
           value={
             <span className="text-text-accent-gray dark:text-white/80">
-              {transaction.fee}
+              {formatCurrency(
+                transaction.fee ?? 0,
+                transaction.to_currency,
+                `en-${transaction.to_currency.slice(0, 2)}`,
+              )}
             </span>
           }
         />
         <DetailRow
           label="Recipient"
           value={
-            <span className="text-text-accent-gray dark:text-white/80">
-              {transaction.recipient.account_name}
+            <span className="capitalize text-text-accent-gray dark:text-white/80">
+              {transaction.recipient.account_name.toLocaleLowerCase()}
             </span>
           }
         />
@@ -227,8 +235,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
           label="Transaction status"
           value={
             <span className="text-text-secondary dark:text-white/50">
-              {transaction.status.charAt(0).toUpperCase() +
-                transaction.status.slice(1)}
+              {transaction.status}
             </span>
           }
         />

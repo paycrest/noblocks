@@ -31,11 +31,7 @@ import {
   getInstitutionNameByCode,
   getSavedRecipients,
 } from "../utils";
-import {
-  fetchOrderDetails,
-  saveTransaction,
-  updateTransactionDetails,
-} from "../api/aggregator";
+import { fetchOrderDetails, updateTransactionDetails } from "../api/aggregator";
 import {
   STEPS,
   type OrderDetailsData,
@@ -162,7 +158,8 @@ export function TransactionStatus({
       const response = await updateTransactionDetails({
         transactionId,
         status: transactionStatus,
-        txHash: createdHash,
+        txHash:
+          transactionStatus !== "refunded" ? createdHash : orderDetails?.txHash,
         timeSpent,
         accessToken,
         walletAddress: embeddedWallet.address,
@@ -225,11 +222,7 @@ export function TransactionStatus({
               }
             }
 
-            if (
-              ["pending", "processing"].includes(
-                orderDetailsResponse.data.status,
-              )
-            ) {
+            if (orderDetailsResponse.data.status === "processing") {
               const createdReceipt = orderDetailsResponse.data.txReceipts.find(
                 (txReceipt) => txReceipt.status === "pending",
               );

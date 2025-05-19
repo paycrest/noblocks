@@ -1,9 +1,8 @@
 "use client";
-import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { Cancel01Icon, ArrowLeft02Icon } from "hugeicons-react";
-import { slideUpAnimation } from "../AnimatedComponents";
+import { AnimatedModal } from "../AnimatedComponents";
 import { TransactionDetails } from "./TransactionDetails";
 import type { TransactionHistory } from "../../types";
 import TransactionList from "./TransactionList";
@@ -54,70 +53,65 @@ export const TransactionHistoryModal = ({
   }, [isOpen, clearTransactions]);
 
   return (
-    <Dialog open={isOpen} onClose={handleClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <DialogPanel className="relative w-full overflow-visible rounded-t-[30px] border border-border-light bg-white px-5 pb-12 pt-6 shadow-xl *:text-sm dark:border-white/5 dark:bg-surface-overlay sm:rounded-[20px]">
-          <AnimatePresence mode="wait">
-            {selectedTransaction ? (
-              <motion.div
-                key="transaction-details"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="space-y-6"
-              >
-                <div className="flex items-center justify-between">
-                  <HeaderButton
-                    onClick={() => setSelectedTransaction(null)}
-                    icon={
-                      <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
-                    }
-                    label="Back"
-                  />
-                  <h2 className="text-lg font-semibold text-text-body dark:text-white">
-                    Details
-                  </h2>
-                  <HeaderButton
-                    onClick={handleClose}
-                    icon={
-                      <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
-                    }
-                    label="Close"
-                  />
-                </div>
+    <AnimatedModal isOpen={isOpen} onClose={handleClose}>
+      <AnimatePresence mode="wait">
+        {selectedTransaction ? (
+          <motion.div
+            key="transaction-details"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="space-y-6"
+          >
+            <div className="flex items-center justify-between">
+              <HeaderButton
+                onClick={() => setSelectedTransaction(null)}
+                icon={
+                  <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
+                }
+                label="Back"
+              />
+              <h2 className="text-lg font-semibold text-text-body dark:text-white">
+                Details
+              </h2>
+              <HeaderButton
+                onClick={handleClose}
+                icon={
+                  <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                }
+                label="Close"
+              />
+            </div>
 
-                <div className="scrollbar-hide max-h-[80vh] w-full overflow-y-auto pb-4">
-                  <TransactionDetails transaction={selectedTransaction} />
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="transaction-list"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="space-y-6"
-              >
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-text-body dark:text-white">
-                    Transaction History
-                  </h2>
-                  <HeaderButton
-                    onClick={handleClose}
-                    icon={
-                      <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
-                    }
-                    label="Close"
-                  />
-                </div>
+            <div className="scrollbar-hide max-h-[80vh] w-full overflow-y-auto pb-4">
+              <TransactionDetails transaction={selectedTransaction} />
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="transaction-list"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="space-y-6"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-text-body dark:text-white">
+                Transaction History
+              </h2>
+              <HeaderButton
+                onClick={handleClose}
+                icon={
+                  <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                }
+                label="Close"
+              />
+            </div>
 
-                <TransactionList onSelectTransaction={setSelectedTransaction} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </DialogPanel>
-      </div>
-    </Dialog>
+            <TransactionList onSelectTransaction={setSelectedTransaction} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </AnimatedModal>
   );
 };

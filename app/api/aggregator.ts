@@ -285,9 +285,18 @@ export async function updateTransactionDetails({
     ? "completed"
     : status;
 
+  // Build the data object dynamically
+  const data: Record<string, any> = { status: finalStatus };
+  if (txHash !== undefined && txHash !== null && txHash !== "") {
+    data.txHash = txHash;
+  }
+  if (timeSpent !== undefined && timeSpent !== null && timeSpent !== "") {
+    data.timeSpent = timeSpent;
+  }
+
   const response = await axios.put(
     `/api/v1/transactions/${transactionId}`,
-    { txHash, timeSpent, status: finalStatus },
+    data,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,

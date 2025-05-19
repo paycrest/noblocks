@@ -15,10 +15,11 @@ import { PiSpinnerBold } from "react-icons/pi";
 import { useActualTheme } from "../../hooks/useActualTheme";
 import { useTransactions } from "../../context/TransactionsContext";
 import {
-  ArrowLeft01Icon,
   ArrowLeft02Icon,
   ArrowRight02Icon,
+  Invoice01Icon,
 } from "hugeicons-react";
+import { fadeInOut } from "../AnimatedComponents";
 
 interface TransactionListProps {
   onSelectTransaction?: (transaction: TransactionHistory) => void;
@@ -90,7 +91,6 @@ export const TransactionListItem = ({
               className={classNames(
                 STATUS_COLOR_MAP[transaction.status] ||
                   "text-text-secondary dark:text-white/50",
-                "capitalize",
               )}
             >
               {transaction.status}
@@ -115,7 +115,7 @@ export default function TransactionList({
   onSelectTransaction,
 }: TransactionListProps) {
   const { user, getAccessToken } = usePrivy();
-  const limit = 10;
+  const limit = 30;
   const isDark = useActualTheme();
 
   // Get embedded wallet address
@@ -198,14 +198,18 @@ export default function TransactionList({
         </div>
       ) : transactions.length === 0 ? (
         // Empty state
-        <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center dark:border-white/10 dark:bg-white/5">
-          <p className="text-lg font-medium text-gray-900 dark:text-white">
+        <motion.div
+          {...fadeInOut}
+          className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center dark:border-white/10 dark:bg-white/5"
+        >
+          <Invoice01Icon className="size-6 text-gray-400 dark:text-white/30" />
+          <p className="text-sm font-medium text-gray-900 dark:text-white">
             No transactions yet
           </p>
           <p className="text-sm text-gray-500 dark:text-white/50">
             Your transaction history will appear here
           </p>
-        </div>
+        </motion.div>
       ) : (
         <div className="scrollbar-hide max-h-[80vh] w-full space-y-6 overflow-y-auto">
           <AnimatePresence mode="popLayout">
@@ -279,7 +283,6 @@ export default function TransactionList({
                                 className={classNames(
                                   STATUS_COLOR_MAP[transaction.status] ||
                                     "text-text-secondary dark:text-white/50",
-                                  "capitalize",
                                 )}
                               >
                                 {transaction.status}
@@ -303,7 +306,7 @@ export default function TransactionList({
       )}
 
       {/* Pagination controls */}
-      {transactions.length > 0 && (
+      {transactions.length > 0 && Math.ceil(total / limit) > 1 && (
         <div className="mt-8 flex flex-grow items-end justify-center gap-2">
           <button
             type="button"

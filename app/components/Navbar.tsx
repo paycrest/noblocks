@@ -98,7 +98,7 @@ export const Navbar = () => {
       role="banner"
     >
       <nav
-        className="mx-auto flex items-center justify-between p-4 text-neutral-900 lg:container dark:text-white lg:px-8"
+        className="mx-auto flex items-center justify-between px-4 py-6 text-neutral-900 lg:container dark:text-white lg:px-8"
         aria-label="Navbar"
       >
         <div className="flex items-start gap-2 lg:flex-1">

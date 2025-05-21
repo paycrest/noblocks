@@ -211,7 +211,7 @@ export default function RootLayout({
           <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
             <Navbar />
             <MigrationBanner />
-            <div className="relative mx-auto flex min-h-dvh flex-col items-center px-5 pt-52 transition-all">
+            <div className="relative mx-auto flex min-h-dvh flex-col items-center px-5 pt-64 transition-all sm:pt-52">
               <MainContent>{children}</MainContent>
               <Footer />
             </div>

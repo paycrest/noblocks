@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import type { AnimatedComponentProps } from "../types";
 import { classNames } from "../utils";
+import { Cancel01Icon } from "hugeicons-react";
 
 // Animation variants and transition
 const pageVariants = {
@@ -165,9 +166,10 @@ export const AnimatedModal = ({
   isOpen,
   onClose,
   children,
-  maxWidth = "25.75rem",
+  maxWidth = "27.75rem",
   dialogPanelClassName,
-}: AnimatedModalProps) => (
+  showGradientHeader = false,
+}: AnimatedModalProps & { showGradientHeader?: boolean }) => (
   <AnimatePresence>
     {isOpen && (
       <Dialog open={isOpen} onClose={onClose} className="relative z-50">
@@ -193,12 +195,28 @@ export const AnimatedModal = ({
           >
             <DialogPanel
               className={classNames(
-                "relative mx-auto w-full overflow-y-auto bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-2xl",
+                "relative mx-auto w-full",
                 dialogPanelClassName || "",
               )}
               style={{ maxWidth: window.innerWidth > 640 ? maxWidth : "none" }}
             >
-              {children}
+              {showGradientHeader && (
+                <div className="h-24 w-full bg-gradient-to-r from-[#7b8c12] via-[#243b81] to-[#1d1324] max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl">
+                  <Cancel01Icon
+                    className="absolute right-4 top-4 size-6 text-white/80"
+                    onClick={onClose}
+                  />
+                </div>
+              )}
+
+              <div
+                className={classNames(
+                  "w-full overflow-y-auto bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl",
+                  showGradientHeader ? "-mt-10" : "",
+                )}
+              >
+                {children}
+              </div>
             </DialogPanel>
           </motion.div>
         </div>

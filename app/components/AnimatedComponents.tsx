@@ -203,7 +203,7 @@ export const AnimatedModal = ({
               {showGradientHeader && (
                 <div className="h-24 w-full bg-gradient-to-r from-[#7b8c12] via-[#243b81] to-[#1d1324] max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl">
                   <Cancel01Icon
-                    className="absolute right-4 top-4 size-6 text-white/80"
+                    className="absolute right-4 top-4 size-6 cursor-pointer text-white/80"
                     onClick={onClose}
                   />
                 </div>

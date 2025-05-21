@@ -96,8 +96,3 @@ select {
     transform: scale(1.2, 1);
   }
 }
-
-/* privy user pill menu */
-.hpFUIx {
-  margin-top: 0.625rem;
-}

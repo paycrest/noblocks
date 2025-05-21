@@ -5,10 +5,21 @@ import { whiteBtnClasses } from "../Styles";
 
 const MigrationBanner: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
   return (
-    <div className="fixed left-0 right-0 top-16 z-30 flex min-h-14 w-full items-center justify-center bg-[#2D77E2] px-2 md:px-0">
-      <div className="relative flex w-full items-center py-2 pr-8 md:py-0">
-        {/* Illustration */}
-        <div className="mr-4 hidden flex-shrink-0 sm:block">
+    <div className="fixed left-0 right-0 top-20 z-30 flex min-h-14 w-full items-center justify-center bg-[#2D77E2] px-0 md:px-0">
+      <div className="relative w-full sm:flex sm:items-center sm:py-0 sm:pr-8">
+        {/* Mobile Illustration - absolute */}
+        <div className="absolute left-0 top-0 z-0 sm:hidden">
+          <Image
+            src="/images/banner-illustration-mobile.svg"
+            alt="Migration Banner Illustration Mobile"
+            width={37}
+            height={104}
+            priority
+            className="h-full w-auto"
+          />
+        </div>
+        {/* Desktop Illustration */}
+        <div className="z-10 hidden flex-shrink-0 sm:static sm:mr-4 sm:block">
           <Image
             src="/images/banner-illustration.svg"
             alt="Migration Banner Illustration"
@@ -17,25 +28,21 @@ const MigrationBanner: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
             priority
           />
         </div>
-        {/* Text */}
-        <div className="flex-1 text-center text-sm font-medium leading-tight text-white md:text-left">
-          <span className="opacity-80">
+        {/* Text and Button */}
+        <div className="relative z-10 flex flex-grow flex-col items-start justify-between gap-3 px-4 py-4 pl-6 text-left text-sm font-medium leading-tight text-white/80 sm:flex-row sm:items-center sm:px-0 sm:py-4 sm:pl-0 sm:text-left">
+          <span className="flex-1">
             Noblocks is migrating, this is a legacy version that will be closed
-            by{" "}
-          </span>
-          <span className="font-semibold">6th June, 2025. </span>
-          <span className="opacity-80">
+            by <span className="font-semibold text-white">6th June, 2025.</span>{" "}
             Click on start migration to move to the new version.
           </span>
+          <button
+            type="button"
+            className={`${whiteBtnClasses} mt-0 flex-shrink-0 sm:ml-6 sm:mt-0`}
+            onClick={onClick}
+          >
+            Start migration
+          </button>
         </div>
-        {/* Button */}
-        <button
-          type="button"
-          className={`${whiteBtnClasses} h-9 min-w-[120px] flex-shrink-0 text-sm`}
-          onClick={onClick}
-        >
-          Start migration
-        </button>
       </div>
     </div>
   );

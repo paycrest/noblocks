@@ -5,6 +5,10 @@ import { DialogTitle } from "@headlessui/react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { CheckmarkCircle01Icon } from "hugeicons-react";
+import {
+  FingerPrintScanIconGradient,
+  Wallet01IconGradient,
+} from "../ImageAssets";
 
 interface MigrationModalProps {
   isOpen: boolean;
@@ -51,15 +55,43 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
         </div>
       </div>
 
-      <div className="rounded-2xl bg-accent-gray p-4 text-text-body dark:bg-white/10 dark:text-white/80">
-        We're upgrading to a faster, more secure wallet powered by Thirdweb.
-        <br />
-        <br />
-        To complete migration:
-        <ol className="ml-4 list-decimal">
-          <li>Re-verify your account (new wallet will be assigned)</li>
-          <li>Move your funds from old.noblocks.xyz to your new wallet</li>
-        </ol>
+      <div className="space-y-4 rounded-2xl bg-accent-gray p-4 text-text-body dark:bg-white/5 dark:text-white/80">
+        <p>
+          We're upgrading to a faster, more secure wallet powered by Thirdweb.
+          What does this mean?
+        </p>
+        <div className="space-y-4 rounded-2xl bg-accent-gray p-3 dark:bg-white/5">
+          {[
+            {
+              icon: FingerPrintScanIconGradient,
+              description: (
+                <>
+                  Your KYC will be moved from <strong>Privy</strong> to a new
+                  wallet address assigned by <strong>Thirdweb</strong>
+                </>
+              ),
+            },
+            {
+              icon: Wallet01IconGradient,
+              description:
+                "If you have any funds in your account, it will be transferred to your new KYCed address",
+            },
+          ].map(({ icon: Icon, description }) => (
+            <div
+              key={typeof description === "string" ? description : "kyc"}
+              className="flex items-center gap-3"
+            >
+              <Icon className="size-8 flex-shrink-0" />
+              <span className="text-sm text-text-body dark:text-white">
+                {description}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p>
+          All you have to do is approve both actions and we will do all the
+          heavy lifting for you
+        </p>
       </div>
 
       <button
@@ -67,7 +99,7 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
         className={`${primaryBtnClasses} w-full`}
         onClick={handleReverify}
       >
-        Re-verify in 2 minutes
+        Approve migration
       </button>
     </motion.div>
   );

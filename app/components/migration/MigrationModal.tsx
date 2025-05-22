@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AnimatedModal } from "../AnimatedComponents";
 import { primaryBtnClasses } from "../Styles";
 import { DialogTitle } from "@headlessui/react";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+import { usePrivy } from "@privy-io/react-auth";
 import {
   CheckmarkCircle01Icon,
   InformationSquareIcon,
@@ -13,15 +15,15 @@ import {
   FingerPrintScanIconGradient,
   Wallet01IconGradient,
 } from "../ImageAssets";
-import { usePrivy } from "@privy-io/react-auth";
-import { useBalance, useInjectedWallet } from "@/app/context";
+import { useBalance, useMultiNetworkBalance } from "@/app/context";
 import {
   formatCurrency,
   shortenAddress,
-  getNetworkImageUrl,
+  generateTimeBasedNonce,
+  convertCNGNtoUSD,
 } from "@/app/utils";
-import { useNetwork } from "@/app/context/NetworksContext";
 import { useActualTheme } from "@/app/hooks/useActualTheme";
+import { useCNGNRate } from "@/app/hooks/useCNGNRate";
 
 interface MigrationModalProps {
   isOpen: boolean;
@@ -38,27 +40,49 @@ type Step = "initial" | "wallet" | "loading" | "success";
 
 const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
   const [currentStep, setCurrentStep] = useState<Step>("initial");
-  const { user } = usePrivy();
-  const { allBalances, isLoading } = useBalance();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const { selectedNetwork } = useNetwork();
+  const [isSigning, setIsSigning] = useState(false);
+  const { signMessage, user } = usePrivy();
+  const { allBalances } = useBalance();
   const isDark = useActualTheme();
+  const {
+    fetchAllNetworkBalances,
+    networkBalances,
+    isLoading: isLoadingBalances,
+  } = useMultiNetworkBalance();
+  const { rate } = useCNGNRate();
 
-  // Determine active wallet based on wallet type
-  const activeWallet = isInjectedWallet
-    ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet",
+  )?.address;
 
-  // Get appropriate balance based on wallet type
-  const activeBalance = isInjectedWallet
-    ? allBalances.injectedWallet
-    : allBalances.smartWallet;
+  // Get appropriate balance for smart wallet
+  const activeBalance = allBalances.smartWallet;
 
-  const handleReverify = async () => {
-    setCurrentStep("loading");
-    // Mock delay
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setCurrentStep("wallet");
+  const handleApproveMigration = async () => {
+    setIsSigning(true);
+    const nonce = generateTimeBasedNonce({ length: 16 });
+    const message = `I accept the migration to a new wallet address ${smartWallet} with nonce ${nonce}`;
+
+    try {
+      const signResult = await signMessage(
+        { message },
+        { uiOptions: { buttonText: "Sign" } },
+      );
+
+      if (!signResult) {
+        setIsSigning(false);
+        return;
+      }
+
+      setCurrentStep("loading");
+      await fetchAllNetworkBalances(smartWallet || "");
+      setCurrentStep("wallet");
+    } catch (error) {
+      console.error("Error during signing:", error);
+      toast.error("Failed to sign message");
+    } finally {
+      setIsSigning(false);
+    }
   };
 
   const handleApproveTransfer = async () => {
@@ -132,9 +156,10 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
       <button
         type="button"
         className={`${primaryBtnClasses} w-full`}
-        onClick={handleReverify}
+        onClick={handleApproveMigration}
+        disabled={isSigning}
       >
-        Approve migration
+        {isSigning ? "Signing..." : "Approve migration"}
       </button>
     </motion.div>
   );
@@ -148,12 +173,12 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
       </div>
 
       <div className="space-y-4">
-        {/* Wallet address and balance */}
+        {/* Wallet address and total balance */}
         <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/5">
           <div className="flex items-center gap-2">
             <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
             <p className="font-medium text-text-body dark:text-white">
-              {shortenAddress(activeWallet?.address ?? "", 12, 5)}
+              {shortenAddress(smartWallet ?? "", 12, 5)}
             </p>
           </div>
 
@@ -162,55 +187,84 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
           </p>
 
           <div className="text-2xl font-medium leading-9 text-text-body dark:text-white">
-            {formatCurrency(activeBalance?.total ?? 0, "USD", "en-US")}
+            {formatCurrency(
+              networkBalances.reduce((acc, network) => {
+                const networkTotal = Object.entries(network.balances).reduce(
+                  (total, [token, balance]) => {
+                    if (token.toUpperCase() === "CNGN") {
+                      return total + convertCNGNtoUSD(balance, rate || 1);
+                    }
+                    return total + balance;
+                  },
+                  0,
+                );
+                return acc + networkTotal;
+              }, 0),
+              "USD",
+              "en-US",
+            )}
           </div>
         </div>
 
-        {/* Balance list */}
-        <div className="space-y-4">
-          {isLoading ? (
-            <div className="h-20 animate-pulse rounded-lg bg-gray-100 dark:bg-white/5" />
-          ) : (
-            Object.entries(activeBalance?.balances || {}).map(
-              ([token, balance]) => (
-                <div
-                  key={token}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <Image
-                        src={`/logos/${token.toLowerCase()}-logo.svg`}
-                        alt={token}
-                        width={32}
-                        height={32}
-                        className="size-8 rounded-full"
-                      />
-                      <Image
-                        src={getNetworkImageUrl(selectedNetwork, isDark)}
-                        alt={selectedNetwork.chain.name}
-                        width={16}
-                        height={16}
-                        className="absolute -bottom-1 -right-1 size-4 rounded-full"
-                      />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-text-body dark:text-white/80">
-                        {token}
-                      </span>
-                      <span className="text-text-secondary dark:text-white/50">
-                        {balance}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <span className="text-text-body dark:text-white/80">
-                      ${(balance || 0).toFixed(2)}
-                    </span>
+        {/* Network-specific balances */}
+        <div className="space-y-6">
+          {networkBalances.map(
+            (network) =>
+              network.total > 0 && (
+                <div key={network.networkName} className="space-y-4">
+                  <div className="space-y-4">
+                    {Object.entries(network.balances).map(
+                      ([token, balance]) =>
+                        balance > 0 && (
+                          <div
+                            key={`${network.networkName}-${token}`}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="relative">
+                                <Image
+                                  src={`/logos/${token.toLowerCase()}-logo.svg`}
+                                  alt={token}
+                                  width={32}
+                                  height={32}
+                                  className="size-8 rounded-full"
+                                />
+                                <Image
+                                  src={
+                                    typeof network.networkLogo === "string"
+                                      ? network.networkLogo
+                                      : isDark
+                                        ? network.networkLogo.dark
+                                        : network.networkLogo.light
+                                  }
+                                  alt={network.networkName}
+                                  width={16}
+                                  height={16}
+                                  className="absolute -bottom-1 -right-1 size-4 rounded-full"
+                                />
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-text-body dark:text-white/80">
+                                  {token}
+                                </span>
+                                <span className="text-text-secondary dark:text-white/50">
+                                  {balance}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end">
+                              <span className="text-text-body dark:text-white/80">
+                                {token.toUpperCase() === "CNGN"
+                                  ? `$${convertCNGNtoUSD(balance, rate || 1).toFixed(2)}`
+                                  : `$${balance.toFixed(2)}`}
+                              </span>
+                            </div>
+                          </div>
+                        ),
+                    )}
                   </div>
                 </div>
               ),
-            )
           )}
         </div>
 
@@ -220,7 +274,7 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
             Your funds are safe, they are being transferred to your new secured
             wallet address{" "}
             <span className="font-bold text-white/80">
-              {shortenAddress(activeWallet?.address ?? "", 4, 7)}
+              {shortenAddress(smartWallet ?? "", 4, 7)}
             </span>
           </p>
         </div>
@@ -240,9 +294,14 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
     <motion.div
       key="loading"
       {...fadeInOut}
-      className="flex h-full items-center justify-center py-40"
+      className="flex h-full flex-col items-center justify-center gap-4 py-40"
     >
       <div className="h-24 w-24 animate-spin rounded-full border-4 border-t-4 border-lavender-500 border-t-white"></div>
+      {isLoadingBalances && (
+        <p className="text-center text-sm text-gray-500 dark:text-white/50">
+          Fetching balances across all networks...
+        </p>
+      )}
     </motion.div>
   );
 

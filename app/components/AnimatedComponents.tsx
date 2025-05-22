@@ -166,7 +166,7 @@ export const AnimatedModal = ({
   isOpen,
   onClose,
   children,
-  maxWidth = "27.75rem",
+  maxWidth = "27.3125rem",
   dialogPanelClassName,
   showGradientHeader = false,
 }: AnimatedModalProps & { showGradientHeader?: boolean }) => (
@@ -201,9 +201,9 @@ export const AnimatedModal = ({
               style={{ maxWidth: window.innerWidth > 640 ? maxWidth : "none" }}
             >
               {showGradientHeader && (
-                <div className="h-24 w-full bg-gradient-to-r from-[#7b8c12] via-[#243b81] to-[#1d1324] max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl">
+                <div className="h-24 w-full bg-gradient-to-r from-[#d4e269] via-[#b0a6e4] to-[#f9f1fe] dark:from-[#7b8c12] dark:via-[#243b81] dark:to-[#1d1324] max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl">
                   <Cancel01Icon
-                    className="absolute right-4 top-4 size-6 cursor-pointer text-white/50"
+                    className="absolute right-4 top-4 size-6 cursor-pointer text-text-secondary dark:text-white/50"
                     onClick={onClose}
                   />
                 </div>

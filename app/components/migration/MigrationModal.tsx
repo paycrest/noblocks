@@ -95,7 +95,7 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
           We're upgrading to a faster, more secure wallet powered by Thirdweb.
           What does this mean?
         </p>
-        <div className="space-y-4 rounded-2xl bg-accent-gray p-3 dark:bg-white/5">
+        <div className="space-y-4 rounded-[20px] border border-border-light bg-background-neutral p-3 dark:border-white/5 dark:bg-white/5">
           {[
             {
               icon: FingerPrintScanIconGradient,

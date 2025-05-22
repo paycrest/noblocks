@@ -200,23 +200,30 @@ export const AnimatedModal = ({
               )}
               style={{ maxWidth: window.innerWidth > 640 ? maxWidth : "none" }}
             >
-              {showGradientHeader && (
-                <div className="h-24 w-full bg-gradient-to-r from-[#d4e269] via-[#b0a6e4] to-[#f9f1fe] dark:from-[#7b8c12] dark:via-[#243b81] dark:to-[#1d1324] max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl">
-                  <Cancel01Icon
-                    className="absolute right-4 top-4 size-6 cursor-pointer text-text-secondary dark:text-white/50"
-                    onClick={onClose}
-                  />
-                </div>
-              )}
-
-              <div
-                className={classNames(
-                  "w-full overflow-y-auto bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl",
-                  showGradientHeader ? "-mt-10" : "",
+              <motion.div layout initial={false} className="relative">
+                {showGradientHeader && (
+                  <motion.div
+                    layout
+                    className="h-24 w-full bg-gradient-to-r from-[#d4e269] via-[#b0a6e4] to-[#f9f1fe] dark:from-[#7b8c12] dark:via-[#243b81] dark:to-[#1d1324] max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl"
+                  >
+                    <Cancel01Icon
+                      className="absolute right-4 top-4 size-6 cursor-pointer text-text-secondary dark:text-white/50"
+                      onClick={onClose}
+                    />
+                  </motion.div>
                 )}
-              >
-                {children}
-              </div>
+
+                <motion.div
+                  layout
+                  initial={false}
+                  className={classNames(
+                    "w-full overflow-y-auto bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl",
+                    showGradientHeader ? "-mt-10" : "",
+                  )}
+                >
+                  <motion.div layout="position">{children}</motion.div>
+                </motion.div>
+              </motion.div>
             </DialogPanel>
           </motion.div>
         </div>

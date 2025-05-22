@@ -392,10 +392,14 @@ export const KycModal = ({
   );
 
   const renderSuccessStatus = () => (
-    <motion.div key="success" {...fadeInOut} className="space-y-6 pt-4">
+    <motion.div
+      key="success"
+      {...fadeInOut}
+      className="relative space-y-6 pt-4"
+    >
       <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
 
-      <div className="relative space-y-3 pb-5 text-center">
+      <div className="space-y-3 pb-5 text-center">
         <DialogTitle className="text-lg font-semibold">
           Verification successful
         </DialogTitle>

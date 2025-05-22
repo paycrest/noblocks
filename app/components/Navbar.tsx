@@ -94,7 +94,7 @@ export const Navbar = () => {
 
   return (
     <header
-      className="fixed left-0 top-0 z-20 w-full bg-white transition-all dark:bg-neutral-900"
+      className="fixed left-0 top-0 z-40 w-full bg-white transition-all dark:bg-neutral-900"
       role="banner"
     >
       <nav

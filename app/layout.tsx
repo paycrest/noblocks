@@ -209,8 +209,10 @@ export default function RootLayout({
         />
         <Providers>
           <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-            <Navbar />
-            <MigrationBanner />
+            <div className="relative">
+              <Navbar />
+              <MigrationBanner />
+            </div>
             <div className="relative mx-auto flex min-h-dvh flex-col items-center px-5 pt-64 transition-all sm:pt-52">
               <MainContent>{children}</MainContent>
               <Footer />

@@ -63,7 +63,13 @@ const DropdownContent = ({
           )}
         >
           <div className="flex items-center gap-3 sm:gap-2">
-            { item && <FlagImage imageErrors={imageErrors} setImageErrors={setImageErrors} item={item} />}
+            {item && (
+              <FlagImage
+                imageErrors={imageErrors}
+                setImageErrors={setImageErrors}
+                item={item}
+              />
+            )}
             <span className="text-text-body dark:text-white/80">
               {item.label ?? item.name}
             </span>
@@ -81,7 +87,6 @@ const DropdownContent = ({
     </ul>
   );
 };
-
 
 export const FlexibleDropdown = ({
   defaultSelectedItem,
@@ -146,7 +151,7 @@ export const FlexibleDropdown = ({
   };
 
   return (
-    <div ref={dropdownRef} className="relative">
+    <div ref={dropdownRef} className="relative z-30">
       {children({ selectedItem, isOpen, toggleDropdown })}
 
       <AnimatePresence>
@@ -222,7 +227,13 @@ export const FlexibleDropdown = ({
                           )}
                         >
                           <div className="flex items-center gap-3">
-                            {item && <FlagImage item={item}  imageErrors={imageErrors} setImageErrors={setImageErrors} />}
+                            {item && (
+                              <FlagImage
+                                item={item}
+                                imageErrors={imageErrors}
+                                setImageErrors={setImageErrors}
+                              />
+                            )}
                             <span className="text-text-body dark:text-white/80">
                               {item.label ?? item.name}
                             </span>

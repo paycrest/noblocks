@@ -3,9 +3,15 @@ import Image from "next/image";
 import React, { useState } from "react";
 import { whiteBtnClasses } from "../Styles";
 import MigrationModal from "./MigrationModal";
+import { useInjectedWallet } from "@/app/context";
 
 const MigrationBanner: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
   const [modalOpen, setModalOpen] = useState(false);
+  const { isInjectedWallet } = useInjectedWallet();
+
+  // Don't render anything if it's an injected wallet
+  if (isInjectedWallet) return null;
+
   return (
     <>
       <div className="fixed left-0 right-0 top-20 z-30 flex min-h-14 w-full items-center justify-center bg-[#2D77E2] px-0 md:px-0">

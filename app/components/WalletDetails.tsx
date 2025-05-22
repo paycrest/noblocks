@@ -33,9 +33,9 @@ import { fetchRate } from "../api/aggregator";
 import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
 import { useActualTheme } from "../hooks/useActualTheme";
 import TransactionList from "./transaction/TransactionList";
+import { useCNGNRate } from "@/app/hooks/useCNGNRate";
 
 export const WalletDetails = () => {
-  const [rate, setRate] = useState<number>(0);
   const [isTransferModalOpen, setIsTransferModalOpen] =
     useState<boolean>(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
@@ -99,26 +99,7 @@ export const WalletDetails = () => {
     setSelectedTransaction(null);
   };
 
-  // Fetch CNGN rate on component mount
-  useEffect(() => {
-    const getCNGNRate = async () => {
-      try {
-        const rateResponse = await fetchRate({
-          token: "USDT",
-          amount: 1,
-          currency: "NGN",
-        });
-
-        if (rateResponse?.data && typeof rateResponse.data === "string") {
-          setRate(Number(rateResponse.data));
-        }
-      } catch (error) {
-        console.error("Error fetching CNGN rate:", error);
-      }
-    };
-
-    getCNGNRate();
-  }, []);
+  const { rate } = useCNGNRate();
 
   return (
     <>

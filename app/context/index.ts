@@ -5,3 +5,7 @@ export {
   InjectedWalletProvider,
   useInjectedWallet,
 } from "./InjectedWalletContext";
+export {
+  MultiNetworkBalanceProvider,
+  useMultiNetworkBalance,
+} from "./MultiNetworkBalanceContext";

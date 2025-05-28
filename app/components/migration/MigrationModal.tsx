@@ -13,6 +13,7 @@ import {
 } from "hugeicons-react";
 import {
   FingerPrintScanIconGradient,
+  SadFaceIcon,
   Wallet01IconGradient,
 } from "../ImageAssets";
 import { useBalance, useMultiNetworkBalance } from "@/app/context";
@@ -36,7 +37,7 @@ const fadeInOut = {
   exit: { opacity: 0 },
 };
 
-type Step = "initial" | "wallet" | "loading" | "success";
+type Step = "initial" | "wallet" | "loading" | "success" | "failure";
 
 const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
   const [currentStep, setCurrentStep] = useState<Step>("initial");
@@ -54,9 +55,6 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
   const smartWallet = user?.linkedAccounts.find(
     (account) => account.type === "smart_wallet",
   )?.address;
-
-  // Get appropriate balance for smart wallet
-  const activeBalance = allBalances.smartWallet;
 
   const handleApproveMigration = async () => {
     setIsSigning(true);
@@ -76,12 +74,26 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
 
       setCurrentStep("loading");
       await fetchAllNetworkBalances(smartWallet || "");
-      setCurrentStep("wallet");
+      if (networkBalances.some((n) => n.error)) {
+        setCurrentStep("failure");
+      } else {
+        setCurrentStep("wallet");
+      }
     } catch (error) {
       console.error("Error during signing:", error);
       toast.error("Failed to sign message");
     } finally {
       setIsSigning(false);
+    }
+  };
+
+  const handleRetryBalances = async () => {
+    setCurrentStep("loading");
+    await fetchAllNetworkBalances(smartWallet || "");
+    if (networkBalances.some((n) => n.error)) {
+      setCurrentStep("failure");
+    } else {
+      setCurrentStep("wallet");
     }
   };
 
@@ -305,6 +317,33 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
     </motion.div>
   );
 
+  const renderFailureState = () => (
+    <motion.div
+      key="failure"
+      {...fadeInOut}
+      className="relative space-y-6 pt-4"
+    >
+      <SadFaceIcon className="mx-auto size-10" />
+      <div className="space-y-3 pb-5 text-center">
+        <DialogTitle className="z-10 text-lg font-semibold">
+          Couldn't fetch all balances
+        </DialogTitle>
+        <p className="mx-auto max-w-xs text-center text-sm text-gray-500 dark:text-white/50">
+          We couldn't fetch all your balances. Please try again. If the issue
+          persists, contact support via the settings.
+        </p>
+      </div>
+      <button
+        type="button"
+        className={`${primaryBtnClasses} w-full`}
+        onClick={handleRetryBalances}
+        disabled={isLoadingBalances}
+      >
+        {isLoadingBalances ? "Retrying..." : "Retry"}
+      </button>
+    </motion.div>
+  );
+
   const renderSuccessState = () => (
     <motion.div
       key="success"
@@ -349,6 +388,8 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
         return renderWalletState();
       case "loading":
         return renderLoadingState();
+      case "failure":
+        return renderFailureState();
       case "success":
         return renderSuccessState();
       default:

@@ -1,0 +1,197 @@
+name: Create Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - stable
+  schedule:
+    - cron: '0 0 * * 1'  # Run at 00:00 every Monday
+
+# Add permissions block
+permissions:
+  contents: write  # Required for creating releases
+  packages: write  # Required if you're also publishing packages
+  pull-requests: read  # Added to read PR information
+
+jobs:
+  create-release:
+    # Only run if PR is merged (not just closed)
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: get_latest_tag
+        run: |
+          # Try to get the latest tag, if none exists, start with v0.0.0
+          if ! latest_tag=$(git describe --tags --abbrev=0 2>/dev/null); then
+            echo "No existing tags found. Starting with v0.0.0"
+            latest_tag="v0.0.0"
+          fi
+          echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
+
+      - name: Check if release is needed
+        id: check_release
+        run: |
+          latest_tag="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          
+          # If this is the first release (v0.0.0), always create it
+          if [ "$latest_tag" = "v0.0.0" ]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "First release will be created"
+            exit 0
+          fi
+          
+          # Get the date of the latest tag
+          tag_date=$(git log -1 --format=%at $latest_tag)
+          current_date=$(date +%s)
+          week_in_seconds=604800  # 7 days in seconds
+          
+          # Check if we're in scheduled run or if it's been more than a week
+          if [ "${{ github.event_name }}" = "schedule" ] || [ $((current_date - tag_date)) -gt $week_in_seconds ]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "Last release was less than a week ago. Skipping release creation."
+          fi
+
+      - name: Get PRs and commits since last release
+        if: steps.check_release.outputs.should_release == 'true'
+        id: get_changes
+        run: |
+          latest_tag="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          
+          # Get all PRs since last tag
+          if [ "$latest_tag" = "v0.0.0" ]; then
+            # For first release, get all PRs
+            gh pr list --state merged --json number,title,body,labels --jq '.[] | "\(.number)|\(.title)|\(.body)|\(.labels[].name)"' > prs.txt
+            # Get all commits for first release
+            git log --pretty=format:"%B" > commits.txt
+          else
+            # Get PRs merged since last tag
+            gh pr list --state merged --json number,title,body,labels --jq '.[] | "\(.number)|\(.title)|\(.body)|\(.labels[].name)"' > prs.txt
+            # Get commits since last tag
+            git log $latest_tag..HEAD --pretty=format:"%B" > commits.txt
+          fi
+          
+          # Count PRs with different labels
+          major_count=$(grep -c "major\|breaking" prs.txt || echo "0")
+          minor_count=$(grep -c "minor\|feature" prs.txt || echo "0")
+          
+          # Count commits with different types
+          # Breaking changes (major)
+          commit_major_count=$(grep -c "^(feat!|BREAKING CHANGE)" commits.txt || echo "0")
+          
+          # Features (minor)
+          commit_minor_count=$(grep -c "^(feat|\[minor\])" commits.txt || echo "0")
+          
+          # Fixes (patch)
+          commit_fix_count=$(grep -c "^(fix)" commits.txt || echo "0")
+          
+          # Other conventional commits (patch)
+          commit_other_count=$(grep -c "^(chore|docs|style|refactor|perf|test|ci|build|revert)" commits.txt || echo "0")
+          
+          # Use the higher count between PR labels and commit messages
+          if [ "$major_count" -gt 0 ] || [ "$commit_major_count" -gt 0 ]; then
+            echo "version_type=major" >> $GITHUB_OUTPUT
+          elif [ "$minor_count" -gt 0 ] || [ "$commit_minor_count" -gt 0 ]; then
+            echo "version_type=minor" >> $GITHUB_OUTPUT
+          else
+            # If we have any commits (fixes or other), it's a patch
+            if [ "$commit_fix_count" -gt 0 ] || [ "$commit_other_count" -gt 0 ]; then
+              echo "version_type=patch" >> $GITHUB_OUTPUT
+            else
+              echo "version_type=patch" >> $GITHUB_OUTPUT
+            fi
+          fi
+          
+          # Format PRs for release notes
+          echo "formatted_prs<<EOF" >> $GITHUB_OUTPUT
+          while IFS='|' read -r number title body labels; do
+            echo "### PR #$number: $title"
+            echo "Labels: $labels"
+            echo ""
+            echo "$body"
+            echo ""
+          done < prs.txt
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Format commits by type
+          echo "formatted_commits<<EOF" >> $GITHUB_OUTPUT
+          echo "### Breaking Changes"
+          grep -E "^(feat!|BREAKING CHANGE)" commits.txt || echo "None"
+          echo ""
+          echo "### Features"
+          grep -E "^(feat|\[minor\])" commits.txt || echo "None"
+          echo ""
+          echo "### Fixes"
+          grep -E "^(fix)" commits.txt || echo "None"
+          echo ""
+          echo "### Other Changes"
+          grep -E "^(chore|docs|style|refactor|perf|test|ci|build|revert)" commits.txt || echo "None"
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate new version
+        if: steps.check_release.outputs.should_release == 'true'
+        id: new_version
+        run: |
+          latest_tag="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          
+          # For first release, start with v1.0.0
+          if [ "$latest_tag" = "v0.0.0" ]; then
+            new_version="v1.0.0"
+            echo "new_version=$new_version" >> $GITHUB_OUTPUT
+            echo "version_type=major" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Remove 'v' prefix and split into major.minor.patch
+          version=${latest_tag#v}
+          IFS='.' read -r major minor patch <<< "$version"
+          
+          # Get version type from previous step
+          version_type="${{ steps.get_changes.outputs.version_type }}"
+          
+          if [ "$version_type" = "major" ]; then
+            major=$((major + 1))
+            minor=0
+            patch=0
+          elif [ "$version_type" = "minor" ]; then
+            minor=$((minor + 1))
+            patch=0
+          else
+            patch=$((patch + 1))
+          fi
+          
+          new_version="v$major.$minor.$patch"
+          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        if: steps.check_release.outputs.should_release == 'true'
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.new_version.outputs.new_version }}
+          name: Release ${{ steps.new_version.outputs.new_version }}
+          body: |
+            # Release ${{ steps.new_version.outputs.new_version }}
+            
+            ## Version Information
+            - **Type**: ${{ steps.get_changes.outputs.version_type }} version bump
+            - **Branch**: ${{ github.ref_name }}
+            - **Previous Version**: ${{ steps.get_latest_tag.outputs.latest_tag }}
+            
+            ## Pull Requests
+            ${{ steps.get_changes.outputs.formatted_prs }}
+            
+            ## Changes
+            ${{ steps.get_changes.outputs.formatted_commits }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

@@ -236,6 +236,7 @@ export type Config = {
   mixpanelToken: string;
   hotjarSiteId: number;
   contactSupportUrl: string;
+  thirdwebClientId: string;
 };
 
 export type Network = {

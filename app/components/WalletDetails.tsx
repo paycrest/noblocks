@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   classNames,
   formatCurrency,
@@ -16,7 +16,6 @@ import {
   Wallet01Icon,
   ArrowLeft02Icon,
   ArrowDown01Icon,
-  Clock01Icon,
 } from "hugeicons-react";
 import Image from "next/image";
 import { FundWalletModal } from "./FundWalletModal";
@@ -29,11 +28,11 @@ import { sidebarAnimation, fadeInOut } from "./AnimatedComponents";
 import { TransactionDetails } from "./transaction/TransactionDetails";
 import type { TransactionHistory } from "../types";
 import { PiCheck } from "react-icons/pi";
-import { fetchRate } from "../api/aggregator";
 import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
 import { useActualTheme } from "../hooks/useActualTheme";
 import TransactionList from "./transaction/TransactionList";
 import { useCNGNRate } from "@/app/hooks/useCNGNRate";
+import { useActiveAccount } from "thirdweb/react";
 
 export const WalletDetails = () => {
   const [isTransferModalOpen, setIsTransferModalOpen] =
@@ -52,6 +51,8 @@ export const WalletDetails = () => {
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user } = usePrivy();
   const isDark = useActualTheme();
+
+  const account = useActiveAccount();
 
   // Custom hook for handling wallet funding
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
@@ -196,7 +197,7 @@ export const WalletDetails = () => {
                         <div className="flex items-center gap-2">
                           <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
                           <p className="text-text-body dark:text-white/80">
-                            {shortenAddress(activeWallet?.address ?? "", 8)}
+                            {shortenAddress(account?.address ?? "", 8)}
                           </p>
                         </div>
                         <button

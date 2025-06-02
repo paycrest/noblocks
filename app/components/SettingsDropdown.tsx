@@ -13,7 +13,6 @@ import { useOutsideClick } from "../hooks";
 import { classNames, shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 import {
-  AccessIcon,
   Copy01Icon,
   CustomerService01Icon,
   Logout03Icon,
@@ -25,15 +24,17 @@ import {
 import { toast } from "sonner";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
-import { createWalletClient, custom } from "viem";
-import { trackEvent } from "../hooks/analytics";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
+import { useActiveWallet, useDisconnect } from "thirdweb/react";
 
 export const SettingsDropdown = () => {
-  const { user, exportWallet, updateEmail } = usePrivy();
+  const { user, updateEmail } = usePrivy();
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+
+  const wallet = useActiveWallet();
+  const { disconnect } = useDisconnect();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -77,14 +78,14 @@ export const SettingsDropdown = () => {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      await logout();
+      if (wallet) disconnect(wallet);
       if (window.ethereum) {
         await disconnectWallet();
       }
     } catch (error) {
       console.error("Error during logout:", error);
       // Still proceed with logout even if wallet disconnection fails
-      await logout();
+      if (wallet) disconnect(wallet);
     }
   };
 
@@ -207,16 +208,6 @@ export const SettingsDropdown = () => {
                     </button>
                   </li>
                 ))}
-              {/* {!isInjectedWallet && (
-                <li
-                  role="menuitem"
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
-                  onClick={exportWallet}
-                >
-                  <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-                  <p>Export wallet</p>
-                </li>
-              )} */}
               <li
                 role="menuitem"
                 className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"

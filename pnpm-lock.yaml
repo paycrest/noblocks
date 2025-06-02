@@ -9170,10 +9170,10 @@ packages:
       "@types/react":
         optional: true
 
-  react-remove-scroll@2.7.1:
+  react-remove-scroll@2.6.3:
     resolution:
       {
-        integrity: sha512-HpMh8+oahmIdOuS5aFKKY6Pyog+FNaZV/XyJOq7b4YFwsFHe5yYfdbIalI4k3vU2nSDql7YskmUseHsRrJqIPA==,
+        integrity: sha512-pnAi91oOk8g8ABQKGF5/M9qxmmOPxaAnopyTHYfqYEwJhyFrbbBtHuSgtKEoH0jpcxx5o3hXqH1mNd9/Oi+8iQ==,
       }
     engines: { node: ">=10" }
     peerDependencies:
@@ -13096,7 +13096,7 @@ snapshots:
       aria-hidden: 1.2.6
       react: 19.0.0
       react-dom: 19.0.0(react@19.0.0)
-      react-remove-scroll: 2.7.1(@types/react@19.0.8)(react@19.0.0)
+      react-remove-scroll: 2.6.3(@types/react@19.0.8)(react@19.0.0)
     optionalDependencies:
       "@types/react": 19.0.8
       "@types/react-dom": 19.0.3(@types/react@19.0.8)
@@ -14181,9 +14181,9 @@ snapshots:
 
   "@scure/bip32@1.7.0":
     dependencies:
-      "@noble/curves": 1.9.1
+      "@noble/curves": 1.9.0
       "@noble/hashes": 1.8.0
-      "@scure/base": 1.2.6
+      "@scure/base": 1.2.5
 
   "@scure/bip39@1.2.1":
     dependencies:
@@ -14203,7 +14203,7 @@ snapshots:
   "@scure/bip39@1.6.0":
     dependencies:
       "@noble/hashes": 1.8.0
-      "@scure/base": 1.2.6
+      "@scure/base": 1.2.5
 
   "@simplewebauthn/browser@9.0.1":
     dependencies:
@@ -19777,7 +19777,7 @@ snapshots:
     optionalDependencies:
       "@types/react": 19.0.8
 
-  react-remove-scroll@2.7.1(@types/react@19.0.8)(react@19.0.0):
+  react-remove-scroll@2.6.3(@types/react@19.0.8)(react@19.0.0):
     dependencies:
       react: 19.0.0
       react-remove-scroll-bar: 2.3.8(@types/react@19.0.8)(react@19.0.0)

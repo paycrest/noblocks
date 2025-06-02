@@ -10,7 +10,6 @@ import {
   Mail01Icon,
   ColorsIcon,
   Logout03Icon,
-  AccessIcon,
   Setting07Icon,
   Wallet01Icon,
   ArrowLeft02Icon,
@@ -47,6 +46,11 @@ import { TransactionHistoryModal } from "./transaction/TransactionHistoryModal";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { BalanceCardSkeleton } from "./BalanceSkeleton";
+import {
+  useActiveAccount,
+  useActiveWallet,
+  useDisconnect,
+} from "thirdweb/react";
 
 export const MobileDropdown = ({
   isOpen,
@@ -66,14 +70,13 @@ export const MobileDropdown = ({
     useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
-  const { user, exportWallet, linkEmail, updateEmail } = usePrivy();
+  const { user, linkEmail, updateEmail } = usePrivy();
   const { allBalances, isLoading } = useBalance();
-  const { logout } = useLogout({
-    onSuccess: () => {
-      setIsLoggingOut(false);
-    },
-  });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+
+  const account = useActiveAccount();
+  const wallet = useActiveWallet();
+  const { disconnect } = useDisconnect();
 
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
@@ -167,15 +170,17 @@ export const MobileDropdown = ({
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
+      if (wallet) disconnect(wallet);
+
       // Disconnect external wallet if connected
-      await logout();
       if (window.ethereum) {
         await disconnectWallet();
       }
     } catch (error) {
       console.error("Error during logout:", error);
-      // Still proceed with logout even if wallet disconnection fails
-      await logout();
+
+      // Still proceed with logout even if external wallet disconnection fails
+      if (wallet) disconnect(wallet);
     }
   };
 
@@ -307,7 +312,7 @@ export const MobileDropdown = ({
                           </div>
 
                           {/* Wallet Address Container */}
-                          {smartWallet?.address && (
+                          {account?.address && (
                             <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
                               <div className="flex items-center gap-2">
                                 <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
@@ -317,7 +322,7 @@ export const MobileDropdown = ({
                               </div>
 
                               <span className="block break-words text-sm font-medium dark:text-white/80">
-                                {smartWallet?.address ?? ""}
+                                {account?.address ?? ""}
                               </span>
 
                               <button
@@ -521,22 +526,6 @@ export const MobileDropdown = ({
                               </button>
                             ) : null}
 
-                            {/* {!isInjectedWallet && (
-                              <button
-                                type="button"
-                                onClick={exportWallet}
-                                className="flex w-full items-center justify-between"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <AccessIcon className="size-5 text-outline-gray dark:text-white/50" />
-                                  <span className="text-text-body dark:text-white/80">
-                                    Export wallet
-                                  </span>
-                                </div>
-                                <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                              </button>
-                            )} */}
-
                             <a
                               href={config.contactSupportUrl}
                               target="_blank"
@@ -562,7 +551,7 @@ export const MobileDropdown = ({
                               <ThemeSwitch />
                             </div>
 
-                            {!isInjectedWallet && (
+                            {!isInjectedWallet && wallet && (
                               <button
                                 type="button"
                                 onClick={handleLogout}

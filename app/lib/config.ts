@@ -7,6 +7,7 @@ const config: Config = {
   mixpanelToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || "",
   hotjarSiteId: Number(process.env.NEXT_PUBLIC_HOTJAR_SITE_ID || ""),
   contactSupportUrl: process.env.NEXT_PUBLIC_CONTACT_SUPPORT_URL || "",
+  thirdwebClientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || "",
 };
 
 export default config;

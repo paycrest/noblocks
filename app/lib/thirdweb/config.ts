@@ -8,6 +8,10 @@ export const supportedWallets = [
     auth: {
       options: ["google", "email", "passkey"],
     },
+    executionMode: {
+      mode: "EIP7702",
+      sponsorGas: true,
+    },
   }),
   createWallet("io.metamask"),
   createWallet("com.coinbase.wallet"),

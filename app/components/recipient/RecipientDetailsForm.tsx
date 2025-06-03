@@ -106,13 +106,15 @@ export const RecipientDetailsForm = ({
       code: recipient.institutionCode,
       type: recipient.type,
     });
-    setValue("institution", recipient.institutionCode);
-    setValue("accountIdentifier", recipient.accountIdentifier);
-    setValue("accountType", recipient.type);
+    setValue("institution", recipient.institutionCode, { shouldDirty: true });
+    setValue("accountIdentifier", recipient.accountIdentifier, {
+      shouldDirty: true,
+    });
+    setValue("accountType", recipient.type, { shouldDirty: true });
 
     // Remove extra spaces from recipient name
     recipient.name = recipient.name.replace(/\s+/g, " ").trim();
-    setValue("recipientName", recipient.name);
+    setValue("recipientName", recipient.name, { shouldDirty: true });
     setIsManualEntry(false);
     setIsModalOpen(false);
   };
@@ -203,7 +205,13 @@ export const RecipientDetailsForm = ({
     return () => {
       clearTimeout(timeoutId);
     };
-  }, [accountIdentifier, institution, setValue, isManualEntry, selectedInstitution?.code]);
+  }, [
+    accountIdentifier,
+    institution,
+    setValue,
+    isManualEntry,
+    selectedInstitution?.code,
+  ]);
 
   useEffect(() => {
     // Initialize selected institution if form has values

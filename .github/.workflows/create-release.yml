@@ -63,6 +63,8 @@ jobs:
       - name: Get PRs and commits since last release
         if: steps.check_release.outputs.should_release == 'true'
         id: get_changes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           latest_tag="${{ steps.get_latest_tag.outputs.latest_tag }}"
           
@@ -194,4 +196,4 @@ jobs:
           draft: false
           prerelease: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

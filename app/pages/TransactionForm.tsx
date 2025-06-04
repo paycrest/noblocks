@@ -114,11 +114,13 @@ export const TransactionForm = ({
       imageUrl: `https://flagcdn.com/h24/${countryCode}.webp`,
     };
   });
-
   const handleBalanceMaxClick = () => {
     if (balance > 0) {
       const maxAmount = balance.toFixed(4);
-      setValue("amountSent", parseFloat(maxAmount), { shouldValidate: true });
+      setValue("amountSent", parseFloat(maxAmount), {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
       setIsReceiveInputActive(false);
     }
   };
@@ -162,9 +164,8 @@ export const TransactionForm = ({
     ).toFixed(2);
 
     const supportedTokens = tokens.map((tokenElement) => tokenElement.name);
-
     if (token && supportedTokens.includes(token)) {
-      formMethods.setValue("token", token);
+      formMethods.setValue("token", token, { shouldDirty: true });
     }
 
     // Check's if not first render to prevent display of error 2nd time
@@ -175,22 +176,21 @@ export const TransactionForm = ({
         ),
       });
     }
-
     if (currency) {
       const supported = currencies.find(
         (c) => c.name === currency && !c.disabled,
       );
 
-      if (supported) formMethods.setValue("currency", currency);
+      if (supported)
+        formMethods.setValue("currency", currency, { shouldDirty: true });
     }
-
     if (tokenAmount && fiatAmount) {
-      formMethods.setValue("amountReceived", fiatAmount);
+      formMethods.setValue("amountReceived", fiatAmount, { shouldDirty: true });
       setIsReceiveInputActive(true);
     } else if (tokenAmount) {
-      formMethods.setValue("amountSent", tokenAmount);
+      formMethods.setValue("amountSent", tokenAmount, { shouldDirty: true });
     } else if (fiatAmount) {
-      formMethods.setValue("amountReceived", fiatAmount);
+      formMethods.setValue("amountReceived", fiatAmount, { shouldDirty: true });
       setIsReceiveInputActive(true);
     }
     // Setting first render to false
@@ -205,7 +205,7 @@ export const TransactionForm = ({
         !fetchedTokens.find((t) => t.symbol === token) &&
         fetchedTokens.length > 0
       ) {
-        setValue("token", fetchedTokens[0].symbol);
+        setValue("token", fetchedTokens[0].symbol, { shouldDirty: true });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -267,10 +267,10 @@ export const TransactionForm = ({
           const calculatedAmount = Number(
             (Number(amountReceived) / rate).toFixed(4),
           );
-          setValue("amountSent", calculatedAmount);
+          setValue("amountSent", calculatedAmount, { shouldDirty: true });
         } else {
           const calculatedAmount = Number((rate * amountSent).toFixed(2));
-          setValue("amountReceived", calculatedAmount);
+          setValue("amountReceived", calculatedAmount, { shouldDirty: true });
         }
       }
     },
@@ -387,7 +387,7 @@ export const TransactionForm = ({
     // Special handling for when user directly types "."
     if (inputValue === ".") {
       setFormattedSentAmount("0.");
-      setValue("amountSent", 0.0);
+      setValue("amountSent", 0.0, { shouldDirty: true });
       setIsReceiveInputActive(false);
       return;
     }
@@ -402,7 +402,7 @@ export const TransactionForm = ({
       // User added a decimal point to existing number
       const newValue: string = currentValueStr + ".";
       setFormattedSentAmount(formatNumberWithCommasForDisplay(newValue));
-      setValue("amountSent", parseFloat(newValue) || 0);
+      setValue("amountSent", parseFloat(newValue) || 0, { shouldDirty: true });
       setIsReceiveInputActive(false);
       return;
     }
@@ -413,7 +413,7 @@ export const TransactionForm = ({
     // Allow empty input for clearing
     if (cleanedValue === "") {
       setFormattedSentAmount("");
-      setValue("amountSent", 0);
+      setValue("amountSent", 0, { shouldDirty: true });
       setIsReceiveInputActive(false);
       return;
     }
@@ -428,11 +428,10 @@ export const TransactionForm = ({
     if (cleanedValue.includes(".")) {
       const decimals: string | undefined = cleanedValue.split(".")[1];
       if (decimals?.length > 4) return;
-    }
-
-    // Update the form value
+    } // Update the form value
     setValue("amountSent", value, {
       shouldValidate: true,
+      shouldDirty: true,
     });
     setIsReceiveInputActive(false);
   };
@@ -449,7 +448,7 @@ export const TransactionForm = ({
     // Special handling for when user directly types "."
     if (inputValue === ".") {
       setFormattedReceivedAmount("0.");
-      setValue("amountReceived", 0.0);
+      setValue("amountReceived", 0.0, { shouldDirty: true });
       setIsReceiveInputActive(true);
       return;
     }
@@ -464,7 +463,9 @@ export const TransactionForm = ({
       // User added a decimal point to existing number
       const newValue: string = currentValueStr + ".";
       setFormattedReceivedAmount(formatNumberWithCommasForDisplay(newValue));
-      setValue("amountReceived", parseFloat(newValue) || 0);
+      setValue("amountReceived", parseFloat(newValue) || 0, {
+        shouldDirty: true,
+      });
       setIsReceiveInputActive(true);
       return;
     }
@@ -475,7 +476,7 @@ export const TransactionForm = ({
     // Allow empty input for clearing
     if (cleanedValue === "") {
       setFormattedReceivedAmount("");
-      setValue("amountReceived", 0);
+      setValue("amountReceived", 0, { shouldDirty: true });
       setIsReceiveInputActive(true);
       return;
     }
@@ -493,6 +494,7 @@ export const TransactionForm = ({
 
     setValue("amountReceived", value, {
       shouldValidate: true,
+      shouldDirty: true,
     });
     setIsReceiveInputActive(true);
   };
@@ -568,6 +570,7 @@ export const TransactionForm = ({
                     setValue(
                       "amountSent",
                       parseFloat(removeCommas(formattedSentAmount)) || 0,
+                      { shouldDirty: true },
                     );
                     setIsReceiveInputActive(false);
                   }
@@ -587,7 +590,7 @@ export const TransactionForm = ({
                 data={tokens}
                 defaultSelectedItem={token}
                 onSelect={(selectedToken) => {
-                  setValue("token", selectedToken);
+                  setValue("token", selectedToken, { shouldDirty: true });
                 }}
               />
             </div>
@@ -631,6 +634,7 @@ export const TransactionForm = ({
                     setValue(
                       "amountReceived",
                       parseFloat(removeCommas(formattedReceivedAmount)) || 0,
+                      { shouldDirty: true },
                     );
                     setIsReceiveInputActive(true);
                   }
@@ -650,7 +654,7 @@ export const TransactionForm = ({
                 data={currencies}
                 defaultSelectedItem={currency}
                 onSelect={(selectedCurrency) =>
-                  setValue("currency", selectedCurrency)
+                  setValue("currency", selectedCurrency, { shouldDirty: true })
                 }
                 className="min-w-64"
                 isCTA={

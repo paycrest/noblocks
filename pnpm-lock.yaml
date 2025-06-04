@@ -640,12 +640,12 @@ packages:
     peerDependencies:
       '@hey-api/openapi-ts': < 2
 
-  '@hey-api/json-schema-ref-parser@1.0.5':
-    resolution: {integrity: sha512-bWUV9ICwvU5I3YKVZqWIUXFC2SIXznUi/u+LqurJx6ILiyImfZD5+g/lj3w4EiyXxmjqyaxptzUz/1IgK3vVtw==}
+  '@hey-api/json-schema-ref-parser@1.0.6':
+    resolution: {integrity: sha512-yktiFZoWPtEW8QKS65eqKwA5MTKp88CyiL8q72WynrBs/73SAaxlSWlA2zW/DZlywZ5hX1OYzrCC0wFdvO9c2w==}
     engines: {node: '>= 16'}
 
-  '@hey-api/openapi-ts@0.67.1':
-    resolution: {integrity: sha512-WXnh/mTl9m4UmeJd19iLLZyd7oTPw+lgnq+xcu3MmEIWYBx6BeLxsy5SFMYxcBPDyg6QtNQUFXBgUIxhGoh5Eg==}
+  '@hey-api/openapi-ts@0.69.0':
+    resolution: {integrity: sha512-ADEDH+a9RB2tlsOUZmiP6CMf9ju5exjDmylDwJqQ47YaxG7Qe3dQFt84cCV8SZQ6G5kFcHdNefFupBJM+EbimA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=22.10.0}
     hasBin: true
     peerDependencies:
@@ -949,8 +949,8 @@ packages:
   '@multiformats/base-x@4.0.1':
     resolution: {integrity: sha512-eMk0b9ReBbV23xXU693TAIrLyeO5iTgBZGSJfpqriG8UkYvr/hC9u9pyMlAakDNHWmbhMZCDs6KQO0jzKD8OTw==}
 
-  '@napi-rs/wasm-runtime@0.2.9':
-    resolution: {integrity: sha512-OKRBiajrrxB9ATokgEQoG87Z25c67pCpYcCwmXYX8PBftC9pBfN18gnm/fh1wurSLEKIAt+QRFLFCQISrb66Jg==}
+  '@napi-rs/wasm-runtime@0.2.10':
+    resolution: {integrity: sha512-bCsCyeZEwVErsGmyPNSzwfwFn4OdxBj0mmv6hOFucB/k81Ojdu68RbZdxYsRQUPc9l6SU5F/cG+bXgWs3oUgsQ==}
 
   '@next/env@15.3.3':
     resolution: {integrity: sha512-OdiMrzCl2Xi0VTjiQQUK0Xh7bJHnOuET2s+3V+Y40WJBAXrJeGA3f+I8MZJ/YQ3mVGi5XGR1L66oFlgqXhQ4Vw==}
@@ -1857,9 +1857,6 @@ packages:
   '@scure/bip32@1.6.2':
     resolution: {integrity: sha512-t96EPDMbtGgtb7onKKqxRLfE5g05k7uHnHRM2xdE6BP/ZmxaLtPek4J4KfVn/90IQNrU1IOAqMgiDtUdtbe3nw==}
 
-  '@scure/bip32@1.7.0':
-    resolution: {integrity: sha512-E4FFX/N3f4B80AKWp5dP6ow+flD1LQZo/w8UnLGYZO674jS6YnYeepycOOksv+vLPSpgN35wgKgy+ybfTb2SMw==}
-
   '@scure/bip39@1.2.1':
     resolution: {integrity: sha512-Z3/Fsz1yr904dduJD0NpiyRHhRYHdcnyh73FZWiV+/qhWi83wNJ3NWolYqCEN+ZWsUz2TWwajJggcRE9r1zUYg==}
 
@@ -1868,9 +1865,6 @@ packages:
 
   '@scure/bip39@1.5.4':
     resolution: {integrity: sha512-TFM4ni0vKvCfBpohoh+/lY05i9gRbSwXWngAsF4CABQxoaOHijxuaZ2R6cStDQ5CHtHO9aGJTr4ksVJASRRyMA==}
-
-  '@scure/bip39@1.6.0':
-    resolution: {integrity: sha512-+lF0BbLiJNwVlev4eKelw1WWLaiKXw7sSl8T6FvBlWkdX+94aGJ4o8XjUdlyhTCjd8c+B3KT3JfS8P0bLRNU6A==}
 
   '@simplewebauthn/browser@9.0.1':
     resolution: {integrity: sha512-wD2WpbkaEP4170s13/HUxPcAV5y4ZXaKo1TfNklS5zDefPinIgXOpgz1kpEvobAsaLPa2KeH7AKKX/od1mrBJw==}
@@ -5429,8 +5423,8 @@ packages:
       '@types/react':
         optional: true
 
-  react-remove-scroll@2.6.3:
-    resolution: {integrity: sha512-pnAi91oOk8g8ABQKGF5/M9qxmmOPxaAnopyTHYfqYEwJhyFrbbBtHuSgtKEoH0jpcxx5o3hXqH1mNd9/Oi+8iQ==}
+  react-remove-scroll@2.7.0:
+    resolution: {integrity: sha512-sGsQtcjMqdQyijAHytfGEELB8FufGbfXIsvUTe+NLx1GDRJCXtCFLBLUI1eyZCKXXvbEU2C6gai0PZKoIE9Vbg==}
     engines: {node: '>=10'}
     peerDependencies:
       '@types/react': 19.0.8
@@ -7759,20 +7753,20 @@ snapshots:
     dependencies:
       react: 19.0.0
 
-  '@hey-api/client-fetch@0.10.0(@hey-api/openapi-ts@0.67.1(typescript@5.8.3))':
+  '@hey-api/client-fetch@0.10.0(@hey-api/openapi-ts@0.69.0(typescript@5.8.3))':
     dependencies:
-      '@hey-api/openapi-ts': 0.67.1(typescript@5.8.3)
+      '@hey-api/openapi-ts': 0.69.0(typescript@5.8.3)
 
-  '@hey-api/json-schema-ref-parser@1.0.5':
+  '@hey-api/json-schema-ref-parser@1.0.6':
     dependencies:
       '@jsdevtools/ono': 7.1.3
       '@types/json-schema': 7.0.15
       js-yaml: 4.1.0
       lodash: 4.17.21
 
-  '@hey-api/openapi-ts@0.67.1(typescript@5.8.3)':
+  '@hey-api/openapi-ts@0.69.0(typescript@5.8.3)':
     dependencies:
-      '@hey-api/json-schema-ref-parser': 1.0.5
+      '@hey-api/json-schema-ref-parser': 1.0.6
       c12: 2.0.1
       commander: 13.0.0
       handlebars: 4.7.8
@@ -8128,7 +8122,7 @@ snapshots:
 
   '@multiformats/base-x@4.0.1': {}
 
-  '@napi-rs/wasm-runtime@0.2.9':
+  '@napi-rs/wasm-runtime@0.2.10':
     dependencies:
       '@emnapi/core': 1.4.3
       '@emnapi/runtime': 1.4.3
@@ -8501,7 +8495,7 @@ snapshots:
       aria-hidden: 1.2.4
       react: 19.0.0
       react-dom: 19.0.0(react@19.0.0)
-      react-remove-scroll: 2.6.3(@types/react@19.0.8)(react@19.0.0)
+      react-remove-scroll: 2.7.0(@types/react@19.0.8)(react@19.0.0)
     optionalDependencies:
       '@types/react': 19.0.8
       '@types/react-dom': 19.0.3(@types/react@19.0.8)
@@ -9584,12 +9578,6 @@ snapshots:
       '@noble/hashes': 1.7.2
       '@scure/base': 1.2.5
 
-  '@scure/bip32@1.7.0':
-    dependencies:
-      '@noble/curves': 1.9.0
-      '@noble/hashes': 1.8.0
-      '@scure/base': 1.2.5
-
   '@scure/bip39@1.2.1':
     dependencies:
       '@noble/hashes': 1.3.2
@@ -9603,11 +9591,6 @@ snapshots:
   '@scure/bip39@1.5.4':
     dependencies:
       '@noble/hashes': 1.7.2
-      '@scure/base': 1.2.5
-
-  '@scure/bip39@1.6.0':
-    dependencies:
-      '@noble/hashes': 1.8.0
       '@scure/base': 1.2.5
 
   '@simplewebauthn/browser@9.0.1':
@@ -10429,7 +10412,7 @@ snapshots:
 
   '@unrs/resolver-binding-wasm32-wasi@1.7.2':
     dependencies:
-      '@napi-rs/wasm-runtime': 0.2.9
+      '@napi-rs/wasm-runtime': 0.2.10
     optional: true
 
   '@unrs/resolver-binding-win32-arm64-msvc@1.7.2':
@@ -15208,7 +15191,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.0.8
 
-  react-remove-scroll@2.6.3(@types/react@19.0.8)(react@19.0.0):
+  react-remove-scroll@2.7.0(@types/react@19.0.8)(react@19.0.0):
     dependencies:
       react: 19.0.0
       react-remove-scroll-bar: 2.3.8(@types/react@19.0.8)(react@19.0.0)

@@ -2,6 +2,7 @@
 import { Toaster } from "sonner";
 import { type ReactNode } from "react";
 import { ThemeProvider } from "next-themes";
+import { ThirdwebProvider } from "thirdweb/react";
 
 import { PrivyProvider } from "@privy-io/react-auth";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
@@ -21,12 +22,22 @@ import { useActualTheme } from "./hooks/useActualTheme";
 function Providers({ children }: { children: ReactNode }) {
   const { privyAppId } = config;
   const queryClient = new QueryClient();
-
+  const isDark = useActualTheme();
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
         <PrivyConfigWrapper privyAppId={privyAppId}>
-          {children}
+          <ThirdwebProvider>
+            <ContextProviders>{children}</ContextProviders>
+            <Toaster
+              position={
+                typeof window !== "undefined" && window.innerWidth < 640
+                  ? "top-center"
+                  : "bottom-right"
+              }
+              theme={isDark ? "dark" : "light"}
+            />
+          </ThirdwebProvider>
         </PrivyConfigWrapper>
       </QueryClientProvider>
     </ThemeProvider>
@@ -63,15 +74,7 @@ function PrivyConfigWrapper({
           },
         }}
       >
-        <ContextProviders>{children}</ContextProviders>
-        <Toaster
-          position={
-            typeof window !== "undefined" && window.innerWidth < 640
-              ? "top-center"
-              : "bottom-right"
-          }
-          theme={isDark ? "dark" : "light"}
-        />
+        {children}
       </SmartWalletsProvider>
     </PrivyProvider>
   );

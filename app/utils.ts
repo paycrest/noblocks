@@ -663,6 +663,8 @@ export const currencyToCountryCode = (currency: string) => {
   const currencyOverrides: Record<string, string> = {
     XAF: "cm", // Central African CFA Franc (Cameroon)
     XOF: "sn", // West African CFA Franc (Senegal)
+    UGX: "ug", // Uganda
+    TZS: "tz", // Tanzania
     XCD: "ag", // East Caribbean Dollar (Antigua & Barbuda)
     XPF: "nc", // CFP Franc (New Caledonia)
     XDR: "", // No country (IMF Special Drawing Rights)

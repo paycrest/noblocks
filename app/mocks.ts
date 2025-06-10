@@ -15,6 +15,14 @@ export const acceptedCurrencies = [
     disabled: true,
   },
   {
+    name: "UGX",
+    label: "Ugandan Shilling (UGX)",
+  },
+  {
+    name: "TZS",
+    label: "Tanzanian Shilling (TZS)",
+  },
+  {
     name: "BRL",
     label: "Brazilian Real (BRL)",
     disabled: true,

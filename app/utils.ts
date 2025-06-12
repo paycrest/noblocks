@@ -610,14 +610,14 @@ export const handleNetworkSwitch = async (
         (async () => {
           try {
             // First try to switch to the network
-            await window.ethereum.request({
+            await (window.ethereum as any).request({
               method: "wallet_switchEthereumChain",
               params: [{ chainId }],
             });
           } catch (switchError: any) {
             // This error code indicates that the chain has not been added to MetaMask.
             if (switchError.code === 4902) {
-              await window.ethereum.request({
+              await (window.ethereum as any).request({
                 method: "wallet_addEthereumChain",
                 params: [getAddChainParameters(network)],
               });

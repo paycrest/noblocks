@@ -28,7 +28,7 @@ const setStoredNetwork = (network: Network) => {
 const switchNetwork = async (network: Network) => {
   if (typeof window.ethereum !== "undefined") {
     try {
-      await window.ethereum.request({
+      await (window.ethereum as any).request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: `0x${network.chain.id.toString(16)}` }],
       });

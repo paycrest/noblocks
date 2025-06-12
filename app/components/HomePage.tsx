@@ -301,7 +301,7 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
         Learn how to use Noblocks
       </p>
 
-      <div className="mx-auto flex w-full max-w-[1004px] cursor-pointer justify-center rounded-[20px] bg-[#FD76B3] p-3 hover:opacity-70">
+      <div className="mx-auto flex w-full max-w-[1004px] cursor-pointer justify-center rounded-[24px] bg-[#FD76B3] p-3 hover:opacity-70">
         <Image
           src="/images/walkthrough-video.svg"
           width={100}

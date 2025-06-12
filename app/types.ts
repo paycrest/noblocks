@@ -356,3 +356,10 @@ export interface UpdateTransactionDetailsPayload
   txHash?: string;
   timeSpent?: string;
 }
+
+export type Currency = {
+  imageUrl: string;
+  name: string;
+  label: string;
+  disabled?: boolean;
+};

@@ -1,6 +1,6 @@
 "use client";
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { ImSpinner, ImSpinner3 } from "react-icons/im";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { AnimatePresence } from "framer-motion";
@@ -24,13 +24,14 @@ import {
   classNames,
   fetchSupportedTokens,
   formatNumberWithCommas,
+  currencyToCountryCode,
+  reorderCurrenciesByLocation,
 } from "../utils";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus, fetchRate } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
-import { currencyToCountryCode } from "../utils";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -66,6 +67,21 @@ export const TransactionForm = ({
   const [formattedSentAmount, setFormattedSentAmount] = useState("");
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
   const isFirstRender = useRef(true);
+
+  const currencies = useMemo(
+    () =>
+      acceptedCurrencies.map((item) => {
+        const countryCode = currencyToCountryCode(item.name);
+        return {
+          ...item,
+          imageUrl: `https://flagcdn.com/h24/${countryCode}.webp`,
+        };
+      }),
+    [],
+  );
+
+  // state for reordered currencies
+  const [orderedCurrencies, setOrderedCurrencies] = useState(currencies);
 
   const {
     handleSubmit,
@@ -108,13 +124,6 @@ export const TransactionForm = ({
     imageUrl: token.imageUrl,
   }));
 
-  const currencies = acceptedCurrencies.map((item) => {
-    const countryCode = currencyToCountryCode(item.name);
-    return {
-      ...item,
-      imageUrl: `https://flagcdn.com/h24/${countryCode}.webp`,
-    };
-  });
   const handleBalanceMaxClick = () => {
     if (balance > 0) {
       const maxAmount = balance.toFixed(4);
@@ -363,6 +372,23 @@ export const TransactionForm = ({
     },
     [token, currency, formMethods, currencies],
   );
+
+  // Reorder currencies based on user location
+  useEffect(() => {
+    let isMounted = true;
+
+    reorderCurrenciesByLocation(currencies, formMethods)
+      .then((reordered) => {
+        if (isMounted) setOrderedCurrencies(reordered);
+      })
+      .catch(() => {
+        if (isMounted) setOrderedCurrencies(currencies);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currencies]);
 
   const { isEnabled, buttonText, buttonAction } = useSwapButton({
     watch,
@@ -656,7 +682,7 @@ export const TransactionForm = ({
 
               <FormDropdown
                 defaultTitle="Select currency"
-                data={currencies}
+                data={orderedCurrencies}
                 defaultSelectedItem={currency}
                 onSelect={(selectedCurrency) =>
                   setValue("currency", selectedCurrency, { shouldDirty: true })

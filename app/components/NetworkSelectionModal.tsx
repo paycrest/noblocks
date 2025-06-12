@@ -102,31 +102,33 @@ export const NetworkSelectionModal = () => {
               </p>
 
               <div className="space-y-2">
-                {networks.map((network) => (
-                  <button
-                    key={network.chain.name}
-                    type="button"
-                    aria-label={`Select ${network.chain.name} network`}
-                    onClick={() => handleNetworkSelect(network.chain.name)}
-                    className="flex w-full items-center justify-between rounded-xl p-3 max-sm:bg-background-neutral max-sm:dark:bg-white/5 sm:hover:bg-background-neutral sm:dark:hover:bg-white/5"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Image
-                        src={getNetworkImageUrl(network, isDark)}
-                        alt={network.chain.name}
-                        width={24}
-                        height={24}
-                        className="size-6"
-                      />
-                      <span className="text-text-body dark:text-white/80">
-                        {network.chain.name}
-                      </span>
-                    </div>
-                    {selectedNetwork.chain.name === network.chain.name && (
-                      <PiCheck className="size-5 text-green-900 dark:text-green-500" />
-                    )}
-                  </button>
-                ))}
+                {networks
+                  .filter((network) => useInjectedWallet || network.chain.name !== "Celo")
+                  .map((network) => (
+                    <button
+                      key={network.chain.name}
+                      type="button"
+                      aria-label={`Select ${network.chain.name} network`}
+                      onClick={() => handleNetworkSelect(network.chain.name)}
+                      className="flex w-full items-center justify-between rounded-xl p-3 max-sm:bg-background-neutral max-sm:dark:bg-white/5 sm:hover:bg-background-neutral sm:dark:hover:bg-white/5"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Image
+                          src={getNetworkImageUrl(network, isDark)}
+                          alt={network.chain.name}
+                          width={24}
+                          height={24}
+                          className="size-6"
+                        />
+                        <span className="text-text-body dark:text-white/80">
+                          {network.chain.name}
+                        </span>
+                      </div>
+                      {selectedNetwork.chain.name === network.chain.name && (
+                        <PiCheck className="size-5 text-green-900 dark:text-green-500" />
+                      )}
+                    </button>
+                  ))}
               </div>
 
               <button

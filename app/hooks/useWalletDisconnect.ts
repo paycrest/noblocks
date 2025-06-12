@@ -7,7 +7,7 @@ export const useWalletDisconnect = () => {
     try {
       if (window.ethereum) {
         const walletClient = createWalletClient({
-          transport: custom(window.ethereum)
+          transport: custom(window.ethereum as any)
         });
 
         // Clear any active connections

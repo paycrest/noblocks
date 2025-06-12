@@ -10,7 +10,7 @@ export const SUPPORTED_TOKENS = {
   USDT: "usdt",
   DAI: "dai",
   CNGN: "cngn",
-  CELO: "celo",
+  CUSD: "cusd",
   ETH: "ethereum",
   MATIC: "polygon",
   BNB: "bnb-smart-chain",
@@ -156,17 +156,17 @@ export const getExplorerLink = (network: string, txHash: string) => {
 export function getRpcUrl(network: string) {
   switch (network) {
     case "Polygon":
-      return `https://rpc.shield3.com/v3/0x89/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
+      return `https://137.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "BNB Smart Chain":
-      return `https://rpc.shield3.com/v3/0x38/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
+      return `https://56.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Base":
-      return `https://rpc.shield3.com/v3/0x2105/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
+      return `https://8453.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Arbitrum One":
-      return `https://rpc.shield3.com/v3/0xa4b1/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
+      return `https://42161.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Celo":
-      return `https://rpc.shield3.com/v3/celo-mainnet/${process.env.NEXT_PUBLIC_SHIELD3_API_KEY}/rpc`;
+      return `https://42220.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Lisk":
-      return `https://rpc.api.lisk.com`;
+      return `https://1135.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     default:
       return undefined;
   }
@@ -196,6 +196,13 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         decimals: 6,
         address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
         imageUrl: "/logos/cngn-logo.svg",
+      },
+      {
+        name: "Tether USD",
+        symbol: "USDT",
+        decimals: 6,
+        address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+        imageUrl: "/logos/usdt-logo.svg",
       },
     ],
     "Arbitrum One": [
@@ -298,7 +305,7 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
         symbol: "cUSD",
         decimals: 18,
         address: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
-        imageUrl: "/logos/celo-logo.svg",
+        imageUrl: "/logos/cusd-logo.svg",
       },
     ],
     Lisk: [
@@ -603,14 +610,14 @@ export const handleNetworkSwitch = async (
         (async () => {
           try {
             // First try to switch to the network
-            await window.ethereum.request({
+            await (window.ethereum as any).request({
               method: "wallet_switchEthereumChain",
               params: [{ chainId }],
             });
           } catch (switchError: any) {
             // This error code indicates that the chain has not been added to MetaMask.
             if (switchError.code === 4902) {
-              await window.ethereum.request({
+              await (window.ethereum as any).request({
                 method: "wallet_addEthereumChain",
                 params: [getAddChainParameters(network)],
               });

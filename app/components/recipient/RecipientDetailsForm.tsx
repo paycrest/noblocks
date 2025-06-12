@@ -76,7 +76,6 @@ export const RecipientDetailsForm = ({
    * @type {Array<InstitutionProps>}
    */
   const filteredInstitutions: Array<InstitutionProps> = useMemo(() => {
-    console.log(institutions);
     const filtered =
       institutions?.filter((item) =>
         item.name.toLowerCase().includes(bankSearchTerm.toLowerCase()),

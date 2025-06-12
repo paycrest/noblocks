@@ -306,7 +306,7 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
           width={100}
           height={100}
           alt="Walkthrough Video"
-          className="w-full h-auto"
+          className="w-full"
         />
       </div>
 

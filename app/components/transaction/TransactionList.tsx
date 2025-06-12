@@ -10,7 +10,6 @@ import {
 import type { TransactionHistory } from "../../types";
 import { useEffect, useMemo } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { toast } from "sonner";
 import { PiSpinnerBold } from "react-icons/pi";
 import { useActualTheme } from "../../hooks/useActualTheme";
 import { useTransactions } from "../../context/TransactionsContext";

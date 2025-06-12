@@ -1,4 +1,4 @@
-import { arbitrum, base, bsc, polygon, lisk } from "viem/chains";
+import { arbitrum, base, bsc, polygon, lisk, celo } from "viem/chains";
 
 export const acceptedCurrencies = [
   {
@@ -48,10 +48,10 @@ export const networks = [
     chain: bsc,
     imageUrl: "/logos/bnb-smart-chain-logo.svg",
   },
-  // {
-  //   chain: celo,
-  //   imageUrl: "/logos/celo-logo.svg",
-  // },
+  {
+    chain: celo,
+    imageUrl: "/logos/celo-logo.svg",
+  },
   {
     chain: lisk,
     imageUrl: {

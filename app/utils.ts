@@ -1,5 +1,5 @@
 import JSEncrypt from "jsencrypt";
-import type { InstitutionProps, Network, Token } from "./types";
+import type { InstitutionProps, Network, Token, Currency } from "./types";
 import { erc20Abi } from "viem";
 import { colors } from "./mocks";
 import { fetchRate } from "./api/aggregator";
@@ -821,4 +821,37 @@ export function reorderCurrencies(
     return reordered;
   }
   return currencies;
+}
+
+/**
+ * Reorders currencies based on user's location and returns the ordered currencies
+ *
+ * @param currencies - Array of currency objects to reorder
+ * @param formMethods - React Hook Form methods to check current currency value
+ * @returns Promise that resolves to the reordered currencies array
+ */
+export async function reorderCurrenciesByLocation(
+  currencies: Currency[],
+  formMethods: any,
+): Promise<Currency[]> {
+  try {
+    const countryCode = await fetchUserCountryCode();
+    const preferredCurrency = countryCode
+      ? mapCountryToCurrency(countryCode)
+      : null;
+
+    if (formMethods.getValues("currency")) {
+      return currencies;
+    }
+
+    const currencyNames = currencies.map((c) => c.name);
+    const reorderedNames = reorderCurrencies(currencyNames, preferredCurrency);
+
+    // Map back to full currency objects while preserving all properties
+    return reorderedNames
+      .map((name) => currencies.find((c) => c.name === name))
+      .filter((c): c is Currency => c !== undefined);
+  } catch {
+    return currencies;
+  }
 }

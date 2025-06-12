@@ -23,10 +23,8 @@ import {
   classNames,
   fetchSupportedTokens,
   formatNumberWithCommas,
-  fetchUserCountryCode,
-  mapCountryToCurrency,
-  reorderCurrencies,
   currencyToCountryCode,
+  reorderCurrenciesByLocation,
 } from "../utils";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -377,31 +375,15 @@ export const TransactionForm = ({
   // Reorder currencies based on user location
   useEffect(() => {
     let isMounted = true;
-    async function reorderByLocation() {
-      try {
-        const countryCode = await fetchUserCountryCode();
-        const preferredCurrency = countryCode
-          ? mapCountryToCurrency(countryCode)
-          : null;
-        if (!formMethods.getValues("currency")) {
-          const currencyNames = currencies.map((c) => c.name);
-          const reorderedNames = reorderCurrencies(
-            currencyNames,
-            preferredCurrency,
-          );
-          const reordered = reorderedNames
-            .map((name) => currencies.find((c) => c.name === name))
-            .filter(Boolean) as typeof currencies;
-          if (isMounted) setOrderedCurrencies(reordered);
-          console.log(reordered);
-        } else {
-          if (isMounted) setOrderedCurrencies(currencies);
-        }
-      } catch {
-        setOrderedCurrencies(currencies); // fallback
-      }
-    }
-    reorderByLocation();
+
+    reorderCurrenciesByLocation(currencies, formMethods)
+      .then((reordered) => {
+        if (isMounted) setOrderedCurrencies(reordered);
+      })
+      .catch(() => {
+        if (isMounted) setOrderedCurrencies(currencies);
+      });
+
     return () => {
       isMounted = false;
     };

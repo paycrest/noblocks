@@ -756,3 +756,69 @@ export const getRelativeDate = (date: Date): string => {
     return `${years} ${years === 1 ? "year" : "years"} ago`;
   }
 };
+
+/**
+ * Fetches the user's country code based on their IP address using the GeoJS API.
+ *
+ * @returns A promise that resolves to the user's country code as a string (e.g., "US"),
+ * or `null` if the country code could not be determined or an error occurs.
+ *
+ */
+export async function fetchUserCountryCode(): Promise<string | null> {
+  try {
+    const response = await fetch("https://get.geojs.io/v1/ip/country.json");
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.country || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Maps a given ISO 3166-1 alpha-2 country code to its corresponding currency code.
+ *
+ * @param countryCode - The two-letter country code (e.g., 'NG' for Nigeria, 'US' for United States).
+ * @returns The ISO 4217 currency code as a string if the country code is recognized; otherwise, returns null.
+ *
+ */
+export function mapCountryToCurrency(countryCode: string): string | null {
+  const mapping: Record<string, string> = {
+    NG: "NGN",
+    KE: "KES",
+    UG: "UGX",
+    TZ: "TZS",
+    GH: "GHS",
+    BR: "BRL",
+    AR: "ARS",
+    US: "USD",
+    GB: "GBP",
+    // add more as needed
+  };
+  return mapping[countryCode] || null;
+}
+
+/**
+ * Reorders a list of currency codes so that the preferred currency appears first.
+ *
+ * If the preferred currency is found in the list (and is not already first), it is moved to the front.
+ * If the preferred currency is not specified or is already first, the original list is returned unchanged.
+ *
+ * @param currencies - An array of currency codes (e.g., ['USD', 'EUR', 'JPY']).
+ * @param preferredCurrency - The currency code to prioritize, or null if no preference.
+ * @returns A new array of currency codes with the preferred currency first, if applicable.
+ */
+export function reorderCurrencies(
+  currencies: string[],
+  preferredCurrency: string | null,
+): string[] {
+  if (!preferredCurrency) return currencies;
+  const idx = currencies.indexOf(preferredCurrency);
+  if (idx > 0) {
+    const reordered = [...currencies];
+    reordered.splice(idx, 1);
+    reordered.unshift(preferredCurrency);
+    return reordered;
+  }
+  return currencies;
+}

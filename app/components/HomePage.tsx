@@ -310,55 +310,99 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
         />
       </div>
 
-      <section className="w-full flex flex-col gap-8 items-center justify-center my-8">
-        <h3 className="font-semibold text-2xl lg:text-3xl">Ways you can use Noblocks</h3>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8 border rounded-[28px] p-4 border-[#FFFFFF1A]">
-          <div className="bg-[#202020] flex flex-col gap-6 rounded-[24px] px-4 py-8">
-            <h4 className="font-medium text-lg">No Crypto Experience</h4>
-            <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
+      <section className="my-8 flex w-full flex-col items-center justify-center gap-8">
+        <h3 className="text-2xl font-semibold lg:text-3xl">
+          Ways you can use Noblocks
+        </h3>
+        <div className="grid grid-cols-1 gap-4 rounded-[28px] border border-[#FFFFFF1A] p-4 lg:grid-cols-2 lg:gap-8">
+          <div className="flex flex-col gap-6 rounded-[24px] bg-[#202020] px-4 py-8">
+            <h4 className="text-lg font-medium">No Crypto Experience</h4>
+            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
               <span>
                 {/* Icon here */}
-                <Image src="/images/transfer-stable-coin.svg" alt="Icon" width={60} height={60}/>
+                <Image
+                  src="/images/transfer-stable-coin.svg"
+                  alt="Icon"
+                  width={60}
+                  height={60}
+                />
               </span>
-              <span className="font-normal text-sm">Transfer stablecoins to cash in any bank account</span>
-            </p>
-            <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
-              <span>
-               {/* Icon here */}
-                <Image src="/images/pay-for-groceries.svg" alt="Icon" width={60} height={30}/>
+              <span className="text-sm font-normal">
+                Transfer stablecoins to cash in any bank account
               </span>
-              <span className="font-normal text-sm">Pay for your groceries and expenses swiftly</span>
             </p>
-             <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
+            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
               <span>
                 {/* Icon here */}
-                <Image src="/images/spend-usdc.svg" alt="Icon" width={60} height={30}/>
+                <Image
+                  src="/images/pay-for-groceries.svg"
+                  alt="Icon"
+                  width={60}
+                  height={30}
+                />
               </span>
-              <span className="font-normal text-sm">Spend USDC/USDT comfortably with no exchange </span>
+              <span className="text-sm font-normal">
+                Pay for your groceries and expenses swiftly
+              </span>
+            </p>
+            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
+              <span>
+                {/* Icon here */}
+                <Image
+                  src="/images/spend-usdc.svg"
+                  alt="Icon"
+                  width={60}
+                  height={30}
+                />
+              </span>
+              <span className="text-sm font-normal">
+                Spend USDC/USDT comfortably with no exchange{" "}
+              </span>
             </p>
           </div>
-          <div className="bg-[#202020] flex flex-col gap-6 rounded-[24px] px-4 py-8">
-            <h4 className="font-medium text-lg">Web3 Native & Degen</h4>
-            <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
-              <span>
-                 {/* Icon here */}
-                <Image src="/images/turn-defi-tocash.svg" alt="Icon" width={60} height={30}/>
-              </span>
-              <span className="font-normal text-sm">Turn your DEFI yields into cash easily</span>
-            </p>
-            <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
+          <div className="flex flex-col gap-6 rounded-[24px] bg-[#202020] px-4 py-8">
+            <h4 className="text-lg font-medium">Web3 Native & Degen</h4>
+            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
               <span>
                 {/* Icon here */}
-                <Image src="/images/escape-p2p.svg" alt="Icon" width={60} height={30}/>
+                <Image
+                  src="/images/turn-defi-tocash.svg"
+                  alt="Icon"
+                  width={60}
+                  height={30}
+                />
               </span>
-              <span className="font-normal text-sm">Escape P2P and liquidate your cash in no time</span>
+              <span className="text-sm font-normal">
+                Turn your DEFI yields into cash easily
+              </span>
             </p>
-             <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
+            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
               <span>
-                 {/* Icon here */}
-                <Image src="/images/no-issue-dex.svg" alt="Icon" width={60} height={30}/>
+                {/* Icon here */}
+                <Image
+                  src="/images/escape-p2p.svg"
+                  alt="Icon"
+                  width={60}
+                  height={30}
+                />
               </span>
-              <span className="font-normal text-sm">No issues of losses or security concerns like DEXes </span>
+              <span className="text-sm font-normal">
+                Escape P2P and liquidate your cash in no time
+              </span>
+            </p>
+            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
+              <span>
+                {/* Icon here */}
+                <Image
+                  src="/images/no-issue-dex.svg"
+                  alt="Icon"
+                  width={60}
+                  height={30}
+                />
+              </span>
+              <span className="text-sm font-normal">
+                No issues of losses or security concerns like DEXes{" "}
+              </span>
             </p>
           </div>
         </div>
@@ -432,6 +476,9 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
 
         </div>
       </section>
+
+      {/* Accordion FAQ here */}
+      <FAQs />
     </div>
   );
 }

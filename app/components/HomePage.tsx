@@ -2,10 +2,9 @@ import { useForm } from "react-hook-form";
 import { useEffect, useState, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { TbCurrencyEthereum, TbCurrencyNaira, TbCoinBitcoin } from "react-icons/tb";
 // import { Crimson_Pro } from "next/font/google";
 import Image from "next/image";
-
+import { ArrowRight01Icon } from "hugeicons-react";
 // const crimsonPro = Crimson_Pro({
 //   subsets: ["latin"],
 //   weight: ["400", "600"], // adjust weights as needed
@@ -302,19 +301,19 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
         Learn how to use Noblocks
       </p>
 
-      <div className="mx-auto flex w-full max-w-[1004px] cursor-pointer justify-center rounded-[24px] bg-[#FD76B3] p-3 hover:opacity-70">
+      <div className="mx-auto flex w-full max-w-[1004px] cursor-pointer justify-center rounded-[20px] bg-[#FD76B3] p-3 hover:opacity-70">
         <Image
           src="/images/walkthrough-video.svg"
           width={100}
           height={100}
           alt="Walkthrough Video"
-          className="w-full"
+          className="w-full h-auto"
         />
       </div>
 
       <section className="w-full flex flex-col gap-8 items-center justify-center my-8">
         <h3 className="font-semibold text-2xl lg:text-3xl">Ways you can use Noblocks</h3>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8 border rounded-[28px] p-4 border-[#FFFFFF1A]">
           <div className="bg-[#202020] flex flex-col gap-6 rounded-[24px] px-4 py-8">
             <h4 className="font-medium text-lg">No Crypto Experience</h4>
             <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
@@ -363,6 +362,15 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
               <span className="font-normal text-sm">No issues of losses or security concerns like DEXes </span>
             </p>
           </div>
+        </div>
+      </section>
+
+      <section className="w-full flex flex-col gap-4 items-center justify-center">
+        <h3 className="font-semibold text-2xl lg:text-[48px]">Rates like no other</h3>
+        <p className="font-normal text-center max-w-[712px]">You have no cause for worry when it comes to rates, Noblocks offers the best rates that beat the speed and amount for P2Ps and other stablecoin exchange options</p>
+        <button className="flex items-center gap-2 hover:cursor-pointer hover:opacity-80">Get started <ArrowRight01Icon /></button>
+        <div>
+          <Image src="/images/rates-graph.svg" width={100} height={100} className="w-full my-8" alt="Rates Graph"/>
         </div>
       </section>
     </div>

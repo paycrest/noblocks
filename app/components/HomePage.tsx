@@ -420,9 +420,18 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
         <button className="flex items-center gap-2 hover:cursor-pointer hover:opacity-80">
           Get started <ArrowRight01Icon />
         </button>
-        <div>
+        <div className="w-full hidden md:block max-w-[834px]">
           <Image
             src="/images/rates-graph.svg"
+            width={100}
+            height={100}
+            className="my-8 w-full"
+            alt="Rates Graph"
+          />
+        </div>
+        <div className="w-full md:hidden">
+          <Image
+            src="/images/rates-graph-mobile.svg"
             width={100}
             height={100}
             className="my-8 w-full"

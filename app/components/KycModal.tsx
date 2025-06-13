@@ -392,7 +392,11 @@ export const KycModal = ({
   );
 
   const renderSuccessStatus = () => (
-    <motion.div key="success" {...fadeInOut} className="space-y-6 pt-4">
+    <motion.div
+      key="success"
+      {...fadeInOut}
+      className="relative space-y-6 pt-4"
+    >
       <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
 
       <div className="space-y-3 pb-5 text-center">
@@ -404,6 +408,10 @@ export const KycModal = ({
           You can now start converting your stablecoin to fiat at zero fees on
           Noblocks
         </p>
+
+        <div className="absolute bottom-1/3 right-1/4 size-2 bg-[#00ACFF]/70 blur-sm"></div>
+        <div className="absolute bottom-1/4 left-1/4 size-2 bg-[#FFB633]/30 blur-sm"></div>
+        <div className="absolute right-1/2 top-1/3 size-2 bg-[#FF7D52]/20 blur-sm"></div>
       </div>
 
       <button

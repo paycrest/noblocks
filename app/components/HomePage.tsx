@@ -34,6 +34,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "../context/StepContext";
 import { clearFormState } from "../utils";
 import { useInjectedWallet } from "../context/InjectedWalletContext";
+import FAQs from "./FAQs";
 
 // HomePage component with hero section and transaction flow
 export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
@@ -269,12 +270,10 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
   return (
     <div className="flex min-h-screen w-full flex-col gap-8">
       {/* Hero Section */}
-      <section className="lg:mb-20 w-full">
-        <h1 className="flex flex-col items-center lg:gap-4 text-center text-3xl font-semibold lg:text-[50px]">
+      <section className="w-full lg:mb-20">
+        <h1 className="flex flex-col items-center text-center text-3xl font-semibold lg:gap-4 lg:text-[50px]">
           <span>Change stablecoins</span>
-          <span>
-            to cash in seconds
-          </span>
+          <span>to cash in seconds</span>
         </h1>
       </section>
 
@@ -307,72 +306,133 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
           width={100}
           height={100}
           alt="Walkthrough Video"
-          className="w-full h-auto"
+          className="h-auto w-full"
         />
       </div>
 
-      <section className="w-full flex flex-col gap-8 items-center justify-center my-8">
-        <h3 className="font-semibold text-2xl lg:text-3xl">Ways you can use Noblocks</h3>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8 border rounded-[28px] p-4 border-[#FFFFFF1A]">
-          <div className="bg-[#202020] flex flex-col gap-6 rounded-[24px] px-4 py-8">
-            <h4 className="font-medium text-lg">No Crypto Experience</h4>
-            <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
+      <section className="my-8 flex w-full flex-col items-center justify-center gap-8">
+        <h3 className="text-2xl font-semibold lg:text-3xl">
+          Ways you can use Noblocks
+        </h3>
+        <div className="grid grid-cols-1 gap-4 rounded-[28px] border border-[#FFFFFF1A] p-4 lg:grid-cols-2 lg:gap-8">
+          <div className="flex flex-col gap-6 rounded-[24px] bg-[#202020] px-4 py-8">
+            <h4 className="text-lg font-medium">No Crypto Experience</h4>
+            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
               <span>
                 {/* Icon here */}
-                <Image src="/images/transfer-stable-coin.svg" alt="Icon" width={60} height={60}/>
+                <Image
+                  src="/images/transfer-stable-coin.svg"
+                  alt="Icon"
+                  width={60}
+                  height={60}
+                />
               </span>
-              <span className="font-normal text-sm">Transfer stablecoins to cash in any bank account</span>
-            </p>
-            <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
-              <span>
-               {/* Icon here */}
-                <Image src="/images/pay-for-groceries.svg" alt="Icon" width={60} height={30}/>
+              <span className="text-sm font-normal">
+                Transfer stablecoins to cash in any bank account
               </span>
-              <span className="font-normal text-sm">Pay for your groceries and expenses swiftly</span>
             </p>
-             <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
+            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
               <span>
                 {/* Icon here */}
-                <Image src="/images/spend-usdc.svg" alt="Icon" width={60} height={30}/>
+                <Image
+                  src="/images/pay-for-groceries.svg"
+                  alt="Icon"
+                  width={60}
+                  height={30}
+                />
               </span>
-              <span className="font-normal text-sm">Spend USDC/USDT comfortably with no exchange </span>
+              <span className="text-sm font-normal">
+                Pay for your groceries and expenses swiftly
+              </span>
+            </p>
+            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
+              <span>
+                {/* Icon here */}
+                <Image
+                  src="/images/spend-usdc.svg"
+                  alt="Icon"
+                  width={60}
+                  height={30}
+                />
+              </span>
+              <span className="text-sm font-normal">
+                Spend USDC/USDT comfortably with no exchange{" "}
+              </span>
             </p>
           </div>
-          <div className="bg-[#202020] flex flex-col gap-6 rounded-[24px] px-4 py-8">
-            <h4 className="font-medium text-lg">Web3 Native & Degen</h4>
-            <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
-              <span>
-                 {/* Icon here */}
-                <Image src="/images/turn-defi-tocash.svg" alt="Icon" width={60} height={30}/>
-              </span>
-              <span className="font-normal text-sm">Turn your DEFI yields into cash easily</span>
-            </p>
-            <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
+          <div className="flex flex-col gap-6 rounded-[24px] bg-[#202020] px-4 py-8">
+            <h4 className="text-lg font-medium">Web3 Native & Degen</h4>
+            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
               <span>
                 {/* Icon here */}
-                <Image src="/images/escape-p2p.svg" alt="Icon" width={60} height={30}/>
+                <Image
+                  src="/images/turn-defi-tocash.svg"
+                  alt="Icon"
+                  width={60}
+                  height={30}
+                />
               </span>
-              <span className="font-normal text-sm">Escape P2P and liquidate your cash in no time</span>
+              <span className="text-sm font-normal">
+                Turn your DEFI yields into cash easily
+              </span>
             </p>
-             <p className="flex flex-col gap-4 bg-[#FFFFFF0D] rounded-[20px] p-3">
+            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
               <span>
-                 {/* Icon here */}
-                <Image src="/images/no-issue-dex.svg" alt="Icon" width={60} height={30}/>
+                {/* Icon here */}
+                <Image
+                  src="/images/escape-p2p.svg"
+                  alt="Icon"
+                  width={60}
+                  height={30}
+                />
               </span>
-              <span className="font-normal text-sm">No issues of losses or security concerns like DEXes </span>
+              <span className="text-sm font-normal">
+                Escape P2P and liquidate your cash in no time
+              </span>
+            </p>
+            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
+              <span>
+                {/* Icon here */}
+                <Image
+                  src="/images/no-issue-dex.svg"
+                  alt="Icon"
+                  width={60}
+                  height={30}
+                />
+              </span>
+              <span className="text-sm font-normal">
+                No issues of losses or security concerns like DEXes{" "}
+              </span>
             </p>
           </div>
         </div>
       </section>
 
-      <section className="w-full flex flex-col gap-4 items-center justify-center">
-        <h3 className="font-semibold text-2xl lg:text-[48px]">Rates like no other</h3>
-        <p className="font-normal text-center max-w-[712px]">You have no cause for worry when it comes to rates, Noblocks offers the best rates that beat the speed and amount for P2Ps and other stablecoin exchange options</p>
-        <button className="flex items-center gap-2 hover:cursor-pointer hover:opacity-80">Get started <ArrowRight01Icon /></button>
+      <section className="flex w-full flex-col items-center justify-center gap-4">
+        <h3 className="text-2xl font-semibold lg:text-[48px]">
+          Rates like no other
+        </h3>
+        <p className="max-w-[712px] text-center font-normal">
+          You have no cause for worry when it comes to rates, Noblocks offers
+          the best rates that beat the speed and amount for P2Ps and other
+          stablecoin exchange options
+        </p>
+        <button className="flex items-center gap-2 hover:cursor-pointer hover:opacity-80">
+          Get started <ArrowRight01Icon />
+        </button>
         <div>
-          <Image src="/images/rates-graph.svg" width={100} height={100} className="w-full my-8" alt="Rates Graph"/>
+          <Image
+            src="/images/rates-graph.svg"
+            width={100}
+            height={100}
+            className="my-8 w-full"
+            alt="Rates Graph"
+          />
         </div>
       </section>
+
+      {/* Accordion FAQ here */}
+      <FAQs />
     </div>
   );
 }

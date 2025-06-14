@@ -444,8 +444,8 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
       <FAQs />
 
       <section className="relative mx-auto flex w-full flex-col gap-8 max-w-[1440px] h-[708px] my-20 ">
-        <div className="flex flex-col max-w-[616px] gap-5 lg:ml-20 lg:mt-8 z-20">
-          <p className="flex flex-col text-2xl font-semibold lg:text-[48px]">
+        <div className="flex flex-col max-w-[616px] gap-5 lg:ml-20 lg:mt-8 z-10">
+          <p className="flex flex-col text-2xl font-semibold lg:text-[48px] lg:gap-4">
             <span>Power the Liquidity</span>
             <span className={`${crimsonPro.className}`}>
               Engine on Noblocks
@@ -456,6 +456,7 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
             exchanges. Specify your rate, serve urgent customers and lead the
             charge to operate in a truly decentralised world.
           </p>
+          <button className="bg-[#8B85F4] font-medium text-sm rounded-lg p-3 w-full max-w-[219px] hover:opacity-90 cursor-pointer">Become a Liquidity Provider</button>
         </div>
         <div className="w-full">
           <Image
@@ -463,14 +464,14 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
             alt="Power the Liquidity Engine Illustration"
             width={100}
             height={100}
-            className="absolute bottom-0 left-0 w-full hidden lg:block"
+            className="absolute bottom-0 left-0 w-full hidden md:block"
           />
           <Image
             src="/images/power-liquidity-mobile-illustration.svg"
             alt="Power the Liquidity Engine Illustration"
             width={100}
             height={100}
-            className="absolute bottom-0 left-0 w-full max-h-[838px] lg:hidden"
+            className="absolute bottom-0 left-0 w-full max-h-[838px] md:hidden"
           />
 
         </div>

@@ -314,10 +314,10 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
         <h3 className="text-2xl font-semibold lg:text-3xl">
           Ways you can use Noblocks
         </h3>
-        <div className="grid grid-cols-1 gap-4 rounded-[28px] border border-[#FFFFFF1A] p-4 lg:grid-cols-2 lg:gap-8">
-          <div className="flex flex-col gap-6 rounded-[24px] bg-[#202020] px-4 py-8">
+        <div className="grid grid-cols-1 gap-4 rounded-[28px] border dark:border-[#FFFFFF1A] border-[#EBEBEF] p-4 lg:grid-cols-2 lg:gap-8">
+          <div className="flex flex-col gap-6 rounded-[24px] dark:bg-[#202020] bg-[#F7F7F8] px-4 py-8">
             <h4 className="text-lg font-medium">No Crypto Experience</h4>
-            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
+            <p className="flex flex-col gap-4 rounded-[20px] dark:bg-[#FFFFFF0D] bg-white p-3">
               <span>
                 {/* Icon here */}
                 <Image
@@ -331,7 +331,7 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
                 Transfer stablecoins to cash in any bank account
               </span>
             </p>
-            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
+            <p className="flex flex-col gap-4 rounded-[20px] dark:bg-[#FFFFFF0D] bg-white p-3">
               <span>
                 {/* Icon here */}
                 <Image
@@ -345,7 +345,7 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
                 Pay for your groceries and expenses swiftly
               </span>
             </p>
-            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
+            <p className="flex flex-col gap-4 rounded-[20px] dark:bg-[#FFFFFF0D] bg-white p-3">
               <span>
                 {/* Icon here */}
                 <Image
@@ -360,9 +360,9 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
               </span>
             </p>
           </div>
-          <div className="flex flex-col gap-6 rounded-[24px] bg-[#202020] px-4 py-8">
+          <div className="flex flex-col gap-6 rounded-[24px] dark:bg-[#202020] bg-[#F7F7F8] px-4 py-8">
             <h4 className="text-lg font-medium">Web3 Native & Degen</h4>
-            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
+            <p className="flex flex-col gap-4 rounded-[20px] dark:bg-[#FFFFFF0D] bg-white p-3">
               <span>
                 {/* Icon here */}
                 <Image
@@ -376,7 +376,7 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
                 Turn your DEFI yields into cash easily
               </span>
             </p>
-            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
+            <p className="flex flex-col gap-4 rounded-[20px] dark:bg-[#FFFFFF0D] bg-white p-3">
               <span>
                 {/* Icon here */}
                 <Image
@@ -390,7 +390,7 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
                 Escape P2P and liquidate your cash in no time
               </span>
             </p>
-            <p className="flex flex-col gap-4 rounded-[20px] bg-[#FFFFFF0D] p-3">
+            <p className="flex flex-col gap-4 rounded-[20px] dark:bg-[#FFFFFF0D] bg-white p-3">
               <span>
                 {/* Icon here */}
                 <Image
@@ -456,7 +456,7 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
             exchanges. Specify your rate, serve urgent customers and lead the
             charge to operate in a truly decentralised world.
           </p>
-          <button className="bg-[#8B85F4] font-medium text-sm rounded-lg p-3 w-full max-w-[219px] hover:opacity-90 cursor-pointer">Become a Liquidity Provider</button>
+          <button className="bg-[#8B85F4] dark:text-white text-white font-medium text-sm rounded-lg p-3 w-full max-w-[219px] hover:opacity-90 cursor-pointer">Become a Liquidity Provider</button>
         </div>
         <div className="w-full">
           <Image
@@ -473,7 +473,6 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
             height={100}
             className="absolute bottom-0 left-0 w-full max-h-[838px] md:hidden"
           />
-
         </div>
       </section>
     </div>

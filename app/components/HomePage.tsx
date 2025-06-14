@@ -2,14 +2,14 @@ import { useForm } from "react-hook-form";
 import { useEffect, useState, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-// import { Crimson_Pro } from "next/font/google";
+import { Crimson_Pro } from "next/font/google";
 import Image from "next/image";
 import { ArrowRight01Icon } from "hugeicons-react";
-// const crimsonPro = Crimson_Pro({
-//   subsets: ["latin"],
-//   weight: ["400", "600"], // adjust weights as needed
-//   variable: "--font-crimson",
-// });
+const crimsonPro = Crimson_Pro({
+  subsets: ["latin"],
+  weight: ["400", "600"], // adjust weights as needed
+  variable: "--font-crimson",
+});
 
 import {
   AnimatedPage,
@@ -273,7 +273,7 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
       <section className="w-full lg:mb-20">
         <h1 className="flex flex-col items-center text-center text-3xl font-semibold lg:gap-4 lg:text-[50px]">
           <span>Change stablecoins</span>
-          <span>to cash in seconds</span>
+          <span className={`${crimsonPro.className}`}>to cash in seconds</span>
         </h1>
       </section>
 
@@ -420,7 +420,7 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
         <button className="flex items-center gap-2 hover:cursor-pointer hover:opacity-80">
           Get started <ArrowRight01Icon />
         </button>
-        <div className="w-full hidden md:block max-w-[834px]">
+        <div className="hidden w-full max-w-[834px] md:block">
           <Image
             src="/images/rates-graph.svg"
             width={100}
@@ -442,6 +442,39 @@ export function HomePage({ searchParams }: { searchParams: URLSearchParams }) {
 
       {/* Accordion FAQ here */}
       <FAQs />
+
+      <section className="relative mx-auto flex w-full flex-col gap-8 max-w-[1440px] h-[708px] my-20 ">
+        <div className="flex flex-col max-w-[616px] gap-5 lg:ml-20 lg:mt-8 z-20">
+          <p className="flex flex-col text-2xl font-semibold lg:text-[48px]">
+            <span>Power the Liquidity</span>
+            <span className={`${crimsonPro.className}`}>
+              Engine on Noblocks
+            </span>
+          </p>
+          <p className="text-base font-normal lg:text-xl">
+            Maximize your earnings while enabling fast and seamless stablecoin
+            exchanges. Specify your rate, serve urgent customers and lead the
+            charge to operate in a truly decentralised world.
+          </p>
+        </div>
+        <div className="w-full">
+          <Image
+            src="/images/power-liquidity-desktop-illustration.svg"
+            alt="Power the Liquidity Engine Illustration"
+            width={100}
+            height={100}
+            className="absolute bottom-0 left-0 w-full hidden lg:block"
+          />
+          <Image
+            src="/images/power-liquidity-mobile-illustration.svg"
+            alt="Power the Liquidity Engine Illustration"
+            width={100}
+            height={100}
+            className="absolute bottom-0 left-0 w-full max-h-[838px] lg:hidden"
+          />
+
+        </div>
+      </section>
     </div>
   );
 }

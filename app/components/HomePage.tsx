@@ -1,9 +1,10 @@
-"use client"
+"use client";
 
 import Image from "next/image";
 import { Crimson_Pro } from "next/font/google";
 import { ArrowRight01Icon } from "hugeicons-react";
 import FAQs from "./FAQs";
+import {HomePageForm} from "./HomePageForm";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -13,18 +14,22 @@ const crimsonPro = Crimson_Pro({
 
 // HomePage component with hero section and transaction flow
 export function HomePage() {
+  
+
   return (
     <div className="flex min-h-screen w-full flex-col gap-8">
       {/* Hero Section */}
       <section className="w-full lg:mb-20">
         <h1 className="flex flex-col items-center text-center text-3xl font-semibold lg:gap-4 lg:text-[50px]">
           <span>Change stablecoins</span>
-          <span className={`${crimsonPro.className}`}>to cash in seconds</span>
+          <span className={`${crimsonPro.className} italic`}>
+            to cash in seconds
+          </span>
         </h1>
       </section>
 
       {/* Transaction form here */}
-      
+     <HomePageForm />
 
       <p className="my-20 text-center text-white opacity-50">
         Learn how to use Noblocks

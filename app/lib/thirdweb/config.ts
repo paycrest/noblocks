@@ -1,6 +1,7 @@
 import { inAppWallet, createWallet } from "thirdweb/wallets";
 import { customLightTheme, customDarkTheme } from "./theme";
 import { THIRDWEB_CLIENT } from "./client";
+import { Chain } from "thirdweb";
 
 // Wallet configuration
 export const supportedWallets = [
@@ -36,7 +37,7 @@ export const legalUrls = {
 } as const;
 
 // Connect modal configuration
-export const getConnectConfig = (isDark: boolean) => ({
+export const getConnectConfig = (isDark: boolean, selectedNetwork: Chain) => ({
   client: THIRDWEB_CLIENT,
   ...legalUrls,
   size: "compact" as const,
@@ -44,4 +45,5 @@ export const getConnectConfig = (isDark: boolean) => ({
   appMetadata,
   title: "Log in or sign up",
   wallets: supportedWallets,
+  chain: selectedNetwork,
 });

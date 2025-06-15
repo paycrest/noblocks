@@ -2,10 +2,10 @@
 import { Checkbox, DialogTitle, Field, Label } from "@headlessui/react";
 import { toast } from "sonner";
 import { QRCode } from "react-qrcode-logo";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { FiExternalLink } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useCallback, useEffect } from "react";
+import { useActiveAccount } from "thirdweb/react";
 
 import {
   CheckIcon,
@@ -47,17 +47,11 @@ export const KycModal = ({
   setIsUserVerified: (value: boolean) => void;
   setIsKycModalOpen: (value: boolean) => void;
 }) => {
-  const { signMessage } = usePrivy();
-  const { wallets } = useWallets();
+  const account = useActiveAccount();
   const { isInjectedWallet, injectedAddress, injectedProvider } =
     useInjectedWallet();
 
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy",
-  );
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : embeddedWallet?.address;
+  const walletAddress = isInjectedWallet ? injectedAddress : account?.address;
 
   const [step, setStep] = useState<Step>(STEPS.LOADING);
   const [showQRCode, setShowQRCode] = useState(false);
@@ -67,6 +61,11 @@ export const KycModal = ({
   const [isSigning, setIsSigning] = useState(false);
 
   const handleSignAndContinue = async () => {
+    if (!walletAddress) {
+      toast.error("No wallet connected");
+      return;
+    }
+
     setIsSigning(true);
     const nonce = generateTimeBasedNonce({ length: 16 });
     const message = `I accept the KYC Policy and hereby request an identity verification check for ${walletAddress} with nonce ${nonce}`;
@@ -92,18 +91,21 @@ export const KycModal = ({
           setIsSigning(false);
           return;
         }
-      } else {
-        const signResult = await signMessage(
-          { message },
-          { uiOptions: { buttonText: "Sign" } },
-        );
-
-        if (!signResult) {
+      } else if (account) {
+        try {
+          signature = await account.signMessage({
+            message,
+          });
+        } catch (error) {
+          console.error("Thirdweb account signature error:", error);
+          toast.error("Failed to sign message with wallet");
           setIsSigning(false);
           return;
         }
-
-        signature = signResult.signature;
+      } else {
+        toast.error("No wallet available for signing");
+        setIsSigning(false);
+        return;
       }
 
       if (signature) {
@@ -116,7 +118,7 @@ export const KycModal = ({
 
         const response = await initiateKYC({
           signature: sigWithoutPrefix,
-          walletAddress: walletAddress || "",
+          walletAddress: walletAddress,
           nonce,
         });
 
@@ -437,7 +439,7 @@ export const KycModal = ({
         </DialogTitle>
 
         <p className="text-gray-500 dark:text-white/50">
-          Some documents you uploaded couldn’t be verified. Please check all
+          Some documents you uploaded couldn't be verified. Please check all
           requirements and upload again
         </p>
       </div>

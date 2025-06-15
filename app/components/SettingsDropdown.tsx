@@ -1,12 +1,6 @@
 "use client";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRef, useState } from "react";
-import {
-  useLinkAccount,
-  useLogout,
-  usePrivy,
-  useMfaEnrollment,
-} from "@privy-io/react-auth";
 import { ImSpinner } from "react-icons/im";
 import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
@@ -25,13 +19,18 @@ import { toast } from "sonner";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
-import { useActiveWallet, useDisconnect } from "thirdweb/react";
+import {
+  useActiveAccount,
+  useActiveWallet,
+  useDisconnect,
+} from "thirdweb/react";
 
 export const SettingsDropdown = () => {
-  const { user, updateEmail } = usePrivy();
-  const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+
+  const account = useActiveAccount();
+  const isAuthenticated = !!account;
 
   const wallet = useActiveWallet();
   const { disconnect } = useDisconnect();
@@ -45,33 +44,13 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-        ?.address;
+  const walletAddress = isInjectedWallet ? injectedAddress : account?.address;
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(walletAddress ?? "");
     setIsAddressCopied(true);
     setTimeout(() => setIsAddressCopied(false), 2000);
   };
-
-  const { logout } = useLogout({
-    onSuccess: () => {
-      setIsLoggingOut(false);
-    },
-  });
-
-  const { linkEmail } = useLinkAccount({
-    onSuccess: ({ user }) => {
-      toast.success(`${user.email} linked successfully`);
-    },
-    onError: () => {
-      toast.error("Error linking account", {
-        description: "You might have this email linked already",
-      });
-    },
-  });
 
   const { disconnectWallet } = useWalletDisconnect();
 
@@ -86,6 +65,9 @@ export const SettingsDropdown = () => {
       console.error("Error during logout:", error);
       // Still proceed with logout even if wallet disconnection fails
       if (wallet) disconnect(wallet);
+    } finally {
+      toast.success("Logged out successfully");
+      setIsLoggingOut(false);
     }
   };
 
@@ -151,7 +133,7 @@ export const SettingsDropdown = () => {
                 </button>
               </li>
 
-              {!isInjectedWallet && (
+              {/* {!isInjectedWallet && (
                 <li
                   role="menuitem"
                   className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
@@ -169,9 +151,9 @@ export const SettingsDropdown = () => {
                     </div>
                   </button>
                 </li>
-              )}
+              )} */}
 
-              {!isInjectedWallet &&
+              {/* {!isInjectedWallet &&
                 (user?.email ? (
                   <li
                     role="menuitem"
@@ -207,7 +189,8 @@ export const SettingsDropdown = () => {
                       </div>
                     </button>
                   </li>
-                ))}
+                ))} */}
+
               <li
                 role="menuitem"
                 className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"

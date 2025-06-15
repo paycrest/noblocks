@@ -5,7 +5,6 @@ import Image from "next/image";
 import { useState, useEffect } from "react";
 import { PiCheck } from "react-icons/pi";
 import { HelpCircleIcon, ArrowLeft02Icon, Cancel01Icon } from "hugeicons-react";
-import { usePrivy } from "@privy-io/react-auth";
 import { networks } from "../mocks";
 import { useNetwork } from "../context/NetworksContext";
 import { AnimatedModal } from "./AnimatedComponents";
@@ -16,6 +15,7 @@ import {
 } from "../utils";
 import { useSearchParams } from "next/navigation";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useActiveAccount } from "thirdweb/react";
 
 export const NetworkSelectionModal = () => {
   const searchParams = useSearchParams();
@@ -23,13 +23,15 @@ export const NetworkSelectionModal = () => {
   const [showInfo, setShowInfo] = useState(false);
   const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
-  const { authenticated, user } = usePrivy();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
+  const account = useActiveAccount();
+  const isAuthenticated = !!account;
+
   useEffect(() => {
-    if (!hasCheckedStorage && authenticated && user?.wallet?.address) {
-      const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
+    if (!hasCheckedStorage && isAuthenticated && account?.address) {
+      const storageKey = `hasSeenNetworkModal-${account.address}`;
       const hasSeenModal = localStorage.getItem(storageKey);
 
       if (!hasSeenModal) {
@@ -37,11 +39,11 @@ export const NetworkSelectionModal = () => {
       }
       setHasCheckedStorage(true);
     }
-  }, [hasCheckedStorage, authenticated, user?.wallet?.address]);
+  }, [hasCheckedStorage, isAuthenticated, account?.address]);
 
   const handleClose = () => {
-    if (user?.wallet?.address) {
-      const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
+    if (account?.address) {
+      const storageKey = `hasSeenNetworkModal-${account.address}`;
       localStorage.setItem(storageKey, "true");
     }
     setIsOpen(false);
@@ -63,7 +65,7 @@ export const NetworkSelectionModal = () => {
     }
   };
 
-  if (!authenticated) return null;
+  if (!isAuthenticated) return null;
 
   return (
     <AnimatedModal isOpen={isOpen} onClose={handleClose} maxWidth="28.5rem">
@@ -103,7 +105,10 @@ export const NetworkSelectionModal = () => {
 
               <div className="space-y-2">
                 {networks
-                  .filter((network) => useInjectedWallet || network.chain.name !== "Celo")
+                  .filter(
+                    (network) =>
+                      useInjectedWallet || network.chain.name !== "Celo",
+                  )
                   .map((network) => (
                     <button
                       key={network.chain.name}

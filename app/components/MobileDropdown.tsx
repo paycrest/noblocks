@@ -3,7 +3,6 @@ import Image from "next/image";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
-import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
 import {
   Cancel01Icon,
   ArrowRight01Icon,
@@ -28,7 +27,6 @@ import {
   detectWalletProvider,
   getNetworkImageUrl,
 } from "../utils";
-import { useLogout } from "@privy-io/react-auth";
 import { PiCheck } from "react-icons/pi";
 import { ImSpinner } from "react-icons/im";
 import { ThemeSwitch } from "./ThemeSwitch";
@@ -70,7 +68,6 @@ export const MobileDropdown = ({
     useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
-  const { user, linkEmail, updateEmail } = usePrivy();
   const { allBalances, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
@@ -82,13 +79,11 @@ export const MobileDropdown = ({
 
   const smartWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : { address: account?.address };
 
   const { currentStep } = useStep();
 
   const { disconnectWallet } = useWalletDisconnect();
-
-  const { showMfaEnrollmentModal } = useMfaEnrollment();
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(smartWallet?.address ?? "");
@@ -476,7 +471,7 @@ export const MobileDropdown = ({
                           </div>
 
                           <div className="space-y-2 *:min-h-11">
-                            {!isInjectedWallet && (
+                            {/* {!isInjectedWallet && (
                               <button
                                 type="button"
                                 onClick={showMfaEnrollmentModal}
@@ -489,9 +484,9 @@ export const MobileDropdown = ({
                                     : "Enable MFA"}
                                 </p>
                               </button>
-                            )}
+                            )} */}
 
-                            {!isInjectedWallet && user?.email ? (
+                            {/* {!isInjectedWallet && user?.email ? (
                               <button
                                 type="button"
                                 onClick={updateEmail}
@@ -524,7 +519,7 @@ export const MobileDropdown = ({
                                 </div>
                                 <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
                               </button>
-                            ) : null}
+                            ) : null} */}
 
                             <a
                               href={config.contactSupportUrl}

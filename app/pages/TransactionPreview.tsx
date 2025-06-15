@@ -3,6 +3,17 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
+import { useActiveAccount, useSendTransaction } from "thirdweb/react";
+import {
+  prepareContractCall,
+  getContract,
+  type PreparedTransaction,
+  type PrepareTransactionOptions,
+  Chain,
+} from "thirdweb";
+import { type AbiFunction } from "viem";
+import { erc20Abi } from "viem";
+import { THIRDWEB_CLIENT } from "../lib/thirdweb/client";
 
 import {
   calculateDuration,
@@ -17,22 +28,15 @@ import {
   publicKeyEncrypt,
 } from "../utils";
 import { useNetwork } from "../context/NetworksContext";
-import type {
-  Token,
-  TransactionPreviewProps,
-  TransactionCreateInput,
-} from "../types";
+import type { Token, TransactionPreviewProps } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components";
 import { gatewayAbi } from "../api/abi";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
   type BaseError,
   decodeEventLog,
   encodeFunctionData,
   getAddress,
   parseUnits,
-  erc20Abi,
   createPublicClient,
   http,
 } from "viem";
@@ -58,10 +62,11 @@ export const TransactionPreview = ({
   createdAt,
 }: TransactionPreviewProps) => {
   const isDark = useActualTheme();
-  const { user, getAccessToken } = usePrivy();
-  const { client } = useSmartWallets();
   const { isInjectedWallet, injectedAddress, injectedProvider, injectedReady } =
     useInjectedWallet();
+
+  const account = useActiveAccount();
+  const isAuthenticated = !!account;
 
   const { selectedNetwork } = useNetwork();
   const { currentStep, setCurrentStep } = useStep();
@@ -100,10 +105,7 @@ export const TransactionPreview = ({
 
   const searchParams = useSearchParams();
 
-  const embeddedWallet = user?.linkedAccounts.find(
-    (account) =>
-      account.type === "wallet" && account.connectorType === "embedded",
-  ) as { address: string } | undefined;
+  const { mutate: sendTransaction } = useSendTransaction();
 
   // Rendered tsx info
   const renderedInfo = {
@@ -134,9 +136,7 @@ export const TransactionPreview = ({
     ? { address: injectedAddress, type: "injected_wallet" }
     : null;
 
-  const smartWallet = isInjectedWallet
-    ? null
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+  const smartWallet = isInjectedWallet ? null : { address: account?.address };
 
   const activeWallet = injectedWallet || smartWallet;
 
@@ -180,166 +180,85 @@ export const TransactionPreview = ({
 
   const createOrder = async () => {
     try {
-      if (isInjectedWallet && injectedProvider) {
-        // Injected wallet
-        if (!injectedReady) {
-          throw new Error("Injected wallet not ready");
-        }
-
-        const params = await prepareCreateOrderParams();
-        setCreatedAt(new Date().toISOString());
-
-        // Send approval transaction
-        const approvalTx = await injectedProvider.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from: injectedAddress,
-              to: tokenAddress,
-              data: encodeFunctionData({
-                abi: erc20Abi,
-                functionName: "approve",
-                args: [
-                  getGatewayContractAddress(
-                    selectedNetwork.chain.name,
-                  ) as `0x${string}`,
-                  parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-                ],
-              }),
-            },
-          ],
-        });
-
-        try {
-          const publicClient = createPublicClient({
-            chain: selectedNetwork.chain,
-            transport: http(getRpcUrl(selectedNetwork.chain.name)),
-          });
-
-          await publicClient.waitForTransactionReceipt({
-            hash: approvalTx as `0x${string}`,
-          });
-          toast.success("Token spending approved");
-          setIsGatewayApproved(true);
-        } catch (error) {
-          toast.error("Approval failed");
-          throw new Error("Approval transaction failed");
-        }
-
-        // Create order transaction
-        await injectedProvider.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from: injectedAddress,
-              to: getGatewayContractAddress(
-                selectedNetwork.chain.name,
-              ) as `0x${string}`,
-              data: encodeFunctionData({
-                abi: gatewayAbi,
-                functionName: "createOrder",
-                args: [
-                  params.token,
-                  params.amount,
-                  params.rate,
-                  params.senderFeeRecipient,
-                  params.senderFee,
-                  params.refundAddress ?? "",
-                  params.messageHash,
-                ],
-              }),
-            },
-          ],
-        });
-        toast.success("Order created successfully");
-        setIsOrderCreated(true);
-
-        trackEvent("Swap started", {
-          "Entry point": "Transaction preview",
-          "Wallet type": "Injected wallet",
-        });
-      } else {
-        // Smart wallet
-        if (!client) {
-          throw new Error("Smart wallet not found");
-        }
-
-        await client.switchChain({
-          id: selectedNetwork.chain.id,
-        });
-
-        const params = await prepareCreateOrderParams();
-        setCreatedAt(new Date().toISOString());
-
-        await client.sendTransaction({
-          calls: [
-            // Approve gateway contract to spend token
-            {
-              to: tokenAddress,
-              data: encodeFunctionData({
-                abi: erc20Abi,
-                functionName: "approve",
-                args: [
-                  getGatewayContractAddress(
-                    selectedNetwork.chain.name,
-                  ) as `0x${string}`,
-                  parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-                ],
-              }),
-            },
-            // Create order
-            {
-              to: getGatewayContractAddress(
-                selectedNetwork.chain.name,
-              ) as `0x${string}`,
-              data: encodeFunctionData({
-                abi: gatewayAbi,
-                functionName: "createOrder",
-                args: [
-                  params.token,
-                  params.amount,
-                  params.rate,
-                  params.senderFeeRecipient,
-                  params.senderFee,
-                  params.refundAddress ?? "",
-                  params.messageHash,
-                ],
-              }),
-            },
-          ],
-        });
+      if (!account?.address) {
+        throw new Error("No wallet connected");
       }
 
-      await getOrderId();
+      const params = await prepareCreateOrderParams();
+      setCreatedAt(new Date().toISOString());
 
+      // Get token contract
+      const tokenContract = getContract({
+        client: THIRDWEB_CLIENT,
+        chain: selectedNetwork.chain as unknown as Chain,
+        address: tokenAddress,
+        abi: erc20Abi,
+      });
+
+      // Get gateway contract
+      const gatewayContract = getContract({
+        client: THIRDWEB_CLIENT,
+        chain: selectedNetwork.chain as unknown as Chain,
+        address: getGatewayContractAddress(
+          selectedNetwork.chain.name,
+        ) as `0x${string}`,
+        abi: gatewayAbi,
+      });
+
+      // Prepare approval transaction
+      const approvalTx = prepareContractCall({
+        contract: tokenContract,
+        method: "approve",
+        params: [
+          getGatewayContractAddress(
+            selectedNetwork.chain.name,
+          ) as `0x${string}`,
+          parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+        ],
+      }) as PreparedTransaction<[], AbiFunction, PrepareTransactionOptions>;
+
+      // Send approval transaction
+      await sendTransaction(approvalTx);
+      toast.success("Token spending approved");
+      setIsGatewayApproved(true);
+
+      // Prepare create order transaction
+      const createOrderTx = prepareContractCall({
+        contract: gatewayContract,
+        method: "createOrder",
+        params: [
+          params.token,
+          params.amount,
+          params.rate,
+          params.senderFeeRecipient,
+          params.senderFee,
+          params.refundAddress,
+          params.messageHash,
+        ],
+      }) as PreparedTransaction<[], AbiFunction, PrepareTransactionOptions>;
+
+      // Send create order transaction
+      await sendTransaction(createOrderTx);
       toast.success("Order created successfully");
-
-      refreshBalance();
+      setIsOrderCreated(true);
 
       trackEvent("Swap started", {
-        "Entry point": "Transaction preview",
-        "Wallet type": "Smart wallet",
+        token,
+        amount: amountSent,
+        currency,
+        fiatAmount: amountReceived,
+        network: selectedNetwork.chain.name,
+        walletType: isInjectedWallet ? "injected" : "smart",
       });
-    } catch (e) {
-      const error = e as BaseError;
-      setErrorMessage(error.shortMessage || error.message);
-      setIsConfirming(false);
-      trackEvent("Swap Failed", {
-        Amount: amountSent,
-        "Send token": token,
-        "Receive currency": currency,
-        "Recipient bank": getInstitutionNameByCode(
-          institution,
-          supportedInstitutions,
-        ),
-        "Wallet balance": balance,
-        "Swap date": createdAt,
-        "Reason for failure": error.shortMessage || error.message,
-        "Transaction duration": calculateDuration(
-          createdAt,
-          new Date().toISOString(),
-        ),
-      });
+
+      // Get order ID from logs
+      await getOrderId();
+    } catch (error) {
+      console.error("Error creating order:", error);
+      setErrorMessage(
+        error instanceof Error ? error.message : "Failed to create order",
+      );
+      setErrorCount((prev) => prev + 1);
     }
   };
 
@@ -362,58 +281,59 @@ export const TransactionPreview = ({
     }
   };
 
-  const saveTransactionData = async ({
-    orderId,
-    txHash,
-  }: {
-    orderId: string;
-    txHash: `0x${string}`;
-  }) => {
-    if (!embeddedWallet?.address || isSavingTransaction) return;
-    setIsSavingTransaction(true);
+  // const saveTransactionData = async ({
+  //   orderId,
+  //   txHash,
+  // }: {
+  //   orderId: string;
+  //   txHash: `0x${string}`;
+  // }) => {
+  //   if (!activeWallet?.address || isSavingTransaction) return;
+  //   setIsSavingTransaction(true);
 
-    try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error("No access token available");
-      }
+  //   try {
+  //   TODO: figure out how to get access token on thirdweb
+  //     const accessToken = await getAccessToken();
+  //     if (!accessToken) {
+  //       throw new Error("No access token available");
+  //     }
 
-      const transaction: TransactionCreateInput = {
-        walletAddress: embeddedWallet.address,
-        transactionType: "transfer",
-        fromCurrency: token,
-        toCurrency: currency,
-        amountSent: Number(amountSent),
-        amountReceived: Number(amountReceived),
-        fee: Number(rate),
-        recipient: {
-          account_name: recipientName,
-          institution: getInstitutionNameByCode(
-            institution,
-            supportedInstitutions,
-          ) as string,
-          account_identifier: accountIdentifier,
-          ...(memo && { memo }),
-        },
-        status: "pending",
-        orderId: orderId,
-        txHash: txHash,
-      };
+  //     const transaction: TransactionCreateInput = {
+  //       walletAddress: activeWallet.address,
+  //       transactionType: "transfer",
+  //       fromCurrency: token,
+  //       toCurrency: currency,
+  //       amountSent: Number(amountSent),
+  //       amountReceived: Number(amountReceived),
+  //       fee: Number(rate),
+  //       recipient: {
+  //         account_name: recipientName,
+  //         institution: getInstitutionNameByCode(
+  //           institution,
+  //           supportedInstitutions,
+  //         ) as string,
+  //         account_identifier: accountIdentifier,
+  //         ...(memo && { memo }),
+  //       },
+  //       status: "pending",
+  //       orderId: orderId,
+  //       txHash: txHash,
+  //     };
 
-      const response = await saveTransaction(transaction, accessToken);
-      if (!response.success) {
-        throw new Error("Failed to save transaction");
-      }
+  //     const response = await saveTransaction(transaction, accessToken);
+  //     if (!response.success) {
+  //       throw new Error("Failed to save transaction");
+  //     }
 
-      // Store the transaction ID in localStorage
-      localStorage.setItem("currentTransactionId", response.data.id);
-    } catch (error) {
-      console.error("Error saving transaction:", error);
-      // Don't show error toast as this is a background operation
-    } finally {
-      setIsSavingTransaction(false);
-    }
-  };
+  //     // Store the transaction ID in localStorage
+  //     localStorage.setItem("currentTransactionId", response.data.id);
+  //   } catch (error) {
+  //     console.error("Error saving transaction:", error);
+  //     // Don't show error toast as this is a background operation
+  //   } finally {
+  //     setIsSavingTransaction(false);
+  //   }
+  // };
 
   const getOrderId = async () => {
     let intervalId: NodeJS.Timeout;
@@ -421,7 +341,7 @@ export const TransactionPreview = ({
     const getOrderCreatedLogs = async () => {
       const publicClient = createPublicClient({
         chain: selectedNetwork.chain,
-        transport: http(getRpcUrl(selectedNetwork.chain.name)),
+        transport: http(getRpcUrl(selectedNetwork.chain.name ?? "")),
       });
 
       if (!publicClient || !activeWallet?.address || isOrderCreatedLogsFetched)
@@ -462,10 +382,10 @@ export const TransactionPreview = ({
           clearInterval(intervalId);
           setOrderId(decodedLog.args.orderId);
 
-          await saveTransactionData({
-            orderId: decodedLog.args.orderId,
-            txHash: logs[0].transactionHash,
-          });
+          // await saveTransactionData({
+          //   orderId: decodedLog.args.orderId,
+          //   txHash: logs[0].transactionHash,
+          // });
 
           setCreatedAt(new Date().toISOString());
           setTransactionStatus("pending");
@@ -530,7 +450,7 @@ export const TransactionPreview = ({
               {key === "network" && (
                 <Image
                   src={getNetworkImageUrl(selectedNetwork, isDark)}
-                  alt={selectedNetwork.chain.name}
+                  alt={selectedNetwork.chain.name ?? "Network"}
                   width={14}
                   height={14}
                 />

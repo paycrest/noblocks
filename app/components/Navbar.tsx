@@ -28,6 +28,7 @@ import { MobileDropdown } from "./MobileDropdown";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { Chain } from "thirdweb";
 
 export const Navbar = () => {
   const pathname = usePathname();
@@ -50,7 +51,9 @@ export const Navbar = () => {
     : { address: account?.address };
 
   const handleConnect = async () => {
-    await connect(getConnectConfig(isDark));
+    await connect(
+      getConnectConfig(isDark, selectedNetwork.chain as unknown as Chain),
+    );
   };
 
   useEffect(() => {
@@ -182,7 +185,7 @@ export const Navbar = () => {
               >
                 <Image
                   src={getNetworkImageUrl(selectedNetwork, isDark)}
-                  alt={selectedNetwork.chain.name}
+                  alt={selectedNetwork.chain.name ?? "Network"}
                   width={20}
                   height={20}
                   className="size-5 rounded-full"

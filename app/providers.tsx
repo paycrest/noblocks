@@ -9,36 +9,34 @@ import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 import { darkModeConfig, lightModeConfig } from "./lib/privy-config";
 
-import config from "./lib/config";
 import {
   BalanceProvider,
   InjectedWalletProvider,
   NetworkProvider,
   StepProvider,
+  useNetwork,
 } from "./context";
 import { TransactionsProvider } from "./context/TransactionsContext";
 import { useActualTheme } from "./hooks/useActualTheme";
 
 function Providers({ children }: { children: ReactNode }) {
-  const { privyAppId } = config;
-  const queryClient = new QueryClient();
   const isDark = useActualTheme();
+  const queryClient = new QueryClient();
+
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
-        <PrivyConfigWrapper privyAppId={privyAppId}>
-          <ThirdwebProvider>
-            <ContextProviders>{children}</ContextProviders>
-            <Toaster
-              position={
-                typeof window !== "undefined" && window.innerWidth < 640
-                  ? "top-center"
-                  : "bottom-right"
-              }
-              theme={isDark ? "dark" : "light"}
-            />
-          </ThirdwebProvider>
-        </PrivyConfigWrapper>
+        <ThirdwebProvider>
+          <ContextProviders>{children}</ContextProviders>
+          <Toaster
+            position={
+              typeof window !== "undefined" && window.innerWidth < 640
+                ? "top-center"
+                : "bottom-right"
+            }
+            theme={isDark ? "dark" : "light"}
+          />
+        </ThirdwebProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

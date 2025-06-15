@@ -6,6 +6,7 @@ import type {
   UseFormHandleSubmit,
   UseFormReturn,
 } from "react-hook-form";
+import { Chain } from "viem";
 
 export type InstitutionProps = {
   name: string;
@@ -237,11 +238,10 @@ export type Config = {
   mixpanelToken: string;
   hotjarSiteId: number;
   contactSupportUrl: string;
-  thirdwebClientId: string;
 };
 
 export type Network = {
-  chain: any;
+  chain: Chain;
   imageUrl:
     | string
     | {

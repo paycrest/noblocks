@@ -50,7 +50,7 @@ import {
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
-import { usePrivy } from "@privy-io/react-auth";
+import { useActiveAccount } from "thirdweb/react";
 
 /**
  * Renders the transaction status component.
@@ -81,12 +81,8 @@ export function TransactionStatus({
   const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
     useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const { user, getAccessToken } = usePrivy();
 
-  const embeddedWallet = user?.linkedAccounts.find(
-    (account) =>
-      account.type === "wallet" && account.connectorType === "embedded",
-  ) as { address: string } | undefined;
+  const account = useActiveAccount();
 
   const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
@@ -123,58 +119,58 @@ export function TransactionStatus({
    * Uses a request ID system to handle race conditions when multiple updates are triggered
    * Only the latest update attempt will complete, older ones will be skipped
    */
-  const saveTransactionData = async () => {
-    if (!embeddedWallet?.address) return;
+  // const saveTransactionData = async () => {
+  //   if (!account?.address) return;
 
-    // Increment request ID to mark this as the latest request
-    const requestId = ++latestRequestIdRef.current;
+  //   // Increment request ID to mark this as the latest request
+  //   const requestId = ++latestRequestIdRef.current;
 
-    try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error("No access token available");
-      }
+  //   try {
+  //     const accessToken = await getAccessToken();
+  //     if (!accessToken) {
+  //       throw new Error("No access token available");
+  //     }
 
-      // Get the stored transaction ID
-      const transactionId = localStorage.getItem("currentTransactionId");
-      if (!transactionId) {
-        console.error("No transaction ID found");
-        return;
-      }
+  //     // Get the stored transaction ID
+  //     const transactionId = localStorage.getItem("currentTransactionId");
+  //     if (!transactionId) {
+  //       console.error("No transaction ID found");
+  //       return;
+  //     }
 
-      // If this is no longer the latest request, skip saving
-      if (requestId !== latestRequestIdRef.current) {
-        return;
-      }
+  //     // If this is no longer the latest request, skip saving
+  //     if (requestId !== latestRequestIdRef.current) {
+  //       return;
+  //     }
 
-      // Calculate time spent
-      const timeSpent = calculateDuration(createdAt, new Date().toISOString());
+  //     // Calculate time spent
+  //     const timeSpent = calculateDuration(createdAt, new Date().toISOString());
 
-      // Check again before making the API call
-      if (requestId !== latestRequestIdRef.current) {
-        return;
-      }
+  //     // Check again before making the API call
+  //     if (requestId !== latestRequestIdRef.current) {
+  //       return;
+  //     }
 
-      const response = await updateTransactionDetails({
-        transactionId,
-        status: transactionStatus,
-        txHash:
-          transactionStatus !== "refunded" ? createdHash : orderDetails?.txHash,
-        timeSpent,
-        accessToken,
-        walletAddress: embeddedWallet.address,
-      });
+  //     const response = await updateTransactionDetails({
+  //       transactionId,
+  //       status: transactionStatus,
+  //       txHash:
+  //         transactionStatus !== "refunded" ? createdHash : orderDetails?.txHash,
+  //       timeSpent,
+  //       accessToken,
+  //       walletAddress: embeddedWallet.address,
+  //     });
 
-      if (!response.success) {
-        throw new Error("Failed to update transaction details");
-      }
-    } catch (error: unknown) {
-      // Only log if this is still the latest request
-      if (requestId === latestRequestIdRef.current) {
-        console.error("Error updating transaction:", error);
-      }
-    }
-  };
+  //     if (!response.success) {
+  //       throw new Error("Failed to update transaction details");
+  //     }
+  //   } catch (error: unknown) {
+  //     // Only log if this is still the latest request
+  //     if (requestId === latestRequestIdRef.current) {
+  //       console.error("Error updating transaction:", error);
+  //     }
+  //   }
+  // };
 
   /**
    * Polls the order details endpoint every 5 seconds to check transaction status
@@ -216,10 +212,10 @@ export function TransactionStatus({
               }
               clearInterval(intervalId);
 
-              if (["validated", "refunded"].includes(transactionStatus)) {
-                // save once on validation, skip on settled
-                saveTransactionData();
-              }
+              // if (["validated", "refunded"].includes(transactionStatus)) {
+              //   // save once on validation, skip on settled
+              //   saveTransactionData();
+              // }
             }
 
             if (orderDetailsResponse.data.status === "processing") {
@@ -230,7 +226,7 @@ export function TransactionStatus({
               if (createdReceipt) {
                 setCreatedHash(createdReceipt.txHash);
 
-                saveTransactionData();
+                // saveTransactionData();
               }
             }
           }
@@ -740,7 +736,7 @@ export function TransactionStatus({
                 <p className="flex-1">
                   <a
                     href={getExplorerLink(
-                      selectedNetwork.chain.name,
+                      selectedNetwork.chain.name ?? "",
                       `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
                     )}
                     className="text-lavender-500 hover:underline dark:text-lavender-500"

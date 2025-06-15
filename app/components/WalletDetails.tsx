@@ -7,7 +7,6 @@ import {
   shortenAddress,
 } from "../utils";
 import { useBalance } from "../context/BalanceContext";
-import { usePrivy } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { TransferModal } from "./TransferModal";
 import {
@@ -49,7 +48,6 @@ export const WalletDetails = () => {
   const { selectedNetwork } = useNetwork();
   const { allBalances, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const { user } = usePrivy();
   const isDark = useActualTheme();
 
   const account = useActiveAccount();
@@ -60,7 +58,7 @@ export const WalletDetails = () => {
   // Determine active wallet based on wallet type
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : { address: account?.address };
 
   // Get appropriate balance based on wallet type
   const activeBalance = isInjectedWallet
@@ -222,7 +220,7 @@ export const WalletDetails = () => {
                         )}
                       </div>
 
-                      {!isInjectedWallet && (
+                      {/* {!isInjectedWallet && (
                         <div className="grid grid-cols-2 gap-4">
                           <button
                             type="button"
@@ -241,7 +239,7 @@ export const WalletDetails = () => {
                             Fund
                           </button>
                         </div>
-                      )}
+                      )} */}
                     </div>
 
                     {/* Tab navigation */}
@@ -310,7 +308,10 @@ export const WalletDetails = () => {
                                             selectedNetwork,
                                             isDark,
                                           )}
-                                          alt={selectedNetwork.chain.name}
+                                          alt={
+                                            selectedNetwork.chain.name ??
+                                            "Network"
+                                          }
                                           width={16}
                                           height={16}
                                           className="absolute -bottom-1 -right-1 size-4 rounded-full"

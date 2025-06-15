@@ -7,12 +7,11 @@ import {
   useState,
 } from "react";
 import { fetchWalletBalance, getRpcUrl } from "../utils";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "./NetworksContext";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createPublicClient, http } from "viem";
 import { useInjectedWallet } from "./InjectedWalletContext";
 import { bsc } from "viem/chains";
+import { useActiveAccount } from "thirdweb/react";
 
 interface WalletBalances {
   total: number;
@@ -21,11 +20,9 @@ interface WalletBalances {
 
 interface BalanceContextProps {
   smartWalletBalance: WalletBalances | null;
-  externalWalletBalance: WalletBalances | null;
   injectedWalletBalance: WalletBalances | null;
   allBalances: {
     smartWallet: WalletBalances | null;
-    externalWallet: WalletBalances | null;
     injectedWallet: WalletBalances | null;
   };
   refreshBalance: () => void;
@@ -37,16 +34,15 @@ const BalanceContext = createContext<BalanceContextProps | undefined>(
 );
 
 export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
-  const { ready, user } = usePrivy();
-  const { wallets } = useWallets();
-  const { client } = useSmartWallets();
   const { selectedNetwork } = useNetwork();
   const { isInjectedWallet, injectedAddress, injectedReady, injectedProvider } =
     useInjectedWallet();
 
+  // Only use thirdweb account when not in injected wallet mode
+  const account = !isInjectedWallet ? useActiveAccount() : null;
+  const isAuthenticated = !isInjectedWallet ? !!account : false;
+
   const [smartWalletBalance, setSmartWalletBalance] =
-    useState<WalletBalances | null>(null);
-  const [externalWalletBalance, setExternalWalletBalance] =
     useState<WalletBalances | null>(null);
   const [injectedWalletBalance, setInjectedWalletBalance] =
     useState<WalletBalances | null>(null);
@@ -56,58 +52,13 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     setIsLoading(true);
 
     try {
-      if (ready && !isInjectedWallet) {
-        const smartWalletAccount = user?.linkedAccounts.find(
-          (account) => account.type === "smart_wallet",
-        );
-        const externalWalletAccount = wallets.find(
-          (account) => account.connectorType === "injected",
-        );
-
-        if (client) {
-          await client.switchChain({
-            id: selectedNetwork.chain.id,
-          });
-        }
-
-        await externalWalletAccount?.switchChain(selectedNetwork.chain.id);
-
-        const publicClient = createPublicClient({
-          chain: selectedNetwork.chain,
-          transport: http(
-            selectedNetwork.chain.id === bsc.id
-              ? "https://bsc-dataseed.bnbchain.org/"
-              : undefined,
-          ),
-        });
-
-        if (smartWalletAccount) {
-          const result = await fetchWalletBalance(
-            publicClient,
-            smartWalletAccount.address,
-          );
-          setSmartWalletBalance(result);
-        } else {
-          setSmartWalletBalance(null);
-        }
-
-        if (externalWalletAccount) {
-          const result = await fetchWalletBalance(
-            publicClient,
-            externalWalletAccount.address,
-          );
-          setExternalWalletBalance(result);
-        } else {
-          setExternalWalletBalance(null);
-        }
-
-        setInjectedWalletBalance(null);
-      } else if (
+      if (
         isInjectedWallet &&
         injectedReady &&
         injectedAddress &&
         injectedProvider
       ) {
+        // Handle injected wallet mode
         try {
           const publicClient = createPublicClient({
             chain: selectedNetwork.chain,
@@ -119,18 +70,34 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             injectedAddress,
           );
           setInjectedWalletBalance(result);
-
           setSmartWalletBalance(null);
-          setExternalWalletBalance(null);
         } catch (error) {
           console.error("Error fetching injected wallet balance:", error);
           setInjectedWalletBalance(null);
         }
+      } else if (isAuthenticated && account) {
+        // Handle thirdweb mode
+        const publicClient = createPublicClient({
+          chain: selectedNetwork.chain,
+          transport: http(
+            selectedNetwork.chain.id === bsc.id
+              ? "https://bsc-dataseed.bnbchain.org/"
+              : undefined,
+          ),
+        });
+
+        const result = await fetchWalletBalance(publicClient, account.address);
+
+        setSmartWalletBalance(result);
+        setInjectedWalletBalance(null);
+      } else {
+        // No wallet connected
+        setSmartWalletBalance(null);
+        setInjectedWalletBalance(null);
       }
     } catch (error) {
       console.error("Error fetching balances:", error);
       setSmartWalletBalance(null);
-      setExternalWalletBalance(null);
       setInjectedWalletBalance(null);
     } finally {
       setIsLoading(false);
@@ -141,8 +108,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     fetchBalances();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    ready,
-    user,
+    isAuthenticated,
+    account,
     selectedNetwork,
     isInjectedWallet,
     injectedReady,
@@ -151,7 +118,6 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   const allBalances = {
     smartWallet: smartWalletBalance,
-    externalWallet: externalWalletBalance,
     injectedWallet: injectedWalletBalance,
   };
 
@@ -159,7 +125,6 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     <BalanceContext.Provider
       value={{
         smartWalletBalance,
-        externalWalletBalance,
         injectedWalletBalance,
         allBalances,
         refreshBalance: fetchBalances,

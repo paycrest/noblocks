@@ -27,6 +27,15 @@ const nextConfig = {
       ],
     },
   ],
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "flagcdn.com",
+        pathname: "/h24/**",
+      },
+    ],
+  },
   experimental: {
     optimizeCss: true,
     optimizePackageImports: ["@headlessui/react", "framer-motion"],

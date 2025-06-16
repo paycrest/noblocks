@@ -247,8 +247,7 @@ function HomeImpl({ searchParams }: { searchParams: URLSearchParams }) {
     setCurrentStep(STEPS.FORM);
   };
 
-  const showLoading =
-    isPageLoading || !isInjectedWallet || (isInjectedWallet && !injectedReady);
+  const showLoading = isPageLoading || (isInjectedWallet && !injectedReady);
 
   const renderStep = () => {
     switch (currentStep) {

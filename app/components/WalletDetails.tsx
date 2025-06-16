@@ -44,6 +44,8 @@ export const WalletDetails = () => {
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionHistory | null>(null);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
+  const [fundingInProgress, setFundingInProgress] = useState(false);
+  const [payEmbedConfig, setPayEmbedConfig] = useState<any>(null);
 
   const { selectedNetwork } = useNetwork();
   const { allBalances, isLoading } = useBalance();
@@ -71,12 +73,16 @@ export const WalletDetails = () => {
     tokenAddress: `0x${string}`,
     onComplete?: (success: boolean) => void,
   ) => {
-    await handleFundWallet(
+    const payEmbedConfig = await handleFundWallet(
       activeWallet?.address ?? "",
       amount,
       tokenAddress,
       onComplete,
     );
+
+    // Show the PayEmbed component with the configuration
+    setFundingInProgress(true);
+    setPayEmbedConfig(payEmbedConfig);
   };
 
   // Close sidebar and reset selected transaction
@@ -220,7 +226,7 @@ export const WalletDetails = () => {
                         )}
                       </div>
 
-                      {/* {!isInjectedWallet && (
+                      {!isInjectedWallet && (
                         <div className="grid grid-cols-2 gap-4">
                           <button
                             type="button"
@@ -239,7 +245,7 @@ export const WalletDetails = () => {
                             Fund
                           </button>
                         </div>
-                      )} */}
+                      )}
                     </div>
 
                     {/* Tab navigation */}
@@ -383,7 +389,6 @@ export const WalletDetails = () => {
           <FundWalletModal
             isOpen={isFundModalOpen}
             onClose={() => setIsFundModalOpen(false)}
-            onFund={handleFundWalletClick}
           />
         </>
       )}

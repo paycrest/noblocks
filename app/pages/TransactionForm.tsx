@@ -33,6 +33,7 @@ import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { useActiveAccount, useConnectModal } from "thirdweb/react";
 import { getConnectConfig } from "../lib/thirdweb";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { Chain } from "thirdweb";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -100,19 +101,6 @@ export const TransactionForm = ({
   const balance = activeBalance?.balances[token] ?? 0;
 
   const { handleFundWallet } = useFundWalletHandler("Transaction form");
-
-  const handleFundWalletClick = async (
-    amount: string,
-    tokenAddress: `0x${string}`,
-    onComplete?: (success: boolean) => void,
-  ) => {
-    await handleFundWallet(
-      activeWallet?.address ?? "",
-      amount,
-      tokenAddress,
-      onComplete,
-    );
-  };
 
   const fetchedTokens: Token[] =
     fetchSupportedTokens(selectedNetwork.chain.name) || [];
@@ -527,7 +515,9 @@ export const TransactionForm = ({
   const isDark = useActualTheme();
   const { connect } = useConnectModal();
   const handleConnect = async () => {
-    await connect(getConnectConfig(isDark, selectedNetwork.chain));
+    await connect(
+      getConnectConfig(isDark, selectedNetwork.chain as unknown as Chain),
+    );
   };
 
   return (
@@ -813,11 +803,10 @@ export const TransactionForm = ({
         </AnimatePresence>
       </form>
 
-      {!isInjectedWallet && (
+      {isFundModalOpen && (
         <FundWalletModal
           isOpen={isFundModalOpen}
           onClose={() => setIsFundModalOpen(false)}
-          onFund={handleFundWalletClick}
         />
       )}
     </div>

@@ -66,6 +66,8 @@ export const MobileDropdown = ({
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [isTransactionHistoryModalOpen, setIsTransactionHistoryModalOpen] =
     useState(false);
+  const [fundingInProgress, setFundingInProgress] = useState(false);
+  const [payEmbedConfig, setPayEmbedConfig] = useState<any>(null);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { allBalances, isLoading } = useBalance();
@@ -122,12 +124,16 @@ export const MobileDropdown = ({
     tokenAddress: `0x${string}`,
     onComplete?: (success: boolean) => void,
   ) => {
-    await handleFundWallet(
+    const payEmbedConfig = await handleFundWallet(
       smartWallet?.address ?? "",
       amount,
       tokenAddress,
       onComplete,
     );
+
+    // Show the PayEmbed component with the configuration
+    setFundingInProgress(true);
+    setPayEmbedConfig(payEmbedConfig);
   };
 
   const activeBalance = isInjectedWallet
@@ -575,16 +581,19 @@ export const MobileDropdown = ({
         )}
       </AnimatePresence>
 
-      <TransferModal
-        isOpen={isTransferModalOpen}
-        onClose={() => setIsTransferModalOpen(false)}
-      />
+      {!isInjectedWallet && (
+        <>
+          <TransferModal
+            isOpen={isTransferModalOpen}
+            onClose={() => setIsTransferModalOpen(false)}
+          />
 
-      <FundWalletModal
-        isOpen={isFundModalOpen}
-        onClose={() => setIsFundModalOpen(false)}
-        onFund={handleFundWalletClick}
-      />
+          <FundWalletModal
+            isOpen={isFundModalOpen}
+            onClose={() => setIsFundModalOpen(false)}
+          />
+        </>
+      )}
       <TransactionHistoryModal
         isOpen={isTransactionHistoryModalOpen}
         onClose={() => setIsTransactionHistoryModalOpen(false)}

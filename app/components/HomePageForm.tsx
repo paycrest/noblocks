@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ArrowDown02Icon } from "hugeicons-react";
 import { useRouter } from "next/navigation";
+import { ImSpinner3 } from "react-icons/im";
 
 import { FormDropdown } from "../components";
 import { acceptedCurrencies } from "../mocks";
@@ -40,6 +41,46 @@ export function HomePageForm() {
   const [amountSent, setAmountSent] = useState("");
   const [amountReceived, setAmountReceived] = useState("");
 
+  // Mock or fetch a rate (replace with real fetch if available)
+  const [rate, setRate] = useState<number>(0);
+  const [isFetchingRate, setIsFetchingRate] = useState(false);
+
+  // Simulate fetching rate (replace with real fetch logic if needed)
+  useEffect(() => {
+    setIsFetchingRate(true);
+    // Simulate async fetch
+    const timeout = setTimeout(() => {
+      setRate(1200); // 1 Token = 1200 Currency (mock)
+      setIsFetchingRate(false);
+    }, 700); // Simulate network delay
+    return () => clearTimeout(timeout);
+  }, [selectedToken, selectedCurrency]);
+
+  // Track which input is active for direction of calculation
+  const [activeInput, setActiveInput] = useState<"send" | "receive">("send");
+
+  // Auto-calculate receive or send amount based on active input
+  useEffect(() => {
+    if (isFetchingRate) return;
+    if (
+      activeInput === "send" &&
+      amountSent &&
+      !isNaN(Number(amountSent)) &&
+      rate > 0
+    ) {
+      const calculated = (parseFloat(amountSent) * rate).toFixed(2);
+      setAmountReceived(calculated);
+    } else if (
+      activeInput === "receive" &&
+      amountReceived &&
+      !isNaN(Number(amountReceived)) &&
+      rate > 0
+    ) {
+      const calculated = (parseFloat(amountReceived) / rate).toFixed(4);
+      setAmountSent(calculated);
+    }
+  }, [amountSent, amountReceived, rate, activeInput, isFetchingRate]);
+
   // Improved function to format number with commas while preserving decimal places
   const formatNumberWithCommasForDisplay = (value: number | string): string => {
     if (value === undefined || value === null || value === "") return "";
@@ -70,9 +111,9 @@ export function HomePageForm() {
   // Handle input change for amountSent (raw, no formatting)
   const handleAmountSentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let input = e.target.value.replace(/,/g, "");
-    // Allow empty input
     if (input === "") {
       setAmountSent("");
+      setActiveInput("send");
       return;
     }
     // Allow only numbers and decimal point
@@ -83,6 +124,7 @@ export function HomePageForm() {
       if (decimals && decimals.length > 4) return;
     }
     setAmountSent(input);
+    setActiveInput("send");
   };
 
   // Handle input change for amountReceived (raw, no formatting)
@@ -92,6 +134,7 @@ export function HomePageForm() {
     let input = e.target.value.replace(/,/g, "");
     if (input === "") {
       setAmountReceived("");
+      setActiveInput("receive");
       return;
     }
     if (!/^\d*(\.\d*)?$/.test(input)) return;
@@ -100,6 +143,7 @@ export function HomePageForm() {
       if (decimals && decimals.length > 4) return;
     }
     setAmountReceived(input);
+    setActiveInput("receive");
   };
 
   // Format for display only when not focused
@@ -163,7 +207,11 @@ export function HomePageForm() {
           {/* Arrow showing swap direction */}
           <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas">
             <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
-              <ArrowDown02Icon className="text-xl text-outline-gray dark:text-white/80" />
+              {isFetchingRate ? (
+                <ImSpinner3 className="animate-spin text-xl text-outline-gray dark:text-white/50" />
+              ) : (
+                <ArrowDown02Icon className="text-xl text-outline-gray dark:text-white/80" />
+              )}
             </div>
           </div>
         </div>
@@ -213,6 +261,27 @@ export function HomePageForm() {
       >
         Get started
       </button>
+      {/* Show rate info if available and user has started typing */}
+      <div className="relative">
+        {rate > 0 &&
+          (amountSent.trim() !== "" || amountReceived.trim() !== "") && (
+            <div className="flex w-full flex-col justify-between gap-2 py-3 text-xs text-text-disabled transition-all dark:text-white/30 xsm:flex-row xsm:items-center">
+              {selectedCurrency && (
+                <div className="min-w-fit">
+                  1 {selectedToken} ~{" "}
+                  {isFetchingRate
+                    ? "..."
+                    : formatNumberWithCommasForDisplay(rate)}{" "}
+                  {selectedCurrency}
+                </div>
+              )}
+              <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">
+                <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
+                <p className="min-w-fit">Swap usually completes in 30s</p>
+              </div>
+            </div>
+          )}
+      </div>
     </form>
   );
 }

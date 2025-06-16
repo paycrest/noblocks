@@ -9,13 +9,19 @@ import { HomePageForm } from "./HomePageForm";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
-  weight: ["400", "600"], // adjust weights as needed
+  weight: ["400", "600"],
+  style: ["normal", "italic"],
   variable: "--font-crimson",
 });
 
 export function HomePage() {
   return (
-    <div className="flex min-h-screen w-full flex-col gap-8">
+    <motion.div
+      initial={{ opacity: 0, filter: "blur(16px)" }}
+      animate={{ opacity: 1, filter: "blur(0px)" }}
+      transition={{ duration: 0.9, ease: "easeOut" }}
+      className="flex min-h-screen w-full flex-col gap-8"
+    >
       {/* Hero Section */}
       <section className="w-full lg:mb-20">
         <h1 className="flex flex-col items-center text-center text-3xl font-semibold lg:gap-4 lg:text-[50px]">
@@ -212,6 +218,6 @@ export function HomePage() {
           />
         </div>
       </section>
-    </div>
+    </motion.div>
   );
 }

@@ -10,6 +10,8 @@ import {
   type PreparedTransaction,
   type PrepareTransactionOptions,
   Chain,
+  signAuthorization,
+  prepareTransaction,
 } from "thirdweb";
 import { type AbiFunction } from "viem";
 import { erc20Abi } from "viem";
@@ -187,10 +189,28 @@ export const TransactionPreview = ({
       const params = await prepareCreateOrderParams();
       setCreatedAt(new Date().toISOString());
 
+      const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
+      if (!rpcUrl) {
+        throw new Error("RPC URL not found for network");
+      }
+
+      // Sign authorization for EIP-7702
+      const authorization = await signAuthorization({
+        request: {
+          address: activeWallet?.address as `0x${string}`,
+          chainId: selectedNetwork.chain.id,
+          nonce: BigInt(Date.now().toString()),
+        },
+        account,
+      });
+
       // Get token contract
       const tokenContract = getContract({
         client: THIRDWEB_CLIENT,
-        chain: selectedNetwork.chain as unknown as Chain,
+        chain: {
+          ...selectedNetwork.chain,
+          rpc: rpcUrl,
+        } as Chain,
         address: tokenAddress,
         abi: erc20Abi,
       });
@@ -198,44 +218,69 @@ export const TransactionPreview = ({
       // Get gateway contract
       const gatewayContract = getContract({
         client: THIRDWEB_CLIENT,
-        chain: selectedNetwork.chain as unknown as Chain,
+        chain: {
+          ...selectedNetwork.chain,
+          rpc: rpcUrl,
+        } as Chain,
         address: getGatewayContractAddress(
           selectedNetwork.chain.name,
         ) as `0x${string}`,
         abi: gatewayAbi,
       });
 
-      // Prepare approval transaction
-      const approvalTx = prepareContractCall({
-        contract: tokenContract,
-        method: "approve",
-        params: [
-          getGatewayContractAddress(
-            selectedNetwork.chain.name,
-          ) as `0x${string}`,
-          parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-        ],
-      }) as PreparedTransaction<[], AbiFunction, PrepareTransactionOptions>;
+      // Prepare approval transaction with EIP-7702
+      const approvalTx = prepareTransaction({
+        chain: {
+          ...selectedNetwork.chain,
+          rpc: rpcUrl,
+        } as Chain,
+        client: THIRDWEB_CLIENT,
+        to: tokenAddress,
+        value: BigInt(0),
+        authorizationList: [authorization],
+        data: encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [
+            getGatewayContractAddress(
+              selectedNetwork.chain.name,
+            ) as `0x${string}`,
+            parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+          ],
+        }),
+      });
 
       // Send approval transaction
       await sendTransaction(approvalTx);
       toast.success("Token spending approved");
       setIsGatewayApproved(true);
 
-      // Prepare create order transaction
-      const createOrderTx = prepareContractCall({
-        contract: gatewayContract,
-        method: "createOrder",
-        params: [
-          params.token,
-          params.amount,
-          params.rate,
-          params.senderFeeRecipient,
-          params.senderFee,
-          params.refundAddress,
-          params.messageHash,
-        ],
-      }) as PreparedTransaction<[], AbiFunction, PrepareTransactionOptions>;
+      // Prepare create order transaction with EIP-7702
+      const createOrderTx = prepareTransaction({
+        chain: {
+          ...selectedNetwork.chain,
+          rpc: rpcUrl,
+        } as Chain,
+        client: THIRDWEB_CLIENT,
+        to: getGatewayContractAddress(
+          selectedNetwork.chain.name,
+        ) as `0x${string}`,
+        value: BigInt(0),
+        authorizationList: [authorization],
+        data: encodeFunctionData({
+          abi: gatewayAbi,
+          functionName: "createOrder",
+          args: [
+            params.token,
+            params.amount,
+            params.rate,
+            params.senderFeeRecipient,
+            params.senderFee,
+            params.refundAddress,
+            params.messageHash,
+          ],
+        }),
+      });
 
       // Send create order transaction
       await sendTransaction(createOrderTx);
@@ -248,17 +293,18 @@ export const TransactionPreview = ({
         currency,
         fiatAmount: amountReceived,
         network: selectedNetwork.chain.name,
-        walletType: isInjectedWallet ? "injected" : "smart",
       });
 
       // Get order ID from logs
       await getOrderId();
     } catch (error) {
-      console.error("Error creating order:", error);
+      console.error("Transaction failed:", error);
       setErrorMessage(
-        error instanceof Error ? error.message : "Failed to create order",
+        (error as BaseError).shortMessage || (error as Error).message,
       );
-      setErrorCount((prev) => prev + 1);
+      setErrorCount((prevCount) => prevCount + 1);
+    } finally {
+      setIsConfirming(false);
     }
   };
 

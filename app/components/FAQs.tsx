@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crimson_Pro } from "next/font/google";
@@ -35,7 +37,7 @@ function PlusMinusIcon({ open }: { open: boolean }) {
     <motion.span
       animate={{ rotate: open ? 180 : 0 }}
       transition={{ duration: 0.2 }}
-      className="flex h-5 w-5 items-center justify-center"
+      className="flex h-5 w-5 items-center justify-center text-white dark:text-black"
     >
       {open ? (
         // Minus icon
@@ -53,8 +55,8 @@ function PlusMinusIcon({ open }: { open: boolean }) {
             width="10"
             height="2"
             rx="1"
-            fill="white"
-            stroke="white"
+            fill="currentColor"
+            stroke="currentColor"
             strokeWidth="2.2"
           />
         </svg>
@@ -74,8 +76,8 @@ function PlusMinusIcon({ open }: { open: boolean }) {
             width="10"
             height="2"
             rx="1"
-            fill="white"
-            stroke="white"
+            fill="currentColor"
+            stroke="currentColor"
             strokeWidth="2.2"
           />
           <rect
@@ -84,8 +86,8 @@ function PlusMinusIcon({ open }: { open: boolean }) {
             width="2"
             height="10"
             rx="1"
-            fill="white"
-            stroke="white"
+            fill="currentColor"
+            stroke="currentColor"
             strokeWidth="2.2"
           />
         </svg>
@@ -109,7 +111,7 @@ function AccordionItem({
     <div>
       <button
         className={
-          `flex w-full items-center gap-4 rounded-tl-2xl rounded-tr-2xl dark:border-[#FFFFFF1A] border-[#EBEBEF] bg-[#F9FAFB] p-2 py-4 text-left focus:outline-none dark:bg-[#FFFFFF0D]` +
+          `flex w-full items-center gap-4 rounded-tl-2xl rounded-tr-2xl border-[#EBEBEF] bg-[#F9FAFB] p-2 py-4 text-left focus:outline-none dark:border-[#FFFFFF1A] dark:bg-[#FFFFFF0D]` +
           (!isOpen ? " rounded-bl-xl rounded-br-xl" : "")
         }
         onClick={onClick}

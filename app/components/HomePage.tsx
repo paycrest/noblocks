@@ -1,10 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { Crimson_Pro } from "next/font/google";
 import { ArrowRight01Icon } from "hugeicons-react";
 import FAQs from "./FAQs";
-import {HomePageForm} from "./HomePageForm";
+import Image from "next/image";
+import { AnimatePresence, motion } from "framer-motion";
+import { HomePageForm } from "./HomePageForm";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -12,10 +13,7 @@ const crimsonPro = Crimson_Pro({
   variable: "--font-crimson",
 });
 
-// HomePage component with hero section and transaction flow
 export function HomePage() {
-  
-
   return (
     <div className="flex min-h-screen w-full flex-col gap-8">
       {/* Hero Section */}
@@ -29,7 +27,9 @@ export function HomePage() {
       </section>
 
       {/* Transaction form here */}
-     <HomePageForm />
+      <div>
+        <HomePageForm />
+      </div>
 
       <p className="my-20 text-center text-white opacity-50">
         Learn how to use Noblocks
@@ -212,9 +212,6 @@ export function HomePage() {
           />
         </div>
       </section>
-
-      {/* Accordion FAQ here */}
-      <FAQs />
     </div>
   );
 }

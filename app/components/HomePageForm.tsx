@@ -173,7 +173,7 @@ export function HomePageForm() {
       noValidate
     >
       <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
-        <h3 className="px-2 py-1 text-base font-medium">Swap</h3>
+        <h3 className="px-2 py-1 text-base font-semibold">Swap</h3>
         {/* Send section */}
         <div className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-surface-canvas">
           <div className="flex items-center justify-between">
@@ -251,7 +251,7 @@ export function HomePageForm() {
       {/* Get started button */}
       <button
         type="button"
-        className={`w-full rounded-lg p-3 text-sm font-medium hover:opacity-90 dark:text-white ${
+        className={`w-full rounded-lg py-[10px] text-sm font-medium hover:opacity-90 dark:text-white ${
           isFormFilled
             ? "cursor-pointer bg-[#8B85F4] text-white"
             : "cursor-not-allowed bg-gray-300 text-gray-400 dark:bg-gray-700 dark:text-gray-500"

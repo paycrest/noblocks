@@ -20,38 +20,75 @@ export function HomePage() {
       initial={{ opacity: 0, filter: "blur(16px)" }}
       animate={{ opacity: 1, filter: "blur(0px)" }}
       transition={{ duration: 0.9, ease: "easeOut" }}
-      className="flex min-h-screen w-full flex-col gap-8"
+      className="flex min-h-screen w-full flex-col space-y-[46px]"
     >
       {/* Hero Section */}
-      <section className="w-full lg:mb-20">
-        <h1 className="flex flex-col items-center text-center text-3xl font-semibold lg:gap-4 lg:text-[50px]">
-          <span>Change stablecoins</span>
-          <span className={`${crimsonPro.className} italic`}>
+      {/** Use motion.section for scroll animation */}
+      <motion.section
+        className="w-full px-5"
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ amount: 0.3 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+      >
+        <h1 className="lg:gap- flex flex-col items-center gap-1 text-center font-semibold">
+          <span className="text-3xl opacity-80 lg:text-[64px]">
+            Change stablecoins
+          </span>
+          <span
+            className={`${crimsonPro.className} text-[38px] italic lg:text-[78px]`}
+          >
             to cash in seconds
           </span>
         </h1>
-      </section>
+      </motion.section>
 
       {/* Transaction form here */}
-      <div>
+      <motion.div
+        className="px-5"
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ amount: 0.3 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
+      >
         <HomePageForm />
-      </div>
+      </motion.div>
 
-      <p className="my-20 text-center text-white opacity-50">
+      <motion.p
+        className="text-center text-white opacity-50"
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ amount: 0.3 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.15 }}
+      >
         Learn how to use Noblocks
-      </p>
+      </motion.p>
 
-      <div className="mx-auto flex w-full max-w-[1004px] cursor-pointer justify-center rounded-[20px] bg-[#FD76B3] p-3 hover:opacity-70">
-        <Image
-          src="/images/walkthrough-video.svg"
-          width={100}
-          height={100}
-          alt="Walkthrough Video"
-          className="w-full"
-        />
-      </div>
+      <motion.div
+        className="mx-auto w-full max-w-[1004px] px-5"
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ amount: 0.3 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.2 }}
+      >
+        <div className="w-full cursor-pointer justify-center rounded-[20px] bg-[#FD76B3] p-3 hover:opacity-70">
+          <Image
+            src="/images/walkthrough-video.svg"
+            width={100}
+            height={100}
+            alt="Walkthrough Video"
+            className="w-full"
+          />
+        </div>
+      </motion.div>
 
-      <section className="my-8 flex w-full flex-col items-center justify-center gap-8">
+      <motion.section
+        className="flex w-full flex-col items-center justify-center gap-8 px-5"
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ amount: 0.3 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.25 }}
+      >
         <h3 className="text-2xl font-semibold lg:text-3xl">
           Ways you can use Noblocks
         </h3>
@@ -147,9 +184,15 @@ export function HomePage() {
             </p>
           </div>
         </div>
-      </section>
+      </motion.section>
 
-      <section className="flex w-full flex-col items-center justify-center gap-4">
+      <motion.section
+        className="flex w-full flex-col items-center justify-center gap-4 px-5"
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ amount: 0.3 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.3 }}
+      >
         <h3 className="text-2xl font-semibold lg:text-[48px]">
           Rates like no other
         </h3>
@@ -179,13 +222,50 @@ export function HomePage() {
             alt="Rates Graph"
           />
         </div>
-      </section>
+      </motion.section>
 
       {/* Accordion FAQ here */}
-      <FAQs />
+      <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ amount: 0.3 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.35 }}
+      >
+        <FAQs />
+      </motion.div>
 
-      <section className="relative mx-auto my-20 flex h-[708px] w-full max-w-[1440px] flex-col gap-8">
-        <div className="z-10 flex max-w-[616px] flex-col gap-5 lg:ml-20 lg:mt-8">
+      <motion.section
+        className="relative mx-auto w-full max-w-[1440px] flex-col gap-8 px-5 bg-[url('/images/power-liquidity-desktop-illustration.svg')] bg-cover bg-no-repeat h-[850px] hidden md:flex"
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ amount: 0.3 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.4 }}
+      >
+        <div className="z-10 flex max-w-[616px] flex-col gap-5 bg-no-repeat lg:ml-20 lg:mt-8">
+          <p className="flex flex-col text-2xl font-semibold lg:gap-4 lg:text-[48px]">
+            <span>Power the Liquidity</span>
+            <span className={`${crimsonPro.className} italic`}>
+              Engine on Noblocks
+            </span>
+          </p>
+          <p className="text-base font-normal lg:text-xl">
+            Maximize your earnings while enabling fast and seamless stablecoin
+            exchanges. Specify your rate, serve urgent customers and lead the
+            charge to operate in a truly decentralised world.
+          </p>
+          <button className="w-full max-w-[219px] cursor-pointer rounded-lg bg-[#8B85F4] p-3 text-sm font-medium text-white hover:opacity-90 dark:text-white">
+            Become a Liquidity Provider
+          </button>
+        </div>
+      </motion.section>
+      <motion.section
+        className="relative mx-auto my-20 flex w-full max-w-[1440px] flex-col gap-8 px-5 bg-[url('/images/power-liquidity-mobile-illustration.svg')] bg-cover bg-no-repeat h-[850px] md:hidden"
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ amount: 0.3 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.4 }}
+      >
+        <div className="z-10 flex max-w-[616px] flex-col gap-5 bg-no-repeat lg:ml-20 lg:mt-8">
           <p className="flex flex-col text-2xl font-semibold lg:gap-4 lg:text-[48px]">
             <span>Power the Liquidity</span>
             <span className={`${crimsonPro.className}`}>
@@ -201,23 +281,49 @@ export function HomePage() {
             Become a Liquidity Provider
           </button>
         </div>
-        <div className="w-full">
-          <Image
-            src="/images/power-liquidity-desktop-illustration.svg"
-            alt="Power the Liquidity Engine Illustration"
-            width={100}
-            height={100}
-            className="absolute bottom-0 left-0 hidden w-full md:block"
-          />
-          <Image
-            src="/images/power-liquidity-mobile-illustration.svg"
-            alt="Power the Liquidity Engine Illustration"
-            width={100}
-            height={100}
-            className="absolute bottom-0 left-0 max-h-[838px] w-full md:hidden"
-          />
+      </motion.section>
+
+      <motion.section
+        className="flex w-full flex-col justify-center px-5 md:flex-row-reverse lg:items-center"
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ amount: 0.3 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.45 }}
+      >
+        <div className="w-full max-w-[302px] space-y-4">
+          <button className="rounded-3xl bg-[#20BA90] p-[6px] text-sm font-medium dark:text-black text-white">
+            Coming soon
+          </button>
+          <h3 className="flex flex-col gap-1 font-semibold">
+            <span className="text-2xl lg:text-5xl lg:leading-[60px]">
+              Download Noblocks
+            </span>
+            <span
+              className={`${crimsonPro.className} text-[28px] italic lg:text-[56px] lg:leading-[78px]`}
+            >
+              Mobile App
+            </span>
+          </h3>
+          <p className="text-base font-normal leading-7 lg:text-lg lg:leading-[30px]">
+            Your no. 1 app to change stablecoins to cash in less than{" "}
+            <span className={`${crimsonPro.className} italic`}>30s</span>
+          </p>
         </div>
-      </section>
+        <Image
+          src="/images/mobile-app-illustration-mobile.svg"
+          alt="Mobile App Illustration"
+          width={100}
+          height={100}
+          className="w-full md:hidden"
+        />
+        <Image
+          src="/images/mobile-app-illustration-desktop.svg"
+          alt="Mobile App Illustration"
+          width={100}
+          height={100}
+          className="hidden w-full max-w-[800px] md:block"
+        />
+      </motion.section>
     </motion.div>
   );
 }

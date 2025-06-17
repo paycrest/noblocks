@@ -154,7 +154,7 @@ export default function FAQs() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section className="mx-auto my-8 flex w-full max-w-[999px] flex-col gap-3 lg:grid lg:grid-cols-[1fr_2fr] lg:items-center">
+    <section className="mx-auto flex w-full max-w-[999px] flex-col gap-3 lg:grid lg:grid-cols-[1fr_2fr] lg:items-center px-5">
       <h2
         className={`${crimsonPro.className} flex justify-center gap-3 text-center text-2xl font-semibold lg:max-w-[294px] lg:flex-col lg:items-start lg:text-left lg:text-[56px]`}
       >

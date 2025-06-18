@@ -73,7 +73,10 @@ export function useSwapButton({
       return "Fund wallet";
     }
 
-    if (!isUserVerified && (account || isInjectedWallet) && amountSent > 0) {
+    if (
+      (!isUserVerified && (account || isInjectedWallet) && amountSent > 0) || // authenticated, but unverified
+      (!account && !isInjectedWallet) // unauthenticated
+    ) {
       return "Get started";
     }
 

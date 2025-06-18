@@ -754,30 +754,22 @@ export const TransactionForm = ({
           </button>
         )} */}
 
-        {isAuthenticated && (
-          <>
-            <button
-              type="button"
-              className={primaryBtnClasses}
-              disabled={!isEnabled}
-              onClick={buttonAction(
-                handleSwap,
-                handleConnect,
-                () =>
-                  handleFundWallet(
-                    activeWallet?.address ?? "",
-                    amountSent.toString(),
-                    (fetchedTokens.find((t) => t.symbol === token)
-                      ?.address as `0x${string}`) ?? "",
-                  ),
-                () => setIsKycModalOpen(true),
-                isUserVerified,
-              )}
-            >
-              {buttonText}
-            </button>
-          </>
-        )}
+        <button
+          type="button"
+          className={primaryBtnClasses}
+          disabled={!isEnabled}
+          onClick={buttonAction(
+            handleSwap,
+            handleConnect,
+            () => {
+              setIsFundModalOpen(true);
+            },
+            () => setIsKycModalOpen(true),
+            isUserVerified,
+          )}
+        >
+          {buttonText}
+        </button>
 
         <AnimatePresence>
           {rate > 0 && (

@@ -18,7 +18,6 @@ import {
 } from "hugeicons-react";
 import Image from "next/image";
 import { FundWalletModal } from "./FundWalletModal";
-import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { toast } from "sonner";
 import { Dialog } from "@headlessui/react";
@@ -44,8 +43,6 @@ export const WalletDetails = () => {
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionHistory | null>(null);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
-  const [fundingInProgress, setFundingInProgress] = useState(false);
-  const [payEmbedConfig, setPayEmbedConfig] = useState<any>(null);
 
   const { selectedNetwork } = useNetwork();
   const { allBalances, isLoading } = useBalance();
@@ -53,9 +50,6 @@ export const WalletDetails = () => {
   const isDark = useActualTheme();
 
   const account = useActiveAccount();
-
-  // Custom hook for handling wallet funding
-  const { handleFundWallet } = useFundWalletHandler("Wallet details");
 
   // Determine active wallet based on wallet type
   const activeWallet = isInjectedWallet
@@ -66,24 +60,6 @@ export const WalletDetails = () => {
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
     : allBalances.smartWallet;
-
-  // Handler for funding wallet with specified amount and token
-  const handleFundWalletClick = async (
-    amount: string,
-    tokenAddress: `0x${string}`,
-    onComplete?: (success: boolean) => void,
-  ) => {
-    const payEmbedConfig = await handleFundWallet(
-      activeWallet?.address ?? "",
-      amount,
-      tokenAddress,
-      onComplete,
-    );
-
-    // Show the PayEmbed component with the configuration
-    setFundingInProgress(true);
-    setPayEmbedConfig(payEmbedConfig);
-  };
 
   // Close sidebar and reset selected transaction
   const handleSidebarClose = () => {

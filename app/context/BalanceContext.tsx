@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useState,
+  useCallback,
 } from "react";
 import { fetchWalletBalance, getRpcUrl } from "../utils";
 import { useNetwork } from "./NetworksContext";
@@ -48,7 +49,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     useState<WalletBalances | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchBalances = async () => {
+  const fetchBalances = useCallback(async () => {
     setIsLoading(true);
 
     try {
@@ -102,19 +103,22 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchBalances();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    isAuthenticated,
-    account,
-    selectedNetwork,
     isInjectedWallet,
     injectedReady,
     injectedAddress,
+    injectedProvider,
+    selectedNetwork,
+    isAuthenticated,
+    account,
   ]);
+
+  // Initial fetch and network change
+  useEffect(() => {
+    if (isAuthenticated || (isInjectedWallet && injectedReady)) {
+      fetchBalances();
+    }
+  }, [isAuthenticated, isInjectedWallet, injectedReady, fetchBalances]);
 
   const allBalances = {
     smartWallet: smartWalletBalance,

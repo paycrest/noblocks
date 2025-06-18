@@ -332,6 +332,7 @@ export interface JWTProviderConfig {
   thirdweb?: {
     clientId: string;
     domain: string;
+    secretKey: string;
   };
 }
 

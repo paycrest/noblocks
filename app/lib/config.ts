@@ -7,7 +7,6 @@ const config: Config = {
   mixpanelToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || "",
   hotjarSiteId: Number(process.env.NEXT_PUBLIC_HOTJAR_SITE_ID || ""),
   contactSupportUrl: process.env.NEXT_PUBLIC_CONTACT_SUPPORT_URL || "",
-  thirdwebClientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || "",
 };
 
 export default config;
@@ -26,5 +25,6 @@ export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
   thirdweb: {
     clientId: process.env.THIRDWEB_CLIENT_ID || "",
     domain: process.env.THIRDWEB_DOMAIN || "",
+    secretKey: process.env.THIRDWEB_SECRET_KEY || "",
   },
 };

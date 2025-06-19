@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Crimson_Pro } from "next/font/google";
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
-  weight: ["400", "600"], // adjust weights as needed
+  weight: ["400", "600"],
   variable: "--font-crimson",
 });
 
@@ -40,7 +40,6 @@ function PlusMinusIcon({ open }: { open: boolean }) {
       className="flex h-5 w-5 items-center justify-center text-white dark:text-black"
     >
       {open ? (
-        // Minus icon
         <svg
           width="16"
           height="16"
@@ -61,7 +60,6 @@ function PlusMinusIcon({ open }: { open: boolean }) {
           />
         </svg>
       ) : (
-        // Plus icon
         <svg
           width="16"
           height="16"
@@ -154,7 +152,7 @@ export default function FAQs() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section className="mx-auto flex w-full max-w-[999px] flex-col gap-4 lg:grid lg:grid-cols-[1fr_2fr] lg:items-center px-5 mb-[185px]">
+    <section className="mx-auto mb-[185px] flex w-full max-w-[999px] flex-col gap-4 px-5 lg:grid lg:grid-cols-[1fr_2fr] lg:items-center">
       <h2
         className={`${crimsonPro.className} flex justify-center gap-4 text-center text-2xl font-semibold lg:max-w-[294px] lg:flex-col lg:items-start lg:text-left lg:text-[56px]`}
       >

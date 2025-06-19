@@ -9,68 +9,6 @@ import { HomePageForm } from "./HomePageForm";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
-import {
-  FarcasterIconDarkTheme,
-  FarcasterIconLightTheme,
-  GithubIconDarkTheme,
-  GithubIconLightTheme,
-  XIconDarkTheme,
-  XIconLightTheme,
-} from "./ImageAssets";
-import { AnimatedComponent, fadeInOut } from "./AnimatedComponents";
-import { ThemeSwitch } from "./ThemeSwitch";
-
-const socialsDarkTheme = [
-  {
-    href: "https://warpcast.com/~/channel/noblocks",
-    title: "Farcaster",
-    LogoSvg: FarcasterIconDarkTheme,
-  },
-  {
-    href: "https://github.com/paycrest/noblocks",
-    title: "GitHub",
-    LogoSvg: GithubIconDarkTheme,
-  },
-  {
-    href: "https://x.com/noblocks_xyz",
-    title: "X",
-    LogoSvg: XIconDarkTheme,
-  },
-];
-
-const socialsLightTheme = [
-  {
-    href: "https://warpcast.com/~/channel/noblocks",
-    title: "Farcaster",
-    LogoSvg: FarcasterIconLightTheme,
-  },
-  {
-    href: "https://github.com/paycrest/noblocks",
-    title: "GitHub",
-    LogoSvg: GithubIconLightTheme,
-  },
-  {
-    href: "https://x.com/noblocks_xyz",
-    title: "X",
-    LogoSvg: XIconLightTheme,
-  },
-];
-
-const SocialLink = ({
-  href,
-  title,
-  LogoSvg,
-}: {
-  href: string;
-  title: string;
-  LogoSvg: React.FC<React.SVGProps<SVGSVGElement>>;
-}) => {
-  return (
-    <a href={href} title={title} target="_blank" rel="noopener noreferrer">
-      <LogoSvg className="size-5 transition-opacity hover:opacity-70" />
-    </a>
-  );
-};
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -88,8 +26,6 @@ export function HomePage() {
 
   if (!mounted) return null;
 
-  const socials =
-    resolvedTheme === "dark" ? socialsDarkTheme : socialsLightTheme;
   return (
     <motion.div
       initial={{ opacity: 0, filter: "blur(16px)" }}

@@ -3,15 +3,18 @@ import Image from "next/image";
 import React, { useState, useEffect } from "react";
 import { whiteBtnClasses } from "../Styles";
 import MigrationModal from "./MigrationModal";
-import { useInjectedWallet } from "@/app/context";
+import { useInjectedWallet, useMultiNetworkBalance } from "@/app/context";
 import { useActiveAccount } from "thirdweb/react";
-import { DEFAULT_THIRDWEB_CONFIG } from "@/app/lib/config";
+import { convertCNGNtoUSD } from "@/app/utils";
+import { useCNGNRate } from "@/app/hooks/useCNGNRate";
 
 const MigrationBanner: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [shouldShowBanner, setShouldShowBanner] = useState(false);
   const { isInjectedWallet } = useInjectedWallet();
   const account = useActiveAccount();
+  const { fetchAllNetworkBalances, networkBalances } = useMultiNetworkBalance();
+  const { rate } = useCNGNRate();
 
   useEffect(() => {
     const checkPrivyUser = async () => {
@@ -80,7 +83,31 @@ const MigrationBanner: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
         }
 
         const { exists } = await privyResponse.json();
-        setShouldShowBanner(exists);
+
+        if (!exists) {
+          setShouldShowBanner(false);
+          return;
+        }
+
+        // Check if user has any funds
+        await fetchAllNetworkBalances(account.address);
+
+        // Calculate total balance
+        const totalBalance = networkBalances.reduce((acc, network) => {
+          const networkTotal = Object.entries(network.balances).reduce(
+            (total, [token, balance]) => {
+              if (token.toUpperCase() === "CNGN") {
+                return total + convertCNGNtoUSD(balance, rate || 1);
+              }
+              return total + balance;
+            },
+            0,
+          );
+          return acc + networkTotal;
+        }, 0);
+
+        // Only show banner if user has funds
+        setShouldShowBanner(totalBalance > 0);
       } catch (error) {
         console.error("Error checking for Privy user:", error);
         setShouldShowBanner(false);
@@ -88,7 +115,13 @@ const MigrationBanner: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
     };
 
     checkPrivyUser();
-  }, [account?.address, isInjectedWallet]);
+  }, [
+    account?.address,
+    isInjectedWallet,
+    networkBalances,
+    rate,
+    fetchAllNetworkBalances,
+  ]);
 
   // Don't render anything if we shouldn't show the banner
   if (!shouldShowBanner) return null;

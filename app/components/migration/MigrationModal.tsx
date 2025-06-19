@@ -5,7 +5,7 @@ import { DialogTitle } from "@headlessui/react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { usePrivy } from "@privy-io/react-auth";
+import { useActiveAccount } from "thirdweb/react";
 import {
   CheckmarkCircle01Icon,
   InformationSquareIcon,
@@ -42,7 +42,7 @@ type Step = "initial" | "wallet" | "loading" | "success" | "failure";
 const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
   const [currentStep, setCurrentStep] = useState<Step>("initial");
   const [isSigning, setIsSigning] = useState(false);
-  const { signMessage, user } = usePrivy();
+  const account = useActiveAccount();
   const { allBalances } = useBalance();
   const isDark = useActualTheme();
   const {
@@ -52,28 +52,28 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
   } = useMultiNetworkBalance();
   const { rate } = useCNGNRate();
 
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  )?.address;
-
   const handleApproveMigration = async () => {
+    if (!account) {
+      toast.error("No wallet connected");
+      return;
+    }
+
     setIsSigning(true);
     const nonce = generateTimeBasedNonce({ length: 16 });
-    const message = `I accept the migration to a new wallet address ${smartWallet} with nonce ${nonce}`;
+    const message = `I accept the migration to a new wallet address ${account?.address} with nonce ${nonce}`;
 
     try {
-      const signResult = await signMessage(
-        { message },
-        { uiOptions: { buttonText: "Sign" } },
-      );
+      const signature = await account.signMessage({
+        message,
+      });
 
-      if (!signResult) {
+      if (!signature) {
         setIsSigning(false);
         return;
       }
 
       setCurrentStep("loading");
-      await fetchAllNetworkBalances(smartWallet || "");
+      await fetchAllNetworkBalances(account?.address || "");
       if (networkBalances.some((n) => n.error)) {
         setCurrentStep("failure");
       } else {
@@ -89,7 +89,7 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
 
   const handleRetryBalances = async () => {
     setCurrentStep("loading");
-    await fetchAllNetworkBalances(smartWallet || "");
+    await fetchAllNetworkBalances(account?.address || "");
     if (networkBalances.some((n) => n.error)) {
       setCurrentStep("failure");
     } else {
@@ -190,7 +190,7 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
           <div className="flex items-center gap-2">
             <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
             <p className="font-medium text-text-body dark:text-white">
-              {shortenAddress(smartWallet ?? "", 12, 5)}
+              {shortenAddress(account?.address ?? "", 12, 5)}
             </p>
           </div>
 
@@ -286,7 +286,7 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
             Your funds are safe, they are being transferred to your new secured
             wallet address{" "}
             <span className="font-bold text-white/80">
-              {shortenAddress(smartWallet ?? "", 4, 7)}
+              {shortenAddress(account?.address ?? "", 4, 7)}
             </span>
           </p>
         </div>

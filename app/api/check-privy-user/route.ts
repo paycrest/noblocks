@@ -9,20 +9,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
+    const apiUrl = "https://auth.privy.io/api/v1/users/email/address";
+    const privyAppId = DEFAULT_PRIVY_CONFIG.privy?.appId;
+    const privyAppSecret = DEFAULT_PRIVY_CONFIG.privy?.appSecret;
+
+    const requestBody = {
+      address: email,
+    };
+
     try {
       // Call Privy's REST API to check user by email
-      const response = await fetch(
-        "https://auth.privy.io/api/v1/users/email/address",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-client-id": process.env.NEXT_PUBLIC_PRIVY_APP_ID || "",
-            Authorization: `Basic ${Buffer.from(`${process.env.NEXT_PUBLIC_PRIVY_APP_ID}:${process.env.PRIVY_APP_SECRET}`).toString("base64")}`,
-          },
-          body: JSON.stringify({ address: email }),
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "privy-app-id": privyAppId || "",
+          Authorization: `Basic ${Buffer.from(`${privyAppId}:${privyAppSecret}`).toString("base64")}`,
         },
-      );
+        body: JSON.stringify(requestBody),
+      });
 
       if (response.ok) {
         const data = await response.json();

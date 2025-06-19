@@ -328,6 +328,8 @@ export interface JWTProviderConfig {
     jwksUrl: string;
     issuer: string;
     algorithms: string[];
+    appId: string;
+    appSecret: string;
   };
   thirdweb?: {
     clientId: string;

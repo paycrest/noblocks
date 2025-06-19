@@ -54,7 +54,7 @@ export const ThemeSwitch = () => {
   if (!mounted) return null;
 
   return (
-    <div className="flex h-11 items-center justify-between gap-2 rounded-full border border-border-light p-1 transition-all dark:border-white/10 max-sm:dark:bg-surface-canvas">
+    <div className="flex h-11 items-center justify-between gap-2 rounded-full bg-[#202020] p-1 transition-all dark:border-white/10 max-sm:dark:bg-surface-canvas z-30">
       <IconButton
         onClick={() => setTheme("system")}
         isActive={theme === "system"}

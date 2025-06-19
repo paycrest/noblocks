@@ -82,8 +82,8 @@ export const Footer = () => {
 
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
-      <footer className="relative h-[566px] w-full px-5" role="contentinfo">
-        <p className="absolute bottom-4 left-4 z-20 text-xs font-medium">
+      <footer className="relative h-[566px] w-full px-5 max-w-[1440px] mx-auto md:items-center" role="contentinfo">
+        <p className="absolute bottom-4 left-4 z-20 text-xs font-medium md:left-20">
           <span className="text-gray-500 dark:text-white/50">
             &copy; {currentYear} Powered by
           </span>{" "}
@@ -97,7 +97,7 @@ export const Footer = () => {
           </a>
         </p>
 
-        <div className="flex gap-6">
+        <div className="flex gap-6 z-20 absolute md:bottom-[13rem] md:left-20">
           <div className="text-[#43B9FB] dark:text-white">
             <svg
               width="18"
@@ -127,17 +127,24 @@ export const Footer = () => {
 
         <Image
           src="/images/footer-image-mobile.svg"
-          alt="Footer Image"
+          alt="Footer Mobile Image"
           height={100}
           width={100}
-          className="absolute bottom-0 right-0 w-full"
+          className="absolute bottom-0 right-0 w-full md:hidden"
+        />
+        <Image
+          src="images/footer-desktop-img.svg"
+          alt="Footer Desktop Image"
+          width={100}
+          height={100}
+          className="w-full hidden md:block bottom-0 absolute right-0 z-[5]"
         />
         <Image
           src="/images/footer-rocket-illustration.svg"
           alt="Footer Rocket Image"
           height={100}
           width={100}
-          className="absolute bottom-7 right-8 w-full max-w-[250px] md:hidden animate-[rocket-shake_0.7s_infinite]"
+          className="absolute bottom-7 right-8 w-full max-w-[250px] md:hidden animate-[rocket-shake_0.7s_infinite] z-10"
         />
       </footer>
     </AnimatedComponent>

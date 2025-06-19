@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crimson_Pro } from "next/font/google";
+import { FaMinus, FaPlus } from "react-icons/fa6";
+
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
   weight: ["400", "600"],
@@ -34,63 +36,9 @@ const faqs = [
 
 function PlusMinusIcon({ open }: { open: boolean }) {
   return (
-    <motion.span
-      animate={{ rotate: open ? 180 : 0 }}
-      transition={{ duration: 0.2 }}
-      className="flex h-5 w-5 items-center justify-center text-white dark:text-black"
-    >
-      {open ? (
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          className="mx-auto block"
-          style={{ display: "block" }}
-        >
-          <rect
-            x="3"
-            y="7"
-            width="10"
-            height="2"
-            rx="1"
-            fill="currentColor"
-            stroke="currentColor"
-            strokeWidth="2.2"
-          />
-        </svg>
-      ) : (
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-          className="mx-auto block"
-          style={{ display: "block" }}
-        >
-          <rect
-            x="3"
-            y="7"
-            width="10"
-            height="2"
-            rx="1"
-            fill="currentColor"
-            stroke="currentColor"
-            strokeWidth="2.2"
-          />
-          <rect
-            x="7"
-            y="3"
-            width="2"
-            height="10"
-            rx="1"
-            fill="currentColor"
-            stroke="currentColor"
-            strokeWidth="2.2"
-          />
-        </svg>
-      )}
-    </motion.span>
+    <span className="flex h-5 w-5 items-center justify-center text-white dark:text-black">
+      {open ? <FaMinus size={16} /> : <FaPlus size={16} />}
+    </span>
   );
 }
 

@@ -8,6 +8,7 @@ import { ImSpinner3 } from "react-icons/im";
 import { FormDropdown } from "../components";
 import { acceptedCurrencies } from "../mocks";
 import { fetchSupportedTokens, currencyToCountryCode } from "../utils";
+import { fetchRate } from "../api/aggregator";
 
 export function HomePageForm() {
   const defaultNetwork = "Arbitrum One";
@@ -43,13 +44,27 @@ export function HomePageForm() {
   const [isFetchingRate, setIsFetchingRate] = useState(false);
 
   useEffect(() => {
-    setIsFetchingRate(true);
-    const timeout = setTimeout(() => {
-      setRate(1200);
-      setIsFetchingRate(false);
-    }, 700);
-    return () => clearTimeout(timeout);
-  }, [selectedToken, selectedCurrency]);
+    let cancelled = false;
+    async function getRate() {
+      setIsFetchingRate(true);
+      try {
+        const result = await fetchRate({
+          token: selectedToken,
+          amount: amountSent ? Number(amountSent) : 1,
+          currency: selectedCurrency,
+        });
+        if (!cancelled) setRate(result.data);
+      } catch (e) {
+        if (!cancelled) setRate(0);
+      } finally {
+        if (!cancelled) setIsFetchingRate(false);
+      }
+    }
+    getRate();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedToken, selectedCurrency, amountSent]);
 
   const [activeInput, setActiveInput] = useState<"send" | "receive">("send");
 

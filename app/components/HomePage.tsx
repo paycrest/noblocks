@@ -241,7 +241,7 @@ export function HomePage() {
         transition={{ duration: 0.2, ease: "easeOut", delay: 0.2 }}
       >
         <div className="w-full mx-auto max-w-[1440px]">
-          <div className="z-10 flex max-w-[616px] flex-col gap-5 lg:ml-[15rem]">
+          <div className="z-10 flex max-w-[600px] flex-col gap-5 lg:ml-[15rem]">
             <p className="flex flex-col text-2xl font-semibold lg:gap-4 lg:text-[48px]">
               <span>Power the Liquidity</span>
               <span className={`${crimsonPro.className} italic`}>

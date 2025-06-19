@@ -1,6 +1,7 @@
 "use client";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 import {
   FarcasterIconDarkTheme,
@@ -81,11 +82,8 @@ export const Footer = () => {
 
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
-      <footer
-        className="mx-auto mt-8 flex w-full max-w-2xl flex-wrap items-center justify-between gap-4 border-t border-dashed border-gray-200 pb-6 pt-4 dark:border-white/10"
-        role="contentinfo"
-      >
-        <p className="text-xs font-medium">
+      <footer className="relative h-[566px] w-full px-5" role="contentinfo">
+        <p className="absolute bottom-4 left-4 z-20 text-xs font-medium">
           <span className="text-gray-500 dark:text-white/50">
             &copy; {currentYear} Powered by
           </span>{" "}
@@ -99,17 +97,48 @@ export const Footer = () => {
           </a>
         </p>
 
-        <div className="flex items-center justify-center gap-2">
-          {socials.map((social) => (
-            <SocialLink key={social.title} {...social} />
-          ))}
+        <div className="flex gap-6">
+          <div className="text-[#43B9FB] dark:text-white">
+            <svg
+              width="18"
+              height="44"
+              viewBox="0 0 18 18"
+              fill="currentColor"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>Noblocks logo icon</title>
+              <path d="M0 18H10.4773V5.60074C10.4773 4.52752 11.3449 3.65706 12.4152 3.65706C13.4855 3.65706 14.3531 4.52752 14.3531 5.60074V18H18V0H0V18Z" />
+            </svg>
+          </div>
+          <div className="flex flex-col gap-4">
+            <div className="">
+              <ThemeSwitch />
+            </div>
+            <div className="flex gap-2">
+              {socials.map((social) => (
+                <SocialLink key={social.title} {...social} />
+              ))}
 
-          <div className="h-3 w-px bg-gray-200 dark:bg-white/20 max-sm:hidden" />
-
-          <div className="max-sm:hidden">
-            <ThemeSwitch />
+              <div className="h-3 w-px bg-gray-200 dark:bg-white/20 max-sm:hidden" />
+              <p>Brand Kit</p>
+            </div>
           </div>
         </div>
+
+        <Image
+          src="/images/footer-image-mobile.svg"
+          alt="Footer Image"
+          height={100}
+          width={100}
+          className="absolute bottom-0 right-0 w-full"
+        />
+        <Image
+          src="/images/footer-rocket-illustration.svg"
+          alt="Footer Rocket Image"
+          height={100}
+          width={100}
+          className="absolute bottom-7 right-8 w-full max-w-[250px] md:hidden animate-[rocket-shake_0.7s_infinite]"
+        />
       </footer>
     </AnimatedComponent>
   );

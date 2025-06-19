@@ -4,8 +4,73 @@ import { Crimson_Pro } from "next/font/google";
 import { ArrowRight01Icon } from "hugeicons-react";
 import FAQs from "./FAQs";
 import Image from "next/image";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { HomePageForm } from "./HomePageForm";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
+
+import {
+  FarcasterIconDarkTheme,
+  FarcasterIconLightTheme,
+  GithubIconDarkTheme,
+  GithubIconLightTheme,
+  XIconDarkTheme,
+  XIconLightTheme,
+} from "./ImageAssets";
+import { AnimatedComponent, fadeInOut } from "./AnimatedComponents";
+import { ThemeSwitch } from "./ThemeSwitch";
+
+const socialsDarkTheme = [
+  {
+    href: "https://warpcast.com/~/channel/noblocks",
+    title: "Farcaster",
+    LogoSvg: FarcasterIconDarkTheme,
+  },
+  {
+    href: "https://github.com/paycrest/noblocks",
+    title: "GitHub",
+    LogoSvg: GithubIconDarkTheme,
+  },
+  {
+    href: "https://x.com/noblocks_xyz",
+    title: "X",
+    LogoSvg: XIconDarkTheme,
+  },
+];
+
+const socialsLightTheme = [
+  {
+    href: "https://warpcast.com/~/channel/noblocks",
+    title: "Farcaster",
+    LogoSvg: FarcasterIconLightTheme,
+  },
+  {
+    href: "https://github.com/paycrest/noblocks",
+    title: "GitHub",
+    LogoSvg: GithubIconLightTheme,
+  },
+  {
+    href: "https://x.com/noblocks_xyz",
+    title: "X",
+    LogoSvg: XIconLightTheme,
+  },
+];
+
+const SocialLink = ({
+  href,
+  title,
+  LogoSvg,
+}: {
+  href: string;
+  title: string;
+  LogoSvg: React.FC<React.SVGProps<SVGSVGElement>>;
+}) => {
+  return (
+    <a href={href} title={title} target="_blank" rel="noopener noreferrer">
+      <LogoSvg className="size-5 transition-opacity hover:opacity-70" />
+    </a>
+  );
+};
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -15,6 +80,16 @@ const crimsonPro = Crimson_Pro({
 });
 
 export function HomePage() {
+  const { resolvedTheme } = useTheme();
+
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) return null;
+
+  const socials =
+    resolvedTheme === "dark" ? socialsDarkTheme : socialsLightTheme;
   return (
     <motion.div
       initial={{ opacity: 0, filter: "blur(16px)" }}
@@ -235,7 +310,7 @@ export function HomePage() {
       </motion.div>
 
       <motion.section
-        className="relative mx-auto w-full max-w-[1440px] flex-col gap-8 px-5 bg-[url('/images/power-liquidity-desktop-illustration.svg')] bg-cover bg-no-repeat h-[850px] hidden md:flex"
+        className="relative mx-auto hidden h-[850px] w-full max-w-[1440px] flex-col gap-8 bg-[url('/images/power-liquidity-desktop-illustration.svg')] bg-cover bg-no-repeat px-5 md:flex"
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ amount: 0.3 }}
@@ -259,7 +334,7 @@ export function HomePage() {
         </div>
       </motion.section>
       <motion.section
-        className="relative mx-auto my-20 flex w-full max-w-[1440px] flex-col gap-8 px-5 bg-[url('/images/power-liquidity-mobile-illustration.svg')] bg-cover bg-no-repeat h-[850px] md:hidden"
+        className="relative mx-auto my-20 flex h-[850px] w-full max-w-[1440px] flex-col gap-8 bg-[url('/images/power-liquidity-mobile-illustration.svg')] bg-cover bg-no-repeat px-5 md:hidden"
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ amount: 0.3 }}
@@ -291,7 +366,7 @@ export function HomePage() {
         transition={{ duration: 0.4, ease: "easeOut", delay: 0.45 }}
       >
         <div className="w-full max-w-[302px] space-y-4">
-          <button className="rounded-3xl bg-[#20BA90] p-[6px] text-sm font-medium dark:text-black text-white">
+          <button className="rounded-3xl bg-[#20BA90] p-[6px] text-sm font-medium text-white dark:text-black">
             Coming soon
           </button>
           <h3 className="flex flex-col gap-1 font-semibold">

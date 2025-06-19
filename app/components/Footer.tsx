@@ -149,7 +149,7 @@ export const Footer = () => {
           alt="Footer Rocket Image"
           height={100}
           width={100}
-          className="absolute bottom-7 right-8 z-10 w-full max-w-[250px] animate-[rocket-shake_0.7s_infinite] md:hidden"
+          className="absolute bottom-7 right-8 z-10 w-full max-w-[250px] animate-[rocket-shake_0.7s_infinite] lg:right-[20rem] lg:bottom-[7rem]"
         />
       </footer>
     </AnimatedComponent>

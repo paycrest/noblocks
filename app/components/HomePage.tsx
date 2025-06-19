@@ -6,8 +6,7 @@ import FAQs from "./FAQs";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { HomePageForm } from "./HomePageForm";
-import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],

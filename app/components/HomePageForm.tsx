@@ -10,7 +10,6 @@ import { acceptedCurrencies } from "../mocks";
 import { fetchSupportedTokens, currencyToCountryCode } from "../utils";
 
 export function HomePageForm() {
-  // Use a default network for demo (Polygon)
   const defaultNetwork = "Arbitrum One";
   const fetchedTokens = fetchSupportedTokens(defaultNetwork) || [];
   const tokens = fetchedTokens.map((token) => ({
@@ -45,7 +44,6 @@ export function HomePageForm() {
   const [rate, setRate] = useState<number>(0);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
 
-  // Simulate fetching rate (replace with real fetch logic if needed)
   useEffect(() => {
     setIsFetchingRate(true);
     // Simulate async fetch
@@ -56,10 +54,8 @@ export function HomePageForm() {
     return () => clearTimeout(timeout);
   }, [selectedToken, selectedCurrency]);
 
-  // Track which input is active for direction of calculation
   const [activeInput, setActiveInput] = useState<"send" | "receive">("send");
 
-  // Auto-calculate receive or send amount based on active input
   useEffect(() => {
     if (isFetchingRate) return;
     if (
@@ -81,34 +77,28 @@ export function HomePageForm() {
     }
   }, [amountSent, amountReceived, rate, activeInput, isFetchingRate]);
 
-  // Improved function to format number with commas while preserving decimal places
   const formatNumberWithCommasForDisplay = (value: number | string): string => {
     if (value === undefined || value === null || value === "") return "";
 
     const valueStr = value.toString();
     if (valueStr === "0") return "0";
 
-    // Handle case when input is just a decimal point
     if (valueStr === ".") return "0.";
 
     const parts = valueStr.split(".");
-    // Add commas to the integer part
     const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
-    // Preserve the decimal part if it exists, ensuring max 4 decimal places
     if (parts.length > 1) {
-      const decimalPart = parts[1].slice(0, 4); // Limit to 4 decimal places
+      const decimalPart = parts[1].slice(0, 4);
       return `${integerPart}.${decimalPart}`;
     }
 
     return integerPart;
   };
 
-  // Track if input is focused for formatting
   const [isAmountSentFocused, setIsAmountSentFocused] = useState(false);
   const [isAmountReceivedFocused, setIsAmountReceivedFocused] = useState(false);
 
-  // Handle input change for amountSent (raw, no formatting)
   const handleAmountSentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let input = e.target.value.replace(/,/g, "");
     if (input === "") {
@@ -127,7 +117,6 @@ export function HomePageForm() {
     setActiveInput("send");
   };
 
-  // Handle input change for amountReceived (raw, no formatting)
   const handleAmountReceivedChange = (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -146,7 +135,6 @@ export function HomePageForm() {
     setActiveInput("receive");
   };
 
-  // Format for display only when not focused
   const displayAmountSent = isAmountSentFocused
     ? amountSent
     : formatNumberWithCommasForDisplay(amountSent);
@@ -154,7 +142,6 @@ export function HomePageForm() {
     ? amountReceived
     : formatNumberWithCommasForDisplay(amountReceived);
 
-  // Only require amountSent to be filled for enabling the button
   const isFormFilled = amountSent.trim() !== "";
 
   const handleGetStarted = () => {
@@ -174,7 +161,6 @@ export function HomePageForm() {
     >
       <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
         <h3 className="px-2 py-1 text-base font-semibold">Swap</h3>
-        {/* Send section */}
         <div className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-surface-canvas">
           <div className="flex items-center justify-between">
             <label
@@ -204,7 +190,6 @@ export function HomePageForm() {
               onSelect={setSelectedToken}
             />
           </div>
-          {/* Arrow showing swap direction */}
           <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas">
             <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
               {isFetchingRate ? (
@@ -215,7 +200,6 @@ export function HomePageForm() {
             </div>
           </div>
         </div>
-        {/* Receive section */}
         <div className="space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-surface-canvas">
           <label
             htmlFor="amount-received"
@@ -248,7 +232,6 @@ export function HomePageForm() {
         </div>
       </div>
 
-      {/* Get started button */}
       <button
         type="button"
         className={`w-full rounded-lg py-[10px] text-sm font-medium hover:opacity-90 dark:text-white ${
@@ -261,7 +244,6 @@ export function HomePageForm() {
       >
         Get started
       </button>
-      {/* Show rate info if available and user has started typing */}
       <div className="relative">
         {rate > 0 &&
           (amountSent.trim() !== "" || amountReceived.trim() !== "") && (

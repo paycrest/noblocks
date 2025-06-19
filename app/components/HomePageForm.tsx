@@ -254,7 +254,7 @@ export function HomePageForm() {
         className={`w-full rounded-lg py-[10px] text-sm font-medium hover:opacity-90 dark:text-white ${
           isFormFilled
             ? "cursor-pointer bg-[#8B85F4] text-white"
-            : "cursor-not-allowed bg-gray-300 text-gray-400 dark:bg-gray-700 dark:text-gray-500"
+            : "cursor-not-allowed bg-gray-300 text-gray-400 dark:bg-[#2E2E2E] dark:text-white dark:opacity-50"
         }`}
         disabled={!isFormFilled}
         onClick={handleGetStarted}

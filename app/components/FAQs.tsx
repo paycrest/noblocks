@@ -154,9 +154,9 @@ export default function FAQs() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section className="mx-auto flex w-full max-w-[999px] flex-col gap-3 lg:grid lg:grid-cols-[1fr_2fr] lg:items-center px-5">
+    <section className="mx-auto flex w-full max-w-[999px] flex-col gap-4 lg:grid lg:grid-cols-[1fr_2fr] lg:items-center px-5 mb-[185px]">
       <h2
-        className={`${crimsonPro.className} flex justify-center gap-3 text-center text-2xl font-semibold lg:max-w-[294px] lg:flex-col lg:items-start lg:text-left lg:text-[56px]`}
+        className={`${crimsonPro.className} flex justify-center gap-4 text-center text-2xl font-semibold lg:max-w-[294px] lg:flex-col lg:items-start lg:text-left lg:text-[56px]`}
       >
         <span>Frequently</span>
         <span>Asked</span>

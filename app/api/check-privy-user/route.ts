@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
+import axios from "axios";
 
 export async function POST(request: Request) {
   try {
@@ -18,35 +19,37 @@ export async function POST(request: Request) {
     };
 
     try {
-      // Call Privy's REST API to check user by email
-      const response = await fetch(apiUrl, {
-        method: "POST",
+      // Call Privy's REST API to check user by email using axios
+      const response = await axios.post(apiUrl, requestBody, {
         headers: {
           "Content-Type": "application/json",
           "privy-app-id": privyAppId || "",
-          Authorization: `Basic ${Buffer.from(`${privyAppId}:${privyAppSecret}`).toString("base64")}`,
         },
-        body: JSON.stringify(requestBody),
+        auth: {
+          username: privyAppId || "",
+          password: privyAppSecret || "",
+        },
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        return NextResponse.json({ exists: true, user: data });
-      } else if (response.status === 404) {
-        // User not found
-        return NextResponse.json({ exists: false });
-      } else {
-        // Other errors
-        const error = await response.json();
-        console.error("Privy API error:", error);
-        return NextResponse.json(
-          { error: "Failed to check user" },
-          { status: response.status },
-        );
-      }
+      // If we get here, the request was successful
+      return NextResponse.json({ exists: true, user: response.data });
     } catch (error) {
-      console.error("Error checking Privy user:", error);
-      return NextResponse.json({ exists: false });
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 404) {
+          // User not found
+          return NextResponse.json({ exists: false });
+        } else {
+          // Other errors
+          console.error("Privy API error:", error.response?.data);
+          return NextResponse.json(
+            { error: "Failed to check user" },
+            { status: error.response?.status || 500 },
+          );
+        }
+      } else {
+        console.error("Error checking Privy user:", error);
+        return NextResponse.json({ exists: false });
+      }
     }
   } catch (error) {
     console.error("Error processing request:", error);

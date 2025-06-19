@@ -51,14 +51,12 @@ const MigrationBanner: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
 
         // Validate userData structure
         if (!Array.isArray(userData) || userData.length === 0) {
-          console.error("Invalid user data format from thirdweb");
           setShouldShowBanner(false);
           return;
         }
 
         const userEmail = userData[0]?.email;
         if (!userEmail) {
-          console.error("No email found in user data");
           setShouldShowBanner(false);
           return;
         }

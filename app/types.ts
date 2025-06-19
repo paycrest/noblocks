@@ -367,3 +367,65 @@ export type Currency = {
   label: string;
   disabled?: boolean;
 };
+
+// ===== PRIVY TYPES =====
+
+export type LinkedAccountType = "wallet" | "smart_wallet" | "email";
+
+export interface PrivyLinkedAccount {
+  id?: string | null;
+  address?: string;
+  type: LinkedAccountType;
+  verifiedAt?: string;
+  firstVerifiedAt?: string;
+  latestVerifiedAt?: string;
+}
+
+export interface PrivyEmail {
+  address: string;
+}
+
+export interface PrivyWallet {
+  address: string;
+  chainType: string;
+  walletClientType: string;
+  connectorType: string;
+}
+
+export interface PrivySmartWallet {
+  address: string;
+  smartWalletType: string;
+}
+
+export interface PrivyUser {
+  id: string;
+  created_at?: number;
+  linked_accounts: PrivyLinkedAccount[];
+  email?: PrivyEmail;
+  wallet?: PrivyWallet;
+  smartWallet?: PrivySmartWallet;
+  mfa_methods: string[];
+  has_accepted_terms: boolean;
+  is_guest: boolean;
+}
+
+export interface PrivyUserResponse {
+  exists: boolean;
+  user: PrivyUser;
+}
+
+// Utility types for specific account types
+export interface PrivyEmailAccount extends PrivyLinkedAccount {
+  type: "email";
+  address: string;
+}
+
+export interface PrivyWalletAccount extends PrivyLinkedAccount {
+  type: "wallet";
+  address: string;
+}
+
+export interface PrivySmartWalletAccount extends PrivyLinkedAccount {
+  type: "smart_wallet";
+  address: string;
+}

@@ -1,5 +1,14 @@
 import JSEncrypt from "jsencrypt";
-import type { InstitutionProps, Network, Token, Currency } from "./types";
+import type {
+  InstitutionProps,
+  Network,
+  Token,
+  Currency,
+  PrivyUser,
+  PrivyLinkedAccount,
+  PrivyWalletAccount,
+  PrivySmartWalletAccount,
+} from "./types";
 import { erc20Abi } from "viem";
 import { colors } from "./mocks";
 import { fetchRate } from "./api/aggregator";
@@ -865,4 +874,46 @@ export async function reorderCurrenciesByLocation(
 export const convertCNGNtoUSD = (cngnAmount: number, rate: number = 1) => {
   if (!cngnAmount || !rate) return 0;
   return cngnAmount / rate;
+};
+
+// ===== PRIVY UTILITY FUNCTIONS =====
+
+/**
+ * Helper function to check if a linked account is a wallet account
+ */
+export const isWalletAccount = (
+  account: PrivyLinkedAccount,
+): account is PrivyWalletAccount => {
+  return account.type === "wallet";
+};
+
+/**
+ * Helper function to check if a linked account is a smart wallet account
+ */
+export const isSmartWalletAccount = (
+  account: PrivyLinkedAccount,
+): account is PrivySmartWalletAccount => {
+  return account.type === "smart_wallet";
+};
+
+/**
+ * Gets the primary wallet from a Privy user's linked accounts
+ * @param user - The Privy user object
+ * @returns The primary wallet account or undefined if not found
+ */
+export const getPrimaryWallet = (
+  user: PrivyUser,
+): PrivyWalletAccount | undefined => {
+  return user.linked_accounts?.find(isWalletAccount);
+};
+
+/**
+ * Gets the smart wallet from a Privy user's linked accounts
+ * @param user - The Privy user object
+ * @returns The smart wallet account or undefined if not found
+ */
+export const getSmartWallet = (
+  user: PrivyUser,
+): PrivySmartWalletAccount | undefined => {
+  return user.linked_accounts?.find(isSmartWalletAccount);
 };

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { DEFAULT_THIRDWEB_CONFIG } from "@/app/lib/config";
+import axios from "axios";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -12,27 +13,19 @@ export async function GET(request: Request) {
     );
   }
 
+  const apiUrl = `https://in-app-wallet.thirdweb.com/api/2023-11-30/embedded-wallet/user-details?queryBy=walletAddress&walletAddress=${walletAddress}`;
+  const secretKey = DEFAULT_THIRDWEB_CONFIG?.thirdweb?.secretKey || "";
+  const clientId = DEFAULT_THIRDWEB_CONFIG?.thirdweb?.clientId || "";
+
   try {
-    const response = await fetch(
-      `https://in-app-wallet.thirdweb.com/api/2023-11-30/embedded-wallet/user-details?queryBy=walletAddress&walletAddress=${walletAddress}`,
-      {
-        headers: {
-          "x-secret-key": DEFAULT_THIRDWEB_CONFIG?.thirdweb?.secretKey || "",
-          "x-client-id": DEFAULT_THIRDWEB_CONFIG?.thirdweb?.clientId || "",
-        },
+    const response = await axios.get(apiUrl, {
+      headers: {
+        "x-secret-key": secretKey,
+        "x-client-id": clientId,
       },
-    );
+    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Thirdweb API error:", errorText);
-      return NextResponse.json(
-        { error: "Failed to fetch user details from thirdweb" },
-        { status: response.status },
-      );
-    }
-
-    const data = await response.json();
+    const data = response.data;
 
     // Validate response format
     if (!Array.isArray(data)) {
@@ -45,10 +38,18 @@ export async function GET(request: Request) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching user details:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch user details" },
-      { status: 500 },
-    );
+    if (axios.isAxiosError(error)) {
+      console.error("Thirdweb API error:", error.response?.data);
+      return NextResponse.json(
+        { error: "Failed to fetch user details from thirdweb" },
+        { status: error.response?.status || 500 },
+      );
+    } else {
+      console.error("Error fetching user details:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch user details" },
+        { status: 500 },
+      );
+    }
   }
 }

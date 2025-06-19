@@ -81,7 +81,7 @@ export function HomePage() {
             alt="Video Plane Image"
             width={100}
             height={100}
-            className="absolute -bottom-28 -right-24 w-[300px]"
+            className="absolute lg:-bottom-28 lg:-right-24 lg:w-[300px] w-[120px] -bottom-[3.5rem] right-0"
           />
         </div>
       </motion.div>

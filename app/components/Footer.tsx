@@ -86,7 +86,7 @@ export const Footer = () => {
         className="relative mt-6 h-[700px] w-full px-5 md:items-center"
         role="contentinfo"
       >
-        <div className="w-full max-w-[1440px] mx-auto">
+        <div className="mx-auto w-full max-w-[1440px]">
           <p className="absolute bottom-8 left-4 z-20 text-xs font-medium md:left-20">
             <span className="text-gray-500 dark:text-white/50">
               &copy; {currentYear} Powered by
@@ -149,7 +149,7 @@ export const Footer = () => {
           alt="Footer Rocket Image"
           height={100}
           width={100}
-          className="absolute bottom-7 right-8 z-10 w-full max-w-[250px] lg:max-w-[300px] animate-[rocket-shake_0.7s_infinite] lg:right-[20rem] lg:bottom-[7rem]"
+          className="absolute bottom-7 right-8 z-10 w-full max-w-[250px] animate-[rocket-shake_0.7s_infinite] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[300px]"
         />
       </footer>
     </AnimatedComponent>

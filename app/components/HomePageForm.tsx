@@ -19,7 +19,6 @@ export function HomePageForm() {
 
   const router = useRouter();
 
-  // UI state only
   const [selectedToken, setSelectedToken] = useState<string>(
     tokens[0]?.name || "",
   );
@@ -40,17 +39,15 @@ export function HomePageForm() {
   const [amountSent, setAmountSent] = useState("");
   const [amountReceived, setAmountReceived] = useState("");
 
-  // Mock or fetch a rate (replace with real fetch if available)
   const [rate, setRate] = useState<number>(0);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
 
   useEffect(() => {
     setIsFetchingRate(true);
-    // Simulate async fetch
     const timeout = setTimeout(() => {
-      setRate(1200); // 1 Token = 1200 Currency (mock)
+      setRate(1200);
       setIsFetchingRate(false);
-    }, 700); // Simulate network delay
+    }, 700);
     return () => clearTimeout(timeout);
   }, [selectedToken, selectedCurrency]);
 
@@ -106,9 +103,7 @@ export function HomePageForm() {
       setActiveInput("send");
       return;
     }
-    // Allow only numbers and decimal point
     if (!/^\d*(\.\d*)?$/.test(input)) return;
-    // Only allow up to 4 decimal places
     if (input.includes(".")) {
       const decimals = input.split(".")[1];
       if (decimals && decimals.length > 4) return;

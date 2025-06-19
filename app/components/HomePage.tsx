@@ -7,7 +7,6 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { HomePageForm } from "./HomePageForm";
 
-
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
   weight: ["400", "600"],
@@ -233,13 +232,13 @@ export function HomePage() {
       </motion.div>
 
       <motion.section
-        className="relative hidden h-[1050px] w-full flex-col gap-8 bg-[url('/images/power-liquidity-desktop-illustration.svg')] bg-cover bg-no-repeat px-5 md:flex mb-[96px]"
+        className="relative mb-[96px] hidden h-[1050px] w-full flex-col gap-8 bg-[url('/images/power-liquidity-desktop-illustration.svg')] bg-cover bg-no-repeat px-5 md:flex"
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ amount: 0.3 }}
         transition={{ duration: 0.2, ease: "easeOut", delay: 0.2 }}
       >
-        <div className="w-full mx-auto max-w-[1440px]">
+        <div className="mx-auto w-full max-w-[1440px]">
           <div className="z-10 flex max-w-[600px] flex-col gap-5 lg:ml-[15rem]">
             <p className="flex flex-col text-2xl font-semibold lg:gap-4 lg:text-[48px]">
               <span>Power the Liquidity</span>
@@ -282,7 +281,6 @@ export function HomePage() {
           </button>
         </div>
       </motion.section>
-
       <motion.section
         className="flex w-full flex-col justify-center px-5 md:flex-row-reverse lg:items-center"
         initial={{ opacity: 0, y: 40 }}

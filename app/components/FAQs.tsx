@@ -8,6 +8,7 @@ import { FaMinus, FaPlus } from "react-icons/fa6";
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
   weight: ["400", "600"],
+  style: ["normal", "italic"],
   variable: "--font-crimson",
 });
 
@@ -102,7 +103,7 @@ export default function FAQs() {
   return (
     <section className="mx-auto lg:mb-[185px] flex w-full max-w-[999px] flex-col gap-4 px-5 lg:grid lg:grid-cols-[1fr_2fr] lg:items-center">
       <h2
-        className={`${crimsonPro.className} flex justify-center text-center text-[28px] font-semibold lg:max-w-[294px] lg:flex-col lg:items-start lg:text-left lg:text-[56px] gap-1 lg:gap-0`}
+        className={`${crimsonPro.className} flex justify-center text-center text-[28px] font-semibold lg:max-w-[294px] lg:flex-col lg:items-start lg:text-left lg:text-[56px] gap-1 lg:gap-0 italic`}
       >
         <span>Frequently </span>
         <span>Asked </span>

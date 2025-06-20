@@ -68,18 +68,6 @@ const config: Config = {
       screens: {
         xsm: "375px",
       },
-      keyframes: {
-        "rocket-shake": {
-          "0%, 100%": { transform: "translateY(0) rotate(-2deg)" },
-          "20%": { transform: "translateY(-2px) rotate(2deg)" },
-          "40%": { transform: "translateY(2px) rotate(-2deg)" },
-          "60%": { transform: "translateY(-1px) rotate(1deg)" },
-          "80%": { transform: "translateY(1px) rotate(-1deg)" },
-        },
-      },
-      animation: {
-        "rocket-shake": "rocket-shake 0.7s infinite",
-      },
     },
   },
   plugins: [],

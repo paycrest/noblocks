@@ -162,20 +162,22 @@ export const getExplorerLink = (network: string, txHash: string) => {
 };
 
 // write function to get rpc url for a given network
-export function getRpcUrl(network: string) {
+export function getRpcUrl(network: string): string | undefined {
+  const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID;
+
   switch (network) {
     case "Polygon":
-      return `https://137.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://137.rpc.thirdweb.com/${clientId}`;
     case "BNB Smart Chain":
-      return `https://56.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://56.rpc.thirdweb.com/${clientId}`;
     case "Base":
-      return `https://8453.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://8453.rpc.thirdweb.com/${clientId}`;
     case "Arbitrum One":
-      return `https://42161.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://42161.rpc.thirdweb.com/${clientId}`;
     case "Celo":
-      return `https://42220.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://42220.rpc.thirdweb.com/${clientId}`;
     case "Lisk":
-      return `https://1135.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://1135.rpc.thirdweb.com/${clientId}`;
     default:
       return undefined;
   }
@@ -334,7 +336,7 @@ export function fetchSupportedTokens(network = ""): Token[] | undefined {
 /**
  * Fetches the wallet balances for the specified network and address.
  *
- * @param network - The network name.
+ * @param client - The viem public client.
  * @param address - The wallet address.
  * @returns An object containing the total balance and individual token balances.
  */
@@ -358,12 +360,17 @@ export async function fetchWalletBalance(
           functionName: "balanceOf",
           args: [address as `0x${string}`],
         });
+
         const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
         // Ensure balance is a valid number
         balances[token.symbol] = isNaN(balance) ? 0 : balance;
+
         return balances[token.symbol];
       } catch (error) {
-        console.error(`Error fetching balance for ${token.symbol}:`, error);
+        console.error(
+          `Error fetching balance for ${token.symbol}. Setting to 0.`,
+          error,
+        );
         balances[token.symbol] = 0;
         return 0;
       }
@@ -377,7 +384,11 @@ export async function fetchWalletBalance(
     );
 
     // Add USD equivalent for cNGN
-    if (typeof balances["cNGN"] === "number" && !isNaN(balances["cNGN"])) {
+    if (
+      typeof balances["cNGN"] === "number" &&
+      !isNaN(balances["cNGN"]) &&
+      balances["cNGN"] > 0
+    ) {
       totalBalance -= balances["cNGN"];
       try {
         const rate = await fetchRate({
@@ -394,15 +405,20 @@ export async function fetchWalletBalance(
         }
       } catch (error) {
         console.error("Error fetching cNGN rate:", error);
+        // If rate fetch fails, just add the cNGN balance as is
+        totalBalance += balances["cNGN"];
       }
     }
   } catch (error) {
+    console.error("Error in fetchWalletBalance:", error);
     return { total: 0, balances: {} };
   }
 
   // Ensure final total is a valid number
+  const finalTotal = isNaN(totalBalance) ? 0 : totalBalance;
+
   return {
-    total: isNaN(totalBalance) ? 0 : totalBalance,
+    total: finalTotal,
     balances,
   };
 }

@@ -21,7 +21,6 @@ import { useActiveAccount } from "thirdweb/react";
 import { THIRDWEB_CLIENT } from "../lib/thirdweb/client";
 import { useBalance } from "../context";
 import type { Chain } from "thirdweb";
-import { useBalancePolling } from "../hooks/useBalancePolling";
 import { customLightTheme, customDarkTheme } from "../lib/thirdweb/theme";
 
 type FundFormData = {
@@ -65,24 +64,6 @@ export const FundWalletModal = ({ isOpen, onClose }: FundWalletModalProps) => {
     });
   }
 
-  const { isPolling } = useBalancePolling(
-    (newBalance) => {
-      refreshBalance();
-      setFundingInProgress(false);
-      setIsConfirming(false);
-      reset();
-      onClose();
-      trackEvent("Funding completed", {
-        "Funding type": "thirdweb",
-        Amount: amount,
-        Network: selectedNetwork.chain.name,
-        Token: token,
-      });
-    },
-    2000,
-    30,
-  );
-
   const handleFund = async (data: FundFormData) => {
     try {
       if (!account?.address) {
@@ -115,16 +96,18 @@ export const FundWalletModal = ({ isOpen, onClose }: FundWalletModalProps) => {
   };
 
   const handleModalClose = () => {
-    if (!fundingInProgress) {
-      reset();
-      onClose();
-    } else {
+    if (fundingInProgress) {
       if (confirm("Are you sure you want to cancel the funding process?")) {
         setFundingInProgress(false);
         reset();
         onClose();
       }
+    } else {
+      reset();
+      onClose();
     }
+
+    refreshBalance();
   };
 
   useEffect(() => {
@@ -248,39 +231,28 @@ export const FundWalletModal = ({ isOpen, onClose }: FundWalletModalProps) => {
                   placeholder="0"
                   title="Enter amount to fund"
                 />
-
-                <FormDropdown
-                  defaultTitle="Select token"
-                  data={tokens}
-                  defaultSelectedItem={token}
-                  onSelect={(selectedToken) => setValue("token", selectedToken)}
-                  className="min-w-44"
-                />
+                <div className="w-40">
+                  <FormDropdown
+                    defaultTitle="Select token"
+                    data={tokens}
+                    defaultSelectedItem={token}
+                    onSelect={(selectedToken) =>
+                      setValue("token", selectedToken)
+                    }
+                    className="min-w-44"
+                  />
+                </div>
               </div>
+              {errors.amount && (
+                <p className="text-xs text-red-500">{errors.amount.message}</p>
+              )}
             </div>
-
-            <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">
-              <p className="text-text-secondary dark:text-white/50">Network</p>
-              <div className="flex items-center gap-2">
-                <Image
-                  src={getNetworkImageUrl(selectedNetwork, isDark)}
-                  alt={selectedNetwork.chain.name}
-                  width={16}
-                  height={16}
-                  className="size-4 rounded-full"
-                />
-                <span className="text-text-body dark:text-white">
-                  {selectedNetwork.chain.name}
-                </span>
-              </div>
-            </div>
-
             <button
               type="submit"
-              className={classNames(primaryBtnClasses, "w-full")}
-              disabled={!isValid || !isDirty || isConfirming}
+              disabled={!isValid || !isDirty}
+              className={`${primaryBtnClasses} w-full`}
             >
-              {isConfirming ? "Loading..." : "Choose funding method"}
+              Next
             </button>
           </form>
         </div>

@@ -5,6 +5,7 @@ import {
   useState,
   type FC,
   type ReactNode,
+  useCallback,
 } from "react";
 import { createPublicClient, http } from "viem";
 import { networks } from "../mocks";
@@ -21,7 +22,9 @@ export interface NetworkBalance {
 }
 
 interface MultiNetworkBalanceContextProps {
-  fetchAllNetworkBalances: (address: string) => Promise<void>;
+  fetchAllNetworkBalances: (
+    address: string,
+  ) => Promise<NetworkBalance[] | undefined>;
   networkBalances: NetworkBalance[];
   isLoading: boolean;
 }
@@ -36,9 +39,8 @@ export const MultiNetworkBalanceProvider: FC<{ children: ReactNode }> = ({
   const [networkBalances, setNetworkBalances] = useState<NetworkBalance[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchAllNetworkBalances = async (address: string) => {
+  const fetchAllNetworkBalances = useCallback(async (address: string) => {
     setIsLoading(true);
-    console.log("Starting to fetch balances for all networks...");
 
     // Initialize balances array with loading states
     setNetworkBalances(
@@ -54,7 +56,6 @@ export const MultiNetworkBalanceProvider: FC<{ children: ReactNode }> = ({
     try {
       // Create fetch promises for each network
       const balancePromises = networks.map(async (network) => {
-        console.log(`Fetching balances for ${network.chain.name}...`);
         try {
           const publicClient = createPublicClient({
             chain: network.chain,
@@ -66,7 +67,6 @@ export const MultiNetworkBalanceProvider: FC<{ children: ReactNode }> = ({
           });
 
           const result = await fetchWalletBalance(publicClient, address);
-          console.log(`Balances fetched for ${network.chain.name}:`, result);
 
           return {
             networkName: network.chain.name,
@@ -92,16 +92,17 @@ export const MultiNetworkBalanceProvider: FC<{ children: ReactNode }> = ({
 
       // Wait for all promises to resolve
       const results = await Promise.all(balancePromises);
-      console.log("All network balances fetched:", results);
 
       // Update state with results
       setNetworkBalances(results);
+      return results;
     } catch (error) {
       console.error("Error fetching all network balances:", error);
+      return undefined;
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   return (
     <MultiNetworkBalanceContext.Provider

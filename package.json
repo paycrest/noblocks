@@ -71,11 +71,15 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "packageManager": "pnpm@10.11.0",
+  "packageManager": "pnpm@10.12.1",
   "pnpm": {
     "overrides": {
       "@types/react": "19.0.8",
       "@types/react-dom": "19.0.3"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "protobufjs",
+      "unrs-resolver"
+    ]
   }
 }

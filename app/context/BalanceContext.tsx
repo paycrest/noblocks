@@ -60,22 +60,14 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         injectedProvider
       ) {
         // Handle injected wallet mode
-        try {
-          const publicClient = createPublicClient({
-            chain: selectedNetwork.chain,
-            transport: http(getRpcUrl(selectedNetwork.chain.name)),
-          });
+        const publicClient = createPublicClient({
+          chain: selectedNetwork.chain,
+          transport: http(getRpcUrl(selectedNetwork.chain.name)),
+        });
 
-          const result = await fetchWalletBalance(
-            publicClient,
-            injectedAddress,
-          );
-          setInjectedWalletBalance(result);
-          setSmartWalletBalance(null);
-        } catch (error) {
-          console.error("Error fetching injected wallet balance:", error);
-          setInjectedWalletBalance(null);
-        }
+        const result = await fetchWalletBalance(publicClient, injectedAddress);
+        setInjectedWalletBalance(result);
+        setSmartWalletBalance(null);
       } else if (isAuthenticated && account) {
         // Handle thirdweb mode
         const publicClient = createPublicClient({
@@ -83,12 +75,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           transport: http(
             selectedNetwork.chain.id === bsc.id
               ? "https://bsc-dataseed.bnbchain.org/"
-              : undefined,
+              : getRpcUrl(selectedNetwork.chain.name),
           ),
         });
 
         const result = await fetchWalletBalance(publicClient, account.address);
-
         setSmartWalletBalance(result);
         setInjectedWalletBalance(null);
       } else {
@@ -96,8 +87,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         setSmartWalletBalance(null);
         setInjectedWalletBalance(null);
       }
-    } catch (error) {
-      console.error("Error fetching balances:", error);
+    } catch (e) {
+      const fetchError = e as Error;
       setSmartWalletBalance(null);
       setInjectedWalletBalance(null);
     } finally {

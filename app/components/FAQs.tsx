@@ -68,7 +68,7 @@ function AccordionItem({
         >
           <PlusMinusIcon open={isOpen} />
         </span>
-        <span className="text-lg font-medium text-black dark:text-[#FFFFFF80]">
+        <span className="text-base font-medium text-black dark:text-[#FFFFFF80]">
           {question}
         </span>
       </button>
@@ -86,7 +86,7 @@ function AccordionItem({
             transition={{ duration: 0.3, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-            <div className="rounded-bl-xl rounded-br-xl border-b border-l border-r border-[#FFFFFF1A] px-4 py-2 text-base text-black dark:text-[#FFFFFF80]">
+            <div className="rounded-bl-xl rounded-br-xl border-b border-l border-r border-[#FFFFFF1A] px-4 py-2 text-base font-normal leading-6 text-black dark:text-[#FFFFFF80]">
               {answer}
             </div>
           </motion.div>
@@ -100,12 +100,12 @@ export default function FAQs() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section className="mx-auto mb-[185px] flex w-full max-w-[999px] flex-col gap-4 px-5 lg:grid lg:grid-cols-[1fr_2fr] lg:items-center">
+    <section className="mx-auto lg:mb-[185px] flex w-full max-w-[999px] flex-col gap-4 px-5 lg:grid lg:grid-cols-[1fr_2fr] lg:items-center">
       <h2
-        className={`${crimsonPro.className} flex justify-center gap-4 text-center text-2xl font-semibold lg:max-w-[294px] lg:flex-col lg:items-start lg:text-left lg:text-[56px]`}
+        className={`${crimsonPro.className} flex justify-center text-center text-[28px] font-semibold lg:max-w-[294px] lg:flex-col lg:items-start lg:text-left lg:text-[56px] gap-1 lg:gap-0`}
       >
-        <span>Frequently</span>
-        <span>Asked</span>
+        <span>Frequently </span>
+        <span>Asked </span>
         <span>Questions</span>
       </h2>
       <div className="flex flex-col gap-4">

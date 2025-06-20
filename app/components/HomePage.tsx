@@ -52,7 +52,7 @@ export function HomePage() {
       </motion.div>
 
       <motion.p
-        className="mb-[96px] text-center text-white opacity-50"
+        className="mb-[96px] text-center text-white opacity-50 text-base font-normal"
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ amount: 0.3 }}
@@ -100,8 +100,9 @@ export function HomePage() {
         viewport={{ amount: 0.3 }}
         transition={{ duration: 0.2, ease: "easeOut", delay: 0.12 }}
       >
-        <h3 className="text-center text-2xl font-semibold lg:text-3xl">
-          Ways you can use Noblocks
+        <h3 className="text-center text-2xl lg:text-[48px]">
+          <span className="opacity-80 font-semibold">Ways you can use </span>
+          <span className={`${crimsonPro.className} font-medium italic`}>Noblocks</span>
         </h3>
         <div className="grid grid-cols-1 gap-6 rounded-[28px] border border-[#EBEBEF] p-6 dark:border-[#FFFFFF1A] lg:grid-cols-2 lg:gap-8">
           <div className="flex flex-col gap-6 rounded-[24px] bg-[#F7F7F8] px-4 py-8 dark:bg-[#202020]">
@@ -192,7 +193,7 @@ export function HomePage() {
       </motion.section>
 
       <motion.section
-        className="mb-[185px] flex w-full flex-col items-center justify-center gap-4 px-5"
+        className="lg:mb-[185px] mb-[41px] flex w-full flex-col items-center justify-center gap-6 px-5"
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ amount: 0.3 }}
@@ -201,12 +202,12 @@ export function HomePage() {
         <h3 className="text-2xl font-semibold lg:text-[48px]">
           Rates like no other
         </h3>
-        <p className="max-w-[712px] text-center font-normal opacity-80">
+        <p className="max-w-[712px] text-center font-normal opacity-80 leading-[30px] lg:text-lg text-base">
           You have no cause for worry when it comes to rates, Noblocks offers
           the best rates that beat the speed and amount for P2Ps and other
           stablecoin exchange options
         </p>
-        <button className="flex items-center gap-2 hover:cursor-pointer hover:opacity-80">
+        <button className="flex items-center gap-2 hover:cursor-pointer hover:opacity-80 font-medium text-base">
           Get started <ArrowRight02Icon />
         </button>
         <div className="hidden w-full max-w-[834px] dark:md:block">
@@ -265,13 +266,13 @@ export function HomePage() {
       >
         <div className="mx-auto w-full max-w-[1440px]">
           <div className="z-10 flex max-w-[600px] flex-col gap-5 lg:ml-[15rem]">
-            <p className="flex flex-col text-2xl font-semibold lg:gap-4 lg:text-[48px]">
-              <span>Power the Liquidity</span>
-              <span className={`${crimsonPro.className} italic`}>
+            <p className="flex flex-col font-semibold lg:gap-1 ">
+              <span className="text-2xl lg:text-[48px]">Power the Liquidity</span>
+              <span className={`${crimsonPro.className} italic text-[28px] lg:text-[56px]`}>
                 Engine on Noblocks
               </span>
             </p>
-            <p className="text-base font-normal lg:text-xl">
+            <p className="text-base font-normal lg:text-xl leading-7">
               Maximize your earnings while enabling fast and seamless stablecoin
               exchanges. Specify your rate, serve urgent customers and lead the
               charge to operate in a truly decentralised world.
@@ -290,7 +291,7 @@ export function HomePage() {
         viewport={{ amount: 0.3 }}
         transition={{ duration: 0.2, ease: "easeOut", delay: 0.22 }}
       >
-        <div className="z-10 flex max-w-[616px] flex-col gap-5 bg-no-repeat lg:ml-20 lg:mt-8">
+        <div className="z-10 flex max-w-[616px] flex-col gap-5 bg-no-repeat lg:ml-20 lg:mt-8 mt-[4.5rem]">
           <p className="flex flex-col text-2xl font-semibold lg:gap-4 lg:text-[48px]">
             <span>Power the Liquidity</span>
             <span className={`${crimsonPro.className}`}>

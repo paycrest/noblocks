@@ -83,7 +83,7 @@ export const Footer = () => {
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
       <footer
-        className="relative mt-6 h-[700px] w-full px-5 md:items-center overflow-hidden"
+        className="relative mt-6 lg:h-[700px] h-[566px] w-full px-5 md:items-center overflow-hidden"
         role="contentinfo"
       >
         <div className="mx-auto w-full max-w-[1440px]">

@@ -83,7 +83,7 @@ export const Footer = () => {
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
       <footer
-        className="relative mt-6 h-[700px] w-full px-5 md:items-center"
+        className="relative mt-6 h-[700px] w-full px-5 md:items-center overflow-hidden"
         role="contentinfo"
       >
         <div className="mx-auto w-full max-w-[1440px]">
@@ -118,12 +118,13 @@ export const Footer = () => {
               <div className="">
                 <ThemeSwitch />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
                 {socials.map((social) => (
                   <SocialLink key={social.title} {...social} />
                 ))}
 
                 <div className="h-3 w-px bg-gray-200 dark:bg-white/20 max-sm:hidden" />
+
                 <p>Brand Kit</p>
               </div>
             </div>

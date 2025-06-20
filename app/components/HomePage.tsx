@@ -1,7 +1,7 @@
 "use client";
 
 import { Crimson_Pro } from "next/font/google";
-import { ArrowRight01Icon } from "hugeicons-react";
+import { ArrowRight02Icon } from "hugeicons-react";
 import FAQs from "./FAQs";
 import Image from "next/image";
 import { motion } from "framer-motion";
@@ -68,20 +68,27 @@ export function HomePage() {
         viewport={{ amount: 0.3 }}
         transition={{ duration: 0.2, ease: "easeOut", delay: 0.1 }}
       >
-        <div className="relative w-full cursor-pointer justify-center rounded-[24px] border-[0.5px] border-[#FFFFFF1A] bg-[#FD76B3] p-5 hover:opacity-90">
+        <div className="relative w-full cursor-pointer justify-center rounded-[24px] border-[0.5px] border-[#FFFFFF1A] bg-[#FD76B3] p-3 hover:opacity-90 lg:p-5">
           <Image
             src="/images/walkthrough-video.svg"
             width={100}
             height={100}
             alt="Walkthrough Video"
-            className="w-full"
+            className="hidden w-full md:block"
+          />
+          <Image
+            src="/images/walkthrough-video-img-mobile.svg"
+            width={100}
+            height={100}
+            alt="Walkthrough Video"
+            className="w-full md:hidden"
           />
           <Image
             src="/images/video-plane-img.svg"
             alt="Video Plane Image"
             width={100}
             height={100}
-            className="absolute lg:-bottom-28 lg:-right-24 lg:w-[300px] w-[120px] -bottom-[3.5rem] right-0"
+            className="absolute -bottom-[3.5rem] right-0 w-[120px] lg:-bottom-28 lg:-right-24 lg:w-[300px]"
           />
         </div>
       </motion.div>
@@ -93,7 +100,7 @@ export function HomePage() {
         viewport={{ amount: 0.3 }}
         transition={{ duration: 0.2, ease: "easeOut", delay: 0.12 }}
       >
-        <h3 className="text-2xl font-semibold lg:text-3xl">
+        <h3 className="text-center text-2xl font-semibold lg:text-3xl">
           Ways you can use Noblocks
         </h3>
         <div className="grid grid-cols-1 gap-6 rounded-[28px] border border-[#EBEBEF] p-6 dark:border-[#FFFFFF1A] lg:grid-cols-2 lg:gap-8">
@@ -200,9 +207,9 @@ export function HomePage() {
           stablecoin exchange options
         </p>
         <button className="flex items-center gap-2 hover:cursor-pointer hover:opacity-80">
-          Get started <ArrowRight01Icon />
+          Get started <ArrowRight02Icon />
         </button>
-        <div className="hidden w-full max-w-[834px] md:block">
+        <div className="hidden w-full max-w-[834px] dark:md:block">
           <Image
             src="/images/rates-graph.svg"
             width={100}
@@ -211,9 +218,27 @@ export function HomePage() {
             alt="Rates Graph"
           />
         </div>
-        <div className="w-full md:hidden">
+        <div className="hidden w-full dark:block dark:md:hidden">
           <Image
             src="/images/rates-graph-mobile.svg"
+            width={100}
+            height={100}
+            className="my-8 w-full"
+            alt="Rates Graph"
+          />
+        </div>
+        <div className="block w-full dark:hidden md:hidden">
+          <Image
+            src="/images/rates-graph-mobile-light-mode.svg"
+            width={100}
+            height={100}
+            className="my-8 w-full"
+            alt="Rates Graph"
+          />
+        </div>
+        <div className="hidden w-full max-w-[834px] md:block dark:md:hidden">
+          <Image
+            src="/images/rates-graph-desktop-light-mode.svg"
             width={100}
             height={100}
             className="my-8 w-full"
@@ -257,6 +282,7 @@ export function HomePage() {
           </div>
         </div>
       </motion.section>
+
       <motion.section
         className="relative mx-auto my-20 flex h-[865px] w-full flex-col gap-8 bg-[url('/images/power-liquidity-mobile-illustration.svg')] bg-cover bg-no-repeat px-5 md:hidden"
         initial={{ opacity: 0, y: 40 }}
@@ -281,6 +307,7 @@ export function HomePage() {
           </button>
         </div>
       </motion.section>
+
       <motion.section
         className="flex w-full flex-col justify-center px-5 md:flex-row-reverse lg:items-center"
         initial={{ opacity: 0, y: 40 }}
@@ -289,7 +316,7 @@ export function HomePage() {
         transition={{ duration: 0.2, ease: "easeOut", delay: 0.25 }}
       >
         <div className="w-full max-w-[302px] space-y-4">
-          <button className="rounded-3xl bg-[#20BA90] p-[6px] text-sm font-medium text-white dark:text-black">
+          <button className="rounded-3xl bg-[#20BA90] p-[6px] text-sm font-medium text-white dark:text-white">
             Coming soon
           </button>
           <h3 className="flex flex-col gap-1 font-semibold">
@@ -307,19 +334,37 @@ export function HomePage() {
             <span className={`${crimsonPro.className} italic`}>30s</span>
           </p>
         </div>
+
         <Image
           src="/images/mobile-app-illustration-mobile.svg"
-          alt="Mobile App Illustration"
+          alt="Mobile App Illustration Mobile Dark"
           width={100}
           height={100}
-          className="w-full md:hidden"
+          className="hidden w-full dark:block dark:md:hidden"
         />
+
+        <Image
+          src="/images/mobile-app-illustration-light-mode-mobile.svg"
+          alt="Mobile App Illustration Mobile Light"
+          width={100}
+          height={100}
+          className="block w-full dark:hidden md:hidden"
+        />
+
         <Image
           src="/images/mobile-app-illustration-desktop.svg"
-          alt="Mobile App Illustration"
+          alt="Mobile App Illustration Desktop Dark"
           width={100}
           height={100}
-          className="hidden w-full max-w-[800px] md:block"
+          className="hidden w-full max-w-[800px] dark:md:block"
+        />
+
+        <Image
+          src="/images/mobile-app-illustration-light-mode-desktop.svg"
+          alt="Mobile App Illustration Desktop Light"
+          width={100}
+          height={100}
+          className="hidden w-full max-w-[800px] md:block dark:md:hidden"
         />
       </motion.section>
     </motion.div>

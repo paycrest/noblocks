@@ -1,8 +1,17 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState, useRef } from "react";
-import { useLogin, usePrivy } from "@privy-io/react-auth";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { ArrowDown01Icon } from "hugeicons-react";
+import { useEffect, useState, useRef } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+
+import {
+  useConnectModal,
+  useActiveAccount,
+  ConnectButton,
+} from "thirdweb/react";
+import { getConnectConfig } from "../lib/thirdweb";
 
 import {
   NoblocksLogo,
@@ -13,63 +22,43 @@ import { baseBtnClasses } from "./Styles";
 import { WalletDetails } from "./WalletDetails";
 import { NetworksDropdown } from "./NetworksDropdown";
 import { SettingsDropdown } from "./SettingsDropdown";
-import { identifyUser, trackEvent } from "../hooks/analytics";
 import {
   shortenAddress,
   IS_MAIN_PRODUCTION_DOMAIN,
   classNames,
   getNetworkImageUrl,
 } from "../utils";
-import { ArrowDown01Icon } from "hugeicons-react";
-import { AnimatePresence, motion } from "framer-motion";
 import { MobileDropdown } from "./MobileDropdown";
-import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { Chain } from "thirdweb";
 
 export const Navbar = () => {
+  const pathname = usePathname();
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const isDark = useActualTheme();
+  const { selectedNetwork } = useNetwork();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+
   const [mounted, setMounted] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileDropdownOpen, setIsMobileDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const pathname = usePathname();
-  const { selectedNetwork } = useNetwork();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const isDark = useActualTheme();
 
-  const { ready, authenticated, user } = usePrivy();
+  const { connect } = useConnectModal();
+  const account = useActiveAccount();
+  const isAuthenticated = !!account;
 
   const activeWallet = isInjectedWallet
-    ? { address: injectedAddress, type: "injected_wallet" }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    ? { address: injectedAddress }
+    : { address: account?.address };
 
-  const { login } = useLogin({
-    onComplete: async ({ user, isNewUser, loginMethod }) => {
-      if (user.wallet?.address) {
-        identifyUser(user.wallet.address, {
-          login_method: loginMethod,
-          isNewUser,
-          createdAt: user.createdAt,
-          email: user.email,
-        });
-
-        if (isNewUser) {
-          localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address}`);
-
-          trackEvent("Sign up completed", {
-            "Login method": loginMethod,
-            user_id: user.wallet.address,
-            "Email address": user.email,
-            "Sign up date": user.createdAt.toISOString(),
-            "Noblocks balance": 0, // a new user should always have 0 balance
-          });
-        } else {
-          trackEvent("Login completed", { "Login method": loginMethod });
-        }
-      }
-    },
-  });
+  const handleConnect = async () => {
+    await connect(
+      getConnectConfig(isDark, selectedNetwork.chain as unknown as Chain),
+    );
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -94,11 +83,11 @@ export const Navbar = () => {
 
   return (
     <header
-      className="fixed left-0 top-0 z-20 w-full bg-white transition-all dark:bg-neutral-900"
+      className="fixed left-0 top-0 z-40 w-full bg-white transition-all dark:bg-neutral-900"
       role="banner"
     >
       <nav
-        className="mx-auto flex items-center justify-between p-4 text-neutral-900 lg:container dark:text-white lg:px-8"
+        className="mx-auto flex items-center justify-between px-4 py-6 text-neutral-900 lg:container dark:text-white lg:px-8"
         aria-label="Navbar"
       >
         <div className="flex items-start gap-2 lg:flex-1">
@@ -146,7 +135,7 @@ export const Navbar = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="*:w-fullx absolute left-0 top-full mt-4 w-48 rounded-lg border border-border-light bg-white p-2 text-sm shadow-lg *:flex *:rounded-lg *:px-4 *:py-2 *:text-sm *:text-gray-700 *:transition-colors *:hover:bg-accent-gray dark:border-white/5 dark:bg-surface-overlay *:dark:bg-surface-overlay *:dark:text-white/80"
+                    className="absolute left-0 top-full mt-4 w-48 rounded-lg border border-border-light bg-white p-2 text-sm shadow-lg *:flex *:w-full *:rounded-lg *:px-4 *:py-2 *:text-sm *:text-gray-700 *:transition-colors dark:border-white/5 dark:bg-surface-overlay *:dark:bg-surface-overlay *:dark:text-white/80"
                   >
                     {pathname !== "/" && (
                       <Link
@@ -179,7 +168,7 @@ export const Navbar = () => {
         </div>
 
         <div className="flex gap-3 text-sm font-medium *:flex-shrink-0 sm:gap-4">
-          {(ready && authenticated) || isInjectedWallet ? (
+          {isAuthenticated || isInjectedWallet ? (
             <>
               <div className="hidden sm:block">
                 <WalletDetails />
@@ -200,7 +189,7 @@ export const Navbar = () => {
               >
                 <Image
                   src={getNetworkImageUrl(selectedNetwork, isDark)}
-                  alt={selectedNetwork.chain.name}
+                  alt={selectedNetwork.chain.name ?? "Network"}
                   width={20}
                   height={20}
                   className="size-5 rounded-full"
@@ -223,12 +212,22 @@ export const Navbar = () => {
               <button
                 type="button"
                 className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}
-                onClick={() => login()}
+                onClick={() => handleConnect()}
               >
                 Sign in
               </button>
             )
           )}
+
+          {/* This persists the user login and from observation, removing it will require login on every refresh */}
+          <div hidden>
+            <ConnectButton
+              {...getConnectConfig(
+                isDark,
+                selectedNetwork.chain as unknown as Chain,
+              )}
+            />
+          </div>
         </div>
       </nav>
     </header>

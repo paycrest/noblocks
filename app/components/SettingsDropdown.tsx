@@ -1,19 +1,12 @@
 "use client";
 import { AnimatePresence, motion } from "framer-motion";
 import { useRef, useState } from "react";
-import {
-  useLinkAccount,
-  useLogout,
-  usePrivy,
-  useMfaEnrollment,
-} from "@privy-io/react-auth";
 import { ImSpinner } from "react-icons/im";
 import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
 import { classNames, shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 import {
-  AccessIcon,
   Copy01Icon,
   CustomerService01Icon,
   Logout03Icon,
@@ -25,15 +18,22 @@ import {
 import { toast } from "sonner";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
-import { createWalletClient, custom } from "viem";
-import { trackEvent } from "../hooks/analytics";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
+import {
+  useActiveAccount,
+  useActiveWallet,
+  useDisconnect,
+} from "thirdweb/react";
 
 export const SettingsDropdown = () => {
-  const { user, exportWallet, updateEmail } = usePrivy();
-  const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+
+  const account = useActiveAccount();
+  const isAuthenticated = !!account;
+
+  const wallet = useActiveWallet();
+  const { disconnect } = useDisconnect();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -44,10 +44,7 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-        ?.address;
+  const walletAddress = isInjectedWallet ? injectedAddress : account?.address;
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(walletAddress ?? "");
@@ -55,41 +52,27 @@ export const SettingsDropdown = () => {
     setTimeout(() => setIsAddressCopied(false), 2000);
   };
 
-  const { logout } = useLogout({
-    onSuccess: () => {
-      setIsLoggingOut(false);
-    },
-  });
-
-  const { linkEmail } = useLinkAccount({
-    onSuccess: ({ user }) => {
-      toast.success(`${user.email} linked successfully`);
-    },
-    onError: () => {
-      toast.error("Error linking account", {
-        description: "You might have this email linked already",
-      });
-    },
-  });
-
   const { disconnectWallet } = useWalletDisconnect();
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      await logout();
+      if (wallet) disconnect(wallet);
       if (window.ethereum) {
         await disconnectWallet();
       }
     } catch (error) {
       console.error("Error during logout:", error);
       // Still proceed with logout even if wallet disconnection fails
-      await logout();
+      if (wallet) disconnect(wallet);
+    } finally {
+      toast.success("Logged out successfully");
+      setIsLoggingOut(false);
     }
   };
 
   return (
-    <div ref={dropdownRef} className="relative">
+    <div ref={dropdownRef} className="relative z-30">
       <button
         type="button"
         aria-label="Wallet details"
@@ -116,7 +99,7 @@ export const SettingsDropdown = () => {
             exit="closed"
             variants={dropdownVariants}
             aria-label="Dropdown menu"
-            className="absolute right-0 z-10 mt-4 w-fit min-w-40 space-y-4 overflow-hidden rounded-xl border border-border-light bg-white p-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
+            className="absolute right-0 z-50 mt-4 w-fit min-w-40 space-y-4 overflow-hidden rounded-xl border border-border-light bg-white p-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
           >
             <ul
               role="menu"
@@ -150,7 +133,7 @@ export const SettingsDropdown = () => {
                 </button>
               </li>
 
-              {!isInjectedWallet && (
+              {/* {!isInjectedWallet && (
                 <li
                   role="menuitem"
                   className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
@@ -168,9 +151,9 @@ export const SettingsDropdown = () => {
                     </div>
                   </button>
                 </li>
-              )}
+              )} */}
 
-              {!isInjectedWallet &&
+              {/* {!isInjectedWallet &&
                 (user?.email ? (
                   <li
                     role="menuitem"
@@ -206,17 +189,8 @@ export const SettingsDropdown = () => {
                       </div>
                     </button>
                   </li>
-                ))}
-              {/* {!isInjectedWallet && (
-                <li
-                  role="menuitem"
-                  className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
-                  onClick={exportWallet}
-                >
-                  <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-                  <p>Export wallet</p>
-                </li>
-              )} */}
+                ))} */}
+
               <li
                 role="menuitem"
                 className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"

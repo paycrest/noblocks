@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   classNames,
   formatCurrency,
@@ -7,7 +7,6 @@ import {
   shortenAddress,
 } from "../utils";
 import { useBalance } from "../context/BalanceContext";
-import { usePrivy } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { TransferModal } from "./TransferModal";
 import {
@@ -16,11 +15,9 @@ import {
   Wallet01Icon,
   ArrowLeft02Icon,
   ArrowDown01Icon,
-  Clock01Icon,
 } from "hugeicons-react";
 import Image from "next/image";
 import { FundWalletModal } from "./FundWalletModal";
-import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { toast } from "sonner";
 import { Dialog } from "@headlessui/react";
@@ -29,13 +26,13 @@ import { sidebarAnimation, fadeInOut } from "./AnimatedComponents";
 import { TransactionDetails } from "./transaction/TransactionDetails";
 import type { TransactionHistory } from "../types";
 import { PiCheck } from "react-icons/pi";
-import { fetchRate } from "../api/aggregator";
 import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
 import { useActualTheme } from "../hooks/useActualTheme";
 import TransactionList from "./transaction/TransactionList";
+import { useCNGNRate } from "@/app/hooks/useCNGNRate";
+import { useActiveAccount } from "thirdweb/react";
 
 export const WalletDetails = () => {
-  const [rate, setRate] = useState<number>(0);
   const [isTransferModalOpen, setIsTransferModalOpen] =
     useState<boolean>(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
@@ -50,35 +47,19 @@ export const WalletDetails = () => {
   const { selectedNetwork } = useNetwork();
   const { allBalances, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const { user } = usePrivy();
   const isDark = useActualTheme();
 
-  // Custom hook for handling wallet funding
-  const { handleFundWallet } = useFundWalletHandler("Wallet details");
+  const account = useActiveAccount();
 
   // Determine active wallet based on wallet type
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : { address: account?.address };
 
   // Get appropriate balance based on wallet type
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
     : allBalances.smartWallet;
-
-  // Handler for funding wallet with specified amount and token
-  const handleFundWalletClick = async (
-    amount: string,
-    tokenAddress: `0x${string}`,
-    onComplete?: (success: boolean) => void,
-  ) => {
-    await handleFundWallet(
-      activeWallet?.address ?? "",
-      amount,
-      tokenAddress,
-      onComplete,
-    );
-  };
 
   // Close sidebar and reset selected transaction
   const handleSidebarClose = () => {
@@ -99,26 +80,7 @@ export const WalletDetails = () => {
     setSelectedTransaction(null);
   };
 
-  // Fetch CNGN rate on component mount
-  useEffect(() => {
-    const getCNGNRate = async () => {
-      try {
-        const rateResponse = await fetchRate({
-          token: "USDT",
-          amount: 1,
-          currency: "NGN",
-        });
-
-        if (rateResponse?.data && typeof rateResponse.data === "string") {
-          setRate(Number(rateResponse.data));
-        }
-      } catch (error) {
-        console.error("Error fetching CNGN rate:", error);
-      }
-    };
-
-    getCNGNRate();
-  }, []);
+  const { rate } = useCNGNRate();
 
   return (
     <>
@@ -215,7 +177,7 @@ export const WalletDetails = () => {
                         <div className="flex items-center gap-2">
                           <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
                           <p className="text-text-body dark:text-white/80">
-                            {shortenAddress(activeWallet?.address ?? "", 8)}
+                            {shortenAddress(account?.address ?? "", 8)}
                           </p>
                         </div>
                         <button
@@ -328,7 +290,10 @@ export const WalletDetails = () => {
                                             selectedNetwork,
                                             isDark,
                                           )}
-                                          alt={selectedNetwork.chain.name}
+                                          alt={
+                                            selectedNetwork.chain.name ??
+                                            "Network"
+                                          }
                                           width={16}
                                           height={16}
                                           className="absolute -bottom-1 -right-1 size-4 rounded-full"
@@ -400,7 +365,6 @@ export const WalletDetails = () => {
           <FundWalletModal
             isOpen={isFundModalOpen}
             onClose={() => setIsFundModalOpen(false)}
-            onFund={handleFundWalletClick}
           />
         </>
       )}

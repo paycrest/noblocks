@@ -3,14 +3,12 @@ import Image from "next/image";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
-import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
 import {
   Cancel01Icon,
   ArrowRight01Icon,
   Mail01Icon,
   ColorsIcon,
   Logout03Icon,
-  AccessIcon,
   Setting07Icon,
   Wallet01Icon,
   ArrowLeft02Icon,
@@ -29,7 +27,6 @@ import {
   detectWalletProvider,
   getNetworkImageUrl,
 } from "../utils";
-import { useLogout } from "@privy-io/react-auth";
 import { PiCheck } from "react-icons/pi";
 import { ImSpinner } from "react-icons/im";
 import { ThemeSwitch } from "./ThemeSwitch";
@@ -47,6 +44,11 @@ import { TransactionHistoryModal } from "./transaction/TransactionHistoryModal";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { BalanceCardSkeleton } from "./BalanceSkeleton";
+import {
+  useActiveAccount,
+  useActiveWallet,
+  useDisconnect,
+} from "thirdweb/react";
 
 export const MobileDropdown = ({
   isOpen,
@@ -64,28 +66,26 @@ export const MobileDropdown = ({
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [isTransactionHistoryModalOpen, setIsTransactionHistoryModalOpen] =
     useState(false);
+  const [fundingInProgress, setFundingInProgress] = useState(false);
+  const [payEmbedConfig, setPayEmbedConfig] = useState<any>(null);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
-  const { user, exportWallet, linkEmail, updateEmail } = usePrivy();
   const { allBalances, isLoading } = useBalance();
-  const { logout } = useLogout({
-    onSuccess: () => {
-      setIsLoggingOut(false);
-    },
-  });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+
+  const account = useActiveAccount();
+  const wallet = useActiveWallet();
+  const { disconnect } = useDisconnect();
 
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
   const smartWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : { address: account?.address };
 
   const { currentStep } = useStep();
 
   const { disconnectWallet } = useWalletDisconnect();
-
-  const { showMfaEnrollmentModal } = useMfaEnrollment();
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(smartWallet?.address ?? "");
@@ -124,12 +124,16 @@ export const MobileDropdown = ({
     tokenAddress: `0x${string}`,
     onComplete?: (success: boolean) => void,
   ) => {
-    await handleFundWallet(
+    const payEmbedConfig = await handleFundWallet(
       smartWallet?.address ?? "",
       amount,
       tokenAddress,
       onComplete,
     );
+
+    // Show the PayEmbed component with the configuration
+    setFundingInProgress(true);
+    setPayEmbedConfig(payEmbedConfig);
   };
 
   const activeBalance = isInjectedWallet
@@ -167,15 +171,17 @@ export const MobileDropdown = ({
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
+      if (wallet) disconnect(wallet);
+
       // Disconnect external wallet if connected
-      await logout();
       if (window.ethereum) {
         await disconnectWallet();
       }
     } catch (error) {
       console.error("Error during logout:", error);
-      // Still proceed with logout even if wallet disconnection fails
-      await logout();
+
+      // Still proceed with logout even if external wallet disconnection fails
+      if (wallet) disconnect(wallet);
     }
   };
 
@@ -307,7 +313,7 @@ export const MobileDropdown = ({
                           </div>
 
                           {/* Wallet Address Container */}
-                          {smartWallet?.address && (
+                          {account?.address && (
                             <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
                               <div className="flex items-center gap-2">
                                 <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
@@ -317,7 +323,7 @@ export const MobileDropdown = ({
                               </div>
 
                               <span className="block break-words text-sm font-medium dark:text-white/80">
-                                {smartWallet?.address ?? ""}
+                                {account?.address ?? ""}
                               </span>
 
                               <button
@@ -471,7 +477,7 @@ export const MobileDropdown = ({
                           </div>
 
                           <div className="space-y-2 *:min-h-11">
-                            {!isInjectedWallet && (
+                            {/* {!isInjectedWallet && (
                               <button
                                 type="button"
                                 onClick={showMfaEnrollmentModal}
@@ -484,9 +490,9 @@ export const MobileDropdown = ({
                                     : "Enable MFA"}
                                 </p>
                               </button>
-                            )}
+                            )} */}
 
-                            {!isInjectedWallet && user?.email ? (
+                            {/* {!isInjectedWallet && user?.email ? (
                               <button
                                 type="button"
                                 onClick={updateEmail}
@@ -519,23 +525,7 @@ export const MobileDropdown = ({
                                 </div>
                                 <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
                               </button>
-                            ) : null}
-
-                            {/* {!isInjectedWallet && (
-                              <button
-                                type="button"
-                                onClick={exportWallet}
-                                className="flex w-full items-center justify-between"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <AccessIcon className="size-5 text-outline-gray dark:text-white/50" />
-                                  <span className="text-text-body dark:text-white/80">
-                                    Export wallet
-                                  </span>
-                                </div>
-                                <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                              </button>
-                            )} */}
+                            ) : null} */}
 
                             <a
                               href={config.contactSupportUrl}
@@ -562,7 +552,7 @@ export const MobileDropdown = ({
                               <ThemeSwitch />
                             </div>
 
-                            {!isInjectedWallet && (
+                            {!isInjectedWallet && wallet && (
                               <button
                                 type="button"
                                 onClick={handleLogout}
@@ -591,16 +581,19 @@ export const MobileDropdown = ({
         )}
       </AnimatePresence>
 
-      <TransferModal
-        isOpen={isTransferModalOpen}
-        onClose={() => setIsTransferModalOpen(false)}
-      />
+      {!isInjectedWallet && (
+        <>
+          <TransferModal
+            isOpen={isTransferModalOpen}
+            onClose={() => setIsTransferModalOpen(false)}
+          />
 
-      <FundWalletModal
-        isOpen={isFundModalOpen}
-        onClose={() => setIsFundModalOpen(false)}
-        onFund={handleFundWalletClick}
-      />
+          <FundWalletModal
+            isOpen={isFundModalOpen}
+            onClose={() => setIsFundModalOpen(false)}
+          />
+        </>
+      )}
       <TransactionHistoryModal
         isOpen={isTransactionHistoryModalOpen}
         onClose={() => setIsTransactionHistoryModalOpen(false)}

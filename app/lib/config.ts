@@ -17,6 +17,8 @@ export const DEFAULT_PRIVY_CONFIG: JWTProviderConfig = {
     jwksUrl: process.env.PRIVY_JWKS_URL || "",
     issuer: process.env.PRIVY_ISSUER || "",
     algorithms: ["ES256"],
+    appId: process.env.PRIVY_APP_ID || "",
+    appSecret: process.env.PRIVY_APP_SECRET || "",
   },
 };
 
@@ -25,5 +27,6 @@ export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
   thirdweb: {
     clientId: process.env.THIRDWEB_CLIENT_ID || "",
     domain: process.env.THIRDWEB_DOMAIN || "",
+    secretKey: process.env.THIRDWEB_SECRET_KEY || "",
   },
 };

@@ -1,21 +1,25 @@
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
-
+import { useActiveAccount, useSendTransaction } from "thirdweb/react";
+import {
+  prepareTransaction,
+  signAuthorization,
+  getContract,
+  type Chain,
+} from "thirdweb";
 import {
   ArrowLeft02Icon,
   Cancel01Icon,
   CheckmarkCircle01Icon,
   Wallet01Icon,
 } from "hugeicons-react";
-
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { BaseError, encodeFunctionData, erc20Abi, parseUnits } from "viem";
-
 import { useBalance } from "../context";
 import type { Token } from "../types";
 import { useNetwork } from "../context/NetworksContext";
-import { classNames, fetchSupportedTokens } from "../utils";
+import { classNames, fetchSupportedTokens, getRpcUrl } from "../utils";
+import { THIRDWEB_CLIENT } from "../lib/thirdweb/client";
 
 import { primaryBtnClasses } from "./Styles";
 import { FormDropdown } from "./FormDropdown";
@@ -38,7 +42,6 @@ export const TransferModal = ({
   const [transferToken, setTransferToken] = useState<string>("");
 
   const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
-  const { client } = useSmartWallets();
 
   type FormData = {
     amount: number;
@@ -81,8 +84,13 @@ export const TransferModal = ({
 
   const handleTransfer = async (data: FormData) => {
     try {
+      const account = useActiveAccount();
+      if (!account) {
+        throw new Error("No wallet connected");
+      }
+
       const fetchedTokens: Token[] =
-        fetchSupportedTokens(client?.chain.name) || [];
+        fetchSupportedTokens(selectedNetwork.chain.name) || [];
 
       const searchToken = token.toUpperCase();
       const tokenData = fetchedTokens.find(
@@ -101,8 +109,31 @@ export const TransferModal = ({
 
       setIsConfirming(true);
 
-      await client?.sendTransaction({
+      const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
+      if (!rpcUrl) {
+        throw new Error("RPC URL not found for network");
+      }
+
+      // Sign authorization for EIP-7702
+      const authorization = await signAuthorization({
+        request: {
+          address: account.address as `0x${string}`,
+          chainId: selectedNetwork.chain.id,
+          nonce: BigInt(Date.now().toString()),
+        },
+        account,
+      });
+
+      // Prepare transfer transaction with EIP-7702
+      const transferTx = prepareTransaction({
+        chain: {
+          ...selectedNetwork.chain,
+          rpc: rpcUrl,
+        } as Chain,
+        client: THIRDWEB_CLIENT,
         to: tokenAddress,
+        value: BigInt(0),
+        authorizationList: [authorization],
         data: encodeFunctionData({
           abi: erc20Abi,
           functionName: "transfer",
@@ -112,6 +143,9 @@ export const TransferModal = ({
           ],
         }),
       });
+
+      const { mutate: sendTransaction } = useSendTransaction();
+      await sendTransaction(transferTx);
 
       setTransferAmount(data.amount.toString());
       setTransferToken(token);

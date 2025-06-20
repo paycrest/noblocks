@@ -3,14 +3,25 @@ import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { ArrowLeft02Icon, Cancel01Icon } from "hugeicons-react";
+import { PayEmbed } from "thirdweb/react";
 import { AnimatedModal } from "./AnimatedComponents";
 import { useNetwork } from "../context/NetworksContext";
 import { FormDropdown } from "./FormDropdown";
 import { primaryBtnClasses } from "./Styles";
-import { classNames, fetchSupportedTokens, getNetworkImageUrl } from "../utils";
+import {
+  classNames,
+  fetchSupportedTokens,
+  getNetworkImageUrl,
+  getRpcUrl,
+} from "../utils";
 import { trackEvent } from "../hooks/analytics";
 import type { Token } from "../types";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useActiveAccount } from "thirdweb/react";
+import { THIRDWEB_CLIENT } from "../lib/thirdweb/client";
+import { useBalance } from "../context";
+import type { Chain } from "thirdweb";
+import { customLightTheme, customDarkTheme } from "../lib/thirdweb/theme";
 
 type FundFormData = {
   amount: number;
@@ -20,22 +31,16 @@ type FundFormData = {
 type FundWalletModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onFund: (
-    amount: string,
-    tokenAddress: `0x${string}`,
-    onComplete?: (success: boolean) => void,
-  ) => Promise<void>;
 };
 
-export const FundWalletModal = ({
-  isOpen,
-  onClose,
-  onFund,
-}: FundWalletModalProps) => {
+export const FundWalletModal = ({ isOpen, onClose }: FundWalletModalProps) => {
   const { selectedNetwork } = useNetwork();
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
   const [fundingInProgress, setFundingInProgress] = useState<boolean>(false);
+  const [rpcUrl, setRpcUrl] = useState<string>("");
   const isDark = useActualTheme();
+  const account = useActiveAccount();
+  const { refreshBalance } = useBalance();
 
   const formMethods = useForm<FundFormData>({ mode: "onChange" });
   const {
@@ -61,10 +66,18 @@ export const FundWalletModal = ({
 
   const handleFund = async (data: FundFormData) => {
     try {
+      if (!account?.address) {
+        throw new Error("No wallet connected");
+      }
+
+      const networkRpcUrl = getRpcUrl(selectedNetwork.chain.name);
+      if (!networkRpcUrl) {
+        throw new Error("RPC URL not found for network");
+      }
+      setRpcUrl(networkRpcUrl);
+
       setIsConfirming(true);
-      const tokenAddress = fetchedTokens.find(
-        (t) => t.symbol.toUpperCase() === data.token,
-      )?.address as `0x${string}`;
+      setFundingInProgress(true);
 
       trackEvent("Funding started", {
         "Entry point": "Fund modal",
@@ -73,18 +86,8 @@ export const FundWalletModal = ({
         Token: data.token,
       });
 
-      // Show funding in progress state
-      setFundingInProgress(true);
-
-      // Pass a callback to onFund to handle completion
-      await onFund(data.amount.toString(), tokenAddress, (success) => {
-        setFundingInProgress(false);
-        setIsConfirming(false);
-        if (success) {
-          reset();
-          onClose();
-        }
-      });
+      // The PayEmbed component will handle the actual funding process
+      // We just need to show it and handle the callbacks
     } catch (error) {
       console.error("Fund error:", error);
       setFundingInProgress(false);
@@ -93,16 +96,18 @@ export const FundWalletModal = ({
   };
 
   const handleModalClose = () => {
-    if (!fundingInProgress) {
-      reset();
-      onClose();
-    } else {
+    if (fundingInProgress) {
       if (confirm("Are you sure you want to cancel the funding process?")) {
         setFundingInProgress(false);
         reset();
         onClose();
       }
+    } else {
+      reset();
+      onClose();
     }
+
+    refreshBalance();
   };
 
   useEffect(() => {
@@ -128,13 +133,33 @@ export const FundWalletModal = ({
               <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
             </button>
           </div>
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-solid border-lavender-500 border-t-transparent"></div>
-          <p className="text-center text-text-body dark:text-white/80">
-            Please complete the funding process.
-          </p>
-          <p className="text-center text-sm text-text-secondary dark:text-white/50">
-            This window will automatically close when the process is complete.
-          </p>
+          <PayEmbed
+            client={THIRDWEB_CLIENT}
+            theme={isDark ? customDarkTheme : customLightTheme}
+            payOptions={{
+              mode: "fund_wallet",
+              metadata: {
+                name: "Get funds",
+              },
+              prefillBuy: {
+                chain: {
+                  ...selectedNetwork.chain,
+                  rpc: rpcUrl,
+                } as Chain,
+                amount: amount?.toString() || "0",
+                token: fetchedTokens.find((t) => t.symbol === token)
+                  ? {
+                      address: fetchedTokens.find((t) => t.symbol === token)
+                        ?.address as `0x${string}`,
+                      symbol: token,
+                      name:
+                        fetchedTokens.find((t) => t.symbol === token)?.name ||
+                        token,
+                    }
+                  : undefined,
+              },
+            }}
+          />
         </div>
       ) : (
         <div className="space-y-4">
@@ -206,39 +231,28 @@ export const FundWalletModal = ({
                   placeholder="0"
                   title="Enter amount to fund"
                 />
-
-                <FormDropdown
-                  defaultTitle="Select token"
-                  data={tokens}
-                  defaultSelectedItem={token}
-                  onSelect={(selectedToken) => setValue("token", selectedToken)}
-                  className="min-w-44"
-                />
+                <div className="w-40">
+                  <FormDropdown
+                    defaultTitle="Select token"
+                    data={tokens}
+                    defaultSelectedItem={token}
+                    onSelect={(selectedToken) =>
+                      setValue("token", selectedToken)
+                    }
+                    className="min-w-44"
+                  />
+                </div>
               </div>
+              {errors.amount && (
+                <p className="text-xs text-red-500">{errors.amount.message}</p>
+              )}
             </div>
-
-            <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">
-              <p className="text-text-secondary dark:text-white/50">Network</p>
-              <div className="flex items-center gap-2">
-                <Image
-                  src={getNetworkImageUrl(selectedNetwork, isDark)}
-                  alt={selectedNetwork.chain.name}
-                  width={16}
-                  height={16}
-                  className="size-4 rounded-full"
-                />
-                <span className="text-text-body dark:text-white">
-                  {selectedNetwork.chain.name}
-                </span>
-              </div>
-            </div>
-
             <button
               type="submit"
-              className={classNames(primaryBtnClasses, "w-full")}
-              disabled={!isValid || !isDirty || isConfirming}
+              disabled={!isValid || !isDirty}
+              className={`${primaryBtnClasses} w-full`}
             >
-              {isConfirming ? "Loading..." : "Choose funding method"}
+              Next
             </button>
           </form>
         </div>

@@ -7,6 +7,8 @@ import Providers from "./providers";
 import MainContent from "./mainContent";
 import { Footer, Navbar } from "./components";
 import Script from "next/script";
+import MigrationBanner from "./components/migration/MigrationBanner";
+import { MultiNetworkBalanceProvider } from "./context/MultiNetworkBalanceContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -207,13 +209,18 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <Providers>
-          <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-            <Navbar />
-            <div className="relative mx-auto flex min-h-dvh flex-col items-center px-5 pt-24 transition-all">
-              <MainContent>{children}</MainContent>
-              <Footer />
+          <MultiNetworkBalanceProvider>
+            <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
+              <div className="relative">
+                <Navbar />
+                <MigrationBanner />
+              </div>
+              <div className="relative mx-auto flex min-h-dvh flex-col items-center px-5 pt-64 transition-all sm:pt-52">
+                <MainContent>{children}</MainContent>
+                <Footer />
+              </div>
             </div>
-          </div>
+          </MultiNetworkBalanceProvider>
         </Providers>
       </body>
     </html>

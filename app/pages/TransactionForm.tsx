@@ -2,7 +2,6 @@
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ImSpinner, ImSpinner3 } from "react-icons/im";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
@@ -31,6 +30,10 @@ import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus, fetchRate } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
+import { useActiveAccount, useConnectModal } from "thirdweb/react";
+import { getConnectConfig } from "../lib/thirdweb";
+import { useActualTheme } from "../hooks/useActualTheme";
+import { Chain } from "thirdweb";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -49,15 +52,12 @@ export const TransactionForm = ({
   const searchParams = useSearchParams();
   // Destructure stateProps
   const { rate, isFetchingRate, setOrderId } = stateProps;
-  const { authenticated, ready, login, user } = usePrivy();
-  const { wallets } = useWallets();
+
+  const account = useActiveAccount();
+  const isAuthenticated = !!account;
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-
-  const embeddedWalletAddress = wallets.find(
-    (wallet) => wallet.walletClientType === "privy",
-  )?.address;
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
@@ -92,7 +92,7 @@ export const TransactionForm = ({
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : { address: account?.address };
 
   const activeBalance = isInjectedWallet
     ? injectedWalletBalance
@@ -101,19 +101,6 @@ export const TransactionForm = ({
   const balance = activeBalance?.balances[token] ?? 0;
 
   const { handleFundWallet } = useFundWalletHandler("Transaction form");
-
-  const handleFundWalletClick = async (
-    amount: string,
-    tokenAddress: `0x${string}`,
-    onComplete?: (success: boolean) => void,
-  ) => {
-    await handleFundWallet(
-      activeWallet?.address ?? "",
-      amount,
-      tokenAddress,
-      onComplete,
-    );
-  };
 
   const fetchedTokens: Token[] =
     fetchSupportedTokens(selectedNetwork.chain.name) || [];
@@ -225,7 +212,7 @@ export const TransactionForm = ({
     function checkKycStatus() {
       const walletAddressToCheck = isInjectedWallet
         ? injectedAddress
-        : embeddedWalletAddress;
+        : account?.address;
       if (!walletAddressToCheck) return;
 
       const fetchStatus = async () => {
@@ -250,7 +237,7 @@ export const TransactionForm = ({
 
       fetchStatus();
     },
-    [embeddedWalletAddress, injectedAddress, isInjectedWallet],
+    [account?.address, injectedAddress, isInjectedWallet],
   );
 
   useEffect(
@@ -525,6 +512,14 @@ export const TransactionForm = ({
     setIsReceiveInputActive(true);
   };
 
+  const isDark = useActualTheme();
+  const { connect } = useConnectModal();
+  const handleConnect = async () => {
+    await connect(
+      getConnectConfig(isDark, selectedNetwork.chain as unknown as Chain),
+    );
+  };
+
   return (
     <div className="mx-auto max-w-[27.3125rem]">
       <form
@@ -603,7 +598,7 @@ export const TransactionForm = ({
                 }}
                 value={formattedSentAmount}
                 className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                  authenticated && (amountSent > balance || errors.amountSent)
+                  isAuthenticated && (amountSent > balance || errors.amountSent)
                     ? "text-red-500 dark:text-red-500"
                     : "text-neutral-900 dark:text-white/80"
                 }`}
@@ -688,7 +683,8 @@ export const TransactionForm = ({
                   // 1. No currency is selected AND
                   // 2. Either user is not authenticated OR (user is authenticated AND doesn't need funding)
                   !currency &&
-                  (!authenticated || (authenticated && !(amountSent > balance)))
+                  (!isAuthenticated ||
+                    (isAuthenticated && !(amountSent > balance)))
                 }
               />
             </div>
@@ -698,7 +694,7 @@ export const TransactionForm = ({
         {/* Recipient and memo */}
         <AnimatePresence>
           {currency &&
-            (authenticated || isInjectedWallet) &&
+            (isAuthenticated || isInjectedWallet) &&
             isUserVerified && (
               <AnimatedComponent
                 variant={slideInOut}
@@ -747,7 +743,7 @@ export const TransactionForm = ({
         </AnimatePresence>
 
         {/* Loading and Submit buttons */}
-        {!ready && (
+        {/* {!isAuthenticated && (
           <button
             title="Loading..."
             type="button"
@@ -756,32 +752,24 @@ export const TransactionForm = ({
           >
             <ImSpinner className="mx-auto animate-spin text-xl" />
           </button>
-        )}
+        )} */}
 
-        {ready && (
-          <>
-            <button
-              type="button"
-              className={primaryBtnClasses}
-              disabled={!isEnabled}
-              onClick={buttonAction(
-                handleSwap,
-                login,
-                () =>
-                  handleFundWallet(
-                    activeWallet?.address ?? "",
-                    amountSent.toString(),
-                    (fetchedTokens.find((t) => t.symbol === token)
-                      ?.address as `0x${string}`) ?? "",
-                  ),
-                () => setIsKycModalOpen(true),
-                isUserVerified,
-              )}
-            >
-              {buttonText}
-            </button>
-          </>
-        )}
+        <button
+          type="button"
+          className={primaryBtnClasses}
+          disabled={!isEnabled}
+          onClick={buttonAction(
+            handleSwap,
+            handleConnect,
+            () => {
+              setIsFundModalOpen(true);
+            },
+            () => setIsKycModalOpen(true),
+            isUserVerified,
+          )}
+        >
+          {buttonText}
+        </button>
 
         <AnimatePresence>
           {rate > 0 && (
@@ -807,11 +795,10 @@ export const TransactionForm = ({
         </AnimatePresence>
       </form>
 
-      {!isInjectedWallet && (
+      {isFundModalOpen && (
         <FundWalletModal
           isOpen={isFundModalOpen}
           onClose={() => setIsFundModalOpen(false)}
-          onFund={handleFundWalletClick}
         />
       )}
     </div>

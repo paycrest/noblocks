@@ -237,6 +237,7 @@ export type Config = {
   mixpanelToken: string;
   hotjarSiteId: number;
   contactSupportUrl: string;
+  googleVerificationCode: string;
 };
 
 export type Network = {

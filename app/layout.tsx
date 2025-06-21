@@ -7,6 +7,7 @@ import Providers from "./providers";
 import MainContent from "./mainContent";
 import { Footer, Navbar } from "./components";
 import Script from "next/script";
+import config from "./lib/config";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -130,7 +131,7 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: "your-google-verification-code",
+    google: config.googleVerificationCode,
   },
   alternates: {
     canonical: "https://noblocks.xyz",
@@ -188,8 +189,17 @@ const jsonLd = {
     "Crypto to bank transfers",
     "Crypto to mobile money",
   ],
-  supportedNetworks: ["Polygon", "Base", "Arbitrum", "BNB Chain", "Ethereum"],
-  supportedStablecoins: ["USDC", "USDT", "DAI"],
+  supportedNetworks: [
+    "Polygon",
+    "Base",
+    "Arbitrum",
+    "BNB Chain",
+    "Ethereum",
+    "Celo",
+    "Lisk",
+    "Optimism",
+  ],
+  supportedStablecoins: ["USDC", "USDT", "DAI", "cNGN"],
 };
 
 export default function RootLayout({

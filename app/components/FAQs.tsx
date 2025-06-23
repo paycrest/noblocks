@@ -16,7 +16,7 @@ const faqs = [
   {
     question: "What is Noblocks?",
     answer:
-      "Noblocks.xyz is a decentralized liquidity app developed by Paycrest, designed to facilitate instant crypto-to-fiat exchanges and payments. It supports mobile money and bank settlements across multiple regions, including Kenyan Shillings (KES), Ghanaian Cedis (GHS), and Nigerian Naira (NGN).\.",
+      "Noblocks.xyz is a decentralized liquidity app developed by Paycrest, designed to facilitate instant crypto-to-fiat exchanges and payments. It supports mobile money and bank settlements across multiple regions, including Kenyan Shillings (KES), Ugandan Shilling (UGX), Ugandan Shilling (UGX), and Nigerian Naira (NGN).",
   },
   {
     question: "Who is noblocks for?",
@@ -31,7 +31,7 @@ const faqs = [
   {
     question: "Who is a provider?",
     answer:
-      "Noblocks.xyz is a decentralized liquidity app developed by PayCrest, designed to facilitate instant crypto-to-fiat exchanges and payments. It supports mobile money and bank settlements across multiple regions, including Kenyan Shillings (KES), Ghanaian Cedis (GHS), and Nigerian Naira (NGN).",
+      "Noblocks.xyz is a decentralized liquidity app developed by PayCrest, designed to facilitate instant crypto-to-fiat exchanges and payments. It supports mobile money and bank settlements across multiple regions, including Kenyan Shillings (KES), Ugandan Shilling (UGX), Ugandan Shilling (UGX), and Nigerian Naira (NGN).",
   },
 ];
 
@@ -57,12 +57,12 @@ function AccordionItem({
   return (
     <div>
       <button
+        type="button"
         className={
-          `flex w-full items-center gap-4 rounded-tl-2xl rounded-tr-2xl border-[#EBEBEF] bg-[#F9FAFB] p-2 py-4 text-left focus:outline-none dark:border-[#FFFFFF1A] dark:bg-[#FFFFFF0D]` +
+          `flex w-full items-center gap-4 rounded-tl-2xl rounded-tr-2xl border-[#EBEBEF] bg-[#F9FAFB] p-4 text-left focus:outline-none dark:border-[#FFFFFF1A] dark:bg-[#FFFFFF0D]` +
           (!isOpen ? " rounded-bl-xl rounded-br-xl" : "")
         }
         onClick={onClick}
-        aria-expanded={isOpen}
       >
         <span
           className={`flex h-6 w-6 items-center justify-center rounded-full font-bold text-black ${isOpen ? "bg-[#CC3681]" : "bg-[#20BA90]"}`}
@@ -101,9 +101,9 @@ export default function FAQs() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section className="mx-auto lg:mb-[185px] flex w-full max-w-[999px] flex-col gap-4 px-5 lg:grid lg:grid-cols-[1fr_2fr] lg:items-center">
+    <section className="mx-auto mb-[5.3125rem] flex w-full max-w-[999px] flex-col gap-6 px-5 lg:mb-[17.75rem] lg:grid lg:grid-cols-[1fr_2fr] lg:items-center">
       <h2
-        className={`${crimsonPro.className} flex justify-center text-center text-[28px] font-semibold lg:max-w-[294px] lg:flex-col lg:items-start lg:text-left lg:text-[56px] gap-1 lg:gap-0 italic`}
+        className={`${crimsonPro.className} flex justify-center gap-1 text-center text-[1.75rem] font-semibold italic lg:max-w-[294px] lg:flex-col lg:items-start lg:gap-0 lg:text-left lg:text-[3.5rem]`}
       >
         <span>Frequently </span>
         <span>Asked </span>

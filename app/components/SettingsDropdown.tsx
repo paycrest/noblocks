@@ -116,7 +116,7 @@ export const SettingsDropdown = () => {
             exit="closed"
             variants={dropdownVariants}
             aria-label="Dropdown menu"
-            className="absolute right-0 z-10 mt-4 w-fit min-w-40 space-y-4 overflow-hidden rounded-xl border border-border-light bg-white p-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
+            className="absolute right-0 z-[60] mt-4 w-fit min-w-40 space-y-4 overflow-hidden rounded-xl border border-border-light bg-white p-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
           >
             <ul
               role="menu"

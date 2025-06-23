@@ -1,12 +1,12 @@
 "use client";
 import { Suspense } from "react";
 import { Preloader } from "./components";
-import { HomePage } from "./components/HomePage";
+import { MainPageContent } from "./components/MainPageContent";
 
 export default function Page() {
   return (
     <Suspense fallback={<Preloader isLoading={true} />}>
-      <HomePage />
+      <MainPageContent />
     </Suspense>
   );
 }

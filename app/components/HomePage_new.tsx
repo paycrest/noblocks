@@ -1,7 +1,12 @@
 "use client";
 
 import { Crimson_Pro } from "next/font/google";
-import { ArrowRight04Icon } from "hugeicons-react";
+import {
+  ArrowRight01Icon,
+  ArrowRight02Icon,
+  ArrowRight03Icon,
+  ArrowRight04Icon,
+} from "hugeicons-react";
 import FAQs from "./FAQs";
 import Image from "next/image";
 import { motion } from "framer-motion";
@@ -85,7 +90,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
       <div className="w-full">
         <motion.div
           id="video-section"
-          className="mx-auto mb-[4.875rem] mt-16 w-full max-w-[62.75rem] scroll-mt-24 px-5 md:mb-[11.5625rem] md:mt-[7.5625rem]"
+          className="mx-auto mb-[4.875rem] mt-16 w-full max-w-[62.75rem] px-5 md:mb-[11.5625rem] md:mt-[7.5625rem]"
           initial={{ opacity: 0, filter: "blur(8px)", y: 20 }}
           whileInView={{ opacity: 1, filter: "blur(0px)", y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
@@ -118,6 +123,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
             />
           </div>
         </motion.div>
+
         <motion.section
           className="mb-[9.375rem] flex w-full flex-col items-center justify-center gap-11 px-5 sm:gap-[54px] md:mb-[7.875rem]"
           initial={{ opacity: 0, filter: "blur(8px)", y: 20 }}
@@ -217,6 +223,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
             );
           })()}
         </motion.section>
+
         <motion.section
           className="mb-[4.6875rem] flex w-full flex-col items-center justify-center gap-6 px-5 md:mb-[11.5625rem]"
           initial={{ opacity: 0, filter: "blur(8px)", y: 20 }}
@@ -275,6 +282,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
             />
           </div>
         </motion.section>
+
         <motion.div
           initial={{ opacity: 0, filter: "blur(8px)", y: 20 }}
           whileInView={{ opacity: 1, filter: "blur(0px)", y: 0 }}
@@ -283,6 +291,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
         >
           <FAQs />
         </motion.div>
+
         <motion.section
           className="relative mx-auto mb-[96px] hidden h-[1050px] w-full max-w-[1440px] flex-col gap-8 bg-[url('/images/power-liquidity-desktop-illustration.svg')] bg-cover bg-no-repeat px-5 md:flex"
           initial={{ opacity: 0, filter: "blur(8px)", y: 20 }}
@@ -318,6 +327,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
             </div>
           </div>
         </motion.section>
+
         <motion.section
           className="relative mx-auto my-20 flex h-[865px] w-full max-w-[1440px] flex-col gap-8 bg-[url('/images/power-liquidity-mobile-illustration.svg')] bg-cover bg-no-repeat px-5 md:hidden"
           initial={{ opacity: 0, filter: "blur(8px)", y: 20 }}
@@ -349,6 +359,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
             </a>
           </div>
         </motion.section>
+
         <motion.section
           className="mx-auto mb-24 flex w-full max-w-[1440px] flex-col justify-center px-5 md:mb-[10rem] md:flex-row-reverse md:items-center md:pl-0"
           initial={{ opacity: 0, filter: "blur(8px)", y: 20 }}

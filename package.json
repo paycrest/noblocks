@@ -31,6 +31,7 @@
     "@thirdweb-dev/wallets": "^2.5.39",
     "axios": "^1.9.0",
     "canvas-confetti": "^1.9.3",
+    "critters": "^0.0.25",
     "date-fns": "^4.1.0",
     "framer-motion": "^11.18.2",
     "hugeicons-react": "^0.3.0",
@@ -71,7 +72,7 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "packageManager": "pnpm@10.10.0",
+  "packageManager": "pnpm@10.12.1",
   "pnpm": {
     "overrides": {
       "@types/react": "19.0.8",

@@ -37,9 +37,45 @@ export const slideInDown = {
 };
 
 export const scaleInOut = {
-  initial: { ...fadeInOut.initial, scale: 0 },
+  initial: { ...fadeInOut.initial, scale: 0.8 },
   animate: { ...fadeInOut.animate, scale: 1 },
-  exit: { ...fadeInOut.exit, scale: 0 },
+  exit: { ...fadeInOut.exit, scale: 0.8 },
+};
+
+export const blurReveal = {
+  initial: { opacity: 0, filter: "blur(8px)", y: 20 },
+  animate: { opacity: 1, filter: "blur(0px)", y: 0 },
+  exit: { opacity: 0, filter: "blur(8px)", y: -20 },
+};
+
+export const blurRevealFromBottom = {
+  initial: { opacity: 0, filter: "blur(8px)", y: 40 },
+  animate: { opacity: 1, filter: "blur(0px)", y: 0 },
+  exit: { opacity: 0, filter: "blur(8px)", y: 20 },
+};
+
+export const smoothExpand = {
+  initial: {
+    opacity: 0,
+    scale: 0.95,
+    y: -20,
+  },
+  animate: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.95,
+    y: -20,
+  },
+};
+
+export const blurRevealFromTop = {
+  initial: { opacity: 0, filter: "blur(8px)", y: -40 },
+  animate: { opacity: 1, filter: "blur(0px)", y: 0 },
+  exit: { opacity: 0, filter: "blur(8px)", y: -20 },
 };
 
 export const fadeInLeft = {

@@ -1,90 +1,68 @@
 "use client";
-import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
 import Image from "next/image";
+import { useEffect, useState } from "react";
+import { RiTwitterXFill } from "react-icons/ri";
+import { FaInstagram, FaLinkedinIn } from "react-icons/fa";
+import { motion } from "framer-motion";
 
-import {
-  FarcasterIconDarkTheme,
-  FarcasterIconLightTheme,
-  GithubIconDarkTheme,
-  GithubIconLightTheme,
-  XIconDarkTheme,
-  XIconLightTheme,
-} from "./ImageAssets";
 import { AnimatedComponent, fadeInOut } from "./AnimatedComponents";
 import { ThemeSwitch } from "./ThemeSwitch";
 
-const socialsDarkTheme = [
+const socials = [
   {
-    href: "https://warpcast.com/~/channel/noblocks",
-    title: "Farcaster",
-    LogoSvg: FarcasterIconDarkTheme,
+    href: "https://instagram.com/noblocks_xyz",
+    title: "Instagram",
+    Icon: FaInstagram,
   },
   {
-    href: "https://github.com/paycrest/noblocks",
-    title: "GitHub",
-    LogoSvg: GithubIconDarkTheme,
-  },
-  {
-    href: "https://x.com/noblocks_xyz",
-    title: "X",
-    LogoSvg: XIconDarkTheme,
-  },
-];
-
-const socialsLightTheme = [
-  {
-    href: "https://warpcast.com/~/channel/noblocks",
-    title: "Farcaster",
-    LogoSvg: FarcasterIconLightTheme,
-  },
-  {
-    href: "https://github.com/paycrest/noblocks",
-    title: "GitHub",
-    LogoSvg: GithubIconLightTheme,
+    href: "https://linkedin.com/company/paycrest",
+    title: "LinkedIn",
+    Icon: FaLinkedinIn,
   },
   {
     href: "https://x.com/noblocks_xyz",
     title: "X",
-    LogoSvg: XIconLightTheme,
+    Icon: RiTwitterXFill,
   },
 ];
 
 const SocialLink = ({
   href,
   title,
-  LogoSvg,
+  Icon,
 }: {
   href: string;
   title: string;
-  LogoSvg: React.FC<React.SVGProps<SVGSVGElement>>;
+  Icon: React.ComponentType<{ className?: string }>;
 }) => {
   return (
-    <a href={href} title={title} target="_blank" rel="noopener noreferrer">
-      <LogoSvg className="size-5 transition-opacity hover:opacity-70" />
+    <a
+      href={href}
+      title={title}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="rounded-full bg-gray-100 p-1.5 transition-colors duration-200 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/20"
+    >
+      <Icon className="size-5" />
     </a>
   );
 };
 
 export const Footer = () => {
-  const { resolvedTheme } = useTheme();
-
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
   if (!mounted) return null;
 
-  const socials =
-    resolvedTheme === "dark" ? socialsDarkTheme : socialsLightTheme;
-
   const currentYear = new Date().getFullYear();
-
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
-      <footer
-        className="relative mt-6 lg:h-[700px] h-[566px] w-full px-5 md:items-center overflow-hidden"
+      <motion.footer
+        className="min-lg:h-[400px] relative min-h-[566px] w-full overflow-hidden px-5 md:items-center"
         role="contentinfo"
+        layout
+        transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
       >
         <div className="mx-auto w-full max-w-[1440px]">
           <p className="absolute bottom-8 left-4 z-20 text-xs font-medium md:left-20">
@@ -115,17 +93,20 @@ export const Footer = () => {
               </svg>
             </div>
             <div className="flex flex-col gap-4">
-              <div className="">
-                <ThemeSwitch />
-              </div>
-              <div className="flex gap-2 items-center">
-                {socials.map((social) => (
-                  <SocialLink key={social.title} {...social} />
-                ))}
+              <ThemeSwitch />
 
-                <div className="h-3 w-px bg-gray-200 dark:bg-white/20 max-sm:hidden" />
+              <div className="flex items-center gap-4">
+                <div className="flex gap-2">
+                  {socials.map((social) => (
+                    <SocialLink key={social.title} {...social} />
+                  ))}
+                </div>
 
-                <p>Brand Kit</p>
+                <div className="h-4 w-px bg-border-light dark:bg-white/10 max-sm:hidden" />
+
+                <p className="text-sm text-black dark:text-white/80">
+                  Brand Kit
+                </p>
               </div>
             </div>
           </div>
@@ -152,7 +133,7 @@ export const Footer = () => {
           width={100}
           className="absolute bottom-7 right-8 z-10 w-full max-w-[250px] animate-[rocket-shake_0.7s_infinite] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[300px]"
         />
-      </footer>
+      </motion.footer>
     </AnimatedComponent>
   );
 };

@@ -188,7 +188,7 @@ export const MobileDropdown = ({
           <Dialog
             open={isOpen}
             onClose={onClose}
-            className="relative z-50 max-h-[90vh] sm:hidden"
+            className="relative z-[60] max-h-[90vh] sm:hidden"
           >
             <motion.div
               initial={{ opacity: 0 }}

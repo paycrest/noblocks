@@ -5,7 +5,7 @@ import { Inter } from "next/font/google";
 
 import Providers from "./providers";
 import MainContent from "./mainContent";
-import { Footer, Navbar } from "./components";
+import { Footer, Navbar, LayoutWrapper } from "./components";
 import Script from "next/script";
 import config from "./lib/config";
 
@@ -209,20 +209,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className} suppressHydrationWarning>
+      <body
+        className={`${inter.className} overflow-x-hidden`}
+        suppressHydrationWarning
+      >
         <Script
           id="noblocks-ld-json"
           type="application/ld+json"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
+        />{" "}
         <Providers>
           <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
             <Navbar />
-            <div className="relative mx-auto flex min-h-dvh flex-col items-center pt-24 transition-all">
+            <LayoutWrapper footer={<Footer />}>
               <MainContent>{children}</MainContent>
-              <Footer />
-            </div>
+            </LayoutWrapper>
           </div>
         </Providers>
       </body>

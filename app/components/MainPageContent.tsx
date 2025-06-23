@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
 import { useForm } from "react-hook-form";
 import { useEffect, useState, useRef } from "react";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 
 import {
@@ -14,7 +14,7 @@ import {
   NetworkSelectionModal,
   CookieConsent,
   Disclaimer,
-} from "../components";
+} from "./";
 import { fetchRate, fetchSupportedInstitutions } from "../api/aggregator";
 import {
   STEPS,
@@ -28,15 +28,14 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "../context/StepContext";
 import { clearFormState } from "../utils";
 import { useInjectedWallet } from "../context/InjectedWalletContext";
-import FAQs from "../components/FAQs";
 import { useSearchParams } from "next/navigation";
+import { HomePage } from "./HomePage";
 
-export default function SwapPage() {
+export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
-
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
@@ -76,18 +75,26 @@ export default function SwapPage() {
   // State props for child components
   const stateProps: StateProps = {
     formValues,
+    setFormValues,
+
     rate,
+    setRate,
     isFetchingRate,
+    setIsFetchingRate,
+
     institutions,
+    setInstitutions,
     isFetchingInstitutions,
+    setIsFetchingInstitutions,
+
     selectedRecipient,
     setSelectedRecipient,
+
     orderId,
     setOrderId,
     setCreatedAt,
     setTransactionStatus,
   };
-
   useEffect(function setPageLoadingState() {
     setOrderId("");
     setIsPageLoading(false);
@@ -95,25 +102,29 @@ export default function SwapPage() {
 
   useEffect(
     function resetOnLogout() {
+      // Reset form if user logs out (but not for injected wallet)
       if (!authenticated && !isInjectedWallet) {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [authenticated, isInjectedWallet],
   );
 
   useEffect(function ensureDefaultToken() {
+    // Default token to USDC if missing
     if (!formMethods.getValues("token")) {
       formMethods.reset({ token: "USDC" });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(
     function resetProviderErrorOnChange() {
-      const sp = searchParams;
+      // Reset providerErrorShown on query param change
       const newProvider =
-        sp.get("provider") || sp.get("PROVIDER");
+        searchParams.get("provider") || searchParams.get("PROVIDER");
       if (!failedProviders.current.has(newProvider || "")) {
         providerErrorShown.current = false;
       }
@@ -125,11 +136,15 @@ export default function SwapPage() {
     function fetchInstitutionData() {
       async function getInstitutions(currencyValue: string) {
         if (!currencyValue) return;
+
         setIsFetchingInstitutions(true);
+
         const institutions = await fetchSupportedInstitutions(currencyValue);
         setInstitutions(institutions);
+
         setIsFetchingInstitutions(false);
       }
+
       getInstitutions(currency);
     },
     [currency],
@@ -137,20 +152,25 @@ export default function SwapPage() {
 
   useEffect(
     function handleRateFetch() {
+      // Debounce rate fetching
       let timeoutId: NodeJS.Timeout;
+
       if (!currency) return;
+
       const getRate = async (shouldUseProvider = true) => {
         setIsFetchingRate(true);
         try {
-          const sp = searchParams;
           const lpParam =
-            sp.get("provider") || sp.get("PROVIDER");
+            searchParams.get("provider") || searchParams.get("PROVIDER");
+
+          // Skip using provider if it's already failed
           const shouldSkipProvider =
             lpParam && failedProviders.current.has(lpParam);
           const providerId =
             shouldUseProvider && lpParam && !shouldSkipProvider
               ? lpParam
               : undefined;
+
           const rate = await fetchRate({
             token,
             amount: amountSent || 1,
@@ -160,20 +180,23 @@ export default function SwapPage() {
           setRate(rate.data);
         } catch (error) {
           if (error instanceof Error) {
-            const sp = searchParams;
             const lpParam =
-              sp.get("provider") || sp.get("PROVIDER");
+              searchParams.get("provider") || searchParams.get("PROVIDER");
             if (
               shouldUseProvider &&
               lpParam &&
               !failedProviders.current.has(lpParam)
             ) {
               toast.error(`${error.message} - defaulting to public rate`);
+
+              // Track failed provider
               if (lpParam) {
                 failedProviders.current.add(lpParam);
               }
               providerErrorShown.current = true;
             }
+
+            // Retry without provider ID if one was previously used
             if (shouldUseProvider) {
               await getRate(false);
             }
@@ -182,11 +205,14 @@ export default function SwapPage() {
           setIsFetchingRate(false);
         }
       };
+
       const debounceFetchRate = () => {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => getRate(), 1000);
       };
+
       debounceFetchRate();
+
       return () => {
         clearTimeout(timeoutId);
       };
@@ -222,7 +248,7 @@ export default function SwapPage() {
     (!ready && !isInjectedWallet) ||
     (isInjectedWallet && !injectedReady);
 
-  const renderStep = () => {
+  const renderTransactionStep = () => {
     switch (currentStep) {
       case STEPS.FORM:
         return (
@@ -265,23 +291,29 @@ export default function SwapPage() {
     }
   };
 
+  const transactionFormComponent = (
+    <div id="swap">
+      <AnimatePresence mode="wait">
+        <AnimatedPage componentKey={currentStep}>
+          {renderTransactionStep()}
+        </AnimatedPage>
+      </AnimatePresence>
+    </div>
+  );
   return (
-    <div className="flex min-h-screen w-full flex-col gap-8">
+    <div className="flex w-full flex-col">
       {showLoading ? (
         <Preloader isLoading={true} />
       ) : (
         <>
           <Disclaimer />
           <CookieConsent />
-          {!isInjectedWallet && <NetworkSelectionModal />}
-
-          <div id="swap">
-            <AnimatePresence mode="wait">
-              <AnimatedPage componentKey={currentStep}>
-                {renderStep()}
-              </AnimatedPage>
-            </AnimatePresence>
-          </div>
+          {!isInjectedWallet && <NetworkSelectionModal />}{" "}
+          {currentStep === STEPS.FORM ? (
+            <HomePage transactionFormComponent={transactionFormComponent} />
+          ) : (
+            transactionFormComponent
+          )}
         </>
       )}
     </div>

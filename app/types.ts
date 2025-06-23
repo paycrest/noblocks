@@ -164,10 +164,15 @@ type TxReceipt = {
 
 export type StateProps = {
   formValues: FormData;
+  setFormValues: (values: FormData) => void;
   rate: number;
+  setRate: (rate: number) => void;
   isFetchingRate: boolean;
+  setIsFetchingRate: (fetching: boolean) => void;
   institutions: InstitutionProps[];
+  setInstitutions: (institutions: InstitutionProps[]) => void;
   isFetchingInstitutions: boolean;
+  setIsFetchingInstitutions: (fetching: boolean) => void;
   selectedRecipient: RecipientDetails | null;
   setSelectedRecipient: (recipient: RecipientDetails | null) => void;
   setCreatedAt: (createdAt: string) => void;

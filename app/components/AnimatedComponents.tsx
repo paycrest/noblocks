@@ -42,16 +42,17 @@ export const scaleInOut = {
   exit: { ...fadeInOut.exit, scale: 0.8 },
 };
 
+// Slower blur reveal animations for better visibility
 export const blurReveal = {
-  initial: { opacity: 0, filter: "blur(8px)", y: 20 },
+  initial: { opacity: 0, filter: "blur(12px)", y: 30 },
   animate: { opacity: 1, filter: "blur(0px)", y: 0 },
-  exit: { opacity: 0, filter: "blur(8px)", y: -20 },
+  exit: { opacity: 0, filter: "blur(12px)", y: -30 },
 };
 
 export const blurRevealFromBottom = {
-  initial: { opacity: 0, filter: "blur(8px)", y: 40 },
+  initial: { opacity: 0, filter: "blur(12px)", y: 50 },
   animate: { opacity: 1, filter: "blur(0px)", y: 0 },
-  exit: { opacity: 0, filter: "blur(8px)", y: 20 },
+  exit: { opacity: 0, filter: "blur(12px)", y: 30 },
 };
 
 export const smoothExpand = {
@@ -73,9 +74,9 @@ export const smoothExpand = {
 };
 
 export const blurRevealFromTop = {
-  initial: { opacity: 0, filter: "blur(8px)", y: -40 },
+  initial: { opacity: 0, filter: "blur(12px)", y: -50 },
   animate: { opacity: 1, filter: "blur(0px)", y: 0 },
-  exit: { opacity: 0, filter: "blur(8px)", y: -20 },
+  exit: { opacity: 0, filter: "blur(12px)", y: -30 },
 };
 
 export const fadeInLeft = {
@@ -168,6 +169,84 @@ export const AnimatedComponent = ({
     exit="exit"
     transition={{ duration: 0.3, delay }}
     className={className}
+  >
+    {children}
+  </motion.div>
+);
+
+// Optimized BlurRevealSection component to reduce repetition
+export const BlurRevealSection = ({
+  children,
+  className = "",
+  delay = 0,
+  variant = blurReveal,
+  viewportMargin = "-100px",
+  id,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+  variant?: typeof blurReveal;
+  viewportMargin?: string;
+  id?: string;
+}) => (
+  <motion.div
+    className={className}
+    variants={variant}
+    initial="initial"
+    whileInView="animate"
+    viewport={{ once: true, margin: viewportMargin }}
+    transition={{
+      duration: 0.8,
+      ease: "easeOut",
+      delay,
+      filter: { duration: 1.2, ease: "easeOut" },
+    }}
+    id={id}
+  >
+    {children}
+  </motion.div>
+);
+
+// Reusable title animation component
+export const BlurRevealTitle = ({
+  children,
+  className = "",
+  delay = 0,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+}) => (
+  <motion.div
+    className={className}
+    variants={blurReveal}
+    initial="initial"
+    whileInView="animate"
+    viewport={{ once: true, margin: "-100px" }}
+    transition={{ duration: 0.8, ease: "easeOut", delay }}
+  >
+    {children}
+  </motion.div>
+);
+
+// Reusable content animation component with delay
+export const BlurRevealContent = ({
+  children,
+  className = "",
+  delay = 0.3,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+}) => (
+  <motion.div
+    className={className}
+    variants={blurReveal}
+    initial="initial"
+    whileInView="animate"
+    viewport={{ once: true, margin: "-100px" }}
+    transition={{ duration: 0.8, ease: "easeOut", delay }}
   >
     {children}
   </motion.div>

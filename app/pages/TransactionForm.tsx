@@ -535,7 +535,7 @@ export const TransactionForm = ({
     <div className="mx-auto max-w-[27.3125rem]">
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="grid gap-4 pb-4 text-sm text-text-body transition-all dark:text-white sm:gap-2"
+        className="grid gap-4 pb-20 text-sm text-text-body transition-all dark:text-white sm:gap-2"
         noValidate
       >
         <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">

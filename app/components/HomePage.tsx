@@ -13,6 +13,7 @@ import {
   BlurRevealContent,
 } from "./AnimatedComponents";
 import WalkthroughVideo from "./WalkthroughVideo";
+import { ScrollArrowLine, ScrollArrowHead } from "./ImageAssets";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -25,18 +26,20 @@ interface HomePageProps {
   transactionFormComponent: ReactNode;
 }
 
-export function HomePage({ transactionFormComponent }: HomePageProps) {
-  const scrollToContent = () => {
-    const videoSection = document.getElementById("video-section");
-    if (videoSection) {
-      videoSection.scrollIntoView({ behavior: "smooth" });
-    }
-  };
+const heroLineVariants = {
+  hidden: { opacity: 0, y: 40 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.25, duration: 0.7, ease: "easeOut" },
+  }),
+};
 
+export function HomePage({ transactionFormComponent }: HomePageProps) {
   return (
     <div className="flex w-full flex-col">
       {/* Hero section with min-h-screen */}
-      <div className="flex min-h-screen w-full flex-col justify-center">
+      <div className="flex min-h-screen w-full flex-col items-center justify-center overflow-y-auto py-20">
         <motion.div
           initial={{ opacity: 0, filter: "blur(16px)" }}
           animate={{ opacity: 1, filter: "blur(0px)" }}
@@ -45,21 +48,33 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
         >
           <motion.section
             className="w-full px-5"
-            variants={blurReveal}
-            initial="initial"
-            animate="animate"
-            transition={{ duration: 0.8, ease: "easeOut" }}
+            initial="hidden"
+            animate="visible"
           >
-            <h1 className="mb-[2.875rem] flex flex-col items-center gap-1 text-center font-semibold md:mb-[5.25rem]">
-              <span className="text-3xl opacity-80 md:text-[4rem]">
+            <motion.h1
+              className="mb-[2.875rem] flex flex-col items-center gap-1 text-center font-semibold md:mb-[5.25rem]"
+              initial="hidden"
+              animate="visible"
+            >
+              <motion.span
+                className="text-3xl opacity-80 md:text-[4rem]"
+                variants={heroLineVariants}
+                custom={0}
+                initial="hidden"
+                animate="visible"
+              >
                 Change stablecoins
-              </span>
-              <span
+              </motion.span>
+              <motion.span
                 className={`${crimsonPro.className} text-[2.375rem] italic md:text-[4.875rem]`}
+                variants={heroLineVariants}
+                custom={1}
+                initial="hidden"
+                animate="visible"
               >
                 to cash in seconds
-              </span>
-            </h1>
+              </motion.span>
+            </motion.h1>
           </motion.section>
 
           <motion.div
@@ -67,23 +82,40 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
             variants={blurReveal}
             initial="initial"
             animate="animate"
-            transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+            transition={{ duration: 0.8, ease: "easeOut", delay: 0.6 }}
           >
             {transactionFormComponent}
           </motion.div>
 
-          <div className="flex w-full justify-center pb-8">
-            <motion.button
-              className="z-0 cursor-pointer text-center text-base font-normal text-text-secondary opacity-50 transition-opacity hover:text-black dark:text-white/50 dark:hover:text-white"
-              variants={blurReveal}
-              initial="initial"
-              animate="animate"
-              transition={{ duration: 0.8, ease: "easeOut", delay: 0.4 }}
-              onClick={scrollToContent}
+          <motion.div
+            className="fixed -bottom-16 z-40 flex w-full -translate-x-1/2 flex-col items-center"
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.2, duration: 0.7, ease: "easeOut" }}
+          >
+            <span className="mb-3">
+              <span className="block sm:hidden">
+                <ScrollArrowLine height={35} />
+              </span>
+              <span className="hidden sm:block">
+                <ScrollArrowLine height={57} />
+              </span>
+            </span>
+            <motion.div
+              animate={{ y: [0, -10, 0] }}
+              transition={{
+                repeat: Infinity,
+                duration: 1.5,
+                ease: "easeInOut",
+              }}
+              className="select-none text-base font-normal text-text-secondary dark:text-white/50"
             >
               Learn how to use Noblocks
-            </motion.button>
-          </div>
+            </motion.div>
+            <span className="mt-3">
+              <ScrollArrowHead />
+            </span>
+          </motion.div>
         </motion.div>
       </div>
 
@@ -168,7 +200,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
                   {category.items.map((item, itemIndex) => (
                     <p
                       key={itemIndex}
-                      className="flex flex-col gap-4 rounded-[20px] bg-white p-4 dark:bg-[#FFFFFF0D]"
+                      className="group flex cursor-pointer flex-col gap-4 rounded-[20px] bg-white p-4 transition-colors duration-300 hover:bg-[#4a79fe] hover:text-white dark:bg-[#FFFFFF0D] dark:hover:bg-[#4a79fe] dark:hover:text-white"
                     >
                       <span>
                         <Image
@@ -176,6 +208,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
                           alt="Icon"
                           width={item.width}
                           height={item.height}
+                          className="transition-all duration-300 group-hover:brightness-100"
                         />
                       </span>
                       <span className="text-sm font-normal lg:text-base">
@@ -252,14 +285,14 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
           <FAQs />
         </BlurRevealSection>
 
-        <BlurRevealSection className="relative mx-auto mb-24 flex h-[865px] w-full max-w-[1440px] items-start overflow-hidden px-5 xmd:h-[550px] sm:h-[600px] md:mb-24 md:h-[850px]">
+        <BlurRevealSection className="relative mx-auto mb-24 flex h-[865px] w-full max-w-screen-2xl items-start overflow-hidden px-5 xmd:h-[550px] sm:h-[600px] md:mb-24 md:h-[850px] 2xl:rounded-b-[84px]">
           {/* Desktop/Tablet Illustration */}
           <div className="absolute bottom-0 right-0 z-0 hidden h-full w-full xmd:block">
             <Image
               src="/images/power-liquidity-desktop-illustration.svg"
               alt="Liquidity Illustration"
               fill
-              className="pointer-events-none object-contain object-right-bottom"
+              className="pointer-events-none object-contain object-right-bottom 2xl:rounded-b-[84px]"
               priority
             />
           </div>
@@ -304,7 +337,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
           </div>
         </BlurRevealSection>
 
-        <BlurRevealSection className="mx-auto mb-24 flex w-full max-w-[1440px] flex-col justify-center px-5 md:mb-[10rem] md:flex-row-reverse md:items-center md:pl-0">
+        <BlurRevealSection className="mx-auto mb-24 flex w-full max-w-[1440px] flex-col justify-center px-5 md:mb-[10rem] md:flex-row-reverse md:items-center">
           <div className="w-full max-w-[302px] space-y-4">
             <button
               type="button"
@@ -331,22 +364,22 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
           {(() => {
             const images = [
               {
-                src: "/images/mobile-app-illustration-mobile.svg",
+                src: "/images/mobile-app-illustration-mobile.png",
                 alt: "Mobile App Illustration Mobile Dark",
                 className: "hidden w-full dark:block dark:md:hidden",
               },
               {
-                src: "/images/mobile-app-illustration-light-mode-mobile.svg",
+                src: "/images/mobile-app-illustration-light-mode-mobile.png",
                 alt: "Mobile App Illustration Mobile Light",
                 className: "block w-full dark:hidden md:hidden",
               },
               {
-                src: "/images/mobile-app-illustration-desktop.svg",
+                src: "/images/mobile-app-illustration-desktop.png",
                 alt: "Mobile App Illustration Desktop Dark",
                 className: "hidden w-full max-w-[800px] dark:md:block",
               },
               {
-                src: "/images/mobile-app-illustration-light-mode-desktop.svg",
+                src: "/images/mobile-app-illustration-light-mode-desktop.png",
                 alt: "Mobile App Illustration Desktop Light",
                 className:
                   "hidden w-full max-w-[800px] md:block dark:md:hidden",
@@ -358,38 +391,14 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
                 key={index}
                 src={image.src}
                 alt={image.alt}
-                width={100}
-                height={100}
+                width={1000}
+                height={1000}
+                priority
                 className={`${image.className} cursor-pointer transition-transform duration-300 ease-in-out`}
               />
             ));
           })()}
         </BlurRevealSection>
-      </div>
-
-      {/* Preload video thumbnail for better UX */}
-      <div className="hidden">
-        <Image
-          src="/images/walkthrough-video.svg"
-          width={100}
-          height={100}
-          alt="Walkthrough Video"
-          priority
-        />
-        <Image
-          src="/images/walkthrough-video-img-mobile.svg"
-          width={100}
-          height={100}
-          alt="Walkthrough Video"
-          priority
-        />
-        <Image
-          src="/images/video-plane-img.svg"
-          width={100}
-          height={100}
-          alt="Video Plane Image"
-          priority
-        />
       </div>
     </div>
   );

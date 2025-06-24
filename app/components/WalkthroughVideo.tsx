@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { WalkthroughPlayIcon } from "./ImageAssets";
 import { TbPlayerPauseFilled } from "react-icons/tb";
 
@@ -28,11 +29,11 @@ export default function WalkthroughVideo() {
   return (
     <div className="relative mx-auto flex w-full max-w-[800px] items-center justify-center">
       <div
-        className="relative w-full overflow-hidden rounded-3xl bg-black"
+        className="relative w-full rounded-3xl bg-black"
         style={{ border: "10px solid #FD76B3" }}
       >
         <div
-          className="relative aspect-video w-full"
+          className="relative aspect-video w-full overflow-hidden rounded-[14px]"
           onClick={handleVideoAreaClick}
           style={{ cursor: isPlaying ? "pointer" : "default" }}
         >
@@ -45,14 +46,15 @@ export default function WalkthroughVideo() {
             onPlay={() => setIsPlaying(true)}
             controls={false}
             playsInline
+            loop
           />
           {/* Dark overlay when paused */}
           {!isPlaying && (
-            <div className="absolute inset-0 z-10 bg-black/60 transition-colors duration-300" />
+            <div className="absolute inset-0 z-10 rounded-[14px] bg-black/60 transition-colors duration-300" />
           )}
           {/* Overlay Play Button */}
           <button
-            className={`absolute inset-0 z-20 flex h-full w-full flex-col items-center justify-center transition-opacity duration-300 focus:outline-none ${isPlaying ? "pointer-events-none opacity-0" : "opacity-100"}`}
+            className={`absolute inset-0 z-20 flex h-full w-full flex-col items-center justify-center rounded-[14px] transition-opacity duration-300 focus:outline-none ${isPlaying ? "pointer-events-none opacity-0" : "opacity-100"}`}
             onClick={handlePlay}
             aria-label="Play walkthrough video"
             type="button"
@@ -78,20 +80,24 @@ export default function WalkthroughVideo() {
             <TbPlayerPauseFilled className="size-4 text-white" />
           </button>
         </div>
-        {/* Paper plane image, absolutely positioned and overflowing above container */}
-        <div className="pointer-events-none select-none">
-          <Image
-            src="/images/video-plane-img.svg"
-            alt="Video Plane Image"
-            width={120}
-            height={120}
-            className="absolute -bottom-16 -right-8 w-[90px] sm:-bottom-20 sm:-right-8 sm:w-[120px] md:-bottom-24 md:-right-16 md:w-[180px] lg:-bottom-32 lg:-right-24 lg:w-[260px]"
-            priority
-            draggable={false}
-            style={{ zIndex: 30 }}
-          />
-        </div>
       </div>
+      {/* Paper plane image, absolutely positioned relative to the outer .relative div */}
+      <motion.div
+        animate={{ y: [0, -20, 0] }}
+        transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+        className="pointer-events-none absolute -bottom-16 -right-8 w-[320px] select-none max-lg:w-[220px] max-md:w-[180px] max-sm:w-[90px] sm:-bottom-20 sm:-right-8 md:-bottom-24 md:-right-16 lg:-bottom-32 lg:-right-24"
+        style={{ zIndex: 50 }}
+      >
+        <Image
+          src="/images/video-plane-img.svg"
+          alt="Video Plane Image"
+          width={420}
+          height={120}
+          priority
+          draggable={false}
+          className="h-auto w-full"
+        />
+      </motion.div>
     </div>
   );
 }

@@ -103,7 +103,7 @@ export default function FAQs() {
   return (
     <section className="mx-auto mb-[5.3125rem] flex w-full max-w-[999px] flex-col gap-6 px-5 lg:mb-[17.75rem] lg:grid lg:grid-cols-[1fr_2fr] lg:items-center">
       <h2
-        className={`${crimsonPro.className} flex justify-center gap-1 text-center text-[1.75rem] font-semibold italic lg:max-w-[294px] lg:flex-col lg:items-start lg:gap-0 lg:text-left lg:text-[3.5rem]`}
+        className={`${crimsonPro.className} flex justify-center gap-1 text-center text-[1.75rem] font-semibold italic md:text-[3.5rem] lg:max-w-[294px] lg:flex-col lg:items-start lg:gap-0 lg:text-left`}
       >
         <span>Frequently </span>
         <span>Asked </span>

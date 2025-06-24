@@ -67,6 +67,7 @@ const config: Config = {
       },
       screens: {
         xsm: "375px",
+        xmd: "425px",
       },
       keyframes: {
         "rocket-shake": {

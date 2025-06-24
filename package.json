@@ -29,6 +29,7 @@
     "@tanstack/react-query": "^5.80.7",
     "@thirdweb-dev/auth": "^4.1.97",
     "@thirdweb-dev/wallets": "^2.5.39",
+    "@vidstack/react": "^0.6.15",
     "axios": "^1.9.0",
     "canvas-confetti": "^1.9.3",
     "critters": "^0.0.25",
@@ -72,7 +73,7 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "packageManager": "pnpm@10.12.1",
+  "packageManager": "pnpm@10.12.2",
   "pnpm": {
     "overrides": {
       "@types/react": "19.0.8",

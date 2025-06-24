@@ -12,6 +12,7 @@ import {
   BlurRevealTitle,
   BlurRevealContent,
 } from "./AnimatedComponents";
+import WalkthroughVideo from "./WalkthroughVideo";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -92,32 +93,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
           id="video-section"
           className="mx-auto mb-[4.875rem] mt-16 w-full max-w-[62.75rem] scroll-mt-24 px-5 md:mb-[11.5625rem] md:mt-[7.5625rem]"
         >
-          <div className="relative w-full cursor-pointer justify-center rounded-[24px] border-[0.5px] border-[#FFFFFF1A] bg-[#FD76B3] p-3 hover:opacity-90 lg:p-5">
-            <Image
-              src="/images/walkthrough-video.svg"
-              width={100}
-              height={100}
-              alt="Walkthrough Video"
-              className="hidden w-full md:block"
-              priority
-            />
-            <Image
-              src="/images/walkthrough-video-img-mobile.svg"
-              width={100}
-              height={100}
-              alt="Walkthrough Video"
-              className="w-full md:hidden"
-              priority
-            />
-            <Image
-              src="/images/video-plane-img.svg"
-              alt="Video Plane Image"
-              width={100}
-              height={100}
-              className="absolute -bottom-[3.5rem] right-0 w-[120px] lg:-bottom-28 lg:-right-24 lg:w-[300px]"
-              priority
-            />
-          </div>
+          <WalkthroughVideo />
         </BlurRevealSection>
 
         <BlurRevealSection className="mb-[9.375rem] flex w-full flex-col items-center justify-center gap-11 px-5 sm:gap-[54px] md:mb-[7.875rem]">
@@ -276,9 +252,9 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
           <FAQs />
         </BlurRevealSection>
 
-        <BlurRevealSection className="xmd:h-[550px] relative mx-auto mb-24 flex h-[865px] w-full max-w-[1440px] items-start overflow-hidden px-5 sm:h-[600px] md:mb-24 md:h-[850px]">
+        <BlurRevealSection className="relative mx-auto mb-24 flex h-[865px] w-full max-w-[1440px] items-start overflow-hidden px-5 xmd:h-[550px] sm:h-[600px] md:mb-24 md:h-[850px]">
           {/* Desktop/Tablet Illustration */}
-          <div className="xmd:block absolute bottom-0 right-0 z-0 hidden h-full w-full">
+          <div className="absolute bottom-0 right-0 z-0 hidden h-full w-full xmd:block">
             <Image
               src="/images/power-liquidity-desktop-illustration.svg"
               alt="Liquidity Illustration"
@@ -288,7 +264,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
             />
           </div>
           {/* Mobile Illustration */}
-          <div className="xmd:hidden absolute bottom-0 left-0 z-0 block h-[1000px] w-full">
+          <div className="absolute bottom-0 left-0 z-0 block h-[1000px] w-full xmd:hidden">
             <Image
               src="/images/power-liquidity-mobile-illustration.svg"
               alt="Liquidity Illustration"

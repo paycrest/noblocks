@@ -862,3 +862,24 @@ export const QrCodeIcon = (props: ImageProps) => {
     </svg>
   );
 };
+
+export const WalkthroughPlayIcon = (props: ImageProps) => {
+  return (
+    <svg
+      width="152"
+      height="152"
+      viewBox="0 0 152 152"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <title>Walkthrough play icon</title>
+      <rect width="152" height="152" rx="76" fill="white" fillOpacity="0.05" />
+      <rect x="16" y="16" width="120" height="120" rx="60" fill="#FD76B3" />
+      <path
+        d="M100 69.0718C105.333 72.151 105.333 79.849 100 82.9282L70 100.249C64.6667 103.328 58 99.4789 58 93.3205V58.6795C58 52.5211 64.6667 48.6721 70 51.7513L100 69.0718Z"
+        fill="white"
+      />
+    </svg>
+  );
+};

@@ -10,7 +10,7 @@ import { blurReveal } from "./AnimatedComponents";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
-  weight: ["400", "600"],
+  weight: ["400", "500", "600"],
   style: ["normal", "italic"],
   variable: "--font-crimson",
 });
@@ -125,16 +125,17 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.4, ease: "easeOut" }}
         >
-          <h3 className="cursor-pointer text-center hover:opacity-80">
-            <span className="text-xl font-semibold opacity-80 md:text-[2.875rem]">
+          <h3 className="text-center dark:opacity-80">
+            <span className="text-xl font-semibold md:text-[2.875rem]">
               Ways you can use{" "}
             </span>
             <span
-              className={`${crimsonPro.className} text-2xl font-medium italic md:text-5xl`}
+              className={`${crimsonPro.className} text-2xl font-semibold italic md:text-5xl`}
             >
               Noblocks
             </span>
           </h3>
+
           {(() => {
             const useCases = [
               {
@@ -164,7 +165,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
                 title: "Web3 Native & Degen",
                 items: [
                   {
-                    icon: "/images/turn-defi-tocash.svg",
+                    icon: "/images/turn-defi-to-cash.svg",
                     text: "Turn your DEFI yields into cash easily",
                     width: 60,
                     height: 30,
@@ -217,6 +218,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
             );
           })()}
         </motion.section>
+
         <motion.section
           className="mb-[4.6875rem] flex w-full flex-col items-center justify-center gap-6 px-5 md:mb-[11.5625rem]"
           initial={{ opacity: 0, filter: "blur(8px)", y: 20 }}
@@ -275,6 +277,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
             />
           </div>
         </motion.section>
+
         <motion.div
           initial={{ opacity: 0, filter: "blur(8px)", y: 20 }}
           whileInView={{ opacity: 1, filter: "blur(0px)", y: 0 }}
@@ -283,26 +286,49 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
         >
           <FAQs />
         </motion.div>
+
         <motion.section
-          className="relative mx-auto mb-[96px] hidden h-[1050px] w-full max-w-[1440px] flex-col gap-8 bg-[url('/images/power-liquidity-desktop-illustration.svg')] bg-cover bg-no-repeat px-5 md:flex"
+          className="xmd:h-[550px] relative mx-auto mb-24 flex h-[865px] w-full max-w-[1440px] items-start overflow-hidden px-5 sm:h-[600px] md:mb-24 md:h-[850px]"
           initial={{ opacity: 0, filter: "blur(8px)", y: 20 }}
           whileInView={{ opacity: 1, filter: "blur(0px)", y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.4, ease: "easeOut" }}
         >
-          <div className="mx-auto w-full max-w-[1440px]">
-            <div className="z-10 flex max-w-[600px] flex-col gap-5 lg:ml-[15rem]">
+          {/* Desktop/Tablet Illustration */}
+          <div className="xmd:block absolute bottom-0 right-0 z-0 hidden h-full w-full">
+            <Image
+              src="/images/power-liquidity-desktop-illustration.svg"
+              alt="Liquidity Illustration"
+              fill
+              className="pointer-events-none object-contain object-right-bottom"
+              priority
+            />
+          </div>
+          {/* Mobile Illustration */}
+          <div className="xmd:hidden absolute bottom-0 left-0 z-0 block h-[1000px] w-full">
+            <Image
+              src="/images/power-liquidity-mobile-illustration.svg"
+              alt="Liquidity Illustration"
+              fill
+              className="pointer-events-none object-contain object-bottom"
+              priority
+            />
+          </div>
+
+          {/* Content */}
+          <div className="mx-auto w-full max-w-[999px]">
+            <div className="relative z-10 max-w-[600px] pt-8 md:pt-28">
               <p className="flex flex-col font-semibold lg:gap-1">
-                <span className="text-2xl lg:text-[48px]">
+                <span className="text-2xl md:text-[48px]">
                   Power the Liquidity
                 </span>
                 <span
-                  className={`${crimsonPro.className} text-[28px] italic lg:text-[56px]`}
+                  className={`${crimsonPro.className} text-[1.75rem] italic md:text-[56px]`}
                 >
                   Engine on Noblocks
                 </span>
               </p>
-              <p className="text-base font-normal leading-7 lg:text-lg">
+              <p className="mt-4 text-base font-normal leading-7 md:text-lg">
                 Maximize your earnings while enabling fast and seamless
                 stablecoin exchanges. Specify your rate, serve urgent customers
                 and lead the charge to operate in a truly decentralized world.
@@ -311,44 +337,14 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
                 href="https://paycrest.io/provider"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block w-full max-w-[219px] cursor-pointer rounded-xl bg-[#8B85F4] py-[10px] text-center text-sm font-medium text-white hover:opacity-90 dark:text-white"
+                className="mt-6 block w-full max-w-[219px] cursor-pointer rounded-lg bg-[#8B85F4] p-3 text-center text-sm font-medium text-white hover:opacity-90 dark:text-white md:rounded-xl md:py-[10px]"
               >
                 Become a Liquidity Provider
               </a>
             </div>
           </div>
         </motion.section>
-        <motion.section
-          className="relative mx-auto my-20 flex h-[865px] w-full max-w-[1440px] flex-col gap-8 bg-[url('/images/power-liquidity-mobile-illustration.svg')] bg-cover bg-no-repeat px-5 md:hidden"
-          initial={{ opacity: 0, filter: "blur(8px)", y: 20 }}
-          whileInView={{ opacity: 1, filter: "blur(0px)", y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
-        >
-          <div className="z-10 mt-[4.5rem] flex max-w-[616px] flex-col gap-5 bg-no-repeat lg:ml-20 lg:mt-8">
-            <p className="flex flex-col text-2xl font-semibold lg:gap-4 lg:text-5xl">
-              <span>Power the Liquidity</span>
-              <span
-                className={`${crimsonPro.className} text-[1.75rem] italic lg:text-[3.5rem]`}
-              >
-                Engine on Noblocks
-              </span>
-            </p>
-            <p className="text-base font-normal lg:text-lg">
-              Maximize your earnings while enabling fast and seamless stablecoin
-              exchanges. Specify your rate, serve urgent customers and lead the
-              charge to operate in a truly decentralized world.
-            </p>
-            <a
-              href="https://paycrest.io/provider"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full cursor-pointer rounded-lg bg-[#8B85F4] p-3 text-center text-sm font-medium text-white hover:opacity-90 dark:text-white"
-            >
-              Become a Liquidity Provider
-            </a>
-          </div>
-        </motion.section>
+
         <motion.section
           className="mx-auto mb-24 flex w-full max-w-[1440px] flex-col justify-center px-5 md:mb-[10rem] md:flex-row-reverse md:items-center md:pl-0"
           initial={{ opacity: 0, filter: "blur(8px)", y: 20 }}
@@ -359,7 +355,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
           <div className="w-full max-w-[302px] space-y-4">
             <button
               type="button"
-              className="rounded-3xl bg-[#20BA90] p-[6px] text-sm font-medium text-white dark:text-white"
+              className="rounded-3xl bg-[#20BA90] p-1.5 text-sm font-medium text-white dark:text-white"
             >
               Coming soon
             </button>
@@ -378,34 +374,43 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
               <span className={`${crimsonPro.className} italic`}>30s</span>
             </p>
           </div>
-          <Image
-            src="/images/mobile-app-illustration-mobile.svg"
-            alt="Mobile App Illustration Mobile Dark"
-            width={100}
-            height={100}
-            className="hidden w-full cursor-pointer hover:opacity-90 dark:block dark:md:hidden"
-          />
-          <Image
-            src="/images/mobile-app-illustration-light-mode-mobile.svg"
-            alt="Mobile App Illustration Mobile Light"
-            width={100}
-            height={100}
-            className="block w-full cursor-pointer hover:opacity-90 dark:hidden md:hidden"
-          />
-          <Image
-            src="/images/mobile-app-illustration-desktop.svg"
-            alt="Mobile App Illustration Desktop Dark"
-            width={100}
-            height={100}
-            className="hidden w-full max-w-[800px] cursor-pointer hover:opacity-90 dark:md:block"
-          />
-          <Image
-            src="/images/mobile-app-illustration-light-mode-desktop.svg"
-            alt="Mobile App Illustration Desktop Light"
-            width={100}
-            height={100}
-            className="hidden w-full max-w-[800px] cursor-pointer hover:opacity-90 md:block dark:md:hidden"
-          />
+
+          {(() => {
+            const images = [
+              {
+                src: "/images/mobile-app-illustration-mobile.svg",
+                alt: "Mobile App Illustration Mobile Dark",
+                className: "hidden w-full dark:block dark:md:hidden",
+              },
+              {
+                src: "/images/mobile-app-illustration-light-mode-mobile.svg",
+                alt: "Mobile App Illustration Mobile Light",
+                className: "block w-full dark:hidden md:hidden",
+              },
+              {
+                src: "/images/mobile-app-illustration-desktop.svg",
+                alt: "Mobile App Illustration Desktop Dark",
+                className: "hidden w-full max-w-[800px] dark:md:block",
+              },
+              {
+                src: "/images/mobile-app-illustration-light-mode-desktop.svg",
+                alt: "Mobile App Illustration Desktop Light",
+                className:
+                  "hidden w-full max-w-[800px] md:block dark:md:hidden",
+              },
+            ];
+
+            return images.map((image, index) => (
+              <Image
+                key={index}
+                src={image.src}
+                alt={image.alt}
+                width={100}
+                height={100}
+                className={`${image.className} cursor-pointer transition-transform duration-300 ease-in-out hover:scale-105 hover:opacity-90`}
+              />
+            ));
+          })()}
         </motion.section>
       </div>
 

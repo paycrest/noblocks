@@ -62,3 +62,29 @@ select {
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
 }
+
+.walkthrough-play-btn {
+  width: 20px;
+  height: 20px;
+}
+@media (min-width: 640px) {
+  /* sm */
+  .walkthrough-play-btn {
+    width: 20px;
+    height: 20px;
+  }
+}
+@media (min-width: 768px) {
+  /* md */
+  .walkthrough-play-btn {
+    width: 20px;
+    height: 20px;
+  }
+}
+@media (min-width: 1024px) {
+  /* lg */
+  .walkthrough-play-btn {
+    width: 20px;
+    height: 20px;
+  }
+}

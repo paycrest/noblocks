@@ -31,8 +31,8 @@ export const PausedNetworkNotice: React.FC<{ show?: boolean }> = ({
             </span>
             <span className="font-normal text-text-secondary dark:text-white/50">
               {" "}
-              transactions are currently paused due to technical constraints.
-              We're working on it — please try again soon or{" "}
+              swaps are currently paused due to an ongoing migration. Please try
+              again soon or{" "}
             </span>
             <a
               href={config.contactSupportUrl}

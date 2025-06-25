@@ -88,3 +88,37 @@ select {
     height: 20px;
   }
 }
+
+@keyframes rocket-diagonal {
+  0% {
+    transform: translate(0, 0) rotate(-20deg) scale(1);
+  }
+  16% {
+    transform: translate(24px, -48px) rotate(-16deg) scale(1.08);
+  }
+  33% {
+    transform: translate(48px, -96px) rotate(-12deg) scale(1.16);
+  }
+  50% {
+    transform: translate(0, -120px) rotate(-10deg) scale(1.22);
+  }
+  66% {
+    transform: translate(-48px, -96px) rotate(-12deg) scale(1.16);
+  }
+  83% {
+    transform: translate(-24px, -48px) rotate(-16deg) scale(1.08);
+  }
+  100% {
+    transform: translate(0, 0) rotate(-20deg) scale(1);
+  }
+}
+
+@keyframes footer-bg-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(32px);
+  }
+}

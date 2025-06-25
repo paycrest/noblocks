@@ -353,6 +353,10 @@ export const TransactionForm = ({
           currencies.forEach((currency) => {
             currency.disabled = currency.name !== "NGN";
           });
+          // If the selected currency is not NGN, set it to NGN
+          if (currency !== "NGN") {
+            formMethods.setValue("currency", "NGN", { shouldDirty: true });
+          }
         } else {
           // Reset currencies to their default state from mocks
           currencies.forEach((currency) => {

@@ -64,7 +64,7 @@ export const Footer = () => {
         layout
         transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
       >
-        <div className="mx-auto w-full max-w-[1440px]">
+        <div className="mx-auto w-full">
           <p className="absolute bottom-8 left-4 z-20 text-xs font-medium md:left-20">
             <span className="text-gray-500 dark:text-white/50">
               &copy; {currentYear} Powered by
@@ -124,7 +124,7 @@ export const Footer = () => {
           alt="Footer Desktop Image"
           width={100}
           height={100}
-          className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] md:block"
+          className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] md:block 2xl:rounded-b-[84px]"
         />
         <Image
           src="/images/footer-rocket-illustration.svg"

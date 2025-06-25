@@ -43,3 +43,5 @@ export {
   outlineBtnClasses,
   baseBtnClasses,
 } from "./Styles";
+
+export { PausedNetworkNotice } from "./transaction/PausedNetworkNotice";

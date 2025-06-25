@@ -1,0 +1,45 @@
+# Noblocks
+
+> Noblocks is a decentralized payments interface that simplifies cryptocurrency-to-local currency conversion using a distributed liquidity protocol. It provides seamless, secure, and instant stablecoin payments to any bank or mobile wallet, powered by the Paycrest Protocol.
+
+Noblocks enables users to send USDC, USDT, DAI, and cNGN across major networks (Polygon, Base, Arbitrum, BNB Chain, Ethereum, Celo, Lisk, Optimism) with zero gas fees, thanks to gasless transaction support (Biconomy). The platform integrates compliance (Shield3) and robust wallet support (Privy smart wallets, injected wallets). Transaction history is securely managed and tracked with Supabase and Row Level Security (RLS), but actual transaction execution is handled on-chain.
+
+Key features:
+- Instant stablecoin transfers to banks and mobile money
+- Multi-network and multi-stablecoin support
+- Gasless transactions (0 gas fees for users)
+- Real-time transaction history tracking (via Supabase)
+- KYC and privacy-focused architecture
+- Open API for transaction management
+
+## Documentation
+
+- [Project README](README.md): Project overview, setup, and contributing
+- [Wallet Integration](docs/wallet-integration.md): Supported wallets, wallet context, security, and best practices
+- [Transactions](docs/transactions.md): Transaction flow, API endpoints, error handling, and monitoring
+- [Authentication](docs/authentication.md): Auth system, wallet types, JWT, and security
+- [Transaction History Setup](docs/transaction-history-setup.md): Supabase, RLS, environment, and troubleshooting
+
+## API
+
+- [Transaction API Endpoints](app/api/v1/transactions/route.ts): REST endpoints for creating, updating, and retrieving transactions
+- [API Structure](docs/transactions.md#api-endpoints): Details on endpoints, parameters, and security
+
+## Legal & Policy
+
+- [Terms of Service](app/components/TermsOfService.tsx): User agreement, eligibility, compliance, and liability
+- [Privacy Policy](app/components/PrivacyPolicy.tsx): Data collection, wallet info, KYC, transaction info, security, and user rights
+
+## Contribution & Support
+
+- [Contribution Guide](https://paycrest.notion.site/Contribution-Guide-1602482d45a2809a8930e6ad565c906a): Development process, standards, and guidelines
+- [Code of Conduct](https://paycrest.notion.site/Contributor-Code-of-Conduct-1602482d45a2806bab75fd314b381f4c): Community standards and expectations
+- [Developer Community (Telegram)](https://t.me/+Stx-wLOdj49iNDM0): Support and discussion
+- [License (AGPL v3.0)](LICENSE): Open-source license
+
+## Optional
+
+- [Paycrest Protocol](https://paycrest.io): Underlying decentralized liquidity protocol
+- [Live Site](https://noblocks.xyz): Noblocks production deployment
+- [Shield3](https://shield3.com/): OFAC compliance provider
+- [Biconomy](https://biconomy.io/): Gasless transaction provider 

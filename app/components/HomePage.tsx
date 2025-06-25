@@ -57,7 +57,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
               animate="visible"
             >
               <motion.span
-                className="text-3xl opacity-80 md:text-[4rem]"
+                className="text-3xl text-text-secondary dark:text-white/80 sm:text-[2.5rem] md:text-[3.5rem] lg:text-[4rem]"
                 variants={heroLineVariants}
                 custom={0}
                 initial="hidden"
@@ -66,7 +66,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
                 Change stablecoins
               </motion.span>
               <motion.span
-                className={`${crimsonPro.className} text-[2.375rem] italic md:text-[4.875rem]`}
+                className={`${crimsonPro.className} text-[2.375rem] italic sm:text-[3.25rem] md:text-[4.25rem] lg:text-[4.5rem]`}
                 variants={heroLineVariants}
                 custom={1}
                 initial="hidden"
@@ -285,19 +285,19 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
           <FAQs />
         </BlurRevealSection>
 
-        <BlurRevealSection className="relative mx-auto mb-24 flex h-[865px] w-full max-w-screen-2xl items-start overflow-hidden px-5 xmd:h-[550px] sm:h-[600px] md:mb-24 md:h-[850px] 2xl:rounded-b-[84px]">
+        <BlurRevealSection className="xmd:h-[550px] relative mx-auto mb-24 flex h-[865px] w-full max-w-screen-2xl items-start overflow-hidden px-5 sm:h-[600px] md:mb-24 md:h-[850px]">
           {/* Desktop/Tablet Illustration */}
-          <div className="absolute bottom-0 right-0 z-0 hidden h-full w-full xmd:block">
+          <div className="xmd:block absolute bottom-0 right-0 z-0 hidden h-full w-full">
             <Image
               src="/images/power-liquidity-desktop-illustration.svg"
               alt="Liquidity Illustration"
               fill
-              className="pointer-events-none object-contain object-center 2xl:rounded-b-[84px]"
+              className="pointer-events-none object-contain object-center"
               priority
             />
           </div>
           {/* Mobile Illustration */}
-          <div className="absolute bottom-0 left-0 z-0 block h-[1000px] w-full xmd:hidden">
+          <div className="xmd:hidden absolute bottom-0 left-0 z-0 block h-[1000px] w-full">
             <Image
               src="/images/power-liquidity-mobile-illustration.svg"
               alt="Liquidity Illustration"

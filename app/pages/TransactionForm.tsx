@@ -504,8 +504,6 @@ export const TransactionForm = ({
     selectedNetwork.chain.name,
   );
 
-  console.log("isPausedNetwork", isPausedNetwork);
-
   return (
     <div className="mx-auto max-w-[27.3125rem]">
       <form
@@ -762,7 +760,7 @@ export const TransactionForm = ({
             >
               {buttonText}
             </button>
-            {isPausedNetwork && <PausedNetworkNotice />}
+            {isPausedNetwork && authenticated && <PausedNetworkNotice />}
           </>
         )}
 

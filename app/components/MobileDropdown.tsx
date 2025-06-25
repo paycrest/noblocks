@@ -408,39 +408,45 @@ export const MobileDropdown = ({
                                   exit={{ height: 0, opacity: 0 }}
                                   className="space-y-2 overflow-hidden *:min-h-11"
                                 >
-                                  {networks.map((network) => (
-                                    <button
-                                      type="button"
-                                      key={network.chain.name}
-                                      onClick={() =>
-                                        handleNetworkSwitchWrapper(network)
-                                      }
-                                      className="flex w-full items-center justify-between"
-                                    >
-                                      <div className="flex items-center gap-2 py-2.5">
-                                        <Image
-                                          src={getNetworkImageUrl(
-                                            network,
-                                            isDark,
-                                          )}
-                                          alt={network.chain.name}
-                                          width={24}
-                                          height={24}
-                                          className="size-6"
-                                        />
-                                        <span className="text-text-body dark:text-white/80">
-                                          {network.chain.name}
-                                        </span>
-                                      </div>
-                                      {selectedNetwork.chain.name ===
-                                        network.chain.name && (
-                                        <PiCheck
-                                          className="size-5 text-green-900 dark:text-green-500"
-                                          strokeWidth={2}
-                                        />
-                                      )}
-                                    </button>
-                                  ))}
+                                  {networks
+                                    .filter(
+                                      (network) =>
+                                        isInjectedWallet ||
+                                        network.chain.name !== "Celo",
+                                    )
+                                    .map((network) => (
+                                      <button
+                                        type="button"
+                                        key={network.chain.name}
+                                        onClick={() =>
+                                          handleNetworkSwitchWrapper(network)
+                                        }
+                                        className="flex w-full items-center justify-between"
+                                      >
+                                        <div className="flex items-center gap-2 py-2.5">
+                                          <Image
+                                            src={getNetworkImageUrl(
+                                              network,
+                                              isDark,
+                                            )}
+                                            alt={network.chain.name}
+                                            width={24}
+                                            height={24}
+                                            className="size-6"
+                                          />
+                                          <span className="text-text-body dark:text-white/80">
+                                            {network.chain.name}
+                                          </span>
+                                        </div>
+                                        {selectedNetwork.chain.name ===
+                                          network.chain.name && (
+                                          <PiCheck
+                                            className="size-5 text-green-900 dark:text-green-500"
+                                            strokeWidth={2}
+                                          />
+                                        )}
+                                      </button>
+                                    ))}
                                 </motion.div>
                               )}
                             </AnimatePresence>

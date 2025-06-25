@@ -292,7 +292,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
               src="/images/power-liquidity-desktop-illustration.svg"
               alt="Liquidity Illustration"
               fill
-              className="pointer-events-none object-contain object-right-bottom 2xl:rounded-b-[84px]"
+              className="pointer-events-none object-contain object-center 2xl:rounded-b-[84px]"
               priority
             />
           </div>
@@ -337,7 +337,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
           </div>
         </BlurRevealSection>
 
-        <BlurRevealSection className="mx-auto mb-24 flex w-full max-w-[1440px] flex-col justify-center px-5 md:mb-[10rem] md:flex-row-reverse md:items-center">
+        <BlurRevealSection className="mx-auto mb-24 flex w-full max-w-[1440px] flex-col justify-center gap-10 px-5 md:mb-[10rem] md:flex-row-reverse md:items-center">
           <div className="w-full max-w-[302px] space-y-4">
             <button
               type="button"

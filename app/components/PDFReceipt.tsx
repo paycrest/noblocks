@@ -150,7 +150,7 @@ export const PDFReceipt = ({
     amountReceived: number;
     currency: string;
   };
-  supportedInstitutions: InstitutionProps[];
+  supportedInstitutions?: InstitutionProps[];
 }) => {
   const {
     recipientName,
@@ -161,10 +161,9 @@ export const PDFReceipt = ({
     currency,
   } = formData;
 
-  const institutionName = getInstitutionNameByCode(
-    institution,
-    supportedInstitutions,
-  );
+  const institutionName = supportedInstitutions
+    ? getInstitutionNameByCode(institution, supportedInstitutions)
+    : institution;
 
   const formatDate = (dateString: string | number | Date) => {
     const date = new Date(dateString);

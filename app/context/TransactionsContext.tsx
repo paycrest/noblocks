@@ -93,22 +93,34 @@ export function TransactionsProvider({
                 walletAddress,
               });
 
-              // Update local state without re-rendering
+              const updatedTransaction = {
+                ...tx,
+                status: ["validated", "settled"].includes(orderData.status)
+                  ? "completed"
+                  : (orderData.status as TransactionStatus),
+                tx_hash: newTxHash ?? tx.tx_hash,
+              };
+
+              // Update local state
               setTransactions((prev) =>
-                prev.map((t) =>
-                  t.id === tx.id
-                    ? {
-                        ...t,
-                        status: ["validated", "settled"].includes(
-                          orderData.status,
-                        )
-                          ? "completed"
-                          : (orderData.status as TransactionStatus),
-                        tx_hash: newTxHash ?? t.tx_hash,
-                      }
-                    : t,
-                ),
+                prev.map((t) => (t.id === tx.id ? updatedTransaction : t)),
               );
+
+              // Update cache to maintain consistency
+              setCache((prevCache) => {
+                const updatedCache = { ...prevCache };
+                Object.keys(updatedCache).forEach((cacheKey) => {
+                  const cachedData = updatedCache[cacheKey];
+                  const updatedTransactions = cachedData.data.map((t) =>
+                    t.id === tx.id ? updatedTransaction : t,
+                  );
+                  updatedCache[cacheKey] = {
+                    ...cachedData,
+                    data: updatedTransactions,
+                  };
+                });
+                return updatedCache;
+              });
             }
           } catch (err) {
             // Fail silently

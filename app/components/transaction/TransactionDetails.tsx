@@ -6,16 +6,18 @@ import { ImSpinner } from "react-icons/im";
 import { toast } from "sonner";
 import { pdf } from "@react-pdf/renderer";
 import { PDFReceipt } from "../PDFReceipt";
-import type { TransactionHistory } from "../../types";
+import type { TransactionHistory, Network } from "../../types";
 import {
   getExplorerLink,
   formatNumberWithCommas,
   SUPPORTED_TOKENS,
   currencyToCountryCode,
   formatCurrency,
+  getNetworkImageUrl,
 } from "../../utils";
 import { useNetwork } from "../../context/NetworksContext";
 import { useActualTheme } from "../../hooks/useActualTheme";
+import { networks } from "../../mocks";
 
 interface TransactionDetailsProps {
   transaction: TransactionHistory | null;
@@ -31,6 +33,11 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   fulfilled: "text-blue-500",
   pending: "text-orange-500",
   processing: "text-yellow-500",
+};
+
+// Helper function to get network object from network name
+const getNetworkFromName = (networkName: string): Network | null => {
+  return networks.find((network) => network.chain.name === networkName) || null;
 };
 
 export function TransactionDetails({ transaction }: TransactionDetailsProps) {
@@ -172,6 +179,41 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             </span>
           }
         />
+        {transaction.network && (
+          <DetailRow
+            label="Network"
+            value={
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const networkObj = getNetworkFromName(transaction.network);
+                  if (networkObj) {
+                    return (
+                      <>
+                        {getNetworkImageUrl(networkObj, isDark) && (
+                          <Image
+                            src={getNetworkImageUrl(networkObj, isDark)}
+                            alt={transaction.network}
+                            width={16}
+                            height={16}
+                            className="rounded-full"
+                          />
+                        )}
+                        <span className="text-text-accent-gray dark:text-white/80">
+                          {transaction.network}
+                        </span>
+                      </>
+                    );
+                  }
+                  return (
+                    <span className="text-text-accent-gray dark:text-white/80">
+                      {transaction.network}
+                    </span>
+                  );
+                })()}
+              </div>
+            }
+          />
+        )}
         <DetailRow
           label="Recipient"
           value={

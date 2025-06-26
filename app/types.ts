@@ -297,6 +297,7 @@ export interface TransactionHistory {
   fee: number;
   recipient: Recipient;
   status: TransactionStatus;
+  network: string;
   tx_hash?: string;
   time_spent?: string;
   created_at: string;
@@ -314,6 +315,7 @@ export interface TransactionCreateInput {
   fee: number;
   recipient: Recipient;
   status: TransactionStatus;
+  network: string;
   txHash?: string;
   timeSpent?: string;
   orderId?: string;

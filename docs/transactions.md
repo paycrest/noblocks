@@ -20,6 +20,7 @@ interface Transaction {
     fee: decimal;
     recipient: JSONB;
     status: string;
+    network: string;
     memo?: string;
     time_spent?: string;
     tx_hash?: string;
@@ -63,6 +64,7 @@ Body:
     fee: number;
     recipient: object;
     status: string;
+    network: string;
     time_spent?: string;
     txHash?: string;
 }

@@ -396,6 +396,7 @@ export const TransactionPreview = ({
           ...(memo && { memo }),
         },
         status: "pending",
+        network: selectedNetwork.chain.name,
         orderId: orderId,
         txHash: txHash,
       };

@@ -116,7 +116,7 @@ select {
 @keyframes footer-bg-float {
   0%,
   100% {
-    transform: translateY(0);
+    transform: translateY(4);
   }
   50% {
     transform: translateY(32px);

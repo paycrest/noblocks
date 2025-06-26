@@ -36,10 +36,19 @@ const heroLineVariants = {
 };
 
 export function HomePage({ transactionFormComponent }: HomePageProps) {
+  const handleScrollToForm = () => {
+    const formElement = document.getElementById("hero");
+    if (formElement) {
+      formElement.scrollIntoView({ behavior: "smooth" });
+    }
+  };
   return (
     <div className="flex w-full flex-col">
       {/* Hero section with min-h-screen */}
-      <div className="flex min-h-screen w-full flex-col items-center justify-center overflow-y-auto py-20">
+      <div
+        id="hero"
+        className="flex min-h-screen w-full flex-col items-center justify-center overflow-y-auto py-20"
+      >
         <motion.div
           initial={{ opacity: 0, filter: "blur(16px)" }}
           animate={{ opacity: 1, filter: "blur(0px)" }}
@@ -234,6 +243,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
             </p>
             <button
               type="button"
+              onClick={handleScrollToForm}
               className="flex items-center gap-2 text-base font-medium hover:cursor-pointer hover:opacity-80"
             >
               Get started <ArrowRight04Icon />
@@ -292,7 +302,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
               src="/images/power-liquidity-desktop-illustration.svg"
               alt="Liquidity Illustration"
               fill
-              className="pointer-events-none object-contain object-center"
+              className="pointer-events-none object-contain object-bottom lg:object-center"
               priority
             />
           </div>

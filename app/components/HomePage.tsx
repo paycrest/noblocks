@@ -4,8 +4,8 @@ import { Crimson_Pro } from "next/font/google";
 import { ArrowRight04Icon } from "hugeicons-react";
 import FAQs from "./FAQs";
 import Image from "next/image";
-import { motion } from "framer-motion";
-import { ReactNode } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ReactNode, useState } from "react";
 import {
   blurReveal,
   BlurRevealSection,
@@ -24,6 +24,7 @@ const crimsonPro = Crimson_Pro({
 
 interface HomePageProps {
   transactionFormComponent: ReactNode;
+  isRecipientFormOpen: boolean;
 }
 
 const heroLineVariants = {
@@ -33,56 +34,66 @@ const heroLineVariants = {
     y: 0,
     transition: { delay: i * 0.25, duration: 0.7, ease: "easeOut" },
   }),
+  exit: (i: number) => ({
+    opacity: 0,
+    y: -40,
+    transition: { duration: 0.7, ease: "easeInOut" },
+  }),
 };
 
-export function HomePage({ transactionFormComponent }: HomePageProps) {
+export function HomePage({
+  transactionFormComponent,
+  isRecipientFormOpen,
+}: HomePageProps) {
   const handleScrollToForm = () => {
     const formElement = document.getElementById("hero");
     if (formElement) {
       formElement.scrollIntoView({ behavior: "smooth" });
     }
   };
+
   return (
     <div className="flex w-full flex-col">
-      {/* Hero section with min-h-screen */}
+      {/* Hero section */}
       <div
         id="hero"
         className="flex min-h-screen w-full flex-col items-center justify-center overflow-y-auto py-20"
       >
         <motion.div
+          layout
           initial={{ opacity: 0, filter: "blur(16px)" }}
           animate={{ opacity: 1, filter: "blur(0px)" }}
           transition={{ duration: 0.8, ease: "easeOut" }}
           className="flex flex-1 flex-col justify-center"
         >
+          {/* Hero text with smooth collapse/expand animation */}
           <motion.section
             className="w-full px-5"
-            initial="hidden"
-            animate="visible"
+            initial={false}
+            animate={{
+              height: isRecipientFormOpen ? 0 : "auto",
+              opacity: isRecipientFormOpen ? 0 : 1,
+              marginBottom: isRecipientFormOpen ? 0 : "2.875rem",
+            }}
+            transition={{ duration: 0.7, ease: "easeInOut" }}
           >
             <motion.h1
-              className="mb-[2.875rem] flex flex-col items-center gap-1 text-center font-semibold md:mb-[5.25rem]"
-              initial="hidden"
-              animate="visible"
+              className="flex flex-col items-center gap-1 text-center font-semibold sm:mb-[2.25rem] md:mb-[3.25rem] lg:mb-[5.25rem]"
+              initial={false}
+              animate={{
+                opacity: isRecipientFormOpen ? 0 : 1,
+                y: isRecipientFormOpen ? -40 : 0,
+              }}
+              transition={{ duration: 0.7, ease: "easeInOut" }}
             >
-              <motion.span
-                className="text-3xl text-text-secondary dark:text-white/80 sm:text-[2.5rem] md:text-[3.5rem] lg:text-[4rem]"
-                variants={heroLineVariants}
-                custom={0}
-                initial="hidden"
-                animate="visible"
-              >
+              <span className="text-3xl text-text-secondary dark:text-white/80 sm:text-[2.5rem] md:text-[3.5rem] lg:text-[4rem]">
                 Change stablecoins
-              </motion.span>
-              <motion.span
+              </span>
+              <span
                 className={`${crimsonPro.className} text-[2.375rem] italic sm:text-[3.25rem] md:text-[4.25rem] lg:text-[4.5rem]`}
-                variants={heroLineVariants}
-                custom={1}
-                initial="hidden"
-                animate="visible"
               >
                 to cash in seconds
-              </motion.span>
+              </span>
             </motion.h1>
           </motion.section>
 
@@ -97,7 +108,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
           </motion.div>
 
           <motion.div
-            className="fixed -bottom-16 z-40 flex w-full -translate-x-1/2 flex-col items-center"
+            className="fixed -bottom-10 z-40 flex w-full -translate-x-1/2 flex-col items-center"
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.2, duration: 0.7, ease: "easeOut" }}
@@ -117,9 +128,9 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
                 duration: 1.5,
                 ease: "easeInOut",
               }}
-              className="select-none text-base font-normal text-text-secondary dark:text-white/50"
+              className="select-none text-sm font-normal text-text-disabled dark:text-white/30"
             >
-              Learn how to use Noblocks
+              Scroll down to learn more
             </motion.div>
             <span className="mt-3">
               <ScrollArrowHead />
@@ -129,21 +140,23 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
       </div>
 
       {/* All additional content - always visible, scroll-triggered animations */}
-      <div className="w-full">
+      <div className="-mt-2 w-full lg:-mt-4">
         <BlurRevealSection
           id="video-section"
-          className="mx-auto mb-[4.875rem] mt-16 w-full max-w-[62.75rem] scroll-mt-24 px-5 md:mb-[11.5625rem] md:mt-[7.5625rem]"
+          className="mx-auto mb-[4.875rem] w-full max-w-[62.75rem] scroll-mt-24 px-5 md:mb-[11.5625rem]"
+          delay={1.4}
+          whileInView={false}
         >
           <WalkthroughVideo />
         </BlurRevealSection>
 
         <BlurRevealSection className="mb-[9.375rem] flex w-full flex-col items-center justify-center gap-11 px-5 sm:gap-[54px] md:mb-[7.875rem]">
           <BlurRevealTitle className="text-center dark:opacity-80">
-            <span className="text-xl font-semibold md:text-[2.875rem]">
+            <span className="text-xl font-semibold sm:text-[2.25rem] md:text-[2.875rem]">
               Ways you can use{" "}
             </span>
             <span
-              className={`${crimsonPro.className} text-2xl font-semibold italic md:text-5xl`}
+              className={`${crimsonPro.className} text-2xl font-semibold italic sm:text-[2.875rem] md:text-[3.25rem]`}
             >
               Noblocks
             </span>
@@ -233,7 +246,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
 
         <BlurRevealSection className="mb-[4.6875rem] flex w-full flex-col items-center justify-center gap-6 px-5 md:mb-[11.5625rem]">
           <BlurRevealTitle className="flex flex-col items-center gap-6">
-            <h3 className="text-2xl font-semibold md:text-5xl">
+            <h3 className="text-2xl font-semibold sm:text-[2.25rem] md:text-[2.875rem]">
               Rates like no other
             </h3>
             <p className="max-w-[712px] text-center text-base font-normal leading-[30px] opacity-80 lg:text-lg">
@@ -295,9 +308,9 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
           <FAQs />
         </BlurRevealSection>
 
-        <BlurRevealSection className="xmd:h-[550px] relative mx-auto mb-24 flex h-[865px] w-full max-w-screen-2xl items-start overflow-hidden px-5 sm:h-[600px] md:mb-24 md:h-[850px]">
+        <BlurRevealSection className="relative mx-auto mb-24 flex h-[865px] w-full max-w-screen-2xl items-start overflow-hidden px-5 xmd:h-[550px] sm:h-[600px] md:mb-24 md:h-[850px]">
           {/* Desktop/Tablet Illustration */}
-          <div className="xmd:block absolute bottom-0 right-0 z-0 hidden h-full w-full">
+          <div className="absolute bottom-0 right-0 z-0 hidden h-full w-full xmd:block">
             <Image
               src="/images/power-liquidity-desktop-illustration.svg"
               alt="Liquidity Illustration"
@@ -307,7 +320,7 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
             />
           </div>
           {/* Mobile Illustration */}
-          <div className="xmd:hidden absolute bottom-0 left-0 z-0 block h-[1000px] w-full">
+          <div className="absolute bottom-0 left-0 z-0 block h-[1000px] w-full xmd:hidden">
             <Image
               src="/images/power-liquidity-mobile-illustration.svg"
               alt="Liquidity Illustration"
@@ -320,17 +333,17 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
           {/* Content */}
           <div className="mx-auto w-full max-w-[999px]">
             <div className="relative z-10 max-w-[600px] pt-8 md:pt-28">
-              <p className="flex flex-col font-semibold lg:gap-1">
-                <span className="text-2xl md:text-[48px]">
+              <p className="flex flex-col font-semibold sm:gap-6">
+                <span className="text-xl sm:text-[2.25rem] md:text-[2.875rem]">
                   Power the Liquidity
                 </span>
                 <span
-                  className={`${crimsonPro.className} text-[1.75rem] italic md:text-[56px]`}
+                  className={`${crimsonPro.className} text-2xl italic sm:text-[2.875rem] md:text-[3.25rem]`}
                 >
                   Engine on Noblocks
                 </span>
               </p>
-              <p className="mt-4 text-base font-normal leading-7 md:text-lg">
+              <p className="mt-4 text-base font-normal leading-7 md:mt-6 md:text-lg">
                 Maximize your earnings while enabling fast and seamless
                 stablecoin exchanges. Specify your rate, serve urgent customers
                 and lead the charge to operate in a truly decentralized world.
@@ -356,11 +369,11 @@ export function HomePage({ transactionFormComponent }: HomePageProps) {
               Coming soon
             </button>
             <h3 className="flex flex-col gap-1 font-semibold">
-              <span className="text-2xl lg:text-5xl lg:leading-[3.75rem]">
+              <span className="text-2xl sm:text-[2.25rem] lg:text-5xl lg:leading-[3.75rem]">
                 Download Noblocks
               </span>
               <span
-                className={`${crimsonPro.className} text-[1.75rem] italic lg:text-[3.5rem] lg:leading-[4.875rem]`}
+                className={`${crimsonPro.className} text-[1.75rem] italic sm:text-[2.875rem] lg:text-[3.5rem] lg:leading-[4.875rem]`}
               >
                 Mobile App
               </span>

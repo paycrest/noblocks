@@ -28,12 +28,9 @@ export default function WalkthroughVideo() {
 
   return (
     <div className="relative mx-auto flex w-full max-w-[800px] items-center justify-center">
-      <div
-        className="relative w-full rounded-3xl bg-black"
-        style={{ border: "10px solid #FD76B3" }}
-      >
+      <div className="walkthrough-video-container relative w-full rounded-3xl bg-black">
         <div
-          className="relative aspect-video w-full overflow-hidden rounded-[14px]"
+          className="relative aspect-video w-full overflow-hidden rounded-[12px] lg:rounded-[4px]"
           onClick={handleVideoAreaClick}
           style={{ cursor: isPlaying ? "pointer" : "default" }}
         >
@@ -50,11 +47,11 @@ export default function WalkthroughVideo() {
           />
           {/* Dark overlay when paused */}
           {!isPlaying && (
-            <div className="absolute inset-0 z-10 rounded-[14px] bg-black/60 transition-colors duration-300" />
+            <div className="absolute inset-0 z-10 rounded-[12px] bg-black/60 transition-colors duration-300 lg:rounded-[4px]" />
           )}
           {/* Overlay Play Button */}
           <button
-            className={`absolute inset-0 z-20 flex h-full w-full flex-col items-center justify-center rounded-[14px] transition-opacity duration-300 focus:outline-none ${isPlaying ? "pointer-events-none opacity-0" : "opacity-100"}`}
+            className={`absolute inset-0 z-20 flex h-full w-full flex-col items-center justify-center rounded-[12px] transition-opacity duration-300 focus:outline-none lg:rounded-[4px] ${isPlaying ? "pointer-events-none opacity-0" : "opacity-100"}`}
             onClick={handlePlay}
             aria-label="Play walkthrough video"
             type="button"

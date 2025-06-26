@@ -59,7 +59,7 @@ export const Footer = () => {
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
       <motion.footer
-        className="min-lg:h-[400px] relative mx-auto min-h-[566px] w-full max-w-screen-2xl overflow-hidden px-5 md:items-center"
+        className="relative mx-auto min-h-[400px] w-full max-w-screen-2xl overflow-hidden px-5 md:items-center lg:min-h-[566px] 2xl:rounded-b-[84px]"
         role="contentinfo"
         layout
         transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -79,7 +79,7 @@ export const Footer = () => {
             </a>
           </p>
 
-          <div className="absolute z-20 flex gap-6 md:bottom-[13rem] md:left-20">
+          <div className="absolute z-20 flex gap-6 max-sm:items-center md:bottom-[13rem] md:left-20">
             <div className="text-[#43B9FB] dark:text-white">
               <svg
                 width="18"
@@ -93,7 +93,9 @@ export const Footer = () => {
               </svg>
             </div>
             <div className="flex flex-col gap-4">
-              <ThemeSwitch />
+              <div className="max-sm:hidden">
+                <ThemeSwitch />
+              </div>
 
               <div className="flex items-center gap-4">
                 <div className="flex gap-2">
@@ -102,7 +104,7 @@ export const Footer = () => {
                   ))}
                 </div>
 
-                <div className="h-4 w-px bg-border-light dark:bg-white/10 max-sm:hidden" />
+                <div className="h-4 w-px bg-border-light dark:bg-white/10" />
 
                 <p className="text-sm text-black dark:text-white/80">
                   Brand Kit
@@ -124,14 +126,14 @@ export const Footer = () => {
           alt="Footer Desktop Image"
           width={100}
           height={100}
-          className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] animate-[footer-bg-float_6s_ease-in-out_infinite] md:block 2xl:rounded-b-[84px]"
+          className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] animate-[footer-bg-float_6s_ease-in-out_infinite] md:block"
         />
         <Image
           src="/images/footer-rocket-illustration.svg"
           alt="Footer Rocket Image"
           height={100}
           width={100}
-          className="absolute bottom-7 right-8 z-10 w-full max-w-[120px] animate-[rocket-diagonal_5s_linear_infinite] md:max-w-[250px] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[300px]"
+          className="absolute bottom-7 right-8 z-10 w-full max-w-[120px] animate-[rocket-diagonal_5s_linear_infinite] xsm:max-w-[175px] md:max-w-[250px] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[300px]"
         />
       </motion.footer>
     </AnimatedComponent>

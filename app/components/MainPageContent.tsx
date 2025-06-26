@@ -312,7 +312,7 @@ export function MainPageContent() {
           {currentStep === STEPS.FORM ? (
             <HomePage transactionFormComponent={transactionFormComponent} />
           ) : (
-            transactionFormComponent
+            <div className="px-5 py-28">{transactionFormComponent}</div>
           )}
         </>
       )}

@@ -142,7 +142,8 @@ export const dropdownVariants = {
 export const AnimatedPage: React.FC<{
   children: ReactNode;
   componentKey: string;
-}> = ({ children, componentKey }) => (
+  className?: string;
+}> = ({ children, componentKey, className }) => (
   <motion.div
     key={componentKey}
     initial="initial"
@@ -150,6 +151,7 @@ export const AnimatedPage: React.FC<{
     exit="out"
     variants={pageVariants}
     transition={pageTransition}
+    className={className}
   >
     {children}
   </motion.div>

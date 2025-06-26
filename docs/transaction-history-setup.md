@@ -66,6 +66,7 @@ CREATE TABLE public.transactions (
     fee DECIMAL NOT NULL,
     recipient JSONB NOT NULL,
     status TEXT NOT NULL,
+    network TEXT NOT NULL,
     time_spent TEXT,
     tx_hash TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),

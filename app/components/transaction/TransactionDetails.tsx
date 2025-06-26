@@ -68,11 +68,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         currency: transaction.to_currency,
       };
       const blob = await pdf(
-        <PDFReceipt
-          data={orderDetailsData}
-          formData={formData}
-          supportedInstitutions={[]}
-        />,
+        <PDFReceipt data={orderDetailsData} formData={formData} />,
       ).toBlob();
       const pdfUrl = URL.createObjectURL(blob);
       window.open(pdfUrl, "_blank");

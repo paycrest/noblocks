@@ -55,6 +55,8 @@ export function MainPageContent() {
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
 
+  const [isUserVerified, setIsUserVerified] = useState(false);
+
   const formMethods = useForm<FormData, any, undefined>({
     mode: "onChange",
     defaultValues: {
@@ -248,6 +250,9 @@ export function MainPageContent() {
     (!ready && !isInjectedWallet) ||
     (isInjectedWallet && !injectedReady);
 
+  const isRecipientFormOpen =
+    !!currency && (authenticated || isInjectedWallet) && isUserVerified;
+
   const renderTransactionStep = () => {
     switch (currentStep) {
       case STEPS.FORM:
@@ -256,6 +261,8 @@ export function MainPageContent() {
             onSubmit={handleFormSubmit}
             formMethods={formMethods}
             stateProps={stateProps}
+            isUserVerified={isUserVerified}
+            setIsUserVerified={setIsUserVerified}
           />
         );
       case STEPS.PREVIEW:
@@ -292,13 +299,13 @@ export function MainPageContent() {
   };
 
   const transactionFormComponent = (
-    <div id="swap">
+    <motion.div id="swap" layout>
       <AnimatePresence mode="wait">
         <AnimatedPage componentKey={currentStep}>
           {renderTransactionStep()}
         </AnimatedPage>
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
   return (
     <div className="flex w-full flex-col">
@@ -310,7 +317,10 @@ export function MainPageContent() {
           <CookieConsent />
           {!isInjectedWallet && <NetworkSelectionModal />}{" "}
           {currentStep === STEPS.FORM ? (
-            <HomePage transactionFormComponent={transactionFormComponent} />
+            <HomePage
+              transactionFormComponent={transactionFormComponent}
+              isRecipientFormOpen={isRecipientFormOpen}
+            />
           ) : (
             <div className="px-5 py-28">{transactionFormComponent}</div>
           )}

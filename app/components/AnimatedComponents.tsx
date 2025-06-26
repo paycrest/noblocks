@@ -184,6 +184,7 @@ export const BlurRevealSection = ({
   variant = blurReveal,
   viewportMargin = "-100px",
   id,
+  whileInView = true,
 }: {
   children: ReactNode;
   className?: string;
@@ -191,13 +192,18 @@ export const BlurRevealSection = ({
   variant?: typeof blurReveal;
   viewportMargin?: string;
   id?: string;
+  whileInView?: boolean;
 }) => (
   <motion.div
     className={className}
     variants={variant}
     initial="initial"
-    whileInView="animate"
-    viewport={{ once: true, margin: viewportMargin }}
+    {...(whileInView
+      ? {
+          whileInView: "animate",
+          viewport: { once: true, margin: viewportMargin },
+        }
+      : { animate: "animate" })}
     transition={{
       duration: 0.8,
       ease: "easeOut",

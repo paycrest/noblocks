@@ -3,7 +3,7 @@ import { useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { ImSpinner, ImSpinner3 } from "react-icons/im";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 
 import {
@@ -46,7 +46,12 @@ export const TransactionForm = ({
   stateProps,
   formMethods,
   onSubmit,
-}: TransactionFormProps) => {
+  isUserVerified,
+  setIsUserVerified,
+}: TransactionFormProps & {
+  isUserVerified: boolean;
+  setIsUserVerified: (v: boolean) => void;
+}) => {
   const searchParams = useSearchParams();
   // Destructure stateProps
   const { rate, isFetchingRate, setOrderId } = stateProps;
@@ -60,7 +65,6 @@ export const TransactionForm = ({
     (wallet) => wallet.walletClientType === "privy",
   )?.address;
 
-  const [isUserVerified, setIsUserVerified] = useState(false);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
@@ -537,7 +541,8 @@ export const TransactionForm = ({
 
   return (
     <div className="mx-auto max-w-[27.3125rem]">
-      <form
+      <motion.form
+        layout
         onSubmit={handleSubmit(onSubmit)}
         className="grid gap-4 pb-20 text-sm text-text-body transition-all dark:text-white sm:gap-2"
         noValidate
@@ -714,6 +719,7 @@ export const TransactionForm = ({
               <AnimatedComponent
                 variant={slideInOut}
                 className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-white/5"
+                data-recipient-form="true"
               >
                 <RecipientDetailsForm
                   formMethods={formMethods}
@@ -817,7 +823,7 @@ export const TransactionForm = ({
             </AnimatedComponent>
           )}
         </AnimatePresence>
-      </form>
+      </motion.form>
 
       {!isInjectedWallet && (
         <FundWalletModal

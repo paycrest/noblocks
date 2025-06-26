@@ -16,22 +16,22 @@ const faqs = [
   {
     question: "What is Noblocks?",
     answer:
-      "Noblocks.xyz is a decentralized liquidity app developed by Paycrest, designed to facilitate instant crypto-to-fiat exchanges and payments. It supports mobile money and bank settlements across multiple regions, including Kenyan Shillings (KES), Ugandan Shilling (UGX), Ugandan Shilling (UGX), and Nigerian Naira (NGN).",
+      "Noblocks is an intuitive interface that enables users to create payment orders for instant stablecoin-fiat exchanges. Built on Paycrest's decentralized liquidity network, it supports mobile money and bank settlements across multiple regions, including Kenya (KES), Uganda (UGX), Nigeria (NGN), Tanzania (TZS), and more.",
   },
   {
-    question: "Who is noblocks for?",
+    question: "Who is Noblocks for?",
     answer:
-      "Noblocks is for anyone who wants to move money across borders, cash out stablecoins, or access local currency quickly—whether you're a crypto native, freelancer, business, or just getting started.",
+      "Noblocks is for anyone who wants to move money across borders, cash out stablecoins, or access local currency quickly—whether you're a crypto native, freelancer, business, or just getting started with digital payments.",
   },
   {
-    question: "How does noblocks work?",
+    question: "How does Noblocks work?",
     answer:
-      "You send stablecoins (like USDC or USDT) to Noblocks, and we instantly convert and settle the equivalent cash to your chosen bank or mobile money account at the best available rate.",
+      "Simply login, fund your Noblocks wallet, enter the amount you want to cash out, select your preferred currency and token. Review the live rates, add your recipient or bank details, then confirm the transaction. Enjoy gasless transactions as our decentralized network instantly converts and deposits the local currency to your chosen account.",
   },
   {
     question: "Who is a provider?",
     answer:
-      "Noblocks.xyz is a decentralized liquidity app developed by PayCrest, designed to facilitate instant crypto-to-fiat exchanges and payments. It supports mobile money and bank settlements across multiple regions, including Kenyan Shillings (KES), Ugandan Shilling (UGX), Ugandan Shilling (UGX), and Nigerian Naira (NGN).",
+      "Providers are entities in Paycrest's decentralized network who facilitate stablecoin-fiat settlements. They run provision nodes that connect with local payment service providers, enabling instant collection and payouts of stablecoins to bank accounts and mobile money across different countries.",
   },
 ];
 
@@ -103,7 +103,7 @@ export default function FAQs() {
   return (
     <section className="mx-auto mb-[5.3125rem] flex w-full max-w-[999px] flex-col gap-6 px-5 lg:mb-[17.75rem] lg:grid lg:grid-cols-[1fr_2fr]">
       <h2
-        className={`${crimsonPro.className} flex gap-1 text-center text-[1.75rem] font-semibold italic sm:gap-2 md:text-[3.5rem] lg:max-w-[294px] lg:flex-col lg:items-start lg:gap-5 lg:text-left lg:leading-[0.9]`}
+        className={`${crimsonPro.className} flex gap-1 text-center text-[1.75rem] font-semibold italic sm:gap-2 sm:text-[2.875rem] md:text-[3.25rem] lg:max-w-[294px] lg:flex-col lg:items-start lg:gap-5 lg:text-left lg:leading-[0.9]`}
       >
         <span>Frequently </span>
         <span>Asked </span>

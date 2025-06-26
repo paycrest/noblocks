@@ -149,7 +149,36 @@ export default function TransactionList({
 
   // Group transactions by date
   const groupedTransactions = useMemo(() => {
-    const groups = transactions.reduce(
+    // First, filter out duplicate transactions based on order_id
+    const uniqueTransactions = transactions.reduce((acc, transaction) => {
+      if (!transaction.order_id) {
+        // If no order_id, keep the transaction (it's unique)
+        acc.push(transaction);
+        return acc;
+      }
+
+      const existingTransaction = acc.find(
+        (t) => t.order_id === transaction.order_id,
+      );
+      if (!existingTransaction) {
+        // If this order_id doesn't exist yet, add the transaction
+        acc.push(transaction);
+      } else {
+        // If order_id already exists, keep the more recent transaction
+        const existingDate = new Date(existingTransaction.created_at);
+        const currentDate = new Date(transaction.created_at);
+        if (currentDate > existingDate) {
+          // Replace the existing transaction with the more recent one
+          const index = acc.findIndex(
+            (t) => t.order_id === transaction.order_id,
+          );
+          acc[index] = transaction;
+        }
+      }
+      return acc;
+    }, [] as TransactionHistory[]);
+
+    const groups = uniqueTransactions.reduce(
       (acc, transaction) => {
         const date = new Date(transaction.created_at);
         const relativeDate = getRelativeDate(date);

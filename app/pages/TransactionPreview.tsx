@@ -436,6 +436,11 @@ export const TransactionPreview = ({
         }
 
         const toBlock = await publicClient.getBlockNumber();
+
+        // Use different block ranges based on network
+        const blockRange =
+          selectedNetwork.chain.name.toLowerCase() === "arbitrum one" ? 25 : 10;
+
         const logs = await publicClient.getContractEvents({
           address: getGatewayContractAddress(
             selectedNetwork.chain.name,
@@ -447,7 +452,7 @@ export const TransactionPreview = ({
             token: tokenAddress,
             amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
           },
-          fromBlock: toBlock - BigInt(25),
+          fromBlock: toBlock - BigInt(blockRange),
           toBlock: toBlock,
         });
 

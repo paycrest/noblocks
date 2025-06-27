@@ -447,7 +447,7 @@ export const TransactionPreview = ({
             token: tokenAddress,
             amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
           },
-          fromBlock: toBlock - BigInt(10),
+          fromBlock: toBlock - BigInt(25),
           toBlock: toBlock,
         });
 

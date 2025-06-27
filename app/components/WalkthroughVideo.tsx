@@ -36,14 +36,13 @@ export default function WalkthroughVideo() {
         >
           <video
             ref={videoRef}
-            src="/videos/zap-to-noblocks.mp4"
-            poster="/videos/walkthrough-thumbnail.jpg"
+            src="/videos/noblocks-walkthrough.mp4"
+            poster="/videos/thumbnail.jpg"
             className="h-full w-full object-cover"
             onPause={handlePause}
             onPlay={() => setIsPlaying(true)}
             controls={false}
             playsInline
-            loop
           />
           {/* Dark overlay when paused */}
           {!isPlaying && (
@@ -61,7 +60,7 @@ export default function WalkthroughVideo() {
             <WalkthroughPlayIcon className="h-32 max-sm:hidden" />
             <div className="mt-4 text-center">
               <div className="text-base font-semibold text-white sm:text-lg md:text-xl">
-                Watch a quick walkthrough
+                Watch a quick walk-through
               </div>
               <div className="mt-1 text-xs text-white/80 sm:text-sm">1 min</div>
             </div>

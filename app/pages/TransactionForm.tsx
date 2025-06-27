@@ -500,7 +500,7 @@ export const TransactionForm = ({
     setIsReceiveInputActive(true);
   };
 
-  const isPausedNetwork = ["BNB Smart Chain", "Lisk"].includes(
+  const isPausedNetwork = ["BNB Smart Chain"].includes(
     selectedNetwork.chain.name,
   );
 

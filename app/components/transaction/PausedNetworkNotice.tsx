@@ -21,11 +21,6 @@ export const PausedNetworkNotice: React.FC<{ show?: boolean }> = ({
             aria-hidden="true"
           />
           <div className="flex-1 text-sm">
-            <span className="font-medium text-black dark:text-white">Lisk</span>
-            <span className="font-normal text-text-secondary dark:text-white/50">
-              {" "}
-              and{" "}
-            </span>
             <span className="font-medium text-black dark:text-white">
               BNB Chain
             </span>

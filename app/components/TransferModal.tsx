@@ -15,7 +15,7 @@ import { BaseError, encodeFunctionData, erc20Abi, parseUnits } from "viem";
 import { useBalance } from "../context";
 import type { Token } from "../types";
 import { useNetwork } from "../context/NetworksContext";
-import { classNames, fetchSupportedTokens } from "../utils";
+import { classNames, fetchSupportedTokens, getExplorerLink } from "../utils";
 
 import { primaryBtnClasses } from "./Styles";
 import { FormDropdown } from "./FormDropdown";
@@ -36,6 +36,7 @@ export const TransferModal = ({
   const [isTransferSuccess, setIsTransferSuccess] = useState<boolean>(false);
   const [transferAmount, setTransferAmount] = useState<string>("");
   const [transferToken, setTransferToken] = useState<string>("");
+  const [transactionHash, setTransactionHash] = useState<string | null>(null);
 
   const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
   const { client } = useSmartWallets();
@@ -82,7 +83,11 @@ export const TransferModal = ({
   const handleTransfer = async (data: FormData) => {
     try {
       const fetchedTokens: Token[] =
-        fetchSupportedTokens(client?.chain.name) || [];
+        fetchSupportedTokens(selectedNetwork.chain.name) || [];
+
+      await client?.switchChain({
+        id: selectedNetwork.chain.id,
+      });
 
       const searchToken = token.toUpperCase();
       const tokenData = fetchedTokens.find(
@@ -101,7 +106,7 @@ export const TransferModal = ({
 
       setIsConfirming(true);
 
-      await client?.sendTransaction({
+      const response = await client?.sendTransaction({
         to: tokenAddress,
         data: encodeFunctionData({
           abi: erc20Abi,
@@ -112,6 +117,8 @@ export const TransferModal = ({
           ],
         }),
       });
+
+      setTransactionHash(response as `0x${string}`);
 
       setTransferAmount(data.amount.toString());
       setTransferToken(token);
@@ -147,6 +154,7 @@ export const TransferModal = ({
 
   const handleModalClose = () => {
     setIsTransferSuccess(false);
+    setTransactionHash(null);
     reset();
     onClose();
   };
@@ -166,30 +174,46 @@ export const TransferModal = ({
 
   const tokenBalance = Number(smartWalletBalance?.balances[token]) || 0;
 
-  const renderSuccessView = () => (
-    <div className="space-y-6 pt-4">
-      <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
+  const renderSuccessView = () => {
+    const explorerLink = transactionHash
+      ? getExplorerLink(selectedNetwork.chain.name, transactionHash)
+      : null;
 
-      <div className="space-y-3 pb-5 text-center">
-        <h2 className="text-lg font-semibold text-text-body dark:text-white">
-          Transfer successful
-        </h2>
+    return (
+      <div className="space-y-6 pt-4">
+        <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
 
-        <p className="text-gray-500 dark:text-white/50">
-          {transferAmount} {transferToken} has been successfully transferred to
-          the recipient.
-        </p>
+        <div className="space-y-3 pb-5 text-center">
+          <h2 className="text-lg font-semibold text-text-body dark:text-white">
+            Transfer successful
+          </h2>
+
+          <p className="text-gray-500 dark:text-white/50">
+            {transferAmount} {transferToken} has been successfully transferred
+            to the recipient.
+          </p>
+          {explorerLink && (
+            <a
+              href={explorerLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 block text-center text-lavender-500 underline"
+            >
+              View in Explorer
+            </a>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className={`${primaryBtnClasses} w-full`}
+          onClick={handleModalClose}
+        >
+          Close
+        </button>
       </div>
-
-      <button
-        type="button"
-        className={`${primaryBtnClasses} w-full`}
-        onClick={handleModalClose}
-      >
-        Close
-      </button>
-    </div>
-  );
+    );
+  };
 
   const renderBalanceSection = () => (
     <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">

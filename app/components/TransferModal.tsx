@@ -19,6 +19,7 @@ import { useBalance } from "../context";
 import type { Token } from "../types";
 import { useNetwork } from "../context/NetworksContext";
 import { classNames, fetchSupportedTokens, getExplorerLink } from "../utils";
+import { saveTransaction } from "../api/aggregator";
 
 import { primaryBtnClasses } from "./Styles";
 import { FormDropdown } from "./FormDropdown";
@@ -46,7 +47,7 @@ export const TransferModal = ({
 
   const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
   const { client } = useSmartWallets();
-  const { user } = usePrivy();
+  const { user, getAccessToken } = usePrivy();
 
   type FormData = {
     amount: number;
@@ -179,6 +180,13 @@ export const TransferModal = ({
                 `${data.amount.toString()} ${token} successfully transferred`,
               );
               setIsConfirming(false);
+              // Save to transaction history (only after successful transfer)
+              saveTransferTransaction(
+                matchingLog.transactionHash,
+                data.recipientAddress,
+                data.amount,
+                token,
+              );
               reset();
             }
           } catch (error) {
@@ -361,6 +369,47 @@ export const TransferModal = ({
       </div>
     </div>
   );
+
+  // Helper to save transfer transaction to history
+  const saveTransferTransaction = async (
+    txHash: string,
+    recipientAddress: string,
+    amount: number,
+    token: string,
+  ) => {
+    try {
+      if (!user) return;
+      const walletAddress = user?.linkedAccounts.find(
+        (a) => a.type === "smart_wallet",
+      )?.address;
+      if (!walletAddress) return;
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+      const transaction = {
+        walletAddress,
+        transactionType: "transfer" as const,
+        network: selectedNetwork.chain.name,
+        fromCurrency: token,
+        toCurrency: token,
+        amountSent: amount,
+        amountReceived: amount,
+        fee: 0,
+        txHash,
+        recipient: {
+          account_name: "",
+          institution: "",
+          account_identifier: recipientAddress,
+        },
+        status: "completed" as const,
+      };
+      const response = await saveTransaction(transaction, accessToken);
+      if (response.success) {
+        localStorage.setItem("currentTransactionId", response.data.id);
+      }
+    } catch (error) {
+      // Silent fail
+    }
+  };
 
   return (
     <AnimatedModal isOpen={isOpen} onClose={handleModalClose}>

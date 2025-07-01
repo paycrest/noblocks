@@ -277,7 +277,7 @@ export const TransferModal = ({
           {/* Loader for polling receipt */}
           {isPollingReceipt && (
             <div className="flex flex-row items-center justify-center gap-2">
-              <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-lavender-500" />
+              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-lavender-500" />
               <span className="text-sm text-gray-500 dark:text-white/50">
                 Getting onchain receipt…
               </span>

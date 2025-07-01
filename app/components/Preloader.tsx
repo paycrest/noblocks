@@ -58,7 +58,7 @@ export const Preloader = ({ isLoading }: { isLoading: boolean }) => {
             {/* Transaction Form Skeleton */}
             <div className="mx-auto w-full max-w-md">
               {/* Swap Section */}
-              <div className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800">
+              <div className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800/20">
                 <div className="flex items-center justify-between px-2 py-1">
                   <Skeleton className="h-4 w-16" />
                 </div>
@@ -73,7 +73,7 @@ export const Preloader = ({ isLoading }: { isLoading: boolean }) => {
                   <Skeleton className="h-16 w-full" />
 
                   {/* Arrow */}
-                  <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-gray-50 bg-gray-50 dark:border-neutral-800 dark:bg-neutral-800">
+                  <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-gray-50 bg-gray-50 dark:border-neutral-800/20 dark:bg-neutral-800/20">
                     <div className="rounded-lg bg-white p-1 dark:bg-neutral-900">
                       <Skeleton className="h-6 w-6" />
                     </div>

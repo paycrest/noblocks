@@ -40,6 +40,9 @@ export const TransferModal = ({
   const [transferAmount, setTransferAmount] = useState<string>("");
   const [transferToken, setTransferToken] = useState<string>("");
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
+  const [userOpHash, setUserOpHash] = useState<string | null>(null);
+  const [isPollingReceipt, setIsPollingReceipt] = useState(false);
+  const [pollingTimedOut, setPollingTimedOut] = useState(false);
 
   const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
   const { client } = useSmartWallets();
@@ -109,6 +112,10 @@ export const TransferModal = ({
       }
 
       setIsConfirming(true);
+      setIsPollingReceipt(true);
+      setPollingTimedOut(false);
+      setUserOpHash(null);
+      setTransactionHash(null);
 
       const response = await client?.sendTransaction({
         to: tokenAddress,
@@ -121,10 +128,14 @@ export const TransferModal = ({
           ],
         }),
       });
+      setUserOpHash(response as string);
+
+      setIsTransferSuccess(true);
 
       // Poll for the Transfer event to get the real txHash
       const pollForTransferEvent = async () => {
         let intervalId: NodeJS.Timeout;
+        let timeoutId: NodeJS.Timeout;
         const publicClient = createPublicClient({
           chain: selectedNetwork.chain,
           transport: http(getRpcUrl(selectedNetwork.chain.name)),
@@ -137,10 +148,13 @@ export const TransferModal = ({
         const value = parseUnits(data.amount.toString(), tokenDecimals);
         const to = data.recipientAddress as `0x${string}`;
 
+        // Use 25 block range for Arbitrum One, otherwise 10
+        const blockRange =
+          selectedNetwork.chain.name.toLowerCase() === "arbitrum one" ? 25 : 10;
+
         const getTransferLogs = async () => {
           try {
             const toBlock = await publicClient.getBlockNumber();
-            const blockRange = 10;
             const logs = await publicClient.getContractEvents({
               address: tokenAddress,
               abi: erc20Abi,
@@ -156,10 +170,11 @@ export const TransferModal = ({
             );
             if (matchingLog) {
               clearInterval(intervalId);
+              clearTimeout(timeoutId);
               setTransactionHash(matchingLog.transactionHash);
+              setIsPollingReceipt(false);
               setTransferAmount(data.amount.toString());
               setTransferToken(token);
-              setIsTransferSuccess(true);
               toast.success(
                 `${data.amount.toString()} ${token} successfully transferred`,
               );
@@ -167,14 +182,26 @@ export const TransferModal = ({
               reset();
             }
           } catch (error) {
-            // Optionally handle polling errors
+            console.error(
+              "[TransferModal] Error polling Transfer logs:",
+              error,
+            );
           }
         };
         getTransferLogs();
         intervalId = setInterval(getTransferLogs, 2000);
+        // Timeout after 20 seconds
+        timeoutId = setTimeout(() => {
+          clearInterval(intervalId);
+          setIsPollingReceipt(false);
+          setPollingTimedOut(true);
+          setIsTransferSuccess(true);
+          setIsConfirming(false);
+          reset();
+        }, 20000);
       };
-
       pollForTransferEvent();
+      // Do not setTransactionHash(response) here, only set when event is found
     } catch (e: any) {
       console.error("Transfer failed:", {
         error: e,
@@ -187,6 +214,7 @@ export const TransferModal = ({
       setErrorMessage((e as BaseError).shortMessage || e.message);
       setErrorCount((prevCount) => prevCount + 1);
       setIsConfirming(false);
+      setIsPollingReceipt(false);
     }
     refreshBalance();
   };
@@ -224,6 +252,9 @@ export const TransferModal = ({
     const explorerLink = transactionHash
       ? getExplorerLink(selectedNetwork.chain.name, transactionHash)
       : null;
+    const userOpsExplorerLink = userOpHash
+      ? `https://jiffyscan.xyz/userOpHash/${userOpHash}`
+      : undefined;
 
     return (
       <div className="space-y-6 pt-4">
@@ -238,7 +269,48 @@ export const TransferModal = ({
             {transferAmount} {transferToken} has been successfully transferred
             to the recipient.
           </p>
-          {explorerLink && (
+
+          {/* Loader and state for polling receipt */}
+          {isPollingReceipt && userOpHash && !transactionHash && (
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-sm text-gray-500 dark:text-white/50">
+                Waiting for onchain confirmation…
+              </span>
+              <span className="break-all text-xs text-gray-400">
+                UserOps: {userOpHash}
+              </span>
+              <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-lavender-500" />
+            </div>
+          )}
+          {isPollingReceipt && !userOpHash && (
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-sm text-gray-500 dark:text-white/50">
+                Getting onchain receipt…
+              </span>
+              <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-lavender-500" />
+            </div>
+          )}
+
+          {/* Fallback for userOpHash if polling times out */}
+          {!isPollingReceipt && pollingTimedOut && userOpHash && (
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-sm text-gray-500 dark:text-white/50">
+                Could not retrieve onchain receipt, but here's the UserOps
+                receipt:
+              </span>
+              <a
+                href={userOpsExplorerLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 block text-center text-lavender-500 underline"
+              >
+                View UserOps Receipt
+              </a>
+            </div>
+          )}
+
+          {/* Show explorer link if txHash is found */}
+          {explorerLink && !isPollingReceipt && !pollingTimedOut && (
             <a
               href={explorerLink}
               target="_blank"

@@ -11,6 +11,9 @@ import {
 
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { BaseError, encodeFunctionData, erc20Abi, parseUnits } from "viem";
+import { usePrivy } from "@privy-io/react-auth";
+import { createPublicClient, http } from "viem";
+import { getRpcUrl } from "../utils";
 
 import { useBalance } from "../context";
 import type { Token } from "../types";
@@ -40,6 +43,7 @@ export const TransferModal = ({
 
   const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
   const { client } = useSmartWallets();
+  const { user } = usePrivy();
 
   type FormData = {
     amount: number;
@@ -118,17 +122,59 @@ export const TransferModal = ({
         }),
       });
 
-      setTransactionHash(response as `0x${string}`);
+      // Poll for the Transfer event to get the real txHash
+      const pollForTransferEvent = async () => {
+        let intervalId: NodeJS.Timeout;
+        const publicClient = createPublicClient({
+          chain: selectedNetwork.chain,
+          transport: http(getRpcUrl(selectedNetwork.chain.name)),
+        });
+        // Get smart wallet address from user linked accounts
+        const smartWallet = user?.linkedAccounts.find(
+          (account) => account.type === "smart_wallet",
+        );
+        const from = smartWallet?.address as `0x${string}`;
+        const value = parseUnits(data.amount.toString(), tokenDecimals);
+        const to = data.recipientAddress as `0x${string}`;
 
-      setTransferAmount(data.amount.toString());
-      setTransferToken(token);
-      setIsTransferSuccess(true);
+        const getTransferLogs = async () => {
+          try {
+            const toBlock = await publicClient.getBlockNumber();
+            const blockRange = 10;
+            const logs = await publicClient.getContractEvents({
+              address: tokenAddress,
+              abi: erc20Abi,
+              eventName: "Transfer",
+              args: { from, to },
+              fromBlock: toBlock - BigInt(blockRange),
+              toBlock: toBlock,
+            });
+            // Filter logs by value in JS
+            const matchingLog = logs.find(
+              (log) =>
+                log.args && log.args.value?.toString() === value.toString(),
+            );
+            if (matchingLog) {
+              clearInterval(intervalId);
+              setTransactionHash(matchingLog.transactionHash);
+              setTransferAmount(data.amount.toString());
+              setTransferToken(token);
+              setIsTransferSuccess(true);
+              toast.success(
+                `${data.amount.toString()} ${token} successfully transferred`,
+              );
+              setIsConfirming(false);
+              reset();
+            }
+          } catch (error) {
+            // Optionally handle polling errors
+          }
+        };
+        getTransferLogs();
+        intervalId = setInterval(getTransferLogs, 2000);
+      };
 
-      toast.success(
-        `${data.amount.toString()} ${token} successfully transferred`,
-      );
-      setIsConfirming(false);
-      reset();
+      pollForTransferEvent();
     } catch (e: any) {
       console.error("Transfer failed:", {
         error: e,

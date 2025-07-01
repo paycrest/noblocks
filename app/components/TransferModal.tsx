@@ -129,7 +129,6 @@ export const TransferModal = ({
           ],
         }),
       });
-      setUserOpHash(response as string);
 
       setIsTransferSuccess(true);
 
@@ -260,9 +259,6 @@ export const TransferModal = ({
     const explorerLink = transactionHash
       ? getExplorerLink(selectedNetwork.chain.name, transactionHash)
       : null;
-    const userOpsExplorerLink = userOpHash
-      ? `https://jiffyscan.xyz/userOpHash/${userOpHash}`
-      : undefined;
 
     return (
       <div className="space-y-6 pt-4">
@@ -278,42 +274,22 @@ export const TransferModal = ({
             to the recipient.
           </p>
 
-          {/* Loader and state for polling receipt */}
-          {isPollingReceipt && userOpHash && !transactionHash && (
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-sm text-gray-500 dark:text-white/50">
-                Waiting for onchain confirmation…
-              </span>
-              <span className="break-all text-xs text-gray-400">
-                UserOps: {userOpHash}
-              </span>
+          {/* Loader for polling receipt */}
+          {isPollingReceipt && (
+            <div className="flex flex-row items-center justify-center gap-2">
               <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-lavender-500" />
-            </div>
-          )}
-          {isPollingReceipt && !userOpHash && (
-            <div className="flex flex-col items-center gap-2">
               <span className="text-sm text-gray-500 dark:text-white/50">
                 Getting onchain receipt…
               </span>
-              <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-lavender-500" />
             </div>
           )}
 
-          {/* Fallback for userOpHash if polling times out */}
-          {!isPollingReceipt && pollingTimedOut && userOpHash && (
+          {/* Fallback if polling times out */}
+          {!isPollingReceipt && pollingTimedOut && (
             <div className="flex flex-col items-center gap-2">
               <span className="text-sm text-gray-500 dark:text-white/50">
-                Could not retrieve onchain receipt, but here's the UserOps
-                receipt:
+                Could not retrieve onchain receipt.
               </span>
-              <a
-                href={userOpsExplorerLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 block text-center text-lavender-500 underline"
-              >
-                View UserOps Receipt
-              </a>
             </div>
           )}
 

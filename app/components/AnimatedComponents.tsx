@@ -37,9 +37,46 @@ export const slideInDown = {
 };
 
 export const scaleInOut = {
-  initial: { ...fadeInOut.initial, scale: 0 },
+  initial: { ...fadeInOut.initial, scale: 0.8 },
   animate: { ...fadeInOut.animate, scale: 1 },
-  exit: { ...fadeInOut.exit, scale: 0 },
+  exit: { ...fadeInOut.exit, scale: 0.8 },
+};
+
+// Slower blur reveal animations for better visibility
+export const blurReveal = {
+  initial: { opacity: 0, filter: "blur(12px)", y: 30 },
+  animate: { opacity: 1, filter: "blur(0px)", y: 0 },
+  exit: { opacity: 0, filter: "blur(12px)", y: -30 },
+};
+
+export const blurRevealFromBottom = {
+  initial: { opacity: 0, filter: "blur(12px)", y: 50 },
+  animate: { opacity: 1, filter: "blur(0px)", y: 0 },
+  exit: { opacity: 0, filter: "blur(12px)", y: 30 },
+};
+
+export const smoothExpand = {
+  initial: {
+    opacity: 0,
+    scale: 0.95,
+    y: -20,
+  },
+  animate: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.95,
+    y: -20,
+  },
+};
+
+export const blurRevealFromTop = {
+  initial: { opacity: 0, filter: "blur(12px)", y: -50 },
+  animate: { opacity: 1, filter: "blur(0px)", y: 0 },
+  exit: { opacity: 0, filter: "blur(12px)", y: -30 },
 };
 
 export const fadeInLeft = {
@@ -105,7 +142,8 @@ export const dropdownVariants = {
 export const AnimatedPage: React.FC<{
   children: ReactNode;
   componentKey: string;
-}> = ({ children, componentKey }) => (
+  className?: string;
+}> = ({ children, componentKey, className }) => (
   <motion.div
     key={componentKey}
     initial="initial"
@@ -113,6 +151,7 @@ export const AnimatedPage: React.FC<{
     exit="out"
     variants={pageVariants}
     transition={pageTransition}
+    className={className}
   >
     {children}
   </motion.div>
@@ -132,6 +171,90 @@ export const AnimatedComponent = ({
     exit="exit"
     transition={{ duration: 0.3, delay }}
     className={className}
+  >
+    {children}
+  </motion.div>
+);
+
+// Optimized BlurRevealSection component to reduce repetition
+export const BlurRevealSection = ({
+  children,
+  className = "",
+  delay = 0,
+  variant = blurReveal,
+  viewportMargin = "-100px",
+  id,
+  whileInView = true,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+  variant?: typeof blurReveal;
+  viewportMargin?: string;
+  id?: string;
+  whileInView?: boolean;
+}) => (
+  <motion.div
+    className={className}
+    variants={variant}
+    initial="initial"
+    {...(whileInView
+      ? {
+          whileInView: "animate",
+          viewport: { once: true, margin: viewportMargin },
+        }
+      : { animate: "animate" })}
+    transition={{
+      duration: 0.8,
+      ease: "easeOut",
+      delay,
+      filter: { duration: 1.2, ease: "easeOut" },
+    }}
+    id={id}
+  >
+    {children}
+  </motion.div>
+);
+
+// Reusable title animation component
+export const BlurRevealTitle = ({
+  children,
+  className = "",
+  delay = 0,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+}) => (
+  <motion.div
+    className={className}
+    variants={blurReveal}
+    initial="initial"
+    whileInView="animate"
+    viewport={{ once: true, margin: "-100px" }}
+    transition={{ duration: 0.8, ease: "easeOut", delay }}
+  >
+    {children}
+  </motion.div>
+);
+
+// Reusable content animation component with delay
+export const BlurRevealContent = ({
+  children,
+  className = "",
+  delay = 0.3,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+}) => (
+  <motion.div
+    className={className}
+    variants={blurReveal}
+    initial="initial"
+    whileInView="animate"
+    viewport={{ once: true, margin: "-100px" }}
+    transition={{ duration: 0.8, ease: "easeOut", delay }}
   >
     {children}
   </motion.div>

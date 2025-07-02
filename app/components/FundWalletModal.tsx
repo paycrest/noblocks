@@ -168,7 +168,7 @@ export const FundWalletModal = ({
           </div>
           <form
             onSubmit={handleSubmit(handleFund)}
-            className="z-50 space-y-4 text-neutral-900 transition-all *:text-sm dark:text-white"
+            className="z-[55] space-y-4 text-neutral-900 transition-all *:text-sm dark:text-white"
             noValidate
           >
             <div className="grid gap-3.5 rounded-[20px] border border-border-light px-4 py-3 dark:border-white/10">

@@ -63,41 +63,72 @@ select {
   scrollbar-width: none; /* Firefox */
 }
 
-@keyframes jump7456 {
-  15% {
-    border-bottom-right-radius: 3px;
+.walkthrough-play-btn {
+  width: 20px;
+  height: 20px;
+}
+@media (min-width: 640px) {
+  /* sm */
+  .walkthrough-play-btn {
+    width: 20px;
+    height: 20px;
   }
-
-  25% {
-    transform: translateY(9px) rotate(22.5deg);
+}
+@media (min-width: 768px) {
+  /* md */
+  .walkthrough-play-btn {
+    width: 20px;
+    height: 20px;
   }
-
-  50% {
-    transform: translateY(18px) scale(1, 0.9) rotate(45deg);
-    border-bottom-right-radius: 40px;
-  }
-
-  75% {
-    transform: translateY(9px) rotate(67.5deg);
-  }
-
-  100% {
-    transform: translateY(0) rotate(90deg);
+}
+@media (min-width: 1024px) {
+  /* lg */
+  .walkthrough-play-btn {
+    width: 20px;
+    height: 20px;
   }
 }
 
-@keyframes shadow324 {
+@keyframes rocket-diagonal {
+  0% {
+    transform: translate(0, 0) rotate(-20deg) scale(1);
+  }
+  16% {
+    transform: translate(24px, -48px) rotate(-16deg) scale(1.08);
+  }
+  33% {
+    transform: translate(48px, -96px) rotate(-12deg) scale(1.16);
+  }
+  50% {
+    transform: translate(0, -120px) rotate(-10deg) scale(1.22);
+  }
+  66% {
+    transform: translate(-48px, -96px) rotate(-12deg) scale(1.16);
+  }
+  83% {
+    transform: translate(-24px, -48px) rotate(-16deg) scale(1.08);
+  }
+  100% {
+    transform: translate(0, 0) rotate(-20deg) scale(1);
+  }
+}
+
+@keyframes footer-bg-float {
   0%,
   100% {
-    transform: scale(1, 1);
+    transform: translateY(4);
   }
-
   50% {
-    transform: scale(1.2, 1);
+    transform: translateY(32px);
   }
 }
 
-/* privy user pill menu */
-.hpFUIx {
-  margin-top: 0.625rem;
+.walkthrough-video-container {
+  border: 12px solid #fd76b3;
+}
+
+@media screen and (min-width: 1024px) {
+  .walkthrough-video-container {
+    border: 20px solid #fd76b3;
+  }
 }

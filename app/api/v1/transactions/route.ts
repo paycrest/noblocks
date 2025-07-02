@@ -96,6 +96,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         fee: body.fee,
         recipient: body.recipient,
         status: body.status,
+        network: body.network,
         time_spent: body.time_spent,
         tx_hash: body.txHash,
         order_id: body.orderId,

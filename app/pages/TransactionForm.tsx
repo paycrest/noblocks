@@ -1,9 +1,9 @@
 "use client";
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { ImSpinner, ImSpinner3 } from "react-icons/im";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 
 import {
@@ -24,13 +24,14 @@ import {
   classNames,
   fetchSupportedTokens,
   formatNumberWithCommas,
+  currencyToCountryCode,
+  reorderCurrenciesByLocation,
 } from "../utils";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus, fetchRate } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
-import { currencyToCountryCode } from "../utils";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -45,7 +46,12 @@ export const TransactionForm = ({
   stateProps,
   formMethods,
   onSubmit,
-}: TransactionFormProps) => {
+  isUserVerified,
+  setIsUserVerified,
+}: TransactionFormProps & {
+  isUserVerified: boolean;
+  setIsUserVerified: (v: boolean) => void;
+}) => {
   const searchParams = useSearchParams();
   // Destructure stateProps
   const { rate, isFetchingRate, setOrderId } = stateProps;
@@ -59,13 +65,27 @@ export const TransactionForm = ({
     (wallet) => wallet.walletClientType === "privy",
   )?.address;
 
-  const [isUserVerified, setIsUserVerified] = useState(false);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const [isReceiveInputActive, setIsReceiveInputActive] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [formattedSentAmount, setFormattedSentAmount] = useState("");
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
   const isFirstRender = useRef(true);
+
+  const currencies = useMemo(
+    () =>
+      acceptedCurrencies.map((item) => {
+        const countryCode = currencyToCountryCode(item.name);
+        return {
+          ...item,
+          imageUrl: `https://flagcdn.com/h24/${countryCode}.webp`,
+        };
+      }),
+    [],
+  );
+
+  // state for reordered currencies
+  const [orderedCurrencies, setOrderedCurrencies] = useState(currencies);
 
   const {
     handleSubmit,
@@ -108,13 +128,6 @@ export const TransactionForm = ({
     imageUrl: token.imageUrl,
   }));
 
-  const currencies = acceptedCurrencies.map((item) => {
-    const countryCode = currencyToCountryCode(item.name);
-    return {
-      ...item,
-      imageUrl: `https://flagcdn.com/h24/${countryCode}.webp`,
-    };
-  });
   const handleBalanceMaxClick = () => {
     if (balance > 0) {
       const maxAmount = balance.toFixed(4);
@@ -344,6 +357,10 @@ export const TransactionForm = ({
           currencies.forEach((currency) => {
             currency.disabled = currency.name !== "NGN";
           });
+          // If the selected currency is not NGN, set it to NGN
+          if (currency !== "NGN") {
+            formMethods.setValue("currency", "NGN", { shouldDirty: true });
+          }
         } else {
           // Reset currencies to their default state from mocks
           currencies.forEach((currency) => {
@@ -363,6 +380,24 @@ export const TransactionForm = ({
     },
     [token, currency, formMethods, currencies],
   );
+
+  // Reorder currencies based on user location
+  useEffect(() => {
+    let isMounted = true;
+
+    reorderCurrenciesByLocation(currencies, formMethods)
+      .then((reordered) => {
+        if (isMounted) setOrderedCurrencies(reordered);
+      })
+      .catch(() => {
+        if (isMounted) setOrderedCurrencies(currencies);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currencies]);
 
   const { isEnabled, buttonText, buttonAction } = useSwapButton({
     watch,
@@ -506,9 +541,10 @@ export const TransactionForm = ({
 
   return (
     <div className="mx-auto max-w-[27.3125rem]">
-      <form
+      <motion.form
+        layout
         onSubmit={handleSubmit(onSubmit)}
-        className="z-50 grid gap-4 pb-4 text-sm text-text-body transition-all dark:text-white sm:gap-2"
+        className="grid gap-4 pb-20 text-sm text-text-body transition-all dark:text-white sm:gap-2"
         noValidate
       >
         <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
@@ -656,7 +692,7 @@ export const TransactionForm = ({
 
               <FormDropdown
                 defaultTitle="Select currency"
-                data={currencies}
+                data={orderedCurrencies}
                 defaultSelectedItem={currency}
                 onSelect={(selectedCurrency) =>
                   setValue("currency", selectedCurrency, { shouldDirty: true })
@@ -683,6 +719,7 @@ export const TransactionForm = ({
               <AnimatedComponent
                 variant={slideInOut}
                 className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-white/5"
+                data-recipient-form="true"
               >
                 <RecipientDetailsForm
                   formMethods={formMethods}
@@ -786,7 +823,7 @@ export const TransactionForm = ({
             </AnimatedComponent>
           )}
         </AnimatePresence>
-      </form>
+      </motion.form>
 
       {!isInjectedWallet && (
         <FundWalletModal

@@ -164,10 +164,15 @@ type TxReceipt = {
 
 export type StateProps = {
   formValues: FormData;
+  setFormValues: (values: FormData) => void;
   rate: number;
+  setRate: (rate: number) => void;
   isFetchingRate: boolean;
+  setIsFetchingRate: (fetching: boolean) => void;
   institutions: InstitutionProps[];
+  setInstitutions: (institutions: InstitutionProps[]) => void;
   isFetchingInstitutions: boolean;
+  setIsFetchingInstitutions: (fetching: boolean) => void;
   selectedRecipient: RecipientDetails | null;
   setSelectedRecipient: (recipient: RecipientDetails | null) => void;
   setCreatedAt: (createdAt: string) => void;
@@ -237,6 +242,7 @@ export type Config = {
   mixpanelToken: string;
   hotjarSiteId: number;
   contactSupportUrl: string;
+  googleVerificationCode: string;
 };
 
 export type Network = {
@@ -291,6 +297,7 @@ export interface TransactionHistory {
   fee: number;
   recipient: Recipient;
   status: TransactionStatus;
+  network: string;
   tx_hash?: string;
   time_spent?: string;
   created_at: string;
@@ -308,6 +315,7 @@ export interface TransactionCreateInput {
   fee: number;
   recipient: Recipient;
   status: TransactionStatus;
+  network: string;
   txHash?: string;
   timeSpent?: string;
   orderId?: string;
@@ -356,3 +364,10 @@ export interface UpdateTransactionDetailsPayload
   txHash?: string;
   timeSpent?: string;
 }
+
+export type Currency = {
+  imageUrl: string;
+  name: string;
+  label: string;
+  disabled?: boolean;
+};

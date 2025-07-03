@@ -630,9 +630,11 @@ export const TransactionForm = ({
                 defaultTitle="Select token"
                 data={tokens}
                 defaultSelectedItem={token}
-                onSelect={(selectedToken) => {
-                  setValue("token", selectedToken, { shouldDirty: true });
-                }}
+                onSelect={(selectedToken) =>
+                  setValue("token", selectedToken, { shouldDirty: true })
+                }
+                className="min-w-32"
+                dropdownWidth={160}
               />
             </div>
 
@@ -699,12 +701,10 @@ export const TransactionForm = ({
                 }
                 className="min-w-64"
                 isCTA={
-                  // Show CTA styling when:
-                  // 1. No currency is selected AND
-                  // 2. Either user is not authenticated OR (user is authenticated AND doesn't need funding)
                   !currency &&
                   (!authenticated || (authenticated && !(amountSent > balance)))
                 }
+                dropdownWidth={300}
               />
             </div>
           </div>

@@ -30,6 +30,7 @@ interface FundViewProps {
     onComplete?: (success: boolean) => void,
   ) => Promise<void>;
   isDark: boolean;
+  onClose: () => void;
 }
 
 export const FundView: React.FC<FundViewProps> = ({
@@ -38,6 +39,7 @@ export const FundView: React.FC<FundViewProps> = ({
   selectedNetwork,
   handleFundWalletClick,
   isDark,
+  onClose,
 }) => {
   const [fundingInProgress, setFundingInProgress] = useState(false);
   const [isFundConfirming, setIsFundConfirming] = useState(false);
@@ -79,7 +81,7 @@ export const FundView: React.FC<FundViewProps> = ({
           setIsFundConfirming(false);
           if (success) {
             resetFund();
-            setCurrentView("wallet");
+            onClose();
             refreshBalance();
           }
         },

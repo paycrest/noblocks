@@ -28,6 +28,8 @@ interface TransferViewProps {
   client: any;
   selectedNetwork: Network;
   smartWalletBalance: any;
+  isBalanceLoading: boolean;
+  onClose: () => void;
 }
 
 export const TransferView: React.FC<TransferViewProps> = ({
@@ -36,6 +38,8 @@ export const TransferView: React.FC<TransferViewProps> = ({
   client,
   selectedNetwork,
   smartWalletBalance,
+  isBalanceLoading,
+  onClose,
 }) => {
   const [isTransferSuccess, setIsTransferSuccess] = useState(false);
   const [transferAmount, setTransferAmount] = useState("");
@@ -84,7 +88,6 @@ export const TransferView: React.FC<TransferViewProps> = ({
     setIsTransferSuccess(false);
     resetTransfer();
     setCurrentView("wallet");
-    refreshBalance();
   };
   useEffect(() => {
     if (transferErrorMessage) toast.error(transferErrorMessage);
@@ -131,6 +134,8 @@ export const TransferView: React.FC<TransferViewProps> = ({
         );
         setIsTransferConfirming(false);
         resetTransfer();
+        onClose();
+        refreshBalance();
       } catch (e: any) {
         setTransferErrorMessage(
           e?.shortMessage || e?.message || "Transfer failed",
@@ -151,6 +156,8 @@ export const TransferView: React.FC<TransferViewProps> = ({
       setTransferErrorCount,
       resetTransfer,
       setCurrentView,
+      onClose,
+      refreshBalance,
     ],
   );
 
@@ -268,7 +275,7 @@ export const TransferView: React.FC<TransferViewProps> = ({
           <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">
             <p className="text-text-secondary dark:text-white/50">Balance</p>
             <div className="flex items-center gap-3">
-              {isTransferLoading ? (
+              {isBalanceLoading ? (
                 <BalanceSkeleton className="w-24" />
               ) : (
                 <>
@@ -279,7 +286,7 @@ export const TransferView: React.FC<TransferViewProps> = ({
                       type="button"
                       onClick={handleTransferBalanceMaxClick}
                       className="font-medium text-lavender-500"
-                      disabled={isTransferLoading}
+                      disabled={isBalanceLoading}
                     >
                       Max
                     </button>

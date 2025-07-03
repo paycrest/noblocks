@@ -238,6 +238,8 @@ export const MobileDropdown = ({
                               client={client}
                               selectedNetwork={selectedNetwork}
                               smartWalletBalance={activeBalance}
+                              isBalanceLoading={isLoading}
+                              onClose={onClose}
                             />
                           )}
 
@@ -250,6 +252,7 @@ export const MobileDropdown = ({
                               smartWalletBalance={activeBalance}
                               handleFundWalletClick={handleFundWalletClick}
                               isDark={isDark}
+                              onClose={onClose}
                             />
                           )}
 

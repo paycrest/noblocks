@@ -550,7 +550,10 @@ export const TransactionForm = ({
         <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
           <h3 className="px-2 py-1 text-base font-medium">Swap</h3>
 
-          <div className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-surface-canvas">
+          <motion.div
+            layout
+            className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-surface-canvas"
+          >
             <div className="flex items-center justify-between">
               <label
                 htmlFor="amount-sent"
@@ -625,7 +628,6 @@ export const TransactionForm = ({
                 placeholder="0"
                 title="Enter amount to send"
               />
-
               <FormDropdown
                 defaultTitle="Select token"
                 data={tokens}
@@ -637,6 +639,17 @@ export const TransactionForm = ({
                 dropdownWidth={160}
               />
             </div>
+            {(errors.amountSent || (authenticated && amountSent > balance)) && (
+              <AnimatedComponent
+                variant={slideInOut}
+                className="!mt-0 text-xs text-red-500"
+              >
+                {errors.amountSent?.message ||
+                  (authenticated && amountSent > balance
+                    ? `Insufficient balance`
+                    : null)}
+              </AnimatedComponent>
+            )}
 
             {/* Arrow showing swap direction */}
             <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas">
@@ -648,7 +661,7 @@ export const TransactionForm = ({
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Amount to receive & currency */}
           <div className="space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-surface-canvas">

@@ -25,6 +25,7 @@ import { primaryBtnClasses } from "./Styles";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedModal } from "./AnimatedComponents";
 import { BalanceSkeleton } from "./BalanceSkeleton";
+import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
 
 export const TransferModal = ({
   isOpen,
@@ -467,8 +468,17 @@ export const TransferModal = ({
                   defaultSelectedItem={token}
                   onSelect={(selectedToken) => setValue("token", selectedToken)}
                   className="min-w-44"
+                  dropdownWidth={160}
                 />
               </div>
+              {errors.amount && (
+                <AnimatedComponent
+                  variant={slideInOut}
+                  className="text-xs text-red-500"
+                >
+                  {errors.amount.message}
+                </AnimatedComponent>
+              )}
             </div>
 
             {renderBalanceSection()}

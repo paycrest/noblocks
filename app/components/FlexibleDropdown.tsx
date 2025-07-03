@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useOutsideClick } from "../hooks";
 import { dropdownVariants } from "./AnimatedComponents";
 import { useEffect, useRef, useState, ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { Cancel01Icon, SquareLock02Icon, Tick02Icon } from "hugeicons-react";
 import {
   Dialog,
@@ -105,11 +104,6 @@ export const FlexibleDropdown = ({
       : undefined,
   );
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
-  const [dropdownPosition, setDropdownPosition] = useState<{
-    x: number;
-    y: number;
-    width: number;
-  } | null>(null);
 
   const handleChange = (item: DropdownItem) => {
     setSelectedItem(item);
@@ -139,18 +133,7 @@ export const FlexibleDropdown = ({
     handler: () => setIsOpen(false),
   });
 
-  const toggleDropdown = () => {
-    if (!isOpen && dropdownRef.current) {
-      // Calculate position when opening
-      const rect = dropdownRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        x: rect.right - 160, // Align to right, assuming 160px min width
-        y: rect.bottom + 8, // 8px gap below trigger
-        width: Math.max(160, rect.width), // At least 160px wide, or match trigger width
-      });
-    }
-    setIsOpen(!isOpen);
-  };
+  const toggleDropdown = () => setIsOpen(!isOpen);
 
   const isMobile = () => {
     if (typeof window !== "undefined") {
@@ -166,6 +149,7 @@ export const FlexibleDropdown = ({
       setIsOpen(false);
     }
   };
+
   return (
     <div ref={dropdownRef} className="relative">
       {children({ selectedItem, isOpen, toggleDropdown })}
@@ -173,37 +157,27 @@ export const FlexibleDropdown = ({
       <AnimatePresence>
         {isOpen && (
           <>
-            {/* Desktop dropdown - rendered in a portal for proper stacking */}
-            {!isMobile() &&
-              dropdownPosition &&
-              typeof window !== "undefined" &&
-              createPortal(
-                <motion.div
-                  initial="closed"
-                  animate="open"
-                  exit="closed"
-                  variants={dropdownVariants}
-                  aria-label="Dropdown menu"
-                  className={classNames(
-                    "no-scrollbar fixed z-[100] max-h-52 overflow-y-auto rounded-xl border border-border-light bg-white py-2 shadow-xl dark:border-white/10 dark:bg-neutral-800",
-                    className?.includes("min-w") ? "" : "min-w-40",
-                    className?.includes("max-h") ? "" : "max-h-56",
-                    className ?? "",
-                  )}
-                  style={{
-                    left: `${dropdownPosition.x}px`,
-                    top: `${dropdownPosition.y}px`,
-                    width: `${dropdownPosition.width}px`,
-                  }}
-                >
-                  <DropdownContent
-                    data={data}
-                    selectedItem={selectedItem}
-                    handleChange={handleChange}
-                  />
-                </motion.div>,
-                document.body,
+            {/* Desktop dropdown */}
+            <motion.div
+              initial="closed"
+              animate="open"
+              exit="closed"
+              variants={dropdownVariants}
+              aria-label="Dropdown menu"
+              className={classNames(
+                "no-scrollbar absolute right-0 z-50 mt-2 max-h-52 max-w-full overflow-y-auto rounded-xl border border-border-light bg-white py-2 shadow-xl dark:border-white/10 dark:bg-neutral-800",
+                className?.includes("min-w") ? "" : "min-w-40",
+                className?.includes("max-h") ? "" : "max-h-56",
+                className ?? "",
+                "hidden sm:block",
               )}
+            >
+              <DropdownContent
+                data={data}
+                selectedItem={selectedItem}
+                handleChange={handleChange}
+              />
+            </motion.div>
 
             {/* Mobile modal */}
             {isMobile() && (
@@ -212,7 +186,7 @@ export const FlexibleDropdown = ({
                 open={isOpen}
                 onClose={() => setIsOpen(false)}
                 key="mobile-dialog"
-                className="relative z-[100] sm:hidden"
+                className="relative z-[53] sm:hidden"
               >
                 <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
 

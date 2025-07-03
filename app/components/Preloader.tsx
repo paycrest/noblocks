@@ -73,7 +73,7 @@ export const Preloader = ({ isLoading }: { isLoading: boolean }) => {
                   <Skeleton className="h-16 w-full" />
 
                   {/* Arrow */}
-                  <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-gray-50 bg-gray-50 dark:border-neutral-800/20 dark:bg-neutral-800/20">
+                  <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 animate-pulse rounded-xl border-4 border-gray-50 bg-gray-50 dark:border-neutral-800/20 dark:bg-neutral-800/20">
                     <div className="rounded-lg bg-white p-1 dark:bg-neutral-900">
                       <Skeleton className="h-6 w-6" />
                     </div>

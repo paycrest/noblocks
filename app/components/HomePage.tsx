@@ -78,7 +78,7 @@ export function HomePage({
             transition={{ duration: 0.7, ease: "easeInOut" }}
           >
             <motion.h1
-              className="flex flex-col items-center gap-1 text-center font-semibold sm:mb-[2.25rem] md:mb-[3.25rem] lg:mb-[5.25rem]"
+              className="flex flex-col items-center gap-1 text-center font-semibold"
               initial={false}
               animate={{
                 opacity: isRecipientFormOpen ? 0 : 1,
@@ -90,7 +90,7 @@ export function HomePage({
                 Change stablecoins
               </span>
               <span
-                className={`${crimsonPro.className} text-[2.375rem] italic sm:text-[3.25rem] md:text-[4.25rem] lg:text-[4.5rem]`}
+                className={`${crimsonPro.className} text-[2.5rem] italic sm:text-[3.45rem] md:text-[4.75rem] lg:text-[5.25rem]`}
               >
                 to cash in seconds
               </span>
@@ -152,17 +152,17 @@ export function HomePage({
 
         <BlurRevealSection className="mb-[9.375rem] flex w-full flex-col items-center justify-center gap-11 px-5 sm:gap-[54px] md:mb-[7.875rem]">
           <BlurRevealTitle className="text-center dark:opacity-80">
-            <span className="text-xl font-semibold sm:text-[2.25rem] md:text-[2.875rem]">
+            <span className="text-2xl font-semibold sm:text-[2.25rem] md:text-[2.875rem]">
               Ways you can use{" "}
             </span>
             <span
-              className={`${crimsonPro.className} text-2xl font-semibold italic sm:text-[2.875rem] md:text-[3.25rem]`}
+              className={`${crimsonPro.className} text-[2rem] font-semibold italic sm:text-[2.95rem] md:text-[3.5rem]`}
             >
               Noblocks
             </span>
           </BlurRevealTitle>
 
-          <BlurRevealContent className="grid grid-cols-1 gap-6 sm:border-[#EBEBEF] md:rounded-[28px] md:border md:p-6 md:dark:border-[#FFFFFF1A] lg:grid-cols-2 lg:gap-8">
+          <BlurRevealContent className="container mx-auto grid w-full grid-cols-1 gap-4 sm:border-[#EBEBEF] md:max-w-[59rem] md:grid-cols-2 md:gap-6 md:rounded-[28px] md:border md:p-6 md:dark:border-[#FFFFFF1A]">
             {(() => {
               const useCases = [
                 {
@@ -216,13 +216,15 @@ export function HomePage({
               return useCases.map((category, categoryIndex) => (
                 <div
                   key={categoryIndex}
-                  className="flex flex-col gap-6 rounded-[24px] bg-[#F7F7F8] px-4 py-8 dark:bg-[#202020]"
+                  className="flex flex-col gap-2 rounded-3xl bg-[#F7F7F8] px-2 pb-2 pt-4 dark:bg-surface-overlay md:gap-4 md:px-4 md:py-4"
                 >
-                  <h4 className="text-lg font-medium">{category.title}</h4>
+                  <h4 className="mb-4 text-base font-medium text-text-body dark:text-white/80 sm:text-lg">
+                    {category.title}
+                  </h4>
                   {category.items.map((item, itemIndex) => (
                     <p
                       key={itemIndex}
-                      className="group flex cursor-pointer flex-col gap-4 rounded-[20px] bg-white p-4 transition-colors duration-300 hover:bg-[#4a79fe] hover:text-white dark:bg-[#FFFFFF0D] dark:hover:bg-[#4a79fe] dark:hover:text-white"
+                      className="group flex cursor-pointer flex-col gap-2 rounded-[18px] bg-white p-2 transition-colors duration-300 hover:bg-[#4a79fe] hover:text-white dark:bg-white/5 dark:hover:bg-[#4a79fe] dark:hover:text-white md:gap-4 md:rounded-[20px] md:p-4"
                     >
                       <span>
                         <Image
@@ -230,10 +232,10 @@ export function HomePage({
                           alt="Icon"
                           width={item.width}
                           height={item.height}
-                          className="transition-all duration-300 group-hover:brightness-100"
+                          className="scale-95 transition-all duration-300 group-hover:brightness-100 sm:scale-100"
                         />
                       </span>
-                      <span className="text-sm font-normal lg:text-base">
+                      <span className="text-xs font-normal sm:text-sm lg:text-base">
                         {item.text}
                       </span>
                     </p>
@@ -333,12 +335,12 @@ export function HomePage({
           {/* Content */}
           <div className="mx-auto w-full max-w-[999px]">
             <div className="relative z-10 max-w-[600px] pt-8 md:pt-28">
-              <p className="flex flex-col font-semibold sm:gap-6">
-                <span className="text-xl sm:text-[2.25rem] md:text-[2.875rem]">
+              <p className="flex flex-col font-semibold sm:gap-2">
+                <span className="text-2xl sm:text-4xl md:text-5xl">
                   Power the Liquidity
                 </span>
                 <span
-                  className={`${crimsonPro.className} text-2xl italic sm:text-[2.875rem] md:text-[3.25rem]`}
+                  className={`${crimsonPro.className} text-3xl italic sm:text-5xl md:text-6xl`}
                 >
                   Engine on Noblocks
                 </span>
@@ -360,27 +362,31 @@ export function HomePage({
           </div>
         </BlurRevealSection>
 
-        <BlurRevealSection className="mx-auto mb-24 flex w-full max-w-[1440px] flex-col justify-center gap-10 px-5 md:mb-[10rem] md:flex-row-reverse md:items-center">
-          <div className="w-full max-w-[302px] space-y-4">
+        <BlurRevealSection className="mx-auto mb-24 flex w-full max-w-[1440px] flex-col justify-center px-5 md:mb-[10rem] md:gap-10 lg:flex-row-reverse lg:items-center">
+          <div className="w-full space-y-4 lg:max-w-[302px]">
             <button
               type="button"
-              className="rounded-3xl bg-[#20BA90] p-1.5 text-sm font-medium text-white dark:text-white"
+              className="rounded-3xl bg-[#20BA90] px-2.5 py-1.5 text-sm font-medium text-white dark:text-white"
             >
               Coming soon
             </button>
-            <h3 className="flex flex-col gap-1 font-semibold">
-              <span className="text-2xl sm:text-[2.25rem] lg:text-5xl lg:leading-[3.75rem]">
+            <h3 className="flex flex-col font-semibold sm:gap-2">
+              <span className="text-2xl sm:text-4xl md:text-5xl lg:!leading-[1.5]">
                 Download Noblocks
               </span>
               <span
-                className={`${crimsonPro.className} text-[1.75rem] italic sm:text-[2.875rem] lg:text-[3.5rem] lg:leading-[4.875rem]`}
+                className={`${crimsonPro.className} text-3xl italic sm:text-5xl md:text-6xl`}
               >
                 Mobile App
               </span>
             </h3>
-            <p className="text-base font-normal leading-7 lg:text-lg lg:leading-[1.875rem]">
+            <p className="pt-2 text-base font-normal leading-7 lg:text-lg lg:leading-[1.875rem]">
               Your no. 1 app to change stablecoins to cash in less than{" "}
-              <span className={`${crimsonPro.className} italic`}>30s</span>
+              <span
+                className={`${crimsonPro.className} text-lg italic lg:text-xl`}
+              >
+                30s
+              </span>
             </p>
           </div>
 

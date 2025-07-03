@@ -20,11 +20,11 @@ const NavbarSkeleton = () => (
 );
 
 const HeroHeaderSkeleton = () => (
-  <div className="mb-8 flex flex-col items-center gap-2 text-center sm:mb-12 md:mb-16 lg:mb-20">
+  <div className="mb-12 flex flex-col items-center gap-2 text-center sm:mb-16 md:mb-20 lg:mb-24">
     {/* "Change stablecoins" line */}
-    <Skeleton className="h-6 w-80 max-w-[90vw] sm:h-10 sm:w-96 md:h-12 md:w-[28rem] lg:h-16 lg:w-[32rem]" />
+    <Skeleton className="h-8 w-80 max-w-[90vw] sm:h-10 sm:w-96 md:h-12 md:w-[28rem] lg:h-16 lg:w-[32rem]" />
     {/* "to cash in seconds" line */}
-    <Skeleton className="h-6 w-72 max-w-[85vw] sm:h-12 sm:w-80 md:h-14 md:w-96 lg:h-[4.5rem] lg:w-[30rem]" />
+    <Skeleton className="h-8 w-72 max-w-[85vw] sm:h-12 sm:w-80 md:h-14 md:w-96 lg:h-[4.5rem] lg:w-[30rem]" />
   </div>
 );
 
@@ -58,7 +58,7 @@ export const Preloader = ({ isLoading }: { isLoading: boolean }) => {
             {/* Transaction Form Skeleton */}
             <div className="mx-auto w-full max-w-md">
               {/* Swap Section */}
-              <div className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800">
+              <div className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800/20">
                 <div className="flex items-center justify-between px-2 py-1">
                   <Skeleton className="h-4 w-16" />
                 </div>
@@ -73,7 +73,7 @@ export const Preloader = ({ isLoading }: { isLoading: boolean }) => {
                   <Skeleton className="h-16 w-full" />
 
                   {/* Arrow */}
-                  <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-gray-50 bg-gray-50 dark:border-neutral-800 dark:bg-neutral-800">
+                  <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-gray-50 bg-gray-50 dark:border-neutral-800/20 dark:bg-neutral-800/20">
                     <div className="rounded-lg bg-white p-1 dark:bg-neutral-900">
                       <Skeleton className="h-6 w-6" />
                     </div>

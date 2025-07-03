@@ -125,10 +125,12 @@ select {
 
 .walkthrough-video-container {
   border: 12px solid #fd76b3;
+  background-color: #fd76b3;
 }
 
 @media screen and (min-width: 1024px) {
   .walkthrough-video-container {
     border: 20px solid #fd76b3;
+    background-color: #fd76b3;
   }
 }

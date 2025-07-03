@@ -78,7 +78,7 @@ export function HomePage({
             transition={{ duration: 0.7, ease: "easeInOut" }}
           >
             <motion.h1
-              className="flex flex-col items-center gap-1 text-center font-semibold"
+              className="flex flex-col items-center gap-1 text-center font-semibold sm:mb-[2.25rem] md:mb-[3.25rem] lg:mb-[5.25rem]"
               initial={false}
               animate={{
                 opacity: isRecipientFormOpen ? 0 : 1,

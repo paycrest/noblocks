@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import { DropdownItem, FlexibleDropdown } from "./FlexibleDropdown";
 import { classNames } from "../utils";
 import { ArrowDown01Icon } from "hugeicons-react";
@@ -12,6 +12,7 @@ interface FormDropdownProps {
   data: DropdownItem[];
   className?: string;
   isCTA?: boolean;
+  dropdownWidth?: number;
 }
 
 export const FormDropdown = ({
@@ -21,8 +22,8 @@ export const FormDropdown = ({
   data,
   className,
   isCTA = false,
-}: FormDropdownProps) => {  
-
+  dropdownWidth,
+}: FormDropdownProps) => {
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   return (
     <FlexibleDropdown
@@ -30,6 +31,7 @@ export const FormDropdown = ({
       defaultSelectedItem={defaultSelectedItem}
       onSelect={onSelect}
       className={className}
+      dropdownWidth={dropdownWidth}
       mobileTitle={defaultTitle}
     >
       {({ selectedItem, isOpen, toggleDropdown }) => (
@@ -51,7 +53,11 @@ export const FormDropdown = ({
         >
           {selectedItem?.name ? (
             <div className="mr-1 flex items-center gap-1">
-              <FlagImage item={selectedItem} imageErrors={imageErrors} setImageErrors={setImageErrors} />
+              <FlagImage
+                item={selectedItem}
+                imageErrors={imageErrors}
+                setImageErrors={setImageErrors}
+              />
               <p className="text-sm font-medium text-text-body dark:text-white">
                 {selectedItem?.name}
               </p>
@@ -62,7 +68,14 @@ export const FormDropdown = ({
             </p>
           )}
 
-          <div className={classNames(selectedItem?.name && !imageErrors[selectedItem?.name] ? "ml-5" : "", "mr-1")}>
+          <div
+            className={classNames(
+              selectedItem?.name && !imageErrors[selectedItem?.name]
+                ? "ml-5"
+                : "",
+              "mr-1",
+            )}
+          >
             <ArrowDown01Icon
               className={classNames(
                 "size-4 transition-transform",

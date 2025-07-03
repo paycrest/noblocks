@@ -11,6 +11,7 @@ import { classNames, fetchSupportedTokens, getNetworkImageUrl } from "../utils";
 import { trackEvent } from "../hooks/analytics";
 import type { Token } from "../types";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
 
 type FundFormData = {
   amount: number;
@@ -215,6 +216,14 @@ export const FundWalletModal = ({
                   className="min-w-44"
                 />
               </div>
+              {errors.amount && (
+                <AnimatedComponent
+                  variant={slideInOut}
+                  className="text-xs text-red-500"
+                >
+                  {errors.amount.message}
+                </AnimatedComponent>
+              )}
             </div>
 
             <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">

@@ -28,55 +28,58 @@ export default function WalkthroughVideo() {
 
   return (
     <div className="relative mx-auto flex w-full max-w-[800px] items-center justify-center">
-      <div className="walkthrough-video-container relative w-full rounded-3xl bg-black">
-        <div
-          className="relative aspect-video w-full overflow-hidden rounded-[12px] lg:rounded-[4px]"
-          onClick={handleVideoAreaClick}
-          style={{ cursor: isPlaying ? "pointer" : "default" }}
-        >
-          <video
-            ref={videoRef}
-            src="/videos/noblocks-walkthrough.mp4"
-            poster="/videos/thumbnail.jpg"
-            className="h-full w-full object-cover"
-            onPause={handlePause}
-            onPlay={() => setIsPlaying(true)}
-            controls={false}
-            playsInline
-          />
-          {/* Dark overlay when paused */}
-          {!isPlaying && (
-            <div className="absolute inset-0 z-10 rounded-[12px] bg-black/60 transition-colors duration-300 lg:rounded-[4px]" />
-          )}
-          {/* Overlay Play Button */}
-          <button
-            className={`absolute inset-0 z-20 flex h-full w-full flex-col items-center justify-center rounded-[12px] transition-opacity duration-300 focus:outline-none lg:rounded-[4px] ${isPlaying ? "pointer-events-none opacity-0" : "opacity-100"}`}
-            onClick={handlePlay}
-            aria-label="Play walkthrough video"
-            type="button"
-            tabIndex={isPlaying ? -1 : 0}
+      <div className="walkthrough-video-container relative w-full rounded-3xl">
+        {/* Pink border container */}
+        <div className="relative aspect-video w-full overflow-hidden rounded-[12px] lg:rounded-3xl">
+          <div
+            className="relative h-full w-full"
+            onClick={handleVideoAreaClick}
+            style={{ cursor: isPlaying ? "pointer" : "default" }}
           >
-            <WalkthroughPlayIcon className="h-16 sm:hidden" />
-            <WalkthroughPlayIcon className="h-32 max-sm:hidden" />
-            <div className="mt-4 text-center">
-              <div className="text-base font-semibold text-white sm:text-lg md:text-xl">
-                Watch a quick walkthrough
+            <video
+              ref={videoRef}
+              src="/videos/noblocks-walkthrough.mp4"
+              poster="/videos/thumbnail.jpg"
+              className="h-full w-full object-cover"
+              onPause={handlePause}
+              onPlay={() => setIsPlaying(true)}
+              controls={false}
+              playsInline
+            />
+            {/* Dark overlay when paused */}
+            {!isPlaying && (
+              <div className="absolute inset-0 z-10 bg-black/60 transition-colors duration-300" />
+            )}
+            {/* Overlay Play Button */}
+            <button
+              className={`absolute inset-0 z-20 flex h-full w-full flex-col items-center justify-center transition-opacity duration-300 focus:outline-none ${isPlaying ? "pointer-events-none opacity-0" : "opacity-100"}`}
+              onClick={handlePlay}
+              aria-label="Play walkthrough video"
+              type="button"
+              tabIndex={isPlaying ? -1 : 0}
+            >
+              <WalkthroughPlayIcon className="h-16 sm:hidden" />
+              <WalkthroughPlayIcon className="h-32 max-sm:hidden" />
+              <div className="mt-4 text-center">
+                <div className="text-base font-semibold text-white sm:text-lg md:text-xl">
+                  Watch a quick walkthrough
+                </div>
+                <div className="mt-1 text-xs text-white/80 sm:text-sm">
+                  45 seconds
+                </div>
               </div>
-              <div className="mt-1 text-xs text-white/80 sm:text-sm">
-                45 seconds
-              </div>
-            </div>
-          </button>
-          {/* Overlay Pause Button (optional) */}
-          <button
-            className={`absolute right-4 top-4 z-20 rounded-full bg-black/60 p-2 transition-opacity duration-300 focus:outline-none ${!isPlaying ? "pointer-events-none opacity-0" : "opacity-100"}`}
-            onClick={handlePause}
-            aria-label="Pause walkthrough video"
-            type="button"
-            tabIndex={!isPlaying ? -1 : 0}
-          >
-            <TbPlayerPauseFilled className="size-4 text-white" />
-          </button>
+            </button>
+            {/* Overlay Pause Button (optional) */}
+            <button
+              className={`absolute right-4 top-4 z-20 rounded-full bg-black/60 p-2 transition-opacity duration-300 focus:outline-none ${!isPlaying ? "pointer-events-none opacity-0" : "opacity-100"}`}
+              onClick={handlePause}
+              aria-label="Pause walkthrough video"
+              type="button"
+              tabIndex={!isPlaying ? -1 : 0}
+            >
+              <TbPlayerPauseFilled className="size-4 text-white" />
+            </button>
+          </div>
         </div>
       </div>
       {/* Paper plane image, absolutely positioned relative to the outer .relative div */}

@@ -2,12 +2,12 @@ import "./globals.css";
 import React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import Script from "next/script";
+import config from "./lib/config";
 
 import Providers from "./providers";
 import MainContent from "./mainContent";
 import { Footer, Navbar, LayoutWrapper } from "./components";
-import Script from "next/script";
-import config from "./lib/config";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -155,7 +155,9 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: "/favicon.ico",
+    apple: "/icons/apple-touch-icon.png",
   },
+  manifest: "/manifest.json",
   twitter: {
     card: "summary_large_image",
     title: "Noblocks",

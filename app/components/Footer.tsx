@@ -7,6 +7,9 @@ import { motion } from "framer-motion";
 
 import { AnimatedComponent, fadeInOut } from "./AnimatedComponents";
 import { ThemeSwitch } from "./ThemeSwitch";
+import { useStep } from "../context";
+import { classNames } from "../utils";
+import { STEPS } from "../types";
 
 const socials = [
   {
@@ -50,6 +53,7 @@ const SocialLink = ({
 
 export const Footer = () => {
   const [mounted, setMounted] = useState(false);
+  const { currentStep } = useStep();
 
   useEffect(() => setMounted(true), []);
 
@@ -64,7 +68,12 @@ export const Footer = () => {
         layout
         transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
       >
-        <div className="mx-auto w-full">
+        <div
+          className={classNames(
+            "mx-auto w-full transition-all",
+            currentStep === STEPS.STATUS ? "pointer-events-none invisible" : "",
+          )}
+        >
           <p className="absolute bottom-8 left-4 z-20 text-xs font-medium md:left-20">
             <span className="text-gray-500 dark:text-white/50">
               &copy; {currentYear} Powered by

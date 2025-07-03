@@ -380,7 +380,7 @@ export const TransactionPreview = ({
 
       const transaction: TransactionCreateInput = {
         walletAddress: embeddedWallet.address,
-        transactionType: "transfer",
+        transactionType: "swap",
         fromCurrency: token,
         toCurrency: currency,
         amountSent: Number(amountSent),

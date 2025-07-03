@@ -11,11 +11,15 @@ import {
 
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { BaseError, encodeFunctionData, erc20Abi, parseUnits } from "viem";
+import { usePrivy } from "@privy-io/react-auth";
+import { createPublicClient, http } from "viem";
+import { getRpcUrl } from "../utils";
 
 import { useBalance } from "../context";
 import type { Token } from "../types";
 import { useNetwork } from "../context/NetworksContext";
-import { classNames, fetchSupportedTokens } from "../utils";
+import { classNames, fetchSupportedTokens, getExplorerLink } from "../utils";
+import { saveTransaction } from "../api/aggregator";
 
 import { primaryBtnClasses } from "./Styles";
 import { FormDropdown } from "./FormDropdown";
@@ -36,9 +40,14 @@ export const TransferModal = ({
   const [isTransferSuccess, setIsTransferSuccess] = useState<boolean>(false);
   const [transferAmount, setTransferAmount] = useState<string>("");
   const [transferToken, setTransferToken] = useState<string>("");
+  const [transactionHash, setTransactionHash] = useState<string | null>(null);
+  const [userOpHash, setUserOpHash] = useState<string | null>(null);
+  const [isPollingReceipt, setIsPollingReceipt] = useState(false);
+  const [pollingTimedOut, setPollingTimedOut] = useState(false);
 
   const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
   const { client } = useSmartWallets();
+  const { user, getAccessToken } = usePrivy();
 
   type FormData = {
     amount: number;
@@ -82,7 +91,11 @@ export const TransferModal = ({
   const handleTransfer = async (data: FormData) => {
     try {
       const fetchedTokens: Token[] =
-        fetchSupportedTokens(client?.chain.name) || [];
+        fetchSupportedTokens(selectedNetwork.chain.name) || [];
+
+      await client?.switchChain({
+        id: selectedNetwork.chain.id,
+      });
 
       const searchToken = token.toUpperCase();
       const tokenData = fetchedTokens.find(
@@ -100,8 +113,12 @@ export const TransferModal = ({
       }
 
       setIsConfirming(true);
+      setIsPollingReceipt(true);
+      setPollingTimedOut(false);
+      setUserOpHash(null);
+      setTransactionHash(null);
 
-      await client?.sendTransaction({
+      const response = await client?.sendTransaction({
         to: tokenAddress,
         data: encodeFunctionData({
           abi: erc20Abi,
@@ -113,15 +130,85 @@ export const TransferModal = ({
         }),
       });
 
-      setTransferAmount(data.amount.toString());
-      setTransferToken(token);
       setIsTransferSuccess(true);
 
-      toast.success(
-        `${data.amount.toString()} ${token} successfully transferred`,
-      );
-      setIsConfirming(false);
-      reset();
+      // Poll for the Transfer event to get the real txHash
+      const pollForTransferEvent = async () => {
+        let intervalId: NodeJS.Timeout;
+        let timeoutId: NodeJS.Timeout;
+        const publicClient = createPublicClient({
+          chain: selectedNetwork.chain,
+          transport: http(getRpcUrl(selectedNetwork.chain.name)),
+        });
+        // Get smart wallet address from user linked accounts
+        const smartWallet = user?.linkedAccounts.find(
+          (account) => account.type === "smart_wallet",
+        );
+        const from = smartWallet?.address as `0x${string}`;
+        const value = parseUnits(data.amount.toString(), tokenDecimals);
+        const to = data.recipientAddress as `0x${string}`;
+
+        // Use 25 block range for Arbitrum One, otherwise 10
+        const blockRange =
+          selectedNetwork.chain.name.toLowerCase() === "arbitrum one" ? 25 : 10;
+
+        const getTransferLogs = async () => {
+          try {
+            const toBlock = await publicClient.getBlockNumber();
+            const logs = await publicClient.getContractEvents({
+              address: tokenAddress,
+              abi: erc20Abi,
+              eventName: "Transfer",
+              args: { from, to },
+              fromBlock: toBlock - BigInt(blockRange),
+              toBlock: toBlock,
+            });
+            // Filter logs by value in JS
+            const matchingLog = logs.find(
+              (log) =>
+                log.args && log.args.value?.toString() === value.toString(),
+            );
+            if (matchingLog) {
+              clearInterval(intervalId);
+              clearTimeout(timeoutId);
+              setTransactionHash(matchingLog.transactionHash);
+              setIsPollingReceipt(false);
+              setTransferAmount(data.amount.toString());
+              setTransferToken(token);
+              toast.success(
+                `${data.amount.toString()} ${token} successfully transferred`,
+              );
+              setIsConfirming(false);
+              // Save to transaction history (only after successful transfer)
+              saveTransferTransaction(
+                matchingLog.transactionHash,
+                data.recipientAddress,
+                data.amount,
+                token,
+              );
+              reset();
+            }
+          } catch (error) {
+            console.error(
+              "[TransferModal] Error polling Transfer logs:",
+              error,
+            );
+          }
+        };
+        getTransferLogs();
+        intervalId = setInterval(getTransferLogs, 2000);
+        // Timeout after 20 seconds
+        timeoutId = setTimeout(() => {
+          clearInterval(intervalId);
+          setIsPollingReceipt(false);
+          setPollingTimedOut(true);
+          setIsTransferSuccess(true);
+          setIsConfirming(false);
+          reset();
+        }, 20000);
+      };
+      pollForTransferEvent();
+      // Do not setTransactionHash(response) here, only set when event is found
     } catch (e: any) {
       console.error("Transfer failed:", {
         error: e,
@@ -134,6 +221,7 @@ export const TransferModal = ({
       setErrorMessage((e as BaseError).shortMessage || e.message);
       setErrorCount((prevCount) => prevCount + 1);
       setIsConfirming(false);
+      setIsPollingReceipt(false);
     }
     refreshBalance();
   };
@@ -147,6 +235,7 @@ export const TransferModal = ({
 
   const handleModalClose = () => {
     setIsTransferSuccess(false);
+    setTransactionHash(null);
     reset();
     onClose();
   };
@@ -166,30 +255,67 @@ export const TransferModal = ({
 
   const tokenBalance = Number(smartWalletBalance?.balances[token]) || 0;
 
-  const renderSuccessView = () => (
-    <div className="space-y-6 pt-4">
-      <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
+  const renderSuccessView = () => {
+    const explorerLink = transactionHash
+      ? getExplorerLink(selectedNetwork.chain.name, transactionHash)
+      : null;
 
-      <div className="space-y-3 pb-5 text-center">
-        <h2 className="text-lg font-semibold text-text-body dark:text-white">
-          Transfer successful
-        </h2>
+    return (
+      <div className="space-y-6 pt-4">
+        <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
 
-        <p className="text-gray-500 dark:text-white/50">
-          {transferAmount} {transferToken} has been successfully transferred to
-          the recipient.
-        </p>
+        <div className="space-y-3 pb-5 text-center">
+          <h2 className="text-lg font-semibold text-text-body dark:text-white">
+            Transfer successful
+          </h2>
+
+          <p className="text-gray-500 dark:text-white/50">
+            {transferAmount} {transferToken} has been successfully transferred
+            to the recipient.
+          </p>
+
+          {/* Loader for polling receipt */}
+          {isPollingReceipt && (
+            <div className="flex flex-row items-center justify-center gap-2">
+              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-lavender-500" />
+              <span className="text-sm text-gray-500 dark:text-white/50">
+                Getting onchain receipt…
+              </span>
+            </div>
+          )}
+
+          {/* Fallback if polling times out */}
+          {!isPollingReceipt && pollingTimedOut && (
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-sm text-gray-500 dark:text-white/50">
+                Could not retrieve onchain receipt.
+              </span>
+            </div>
+          )}
+
+          {/* Show explorer link if txHash is found */}
+          {explorerLink && !isPollingReceipt && !pollingTimedOut && (
+            <a
+              href={explorerLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 block text-center text-lavender-500 underline"
+            >
+              View in Explorer
+            </a>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className={`${primaryBtnClasses} w-full`}
+          onClick={handleModalClose}
+        >
+          Close
+        </button>
       </div>
-
-      <button
-        type="button"
-        className={`${primaryBtnClasses} w-full`}
-        onClick={handleModalClose}
-      >
-        Close
-      </button>
-    </div>
-  );
+    );
+  };
 
   const renderBalanceSection = () => (
     <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">
@@ -219,6 +345,47 @@ export const TransferModal = ({
       </div>
     </div>
   );
+
+  // Helper to save transfer transaction to history
+  const saveTransferTransaction = async (
+    txHash: string,
+    recipientAddress: string,
+    amount: number,
+    token: string,
+  ) => {
+    try {
+      if (!user) return;
+      const walletAddress = user?.linkedAccounts.find(
+        (a) => a.type === "smart_wallet",
+      )?.address;
+      if (!walletAddress) return;
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+      const transaction = {
+        walletAddress,
+        transactionType: "transfer" as const,
+        network: selectedNetwork.chain.name,
+        fromCurrency: token,
+        toCurrency: token,
+        amountSent: amount,
+        amountReceived: amount,
+        fee: 0,
+        txHash,
+        recipient: {
+          account_name: "",
+          institution: "",
+          account_identifier: recipientAddress,
+        },
+        status: "completed" as const,
+      };
+      const response = await saveTransaction(transaction, accessToken);
+      if (response.success) {
+        localStorage.setItem("currentTransactionId", response.data.id);
+      }
+    } catch (error) {
+      // Silent fail
+    }
+  };
 
   return (
     <AnimatedModal isOpen={isOpen} onClose={handleModalClose}>

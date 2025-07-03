@@ -100,6 +100,29 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         <div className="flex items-center gap-2">
           <div className="flex -space-x-2">
             {(() => {
+              if (transaction.transaction_type === "transfer") {
+                const networkObj = getNetworkFromName(transaction.network);
+                return (
+                  <>
+                    {networkObj && (
+                      <Image
+                        src={getNetworkImageUrl(networkObj, isDark)}
+                        alt={transaction.network}
+                        width={20}
+                        height={20}
+                        className="rounded-full border border-white dark:border-surface-canvas"
+                      />
+                    )}
+                    <Image
+                      src={`/logos/${transaction.from_currency.toLowerCase()}-logo.svg`}
+                      alt={transaction.from_currency}
+                      width={20}
+                      height={20}
+                      className="rounded-full border border-white dark:border-surface-canvas"
+                    />
+                  </>
+                );
+              }
               const fromKey =
                 transaction.from_currency.toUpperCase() as keyof typeof SUPPORTED_TOKENS;
               const fromLogo = SUPPORTED_TOKENS[fromKey] || "usdc";

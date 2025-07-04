@@ -3,6 +3,7 @@ export { Footer } from "./Footer";
 export { Preloader } from "./Preloader";
 export { MainPageContent } from "./MainPageContent";
 export { LayoutWrapper } from "./LayoutWrapper";
+export { default as PWAInstall } from "./PWAInstallManager";
 
 export { ThemeSwitch } from "./ThemeSwitch";
 export { WalletDetails } from "./WalletDetails";

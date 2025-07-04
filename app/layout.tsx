@@ -7,7 +7,7 @@ import config from "./lib/config";
 
 import Providers from "./providers";
 import MainContent from "./mainContent";
-import { Footer, Navbar, LayoutWrapper } from "./components";
+import { Footer, Navbar, LayoutWrapper, PWAInstall } from "./components";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,6 +18,17 @@ export const metadata: Metadata = {
   },
   description:
     "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Noblocks",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "msapplication-TileColor": "#317EFB",
+    "msapplication-tap-highlight": "no",
+  },
   keywords: [
     // Stablecoin Primary Keywords
     "stablecoin payments",
@@ -157,7 +168,6 @@ export const metadata: Metadata = {
     icon: "/favicon.ico",
     apple: "/icons/apple-touch-icon.png",
   },
-  manifest: "/manifest.json",
   twitter: {
     card: "summary_large_image",
     title: "Noblocks",
@@ -227,6 +237,7 @@ export default function RootLayout({
             <LayoutWrapper footer={<Footer />}>
               <MainContent>{children}</MainContent>
             </LayoutWrapper>
+            <PWAInstall />
           </div>
         </Providers>
       </body>

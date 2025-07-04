@@ -233,7 +233,7 @@ export const FlexibleDropdown = ({
         variants={dropdownVariants}
         aria-label="Dropdown menu"
         className={classNames(
-          "no-scrollbar mt-2 max-h-60 overflow-y-auto rounded-xl border border-border-light bg-white p-2 shadow-xl focus:outline-none dark:border-white/10 dark:bg-neutral-800",
+          "mt-2 max-h-60 space-y-0.5 overflow-y-auto rounded-xl border border-border-light bg-white p-2 shadow-xl focus:outline-none dark:border-white/10 dark:bg-neutral-800",
           className,
         )}
       >

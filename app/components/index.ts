@@ -24,7 +24,6 @@ export { KycModal } from "./KycModal";
 export { CookieConsent } from "./CookieConsent";
 export { NetworkSelectionModal } from "./NetworkSelectionModal";
 export { Disclaimer } from "./Disclaimer";
-export { FundWalletModal } from "./FundWalletModal";
 
 export { TransactionForm } from "../pages/TransactionForm";
 export { TransactionPreview } from "../pages/TransactionPreview";
@@ -47,3 +46,6 @@ export {
 } from "./Styles";
 
 export { PausedNetworkNotice } from "./transaction/PausedNetworkNotice";
+
+export { FundWalletForm } from "./FundWalletForm";
+export { TransferForm } from "./TransferForm";

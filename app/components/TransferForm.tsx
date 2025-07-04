@@ -1,3 +1,4 @@
+"use client";
 import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { usePrivy } from "@privy-io/react-auth";
@@ -140,7 +141,10 @@ export const TransferForm: React.FC<{
         <button
           type="button"
           className={`${primaryBtnClasses} w-full`}
-          onClick={handleFormClose}
+          onClick={() => {
+            handleFormClose();
+            refreshBalance();
+          }}
         >
           Close
         </button>

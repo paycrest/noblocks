@@ -15,10 +15,8 @@ import {
   Wallet01Icon,
   ArrowLeft02Icon,
   ArrowDown01Icon,
-  Clock01Icon,
 } from "hugeicons-react";
 import Image from "next/image";
-import { FundWalletModal } from "./FundWalletModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { toast } from "sonner";
@@ -36,7 +34,7 @@ import { fetchRate } from "../api/aggregator";
 import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
 import { useActualTheme } from "../hooks/useActualTheme";
 import TransactionList from "./transaction/TransactionList";
-import { TransferForm } from "./TransferForm";
+import { FundWalletForm, TransferForm } from "./index";
 
 export const WalletDetails = () => {
   const [rate, setRate] = useState<number>(0);
@@ -403,11 +401,12 @@ export const WalletDetails = () => {
             <TransferForm onClose={() => setIsTransferModalOpen(false)} />
           </AnimatedModal>
 
-          <FundWalletModal
+          <AnimatedModal
             isOpen={isFundModalOpen}
             onClose={() => setIsFundModalOpen(false)}
-            onFund={handleFundWalletClick}
-          />
+          >
+            <FundWalletForm onClose={() => setIsFundModalOpen(false)} />
+          </AnimatedModal>
         </>
       )}
     </>

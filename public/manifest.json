@@ -4,7 +4,7 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#317EFB",
+  "theme_color": "#8B85F4",
   "orientation": "portrait-primary",
   "scope": "/",
   "categories": ["finance", "business", "productivity"],
@@ -15,8 +15,8 @@
     {
       "name": "Send Payment",
       "short_name": "Send",
-      "description": "Send a payment quickly",
-      "url": "/?action=send",
+      "description": "Send $10 to a bank account or mobile wallet",
+      "url": "/?tokenAmount=10",
       "icons": [
         {
           "src": "/icons/android-chrome-192x192.png",

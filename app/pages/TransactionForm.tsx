@@ -254,6 +254,7 @@ export const TransactionForm = ({
 
       fetchStatus();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [embeddedWalletAddress, injectedAddress, isInjectedWallet],
   );
 

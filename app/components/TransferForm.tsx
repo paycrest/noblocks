@@ -71,6 +71,7 @@ export const TransferForm: React.FC<{
     if (!token) {
       setValue("token", "USDC");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

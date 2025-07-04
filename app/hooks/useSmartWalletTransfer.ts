@@ -1,13 +1,7 @@
 import { useState, useCallback } from "react";
-import {
-  encodeFunctionData,
-  erc20Abi,
-  parseUnits,
-  createPublicClient,
-  http,
-} from "viem";
+import { encodeFunctionData, erc20Abi, parseUnits } from "viem";
 import { toast } from "sonner";
-import { getRpcUrl, fetchSupportedTokens, getExplorerLink } from "../utils";
+import { fetchSupportedTokens, getExplorerLink } from "../utils";
 import { saveTransaction } from "../api/aggregator";
 import type { Token, Network } from "../types";
 import type { User } from "@privy-io/react-auth";
@@ -146,6 +140,7 @@ export function useSmartWalletTransfer({
         setIsSuccess(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [client, selectedNetwork, user, getAccessToken, refreshBalance],
   );
 
@@ -191,6 +186,7 @@ export function useSmartWalletTransfer({
         // Silent fail
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, getAccessToken, selectedNetwork],
   );
 

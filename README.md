@@ -81,3 +81,4 @@ If you encounter any issues or have questions, feel free to open an issue on the
 ## 📄 License
 
 This project is licensed under the [Affero General Public License v3.0](LICENSE).
+# Sync commit

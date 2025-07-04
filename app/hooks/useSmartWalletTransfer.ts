@@ -41,8 +41,6 @@ interface UseSmartWalletTransferReturn {
   isSuccess: boolean;
   error: string;
   txHash: string | null;
-  isPollingReceipt: boolean;
-  pollingTimedOut: boolean;
   transferAmount: string;
   transferToken: string;
   transfer: (args: TransferArgs) => Promise<void>;
@@ -67,8 +65,6 @@ export function useSmartWalletTransfer({
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
   const [txHash, setTxHash] = useState<string | null>(null);
-  const [isPollingReceipt, setIsPollingReceipt] = useState(false);
-  const [pollingTimedOut, setPollingTimedOut] = useState(false);
   const [transferAmount, setTransferAmount] = useState("");
   const [transferToken, setTransferToken] = useState("");
 
@@ -90,8 +86,6 @@ export function useSmartWalletTransfer({
       setIsSuccess(false);
       setError("");
       setTxHash(null);
-      setIsPollingReceipt(true);
-      setPollingTimedOut(false);
       setTransferAmount("");
       setTransferToken("");
 
@@ -111,7 +105,8 @@ export function useSmartWalletTransfer({
             `Token data not found for ${token}. Available tokens: ${fetchedTokens.map((t) => t.symbol).join(", ")}`,
           );
         }
-        await client?.sendTransaction({
+        // Send transaction and get hash
+        const hash = (await client?.sendTransaction({
           to: tokenAddress,
           data: encodeFunctionData({
             abi: erc20Abi,
@@ -122,72 +117,25 @@ export function useSmartWalletTransfer({
             ],
           }) as `0x${string}`,
           value: BigInt(0),
-        });
+        })) as `0x${string}`;
+
+        if (!hash) throw new Error("No transaction hash returned");
+        setTxHash(hash);
+
+        setTransferAmount(amount.toString());
+        setTransferToken(token);
         setIsSuccess(true);
-        // Poll for Transfer event
-        let intervalId: NodeJS.Timeout;
-        let timeoutId: NodeJS.Timeout;
-        const publicClient = createPublicClient({
-          chain: selectedNetwork.chain,
-          transport: http(getRpcUrl(selectedNetwork.chain.name)),
+        setIsLoading(false);
+        toast.success(`${amount.toString()} ${token} successfully transferred`);
+        // Save to transaction history
+        await saveTransferTransaction({
+          txHash: hash,
+          recipientAddress,
+          amount,
+          token,
         });
-        const from = getSmartWalletAddress();
-        const value = parseUnits(amount.toString(), tokenDecimals);
-        const to = recipientAddress as `0x${string}`;
-        const blockRange =
-          selectedNetwork.chain.name.toLowerCase() === "arbitrum one" ? 25 : 10;
-        const getTransferLogs = async () => {
-          try {
-            const toBlock = await publicClient.getBlockNumber();
-            const logs = await publicClient.getContractEvents({
-              address: tokenAddress,
-              abi: erc20Abi,
-              eventName: "Transfer",
-              args: { from, to },
-              fromBlock: toBlock - BigInt(blockRange),
-              toBlock: toBlock,
-            });
-            const matchingLog = logs.find(
-              (log) =>
-                log.args && log.args.value?.toString() === value.toString(),
-            );
-            if (matchingLog) {
-              clearInterval(intervalId);
-              clearTimeout(timeoutId);
-              setTxHash(matchingLog.transactionHash);
-              setIsPollingReceipt(false);
-              setTransferAmount(amount.toString());
-              setTransferToken(token);
-              toast.success(
-                `${amount.toString()} ${token} successfully transferred`,
-              );
-              setIsLoading(false);
-              setIsSuccess(true);
-              // Save to transaction history
-              await saveTransferTransaction({
-                txHash: matchingLog.transactionHash,
-                recipientAddress,
-                amount,
-                token,
-              });
-              if (resetForm) resetForm();
-              if (refreshBalance) refreshBalance();
-            }
-          } catch {
-            // Silent error
-          }
-        };
-        getTransferLogs();
-        intervalId = setInterval(getTransferLogs, 2000);
-        timeoutId = setTimeout(() => {
-          clearInterval(intervalId);
-          setIsPollingReceipt(false);
-          setPollingTimedOut(true);
-          setIsSuccess(true);
-          setIsLoading(false);
-          if (resetForm) resetForm();
-          if (refreshBalance) refreshBalance();
-        }, 20000);
+        if (resetForm) resetForm();
+        if (refreshBalance) refreshBalance();
       } catch (e: unknown) {
         setError(
           (e as { shortMessage?: string; message?: string }).shortMessage ||
@@ -195,7 +143,6 @@ export function useSmartWalletTransfer({
             "Transfer failed",
         );
         setIsLoading(false);
-        setIsPollingReceipt(false);
         setIsSuccess(false);
       }
     },
@@ -257,8 +204,6 @@ export function useSmartWalletTransfer({
     isSuccess,
     error,
     txHash,
-    isPollingReceipt,
-    pollingTimedOut,
     transferAmount,
     transferToken,
     transfer,

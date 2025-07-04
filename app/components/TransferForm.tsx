@@ -55,8 +55,6 @@ export const TransferForm: React.FC<{
   const {
     isLoading: isConfirming,
     isSuccess: isTransferSuccess,
-    isPollingReceipt,
-    pollingTimedOut,
     transferAmount,
     transferToken,
     transfer,
@@ -112,22 +110,7 @@ export const TransferForm: React.FC<{
             {transferAmount} {transferToken} has been successfully transferred
             to the recipient.
           </p>
-          {isPollingReceipt && (
-            <div className="flex flex-row items-center justify-center gap-2">
-              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-lavender-500" />
-              <span className="text-sm text-gray-500 dark:text-white/50">
-                Getting onchain receipt…
-              </span>
-            </div>
-          )}
-          {!isPollingReceipt && pollingTimedOut && (
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-sm text-gray-500 dark:text-white/50">
-                Could not retrieve onchain receipt.
-              </span>
-            </div>
-          )}
-          {explorerLink && !isPollingReceipt && !pollingTimedOut && (
+          {explorerLink && (
             <a
               href={explorerLink}
               target="_blank"

@@ -15,7 +15,6 @@ import {
   KycModal,
   FundWalletModal,
   AnimatedModal,
-  PausedNetworkNotice,
 } from "../components";
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
@@ -535,10 +534,6 @@ export const TransactionForm = ({
     setIsReceiveInputActive(true);
   };
 
-  const isPausedNetwork = ["BNB Smart Chain"].includes(
-    selectedNetwork.chain.name,
-  );
-
   return (
     <div className="mx-auto max-w-[27.3125rem]">
       <motion.form
@@ -727,8 +722,7 @@ export const TransactionForm = ({
         <AnimatePresence>
           {currency &&
             (authenticated || isInjectedWallet) &&
-            isUserVerified &&
-            !isPausedNetwork && (
+            isUserVerified && (
               <AnimatedComponent
                 variant={slideInOut}
                 className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-white/5"
@@ -793,7 +787,7 @@ export const TransactionForm = ({
             <button
               type="button"
               className={primaryBtnClasses}
-              disabled={!isEnabled || isPausedNetwork}
+              disabled={!isEnabled}
               onClick={buttonAction(
                 handleSwap,
                 login,
@@ -810,7 +804,6 @@ export const TransactionForm = ({
             >
               {buttonText}
             </button>
-            {isPausedNetwork && authenticated && <PausedNetworkNotice />}
           </>
         )}
 

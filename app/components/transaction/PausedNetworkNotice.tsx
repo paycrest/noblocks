@@ -3,9 +3,20 @@ import { motion, AnimatePresence } from "framer-motion";
 import { InformationCircleIcon } from "hugeicons-react";
 import config from "@/app/lib/config";
 
-export const PausedNetworkNotice: React.FC<{ show?: boolean }> = ({
+interface PausedNetworkNoticeProps {
+  show?: boolean;
+  networks?: string | string[];
+}
+
+export const PausedNetworkNotice: React.FC<PausedNetworkNoticeProps> = ({
   show = true,
+  networks = "",
 }) => {
+  const networkText = Array.isArray(networks)
+    ? networks.length > 1
+      ? `${networks.slice(0, -1).join(", ")} and ${networks[networks.length - 1]}`
+      : networks[0]
+    : networks;
   return (
     <AnimatePresence>
       {show && (
@@ -22,12 +33,15 @@ export const PausedNetworkNotice: React.FC<{ show?: boolean }> = ({
           />
           <div className="flex-1 text-sm">
             <span className="font-medium text-black dark:text-white">
-              BNB Chain
+              {networkText}
             </span>
             <span className="font-normal text-text-secondary dark:text-white/50">
               {" "}
-              swaps are currently paused due to an ongoing migration. Please try
-              again soon or{" "}
+              {Array.isArray(networks) && networks.length > 1
+                ? "swaps are"
+                : "swaps are"}{" "}
+              currently paused due to an ongoing migration. Please try again
+              soon or{" "}
             </span>
             <a
               href={config.contactSupportUrl}

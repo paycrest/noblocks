@@ -3,6 +3,7 @@ export { Footer } from "./Footer";
 export { Preloader } from "./Preloader";
 export { MainPageContent } from "./MainPageContent";
 export { LayoutWrapper } from "./LayoutWrapper";
+export { default as PWAInstall } from "./PWAInstallManager";
 
 export { ThemeSwitch } from "./ThemeSwitch";
 export { WalletDetails } from "./WalletDetails";
@@ -24,7 +25,6 @@ export { KycModal } from "./KycModal";
 export { CookieConsent } from "./CookieConsent";
 export { NetworkSelectionModal } from "./NetworkSelectionModal";
 export { Disclaimer } from "./Disclaimer";
-export { FundWalletModal } from "./FundWalletModal";
 
 export { TransactionForm } from "../pages/TransactionForm";
 export { TransactionPreview } from "../pages/TransactionPreview";
@@ -47,3 +47,6 @@ export {
 } from "./Styles";
 
 export { PausedNetworkNotice } from "./transaction/PausedNetworkNotice";
+
+export { FundWalletForm } from "./FundWalletForm";
+export { TransferForm } from "./TransferForm";

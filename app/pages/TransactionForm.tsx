@@ -13,7 +13,7 @@ import {
   FormDropdown,
   RecipientDetailsForm,
   KycModal,
-  FundWalletModal,
+  FundWalletForm,
   AnimatedModal,
 } from "../components";
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
@@ -254,6 +254,7 @@ export const TransactionForm = ({
 
       fetchStatus();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [embeddedWalletAddress, injectedAddress, isInjectedWallet],
   );
 
@@ -832,11 +833,12 @@ export const TransactionForm = ({
       </motion.form>
 
       {!isInjectedWallet && (
-        <FundWalletModal
+        <AnimatedModal
           isOpen={isFundModalOpen}
           onClose={() => setIsFundModalOpen(false)}
-          onFund={handleFundWalletClick}
-        />
+        >
+          <FundWalletForm onClose={() => setIsFundModalOpen(false)} />
+        </AnimatedModal>
       )}
     </div>
   );

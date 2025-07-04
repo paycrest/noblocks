@@ -22,14 +22,9 @@ import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useTransactions } from "../context/TransactionsContext";
 import { networks } from "../mocks";
 import { Network, Token, TransactionHistory } from "../types";
-import {
-  WalletView,
-  TransferView,
-  FundView,
-  HistoryView,
-  SettingsView,
-} from "./wallet-mobile-modal";
+import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
+import { FundWalletForm, TransferForm } from "./index";
 
 export const MobileDropdown = ({
   isOpen,
@@ -232,27 +227,20 @@ export const MobileDropdown = ({
                           )}
 
                           {currentView === "transfer" && (
-                            <TransferView
-                              setCurrentView={setCurrentView}
-                              refreshBalance={refreshBalance}
-                              client={client}
-                              selectedNetwork={selectedNetwork}
-                              smartWalletBalance={activeBalance}
-                              isBalanceLoading={isLoading}
-                              onClose={onClose}
-                            />
+                            <div className="space-y-6">
+                              <TransferForm
+                                onClose={onClose}
+                                showBackButton
+                                setCurrentView={setCurrentView}
+                              />
+                            </div>
                           )}
 
                           {currentView === "fund" && (
-                            <FundView
-                              setCurrentView={setCurrentView}
-                              refreshBalance={refreshBalance}
-                              client={client}
-                              selectedNetwork={selectedNetwork}
-                              smartWalletBalance={activeBalance}
-                              handleFundWalletClick={handleFundWalletClick}
-                              isDark={isDark}
+                            <FundWalletForm
                               onClose={onClose}
+                              showBackButton
+                              setCurrentView={setCurrentView}
                             />
                           )}
 

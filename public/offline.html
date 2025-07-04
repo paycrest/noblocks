@@ -4,7 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Offline - Noblocks</title>
+    <link rel="icon" href="/favicon.ico" />
     <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
       body {
         font-family:
           system-ui,
@@ -18,36 +25,192 @@
           "Open Sans",
           "Helvetica Neue",
           sans-serif;
-        background: #f8fafc;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: #222;
         display: flex;
         align-items: center;
         justify-content: center;
-        height: 100vh;
+        min-height: 100vh;
         margin: 0;
       }
+
       .offline-container {
         text-align: center;
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow:
+          0 20px 25px -5px rgba(0, 0, 0, 0.1),
+          0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        max-width: 400px;
+        margin: 1rem;
       }
-      .offline-icon {
-        font-size: 48px;
-        color: #2563eb;
-        margin-bottom: 16px;
+
+      .logo {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 1.5rem;
+        border-radius: 12px;
       }
+
       h1 {
-        font-size: 2rem;
-        margin-bottom: 8px;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
       }
+
       p {
-        color: #555;
+        color: #6b7280;
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+      }
+
+      .features {
+        background: #f9fafb;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        text-align: left;
+      }
+
+      .features h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.75rem;
+      }
+
+      .features ul {
+        list-style: none;
+        padding: 0;
+      }
+
+      .features li {
+        color: #6b7280;
+        margin-bottom: 0.5rem;
+        position: relative;
+        padding-left: 1.5rem;
+      }
+
+      .features li::before {
+        content: "✓";
+        position: absolute;
+        left: 0;
+        color: #10b981;
+        font-weight: bold;
+      }
+
+      .retry-btn {
+        background: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        width: 100%;
+      }
+
+      .retry-btn:hover {
+        background: #2563eb;
+      }
+
+      .network-status {
+        margin-top: 1rem;
+        padding: 0.5rem;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+
+      .online {
+        background: #d1fae5;
+        color: #065f46;
+      }
+
+      .offline {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+
+      @media (max-width: 640px) {
+        .offline-container {
+          margin: 1rem;
+          padding: 1.5rem;
+        }
+
+        h1 {
+          font-size: 1.25rem;
+        }
       }
     </style>
   </head>
   <body>
     <div class="offline-container">
-      <div class="offline-icon">🔌</div>
-      <h1>You are offline</h1>
-      <p>Please check your internet connection to use Noblocks.</p>
+      <img
+        src="/icons/android-chrome-192x192.png"
+        alt="Noblocks"
+        class="logo"
+      />
+      <h1>You're Offline</h1>
+      <p>
+        It looks like you've lost your internet connection. Don't worry, you can
+        still browse previously visited pages.
+      </p>
+
+      <div class="features">
+        <h3>What you can do:</h3>
+        <ul>
+          <li>View cached content</li>
+          <li>Prepare transactions for when you're back online</li>
+        </ul>
+      </div>
+
+      <button type="button" class="retry-btn" onclick="retryConnection()">
+        Try Again
+      </button>
+
+      <div id="networkStatus" class="network-status offline">
+        Currently offline
+      </div>
     </div>
+
+    <script>
+      function retryConnection() {
+        window.location.reload();
+      }
+
+      // Monitor network status
+      function updateNetworkStatus() {
+        const statusElement = document.getElementById("networkStatus");
+        if (navigator.onLine) {
+          statusElement.textContent = "Back online!";
+          statusElement.className = "network-status online";
+          setTimeout(() => {
+            window.location.href = "/";
+          }, 1000);
+        } else {
+          statusElement.textContent = "Currently offline";
+          statusElement.className = "network-status offline";
+        }
+      }
+
+      // Listen for network changes
+      window.addEventListener("online", updateNetworkStatus);
+      window.addEventListener("offline", updateNetworkStatus);
+
+      // Initial check
+      updateNetworkStatus();
+
+      // Auto-retry every 30 seconds
+      setInterval(() => {
+        if (navigator.onLine) {
+          window.location.href = "/";
+        }
+      }, 30000);
+    </script>
   </body>
 </html>

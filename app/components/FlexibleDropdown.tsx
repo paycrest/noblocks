@@ -2,10 +2,16 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { dropdownVariants } from "./AnimatedComponents";
 import { useEffect, useRef, useState, ReactNode } from "react";
-import { SquareLock02Icon, Tick02Icon } from "hugeicons-react";
+import { SquareLock02Icon, Tick02Icon, Cancel01Icon } from "hugeicons-react";
 import FlagImage from "./FlagImage";
 import ReactDOM from "react-dom";
 import { classNames } from "../utils";
+import {
+  Dialog,
+  DialogPanel,
+  DialogTitle,
+  DialogBackdrop,
+} from "@headlessui/react";
 
 // FlexibleDropdown uses a portal (ReactDOM.createPortal) to render the dropdown menu at the document body level.
 // This is necessary to avoid z-index and stacking context issues, ensuring the dropdown always appears above overlays and fixed elements.
@@ -52,6 +58,10 @@ export const FlexibleDropdown = ({
   const [dropdownStyles, setDropdownStyles] = useState<React.CSSProperties>({});
   const buttonRef = useRef<HTMLDivElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // Mobile detection
+  const isMobile = () =>
+    typeof window !== "undefined" ? window.innerWidth <= 640 : false;
 
   useEffect(() => {
     if (controlledSelectedItem) {
@@ -131,7 +141,87 @@ export const FlexibleDropdown = ({
     };
   }, [isOpen]);
 
-  // Dropdown menu content
+  // Option rendering (shared)
+  const renderOption = (
+    item: DropdownItem,
+    handle: (item: DropdownItem) => void,
+  ) => (
+    <button
+      key={item.name}
+      type="button"
+      disabled={item.disabled}
+      onClick={() => !item.disabled && handle(item)}
+      className={classNames(
+        "flex w-full items-center justify-between gap-2 rounded-lg p-2.5 text-left transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700",
+        item.disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+        selectedItem?.name === item.name && !item.disabled
+          ? "bg-accent-gray dark:bg-neutral-700"
+          : "",
+      )}
+    >
+      <div className="flex items-center gap-3 sm:gap-2">
+        {item && (
+          <FlagImage imageErrors={{}} setImageErrors={() => {}} item={item} />
+        )}
+        <span className="text-text-body dark:text-white/80">
+          {item.label ?? item.name}
+        </span>
+      </div>
+      <div className="ml-2 flex min-w-[24px] flex-shrink-0 items-center justify-end">
+        {item.disabled ? (
+          <SquareLock02Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+        ) : selectedItem?.name === item.name ? (
+          <Tick02Icon className="size-5 text-gray-400 dark:text-white/50" />
+        ) : null}
+      </div>
+    </button>
+  );
+
+  // Mobile modal
+  const mobileMenu = (
+    <Dialog
+      static
+      open={isOpen}
+      onClose={() => setIsOpen(false)}
+      className="relative z-[100] sm:hidden"
+    >
+      <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+      <motion.div
+        initial="closed"
+        animate="open"
+        exit="closed"
+        variants={dropdownVariants}
+        className="fixed inset-0 flex w-screen items-end justify-center"
+      >
+        <DialogPanel className="w-full space-y-4 rounded-t-[30px] border border-border-light bg-white px-5 py-6 dark:border-white/5 dark:bg-surface-overlay">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-center text-lg font-semibold text-text-body dark:text-white">
+              {mobileTitle}
+            </DialogTitle>
+            <button
+              title="Close dropdown"
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
+            >
+              <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+            </button>
+          </div>
+          <div className="max-h-[50vh] space-y-1 overflow-y-auto">
+            {data.map((item) =>
+              renderOption(item, (item) => {
+                setSelectedItem(item);
+                onSelect && onSelect(item.name);
+                setIsOpen(false);
+              }),
+            )}
+          </div>
+        </DialogPanel>
+      </motion.div>
+    </Dialog>
+  );
+
+  // Desktop dropdown menu content (portal)
   const dropdownMenu = (
     <AnimatePresence>
       <motion.div
@@ -143,47 +233,11 @@ export const FlexibleDropdown = ({
         variants={dropdownVariants}
         aria-label="Dropdown menu"
         className={classNames(
-          "no-scrollbar mt-2 max-h-60 overflow-y-auto rounded-xl border border-border-light bg-white p-2 shadow-xl focus:outline-none dark:border-white/10 dark:bg-neutral-800",
+          "mt-2 max-h-60 space-y-0.5 overflow-y-auto rounded-xl border border-border-light bg-white p-2 shadow-xl focus:outline-none dark:border-white/10 dark:bg-neutral-800",
           className,
         )}
       >
-        {data.map((item) => (
-          <button
-            key={item.name}
-            type="button"
-            disabled={item.disabled}
-            onClick={() => !item.disabled && handleChange(item)}
-            className={classNames(
-              "flex w-full items-center justify-between gap-2 rounded-lg p-2.5 text-left transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700",
-              item.disabled
-                ? "cursor-not-allowed opacity-50"
-                : "cursor-pointer",
-              selectedItem?.name === item.name && !item.disabled
-                ? "bg-accent-gray dark:bg-neutral-700"
-                : "",
-            )}
-          >
-            <div className="flex items-center gap-3 sm:gap-2">
-              {item && (
-                <FlagImage
-                  imageErrors={{}}
-                  setImageErrors={() => {}}
-                  item={item}
-                />
-              )}
-              <span className="text-text-body dark:text-white/80">
-                {item.label ?? item.name}
-              </span>
-            </div>
-            <div className="ml-2 flex min-w-[24px] flex-shrink-0 items-center justify-end">
-              {item.disabled ? (
-                <SquareLock02Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-              ) : selectedItem?.name === item.name ? (
-                <Tick02Icon className="size-5 text-gray-400 dark:text-white/50" />
-              ) : null}
-            </div>
-          </button>
-        ))}
+        {data.map((item) => renderOption(item, handleChange))}
       </motion.div>
     </AnimatePresence>
   );
@@ -199,7 +253,9 @@ export const FlexibleDropdown = ({
       </div>
       {isOpen &&
         typeof window !== "undefined" &&
-        ReactDOM.createPortal(dropdownMenu, document.body)}
+        (isMobile()
+          ? ReactDOM.createPortal(mobileMenu, document.body)
+          : ReactDOM.createPortal(dropdownMenu, document.body))}
     </div>
   );
 };

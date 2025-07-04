@@ -17,8 +17,8 @@ permissions:
 
 jobs:
   create-release:
-    # Only run if PR is merged (not just closed)
-    if: github.event.pull_request.merged == true
+    # Only run if PR is merged (not just closed) OR if manually triggered
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

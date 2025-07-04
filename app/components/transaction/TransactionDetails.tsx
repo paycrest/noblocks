@@ -14,10 +14,12 @@ import {
   currencyToCountryCode,
   formatCurrency,
   getNetworkImageUrl,
+  shortenAddress,
 } from "../../utils";
 import { useNetwork } from "../../context/NetworksContext";
 import { useActualTheme } from "../../hooks/useActualTheme";
 import { networks } from "../../mocks";
+import { Copy01Icon } from "hugeicons-react";
 
 interface TransactionDetailsProps {
   transaction: TransactionHistory | null;
@@ -177,101 +179,177 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
       </div>
       <Divider />
       {/* Details section 1 */}
-      <div className="flex flex-col gap-5 px-1 pb-1">
-        <DetailRow
-          label="Amount"
-          value={
-            <span className="text-text-accent-gray dark:text-white/80">
-              {formatCurrency(
-                transaction.amount_received ?? 0,
-                transaction.to_currency,
-                `en-${transaction.to_currency.slice(0, 2)}`,
-              )}
-            </span>
-          }
-        />
-        <DetailRow
-          label="Rate"
-          value={
-            <span className="text-text-accent-gray dark:text-white/80">
-              {formatCurrency(
-                transaction.fee ?? 0,
-                transaction.to_currency,
-                `en-${transaction.to_currency.slice(0, 2)}`,
-              )}
-            </span>
-          }
-        />
-        {transaction.network && (
+      {transaction.transaction_type === "transfer" ? (
+        <div className="flex flex-col gap-5 px-1 pb-1">
           <DetailRow
-            label="Network"
-            value={
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const networkObj = getNetworkFromName(transaction.network);
-                  if (networkObj) {
-                    return (
-                      <>
-                        {getNetworkImageUrl(networkObj, isDark) && (
-                          <Image
-                            src={getNetworkImageUrl(networkObj, isDark)}
-                            alt={transaction.network}
-                            width={16}
-                            height={16}
-                            className="rounded-full"
-                          />
-                        )}
-                        <span className="text-text-accent-gray dark:text-white/80">
-                          {transaction.network}
-                        </span>
-                      </>
-                    );
-                  }
-                  return (
-                    <span className="text-text-accent-gray dark:text-white/80">
-                      {transaction.network}
-                    </span>
-                  );
-                })()}
-              </div>
-            }
-          />
-        )}
-        <DetailRow
-          label="Recipient"
-          value={
-            <span className="capitalize text-text-accent-gray dark:text-white/80">
-              {transaction.recipient.account_name.toLocaleLowerCase()}
-            </span>
-          }
-        />
-        <DetailRow
-          label="Bank"
-          value={
-            <span className="text-text-accent-gray dark:text-white/80">
-              {transaction.recipient.institution}
-            </span>
-          }
-        />
-        <DetailRow
-          label="Account"
-          value={
-            <span className="text-text-accent-gray dark:text-white/80">
-              {transaction.recipient.account_identifier}
-            </span>
-          }
-        />
-        {transaction.recipient.memo && (
-          <DetailRow
-            label="Memo"
+            label="Amount"
             value={
               <span className="text-text-accent-gray dark:text-white/80">
-                {transaction.recipient.memo}
+                {formatCurrency(
+                  transaction.amount_received ?? 0,
+                  transaction.to_currency,
+                  `en-${transaction.to_currency.slice(0, 2)}`,
+                )}
               </span>
             }
           />
-        )}
-      </div>
+          {transaction.network && (
+            <DetailRow
+              label="Network"
+              value={
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const networkObj = getNetworkFromName(transaction.network);
+                    if (networkObj) {
+                      return (
+                        <>
+                          {getNetworkImageUrl(networkObj, isDark) && (
+                            <Image
+                              src={getNetworkImageUrl(networkObj, isDark)}
+                              alt={transaction.network}
+                              width={16}
+                              height={16}
+                              className="rounded-full"
+                            />
+                          )}
+                          <span className="text-text-accent-gray dark:text-white/80">
+                            {transaction.network}
+                          </span>
+                        </>
+                      );
+                    }
+                    return (
+                      <span className="text-text-accent-gray dark:text-white/80">
+                        {transaction.network}
+                      </span>
+                    );
+                  })()}
+                </div>
+              }
+            />
+          )}
+          <DetailRow
+            label="Recipient"
+            value={
+              <span className="flex items-center gap-2 text-text-accent-gray dark:text-white/80">
+                {shortenAddress(transaction.recipient.account_identifier)}
+                <button
+                  type="button"
+                  title="Copy address"
+                  className="rounded-lg p-1 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      transaction.recipient.account_identifier,
+                    );
+                    toast.success("Address copied");
+                  }}
+                >
+                  <Copy01Icon
+                    className="size-4 text-outline-gray dark:text-white/50"
+                    strokeWidth={2}
+                  />
+                </button>
+              </span>
+            }
+          />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-5 px-1 pb-1">
+          <DetailRow
+            label="Amount"
+            value={
+              <span className="text-text-accent-gray dark:text-white/80">
+                {formatCurrency(
+                  transaction.amount_received ?? 0,
+                  transaction.to_currency,
+                  `en-${transaction.to_currency.slice(0, 2)}`,
+                )}
+              </span>
+            }
+          />
+          <DetailRow
+            label="Rate"
+            value={
+              <span className="text-text-accent-gray dark:text-white/80">
+                {formatCurrency(
+                  transaction.fee ?? 0,
+                  transaction.to_currency,
+                  `en-${transaction.to_currency.slice(0, 2)}`,
+                )}
+              </span>
+            }
+          />
+          {transaction.network && (
+            <DetailRow
+              label="Network"
+              value={
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const networkObj = getNetworkFromName(transaction.network);
+                    if (networkObj) {
+                      return (
+                        <>
+                          {getNetworkImageUrl(networkObj, isDark) && (
+                            <Image
+                              src={getNetworkImageUrl(networkObj, isDark)}
+                              alt={transaction.network}
+                              width={16}
+                              height={16}
+                              className="rounded-full"
+                            />
+                          )}
+                          <span className="text-text-accent-gray dark:text-white/80">
+                            {transaction.network}
+                          </span>
+                        </>
+                      );
+                    }
+                    return (
+                      <span className="text-text-accent-gray dark:text-white/80">
+                        {transaction.network}
+                      </span>
+                    );
+                  })()}
+                </div>
+              }
+            />
+          )}
+          <DetailRow
+            label="Recipient"
+            value={
+              <span className="capitalize text-text-accent-gray dark:text-white/80">
+                {transaction.recipient.account_name.toLocaleLowerCase()}
+              </span>
+            }
+          />
+          <DetailRow
+            label="Bank"
+            value={
+              <span className="text-text-accent-gray dark:text-white/80">
+                {transaction.recipient.institution}
+              </span>
+            }
+          />
+          <DetailRow
+            label="Account"
+            value={
+              <span className="text-text-accent-gray dark:text-white/80">
+                {transaction.recipient.account_identifier}
+              </span>
+            }
+          />
+          {transaction.recipient.memo && (
+            <DetailRow
+              label="Memo"
+              value={
+                <span className="text-text-accent-gray dark:text-white/80">
+                  {transaction.recipient.memo}
+                </span>
+              }
+            />
+          )}
+        </div>
+      )}
       <Divider />
       {/* Details section 2 */}
       <div className="flex flex-col gap-5 px-1">

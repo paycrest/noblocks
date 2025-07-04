@@ -62,13 +62,14 @@ export function useSmartWalletTransfer({
   const [transferAmount, setTransferAmount] = useState("");
   const [transferToken, setTransferToken] = useState("");
 
-  // Helper to get the smart wallet address (with address)
-  const getSmartWalletAddress = (): `0x${string}` | undefined => {
+  // Helper to get the embedded wallet address (with address)
+  const getEmbeddedWalletAddress = (): `0x${string}` | undefined => {
     if (!user?.linkedAccounts) return undefined;
-    // Find the smart_wallet account with an address
+    // Find the embedded wallet account with an address
     const wallet = user.linkedAccounts.find(
       (account) =>
-        account.type === "smart_wallet" &&
+        account.type === "wallet" &&
+        (account as any).connectorType === "embedded" &&
         typeof (account as any).address === "string",
     ) as { address?: string } | undefined;
     return wallet?.address as `0x${string}` | undefined;
@@ -157,7 +158,7 @@ export function useSmartWalletTransfer({
       token: string;
     }) => {
       try {
-        const from = getSmartWalletAddress();
+        const from = getEmbeddedWalletAddress();
         if (!user || !from) return;
         const accessToken = await getAccessToken();
         if (!accessToken) return;

@@ -156,7 +156,7 @@ export function HomePage({
               Ways you can use{" "}
             </span>
             <span
-              className={`${crimsonPro.className} text-[2rem] font-semibold italic sm:text-[2.95rem] md:text-[3.5rem]`}
+              className={`${crimsonPro.className} text-[2rem] font-semibold italic sm:text-[2.95rem] md:text-[3.75rem]`}
             >
               Noblocks
             </span>

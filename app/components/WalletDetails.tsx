@@ -9,7 +9,6 @@ import {
 import { useBalance } from "../context/BalanceContext";
 import { usePrivy } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
-import { TransferModal } from "./TransferModal";
 import {
   ArrowRight03Icon,
   Copy01Icon,
@@ -25,7 +24,11 @@ import { useInjectedWallet } from "../context";
 import { toast } from "sonner";
 import { Dialog } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { sidebarAnimation, fadeInOut } from "./AnimatedComponents";
+import {
+  sidebarAnimation,
+  fadeInOut,
+  AnimatedModal,
+} from "./AnimatedComponents";
 import { TransactionDetails } from "./transaction/TransactionDetails";
 import type { TransactionHistory } from "../types";
 import { PiCheck } from "react-icons/pi";
@@ -33,6 +36,7 @@ import { fetchRate } from "../api/aggregator";
 import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
 import { useActualTheme } from "../hooks/useActualTheme";
 import TransactionList from "./transaction/TransactionList";
+import { TransferForm } from "./TransferForm";
 
 export const WalletDetails = () => {
   const [rate, setRate] = useState<number>(0);
@@ -392,10 +396,12 @@ export const WalletDetails = () => {
       {/* Transfer and Fund modals */}
       {!isInjectedWallet && (
         <>
-          <TransferModal
+          <AnimatedModal
             isOpen={isTransferModalOpen}
             onClose={() => setIsTransferModalOpen(false)}
-          />
+          >
+            <TransferForm onClose={() => setIsTransferModalOpen(false)} />
+          </AnimatedModal>
 
           <FundWalletModal
             isOpen={isFundModalOpen}

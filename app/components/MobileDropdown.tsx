@@ -24,12 +24,12 @@ import { networks } from "../mocks";
 import { Network, Token, TransactionHistory } from "../types";
 import {
   WalletView,
-  TransferView,
   FundView,
   HistoryView,
   SettingsView,
 } from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
+import { TransferForm } from "./TransferForm";
 
 export const MobileDropdown = ({
   isOpen,
@@ -232,15 +232,13 @@ export const MobileDropdown = ({
                           )}
 
                           {currentView === "transfer" && (
-                            <TransferView
-                              setCurrentView={setCurrentView}
-                              refreshBalance={refreshBalance}
-                              client={client}
-                              selectedNetwork={selectedNetwork}
-                              smartWalletBalance={activeBalance}
-                              isBalanceLoading={isLoading}
-                              onClose={onClose}
-                            />
+                            <div className="space-y-6">
+                              <TransferForm
+                                onClose={onClose}
+                                showBackButton
+                                setCurrentView={setCurrentView}
+                              />
+                            </div>
                           )}
 
                           {currentView === "fund" && (

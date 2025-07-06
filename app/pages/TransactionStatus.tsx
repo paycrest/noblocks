@@ -51,6 +51,7 @@ import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
 import { usePrivy } from "@privy-io/react-auth";
+import { useRocketStatus } from "../context/RocketStatusContext";
 
 /**
  * Renders the transaction status component.
@@ -82,6 +83,7 @@ export function TransactionStatus({
     useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user, getAccessToken } = usePrivy();
+  const { setRocketStatus } = useRocketStatus();
 
   const embeddedWallet = user?.linkedAccounts.find(
     (account) =>
@@ -199,9 +201,12 @@ export function TransactionStatus({
           setOrderDetails(orderDetailsResponse.data);
 
           if (orderDetailsResponse.data.status !== "pending") {
-            if (transactionStatus !== orderDetailsResponse.data.status) {
+            const status = orderDetailsResponse.data.status;
+
+            // Update transaction status if changed
+            if (transactionStatus !== status) {
               setTransactionStatus(
-                orderDetailsResponse.data.status as
+                status as
                   | "processing"
                   | "fulfilled"
                   | "validated"
@@ -210,33 +215,45 @@ export function TransactionStatus({
               );
             }
 
-            if (
-              ["validated", "settled", "refunded"].includes(
-                orderDetailsResponse.data.status,
-              )
-            ) {
+            // Handle final statuses
+            if (["validated", "settled", "refunded"].includes(status)) {
               setCompletedAt(orderDetailsResponse.data.updatedAt);
-              if (orderDetailsResponse.data.status === "refunded") {
+
+              if (status === "refunded") {
                 refreshBalance();
+                setRocketStatus("pending");
+              } else {
+                setRocketStatus("settled");
               }
+
               clearInterval(intervalId);
 
+              // Save transaction data only once on validation or refund
               if (["validated", "refunded"].includes(transactionStatus)) {
-                // save once on validation, skip on settled
                 saveTransactionData();
               }
+              return; // No need to check further statuses
             }
 
-            if (orderDetailsResponse.data.status === "processing") {
+            // Handle processing status
+            if (status === "processing") {
               const createdReceipt = orderDetailsResponse.data.txReceipts.find(
                 (txReceipt) => txReceipt.status === "pending",
               );
 
               if (createdReceipt) {
                 setCreatedHash(createdReceipt.txHash);
-
                 saveTransactionData();
               }
+
+              setRocketStatus("processing");
+              return;
+            }
+
+            // Handle fulfilled status
+            if (status === "fulfilled") {
+              setRocketStatus("fulfilled");
+              return;
             }
           }
         } catch (error) {

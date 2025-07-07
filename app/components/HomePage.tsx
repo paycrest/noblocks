@@ -54,10 +54,13 @@ export function HomePage({
 
   return (
     <div className="flex w-full flex-col">
-      {/* Hero section */}
+      {/*
+        NOTE: pt-40 is for when the NoticeBanner is present (to offset the fixed navbar + banner).
+        If there is no NoticeBanner, change to pt-20 for correct spacing.
+      */}
       <div
         id="hero"
-        className="flex min-h-screen w-full flex-col items-center justify-center overflow-y-auto py-20"
+        className="flex min-h-dvh w-full flex-col items-center justify-center overflow-y-auto pb-20 pt-40"
       >
         <motion.div
           layout

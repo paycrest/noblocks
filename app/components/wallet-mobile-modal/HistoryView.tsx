@@ -19,7 +19,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
       <button
         title="Go back"
         type="button"
-        onClick={handleHistoryClose}
+        onClick={
+          selectedTransaction
+            ? () => setSelectedTransaction(null)
+            : handleHistoryClose
+        }
         className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
       >
         <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />

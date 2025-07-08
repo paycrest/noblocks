@@ -8,6 +8,7 @@ interface UseSwapButtonProps {
   isDirty: boolean;
   isValid: boolean;
   isUserVerified: boolean;
+  rate?: number | null;
 }
 
 export function useSwapButton({
@@ -16,6 +17,7 @@ export function useSwapButton({
   isDirty,
   isValid,
   isUserVerified,
+  rate,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
@@ -27,6 +29,7 @@ export function useSwapButton({
   const hasInsufficientBalance = amountSent > balance;
 
   const isEnabled = (() => {
+    if (!rate) return false;
     if (isInjectedWallet && hasInsufficientBalance) {
       return false;
     }

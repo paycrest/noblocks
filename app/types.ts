@@ -116,6 +116,7 @@ export type RatePayload = {
   amount?: number;
   currency: string;
   providerId?: string;
+  network?: string;
 };
 
 export type RateResponse = {

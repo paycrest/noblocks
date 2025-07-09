@@ -25,6 +25,7 @@ const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
  * @param {number} [params.amount=1] - The amount to convert
  * @param {string} params.currency - The target currency
  * @param {string} [params.providerId] - Optional provider ID
+ * @param {string} [params.network] - Optional network identifier (e.g., "arbitrum-one", "polygon")
  * @returns {Promise<RateResponse>} The rate response containing exchange rate and fees
  * @throws {Error} If the API request fails or returns an error
  */
@@ -33,10 +34,18 @@ export const fetchRate = async ({
   amount = 1,
   currency,
   providerId,
+  network,
 }: RatePayload): Promise<RateResponse> => {
   try {
     const endpoint = `${AGGREGATOR_URL}/rates/${token}/${amount}/${currency}`;
-    const params = providerId ? { provider_id: providerId } : undefined;
+    const params: Record<string, string> = {};
+
+    if (providerId) {
+      params.provider_id = providerId;
+    }
+    if (network) {
+      params.network = network;
+    }
 
     const response = await axios.get(endpoint, { params });
     const { data } = response;

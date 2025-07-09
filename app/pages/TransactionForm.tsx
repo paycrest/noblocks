@@ -305,6 +305,9 @@ export const TransactionForm = ({
               token: "USDT",
               amount: 1,
               currency: "NGN",
+              network: selectedNetwork.chain.name
+                .toLowerCase()
+                .replace(/\s+/g, "-"),
             });
 
             if (
@@ -378,7 +381,7 @@ export const TransactionForm = ({
 
       registerFormFields();
     },
-    [token, currency, formMethods, currencies],
+    [token, currency, formMethods, currencies, selectedNetwork],
   );
 
   // Reorder currencies based on user location

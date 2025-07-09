@@ -109,6 +109,9 @@ export const WalletDetails = () => {
           token: "USDT",
           amount: 1,
           currency: "NGN",
+          network: selectedNetwork.chain.name
+            .toLowerCase()
+            .replace(/\s+/g, "-"),
         });
 
         if (rateResponse?.data && typeof rateResponse.data === "string") {
@@ -120,7 +123,7 @@ export const WalletDetails = () => {
     };
 
     getCNGNRate();
-  }, []);
+  }, [selectedNetwork]);
 
   return (
     <>

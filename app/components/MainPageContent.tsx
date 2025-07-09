@@ -30,12 +30,14 @@ import { clearFormState } from "../utils";
 import { useInjectedWallet } from "../context/InjectedWalletContext";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
+import { useNetwork } from "../context/NetworksContext";
 
 export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
+  const { selectedNetwork } = useNetwork();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
@@ -178,6 +180,9 @@ export function MainPageContent() {
             amount: amountSent || 1,
             currency,
             providerId,
+            network: selectedNetwork.chain.name
+              .toLowerCase()
+              .replace(/\s+/g, "-"),
           });
           setRate(rate.data);
         } catch (error) {
@@ -219,7 +224,7 @@ export function MainPageContent() {
         clearTimeout(timeoutId);
       };
     },
-    [amountSent, currency, token, searchParams],
+    [amountSent, currency, token, searchParams, selectedNetwork],
   );
 
   const handleFormSubmit = (data: FormData) => {

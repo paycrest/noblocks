@@ -10,6 +10,7 @@ import { ThemeSwitch } from "./ThemeSwitch";
 import { useStep } from "../context";
 import { classNames } from "../utils";
 import { STEPS } from "../types";
+import { useRocketStatus } from "../context/RocketStatusContext";
 
 const socials = [
   {
@@ -52,18 +53,71 @@ const SocialLink = ({
 };
 
 export const Footer = () => {
-  const [mounted, setMounted] = useState(false);
+  const { rocketStatus } = useRocketStatus();
   const { currentStep } = useStep();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
   if (!mounted) return null;
 
+  // rocket launch animation
+  const rocketVariants = {
+    pending: {
+      x: [0, 24, 48, 0, -48, -24, 0],
+      y: [0, -48, -96, -120, -96, -48, 0],
+      rotate: [-20, -16, -12, -10, -12, -16, -20],
+      scale: [1, 1.08, 1.16, 1.22, 1.16, 1.08, 1],
+      filter: "drop-shadow(0 0 0 #FFD700)",
+      transition: {
+        duration: 6,
+        repeat: Infinity,
+        ease: "linear",
+        filter: { duration: 0.5 },
+      },
+    },
+    processing: {
+      y: [0, -2, 2, 0],
+      rotate: [-20, -18, -22, -20],
+      scale: 1.1,
+      filter: "drop-shadow(0 2px 0 #FFD700)",
+      transition: {
+        repeat: Infinity,
+        duration: 0.2,
+        ease: "linear",
+        filter: { duration: 0.5 },
+      },
+    },
+    fulfilled: {
+      y: [0, -5, 5, 0],
+      rotate: [-20, -15, -25, -20],
+      scale: 1.15,
+      filter: "drop-shadow(0 4px 0 #FFD700)",
+      transition: {
+        repeat: Infinity,
+        duration: 0.1,
+        ease: "linear",
+        filter: { duration: 0.5 },
+      },
+    },
+    settled: {
+      x: "-175vw",
+      y: "-45vw",
+      filter: "drop-shadow(0 8px 32px #FFD700)",
+      transition: {
+        x: { duration: 1.2, ease: "easeIn" },
+        y: { duration: 1.2, ease: "easeIn" },
+        filter: { duration: 0.5 },
+      },
+    },
+  };
+
   const currentYear = new Date().getFullYear();
+
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
       <motion.footer
-        className="relative mx-auto min-h-[400px] w-full max-w-screen-2xl overflow-hidden px-5 md:items-center lg:min-h-[566px] 2xl:rounded-b-[84px]"
+        className="relative mx-auto min-h-[400px] w-full max-w-screen-2xl px-5 max-sm:overflow-hidden md:items-center lg:min-h-[566px]"
         role="contentinfo"
         layout
         transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -130,19 +184,28 @@ export const Footer = () => {
           width={100}
           className="absolute -right-2 bottom-0 w-full animate-[footer-bg-float_6s_ease-in-out_infinite] md:hidden"
         />
-        <Image
-          src="images/footer-desktop-img.svg"
-          alt="Footer Desktop Image"
-          width={100}
-          height={100}
-          className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] animate-[footer-bg-float_6s_ease-in-out_infinite] md:block"
-        />
-        <Image
+        <div className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] overflow-hidden md:block 2xl:rounded-b-[84px]">
+          <Image
+            src="images/footer-desktop-img.svg"
+            alt="Footer Desktop Image"
+            width={100}
+            height={100}
+            className="w-full animate-[footer-bg-float_6s_ease-in-out_infinite]"
+          />
+        </div>
+        <motion.img
+          key={rocketStatus}
           src="/images/footer-rocket-illustration.svg"
           alt="Footer Rocket Image"
           height={100}
           width={100}
-          className="absolute bottom-7 right-8 z-10 w-full max-w-[120px] animate-[rocket-diagonal_5s_linear_infinite] xsm:max-w-[175px] md:max-w-[250px] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[300px]"
+          initial="pending"
+          animate={
+            rocketStatus === "pending" ? rocketVariants.pending : rocketStatus
+          }
+          variants={rocketVariants}
+          className="absolute bottom-7 right-8 z-10 w-full max-w-[120px] xsm:max-w-[175px] md:max-w-[250px] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[300px]"
+          style={{ willChange: "transform, filter" }}
         />
       </motion.footer>
     </AnimatedComponent>

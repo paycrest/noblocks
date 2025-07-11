@@ -827,7 +827,11 @@ export const TransactionForm = ({
                   <>No available quote</>
                 ) : rate > 0 ? (
                   <>
-                    1 {token} ~ {isFetchingRate ? "..." : formatNumberWithCommasForDisplay(rate)} {currency}
+                    1 {token} ~{" "}
+                    {isFetchingRate
+                      ? "..."
+                      : formatNumberWithCommasForDisplay(rate)}{" "}
+                    {currency}
                   </>
                 ) : null}
               </div>

@@ -180,6 +180,8 @@ export type StateProps = {
   orderId: string;
   setOrderId: (orderId: string) => void;
   setTransactionStatus: (status: TransactionStatusType) => void;
+  rateError: string | null;
+  setRateError: (error: string | null) => void;
 };
 
 export type NetworkButtonProps = {

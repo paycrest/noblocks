@@ -412,6 +412,7 @@ export const TransactionForm = ({
     isDirty,
     isValid,
     isUserVerified,
+    rate,
   });
 
   const handleSwap = () => {

@@ -70,6 +70,7 @@ export const TransactionForm = ({
   const [formattedSentAmount, setFormattedSentAmount] = useState("");
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
   const isFirstRender = useRef(true);
+  const [rateError, setRateError] = useState<string | null>(null);
 
   const currencies = useMemo(
     () =>
@@ -316,11 +317,14 @@ export const TransactionForm = ({
               Number(rate.data) > 0
             ) {
               maxAmountSentValue = 10000 * Number(rate.data);
-              // Set minimum value to the NGN equivalent of 0.5 USD
               minAmountSentValue = 0.5 * Number(rate.data);
+              setRateError(null); // Clear error on success
             }
-          } catch (error) {
-            console.error("Error fetching rate for cNGN amount limits:", error);
+          } catch (error: any) {
+            setRateError(error?.message || "Unknown error");
+            toast.error("No available quote", {
+              description: error?.message || "Unknown error",
+            });
           }
         }
 
@@ -812,20 +816,20 @@ export const TransactionForm = ({
         )}
 
         <AnimatePresence>
-          {rate > 0 && (
+          {currency && (
             <AnimatedComponent
               variant={slideInOut}
               className="flex w-full flex-col justify-between gap-2 py-3 text-xs text-text-disabled transition-all dark:text-white/30 xsm:flex-row xsm:items-center"
             >
-              {currency && (
-                <div className="min-w-fit">
-                  1 {token} ~{" "}
-                  {isFetchingRate
-                    ? "..."
-                    : formatNumberWithCommasForDisplay(rate)}{" "}
-                  {currency}
-                </div>
-              )}
+              <div className="min-w-fit">
+                {rateError ? (
+                  <>No available quote</>
+                ) : rate > 0 ? (
+                  <>
+                    1 {token} ~ {isFetchingRate ? "..." : formatNumberWithCommasForDisplay(rate)} {currency}
+                  </>
+                ) : null}
+              </div>
               <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">
                 <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
                 <p className="min-w-fit">Swap usually completes in 30s</p>

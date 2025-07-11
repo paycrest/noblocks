@@ -50,3 +50,5 @@ export { PausedNetworkNotice } from "./transaction/PausedNetworkNotice";
 
 export { FundWalletForm } from "./FundWalletForm";
 export { TransferForm } from "./TransferForm";
+
+export { default as NoticeBanner } from "./NoticeBanner";

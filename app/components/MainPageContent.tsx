@@ -58,6 +58,7 @@ export function MainPageContent() {
   const failedProviders = useRef<Set<string>>(new Set());
 
   const [isUserVerified, setIsUserVerified] = useState(false);
+  const [rateError, setRateError] = useState<string | null>(null);
 
   const formMethods = useForm<FormData, any, undefined>({
     mode: "onChange",
@@ -85,6 +86,8 @@ export function MainPageContent() {
     setRate,
     isFetchingRate,
     setIsFetchingRate,
+    rateError,
+    setRateError,
 
     institutions,
     setInstitutions,
@@ -185,8 +188,11 @@ export function MainPageContent() {
               .replace(/\s+/g, "-"),
           });
           setRate(rate.data);
+          setRateError(null); // Clear error on success
         } catch (error) {
+          let errorMsg = "Unknown error";
           if (error instanceof Error) {
+            errorMsg = error.message;
             const lpParam =
               searchParams.get("provider") || searchParams.get("PROVIDER");
             if (
@@ -195,19 +201,20 @@ export function MainPageContent() {
               !failedProviders.current.has(lpParam)
             ) {
               toast.error(`${error.message} - defaulting to public rate`);
-
               // Track failed provider
               if (lpParam) {
                 failedProviders.current.add(lpParam);
               }
               providerErrorShown.current = true;
             }
-
             // Retry without provider ID if one was previously used
             if (shouldUseProvider) {
               await getRate(false);
+              return;
             }
           }
+          setRateError(errorMsg);
+          toast.error("No available quote", { description: errorMsg });
         } finally {
           setIsFetchingRate(false);
         }

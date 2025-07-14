@@ -716,12 +716,12 @@ export const TransactionForm = ({
                 onSelect={(selectedCurrency) =>
                   setValue("currency", selectedCurrency, { shouldDirty: true })
                 }
-                className="min-w-64"
+                className="min-w-80"
                 isCTA={
                   !currency &&
                   (!authenticated || (authenticated && !(amountSent > balance)))
                 }
-                dropdownWidth={300}
+                dropdownWidth={320}
               />
             </div>
           </div>

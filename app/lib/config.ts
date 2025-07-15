@@ -9,6 +9,7 @@ const config: Config = {
   contactSupportUrl: process.env.NEXT_PUBLIC_CONTACT_SUPPORT_URL || "",
   googleVerificationCode:
     process.env.NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE || "",
+  noticeBannerText: process.env.NEXT_PUBLIC_NOTICE_BANNER_TEXT || "",
 };
 
 export default config;

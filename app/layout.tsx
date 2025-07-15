@@ -241,12 +241,11 @@ export default function RootLayout({
           <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
             <div className="relative">
               <Navbar />
-              <NoticeBanner
-                textLines={[
-                  "BNB Smart Chain is Back",
-                  "Transactions are now live again, you can resume swaps using the BNB Smart Chain.",
-                ]}
-              />
+              {config.noticeBannerText && (
+                <NoticeBanner
+                  textLines={config.noticeBannerText.split("|")}
+                />
+              )}
             </div>
             <LayoutWrapper footer={<Footer />}>
               <MainContent>{children}</MainContent>

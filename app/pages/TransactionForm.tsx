@@ -303,7 +303,7 @@ export const TransactionForm = ({
         if (token === "cNGN") {
           try {
             const rate = await fetchRate({
-              token: "USDT",
+              token: "USDC",
               amount: 1,
               currency: "NGN",
               network: selectedNetwork.chain.name

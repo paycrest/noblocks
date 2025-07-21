@@ -315,3 +315,26 @@ export async function updateTransactionDetails({
   );
   return response.data;
 }
+
+/**
+ * Fetches the list of supported tokens from the aggregator API
+ * @returns {Promise<any[]>} Array of supported tokens from the API
+ * @throws {Error} If the API request fails
+ */
+export const fetchTokens = async (): Promise<any[]> => {
+  try {
+    const response = await axios.get(`${AGGREGATOR_URL}/tokens`);
+    // Handle the API response structure: { status, message, data }
+    if (
+      response.data &&
+      response.data.data &&
+      Array.isArray(response.data.data)
+    ) {
+      return response.data.data;
+    }
+    return response.data || [];
+  } catch (error) {
+    console.error("Error fetching supported tokens from API:", error);
+    throw error;
+  }
+};

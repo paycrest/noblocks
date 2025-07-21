@@ -7,3 +7,4 @@ export {
 } from "./InjectedWalletContext";
 export { RocketStatusProvider, useRocketStatus } from "./RocketStatusContext";
 export { TransactionsProvider, useTransactions } from "./TransactionsContext";
+export { TokensProvider, useTokens } from "./TokensContext";

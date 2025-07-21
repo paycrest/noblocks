@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { encodeFunctionData, erc20Abi, parseUnits } from "viem";
 import { toast } from "sonner";
-import { fetchSupportedTokens, getExplorerLink } from "../utils";
+import { getExplorerLink } from "../utils";
 import { saveTransaction } from "../api/aggregator";
 import type { Token, Network } from "../types";
 import type { User } from "@privy-io/react-auth";
@@ -19,6 +19,7 @@ interface UseSmartWalletTransferParams {
   client: SmartWalletClient | null;
   selectedNetwork: { chain: Network["chain"] };
   user: User | null;
+  supportedTokens: Token[];
   getAccessToken: () => Promise<string | null>;
   refreshBalance?: () => void;
 }
@@ -52,6 +53,7 @@ export function useSmartWalletTransfer({
   client,
   selectedNetwork,
   user,
+  supportedTokens,
   getAccessToken,
   refreshBalance,
 }: UseSmartWalletTransferParams): UseSmartWalletTransferReturn {
@@ -85,8 +87,7 @@ export function useSmartWalletTransfer({
       setTransferToken("");
 
       try {
-        const fetchedTokens: Token[] =
-          fetchSupportedTokens(selectedNetwork.chain.name) || [];
+        const fetchedTokens: Token[] = supportedTokens;
         await client?.switchChain({ id: selectedNetwork.chain.id });
         const searchToken = token.toUpperCase();
         const tokenData = fetchedTokens.find(

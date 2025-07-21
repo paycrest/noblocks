@@ -87,10 +87,10 @@ export function useSmartWalletTransfer({
       setTransferToken("");
 
       try {
-        const fetchedTokens: Token[] = supportedTokens;
+        const availableTokens: Token[] = supportedTokens;
         await client?.switchChain({ id: selectedNetwork.chain.id });
         const searchToken = token.toUpperCase();
-        const tokenData = fetchedTokens.find(
+        const tokenData = availableTokens.find(
           (t) => t.symbol.toUpperCase() === searchToken,
         );
         const tokenAddress = tokenData?.address as `0x${string}` | undefined;
@@ -98,7 +98,7 @@ export function useSmartWalletTransfer({
         if (!tokenAddress || tokenDecimals === undefined) {
           setError(`Token data not found for ${token}.`);
           throw new Error(
-            `Token data not found for ${token}. Available tokens: ${fetchedTokens.map((t) => t.symbol).join(", ")}`,
+            `Token data not found for ${token}. Available tokens: ${availableTokens.map((t) => t.symbol).join(", ")}`,
           );
         }
         // Send transaction and get hash
@@ -143,7 +143,14 @@ export function useSmartWalletTransfer({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [client, selectedNetwork, user, getAccessToken, refreshBalance],
+    [
+      client,
+      selectedNetwork,
+      user,
+      supportedTokens,
+      getAccessToken,
+      refreshBalance,
+    ],
   );
 
   const saveTransferTransaction = useCallback(

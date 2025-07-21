@@ -3,6 +3,7 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { useTokens } from "../context/TokensContext";
 import { trackEvent } from "./analytics";
+import { Token } from "../types";
 
 export const useFundWalletHandler = (entryPoint: string) => {
   const { selectedNetwork } = useNetwork();
@@ -67,7 +68,7 @@ export const useFundWalletHandler = (entryPoint: string) => {
   ) => {
     const fetchedTokens = allTokens[selectedNetwork.chain.name] || [];
     const selectedToken = fetchedTokens?.find(
-      (t: any) => t.address === tokenAddress,
+      (t: Token) => t.address === tokenAddress,
     );
 
     trackEvent("Funding started", {

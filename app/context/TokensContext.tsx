@@ -29,39 +29,48 @@ export function TokensProvider({ children }: { children: ReactNode }) {
   }>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(true);
 
   const refreshTokens = async () => {
+    if (!isMounted) return;
     setIsLoading(true);
     setError(null);
-
     try {
       // Make a single API call to get all tokens
       const apiTokens = await fetchTokens();
-
+      if (!isMounted) return;
       // Group tokens by network and map to our format
-      const newTokens: { [network: string]: Token[] } = {};
-
-      apiTokens.forEach((apiToken: APIToken) => {
-        const networkName = normalizeNetworkName(apiToken.network);
-        if (!newTokens[networkName]) {
-          newTokens[networkName] = [];
-        }
-        newTokens[networkName].push(transformToken(apiToken));
-      });
-
+      const newTokens = apiTokens.reduce<{ [network: string]: Token[] }>(
+        (acc, apiToken) => {
+          const networkName = normalizeNetworkName(apiToken.network);
+          if (!acc[networkName]) {
+            acc[networkName] = [];
+          }
+          acc[networkName].push(transformToken(apiToken));
+          return acc;
+        },
+        {},
+      );
       setAllTokens(newTokens);
     } catch (err) {
       console.error("Failed to fetch tokens from API, using fallback:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch tokens");
       // Use fallback tokens if API fails
-      setAllTokens(FALLBACK_TOKENS);
+      if (isMounted) {
+        setAllTokens(FALLBACK_TOKENS);
+      }
     } finally {
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     refreshTokens();
+    return () => {
+      setIsMounted(false);
+    };
   }, []);
 
   return (

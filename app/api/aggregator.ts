@@ -14,6 +14,7 @@ import type {
   SaveTransactionResponse,
   UpdateTransactionDetailsPayload,
   UpdateTransactionStatusPayload,
+  APIToken,
 } from "../types";
 
 const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
@@ -321,18 +322,13 @@ export async function updateTransactionDetails({
  * @returns {Promise<any[]>} Array of supported tokens from the API
  * @throws {Error} If the API request fails
  */
-export const fetchTokens = async (): Promise<any[]> => {
+export const fetchTokens = async (): Promise<APIToken[]> => {
   try {
     const response = await axios.get(`${AGGREGATOR_URL}/tokens`);
-    // Handle the API response structure: { status, message, data }
-    if (
-      response.data &&
-      response.data.data &&
-      Array.isArray(response.data.data)
-    ) {
+    if (response.data?.data && Array.isArray(response.data.data)) {
       return response.data.data;
     }
-    return response.data || [];
+    return [];
   } catch (error) {
     console.error("Error fetching supported tokens from API:", error);
     throw error;

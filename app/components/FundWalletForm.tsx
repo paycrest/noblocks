@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { ArrowLeft02Icon, Cancel01Icon } from "hugeicons-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+import { Token } from "../types";
 
 export const FundWalletForm: React.FC<{
   onClose: () => void;
@@ -48,7 +49,7 @@ export const FundWalletForm: React.FC<{
   } = fundForm;
   const { token: fundToken } = watchFund();
   const fundTokens = allTokens[selectedNetwork.chain.name] || [];
-  const fundTokenOptions = fundTokens.map((token: any) => ({
+  const fundTokenOptions = fundTokens.map((token: Token) => ({
     name: token.symbol,
     imageUrl: token.imageUrl,
   }));
@@ -66,7 +67,7 @@ export const FundWalletForm: React.FC<{
     try {
       setIsFundConfirming(true);
       const tokenAddress = fundTokens.find(
-        (t: any) => t.symbol.toUpperCase() === data.token,
+        (t: Token) => t.symbol.toUpperCase() === data.token,
       )?.address as `0x${string}`;
       const smartWalletAccount = user?.linkedAccounts?.find(
         (account) => account.type === "smart_wallet",

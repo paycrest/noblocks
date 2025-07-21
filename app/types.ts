@@ -214,6 +214,14 @@ export type Token = {
   imageUrl?: string;
 };
 
+export type APIToken = {
+  symbol: string;
+  contractAddress: string;
+  decimals: number;
+  baseCurrency: string;
+  network: string;
+};
+
 export type InitiateKYCPayload = {
   signature: string;
   walletAddress: string;

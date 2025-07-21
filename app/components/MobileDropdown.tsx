@@ -4,12 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance } from "../context/BalanceContext";
-import {
-  fetchSupportedTokens,
-  handleNetworkSwitch,
-  detectWalletProvider,
-} from "../utils";
+import { useBalance, useTokens } from "../context";
+import { handleNetworkSwitch, detectWalletProvider } from "../utils";
 import { useLogout } from "@privy-io/react-auth";
 import { toast } from "sonner";
 import { useStep } from "../context/StepContext";
@@ -42,6 +38,7 @@ export const MobileDropdown = ({
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, linkEmail, updateEmail } = usePrivy();
   const { allBalances, isLoading, refreshBalance } = useBalance();
+  const { allTokens } = useTokens();
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
@@ -67,8 +64,7 @@ export const MobileDropdown = ({
   };
 
   const tokens: { name: string; imageUrl: string | undefined }[] = [];
-  const fetchedTokens: Token[] =
-    fetchSupportedTokens(selectedNetwork.chain.name) || [];
+  const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
   for (const token of fetchedTokens) {
     tokens.push({
       name: token.symbol,

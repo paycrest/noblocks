@@ -21,7 +21,6 @@ import type { TransactionFormProps, Token } from "../types";
 import { acceptedCurrencies } from "../mocks";
 import {
   classNames,
-  fetchSupportedTokens,
   formatNumberWithCommas,
   currencyToCountryCode,
   reorderCurrenciesByLocation,
@@ -30,7 +29,12 @@ import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus, fetchRate } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
-import { useBalance, useInjectedWallet, useNetwork } from "../context";
+import {
+  useBalance,
+  useInjectedWallet,
+  useNetwork,
+  useTokens,
+} from "../context";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -59,6 +63,7 @@ export const TransactionForm = ({
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { allTokens } = useTokens();
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -120,8 +125,7 @@ export const TransactionForm = ({
     );
   };
 
-  const fetchedTokens: Token[] =
-    fetchSupportedTokens(selectedNetwork.chain.name) || [];
+  const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
   const tokens = fetchedTokens.map((token) => ({
     name: token.symbol,

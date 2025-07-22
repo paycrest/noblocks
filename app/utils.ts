@@ -11,23 +11,6 @@ import { colors } from "./mocks";
 import { fetchRate, fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 
-export const SUPPORTED_TOKENS = {
-  USDC: "usdc",
-  USDT: "usdt",
-  DAI: "dai",
-  CNGN: "cngn",
-  CUSD: "cusd",
-  ETH: "ethereum",
-  MATIC: "polygon",
-  BNB: "bnb-smart-chain",
-  ARB: "arbitrum-one",
-  OP: "op-mainnet",
-  TRX: "tron",
-  LISK: "lisk",
-  SCROLL: "scroll",
-  BASE: "base",
-} as const;
-
 /**
  * Concatenates and returns a string of class names.
  *
@@ -36,6 +19,15 @@ export const SUPPORTED_TOKENS = {
  */
 export function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(" ");
+}
+
+/**
+ * Gets the logo identifier for a token symbol (for transaction history display)
+ * @param tokenSymbol - The token symbol (e.g., "USDC", "USDT")
+ * @returns The logo identifier (e.g., "usdc", "usdt")
+ */
+export function getTokenLogoIdentifier(tokenSymbol: string): string {
+  return tokenSymbol.toLowerCase();
 }
 
 /**

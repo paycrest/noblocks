@@ -312,43 +312,52 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
  * @param network - The network name (e.g., "Base", "Arbitrum One")
  * @returns Array of supported tokens for the specified network
  */
+
+// Track ongoing fetch to prevent race conditions
+let ongoingFetch: Promise<void> | null = null;
+
 export async function getNetworkTokens(
   network = "",
 ): Promise<Token[] | undefined> {
   const now = Date.now();
-
   // Return cached data if still valid
   if (tokensCache[network] && now - lastTokenFetch < TOKEN_CACHE_DURATION) {
     return tokensCache[network];
   }
-
   try {
     // Only fetch if cache is completely empty or expired
     if (
       Object.keys(tokensCache).length === 0 ||
       now - lastTokenFetch >= TOKEN_CACHE_DURATION
     ) {
-      const apiTokens = await fetchTokens();
-
-      // Group tokens by network and map to our format
-      const tokens: { [network: string]: Token[] } = {};
-
-      apiTokens.forEach((apiToken: APIToken) => {
-        const networkName = normalizeNetworkName(apiToken.network);
-        if (!tokens[networkName]) {
-          tokens[networkName] = [];
-        }
-        tokens[networkName].push(transformToken(apiToken));
-      });
-
-      // Update cache with all networks
-      tokensCache = tokens;
-      lastTokenFetch = now;
+      // If there's an ongoing fetch, wait for it
+      if (ongoingFetch) {
+        await ongoingFetch;
+        return tokensCache[network];
+      }
+      // Start new fetch
+      ongoingFetch = (async () => {
+        const apiTokens = await fetchTokens();
+        // Group tokens by network and map to our format
+        const tokens: { [network: string]: Token[] } = {};
+        apiTokens.forEach((apiToken: APIToken) => {
+          const networkName = normalizeNetworkName(apiToken.network);
+          if (!tokens[networkName]) {
+            tokens[networkName] = [];
+          }
+          tokens[networkName].push(transformToken(apiToken));
+        });
+        // Update cache with all networks
+        tokensCache = tokens;
+        lastTokenFetch = now;
+      })();
+      await ongoingFetch;
+      ongoingFetch = null;
     }
-
     return tokensCache[network];
   } catch (error) {
     console.error("Failed to fetch tokens from API, using fallback:", error);
+    ongoingFetch = null;
     // Return fallback tokens if API fails
     return FALLBACK_TOKENS[network];
   }

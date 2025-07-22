@@ -7,7 +7,13 @@ import config from "./lib/config";
 
 import Providers from "./providers";
 import MainContent from "./mainContent";
-import { Footer, Navbar, LayoutWrapper, PWAInstall } from "./components";
+import {
+  Footer,
+  Navbar,
+  LayoutWrapper,
+  PWAInstall,
+  NoticeBanner,
+} from "./components";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -233,10 +239,18 @@ export default function RootLayout({
         />
         <Providers>
           <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-            <Navbar />
+            <div className="relative">
+              <Navbar />
+              {config.noticeBannerText && (
+                <NoticeBanner
+                  textLines={config.noticeBannerText.split("|")}
+                />
+              )}
+            </div>
             <LayoutWrapper footer={<Footer />}>
               <MainContent>{children}</MainContent>
             </LayoutWrapper>
+
             <PWAInstall />
           </div>
         </Providers>

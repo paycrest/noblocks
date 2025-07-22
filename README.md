@@ -7,6 +7,8 @@
 [![Tailwind CSS](https://img.shields.io/badge/-Tailwind%20CSS-06B6D4?logo=Tailwind%20CSS&logoColor=blue&color=11172a)](https://tailwindcss.com/)
 [![Prettier](https://img.shields.io/badge/-Prettier-1d2b34?logo=Prettier&logoColor=efbc3a&color=11172a)](https://prettier.io/)
 
+> **Additional documentation is available in the [`docs/`](docs/) directory.**
+
 This branch contains the codebase for Noblocks. Noblocks simplifies cryptocurrency-to-local currency conversion using a decentralized liquidity protocol, providing a seamless user experience powered by [Paycrest Protocol](https://paycrest.io/).
 
 Visit the live site at [noblocks.xyz](https://noblocks.xyz).
@@ -32,7 +34,7 @@ To run the project locally, follow these steps:
 
    - Add your privy app ID (`NEXT_PUBLIC_PRIVY_APP_ID`) to the `.env.local` file.
    - Setup your [Privy](https://www.privy.io/) account by doing the following: - Get your app ID: ![image](https://github.com/paycrest/noblocks/blob/main/public/images/Screenshot%202025-02-06%20at%2016.12.19.png?raw=true) - Add your local domain URL: ![image](https://github.com/paycrest/noblocks/blob/main/public/images/Screenshot%202025-02-06%20at%2016.10.44.png?raw=true) - Enable smart wallet and configure chains: ![image](public/images/Screenshot%202025-02-25%20at%2001.14.22.png) - Enable funding: ![image](public/images/Screenshot%202025-02-25%20at%2002.08.23.png)
-     P.S: Check out the privy docs for more information - https://docs.privy.io/guide/react/quickstart
+     P.S: Check out the privy docs for more information - <https://docs.privy.io/guide/react/quickstart>
 
 3. Install dependencies and start the development server:
 
@@ -81,4 +83,3 @@ If you encounter any issues or have questions, feel free to open an issue on the
 ## 📄 License
 
 This project is licensed under the [Affero General Public License v3.0](LICENSE).
-# Sync commit

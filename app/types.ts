@@ -246,6 +246,7 @@ export type Config = {
   hotjarSiteId: number;
   contactSupportUrl: string;
   googleVerificationCode: string;
+  noticeBannerText?: string; // Optional, for dynamic notice banner text
 };
 
 export type Network = {

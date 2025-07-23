@@ -180,19 +180,33 @@ const TOKEN_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
  * @param networkId - Network identifier from API (e.g., "arbitrum-one")
  * @returns Display name (e.g., "Arbitrum One")
  */
+/**
+ * Converts API network identifiers to display names dynamically
+ * @param networkId - Network identifier from API (e.g., "arbitrum-one", "bnb-smart-chain")
+ * @returns Display name (e.g., "Arbitrum One", "BNB Smart Chain")
+ */
 export function normalizeNetworkName(networkId: string): string {
-  const networkNames: Record<string, string> = {
-    "arbitrum-one": "Arbitrum One",
-    base: "Base",
-    polygon: "Polygon",
-    "bnb-smart-chain": "BNB Smart Chain",
-    celo: "Celo",
-    lisk: "Lisk",
-    scroll: "Scroll",
-    optimism: "Optimism",
-  };
+  // Handle empty or invalid input
+  if (!networkId || typeof networkId !== "string") {
+    return networkId;
+  }
 
-  return networkNames[networkId] || networkId;
+  // Known acronyms that should remain uppercase
+  const acronyms = new Set(["BNB", "USD", "API", "RPC", "NFT", "DeFi"]);
+
+  return networkId
+    .split("-")
+    .map((word) => {
+      // Convert to uppercase if it's a known acronym
+      const upperWord = word.toUpperCase();
+      if (acronyms.has(upperWord)) {
+        return upperWord;
+      }
+
+      // Otherwise, capitalize first letter and lowercase the rest
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(" ");
 }
 
 /**
@@ -316,13 +330,11 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
 // Track ongoing fetch to prevent race conditions
 let ongoingFetch: Promise<void> | null = null;
 
-export async function getNetworkTokens(
-  network = "",
-): Promise<Token[] | undefined> {
+export async function getNetworkTokens(network = ""): Promise<Token[]> {
   const now = Date.now();
   // Return cached data if still valid
   if (tokensCache[network] && now - lastTokenFetch < TOKEN_CACHE_DURATION) {
-    return tokensCache[network];
+    return tokensCache[network] || [];
   }
   try {
     // Only fetch if cache is completely empty or expired
@@ -333,7 +345,7 @@ export async function getNetworkTokens(
       // If there's an ongoing fetch, wait for it
       if (ongoingFetch) {
         await ongoingFetch;
-        return tokensCache[network];
+        return tokensCache[network] || [];
       }
       // Start new fetch
       ongoingFetch = (async () => {
@@ -354,7 +366,7 @@ export async function getNetworkTokens(
       await ongoingFetch;
       ongoingFetch = null;
     }
-    return tokensCache[network];
+    return tokensCache[network] || [];
   } catch (error) {
     console.error("Failed to fetch tokens from API, using fallback:", error);
     ongoingFetch = null;

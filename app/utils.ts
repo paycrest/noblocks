@@ -1,26 +1,15 @@
 import JSEncrypt from "jsencrypt";
-import type { InstitutionProps, Network, Token, Currency } from "./types";
+import type {
+  InstitutionProps,
+  Network,
+  Token,
+  Currency,
+  APIToken,
+} from "./types";
 import { erc20Abi } from "viem";
 import { colors } from "./mocks";
-import { fetchRate } from "./api/aggregator";
+import { fetchRate, fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
-
-export const SUPPORTED_TOKENS = {
-  USDC: "usdc",
-  USDT: "usdt",
-  DAI: "dai",
-  CNGN: "cngn",
-  CUSD: "cusd",
-  ETH: "ethereum",
-  MATIC: "polygon",
-  BNB: "bnb-smart-chain",
-  ARB: "arbitrum-one",
-  OP: "op-mainnet",
-  TRX: "tron",
-  LISK: "lisk",
-  SCROLL: "scroll",
-  BASE: "base",
-} as const;
 
 /**
  * Concatenates and returns a string of class names.
@@ -30,6 +19,15 @@ export const SUPPORTED_TOKENS = {
  */
 export function classNames(...classes: string[]) {
   return classes.filter(Boolean).join(" ");
+}
+
+/**
+ * Gets the logo identifier for a token symbol (for transaction history display)
+ * @param tokenSymbol - The token symbol (e.g., "USDC", "USDT")
+ * @returns The logo identifier (e.g., "usdc", "usdt")
+ */
+export function getTokenLogoIdentifier(tokenSymbol: string): string {
+  return tokenSymbol.toLowerCase();
 }
 
 /**
@@ -172,154 +170,191 @@ export function getRpcUrl(network: string) {
   }
 }
 
+// Token caching
+let tokensCache: { [network: string]: Token[] } = {};
+let lastTokenFetch = 0;
+const TOKEN_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 /**
- * Fetches the supported tokens for the specified network.
- *
- * @param network - The network name.
- * @returns An array of supported tokens for the specified network.
+ * Converts API network identifiers to display names
+ * @param networkId - Network identifier from API (e.g., "arbitrum-one")
+ * @returns Display name (e.g., "Arbitrum One")
  */
-export function fetchSupportedTokens(network = ""): Token[] | undefined {
-  let tokens: { [key: string]: Token[] };
+export function normalizeNetworkName(networkId: string): string {
+  if (!networkId) return networkId;
+  
+  return networkId
+    .split("-")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
 
-  tokens = {
-    Base: [
-      {
-        name: "USD Coin",
-        symbol: "USDC",
-        decimals: 6,
-        address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
-        imageUrl: "/logos/usdc-logo.svg",
-      },
-      {
-        name: "cNGN",
-        symbol: "cNGN",
-        decimals: 6,
-        address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
-        imageUrl: "/logos/cngn-logo.svg",
-      },
-      // {
-      //   name: "Tether USD",
-      //   symbol: "USDT",
-      //   decimals: 6,
-      //   address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
-      //   imageUrl: "/logos/usdt-logo.svg",
-      // },
-    ],
-    "Arbitrum One": [
-      {
-        name: "USD Coin",
-        symbol: "USDC",
-        decimals: 6,
-        address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
-        imageUrl: "/logos/usdc-logo.svg",
-      },
-      {
-        name: "Tether USD",
-        symbol: "USDT",
-        decimals: 6,
-        address: "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
-        imageUrl: "/logos/usdt-logo.svg",
-      },
-    ],
-    "BNB Smart Chain": [
-      {
-        name: "Tether USD",
-        symbol: "USDT",
-        decimals: 18,
-        address: "0x55d398326f99059ff775485246999027b3197955",
-        imageUrl: "/logos/usdt-logo.svg",
-      },
-      {
-        name: "USD Coin",
-        symbol: "USDC",
-        decimals: 18,
-        address: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
-        imageUrl: "/logos/usdc-logo.svg",
-      },
-      {
-        name: "cNGN",
-        symbol: "cNGN",
-        decimals: 6,
-        address: "0xa8aea66b361a8d53e8865c62d142167af28af058",
-        imageUrl: "/logos/cngn-logo.svg",
-      },
-    ],
-    Polygon: [
-      {
-        name: "USD Coin",
-        symbol: "USDC",
-        decimals: 6,
-        address: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
-        imageUrl: "/logos/usdc-logo.svg",
-      },
-      {
-        name: "Tether USD",
-        symbol: "USDT",
-        decimals: 6,
-        address: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
-        imageUrl: "/logos/usdt-logo.svg",
-      },
-      {
-        name: "cNGN",
-        symbol: "cNGN",
-        decimals: 6,
-        address: "0x52828daa48c1a9a06f37500882b42daf0be04c3b",
-        imageUrl: "/logos/cngn-logo.svg",
-      },
-    ],
-    Scroll: [
-      {
-        name: "USD Coin",
-        symbol: "USDC",
-        decimals: 6,
-        address: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4",
-        imageUrl: "/logos/usdc-logo.svg",
-      },
-    ],
-    Optimism: [
-      {
-        name: "USD Coin",
-        symbol: "USDC",
-        decimals: 6,
-        address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
-        imageUrl: "/logos/usdc-logo.svg",
-      },
-    ],
-    Celo: [
-      {
-        name: "Tether USD",
-        symbol: "USDT",
-        decimals: 6,
-        address: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
-        imageUrl: "/logos/usdt-logo.svg",
-      },
-      {
-        name: "USD Coin",
-        symbol: "USDC",
-        decimals: 6,
-        address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
-        imageUrl: "/logos/usdc-logo.svg",
-      },
-      {
-        name: "Celo Dollar",
-        symbol: "cUSD",
-        decimals: 18,
-        address: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
-        imageUrl: "/logos/cusd-logo.svg",
-      },
-    ],
-    Lisk: [
-      {
-        name: "Tether USD",
-        symbol: "USDT",
-        decimals: 6,
-        address: "0x05D032ac25d322df992303dCa074EE7392C117b9",
-        imageUrl: "/logos/usdt-logo.svg",
-      },
-    ],
+/**
+ * Transforms API token data to application token format
+ * @param apiToken - Raw token data from API
+ * @returns Formatted token for application use
+ */
+export function transformToken(apiToken: APIToken): Token {
+  return {
+    name: apiToken.symbol,
+    symbol: apiToken.symbol,
+    decimals: apiToken.decimals,
+    address: apiToken.contractAddress,
+    imageUrl: `/logos/${apiToken.symbol.toLowerCase()}-logo.svg`,
   };
+}
 
-  return tokens[network];
+// Fallback token data when API is unavailable
+export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
+  Base: [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "cNGN",
+      symbol: "cNGN",
+      decimals: 6,
+      address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
+      imageUrl: "/logos/cngn-logo.svg",
+    },
+  ],
+  "Arbitrum One": [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+  ],
+  Polygon: [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+  ],
+  "BNB Smart Chain": [
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 18,
+      address: "0x55d398326f99059ff775485246999027b3197955",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 18,
+      address: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+  ],
+  Celo: [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Celo Dollar",
+      symbol: "cUSD",
+      decimals: 18,
+      address: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
+      imageUrl: "/logos/cusd-logo.svg",
+    },
+  ],
+  Lisk: [
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0x05D032ac25d322df992303dCa074EE7392C117b9",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+  ],
+};
+
+/**
+ * Retrieves supported tokens for a specific network with caching
+ * Uses API data with fallback to emergency tokens if unavailable
+ * Note: This function is primarily used for individual network queries.
+ * The TokensContext handles bulk fetching for all networks.
+ *
+ * @param network - The network name (e.g., "Base", "Arbitrum One")
+ * @returns Array of supported tokens for the specified network
+ */
+
+// Track ongoing fetch to prevent race conditions
+let ongoingFetch: Promise<void> | null = null;
+
+export async function getNetworkTokens(
+  network = "",
+): Promise<Token[] | undefined> {
+  const now = Date.now();
+  // Return cached data if still valid
+  if (tokensCache[network] && now - lastTokenFetch < TOKEN_CACHE_DURATION) {
+    return tokensCache[network];
+  }
+  try {
+    // Only fetch if cache is completely empty or expired
+    if (
+      Object.keys(tokensCache).length === 0 ||
+      now - lastTokenFetch >= TOKEN_CACHE_DURATION
+    ) {
+      // If there's an ongoing fetch, wait for it
+      if (ongoingFetch) {
+        await ongoingFetch;
+        return tokensCache[network];
+      }
+      // Start new fetch
+      ongoingFetch = (async () => {
+        const apiTokens = await fetchTokens();
+        // Group tokens by network and map to our format
+        const tokens: { [network: string]: Token[] } = {};
+        apiTokens.forEach((apiToken: APIToken) => {
+          const networkName = normalizeNetworkName(apiToken.network);
+          if (!tokens[networkName]) {
+            tokens[networkName] = [];
+          }
+          tokens[networkName].push(transformToken(apiToken));
+        });
+        // Update cache with all networks
+        tokensCache = tokens;
+        lastTokenFetch = now;
+      })();
+      await ongoingFetch;
+      ongoingFetch = null;
+    }
+    return tokensCache[network];
+  } catch (error) {
+    console.error("Failed to fetch tokens from API, using fallback:", error);
+    ongoingFetch = null;
+    // Return fallback tokens if API fails
+    return FALLBACK_TOKENS[network];
+  }
 }
 
 /**
@@ -333,7 +368,7 @@ export async function fetchWalletBalance(
   client: any,
   address: string,
 ): Promise<{ total: number; balances: Record<string, number> }> {
-  const supportedTokens = fetchSupportedTokens(client.chain?.name);
+  const supportedTokens = await getNetworkTokens(client.chain?.name);
   if (!supportedTokens) return { total: 0, balances: {} };
 
   let totalBalance = 0;
@@ -341,7 +376,7 @@ export async function fetchWalletBalance(
 
   try {
     // Fetch balances in parallel
-    const balancePromises = supportedTokens.map(async (token) => {
+    const balancePromises = supportedTokens.map(async (token: Token) => {
       try {
         const balanceInWei = await client.readContract({
           address: token.address as `0x${string}`,
@@ -363,7 +398,7 @@ export async function fetchWalletBalance(
     // Wait for all promises to resolve
     const tokenBalances = await Promise.all(balancePromises);
     totalBalance = tokenBalances.reduce(
-      (acc, curr) => (acc || 0) + (curr || 0),
+      (acc: number, curr: number) => (acc || 0) + (curr || 0),
       0,
     );
 

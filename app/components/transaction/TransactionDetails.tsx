@@ -10,7 +10,7 @@ import type { TransactionHistory, Network } from "../../types";
 import {
   getExplorerLink,
   formatNumberWithCommas,
-  SUPPORTED_TOKENS,
+  getTokenLogoIdentifier,
   currencyToCountryCode,
   formatCurrency,
   getNetworkImageUrl,
@@ -125,9 +125,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                   </>
                 );
               }
-              const fromKey =
-                transaction.from_currency.toUpperCase() as keyof typeof SUPPORTED_TOKENS;
-              const fromLogo = SUPPORTED_TOKENS[fromKey] || "usdc";
+              const fromLogo = getTokenLogoIdentifier(transaction.from_currency);
               const toCountryCode = currencyToCountryCode(
                 transaction.to_currency,
               );

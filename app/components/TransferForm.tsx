@@ -4,8 +4,8 @@ import { useForm } from "react-hook-form";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance } from "../context";
-import { fetchSupportedTokens, classNames } from "../utils";
+import { useBalance, useTokens } from "../context";
+import { classNames } from "../utils";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
@@ -18,6 +18,7 @@ import {
   CheckmarkCircle01Icon,
   Wallet01Icon,
 } from "hugeicons-react";
+import { Token } from "../types";
 
 export const TransferForm: React.FC<{
   onClose: () => void;
@@ -29,6 +30,7 @@ export const TransferForm: React.FC<{
   const { client } = useSmartWallets();
   const { user, getAccessToken } = usePrivy();
   const { smartWalletBalance, refreshBalance } = useBalance();
+  const { allTokens } = useTokens();
 
   const formMethods = useForm<{
     amount: number;
@@ -45,7 +47,7 @@ export const TransferForm: React.FC<{
   } = formMethods;
   const { token, amount } = watch();
 
-  const fetchedTokens = fetchSupportedTokens(selectedNetwork.chain.name) || [];
+  const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
   const tokens = fetchedTokens.map((token) => ({
     name: token.symbol,
     imageUrl: token.imageUrl,
@@ -64,6 +66,7 @@ export const TransferForm: React.FC<{
     client: client ?? null,
     selectedNetwork,
     user,
+    supportedTokens: fetchedTokens,
     getAccessToken,
   });
 

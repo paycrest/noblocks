@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { encodeFunctionData, erc20Abi, parseUnits } from "viem";
 import { toast } from "sonner";
-import { fetchSupportedTokens, getExplorerLink } from "../utils";
+import { getExplorerLink } from "../utils";
 import { saveTransaction } from "../api/aggregator";
 import type { Token, Network } from "../types";
 import type { User } from "@privy-io/react-auth";
@@ -19,6 +19,7 @@ interface UseSmartWalletTransferParams {
   client: SmartWalletClient | null;
   selectedNetwork: { chain: Network["chain"] };
   user: User | null;
+  supportedTokens: Token[];
   getAccessToken: () => Promise<string | null>;
   refreshBalance?: () => void;
 }
@@ -52,6 +53,7 @@ export function useSmartWalletTransfer({
   client,
   selectedNetwork,
   user,
+  supportedTokens,
   getAccessToken,
   refreshBalance,
 }: UseSmartWalletTransferParams): UseSmartWalletTransferReturn {
@@ -85,11 +87,10 @@ export function useSmartWalletTransfer({
       setTransferToken("");
 
       try {
-        const fetchedTokens: Token[] =
-          fetchSupportedTokens(selectedNetwork.chain.name) || [];
+        const availableTokens: Token[] = supportedTokens;
         await client?.switchChain({ id: selectedNetwork.chain.id });
         const searchToken = token.toUpperCase();
-        const tokenData = fetchedTokens.find(
+        const tokenData = availableTokens.find(
           (t) => t.symbol.toUpperCase() === searchToken,
         );
         const tokenAddress = tokenData?.address as `0x${string}` | undefined;
@@ -97,7 +98,7 @@ export function useSmartWalletTransfer({
         if (!tokenAddress || tokenDecimals === undefined) {
           setError(`Token data not found for ${token}.`);
           throw new Error(
-            `Token data not found for ${token}. Available tokens: ${fetchedTokens.map((t) => t.symbol).join(", ")}`,
+            `Token data not found for ${token}. Available tokens: ${availableTokens.map((t) => t.symbol).join(", ")}`,
           );
         }
         // Send transaction and get hash
@@ -142,7 +143,14 @@ export function useSmartWalletTransfer({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [client, selectedNetwork, user, getAccessToken, refreshBalance],
+    [
+      client,
+      selectedNetwork,
+      user,
+      supportedTokens,
+      getAccessToken,
+      refreshBalance,
+    ],
   );
 
   const saveTransferTransaction = useCallback(

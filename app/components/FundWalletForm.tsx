@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance } from "../context/BalanceContext";
-import { fetchSupportedTokens, classNames, getNetworkImageUrl } from "../utils";
+import { useBalance, useTokens } from "../context";
+import { classNames, getNetworkImageUrl } from "../utils";
 import { primaryBtnClasses } from "./Styles";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { ArrowLeft02Icon, Cancel01Icon } from "hugeicons-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+import { Token } from "../types";
 
 export const FundWalletForm: React.FC<{
   onClose: () => void;
@@ -23,6 +24,7 @@ export const FundWalletForm: React.FC<{
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
   const { selectedNetwork } = useNetwork();
   const { refreshBalance } = useBalance();
+  const { allTokens } = useTokens();
   const { handleFundWallet } = useFundWalletHandler("Fund wallet form");
   const { user } = usePrivy();
   const isDark = useActualTheme();
@@ -46,8 +48,8 @@ export const FundWalletForm: React.FC<{
     },
   } = fundForm;
   const { token: fundToken } = watchFund();
-  const fundTokens = fetchSupportedTokens(selectedNetwork.chain.name) || [];
-  const fundTokenOptions = fundTokens.map((token) => ({
+  const fundTokens = allTokens[selectedNetwork.chain.name] || [];
+  const fundTokenOptions = fundTokens.map((token: Token) => ({
     name: token.symbol,
     imageUrl: token.imageUrl,
   }));
@@ -65,7 +67,7 @@ export const FundWalletForm: React.FC<{
     try {
       setIsFundConfirming(true);
       const tokenAddress = fundTokens.find(
-        (t) => t.symbol.toUpperCase() === data.token,
+        (t: Token) => t.symbol.toUpperCase() === data.token,
       )?.address as `0x${string}`;
       const smartWalletAccount = user?.linkedAccounts?.find(
         (account) => account.type === "smart_wallet",

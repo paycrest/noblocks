@@ -319,7 +319,7 @@ export async function updateTransactionDetails({
 
 /**
  * Fetches the list of supported tokens from the aggregator API
- * @returns {Promise<any[]>} Array of supported tokens from the API
+ * @returns {Promise<APIToken[]>} Array of supported tokens from the API
  * @throws {Error} If the API request fails
  */
 export const fetchTokens = async (): Promise<APIToken[]> => {

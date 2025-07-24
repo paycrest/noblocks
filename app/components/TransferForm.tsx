@@ -18,6 +18,7 @@ import {
   CheckmarkCircle01Icon,
   Wallet01Icon,
 } from "hugeicons-react";
+import { Token } from "../types";
 
 export const TransferForm: React.FC<{
   onClose: () => void;
@@ -46,8 +47,8 @@ export const TransferForm: React.FC<{
   } = formMethods;
   const { token, amount } = watch();
 
-  const fetchedTokens = allTokens[selectedNetwork.chain.name] || [];
-  const tokens = fetchedTokens.map((token: any) => ({
+  const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
+  const tokens = fetchedTokens.map((token) => ({
     name: token.symbol,
     imageUrl: token.imageUrl,
   }));

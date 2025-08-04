@@ -5,7 +5,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
-import { classNames } from "../utils";
+import { classNames, formatDecimalPrecision } from "../utils";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
@@ -17,7 +17,6 @@ import {
   Cancel01Icon,
   CheckmarkCircle01Icon,
   Wallet01Icon,
-  RefreshIcon,
 } from "hugeicons-react";
 import { Token } from "../types";
 
@@ -25,7 +24,7 @@ export const TransferForm: React.FC<{
   onClose: () => void;
   onSuccess?: () => void;
   showBackButton?: boolean;
-  setCurrentView?: (v: any) => void;
+  setCurrentView?: (v: string) => void;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
   const { selectedNetwork } = useNetwork();
   const { client } = useSmartWallets();
@@ -91,7 +90,8 @@ export const TransferForm: React.FC<{
   }, [isTransferSuccess, onSuccess]);
 
   const handleBalanceMaxClick = () => {
-    setValue("amount", tokenBalance, {
+    const formattedBalance = formatDecimalPrecision(tokenBalance, 4);
+    setValue("amount", formattedBalance, {
       shouldValidate: true,
       shouldDirty: true,
     });
@@ -142,20 +142,7 @@ export const TransferForm: React.FC<{
 
   const renderBalanceSection = () => (
     <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">
-      <div className="flex items-center gap-2">
-        <p className="text-text-secondary dark:text-white/50">Balance</p>
-        <button
-          type="button"
-          onClick={refreshBalance}
-          title="Refresh balance"
-          disabled={isLoading}
-          className="rounded p-1 transition-colors hover:bg-white/20 disabled:opacity-50 dark:hover:bg-white/10"
-        >
-          <RefreshIcon
-            className={`size-3.5 text-text-secondary dark:text-white/50 ${isLoading ? "animate-spin" : ""}`}
-          />
-        </button>
-      </div>
+      <p className="text-text-secondary dark:text-white/50">Balance</p>
       <div className="flex items-center gap-3">
         {isLoading || smartWalletBalance === null ? (
           <BalanceSkeleton className="w-24" />

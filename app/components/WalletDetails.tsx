@@ -145,20 +145,6 @@ export const WalletDetails = () => {
           ) : (
             <p>{formatCurrency(activeBalance?.total ?? 0, "USD", "en-US")}</p>
           )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              refreshBalance();
-            }}
-            title="Refresh balance"
-            disabled={isLoading}
-            className="rounded p-1 transition-colors hover:bg-accent-gray disabled:opacity-50 dark:hover:bg-white/10"
-          >
-            <RefreshIcon
-              className={`size-3.5 text-icon-outline-secondary dark:text-white/50 ${isLoading ? "animate-spin" : ""}`}
-            />
-          </button>
           <ArrowDown01Icon
             aria-label="Caret down"
             className={classNames(

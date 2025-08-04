@@ -102,7 +102,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             Contact support
           </span>
         </div>
-        <ArrowLeft02Icon className="size-4 text-outline-gray dark:text-white/50" />
+        <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
       </a>
       <div className="flex w-full items-center justify-between">
         <div className="flex items-center gap-3">

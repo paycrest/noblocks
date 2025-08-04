@@ -17,6 +17,7 @@ import {
   Cancel01Icon,
   CheckmarkCircle01Icon,
   Wallet01Icon,
+  RefreshIcon,
 } from "hugeicons-react";
 import { Token } from "../types";
 
@@ -29,7 +30,7 @@ export const TransferForm: React.FC<{
   const { selectedNetwork } = useNetwork();
   const { client } = useSmartWallets();
   const { user, getAccessToken } = usePrivy();
-  const { smartWalletBalance, refreshBalance } = useBalance();
+  const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
   const { allTokens } = useTokens();
 
   const formMethods = useForm<{
@@ -141,9 +142,22 @@ export const TransferForm: React.FC<{
 
   const renderBalanceSection = () => (
     <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">
-      <p className="text-text-secondary dark:text-white/50">Balance</p>
+      <div className="flex items-center gap-2">
+        <p className="text-text-secondary dark:text-white/50">Balance</p>
+        <button
+          type="button"
+          onClick={refreshBalance}
+          title="Refresh balance"
+          disabled={isLoading}
+          className="rounded p-1 transition-colors hover:bg-white/20 disabled:opacity-50 dark:hover:bg-white/10"
+        >
+          <RefreshIcon
+            className={`size-3.5 text-text-secondary dark:text-white/50 ${isLoading ? "animate-spin" : ""}`}
+          />
+        </button>
+      </div>
       <div className="flex items-center gap-3">
-        {smartWalletBalance === null ? (
+        {isLoading || smartWalletBalance === null ? (
           <BalanceSkeleton className="w-24" />
         ) : Number(amount) >= tokenBalance ? (
           <p className="dark:text-white/50">Maxed out</p>
@@ -158,7 +172,7 @@ export const TransferForm: React.FC<{
         )}
         <p className="text-[10px] text-gray-300 dark:text-white/10">|</p>
         <p className="font-medium text-neutral-900 dark:text-white/80">
-          {smartWalletBalance === null ? (
+          {isLoading || smartWalletBalance === null ? (
             <BalanceSkeleton className="w-12" />
           ) : (
             `${tokenBalance} ${token}`

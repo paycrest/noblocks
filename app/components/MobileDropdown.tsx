@@ -206,6 +206,7 @@ export const MobileDropdown = ({
                               onClose={onClose}
                               onHistory={() => setCurrentView("history")}
                               setSelectedNetwork={setSelectedNetwork}
+                              onRefreshBalance={refreshBalance}
                             />
                           )}
 

@@ -8,6 +8,7 @@ import {
   Cancel01Icon,
   Wallet01Icon,
   ArrowDown01Icon,
+  RefreshIcon,
 } from "hugeicons-react";
 import { BalanceCardSkeleton } from "../BalanceSkeleton";
 import { classNames, getNetworkImageUrl } from "../../utils";
@@ -33,6 +34,7 @@ interface WalletViewProps {
   onClose: () => void;
   onHistory: () => void;
   setSelectedNetwork: (network: any) => void;
+  onRefreshBalance: () => void;
 }
 
 export const WalletView: React.FC<WalletViewProps> = ({
@@ -54,6 +56,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onSettings,
   onClose,
   onHistory,
+  onRefreshBalance,
 }) => {
   return (
     <div className="space-y-4">
@@ -91,10 +94,21 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
       {/* Smart Wallet Container */}
       <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-between">
           <h3 className="font-light text-text-secondary dark:text-white/50">
             {isInjectedWallet ? detectWalletProvider() : "Noblocks Wallet"}
           </h3>
+          <button
+            type="button"
+            onClick={onRefreshBalance}
+            title="Refresh balance"
+            disabled={isLoading}
+            className="rounded-lg p-1.5 transition-colors hover:bg-accent-gray disabled:opacity-50 dark:hover:bg-white/10"
+          >
+            <RefreshIcon
+              className={`size-4 text-outline-gray dark:text-white/50 ${isLoading ? "animate-spin" : ""}`}
+            />
+          </button>
         </div>
 
         <div className="space-y-2">

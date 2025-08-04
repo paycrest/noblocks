@@ -25,7 +25,12 @@ import {
   currencyToCountryCode,
   reorderCurrenciesByLocation,
 } from "../utils";
-import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
+import {
+  ArrowDown02Icon,
+  NoteEditIcon,
+  Wallet01Icon,
+  RefreshIcon,
+} from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus, fetchRate } from "../api/aggregator";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
@@ -61,7 +66,12 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
+  const {
+    smartWalletBalance,
+    injectedWalletBalance,
+    isLoading,
+    refreshBalance,
+  } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
 
@@ -585,6 +595,17 @@ export const TransactionForm = ({
                         >
                           {formatNumberWithCommasForDisplay(balance)} {token}
                         </span>
+                        <button
+                          type="button"
+                          onClick={refreshBalance}
+                          title="Refresh balance"
+                          disabled={isLoading}
+                          className="rounded p-1 transition-colors hover:bg-accent-gray disabled:opacity-50 dark:hover:bg-white/10"
+                        >
+                          <RefreshIcon
+                            className={`size-3.5 text-icon-outline-secondary dark:text-white/50 ${isLoading ? "animate-spin" : ""}`}
+                          />
+                        </button>
                         {balance > 0 && (
                           <button
                             type="button"

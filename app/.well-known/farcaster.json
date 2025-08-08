@@ -23,13 +23,13 @@
   "version": "1.0.0",
   "categories": ["finance", "web3"],
   "developer": {
-    "name": "Your Name or Team Name",
+    "name": "CONSOLATION LOTACHI",
     "website": "https://github.com/KEM-CONSOLATION",
     "contact": "mailto:consolationlotachi@email.com"
   },
   "accountAssociation": {
     "header": "eyJmaWQiOjExNjI4ODAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHhBNzQ2N0M1RDczNzk3NjNhZERkM2Y4ZmVkMzJGRDk0MEY2Qzc3QzVkIn0",
-    "payload": "eyJkb21haW4iOiJub2Jsb2Nrcy10ZWNoaWVjb25zby5uZXRsaWZ5LmFwcCJ9",
-    "signature": "MHg2Y2Y1MWZlYmJkM2E5NGI0NTVlYTM0NjIxNzZkMjgyZGFkN2Y5NzRjMzU0OGUzYzFmOTkzM2M0MzdmNjcwNDc4MTdmYjY3ZjQ0ZWY0MDhjNWI5NmFlNDllYzQ0Mjg5NmZlMWZhYWNjMzUwYWNlZGYwN2FlZjBlNGZhYTk3Zjg2MzFj"
+    "payload": "eyJkb21haW4iOiJub2Jsb2Nrei52ZXJjZWwuYXBwIn0",
+    "signature": "MHhkMzlmZjE0MzM2ZGIxNzk4NTkxNGE4ZGU3NzkwZWRjZWNhYWY0ODU4YTdiZTJkMjMyOTNhN2I3Yzc4YTE0ZjVkNzk0Y2EyMzYxYTZhYjM3NGVmMDQ0MTEyMTdlYjBkZWU4YWU4N2YwMTkzODQ3Mjg4ZGZiMjNkZmU5MWFjYjY4YzFj"
   }
 }

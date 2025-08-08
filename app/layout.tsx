@@ -15,6 +15,7 @@ import {
   NoticeBanner,
 } from "./components";
 import { MiniKitContextProvider } from "@/providers/MiniKitProvider ";
+import { EarlyReady } from "./early-ready";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -276,7 +277,10 @@ export default function RootLayout({
                 )}
               </div>
               <LayoutWrapper footer={<Footer />}>
-                <MainContent>{children}</MainContent>
+                <MainContent>
+                  <EarlyReady />
+                  {children}
+                </MainContent>
               </LayoutWrapper>
 
               <PWAInstall />

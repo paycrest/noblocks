@@ -6,7 +6,7 @@ import { withRateLimit } from "@/app/lib/rate-limit";
 export const PUT = withRateLimit(
   async (request: NextRequest, { params }: { params: { id: string } }) => {
     try {
-      const { id } = await params;
+      const { id } = params;
       const body = await request.json();
 
       const { data: transaction, error: fetchError } = await supabaseAdmin

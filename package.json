@@ -37,6 +37,7 @@
     "canvas-confetti": "^1.9.3",
     "critters": "^0.0.25",
     "date-fns": "^4.1.0",
+    "drizzle-orm": "^0.44.4",
     "ethers": "^6.13.0",
     "framer-motion": "^11.18.2",
     "hugeicons-react": "^0.3.0",

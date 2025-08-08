@@ -20,6 +20,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@coinbase/onchainkit": "^0.38.18",
     "@headlessui/react": "^2.2.4",
     "@hotjar/browser": "^1.0.9",
     "@privy-io/react-auth": "^2.14.1",
@@ -30,10 +31,13 @@
     "@thirdweb-dev/auth": "^4.1.97",
     "@thirdweb-dev/wallets": "^2.5.39",
     "@vidstack/react": "^0.6.15",
+    "@wagmi/chains": "^1.8.0",
     "axios": "^1.9.0",
+    "bs58": "^6.0.0",
     "canvas-confetti": "^1.9.3",
     "critters": "^0.0.25",
     "date-fns": "^4.1.0",
+    "ethers": "^6.13.0",
     "framer-motion": "^11.18.2",
     "hugeicons-react": "^0.3.0",
     "jose": "^6.0.11",
@@ -53,7 +57,8 @@
     "react-qrcode-logo": "^3.0.0",
     "sonner": "^1.7.4",
     "thirdweb": "^5.102.6",
-    "viem": "^2.31.0"
+    "viem": "^2.31.0",
+    "wagmi": "^2.16.1"
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",

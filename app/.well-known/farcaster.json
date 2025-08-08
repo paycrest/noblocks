@@ -1,0 +1,35 @@
+{
+  "name": "Paycrest Mini App",
+  "description": "A crypto-enabled mini app for sending and receiving stablecoins on Base using Farcaster.",
+  "app": {
+    "url": "https://noblocks-techieconso.netlify.app/",
+    "window": {
+      "height": 600,
+      "width": 400
+    }
+  },
+  "icon": {
+    "light": "https://noblocks-techieconso.netlify.app//icon-light.png",
+    "dark": "https://noblocks-techieconso.netlify.app//icon-dark.png"
+  },
+  "splash_screen": {
+    "light": "https://noblocks-techieconso.netlify.app//splash-light.png",
+    "dark": "https://noblocks-techieconso.netlify.app//splash-dark.png"
+  },
+  "navigation_bar": {
+    "visible": true,
+    "title": "Paycrest"
+  },
+  "version": "1.0.0",
+  "categories": ["finance", "web3"],
+  "developer": {
+    "name": "Your Name or Team Name",
+    "website": "https://github.com/KEM-CONSOLATION",
+    "contact": "mailto:consolationlotachi@email.com"
+  },
+  "accountAssociation": {
+    "header": "eyJmaWQiOjExNjI4ODAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHhBNzQ2N0M1RDczNzk3NjNhZERkM2Y4ZmVkMzJGRDk0MEY2Qzc3QzVkIn0",
+    "payload": "eyJkb21haW4iOiJub2Jsb2Nrcy10ZWNoaWVjb25zby5uZXRsaWZ5LmFwcCJ9",
+    "signature": "MHg2Y2Y1MWZlYmJkM2E5NGI0NTVlYTM0NjIxNzZkMjgyZGFkN2Y5NzRjMzU0OGUzYzFmOTkzM2M0MzdmNjcwNDc4MTdmYjY3ZjQ0ZWY0MDhjNWI5NmFlNDllYzQ0Mjg5NmZlMWZhYWNjMzUwYWNlZGYwN2FlZjBlNGZhYTk3Zjg2MzFj"
+  }
+}

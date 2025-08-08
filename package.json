@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@coinbase/onchainkit": "^0.38.18",
+    "@farcaster/miniapp-sdk": "^0.1.8",
     "@headlessui/react": "^2.2.4",
     "@hotjar/browser": "^1.0.9",
     "@privy-io/react-auth": "^2.14.1",

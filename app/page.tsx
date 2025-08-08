@@ -3,20 +3,25 @@ import { Suspense, useEffect } from "react";
 import { Preloader } from "./components";
 import { MainPageContent } from "./components/MainPageContent";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
+import { sdk } from "@farcaster/miniapp-sdk";
 
 export default function Page() {
   const { setFrameReady, isFrameReady } = useMiniKit();
 
   useEffect(() => {
-    if (!isFrameReady) {
-      setFrameReady();
-    }
+    const markReady = async () => {
+      if (!isFrameReady) {
+        setFrameReady();
+      }
+      try {
+        await sdk.actions.ready();
+        console.log("Mini-app ready signal sent to Farcaster.");
+      } catch (err) {
+        console.error("Failed to signal ready:", err);
+      }
+    };
 
-    if (typeof window !== "undefined" && (window as any).farcaster?.actions) {
-      (window as any).farcaster.actions.ready();
-    }
-
-    console.log("Frame is ready:", isFrameReady);
+    markReady();
   }, [setFrameReady, isFrameReady]);
 
   return (

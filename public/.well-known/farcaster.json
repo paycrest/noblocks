@@ -9,12 +9,12 @@
     }
   },
   "icon": {
-    "light": "https://noblockz.vercel.app/icon-light.png",
-    "dark": "https://noblockz.vercel.app/icon-dark.png"
+    "light": "https://noblockz.vercel.app/android-chrome-192x192.png",
+    "dark": "https://noblockz.vercel.app/android-chrome-192x192.png"
   },
   "splash_screen": {
-    "light": "https://noblockz.vercel.app/splash-light.png",
-    "dark": "https://noblockz.vercel.app/splash-dark.png"
+    "light": "https://noblockz.vercel.app/desktop-wide.png",
+    "dark": "https://noblockz.vercel.app/desktop-wide.png"
   },
   "navigation_bar": {
     "visible": true,

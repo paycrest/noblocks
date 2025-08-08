@@ -47,6 +47,13 @@ const nextConfig = {
         },
       ],
     },
+    {
+      source: "/farcaster.json",
+      headers: [
+        { key: "Content-Type", value: "application/json" },
+        { key: "Cache-Control", value: "public, max-age=3600" },
+      ],
+    },
   ],
   experimental: {
     optimizeCss: true,
@@ -58,8 +65,8 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'flagcdn.com',
+        protocol: "https",
+        hostname: "flagcdn.com",
       },
     ],
   },

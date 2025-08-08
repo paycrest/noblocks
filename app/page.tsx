@@ -41,8 +41,25 @@ export default function Page() {
     markReady();
   }, [setFrameReady, isFrameReady]);
 
+  // const handleContentReady = async () => {
+  //   setContentLoaded(true);
+
+  //   if (!isFrameReady) {
+  //     setFrameReady();
+  //   }
+
+  //   try {
+  //     const { sdk } = await import("@farcaster/miniapp-sdk");
+  //     await sdk.actions.ready();
+  //     console.log("✅ Mini-app ready signal sent to Farcaster.");
+  //   } catch (err) {
+  //     console.error("❌ Failed to signal ready:", err);
+  //   }
+  // };
+
   return (
     <Suspense fallback={<Preloader isLoading={true} />}>
+      {/* <MainPageContent onReady={handleContentReady} /> */}
       <MainPageContent />
     </Suspense>
   );

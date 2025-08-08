@@ -28,14 +28,14 @@ export const metadata: Metadata = {
     "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
   other: {
     // this is where Farcaster Mini App embed
-    "fc:miniapp": JSON.stringify({
-      url: "https://noblockz.vercel.app",
-      window: { height: 600, width: 400 },
-    }),
-    "fc:frame": JSON.stringify({
-      url: "https://noblockz.vercel.app",
-      window: { height: 600, width: 400 },
-    }),
+    // "fc:miniapp": JSON.stringify({
+    //   url: "https://noblockz.vercel.app",
+    //   window: { height: 600, width: 400 },
+    // }),
+    // "fc:frame": JSON.stringify({
+    //   url: "https://noblockz.vercel.app",
+    //   window: { height: 600, width: 400 },
+    // }),
 
     // PWA / Microsoft tags
     "mobile-web-app-capable": "yes",

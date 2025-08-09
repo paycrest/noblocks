@@ -10,17 +10,16 @@ const BlogCardSkeleton: React.FC = () => (
     initial="initial"
     animate="animate"
     exit="exit"
-    aria-hidden="true"
   >
-    <div className="bg-card mb-8 flex w-full max-w-2xl overflow-hidden rounded-xl shadow-md motion-safe:animate-pulse">
-      <div className="bg-muted h-32 w-48 flex-shrink-0" />
-      <div className="flex flex-1 flex-col justify-between p-4">
+    <div className="flex bg-[#181A20] rounded-xl overflow-hidden shadow-md mb-8 max-w-2xl w-full animate-pulse">
+      <div className="w-48 h-32 flex-shrink-0 bg-gray-700" />
+      <div className="flex flex-col justify-between p-4 flex-1">
         <div>
-          <div className="bg-muted mb-2 h-3 w-20 rounded" />
-          <div className="bg-muted mb-2 h-5 w-3/4 rounded" />
-          <div className="bg-muted h-4 w-1/2 rounded" />
+          <div className="h-3 w-20 bg-gray-700 rounded mb-2" />
+          <div className="h-5 w-3/4 bg-gray-700 rounded mb-2" />
+          <div className="h-4 w-1/2 bg-gray-700 rounded" />
         </div>
-        <div className="bg-muted mt-2 h-3 w-16 rounded" />
+        <div className="h-3 w-16 bg-gray-700 rounded mt-2" />
       </div>
     </div>
   </motion.div>

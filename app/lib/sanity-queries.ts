@@ -26,16 +26,13 @@ export const postsQuery = groq`
         description
       }
     ),
-    "excerpt": select(
-      string::length(pt::text(body)) > 0 => pt::text(body[0...200]) + "...",
-      null
-    )
+    "excerpt": pt::text(body[0...200]) + "..."
   }
 `;
 
 // Query for a single post with full content
 export const postQuery = groq`
-  *[_type == "post" && slug.current == $slug && publishedAt <= now()][0] {
+  *[_type == "post" && slug.current == $slug][0] {
     _id,
     title,
     slug,

@@ -1,6 +1,6 @@
 "use client";
 
-import { RefObject, useEffect, useId, useRef, useState } from "react";
+import { RefObject } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search01Icon } from "hugeicons-react";
 import { fadeSlideUp } from "./animations";
@@ -37,72 +37,14 @@ export function SearchModal({
   handleSearchKeyDown,
   onSuggestionClick,
 }: SearchModalProps) {
-  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [activeIndex, setActiveIndex] = useState<number>(-1);
-
-  // Generate unique IDs for ARIA
-  const suggestionsId = `search-suggestions-${useId()}`;
-
-  useEffect(() => {
-    return () => {
-      if (blurTimeoutRef.current) {
-        globalThis.clearTimeout(blurTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Reset active index when suggestions change
-  useEffect(() => {
-    setActiveIndex(-1);
-  }, [filteredSuggestions]);
-
   const handleSuggestionClick = (suggestion: { id: string; title: string }) => {
     setSearch(suggestion.title);
     setShowSuggestions(false);
     setIsModalOpen(false);
-    setActiveIndex(-1);
     // Track the search
     trackSearch(suggestion.title, 1, { source: "suggestion_click" });
     // Call the callback to update URL parameters
     onSuggestionClick?.(suggestion);
-  };
-
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (showSuggestions && filteredSuggestions.length > 0) {
-      switch (e.key) {
-        case "ArrowDown":
-          e.preventDefault();
-          setActiveIndex((prev) =>
-            prev < filteredSuggestions.length - 1 ? prev + 1 : 0,
-          );
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          setActiveIndex((prev) =>
-            prev > 0 ? prev - 1 : filteredSuggestions.length - 1,
-          );
-          break;
-        case "Enter":
-          e.preventDefault();
-          if (activeIndex >= 0 && activeIndex < filteredSuggestions.length) {
-            handleSuggestionClick(filteredSuggestions[activeIndex]);
-          } else {
-            // Call the original handler for non-suggestion selection
-            handleSearchKeyDown(e);
-          }
-          break;
-        case "Escape":
-          setShowSuggestions(false);
-          setActiveIndex(-1);
-          break;
-        default:
-          // Call the original handler for other keys
-          handleSearchKeyDown(e);
-      }
-    } else {
-      // Call the original handler when no suggestions are shown
-      handleSearchKeyDown(e);
-    }
   };
 
   return (
@@ -117,14 +59,6 @@ export function SearchModal({
           onClick={() => {
             onClose();
             setShowSuggestions(false);
-            setActiveIndex(-1);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              onClose();
-              setShowSuggestions(false);
-              setActiveIndex(-1);
-            }
           }}
         >
           <motion.div
@@ -146,60 +80,30 @@ export function SearchModal({
                 onChange={(e) => {
                   setSearch(e.target.value);
                   setShowSuggestions(true);
-                  setActiveIndex(-1);
                 }}
-                onKeyDown={handleInputKeyDown}
+                onKeyDown={handleSearchKeyDown}
                 onFocus={() => setShowSuggestions(true)}
-                onBlur={() => {
-                  if (blurTimeoutRef.current)
-                    globalThis.clearTimeout(blurTimeoutRef.current);
-                  blurTimeoutRef.current = globalThis.setTimeout(() => {
-                    setShowSuggestions(false);
-                    setActiveIndex(-1);
-                  }, 100);
-                }}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 100)}
                 autoFocus={inputAutoFocus}
-                role="combobox"
-                aria-controls={suggestionsId}
-                aria-expanded={
-                  showSuggestions && filteredSuggestions.length > 0
-                }
-                aria-haspopup="listbox"
-                aria-autocomplete="list"
-                aria-activedescendant={
-                  activeIndex >= 0 && activeIndex < filteredSuggestions.length
-                    ? `${suggestionsId}-option-${activeIndex}`
-                    : undefined
-                }
               />
             </div>
             {/* Suggestions Dropdown */}
             <AnimatePresence>
               {showSuggestions && filteredSuggestions.length > 0 && (
-                <motion.div
+                <motion.ul
                   {...fadeSlideUp}
                   className="absolute left-0 right-0 top-full z-50 mt-2 max-h-96 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-white/20 dark:bg-surface-canvas"
                 >
-                  <ul id={suggestionsId} role="listbox" className="w-full">
-                    {filteredSuggestions.map((suggestion, index) => (
-                      <li
-                        key={suggestion.id}
-                        id={`${suggestionsId}-option-${index}`}
-                        role="option"
-                        aria-selected={index === activeIndex}
-                        className={`cursor-pointer px-4 py-2 text-sm text-text-body transition hover:bg-gray-100 dark:text-white dark:hover:bg-white/10 ${
-                          index === activeIndex
-                            ? "bg-gray-100 dark:bg-white/10"
-                            : ""
-                        }`}
-                        onMouseDown={() => handleSuggestionClick(suggestion)}
-                        onMouseEnter={() => setActiveIndex(index)}
-                      >
-                        {suggestion.title}
-                      </li>
-                    ))}
-                  </ul>
-                </motion.div>
+                  {filteredSuggestions.map((s) => (
+                    <li
+                      key={s.id}
+                      className="cursor-pointer px-4 py-2 text-sm text-text-body transition hover:bg-gray-100 dark:text-white dark:hover:bg-white/10"
+                      onMouseDown={() => handleSuggestionClick(s)}
+                    >
+                      {s.title}
+                    </li>
+                  ))}
+                </motion.ul>
               )}
             </AnimatePresence>
           </motion.div>

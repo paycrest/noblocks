@@ -2,30 +2,10 @@
 
 import React from "react";
 import type { SanityPost } from "@/app/blog/types";
-import type { PortableTextBlock } from "@portabletext/types";
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { fadeBlur } from "@/app/components/blog/shared/animations";
-
-// Helper function to extract plain text from PortableText blocks
-const extractPlainTextFromPortableText = (
-  blocks: PortableTextBlock[],
-): string => {
-  if (!blocks || !Array.isArray(blocks)) return "";
-
-  return blocks
-    .map((block) => {
-      if (block._type === "block" && block.children) {
-        return block.children
-          .map((child) => ("text" in child ? child.text : ""))
-          .join("");
-      }
-      return "";
-    })
-    .join(" ")
-    .trim();
-};
 
 interface BlogCardProps {
   post: SanityPost;
@@ -40,8 +20,7 @@ const BlogCard: React.FC<BlogCardProps> = ({
 }) => {
   // Use slug for routing
   const postSlug = post.slug?.current || post._id;
-  const mainImage =
-    post.mainImage || "https://picsum.photos/400/200?image=1001";
+  const mainImage = post.mainImage || "https://unsplash.it/400/200?image=1001";
   const category = post.category?.title || "Uncategorized";
 
   const handleCardClick = () => {
@@ -79,13 +58,7 @@ const BlogCard: React.FC<BlogCardProps> = ({
             <div className="line-clamp-2 w-full text-sm font-normal leading-tight text-text-secondary dark:text-white/50">
               {post.excerpt?.length && post.excerpt.length > 120
                 ? post.excerpt.slice(0, 120) + "..."
-                : post.excerpt ||
-                  (post.body
-                    ? extractPlainTextFromPortableText(post.body).slice(
-                        0,
-                        120,
-                      ) + "..."
-                    : "")}
+                : post.excerpt || (post.body ? String(post.body) : "")}
             </div>
             <div className="mt-1 flex w-full items-center justify-start gap-2">
               <div className="text-xs font-normal leading-none text-text-secondary dark:text-white/50">

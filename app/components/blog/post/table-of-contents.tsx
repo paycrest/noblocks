@@ -17,31 +17,40 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ sections }) => {
   const [activeSection, setActiveSection] = useState<string>("");
 
   useEffect(() => {
-    if (!sections.length) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-        if (visible[0]) {
-          setActiveSection(visible[0].target.id);
-        }
-      },
-      {
-        root: null,
-        rootMargin: "-80px 0px -60% 0px", // account for sticky header
-        threshold: [0.1, 0.25, 0.5, 0.75, 1],
-      },
-    );
+    const handleScroll = () => {
+      const headings = sections
+        .map((section) => document.getElementById(section.id))
+        .filter(Boolean);
 
-    const elements = sections
-      .map((s) => document.getElementById(s.id))
-      .filter(Boolean) as HTMLElement[];
-    elements.forEach((el) => observer.observe(el));
+      if (headings.length === 0) {
+        return;
+      }
+
+      // Match the scroll-mt-20 (80px) offset used in the headings
+      const scrollPosition = window.scrollY + 80;
+
+      // Find the current active section
+      let currentSection = "";
+      for (let i = headings.length - 1; i >= 0; i--) {
+        const heading = headings[i];
+        if (heading && heading.offsetTop <= scrollPosition) {
+          currentSection = heading.id;
+          break;
+        }
+      }
+
+      setActiveSection(currentSection);
+    };
+
+    // Add scroll listener with a small delay to ensure DOM is ready
+    const timeoutId = setTimeout(() => {
+      window.addEventListener("scroll", handleScroll);
+      handleScroll(); // Initial check
+    }, 100);
 
     return () => {
-      elements.forEach((el) => observer.unobserve(el));
-      observer.disconnect();
+      clearTimeout(timeoutId);
+      window.removeEventListener("scroll", handleScroll);
     };
   }, [sections]);
 
@@ -51,20 +60,39 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ sections }) => {
   ) => {
     e.preventDefault();
 
-    // Find the element immediately
-    const element = document.getElementById(sectionId);
-    if (element) {
-      // Account for the navbar height (64px) plus some padding
-      const navbarHeight = 64;
-      const offset = navbarHeight + 16; // 16px additional padding
+    // Try to find the element, with a small retry mechanism
+    const findElement = () => {
+      const element = document.getElementById(sectionId);
+      if (element) {
+        // Account for the navbar height (64px) plus some padding
+        const navbarHeight = 64;
+        const offset = navbarHeight + 16; // 16px additional padding
 
-      const elementPosition = element.offsetTop - offset;
+        const elementPosition = element.offsetTop - offset;
 
-      window.scrollTo({
-        top: elementPosition,
-        behavior: "smooth",
-      });
-    }
+        window.scrollTo({
+          top: elementPosition,
+          behavior: "smooth",
+        });
+      } else {
+        // Retry once after a short delay in case DOM is still loading
+        setTimeout(() => {
+          const retryElement = document.getElementById(sectionId);
+          if (retryElement) {
+            const navbarHeight = 64;
+            const offset = navbarHeight + 16;
+            const elementPosition = retryElement.offsetTop - offset;
+
+            window.scrollTo({
+              top: elementPosition,
+              behavior: "smooth",
+            });
+          }
+        }, 100);
+      }
+    };
+
+    findElement();
   };
 
   if (!sections.length) return null;

@@ -18,18 +18,14 @@ export default defineType({
       options: {
         source: "title",
         maxLength: 96,
-        slugify: (input: string) =>
-          input.toLowerCase().replace(/\s+/g, "-").slice(0, 96),
-        // Ensure slug uniqueness across all documents (use Sanity's default check)
-        isUnique: (value, context) => context.defaultIsUnique(value, context),
       },
-      validation: (Rule) => Rule.required().error("Slug is required"),
+      validation: (Rule) => Rule.required(),
     }),
     defineField({
       name: "author",
       title: "Author",
       type: "reference",
-      to: [{ type: "author" }],
+      to: { type: "author" },
       validation: (Rule) => Rule.required(),
     }),
     defineField({
@@ -45,7 +41,7 @@ export default defineType({
       name: "category",
       title: "Category",
       type: "reference",
-      to: [{ type: "category" }],
+      to: { type: "category" },
       validation: (Rule) => Rule.required(),
     }),
     defineField({

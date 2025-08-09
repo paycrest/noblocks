@@ -11,22 +11,23 @@ interface RecentBlogsProps {
 }
 
 const RecentBlogs: React.FC<RecentBlogsProps> = ({ posts }) => {
-  if (!posts?.length) return null;
   return (
     <div className="w-full">
       <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
         Recent blogs
       </h3>
-      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2">
-        {posts.map((post) => (
-          <motion.div
-            key={post._id}
-            {...fadeSlideUp}
-            className="min-w-[320px] max-w-xs flex-shrink-0 snap-start"
-          >
-            <BlogCard post={post} />
-          </motion.div>
-        ))}
+      <div className="flex gap-4 overflow-x-auto pb-2">
+        <AnimatePresence initial={false}>
+          {posts.map((post) => (
+            <motion.div
+              key={post._id}
+              {...fadeSlideUp}
+              className="min-w-[320px] max-w-xs flex-shrink-0"
+            >
+              <BlogCard post={post} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </div>
   );

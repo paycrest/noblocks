@@ -28,21 +28,20 @@ export default defineType({
       options: {
         hotspot: true,
       },
-      fields: [
-        {
-          name: "alt",
-          title: "Alt Text",
-          type: "string",
-          description: "Alternative text for accessibility",
-          validation: (Rule) => Rule.required(),
-        },
-      ],
       validation: (Rule) => Rule.required(),
     }),
     defineField({
       name: "bio",
       title: "Bio",
-      type: "blockContent",
+      type: "array",
+      of: [
+        {
+          title: "Block",
+          type: "block",
+          styles: [{ title: "Normal", value: "normal" }],
+          lists: [],
+        },
+      ],
       validation: (Rule) => Rule.required(),
     }),
   ],

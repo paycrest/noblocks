@@ -24,6 +24,7 @@ export default defineType({
       // use your content.
       styles: [
         { title: "Normal", value: "normal" },
+        { title: "H1", value: "h1" },
         { title: "H2", value: "h2" },
         { title: "H3", value: "h3" },
         { title: "H4", value: "h4" },
@@ -49,20 +50,6 @@ export default defineType({
                 title: "URL",
                 name: "href",
                 type: "url",
-                description:
-                  "Enter a valid URL. Only http, https, mailto, and ftp schemes are allowed for security.",
-                validation: (Rule) =>
-                  Rule.uri({
-                    scheme: ["http", "https", "mailto", "ftp"],
-                  }).required(),
-              },
-              {
-                title: "Open in new tab",
-                name: "openInNewTab",
-                type: "boolean",
-                description:
-                  "When enabled, the link will open in a new browser tab or window.",
-                initialValue: false,
               },
             ],
           },
@@ -75,16 +62,6 @@ export default defineType({
     defineArrayMember({
       type: "image",
       options: { hotspot: true },
-      fields: [
-        {
-          name: "alt",
-          title: "Alt Text",
-          type: "string",
-          description:
-            "Alternative text for accessibility. Describe what the image shows for screen readers and SEO. Required for accessibility compliance.",
-          validation: (Rule) => Rule.required().min(1).max(500),
-        },
-      ],
     }),
   ],
 });

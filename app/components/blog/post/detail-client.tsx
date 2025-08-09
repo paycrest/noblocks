@@ -21,7 +21,6 @@ import {
 import { useBlogTracking } from "@/app/hooks/analytics/use-blog-tracking";
 import { Crimson_Pro } from "next/font/google";
 import { getBannerPadding } from "@/app/utils";
-import { urlForImage } from "@/app/lib/sanity-client";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -41,16 +40,13 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
 
   // Track page view on mount
   useEffect(() => {
-    if (!post) return;
-
     trackPageView("Blog Post", {
       post_id: post._id,
       post_title: post.title,
       post_category: post.category?.title || "Uncategorized",
       post_author: post.author.name,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [post?._id, post?.title, post?.category?.title, post?.author?.name]);
+  }, [post._id, post.title, post.category?.title, post.author.name]);
 
   // Track blog reading progress
   useBlogTracking({
@@ -69,26 +65,12 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
   const sections = post.body ? extractSections(post.body) : [];
 
   const handleCopyLink = () => {
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(window.location.href);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = window.location.href;
-        textarea.style.position = "fixed";
-        textarea.style.left = "-9999px";
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      }
-      setCopied(true);
-      trackCopyLink(post._id, post.title);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // no-op
-    }
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    trackCopyLink(post._id, post.title);
+    setTimeout(() => {
+      setCopied(false);
+    }, 2000);
   };
 
   const handleGetStartedClick = () => {
@@ -100,8 +82,9 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
 
   const handleSocialShare = (platform: string) => {
     const url = encodeURIComponent(window.location.href);
-    const cleanText = `Check out this new blog on Noblocks: ${post.title}`;
-    const shareText = encodeURIComponent(cleanText);
+    const shareText = encodeURIComponent(
+      `Check out this new blog on Noblocks:\n\n${post.title}\n\n`,
+    );
 
     let shareUrl = "";
 
@@ -167,10 +150,7 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
             <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary dark:text-white/50">
               <Image
                 src={
-                  typeof post.author.image === "string"
-                    ? post.author.image
-                    : urlForImage(post.author.image) ||
-                      `https://picsum.photos/32/32?image=1005`
+                  post.author.image || `https://unsplash.it/32/32?image=1005`
                 }
                 alt={post.author.name}
                 width={24}

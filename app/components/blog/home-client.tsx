@@ -35,7 +35,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
 
   // Track page view on mount
   useEffect(() => {
-    trackPageView("Blog Home");
+    trackPageView("Home");
   }, []);
 
   // Get filter parameters from URL
@@ -78,11 +78,9 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
       setShowSuggestions(false);
 
       // Update URL with search parameter
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(searchParams);
       if (search.trim()) {
         params.set("search", search.trim());
-        // Clear category when searching
-        params.delete("category");
       } else {
         params.delete("search");
       }
@@ -92,15 +90,13 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
 
   const handleSuggestionClick = (suggestion: { id: string; title: string }) => {
     // Update URL with search parameter
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams);
     params.set("search", suggestion.title);
-    // Clear category when searching
-    params.delete("category");
     router.push(`/blog?${params.toString()}`);
   };
 
   const setSelectedCategory = (categoryId: string) => {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams);
     if (categoryId === "all") {
       params.delete("category");
     } else {

@@ -60,7 +60,18 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "flagcdn.com",
-        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "cdn.sanity.io",
+      },
+      {
+        protocol: "https",
+        hostname: "placehold.co",
+      },
+      {
+        protocol: "https",
+        hostname: "unsplash.it",
       },
       {
         protocol: "https",

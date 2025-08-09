@@ -9,30 +9,12 @@ import { PortableText, PortableTextComponents } from "@portabletext/react";
 import { urlForImage } from "@/app/lib/sanity-client";
 import Image from "next/image";
 
-// Map to track generated slugs and their counts
-const slugMap = new Map<string, number>();
-
-// Helper function to reset slug map (call before rendering new content)
-const resetSlugMap = (): void => {
-  slugMap.clear();
-};
-
-// Helper function to generate unique slug from text
+// Helper function to generate slug from text
 const generateSlug = (text: string): string => {
-  const baseSlug = text
+  return text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
-
-  // Check if this slug already exists
-  if (slugMap.has(baseSlug)) {
-    const count = slugMap.get(baseSlug)! + 1;
-    slugMap.set(baseSlug, count);
-    return `${baseSlug}-${count}`;
-  } else {
-    slugMap.set(baseSlug, 0);
-    return baseSlug;
-  }
 };
 
 // Helper function to extract text from PortableText children
@@ -59,9 +41,6 @@ const extractTextFromChildren = (children: React.ReactNode): string => {
 export const extractSections = (
   body: PortableTextBlock[],
 ): Array<{ id: string; title: string }> => {
-  // Reset slug map before processing new content
-  resetSlugMap();
-
   const sections: Array<{ id: string; title: string }> = [];
 
   const traverseBlocks = (blocks: PortableTextBlock[]) => {
@@ -109,16 +88,14 @@ const ptComponents: PortableTextComponents = {
 
       return (
         <div className="my-6">
-          <div className="relative h-auto w-full">
-            <Image
-              alt={value.alt || "Blog post image"}
-              src={imageUrl}
-              fill
-              sizes="(min-width: 768px) 800px, 100vw"
-              className="h-auto w-full max-w-full rounded-2xl object-cover"
-              priority={false}
-            />
-          </div>
+          <Image
+            alt={value.alt || "Blog post image"}
+            src={imageUrl}
+            width={800}
+            height={600}
+            className="h-auto w-full max-w-full rounded-2xl"
+            priority={false}
+          />
           {value.caption && (
             <p className="mt-2 text-center text-xs italic text-text-secondary dark:text-white/50">
               {value.caption}
@@ -129,20 +106,16 @@ const ptComponents: PortableTextComponents = {
     },
   },
   marks: {
-    link: ({ children, value }) => {
-      const isExternal = /^https?:\/\//i.test(value.href || "");
-      return (
-        <a
-          href={value.href}
-          {...(isExternal
-            ? { target: "_blank", rel: "noopener noreferrer" }
-            : {})}
-          className="text-lavender-400 underline underline-offset-2 transition duration-300 hover:underline-offset-1"
-        >
-          {children}
-        </a>
-      );
-    },
+    link: ({ children, value }) => (
+      <a
+        href={value.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-lavender-400 underline underline-offset-2 transition duration-300 hover:underline-offset-1"
+      >
+        {children}
+      </a>
+    ),
   },
   block: {
     h1: ({ children }) => {
@@ -239,11 +212,6 @@ interface BlogPostContentProps {
 }
 
 const BlogPostContent: React.FC<BlogPostContentProps> = ({ post }) => {
-  // Reset slug map before rendering new content
-  React.useEffect(() => {
-    resetSlugMap();
-  }, [post._id]);
-
   return (
     <motion.section {...fadeBlur} className="w-full" suppressHydrationWarning>
       {post.body ? (

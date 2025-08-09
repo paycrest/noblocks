@@ -33,16 +33,16 @@ export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
 
 // Sanity-specific configuration for client-side (Next.js app)
 export const clientConfig = {
-  projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "",
-  dataset: process.env.NEXT_PUBLIC_SANITY_DATASET || "",
-  apiVersion: "2024-01-01", // Pin to a stable date
-  useCdn: process.env.NODE_ENV === "production", // Use CDN in production for better performance
+  projectId: process.env.NEXT_PUBLIC_SANITY_STUDIO_PROJECT_ID || "",
+  dataset: process.env.NEXT_PUBLIC_SANITY_STUDIO_DATASET || "",
+  apiVersion: "2024-01-01", // Use current date
+  useCdn: false, // Set to false for fresh data
 };
 
 // Sanity-specific configuration for server-side (Sanity Studio)
 export const serverConfig = {
   projectId: process.env.SANITY_STUDIO_PROJECT_ID || "",
   dataset: process.env.SANITY_STUDIO_DATASET || "",
-  apiVersion: "2024-01-01", // Pin to a stable date
+  apiVersion: "2024-01-01", // Use current date
   useCdn: false, // Set to false for fresh data
 };

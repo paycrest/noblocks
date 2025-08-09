@@ -1,4 +1,3 @@
-"use client";
 import React from "react";
 
 interface BlogPaginationProps {
@@ -15,22 +14,21 @@ const BlogPagination: React.FC<BlogPaginationProps> = ({
   if (totalPages <= 1) return null;
 
   const getPages = () => {
-    const windowSize = 2;
-    const pages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(
-      (p) =>
-        p === 1 || p === totalPages || Math.abs(p - currentPage) <= windowSize,
-    );
+    const pages = [];
+    for (let i = 1; i <= totalPages; i++) {
+      pages.push(i);
+    }
     return pages;
   };
 
   return (
     <nav
-      className="mt-8 flex items-center justify-center gap-2"
+      className="flex justify-center items-center gap-2 mt-8"
       aria-label="Pagination"
     >
       <button
         type="button"
-        className="rounded bg-[#23262F] px-3 py-1 text-gray-200 hover:bg-blue-700 disabled:opacity-50"
+        className="px-3 py-1 rounded bg-[#23262F] text-gray-200 hover:bg-blue-700 disabled:opacity-50"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
         aria-label="Previous page"
@@ -41,7 +39,7 @@ const BlogPagination: React.FC<BlogPaginationProps> = ({
         <button
           key={page}
           type="button"
-          className={`rounded px-3 py-1 font-medium transition-colors ${
+          className={`px-3 py-1 rounded font-medium transition-colors ${
             page === currentPage
               ? "bg-blue-600 text-white"
               : "bg-[#23262F] text-gray-200 hover:bg-blue-700"
@@ -54,7 +52,7 @@ const BlogPagination: React.FC<BlogPaginationProps> = ({
       ))}
       <button
         type="button"
-        className="rounded bg-[#23262F] px-3 py-1 text-gray-200 hover:bg-blue-700 disabled:opacity-50"
+        className="px-3 py-1 rounded bg-[#23262F] text-gray-200 hover:bg-blue-700 disabled:opacity-50"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
         aria-label="Next page"

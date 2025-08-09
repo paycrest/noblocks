@@ -9,19 +9,17 @@ const FeaturedBlogSkeleton: React.FC = () => (
     variants={fadeBlur}
     initial="initial"
     animate="animate"
-    role="status"
-    aria-live="polite"
+    exit="exit"
   >
-    <span className="sr-only">Loading featured blog post...</span>
-    <div className="mb-8 flex w-full animate-pulse flex-col overflow-hidden rounded-xl bg-[#181A20] shadow-lg md:flex-row">
-      <div className="h-64 w-full bg-gray-700 md:h-auto md:w-2/5" />
-      <div className="flex flex-1 flex-col justify-between p-6">
+    <div className="flex flex-col md:flex-row bg-[#181A20] rounded-xl overflow-hidden shadow-lg mb-8 w-full animate-pulse">
+      <div className="w-full md:w-2/5 h-64 md:h-auto bg-gray-700" />
+      <div className="flex flex-col justify-between p-6 flex-1">
         <div>
-          <div className="mb-3 h-3 w-24 rounded bg-gray-700" />
-          <div className="mb-4 h-7 w-3/4 rounded bg-gray-700" />
-          <div className="mb-4 h-4 w-2/3 rounded bg-gray-700" />
+          <div className="h-3 w-24 bg-gray-700 rounded mb-3" />
+          <div className="h-7 w-3/4 bg-gray-700 rounded mb-4" />
+          <div className="h-4 w-2/3 bg-gray-700 rounded mb-4" />
         </div>
-        <div className="mt-2 h-3 w-20 rounded bg-gray-700" />
+        <div className="h-3 w-20 bg-gray-700 rounded mt-2" />
       </div>
     </div>
   </motion.div>

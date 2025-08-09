@@ -6,13 +6,11 @@ import { fadeBlur } from "@/app/components/blog/shared/animations";
 
 const BlogListEmpty: React.FC = () => (
   <motion.div
-    className="flex w-full flex-col items-center justify-center py-16 text-center"
+    className="flex flex-col items-center justify-center py-16 w-full text-center"
     variants={fadeBlur}
     initial="initial"
     animate="animate"
     exit="exit"
-    role="status"
-    aria-live="polite"
   >
     <svg
       width="48"
@@ -22,8 +20,6 @@ const BlogListEmpty: React.FC = () => (
       stroke="currentColor"
       strokeWidth="1.5"
       className="mb-4 text-gray-500"
-      aria-hidden="true"
-      focusable="false"
     >
       <path
         strokeLinecap="round"
@@ -36,7 +32,7 @@ const BlogListEmpty: React.FC = () => (
         d="M8.25 9.75h7.5M8.25 12h7.5M8.25 14.25h4.5"
       />
     </svg>
-    <h3 className="mb-2 text-lg font-semibold text-gray-300">
+    <h3 className="text-lg font-semibold text-gray-300 mb-2">
       No blog posts found
     </h3>
     <p className="text-gray-400">

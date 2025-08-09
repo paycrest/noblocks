@@ -6,18 +6,16 @@ import { fadeBlur } from "@/app/components/blog/shared/animations";
 
 const BlogPostAuthorSkeleton: React.FC = () => (
   <motion.section
-    className="mx-auto mb-8 mt-8 flex w-full max-w-2xl animate-pulse items-center gap-4 rounded-xl bg-[#181A20] p-4 shadow"
+    className="flex items-center gap-4 mt-8 mb-8 bg-[#181A20] rounded-xl p-4 shadow w-full max-w-2xl mx-auto animate-pulse"
     variants={fadeBlur}
     initial="initial"
     animate="animate"
-    role="status"
-    aria-live="polite"
+    exit="exit"
   >
-    <span className="sr-only">Loading author information...</span>
-    <div className="h-14 w-14 rounded-full bg-gray-700" aria-hidden="true" />
+    <div className="w-14 h-14 rounded-full bg-gray-700" />
     <div>
-      <div className="mb-2 h-4 w-32 rounded bg-gray-700" aria-hidden="true" />
-      <div className="h-3 w-24 rounded bg-gray-700" aria-hidden="true" />
+      <div className="h-4 w-32 bg-gray-700 rounded mb-2" />
+      <div className="h-3 w-24 bg-gray-700 rounded" />
     </div>
   </motion.section>
 );

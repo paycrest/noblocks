@@ -12,7 +12,6 @@ const RecentBlogsSkeleton: React.FC = () => (
     initial="initial"
     animate="animate"
     exit="exit"
-    aria-hidden="true"
   >
     <div className="flex gap-4 overflow-x-auto pb-2">
       {[1, 2, 3].map((i) => (

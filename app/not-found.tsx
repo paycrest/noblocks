@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useActualTheme } from "./hooks/useActualTheme";
 import { primaryBtnClasses, secondaryBtnClasses } from "./components";
 import { classNames } from "./utils";
 
 export default function NotFound() {
+  const isDark = useActualTheme();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}

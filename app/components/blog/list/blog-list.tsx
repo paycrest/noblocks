@@ -1,5 +1,3 @@
-"use client";
-
 import React from "react";
 import BlogCard from "./blog-card";
 import type { SanityPost } from "@/app/blog/types";
@@ -10,13 +8,11 @@ interface BlogListProps {
 
 const BlogList: React.FC<BlogListProps> = ({ posts }) => {
   return (
-    <ul className="grid list-none grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
       {posts.map((post) => (
-        <li key={post._id}>
-          <BlogCard post={post} />
-        </li>
+        <BlogCard key={post._id} post={post} />
       ))}
-    </ul>
+    </div>
   );
 };
 

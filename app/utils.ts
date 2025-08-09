@@ -917,18 +917,20 @@ export function filterBlogsAndCategories({
   selectedCategory,
   searchValue,
   categoriesInPosts,
+  filterCategories,
 }: {
-  blogs: SanityPost[];
+  blogs: any[];
   selectedCategory: string;
   searchValue: string;
-  categoriesInPosts: SanityCategory[];
+  categoriesInPosts: any[];
+  filterCategories: ({ _id: string; title: string } | any)[];
 }): {
-  filteredBlogs: SanityPost[];
-  filteredCategoriesInPosts: SanityCategory[];
-  filterCategories: SanityCategory[];
+  filteredBlogs: any[];
+  filteredCategoriesInPosts: any[];
+  filterCategories: ({ _id: string; title: string } | any)[];
 } {
   // Filter blogs by category and search
-  const filteredBlogs = blogs.filter((blog: SanityPost) => {
+  const filteredBlogs = blogs.filter((blog) => {
     const matchesCategory =
       selectedCategory === "all" || blog.category?._id === selectedCategory;
     const matchesSearch =
@@ -939,11 +941,11 @@ export function filterBlogsAndCategories({
   });
 
   // Update categories based on filtered blogs
-  const filteredCategoriesInPosts: SanityCategory[] = Array.from(
+  const filteredCategoriesInPosts: any[] = Array.from(
     new Set(
       filteredBlogs
         .filter(
-          (post): post is SanityPost & { category: SanityCategory } =>
+          (post): post is any & { category: any } =>
             post.category !== undefined && post.category !== null,
         )
         .map((post) => post.category._id),
@@ -952,10 +954,10 @@ export function filterBlogsAndCategories({
     .map(
       (id) => filteredBlogs.find((post) => post.category?._id === id)?.category,
     )
-    .filter((category): category is SanityCategory => category !== undefined);
+    .filter(Boolean);
 
   // Update filter categories
-  const newFilterCategories: SanityCategory[] = [
+  const newFilterCategories: ({ _id: string; title: string } | any)[] = [
     { _id: "all", title: "All" },
     ...(searchValue ? filteredCategoriesInPosts : categoriesInPosts),
   ];

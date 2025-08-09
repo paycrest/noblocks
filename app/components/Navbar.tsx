@@ -144,7 +144,7 @@ export const Navbar = () => {
             </div>
 
             {/* Blog Link - Desktop Only */}
-            {!pathname.startsWith("/blog") && (
+            {pathname !== "/blog" && (
               <div
                 className="hidden items-center sm:flex"
                 onMouseEnter={() => setIsDropdownOpen(false)}
@@ -179,7 +179,7 @@ export const Navbar = () => {
                         Home
                       </Link>
                     )}
-                    {!pathname.startsWith("/blog") && (
+                    {pathname !== "/blog" && (
                       <Link
                         href="/blog"
                         className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5"

@@ -28,21 +28,20 @@ const FeaturedBlog: React.FC<FeaturedBlogProps> = ({ post }) => {
         href={`/blog/${post.slug?.current || post._id}`}
         className="group flex cursor-pointer flex-col items-start gap-6 lg:flex-row lg:items-center lg:gap-20"
         prefetch={false}
-        onMouseDown={handleFeaturedBlogClick}
+        onClick={handleFeaturedBlogClick}
       >
         <div className="mb-4 h-72 w-full flex-shrink-0 overflow-hidden rounded-lg sm:h-80 lg:mb-0 lg:w-[607px]">
           <Image
-            src={post.mainImage || "https://picsum.photos/607/318?image=1001"}
+            src={post.mainImage || "https://unsplash.it/607/318?image=1001"}
             alt={post.title}
             width={607}
             height={318}
-            sizes="(min-width: 1024px) 607px, 100vw"
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             priority
           />
         </div>
 
-        <div className="flex w-full flex-1 flex-col gap-3">
+        <div className="lg:w-md flex w-full flex-col gap-3">
           <h2 className="text-2xl font-semibold leading-9 text-text-body transition group-hover:text-lavender-500 dark:text-white sm:text-3xl sm:leading-10">
             {post.title}
           </h2>

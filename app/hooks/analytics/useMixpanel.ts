@@ -85,3 +85,123 @@ export const trackEvent = (
   }
   mixpanel.track(eventName, { app: "Noblocks", ...properties });
 };
+
+// Blog-specific tracking functions
+export const trackPageView = (pageName: string, properties?: Dict) => {
+  trackEvent("Page Viewed", {
+    page_name: pageName,
+    page_url: typeof window !== "undefined" ? window.location.href : "",
+    ...properties,
+  });
+};
+
+export const trackBlogCardClick = (
+  postId: string,
+  postTitle: string,
+  source: string,
+  properties?: Dict
+) => {
+  trackEvent("Blog Card Clicked", {
+    post_id: postId,
+    post_title: postTitle,
+    source,
+    ...properties,
+  });
+};
+
+export const trackBlogReadingStarted = (
+  postId: string,
+  postTitle: string,
+  properties?: Dict
+) => {
+  trackEvent("Blog Reading Started", {
+    post_id: postId,
+    post_title: postTitle,
+    ...properties,
+  });
+};
+
+export const trackBlogReadingCompleted = (
+  postId: string,
+  postTitle: string,
+  timeSpent?: number,
+  properties?: Dict
+) => {
+  trackEvent("Blog Reading Completed", {
+    post_id: postId,
+    post_title: postTitle,
+    time_spent_seconds: timeSpent,
+    ...properties,
+  });
+};
+
+export const trackCopyLink = (
+  postId: string,
+  postTitle: string,
+  properties?: Dict
+) => {
+  trackEvent("Copy Link Clicked", {
+    post_id: postId,
+    post_title: postTitle,
+    ...properties,
+  });
+};
+
+export const trackGetStartedClick = (source: string, properties?: Dict) => {
+  trackEvent("Get Started Clicked", {
+    source,
+    ...properties,
+  });
+};
+
+export const trackRecentBlogClick = (
+  postId: string,
+  postTitle: string,
+  sourcePostId: string,
+  properties?: Dict
+) => {
+  trackEvent("Recent Blog Clicked", {
+    post_id: postId,
+    post_title: postTitle,
+    source_post_id: sourcePostId,
+    ...properties,
+  });
+};
+
+export const trackSearch = (
+  searchTerm: string,
+  resultsCount: number,
+  properties?: Dict
+) => {
+  trackEvent("Search Performed", {
+    search_term: searchTerm,
+    results_count: resultsCount,
+    ...properties,
+  });
+};
+
+export const trackFooterLinkClick = (
+  linkText: string,
+  linkUrl: string,
+  properties?: Dict
+) => {
+  trackEvent("Footer Link Clicked", {
+    link_text: linkText,
+    link_url: linkUrl,
+    ...properties,
+  });
+};
+
+export const trackSocialShare = (
+  platform: string,
+  postId: string,
+  postTitle: string,
+  properties?: Dict
+) => {
+  trackEvent("Social Share Clicked", {
+    platform,
+    post_id: postId,
+    post_title: postTitle,
+    ...properties,
+  });
+};

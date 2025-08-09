@@ -186,7 +186,7 @@ export const Footer = () => {
         />
         <div className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] overflow-hidden md:block 2xl:rounded-b-[84px]">
           <Image
-            src="images/footer-desktop-img.svg"
+            src="/images/footer-desktop-img.svg"
             alt="Footer Desktop Image"
             width={100}
             height={100}

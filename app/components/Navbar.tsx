@@ -104,12 +104,12 @@ export const Navbar = () => {
       role="banner"
     >
       <nav
-        className="mx-auto flex items-center justify-between p-4 text-neutral-900 lg:container dark:text-white lg:px-8"
+        className="mx-auto flex max-w-screen-2xl items-center justify-between p-4 text-neutral-900 dark:text-white lg:px-8"
         aria-label="Navbar"
       >
         <div className="flex items-start gap-2 lg:flex-1">
           <div
-            className="relative flex items-start gap-1"
+            className="relative flex items-start gap-5"
             ref={dropdownRef}
             onMouseEnter={() => setIsDropdownOpen(true)}
             onMouseLeave={() => setIsDropdownOpen(false)}
@@ -143,6 +143,22 @@ export const Navbar = () => {
               />
             </div>
 
+            {/* Blog Link - Desktop Only */}
+            {pathname !== "/blog" && (
+              <div
+                className="hidden items-center sm:flex"
+                onMouseEnter={() => setIsDropdownOpen(false)}
+                onMouseLeave={() => setIsDropdownOpen(true)}
+              >
+                <Link
+                  href="/blog"
+                  className="-mt-[3px] text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white"
+                >
+                  Blog
+                </Link>
+              </div>
+            )}
+
             <AnimatePresence>
               {isDropdownOpen && (
                 <>
@@ -152,27 +168,36 @@ export const Navbar = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="*:w-fullx absolute left-0 top-full mt-4 w-48 rounded-lg border border-border-light bg-white p-2 text-sm shadow-lg *:flex *:rounded-lg *:px-4 *:py-2 *:text-sm *:text-gray-700 *:transition-colors *:hover:bg-accent-gray dark:border-white/5 dark:bg-surface-overlay *:dark:bg-surface-overlay *:dark:text-white/80"
+                    className="absolute left-0 top-full mt-4 w-48 rounded-lg border border-border-light bg-white p-2 text-sm shadow-lg dark:border-white/5 dark:bg-surface-overlay"
                   >
                     {pathname !== "/" && (
                       <Link
                         href="/"
-                        className="hover:bg-accent-gray dark:hover:bg-white/5"
+                        className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5"
                         onClick={() => setIsDropdownOpen(false)}
                       >
                         Home
                       </Link>
                     )}
+                    {pathname !== "/blog" && (
+                      <Link
+                        href="/blog"
+                        className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5"
+                        onClick={() => setIsDropdownOpen(false)}
+                      >
+                        Blog
+                      </Link>
+                    )}
                     <Link
                       href="/terms"
-                      className="hover:bg-accent-gray dark:hover:bg-white/5"
+                      className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5"
                       onClick={() => setIsDropdownOpen(false)}
                     >
                       Terms
                     </Link>
                     <Link
                       href="/privacy-policy"
-                      className="hover:bg-accent-gray dark:hover:bg-white/5"
+                      className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5"
                       onClick={() => setIsDropdownOpen(false)}
                     >
                       Privacy Policy

@@ -10,6 +10,7 @@ import { erc20Abi } from "viem";
 import { colors } from "./mocks";
 import { fetchRate, fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
+import config from "./lib/config";
 
 /**
  * Concatenates and returns a string of class names.
@@ -907,4 +908,71 @@ export async function reorderCurrenciesByLocation(
   } catch {
     return currencies;
   }
+}
+
+// Blog utilities
+export function filterBlogsAndCategories({
+  blogs,
+  selectedCategory,
+  searchValue,
+  categoriesInPosts,
+  filterCategories,
+}: {
+  blogs: any[];
+  selectedCategory: string;
+  searchValue: string;
+  categoriesInPosts: any[];
+  filterCategories: ({ _id: string; title: string } | any)[];
+}): {
+  filteredBlogs: any[];
+  filteredCategoriesInPosts: any[];
+  filterCategories: ({ _id: string; title: string } | any)[];
+} {
+  // Filter blogs by category and search
+  const filteredBlogs = blogs.filter((blog) => {
+    const matchesCategory =
+      selectedCategory === "all" || blog.category?._id === selectedCategory;
+    const matchesSearch =
+      !searchValue ||
+      blog.title.toLowerCase().includes(searchValue.toLowerCase()) ||
+      blog.excerpt?.toLowerCase().includes(searchValue.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  // Update categories based on filtered blogs
+  const filteredCategoriesInPosts: any[] = Array.from(
+    new Set(
+      filteredBlogs
+        .filter(
+          (post): post is any & { category: any } =>
+            post.category !== undefined && post.category !== null,
+        )
+        .map((post) => post.category._id),
+    ),
+  )
+    .map(
+      (id) => filteredBlogs.find((post) => post.category?._id === id)?.category,
+    )
+    .filter(Boolean);
+
+  // Update filter categories
+  const newFilterCategories: ({ _id: string; title: string } | any)[] = [
+    { _id: "all", title: "All" },
+    ...(searchValue ? filteredCategoriesInPosts : categoriesInPosts),
+  ];
+
+  return {
+    filteredBlogs,
+    filteredCategoriesInPosts,
+    filterCategories: newFilterCategories,
+  };
+}
+
+/**
+ * Get banner padding classes based on banner visibility
+ * @returns string - CSS classes for banner padding
+ */
+export function getBannerPadding(): string {
+  const hasBanner = !!config.noticeBannerText;
+  return hasBanner ? "pt-52" : "pt-36";
 }

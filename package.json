@@ -17,14 +17,24 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "sanity:dev": "sanity dev --studio studio",
+    "sanity:build": "sanity build --studio studio",
+    "sanity:deploy": "sanity deploy",
+    "sanity:undeploy": "sanity undeploy"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.4",
     "@hotjar/browser": "^1.0.9",
+    "@portabletext/react": "^3.2.1",
+    "@portabletext/types": "^2.0.13",
     "@privy-io/react-auth": "^2.14.1",
     "@privy-io/server-auth": "^1.27.0",
     "@react-pdf/renderer": "^4.3.0",
+    "@sanity/cli": "^3.99.0",
+    "@sanity/client": "^7.8.1",
+    "@sanity/image-url": "^1.1.0",
+    "@sanity/vision": "^4.2.0",
     "@supabase/supabase-js": "^2.50.0",
     "@tanstack/react-query": "^5.80.7",
     "@thirdweb-dev/auth": "^4.1.97",
@@ -43,6 +53,7 @@
     "lru-cache": "^11.1.0",
     "mixpanel-browser": "^2.65.0",
     "next": "^15.3.3",
+    "next-sanity": "^10.0.4",
     "next-themes": "^0.4.6",
     "permissionless": "^0.2.47",
     "rate-limiter-flexible": "^7.1.1",
@@ -51,7 +62,9 @@
     "react-hook-form": "^7.57.0",
     "react-icons": "^5.5.0",
     "react-qrcode-logo": "^3.0.0",
+    "sanity": "^4.3.0",
     "sonner": "^1.7.4",
+    "styled-components": "^6.1.19",
     "thirdweb": "^5.102.6",
     "viem": "^2.31.0"
   },
@@ -73,7 +86,7 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "packageManager": "pnpm@10.12.2",
+  "packageManager": "pnpm@10.14.0",
   "pnpm": {
     "overrides": {
       "@types/react": "19.0.8",

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PrivacyPolicy } from "../components/PrivacyPolicy";
 import { ArrowMoveUpLeftIcon } from "hugeicons-react";
 import { CookieConsent } from "../components";
+import { getBannerPadding } from "../utils";
 
 const Privacy = () => {
   const router = useRouter();
@@ -32,7 +33,7 @@ const Privacy = () => {
     <>
       <CookieConsent />
 
-      <div className="relative h-[80vh]">
+      <div className={`relative h-[80vh] ${getBannerPadding()}`}>
         <button
           type="button"
           onClick={() => router.back()}

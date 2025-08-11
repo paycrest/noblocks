@@ -28,7 +28,7 @@ const FeaturedBlog: React.FC<FeaturedBlogProps> = ({ post }) => {
         href={`/blog/${post.slug?.current || post._id}`}
         className="group flex cursor-pointer flex-col items-start gap-6 lg:flex-row lg:items-center lg:gap-20"
         prefetch={false}
-        onClick={handleFeaturedBlogClick}
+        onMouseDown={handleFeaturedBlogClick}
       >
         <div className="mb-4 h-72 w-full flex-shrink-0 overflow-hidden rounded-lg sm:h-80 lg:mb-0 lg:w-[607px]">
           <Image
@@ -36,6 +36,7 @@ const FeaturedBlog: React.FC<FeaturedBlogProps> = ({ post }) => {
             alt={post.title}
             width={607}
             height={318}
+            sizes="(min-width: 1024px) 607px, 100vw"
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             priority
           />

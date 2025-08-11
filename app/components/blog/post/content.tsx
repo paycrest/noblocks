@@ -88,14 +88,16 @@ const ptComponents: PortableTextComponents = {
 
       return (
         <div className="my-6">
-          <Image
-            alt={value.alt || "Blog post image"}
-            src={imageUrl}
-            width={800}
-            height={600}
-            className="h-auto w-full max-w-full rounded-2xl"
-            priority={false}
-          />
+          <div className="relative h-auto w-full">
+            <Image
+              alt={value.alt || "Blog post image"}
+              src={imageUrl}
+              fill
+              sizes="(min-width: 768px) 800px, 100vw"
+              className="h-auto w-full max-w-full rounded-2xl object-cover"
+              priority={false}
+            />
+          </div>
           {value.caption && (
             <p className="mt-2 text-center text-xs italic text-text-secondary dark:text-white/50">
               {value.caption}
@@ -106,16 +108,20 @@ const ptComponents: PortableTextComponents = {
     },
   },
   marks: {
-    link: ({ children, value }) => (
-      <a
-        href={value.href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-lavender-400 underline underline-offset-2 transition duration-300 hover:underline-offset-1"
-      >
-        {children}
-      </a>
-    ),
+    link: ({ children, value }) => {
+      const isExternal = /^https?:\/\//i.test(value.href || "");
+      return (
+        <a
+          href={value.href}
+          {...(isExternal
+            ? { target: "_blank", rel: "noopener noreferrer" }
+            : {})}
+          className="text-lavender-400 underline underline-offset-2 transition duration-300 hover:underline-offset-1"
+        >
+          {children}
+        </a>
+      );
+    },
   },
   block: {
     h1: ({ children }) => {

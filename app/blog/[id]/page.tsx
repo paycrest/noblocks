@@ -23,7 +23,7 @@ export async function generateMetadata({
       images: post.mainImage
         ? [
             {
-              url: typeof post.mainImage === "string" ? post.mainImage : "",
+              url: post.mainImage,
               width: 800,
               height: 400,
               alt: post.title,
@@ -36,9 +36,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title: post.title,
       description: post.excerpt || undefined,
-      images: post.mainImage
-        ? [typeof post.mainImage === "string" ? post.mainImage : ""]
-        : [],
+      images: post.mainImage ? [post.mainImage] : [],
     },
   };
 }
@@ -59,9 +57,4 @@ export default async function BlogPostDetailPage({
 // Implement static params for SSG
 import { client } from "@/app/lib/sanity-client";
 import { groq } from "next-sanity";
-export async function generateStaticParams() {
-  const slugs = await client!.fetch(
-    groq`*[_type == "post" && defined(slug.current)]{ "id": slug.current }`,
-  );
-  return slugs;
-}
+// Using dynamic rendering; SSG params removed to avoid conflicting strategies

@@ -168,6 +168,7 @@ export const Navbar = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
+                    role="menu"
                     className="absolute left-0 top-full mt-4 w-48 rounded-lg border border-border-light bg-white p-2 text-sm shadow-lg dark:border-white/5 dark:bg-surface-overlay"
                   >
                     {pathname !== "/" && (

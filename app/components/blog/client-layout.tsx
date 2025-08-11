@@ -21,7 +21,6 @@ export default function ClientLayout({
         variants={fadeBlur}
         initial="initial"
         animate="animate"
-        exit="exit"
         className="flex min-h-screen flex-col bg-white dark:bg-surface-canvas"
       >
         {children}

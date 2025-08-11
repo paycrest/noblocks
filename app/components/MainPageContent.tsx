@@ -31,7 +31,6 @@ import { useInjectedWallet } from "../context/InjectedWalletContext";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
-import { getBannerPadding } from "../utils";
 
 export function MainPageContent() {
   const searchParams = useSearchParams();
@@ -335,7 +334,9 @@ export function MainPageContent() {
               isRecipientFormOpen={isRecipientFormOpen}
             />
           ) : (
-            <div className={`px-5 py-28 ${getBannerPadding()}`}>{transactionFormComponent}</div>
+            <div className={`px-5 py-28 ${getBannerPadding()}`}>
+              {transactionFormComponent}
+            </div>
           )}
         </>
       )}

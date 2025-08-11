@@ -17,40 +17,31 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ sections }) => {
   const [activeSection, setActiveSection] = useState<string>("");
 
   useEffect(() => {
-    const handleScroll = () => {
-      const headings = sections
-        .map((section) => document.getElementById(section.id))
-        .filter(Boolean);
-
-      if (headings.length === 0) {
-        return;
-      }
-
-      // Match the scroll-mt-20 (80px) offset used in the headings
-      const scrollPosition = window.scrollY + 80;
-
-      // Find the current active section
-      let currentSection = "";
-      for (let i = headings.length - 1; i >= 0; i--) {
-        const heading = headings[i];
-        if (heading && heading.offsetTop <= scrollPosition) {
-          currentSection = heading.id;
-          break;
+    if (!sections.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible[0]) {
+          setActiveSection(visible[0].target.id);
         }
-      }
+      },
+      {
+        root: null,
+        rootMargin: "-80px 0px -60% 0px", // account for sticky header
+        threshold: [0.1, 0.25, 0.5, 0.75, 1],
+      },
+    );
 
-      setActiveSection(currentSection);
-    };
-
-    // Add scroll listener with a small delay to ensure DOM is ready
-    const timeoutId = setTimeout(() => {
-      window.addEventListener("scroll", handleScroll);
-      handleScroll(); // Initial check
-    }, 100);
+    const elements = sections
+      .map((s) => document.getElementById(s.id))
+      .filter(Boolean) as HTMLElement[];
+    elements.forEach((el) => observer.observe(el));
 
     return () => {
-      clearTimeout(timeoutId);
-      window.removeEventListener("scroll", handleScroll);
+      elements.forEach((el) => observer.unobserve(el));
+      observer.disconnect();
     };
   }, [sections]);
 

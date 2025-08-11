@@ -34,8 +34,10 @@ const BlogPostAuthor: React.FC<BlogPostAuthorProps> = ({ author }) => {
       />
       <div>
         <div className="text-lg font-semibold text-white">{author.name}</div>
-        {author.bio && (
-          <div className="mt-1 text-sm text-gray-400">{String(author.bio)}</div>
+        {author.bio?.length && (
+          <div className="mt-1 text-sm text-gray-400">
+            {/* TODO: render PortableText here */}
+          </div>
         )}
       </div>
     </motion.section>

@@ -1,7 +1,7 @@
 import { createClient } from "next-sanity";
 import imageUrlBuilder from "@sanity/image-url";
-import type { SanityImageSource } from "@sanity/image-url/lib/types/types";
 import { clientConfig } from "./config";
+import { SanityImageSource } from "@sanity/image-url/lib/types/types";
 
 // Only create client if environment variables are set
 export const client =

@@ -41,9 +41,7 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
-  alternates: {
-    canonical: "https://noblocks.xyz/blog",
-  },
+  // Note: Use per-post canonical in page files to avoid duplicate-content signals
   publisher: "Paycrest",
   authors: [{ name: "Paycrest", url: "https://paycrest.io" }],
   metadataBase: new URL("https://noblocks.xyz"),
@@ -54,7 +52,7 @@ export const metadata: Metadata = {
     siteName: "Noblocks Blog",
     images: [
       {
-        url: "/images/og-image.jpg",
+        url: "https://noblocks.xyz/images/og-image.jpg",
       },
     ],
     locale: "en_US",
@@ -65,7 +63,7 @@ export const metadata: Metadata = {
     title: "Noblocks Blog",
     description: "Noblocks Blog - Decentralized payments, news, and updates.",
     creator: "@noblocks_xyz",
-    images: ["/images/og-image.jpg"],
+    images: ["https://noblocks.xyz/images/og-image.jpg"],
   },
 };
 
@@ -95,7 +93,9 @@ export default function BlogLayout({
         id="noblocks-blog-ld-json"
         type="application/ld+json"
         strategy="afterInteractive"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(Object.freeze(jsonLd)),
+        }}
       />
       {children}
     </>

@@ -35,7 +35,7 @@ export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
 export const clientConfig = {
   projectId: process.env.NEXT_PUBLIC_SANITY_STUDIO_PROJECT_ID || "",
   dataset: process.env.NEXT_PUBLIC_SANITY_STUDIO_DATASET || "",
-  apiVersion: "2024-01-01", // Use current date
+  apiVersion: "2024-01-01", // Pin to a stable date
   useCdn: false, // Set to false for fresh data
 };
 
@@ -43,6 +43,6 @@ export const clientConfig = {
 export const serverConfig = {
   projectId: process.env.SANITY_STUDIO_PROJECT_ID || "",
   dataset: process.env.SANITY_STUDIO_DATASET || "",
-  apiVersion: "2024-01-01", // Use current date
+  apiVersion: "2024-01-01", // Pin to a stable date
   useCdn: false, // Set to false for fresh data
 };

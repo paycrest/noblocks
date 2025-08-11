@@ -14,10 +14,10 @@ const BlogPostAuthorSkeleton: React.FC = () => (
     aria-live="polite"
   >
     <span className="sr-only">Loading author information...</span>
-    <div className="h-14 w-14 rounded-full bg-gray-700" />
+    <div className="h-14 w-14 rounded-full bg-gray-700" aria-hidden="true" />
     <div>
-      <div className="mb-2 h-4 w-32 rounded bg-gray-700" />
-      <div className="h-3 w-24 rounded bg-gray-700" />
+      <div className="mb-2 h-4 w-32 rounded bg-gray-700" aria-hidden="true" />
+      <div className="h-3 w-24 rounded bg-gray-700" aria-hidden="true" />
     </div>
   </motion.section>
 );

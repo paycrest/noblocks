@@ -1,18 +1,18 @@
 import React from "react";
 
 interface BlogTagsProps {
-  tags: string[];
+  tags?: ReadonlyArray<string>;
 }
 
 const BlogTags: React.FC<BlogTagsProps> = ({ tags }) => {
-  if (!tags || tags.length === 0) return null;
+  if (!tags?.length) return null;
 
   return (
-    <div className="flex flex-wrap gap-2 mt-4">
-      {tags.map((tag) => (
+    <div className="mt-4 flex flex-wrap gap-2" aria-label="Tags">
+      {tags.map((tag, i) => (
         <span
-          key={tag}
-          className="px-3 py-1 rounded-full bg-white/10 text-xs text-white/80 font-medium"
+          key={`${tag}-${i}`}
+          className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/80"
         >
           {tag}
         </span>

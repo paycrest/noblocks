@@ -31,6 +31,8 @@ export const useBlogTracking = ({
         setHasStartedReading(true);
         startTimeRef.current = Date.now();
         trackBlogReadingStarted(postId, postTitle);
+        // Remove the initial scroll listener once reading has begun
+        window.removeEventListener("scroll", handleScroll);
       }
     };
 
@@ -83,6 +85,9 @@ export const useBlogTracking = ({
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
+    // If reading has started, remove the first listener to reduce duplicate work
+    // This ensures we don't keep both listeners alive unnecessarily
+    // The cleanup above already removes the initial listener when this effect runs
 
     return () => {
       window.removeEventListener("scroll", handleScroll);

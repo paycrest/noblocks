@@ -1,6 +1,5 @@
 import type { SanityCategory } from "@/app/blog/types";
 import React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 
 interface BlogFiltersProps {
   categories: SanityCategory[];
@@ -23,6 +22,7 @@ const BlogFilters: React.FC<BlogFiltersProps> = ({
             : "bg-[#23262F] text-gray-200 hover:bg-blue-700"
         }`}
         onClick={() => onSelectCategory(null)}
+        aria-pressed={selectedCategoryId === null}
       >
         All posts
       </button>
@@ -36,6 +36,7 @@ const BlogFilters: React.FC<BlogFiltersProps> = ({
               : "bg-[#23262F] text-gray-200 hover:bg-blue-700"
           }`}
           onClick={() => onSelectCategory(cat._id)}
+          aria-pressed={selectedCategoryId === cat._id}
         >
           {cat.title}
         </button>

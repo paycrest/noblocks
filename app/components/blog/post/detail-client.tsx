@@ -65,12 +65,26 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
   const sections = post.body ? extractSections(post.body) : [];
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    trackCopyLink(post._id, post.title);
-    setTimeout(() => {
-      setCopied(false);
-    }, 2000);
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(window.location.href);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = window.location.href;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      trackCopyLink(post._id, post.title);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // no-op
+    }
   };
 
   const handleGetStartedClick = () => {
@@ -82,9 +96,8 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
 
   const handleSocialShare = (platform: string) => {
     const url = encodeURIComponent(window.location.href);
-    const shareText = encodeURIComponent(
-      `Check out this new blog on Noblocks:\n\n${post.title}\n\n`,
-    );
+    const cleanText = `Check out this new blog on Noblocks: ${post.title}`;
+    const shareText = encodeURIComponent(cleanText);
 
     let shareUrl = "";
 

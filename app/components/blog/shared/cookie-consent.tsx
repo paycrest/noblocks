@@ -25,7 +25,7 @@ const Button = ({
   <button
     type="button"
     onClick={onClick}
-    className={`rounded-xl px-4 py-2.5 text-center cursor-pointer text-sm font-medium transition-all hover:scale-105 ${
+    className={`cursor-pointer rounded-xl px-4 py-2.5 text-center text-sm font-medium transition-all hover:scale-105 ${
       className || ""
     }`}
   >
@@ -142,18 +142,18 @@ const CookieConsent = () => {
               transition: { delay: 2, duration: 0.3 },
             }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed z-40 p-4 max-sm:bottom-0 max-sm:left-0 max-sm:right-0 sm:bottom-5 sm:right-5"
+            className="fixed z-50 p-4 max-sm:bottom-0 max-sm:left-0 max-sm:right-0 sm:bottom-5 sm:right-5"
           >
             <div className="w-full space-y-4 rounded-[30px] border border-border-light bg-background-neutral px-5 py-6 shadow-lg transition-colors dark:border-white/5 dark:bg-surface-overlay sm:max-w-[25.75rem] sm:rounded-3xl">
               <div className="space-y-3 text-lavender-500">
                 <h2 className="text-lg font-semibold">We use cookies</h2>
-                <p className="text-sm text-foreground">
+                <p className="text-foreground text-sm">
                   Our website utilizes cookies to enhance your experience.{" "}
                   <Link
                     href="/privacy-policy"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:underline text-lavender-500"
+                    className="text-lavender-500 hover:underline"
                   >
                     Learn more
                   </Link>
@@ -162,13 +162,13 @@ const CookieConsent = () => {
               <div className="flex gap-4 max-xsm:flex-col">
                 <Button
                   onClick={handleCustomize}
-                  className="text-lavender-500 bg-lavender-50 hover:bg-lavender-100 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                  className="bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
                 >
                   Customize
                 </Button>
                 <Button
                   onClick={handleRejectNonEssential}
-                  className="text-lavender-500 min-w-fit bg-lavender-50 hover:bg-lavender-100 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                  className="min-w-fit bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
                 >
                   Reject all
                 </Button>
@@ -204,13 +204,13 @@ const CookieConsent = () => {
                   <DialogTitle className="text-lg font-semibold">
                     We use cookies
                   </DialogTitle>
-                  <p className="text-sm text-foreground">
+                  <p className="text-foreground text-sm">
                     Our website utilizes cookies to enhance your experience.{" "}
                     <Link
                       href="/privacy-policy"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hover:underline text-lavender-500"
+                      className="text-lavender-500 hover:underline"
                     >
                       Learn more
                     </Link>
@@ -246,7 +246,7 @@ const CookieConsent = () => {
                 <div className="flex space-x-2 max-sm:pb-4">
                   <Button
                     onClick={handleRejectNonEssential}
-                    className="text-lavender-500 flex-1 bg-lavender-50 hover:bg-lavender-100 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+                    className="flex-1 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
                   >
                     Reject all
                   </Button>

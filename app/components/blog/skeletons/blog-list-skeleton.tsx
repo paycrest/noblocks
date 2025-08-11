@@ -7,15 +7,17 @@ import { fadeBlur } from "@/app/components/blog/shared/animations";
 
 const BlogListSkeleton: React.FC = () => (
   <motion.div
-    className="flex flex-col items-center w-full"
+    className="flex w-full flex-col items-center"
     variants={fadeBlur}
     initial="initial"
     animate="animate"
     exit="exit"
   >
-    {[...Array(6)].map((_, i) => (
-      <BlogCardSkeleton key={i} />
-    ))}
+    <div className="w-full space-y-4">
+      {[...Array(6)].map((_, i) => (
+        <BlogCardSkeleton key={i} />
+      ))}
+    </div>
   </motion.div>
 );
 

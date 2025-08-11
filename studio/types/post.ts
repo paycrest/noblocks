@@ -18,8 +18,12 @@ export default defineType({
       options: {
         source: "title",
         maxLength: 96,
+        slugify: (input: string) =>
+          input.toLowerCase().replace(/\s+/g, "-").slice(0, 96),
+        // Ensure slug uniqueness across all documents (use Sanity's default check)
+        isUnique: (value, context) => context.defaultIsUnique(value, context),
       },
-      validation: (Rule) => Rule.required(),
+      validation: (Rule) => Rule.required().error("Slug is required"),
     }),
     defineField({
       name: "author",

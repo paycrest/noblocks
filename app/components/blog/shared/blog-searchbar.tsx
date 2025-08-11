@@ -12,20 +12,23 @@ const BlogSearchBar: React.FC<BlogSearchBarProps> = ({
   placeholder,
 }) => {
   return (
-    <div className="relative w-full max-w-md mb-6">
+    <div className="relative mb-6 w-full max-w-md">
       <label htmlFor="blog-search" className="sr-only">
         Search blog posts
       </label>
       <input
         id="blog-search"
         type="text"
-        className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#23262F] text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600 transition"
+        className="w-full rounded-lg bg-[#23262F] py-2 pl-10 pr-4 text-gray-100 placeholder-gray-400 transition focus:outline-none focus:ring-2 focus:ring-blue-600"
         placeholder={placeholder || "Search"}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete="off"
       />
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+      <span
+        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+        aria-hidden="true"
+      >
         <svg
           width="18"
           height="18"

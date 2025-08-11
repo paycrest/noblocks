@@ -26,7 +26,10 @@ export const postsQuery = groq`
         description
       }
     ),
-    "excerpt": pt::text(body[0...200]) + "..."
+    "excerpt": select(
+      string::length(pt::text(body)) > 0 => pt::text(body[0...200]) + "...",
+      null
+    )
   }
 `;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { RefObject } from "react";
+import { RefObject, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search01Icon } from "hugeicons-react";
 import { fadeSlideUp } from "./animations";
@@ -37,6 +37,14 @@ export function SearchModal({
   handleSearchKeyDown,
   onSuggestionClick,
 }: SearchModalProps) {
+  const blurTimeoutRef = useRef<number | null>(null);
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+    };
+  }, []);
   const handleSuggestionClick = (suggestion: { id: string; title: string }) => {
     setSearch(suggestion.title);
     setShowSuggestions(false);
@@ -59,6 +67,12 @@ export function SearchModal({
           onClick={() => {
             onClose();
             setShowSuggestions(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              onClose();
+              setShowSuggestions(false);
+            }
           }}
         >
           <motion.div
@@ -83,7 +97,14 @@ export function SearchModal({
                 }}
                 onKeyDown={handleSearchKeyDown}
                 onFocus={() => setShowSuggestions(true)}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 100)}
+                onBlur={() => {
+                  if (blurTimeoutRef.current)
+                    clearTimeout(blurTimeoutRef.current);
+                  blurTimeoutRef.current = window.setTimeout(
+                    () => setShowSuggestions(false),
+                    100,
+                  );
+                }}
                 autoFocus={inputAutoFocus}
               />
             </div>

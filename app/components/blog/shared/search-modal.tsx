@@ -1,6 +1,6 @@
 "use client";
 
-import { RefObject, useEffect, useRef, useState } from "react";
+import { RefObject, useEffect, useId, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search01Icon } from "hugeicons-react";
 import { fadeSlideUp } from "./animations";
@@ -41,9 +41,7 @@ export function SearchModal({
   const [activeIndex, setActiveIndex] = useState<number>(-1);
 
   // Generate unique IDs for ARIA
-  const suggestionsId = useRef(
-    `search-suggestions-${Math.random().toString(36).substr(2, 9)}`,
-  ).current;
+  const suggestionsId = `search-suggestions-${useId()}`;
 
   useEffect(() => {
     return () => {

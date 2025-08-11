@@ -49,6 +49,7 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
       post_category: post.category?.title || "Uncategorized",
       post_author: post.author.name,
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post?._id, post?.title, post?.category?.title, post?.author?.name]);
 
   // Track blog reading progress

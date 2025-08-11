@@ -246,6 +246,7 @@ const CookieConsent = () => {
                     label="Essential Cookies"
                     description="To monitor and optimize site functionality (required)"
                     checked
+                    onChange={() => {}} // No-op since essential cookies are always required
                     disabled
                   />
                 </div>

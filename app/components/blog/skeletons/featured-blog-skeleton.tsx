@@ -10,6 +10,7 @@ const FeaturedBlogSkeleton: React.FC = () => (
     initial="initial"
     animate="animate"
     role="status"
+    aria-live="polite"
   >
     <span className="sr-only">Loading featured blog post...</span>
     <div className="mb-8 flex w-full animate-pulse flex-col overflow-hidden rounded-xl bg-[#181A20] shadow-lg md:flex-row">

@@ -928,7 +928,7 @@ export function filterBlogsAndCategories({
   filterCategories: SanityCategory[];
 } {
   // Filter blogs by category and search
-  const filteredBlogs = blogs.filter((blog) => {
+  const filteredBlogs = blogs.filter((blog: SanityPost) => {
     const matchesCategory =
       selectedCategory === "all" || blog.category?._id === selectedCategory;
     const matchesSearch =

@@ -83,7 +83,7 @@ export const trackEvent = (
     console.warn("Mixpanel not initialized");
     return;
   }
-  mixpanel.track(eventName, { app: "Noblocks", ...properties });
+  mixpanel.track(eventName, { ...properties, app: "Noblocks" });
 };
 
 // Blog-specific tracking functions

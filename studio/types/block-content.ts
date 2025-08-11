@@ -49,15 +49,19 @@ export default defineType({
                 title: "URL",
                 name: "href",
                 type: "url",
+                description:
+                  "Enter a valid URL. Only http, https, mailto, and ftp schemes are allowed for security.",
                 validation: (Rule) =>
                   Rule.uri({
                     scheme: ["http", "https", "mailto", "ftp"],
-                  }),
+                  }).required(),
               },
               {
                 title: "Open in new tab",
                 name: "openInNewTab",
                 type: "boolean",
+                description:
+                  "When enabled, the link will open in a new browser tab or window.",
                 initialValue: false,
               },
             ],
@@ -76,8 +80,9 @@ export default defineType({
           name: "alt",
           title: "Alt Text",
           type: "string",
-          description: "Alternative text for accessibility",
-          validation: (Rule) => Rule.required(),
+          description:
+            "Alternative text for accessibility. Describe what the image shows for screen readers and SEO. Required for accessibility compliance.",
+          validation: (Rule) => Rule.required().min(1).max(500),
         },
       ],
     }),

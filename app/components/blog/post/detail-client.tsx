@@ -41,13 +41,15 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
 
   // Track page view on mount
   useEffect(() => {
+    if (!post) return;
+
     trackPageView("Blog Post", {
       post_id: post._id,
       post_title: post.title,
       post_category: post.category?.title || "Uncategorized",
       post_author: post.author.name,
     });
-  }, [post._id, post.title, post.category?.title, post.author.name]);
+  }, [post?._id, post?.title, post?.category?.title, post?.author?.name]);
 
   // Track blog reading progress
   useBlogTracking({

@@ -58,9 +58,30 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'flagcdn.com',
+        protocol: "https",
+        hostname: "flagcdn.com",
+        pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "cdn.sanity.io",
+        // Sanity image assets are served under /images/...
+        pathname: "/images/**",
+      },
+      {
+        protocol: "https",
+        hostname: "placehold.co",
+        pathname: "/**",
+      },
+      ...(process.env.NODE_ENV !== "production"
+        ? [
+            {
+              protocol: "https",
+              hostname: "picsum.photos",
+              pathname: "/**",
+            },
+          ]
+        : []),
     ],
   },
 };

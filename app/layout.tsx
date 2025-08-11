@@ -16,6 +16,7 @@ import {
 } from "./components";
 import { MiniKitContextProvider } from "@/providers/MiniKitProvider ";
 import { EarlyReady } from "./early-ready";
+import WalletGate from "./components/WalletGate";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -224,28 +225,30 @@ export default function RootLayout({
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <MiniKitContextProvider>
-          <Providers>
-            <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-              <div className="relative">
-                <Navbar />
-                {config.noticeBannerText && (
-                  <NoticeBanner
-                    textLines={config.noticeBannerText.split("|")}
-                  />
-                )}
-              </div>
-              <LayoutWrapper footer={<Footer />}>
-                <MainContent>
-                  <EarlyReady />
-                  {children}
-                </MainContent>
-              </LayoutWrapper>
+        <WalletGate>
+          <MiniKitContextProvider>
+            <Providers>
+              <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
+                <div className="relative">
+                  <Navbar />
+                  {config.noticeBannerText && (
+                    <NoticeBanner
+                      textLines={config.noticeBannerText.split("|")}
+                    />
+                  )}
+                </div>
+                <LayoutWrapper footer={<Footer />}>
+                  <MainContent>
+                    <EarlyReady />
+                    {children}
+                  </MainContent>
+                </LayoutWrapper>
 
-              <PWAInstall />
-            </div>
-          </Providers>
-        </MiniKitContextProvider>
+                <PWAInstall />
+              </div>
+            </Providers>
+          </MiniKitContextProvider>
+        </WalletGate>
       </body>
     </html>
   );

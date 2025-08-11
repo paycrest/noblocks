@@ -5,7 +5,13 @@ import { motion } from "framer-motion";
 import { fadeBlur } from "@/app/components/blog/shared/animations";
 
 const FeaturedBlogSkeleton: React.FC = () => (
-  <motion.div variants={fadeBlur} initial="initial" animate="animate">
+  <motion.div
+    variants={fadeBlur}
+    initial="initial"
+    animate="animate"
+    role="status"
+  >
+    <span className="sr-only">Loading featured blog post...</span>
     <div className="mb-8 flex w-full animate-pulse flex-col overflow-hidden rounded-xl bg-[#181A20] shadow-lg md:flex-row">
       <div className="h-64 w-full bg-gray-700 md:h-auto md:w-2/5" />
       <div className="flex flex-1 flex-col justify-between p-6">

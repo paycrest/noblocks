@@ -15,8 +15,8 @@ const BlogPostAuthor: React.FC<BlogPostAuthorProps> = ({ author }) => {
   const imageUrl = author.image
     ? typeof author.image === "string"
       ? author.image
-      : urlForImage(author.image) || "https://unsplash.it/56/56?image=1008"
-    : "https://unsplash.it/56/56?image=1008";
+      : urlForImage(author.image) || "https://picsum.photos/56/56?image=1008"
+    : "https://picsum.photos/56/56?image=1008";
   return (
     <motion.section
       className="mx-auto mb-8 mt-8 flex w-full max-w-2xl items-center gap-4 rounded-xl bg-[#181A20] p-4 shadow"

@@ -6,6 +6,7 @@ import type {
   Currency,
   APIToken,
 } from "./types";
+import type { SanityPost, SanityCategory } from "./blog/types";
 import { erc20Abi } from "viem";
 import { colors } from "./mocks";
 import { fetchRate, fetchTokens } from "./api/aggregator";
@@ -916,17 +917,15 @@ export function filterBlogsAndCategories({
   selectedCategory,
   searchValue,
   categoriesInPosts,
-  filterCategories,
 }: {
-  blogs: any[];
+  blogs: SanityPost[];
   selectedCategory: string;
   searchValue: string;
-  categoriesInPosts: any[];
-  filterCategories: ({ _id: string; title: string } | any)[];
+  categoriesInPosts: SanityCategory[];
 }): {
-  filteredBlogs: any[];
-  filteredCategoriesInPosts: any[];
-  filterCategories: ({ _id: string; title: string } | any)[];
+  filteredBlogs: SanityPost[];
+  filteredCategoriesInPosts: SanityCategory[];
+  filterCategories: SanityCategory[];
 } {
   // Filter blogs by category and search
   const filteredBlogs = blogs.filter((blog) => {
@@ -940,11 +939,11 @@ export function filterBlogsAndCategories({
   });
 
   // Update categories based on filtered blogs
-  const filteredCategoriesInPosts: any[] = Array.from(
+  const filteredCategoriesInPosts: SanityCategory[] = Array.from(
     new Set(
       filteredBlogs
         .filter(
-          (post): post is any & { category: any } =>
+          (post): post is SanityPost & { category: SanityCategory } =>
             post.category !== undefined && post.category !== null,
         )
         .map((post) => post.category._id),
@@ -953,10 +952,10 @@ export function filterBlogsAndCategories({
     .map(
       (id) => filteredBlogs.find((post) => post.category?._id === id)?.category,
     )
-    .filter(Boolean);
+    .filter((category): category is SanityCategory => category !== undefined);
 
   // Update filter categories
-  const newFilterCategories: ({ _id: string; title: string } | any)[] = [
+  const newFilterCategories: SanityCategory[] = [
     { _id: "all", title: "All" },
     ...(searchValue ? filteredCategoriesInPosts : categoriesInPosts),
   ];

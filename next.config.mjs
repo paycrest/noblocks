@@ -73,11 +73,15 @@ const nextConfig = {
         hostname: "placehold.co",
         pathname: "/**",
       },
-      {
-        protocol: "https",
-        hostname: "unsplash.it",
-        pathname: "/**",
-      },
+      ...(process.env.NODE_ENV !== "production"
+        ? [
+            {
+              protocol: "https",
+              hostname: "picsum.photos",
+              pathname: "/**",
+            },
+          ]
+        : []),
     ],
   },
 };

@@ -51,39 +51,20 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ sections }) => {
   ) => {
     e.preventDefault();
 
-    // Try to find the element, with a small retry mechanism
-    const findElement = () => {
-      const element = document.getElementById(sectionId);
-      if (element) {
-        // Account for the navbar height (64px) plus some padding
-        const navbarHeight = 64;
-        const offset = navbarHeight + 16; // 16px additional padding
+    // Find the element immediately
+    const element = document.getElementById(sectionId);
+    if (element) {
+      // Account for the navbar height (64px) plus some padding
+      const navbarHeight = 64;
+      const offset = navbarHeight + 16; // 16px additional padding
 
-        const elementPosition = element.offsetTop - offset;
+      const elementPosition = element.offsetTop - offset;
 
-        window.scrollTo({
-          top: elementPosition,
-          behavior: "smooth",
-        });
-      } else {
-        // Retry once after a short delay in case DOM is still loading
-        setTimeout(() => {
-          const retryElement = document.getElementById(sectionId);
-          if (retryElement) {
-            const navbarHeight = 64;
-            const offset = navbarHeight + 16;
-            const elementPosition = retryElement.offsetTop - offset;
-
-            window.scrollTo({
-              top: elementPosition,
-              behavior: "smooth",
-            });
-          }
-        }, 100);
-      }
-    };
-
-    findElement();
+      window.scrollTo({
+        top: elementPosition,
+        behavior: "smooth",
+      });
+    }
   };
 
   if (!sections.length) return null;

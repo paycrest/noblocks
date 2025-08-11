@@ -9,12 +9,30 @@ import { PortableText, PortableTextComponents } from "@portabletext/react";
 import { urlForImage } from "@/app/lib/sanity-client";
 import Image from "next/image";
 
-// Helper function to generate slug from text
+// Map to track generated slugs and their counts
+const slugMap = new Map<string, number>();
+
+// Helper function to reset slug map (call before rendering new content)
+const resetSlugMap = (): void => {
+  slugMap.clear();
+};
+
+// Helper function to generate unique slug from text
 const generateSlug = (text: string): string => {
-  return text
+  const baseSlug = text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
+
+  // Check if this slug already exists
+  if (slugMap.has(baseSlug)) {
+    const count = slugMap.get(baseSlug)! + 1;
+    slugMap.set(baseSlug, count);
+    return `${baseSlug}-${count}`;
+  } else {
+    slugMap.set(baseSlug, 0);
+    return baseSlug;
+  }
 };
 
 // Helper function to extract text from PortableText children
@@ -41,6 +59,9 @@ const extractTextFromChildren = (children: React.ReactNode): string => {
 export const extractSections = (
   body: PortableTextBlock[],
 ): Array<{ id: string; title: string }> => {
+  // Reset slug map before processing new content
+  resetSlugMap();
+
   const sections: Array<{ id: string; title: string }> = [];
 
   const traverseBlocks = (blocks: PortableTextBlock[]) => {
@@ -218,6 +239,11 @@ interface BlogPostContentProps {
 }
 
 const BlogPostContent: React.FC<BlogPostContentProps> = ({ post }) => {
+  // Reset slug map before rendering new content
+  React.useEffect(() => {
+    resetSlugMap();
+  }, [post._id]);
+
   return (
     <motion.section {...fadeBlur} className="w-full" suppressHydrationWarning>
       {post.body ? (

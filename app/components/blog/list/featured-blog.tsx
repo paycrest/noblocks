@@ -32,7 +32,7 @@ const FeaturedBlog: React.FC<FeaturedBlogProps> = ({ post }) => {
       >
         <div className="mb-4 h-72 w-full flex-shrink-0 overflow-hidden rounded-lg sm:h-80 lg:mb-0 lg:w-[607px]">
           <Image
-            src={post.mainImage || "https://unsplash.it/607/318?image=1001"}
+            src={post.mainImage || "https://picsum.photos/607/318?image=1001"}
             alt={post.title}
             width={607}
             height={318}
@@ -42,7 +42,7 @@ const FeaturedBlog: React.FC<FeaturedBlogProps> = ({ post }) => {
           />
         </div>
 
-        <div className="lg:w-md flex w-full flex-col gap-3">
+        <div className="flex w-full flex-1 flex-col gap-3">
           <h2 className="text-2xl font-semibold leading-9 text-text-body transition group-hover:text-lavender-500 dark:text-white sm:text-3xl sm:leading-10">
             {post.title}
           </h2>

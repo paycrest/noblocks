@@ -1,11 +1,22 @@
 import React from "react";
 
-export const InstagramIcon = ({ className = "", ...props }) => (
+interface IconProps extends React.SVGProps<SVGSVGElement> {
+  className?: string;
+  "aria-label"?: string;
+}
+
+export const InstagramIcon = ({
+  className = "",
+  "aria-label": ariaLabel,
+  ...props
+}: IconProps) => (
   <svg
     viewBox="0 0 14 14"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
     className={className}
+    aria-hidden={!ariaLabel}
+    aria-label={ariaLabel}
     {...props}
   >
     <path
@@ -23,12 +34,18 @@ export const InstagramIcon = ({ className = "", ...props }) => (
   </svg>
 );
 
-export const FarcasterIcon = ({ className = "", ...props }) => (
+export const FarcasterIcon = ({
+  className = "",
+  "aria-label": ariaLabel,
+  ...props
+}: IconProps) => (
   <svg
     viewBox="0 0 14 14"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
     className={className}
+    aria-hidden={!ariaLabel}
+    aria-label={ariaLabel}
     {...props}
   >
     <path
@@ -46,12 +63,18 @@ export const FarcasterIcon = ({ className = "", ...props }) => (
   </svg>
 );
 
-export const LinkedInIcon = ({ className = "", ...props }) => (
+export const LinkedInIcon = ({
+  className = "",
+  "aria-label": ariaLabel,
+  ...props
+}: IconProps) => (
   <svg
     viewBox="0 0 12 12"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
     className={className}
+    aria-hidden={!ariaLabel}
+    aria-label={ariaLabel}
     {...props}
   >
     <path
@@ -61,12 +84,18 @@ export const LinkedInIcon = ({ className = "", ...props }) => (
   </svg>
 );
 
-export const XIcon = ({ className = "", ...props }) => (
+export const XIcon = ({
+  className = "",
+  "aria-label": ariaLabel,
+  ...props
+}: IconProps) => (
   <svg
     viewBox="0 0 14 13"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
     className={className}
+    aria-hidden={!ariaLabel}
+    aria-label={ariaLabel}
     {...props}
   >
     <path

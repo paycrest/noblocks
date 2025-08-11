@@ -21,6 +21,7 @@ import {
 import { useBlogTracking } from "@/app/hooks/analytics/use-blog-tracking";
 import { Crimson_Pro } from "next/font/google";
 import { getBannerPadding } from "@/app/utils";
+import { urlForImage } from "@/app/lib/sanity-client";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -163,7 +164,10 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
             <div className="flex flex-wrap items-center gap-2 text-xs text-text-secondary dark:text-white/50">
               <Image
                 src={
-                  post.author.image || `https://unsplash.it/32/32?image=1005`
+                  typeof post.author.image === "string"
+                    ? post.author.image
+                    : urlForImage(post.author.image) ||
+                      `https://picsum.photos/32/32?image=1005`
                 }
                 alt={post.author.name}
                 width={24}

@@ -29,7 +29,7 @@ export default defineType({
       name: "author",
       title: "Author",
       type: "reference",
-      to: { type: "author" },
+      to: [{ type: "author" }],
       validation: (Rule) => Rule.required(),
     }),
     defineField({
@@ -45,7 +45,7 @@ export default defineType({
       name: "category",
       title: "Category",
       type: "reference",
-      to: { type: "category" },
+      to: [{ type: "category" }],
       validation: (Rule) => Rule.required(),
     }),
     defineField({

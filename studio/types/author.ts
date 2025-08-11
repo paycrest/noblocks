@@ -1,4 +1,5 @@
 import { defineField, defineType } from "sanity";
+import blockContent from "./block-content";
 
 export default defineType({
   name: "author",
@@ -28,20 +29,21 @@ export default defineType({
       options: {
         hotspot: true,
       },
+      fields: [
+        {
+          name: "alt",
+          title: "Alt Text",
+          type: "string",
+          description: "Alternative text for accessibility",
+          validation: (Rule) => Rule.required(),
+        },
+      ],
       validation: (Rule) => Rule.required(),
     }),
     defineField({
       name: "bio",
       title: "Bio",
-      type: "array",
-      of: [
-        {
-          title: "Block",
-          type: "block",
-          styles: [{ title: "Normal", value: "normal" }],
-          lists: [],
-        },
-      ],
+      type: blockContent,
       validation: (Rule) => Rule.required(),
     }),
   ],

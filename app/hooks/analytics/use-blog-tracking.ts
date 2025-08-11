@@ -55,6 +55,8 @@ export const useBlogTracking = ({
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("click", handleInteraction);
+      window.removeEventListener("keydown", handleInteraction);
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
       }

@@ -73,22 +73,6 @@ const nextConfig = {
         hostname: "placehold.co",
         pathname: "/**",
       },
-      {
-        protocol: "https",
-        hostname: "unsplash.it",
-        pathname: "/**",
-      },
-      {
-        protocol: "https",
-        hostname: "cdn.sanity.io",
-        // Sanity image assets are served under /images/...
-        pathname: "/images/**",
-      },
-      {
-        protocol: "https",
-        hostname: "placehold.co",
-        pathname: "/**",
-      },
       ...(process.env.NODE_ENV !== "production"
         ? [
             {

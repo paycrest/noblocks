@@ -12,7 +12,10 @@ const BlogListSkeleton: React.FC = () => (
     initial="initial"
     animate="animate"
     exit="exit"
+    aria-busy="true"
+    aria-live="polite"
   >
+    <span className="sr-only">Loading blog posts...</span>
     <div className="w-full space-y-4">
       {[...Array(6)].map((_, i) => (
         <BlogCardSkeleton key={i} />

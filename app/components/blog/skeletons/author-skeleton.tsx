@@ -10,7 +10,10 @@ const BlogPostAuthorSkeleton: React.FC = () => (
     variants={fadeBlur}
     initial="initial"
     animate="animate"
+    role="status"
+    aria-live="polite"
   >
+    <span className="sr-only">Loading author information...</span>
     <div className="h-14 w-14 rounded-full bg-gray-700" />
     <div>
       <div className="mb-2 h-4 w-32 rounded bg-gray-700" />

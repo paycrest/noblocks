@@ -1,10 +1,12 @@
 import type { PortableTextBlock } from "@portabletext/types";
+import type { SanityImageSource } from "@sanity/image-url/lib/types/types";
+
 // Sanity-based types
 export type SanityAuthor = {
   _id: string;
   name: string;
   slug: { current: string };
-  image: string;
+  image: string | SanityImageSource;
   bio: unknown[];
 };
 

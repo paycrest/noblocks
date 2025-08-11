@@ -95,21 +95,28 @@ const CookieConsent = () => {
     description,
     checked,
     onChange,
+    disabled = false,
   }: {
     label: string;
     description: string;
     checked: boolean;
     onChange: (checked: boolean) => void;
+    disabled?: boolean;
   }) => (
     <Field className="mt-2 flex">
-      <Label className="max-w-64 cursor-pointer">
+      <Label
+        className={`max-w-64 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+      >
         {label}
         <span className="text-text-secondary">: {description}</span>
       </Label>
       <Checkbox
         checked={checked}
         onChange={onChange}
-        className="group ml-auto mt-1 block size-5 flex-shrink-0 cursor-pointer rounded border-2 border-border-light bg-lavender-50 data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:bg-transparent dark:data-[checked]:border-lavender-500 dark:data-[checked]:bg-lavender-500"
+        disabled={disabled}
+        className={`group ml-auto mt-1 block size-5 flex-shrink-0 rounded border-2 border-border-light bg-lavender-50 data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:bg-transparent dark:data-[checked]:border-lavender-500 dark:data-[checked]:bg-lavender-500 ${
+          disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+        }`}
       >
         <svg
           className="stroke-white opacity-0 group-data-[checked]:opacity-100"
@@ -237,9 +244,9 @@ const CookieConsent = () => {
                   />
                   <CheckboxField
                     label="Essential Cookies"
-                    description="To monitor and optimize site functionality"
-                    checked={consent.essential}
-                    onChange={() => {}}
+                    description="To monitor and optimize site functionality (required)"
+                    checked
+                    disabled
                   />
                 </div>
 

@@ -35,7 +35,7 @@ export const postsQuery = groq`
 
 // Query for a single post with full content
 export const postQuery = groq`
-  *[_type == "post" && slug.current == $slug][0] {
+  *[_type == "post" && slug.current == $slug && publishedAt <= now()][0] {
     _id,
     title,
     slug,

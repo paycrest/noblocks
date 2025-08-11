@@ -3,6 +3,9 @@ import Hotjar from "@hotjar/browser";
 import Cookies from "js-cookie";
 import config from "@/app/lib/config";
 
+// Module-scoped variable to track Hotjar initialization
+let hotjarInitialized = false;
+
 export const useHotjar = () => {
   const { hotjarSiteId } = config;
   const hotjarVersion = 6;
@@ -12,9 +15,10 @@ export const useHotjar = () => {
       const consent = Cookies.get("cookieConsent");
 
       if (consent && JSON.parse(consent).analytics) {
-        if (hotjarSiteId) {
+        if (hotjarSiteId && !hotjarInitialized) {
           Hotjar.init(hotjarSiteId, hotjarVersion);
-        } else {
+          hotjarInitialized = true;
+        } else if (!hotjarSiteId) {
           console.warn("Hotjar ID is not defined");
         }
       } else {

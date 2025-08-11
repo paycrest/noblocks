@@ -71,6 +71,7 @@ export function TokensProvider({ children }: { children: ReactNode }) {
     return () => {
       setIsMounted(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

@@ -5,7 +5,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
-import { classNames } from "../utils";
+import { classNames, formatDecimalPrecision } from "../utils";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
@@ -24,12 +24,12 @@ export const TransferForm: React.FC<{
   onClose: () => void;
   onSuccess?: () => void;
   showBackButton?: boolean;
-  setCurrentView?: (v: any) => void;
+  setCurrentView?: (v: string) => void;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
   const { selectedNetwork } = useNetwork();
   const { client } = useSmartWallets();
   const { user, getAccessToken } = usePrivy();
-  const { smartWalletBalance, refreshBalance } = useBalance();
+  const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
   const { allTokens } = useTokens();
 
   const formMethods = useForm<{
@@ -90,7 +90,8 @@ export const TransferForm: React.FC<{
   }, [isTransferSuccess, onSuccess]);
 
   const handleBalanceMaxClick = () => {
-    setValue("amount", tokenBalance, {
+    const formattedBalance = formatDecimalPrecision(tokenBalance, 4);
+    setValue("amount", formattedBalance, {
       shouldValidate: true,
       shouldDirty: true,
     });
@@ -143,7 +144,7 @@ export const TransferForm: React.FC<{
     <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">
       <p className="text-text-secondary dark:text-white/50">Balance</p>
       <div className="flex items-center gap-3">
-        {smartWalletBalance === null ? (
+        {isLoading || smartWalletBalance === null ? (
           <BalanceSkeleton className="w-24" />
         ) : Number(amount) >= tokenBalance ? (
           <p className="dark:text-white/50">Maxed out</p>
@@ -158,7 +159,7 @@ export const TransferForm: React.FC<{
         )}
         <p className="text-[10px] text-gray-300 dark:text-white/10">|</p>
         <p className="font-medium text-neutral-900 dark:text-white/80">
-          {smartWalletBalance === null ? (
+          {isLoading || smartWalletBalance === null ? (
             <BalanceSkeleton className="w-12" />
           ) : (
             `${tokenBalance} ${token}`

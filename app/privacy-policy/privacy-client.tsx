@@ -1,33 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PrivacyPolicy } from "../components/PrivacyPolicy";
 import { ArrowMoveUpLeftIcon } from "hugeicons-react";
 import { CookieConsent } from "../components";
 import { getBannerPadding } from "../utils";
+import { useScrollFade } from "../hooks/useScrollFade";
 
 const PrivacyClient = () => {
   const router = useRouter();
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [showFade, setShowFade] = useState<boolean>(true);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleScroll = (): void => {
-      const isScrolledToBottom: boolean =
-        container.scrollHeight - container.scrollTop <=
-        container.clientHeight + 1;
-      setShowFade(!isScrolledToBottom);
-    };
-
-    container.addEventListener("scroll", handleScroll);
-    handleScroll();
-
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
+  const { containerRef, showFade } = useScrollFade();
 
   return (
     <>

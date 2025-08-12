@@ -164,7 +164,6 @@ const createPtComponents = (
       // Properly extract text from PortableText children
       const text = extractTextFromChildren(children);
       const id = generateSlug(text);
-      console.log("Rendering h1 with ID:", id, "Text:", text);
       return (
         <h1
           id={id}

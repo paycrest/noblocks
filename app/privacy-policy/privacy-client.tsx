@@ -60,6 +60,4 @@ const PrivacyClient = () => {
   );
 };
 
-PrivacyClient.isWiderPage = true;
-
 export default PrivacyClient;

@@ -248,8 +248,15 @@ export const WalletDetails = () => {
                         </div>
                         <button
                           type="button"
-                          onClick={refreshBalance}
+                          onClick={async () => {
+                            try {
+                              await refreshBalance();
+                            } catch (error) {
+                              console.error("Error refreshing balance:", error);
+                            }
+                          }}
                           title="Refresh balance"
+                          aria-label="Refresh balance"
                           disabled={isLoading}
                           className="rounded-lg p-2 transition-colors hover:bg-accent-gray disabled:opacity-50 dark:hover:bg-white/10"
                         >

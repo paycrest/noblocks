@@ -182,7 +182,7 @@ export const Navbar = () => {
                     {!pathname.startsWith("/blog") && (
                       <Link
                         href="/blog"
-                        className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5"
+                        className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5 sm:hidden"
                         onClick={() => setIsDropdownOpen(false)}
                       >
                         Blog

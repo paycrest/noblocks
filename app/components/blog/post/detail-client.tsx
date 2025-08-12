@@ -4,7 +4,7 @@ import type { SanityPost } from "@/app/blog/types";
 import Image from "next/image";
 import Link from "next/link";
 import { BlogCard } from "../list";
-import BlogPostContent, { extractSections } from "./content";
+import BlogPostContent, { extractSections, resetSlugMap } from "./content";
 import { BlogPostTableOfContents } from "./index";
 import { FarcasterIcon } from "@/app/components/blog/icons/social-icons";
 import { RiTwitterXFill } from "react-icons/ri";
@@ -22,6 +22,7 @@ import { useBlogTracking } from "@/app/hooks/analytics/use-blog-tracking";
 import { Crimson_Pro } from "next/font/google";
 import { getBannerPadding } from "@/app/utils";
 import { urlForImage } from "@/app/lib/sanity-client";
+import config from "@/app/lib/config";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -66,7 +67,13 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
   }
 
   // Extract sections from post content
-  const sections = post.body ? extractSections(post.body) : [];
+  // Extract sections with slug map reset
+  const sections = React.useMemo(() => {
+    if (post.body) {
+      return extractSections(post.body, true);
+    }
+    return [];
+  }, [post._id, post.body]);
 
   const handleCopyLink = () => {
     try {
@@ -206,12 +213,12 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
                 />
               </div>
             )}
-            <BlogPostContent post={post} />
+            <BlogPostContent post={post} sections={sections} />
             {/* Start Swapping Promo */}
             <div className="relative flex flex-col items-center justify-center gap-6 overflow-hidden rounded-3xl bg-lavender-600 px-8 pb-20 pt-14 text-white">
               {/* Background illustration */}
               <Image
-                src="/illustrations/advert-bg.svg"
+                src="/images/advert-bg.svg"
                 alt="Promo background"
                 fill
                 style={{ objectFit: "cover", objectPosition: "bottom" }}
@@ -245,7 +252,9 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
             animate="animate"
             exit="exit"
           >
-            <div className="sticky top-24 space-y-12">
+            <div
+              className={`sticky space-y-12 ${config.noticeBannerText ? "top-40" : "top-24"}`}
+            >
               {/* Table of Contents */}
               <BlogPostTableOfContents sections={sections} />
               {/* Share Section */}

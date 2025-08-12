@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { fadeBlur } from "@/app/components/blog/shared/animations";
+import config from "@/app/lib/config";
 
 interface Section {
   id: string;
@@ -15,35 +16,58 @@ interface TableOfContentsProps {
 
 const TableOfContents: React.FC<TableOfContentsProps> = ({ sections }) => {
   const [activeSection, setActiveSection] = useState<string>("");
+  const [isScrolling, setIsScrolling] = useState(false);
+
+  // Ensure sections have valid structure
+  const validSections = sections.filter(
+    (section) => section && section.id && section.title,
+  );
 
   useEffect(() => {
-    if (!sections.length) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-        if (visible[0]) {
-          setActiveSection(visible[0].target.id);
-        }
-      },
-      {
-        root: null,
-        rootMargin: "-80px 0px -60% 0px", // account for sticky header
-        threshold: [0.1, 0.25, 0.5, 0.75, 1],
-      },
-    );
+    const handleScroll = () => {
+      // Don't update active section if we're in the middle of a programmatic scroll
+      if (isScrolling) {
+        return;
+      }
 
-    const elements = sections
-      .map((s) => document.getElementById(s.id))
-      .filter(Boolean) as HTMLElement[];
-    elements.forEach((el) => observer.observe(el));
+      const headings = validSections
+        .map((section) => document.getElementById(section.id))
+        .filter(Boolean);
+
+      if (headings.length === 0) {
+        return;
+      }
+
+      // Match the scroll-mt-32 (128px) offset when banner is present, otherwise scroll-mt-20 (80px)
+      const scrollOffset = config.noticeBannerText ? 128 : 80;
+      const scrollPosition = window.scrollY + scrollOffset;
+
+      // Find the current active section
+      let currentSection = "";
+      for (let i = headings.length - 1; i >= 0; i--) {
+        const heading = headings[i];
+        if (heading && heading.offsetTop <= scrollPosition) {
+          currentSection = heading.id;
+          break;
+        }
+      }
+
+      if (currentSection !== activeSection) {
+        setActiveSection(currentSection);
+      }
+    };
+
+    // Add scroll listener with a small delay to ensure DOM is ready
+    const timeoutId = setTimeout(() => {
+      window.addEventListener("scroll", handleScroll);
+      handleScroll(); // Initial check
+    }, 500); // Increased delay to ensure DOM is fully ready
 
     return () => {
-      elements.forEach((el) => observer.unobserve(el));
-      observer.disconnect();
+      clearTimeout(timeoutId);
+      window.removeEventListener("scroll", handleScroll);
     };
-  }, [sections]);
+  }, [validSections]);
 
   const handleClick = (
     e: React.MouseEvent<HTMLAnchorElement>,
@@ -51,23 +75,109 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ sections }) => {
   ) => {
     e.preventDefault();
 
-    // Find the element immediately
-    const element = document.getElementById(sectionId);
-    if (element) {
-      // Account for the navbar height (64px) plus some padding
-      const navbarHeight = 64;
-      const offset = navbarHeight + 16; // 16px additional padding
+    // Try to find the element, with a small retry mechanism
+    const findElement = () => {
+      const element = document.getElementById(sectionId);
+      if (element) {
+        // Account for the navbar height (64px) plus banner height (56px) plus some padding
+        const navbarHeight = 64;
+        const bannerHeight = 56; // min-h-14 = 56px
+        const hasBanner = !!config.noticeBannerText;
+        const totalOffset = navbarHeight + (hasBanner ? bannerHeight : 0) + 16; // 16px additional padding
 
-      const elementPosition = element.offsetTop - offset;
+        const elementPosition = element.offsetTop - totalOffset;
 
-      window.scrollTo({
-        top: elementPosition,
-        behavior: "smooth",
-      });
-    }
+        // Set scrolling state to prevent scroll handler interference
+        setIsScrolling(true);
+
+        // Use scrollTo with smooth behavior
+        window.scrollTo({
+          top: elementPosition,
+          behavior: "smooth",
+        });
+
+        // Reset scrolling state and update active section after animation completes
+        setTimeout(() => {
+          setIsScrolling(false);
+
+          // Manually trigger scroll handler to update active section
+          const headings = validSections
+            .map((section) => document.getElementById(section.id))
+            .filter(Boolean);
+
+          if (headings.length > 0) {
+            const scrollOffset = config.noticeBannerText ? 128 : 80;
+            const scrollPosition = window.scrollY + scrollOffset;
+
+            // Find the current active section
+            let currentSection = "";
+            for (let i = headings.length - 1; i >= 0; i--) {
+              const heading = headings[i];
+              if (heading && heading.offsetTop <= scrollPosition) {
+                currentSection = heading.id;
+                break;
+              }
+            }
+
+            setActiveSection(currentSection);
+          }
+        }, 1000);
+      } else {
+        // Retry once after a short delay in case DOM is still loading
+        setTimeout(() => {
+          const retryElement = document.getElementById(sectionId);
+          if (retryElement) {
+            const navbarHeight = 64;
+            const bannerHeight = 56;
+            const hasBanner = !!config.noticeBannerText;
+            const totalOffset =
+              navbarHeight + (hasBanner ? bannerHeight : 0) + 16;
+            const elementPosition = retryElement.offsetTop - totalOffset;
+
+            // Set scrolling state to prevent scroll handler interference
+            setIsScrolling(true);
+
+            // Use scrollTo with smooth behavior
+            window.scrollTo({
+              top: elementPosition,
+              behavior: "smooth",
+            });
+
+            // Reset scrolling state and update active section after animation completes
+            setTimeout(() => {
+              setIsScrolling(false);
+
+              // Manually trigger scroll handler to update active section
+              const headings = validSections
+                .map((section) => document.getElementById(section.id))
+                .filter(Boolean);
+
+              if (headings.length > 0) {
+                const scrollOffset = config.noticeBannerText ? 128 : 80;
+                const scrollPosition = window.scrollY + scrollOffset;
+
+                // Find the current active section
+                let currentSection = "";
+                for (let i = headings.length - 1; i >= 0; i--) {
+                  const heading = headings[i];
+                  if (heading && heading.offsetTop <= scrollPosition) {
+                    currentSection = heading.id;
+                    break;
+                  }
+                }
+
+                setActiveSection(currentSection);
+              }
+            }, 1000);
+          }
+        }, 500);
+      }
+    };
+
+    findElement();
   };
 
-  if (!sections.length) return null;
+  if (!validSections.length) return null;
 
   return (
     <motion.nav
@@ -78,25 +188,23 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ sections }) => {
       animate="animate"
       exit="exit"
     >
-      <h2 className="text-xs font-medium text-gray-900 dark:text-white">
-        Jump to
-      </h2>
+      <h2 className="text-xs font-medium text-white">Jump to</h2>
       <div className="relative pl-4">
-        <div className="absolute bottom-0 left-0 top-0 h-full w-px bg-gray-300 dark:bg-white/10" />
-        <ul className="space-y-1 text-xs text-text-secondary dark:text-white/50">
-          {sections.map((section) => (
+        <div className="absolute bottom-0 left-0 top-0 h-full w-px bg-white/10" />
+        <ul className="space-y-1 text-xs text-white/50">
+          {validSections.map((section) => (
             <li key={section.id} className="relative">
               <a
                 href={`#${section.id}`}
                 onClick={(e) => handleClick(e, section.id)}
                 className={`relative block cursor-pointer rounded px-2 py-2 transition ${
                   activeSection === section.id
-                    ? "text-gray-900 dark:text-white"
-                    : "hover:text-gray-700 dark:hover:text-white/80"
+                    ? "text-white"
+                    : "hover:text-white/80"
                 } `}
               >
                 {activeSection === section.id && (
-                  <span className="absolute left-[-16px] top-1/2 h-8 w-px -translate-y-1/2 rounded bg-lavender-500 dark:bg-white" />
+                  <span className="absolute left-[-16px] top-1/2 h-8 w-px -translate-y-1/2 rounded bg-white" />
                 )}
                 {section.title}
               </a>

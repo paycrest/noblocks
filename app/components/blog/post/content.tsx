@@ -8,12 +8,13 @@ import { fadeBlur } from "@/app/components/blog/shared/animations";
 import { PortableText, PortableTextComponents } from "@portabletext/react";
 import { urlForImage } from "@/app/lib/sanity-client";
 import Image from "next/image";
+import config from "@/app/lib/config";
 
 // Map to track generated slugs and their counts
 const slugMap = new Map<string, number>();
 
 // Helper function to reset slug map (call before rendering new content)
-const resetSlugMap = (): void => {
+export const resetSlugMap = (): void => {
   slugMap.clear();
 };
 
@@ -33,6 +34,16 @@ const generateSlug = (text: string): string => {
     slugMap.set(baseSlug, 0);
     return baseSlug;
   }
+};
+
+// Helper function to find ID from sections by title
+const findIdFromSections = (
+  text: string,
+  sections?: Array<{ id: string; title: string }>,
+): string | null => {
+  if (!sections) return null;
+  const section = sections.find((s) => s.title === text);
+  return section?.id || null;
 };
 
 // Helper function to extract text from PortableText children
@@ -58,9 +69,11 @@ const extractTextFromChildren = (children: React.ReactNode): string => {
 // Helper function to extract sections from PortableText content
 export const extractSections = (
   body: PortableTextBlock[],
+  resetSlugMapFirst: boolean = false,
 ): Array<{ id: string; title: string }> => {
-  // Reset slug map before processing new content
-  resetSlugMap();
+  if (resetSlugMapFirst) {
+    resetSlugMap();
+  }
 
   const sections: Array<{ id: string; title: string }> = [];
 
@@ -92,7 +105,9 @@ export const extractSections = (
   return sections;
 };
 
-const ptComponents: PortableTextComponents = {
+const createPtComponents = (
+  sections?: Array<{ id: string; title: string }>,
+): PortableTextComponents => ({
   types: {
     image: ({ value }) => {
       // Check if we have a valid asset reference
@@ -149,10 +164,11 @@ const ptComponents: PortableTextComponents = {
       // Properly extract text from PortableText children
       const text = extractTextFromChildren(children);
       const id = generateSlug(text);
+      console.log("Rendering h1 with ID:", id, "Text:", text);
       return (
         <h1
           id={id}
-          className="mb-4 mt-6 scroll-mt-20 text-2xl font-bold text-text-body first:mt-0 dark:text-white"
+          className={`mb-4 mt-6 text-2xl font-bold text-text-body first:mt-0 dark:text-white ${config.noticeBannerText ? "scroll-mt-32" : "scroll-mt-20"}`}
         >
           {children}
         </h1>
@@ -161,11 +177,14 @@ const ptComponents: PortableTextComponents = {
     h2: ({ children }) => {
       // Properly extract text from PortableText children
       const text = extractTextFromChildren(children);
-      const id = generateSlug(text);
+
+      // Try to find ID from sections first, fallback to generateSlug
+      const sectionId = findIdFromSections(text, sections);
+      const id = sectionId || generateSlug(text);
       return (
         <h2
           id={id}
-          className="mb-3 mt-5 scroll-mt-20 text-xl font-bold text-text-body first:mt-0 dark:text-white"
+          className={`mb-3 mt-5 text-xl font-bold text-text-body first:mt-0 dark:text-white ${config.noticeBannerText ? "scroll-mt-32" : "scroll-mt-20"}`}
         >
           {children}
         </h2>
@@ -174,11 +193,14 @@ const ptComponents: PortableTextComponents = {
     h3: ({ children }) => {
       // Properly extract text from PortableText children
       const text = extractTextFromChildren(children);
-      const id = generateSlug(text);
+
+      // Try to find ID from sections first, fallback to generateSlug
+      const sectionId = findIdFromSections(text, sections);
+      const id = sectionId || generateSlug(text);
       return (
         <h3
           id={id}
-          className="mb-2 mt-4 scroll-mt-20 text-lg font-bold text-text-body first:mt-0 dark:text-white"
+          className={`mb-2 mt-4 text-lg font-bold text-text-body first:mt-0 dark:text-white ${config.noticeBannerText ? "scroll-mt-32" : "scroll-mt-20"}`}
         >
           {children}
         </h3>
@@ -191,7 +213,7 @@ const ptComponents: PortableTextComponents = {
       return (
         <h4
           id={id}
-          className="mb-2 mt-3 scroll-mt-20 text-base font-bold text-text-body first:mt-0 dark:text-white"
+          className={`mb-2 mt-3 text-base font-bold text-text-body first:mt-0 dark:text-white ${config.noticeBannerText ? "scroll-mt-32" : "scroll-mt-20"}`}
         >
           {children}
         </h4>
@@ -232,22 +254,27 @@ const ptComponents: PortableTextComponents = {
       {children}
     </li>
   ),
-};
+});
 
 interface BlogPostContentProps {
   post: SanityPost;
+  sections?: Array<{ id: string; title: string }>;
 }
 
-const BlogPostContent: React.FC<BlogPostContentProps> = ({ post }) => {
-  // Reset slug map before rendering new content
-  React.useEffect(() => {
-    resetSlugMap();
-  }, [post._id]);
+const BlogPostContent: React.FC<BlogPostContentProps> = ({
+  post,
+  sections,
+}) => {
+  // Note: Slug map is reset in DetailClient before extraction
+  // to ensure consistency between extraction and rendering
 
   return (
     <motion.section {...fadeBlur} className="w-full" suppressHydrationWarning>
       {post.body ? (
-        <PortableText value={post.body} components={ptComponents} />
+        <PortableText
+          value={post.body}
+          components={createPtComponents(sections)}
+        />
       ) : (
         <p className="text-sm leading-6 text-text-body dark:text-white/80">
           {post.excerpt}

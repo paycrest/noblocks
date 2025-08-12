@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import React from "react";
+import { motion } from "framer-motion";
 
 interface NoticeBannerProps {
   textLines: string[];
@@ -8,7 +9,12 @@ interface NoticeBannerProps {
 
 const NoticeBanner: React.FC<NoticeBannerProps> = ({ textLines }) => {
   return (
-    <div className="fixed left-0 right-0 top-16 z-30 flex min-h-14 w-full items-center justify-center bg-[#2D77E2] px-0 md:px-0">
+    <motion.div
+      className="fixed left-0 right-0 top-16 z-30 mt-1 flex min-h-14 w-full items-center justify-center bg-[#2D77E2] px-0 md:px-0"
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+    >
       <div className="relative w-full sm:flex sm:items-center sm:py-0 sm:pr-8">
         {/* Mobile Illustration */}
         <div className="absolute left-0 top-0 z-0 sm:hidden">
@@ -49,7 +55,7 @@ const NoticeBanner: React.FC<NoticeBannerProps> = ({ textLines }) => {
           </span>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 

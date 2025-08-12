@@ -975,3 +975,25 @@ export function getBannerPadding(): string {
   const hasBanner = !!config.noticeBannerText;
   return hasBanner ? "pt-52" : "pt-36";
 }
+
+/**
+ * Formats a number with proper decimal precision to avoid floating-point arithmetic issues.
+ * This is particularly useful for setting max values in forms.
+ * Always truncates to ensure the result never exceeds the original value.
+ * @param num - The number to format
+ * @param maxDecimals - Maximum number of decimal places (default: 4)
+ * @returns The formatted number as a number
+ */
+export function formatDecimalPrecision(
+  num: number,
+  maxDecimals: number = 4,
+): number {
+  if (typeof num !== "number" || isNaN(num)) {
+    return 0;
+  }
+
+  // Use Math.floor to truncate instead of rounding to ensure we never exceed the original value
+  const multiplier = Math.pow(10, maxDecimals);
+  const truncated = Math.floor(num * multiplier) / multiplier;
+  return truncated;
+}

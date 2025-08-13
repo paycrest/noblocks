@@ -20,11 +20,13 @@ import {
 } from "hugeicons-react";
 import { Token } from "../types";
 
+type MobileView = "wallet" | "settings" | "transfer" | "fund" | "history";
+
 export const TransferForm: React.FC<{
   onClose: () => void;
   onSuccess?: () => void;
   showBackButton?: boolean;
-  setCurrentView?: (v: string) => void;
+  setCurrentView?: React.Dispatch<React.SetStateAction<MobileView>>;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
   const { selectedNetwork } = useNetwork();
   const { client } = useSmartWallets();

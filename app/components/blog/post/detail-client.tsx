@@ -1,5 +1,5 @@
 "use client";
-import React, { Suspense, useState, useRef, useEffect } from "react";
+import React, { Suspense, useState, useRef, useEffect, useMemo } from "react";
 import type { SanityPost } from "@/app/blog/types";
 import Image from "next/image";
 import Link from "next/link";
@@ -53,6 +53,15 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post?._id, post?.title, post?.category?.title, post?.author?.name]);
 
+  // Extract sections from post content
+  // Extract sections with slug map reset
+  const sections = useMemo(() => {
+    if (!post || !post.body) {
+      return [];
+    }
+    return extractSections(post.body, true);
+  }, [post]);
+
   // Track blog reading progress
   useBlogTracking({
     postId: post._id,
@@ -65,15 +74,6 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
       <div className="text-red-500">Post not found or failed to load.</div>
     );
   }
-
-  // Extract sections from post content
-  // Extract sections with slug map reset
-  const sections = React.useMemo(() => {
-    if (post.body) {
-      return extractSections(post.body, true);
-    }
-    return [];
-  }, [post._id, post.body]);
 
   const handleCopyLink = () => {
     try {

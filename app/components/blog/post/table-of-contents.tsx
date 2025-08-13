@@ -67,6 +67,7 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ sections }) => {
       clearTimeout(timeoutId);
       window.removeEventListener("scroll", handleScroll);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [validSections]);
 
   const handleClick = (

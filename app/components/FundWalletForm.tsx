@@ -16,11 +16,13 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { Token } from "../types";
 
+type MobileView = "wallet" | "settings" | "transfer" | "fund" | "history";
+
 export const FundWalletForm: React.FC<{
   onClose: () => void;
   onSuccess?: () => void;
   showBackButton?: boolean;
-  setCurrentView?: (v: any) => void;
+  setCurrentView?: React.Dispatch<React.SetStateAction<MobileView>>;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
   const { selectedNetwork } = useNetwork();
   const { refreshBalance } = useBalance();

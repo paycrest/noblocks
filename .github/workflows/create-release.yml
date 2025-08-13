@@ -5,8 +5,6 @@ on:
     types: [closed]
     branches:
       - stable
-  schedule:
-    - cron: "0 0 * * 1" # Run at 00:00 every Monday
   workflow_dispatch:
 
 # Add permissions block
@@ -36,33 +34,7 @@ jobs:
           fi
           echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
 
-      - name: Check if release is needed
-        id: check_release
-        run: |
-          latest_tag="${{ steps.get_latest_tag.outputs.latest_tag }}"
-
-          # If this is the first release (v0.0.0), always create it
-          if [ "$latest_tag" = "v0.0.0" ]; then
-            echo "should_release=true" >> $GITHUB_OUTPUT
-            echo "First release will be created"
-            exit 0
-          fi
-
-          # Get the date of the latest tag
-          tag_date=$(git log -1 --format=%at $latest_tag)
-          current_date=$(date +%s)
-          week_in_seconds=604800  # 7 days in seconds
-
-          # Check if we're in scheduled run or if it's been more than a week
-          if [ "${{ github.event_name }}" = "schedule" ] || [ $((current_date - tag_date)) -gt $week_in_seconds ]; then
-            echo "should_release=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_release=false" >> $GITHUB_OUTPUT
-            echo "Last release was less than a week ago. Skipping release creation."
-          fi
-
       - name: Get PRs and commits since last release
-        if: steps.check_release.outputs.should_release == 'true'
         id: get_changes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -73,13 +45,16 @@ jobs:
           if [ "$latest_tag" = "v0.0.0" ]; then
             # For first release, get all PRs
             gh pr list --state merged --json number,title,body,labels --jq '.[] | "\(.number)|\(.title)|\(.body)|\(.labels[].name)"' > prs.txt
-            # Get all commits for first release
-            git log --pretty=format:"%B" > commits.txt
+            # Get all commits for first release - only first line (subject) for pattern matching
+            git log --pretty=format:"%s" > commits.txt
           else
-            # Get PRs merged since last tag
-            gh pr list --state merged --json number,title,body,labels --jq '.[] | "\(.number)|\(.title)|\(.body)|\(.labels[].name)"' > prs.txt
-            # Get commits since last tag
-            git log $latest_tag..HEAD --pretty=format:"%B" > commits.txt
+            # Get the date of the latest tag
+            tag_date=$(git log -1 --format=%at $latest_tag)
+            
+            # Get PRs merged since last tag - FIXED: filter by merge date
+            gh pr list --state merged --json number,title,body,labels,mergedAt --jq ".[] | select(.mergedAt != null and (.mergedAt | fromdateiso8601) > $tag_date) | \"\(.number)|\(.title)|\(.body)|\(.labels[].name)\"" > prs.txt
+            # Get commits since last tag - only first line (subject) for pattern matching
+            git log $latest_tag..HEAD --pretty=format:"%s" > commits.txt
           fi
 
           # Count PRs with different labels
@@ -124,23 +99,38 @@ jobs:
           done < prs.txt
           echo "EOF" >> $GITHUB_OUTPUT
 
-          # Format commits by type
+          # Format commits by type - use full commit messages for display
           echo "formatted_commits<<EOF" >> $GITHUB_OUTPUT
           echo "### Breaking Changes"
-          grep -E "^(feat!|BREAKING CHANGE)" commits.txt || echo "None"
+          if [ "$latest_tag" = "v0.0.0" ]; then
+            git log --pretty=format:"%B" | grep -E "^(feat!|BREAKING CHANGE)" || echo "None"
+          else
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(feat!|BREAKING CHANGE)" || echo "None"
+          fi
           echo ""
           echo "### Features"
-          grep -E "^(feat|\[minor\])" commits.txt || echo "None"
+          if [ "$latest_tag" = "v0.0.0" ]; then
+            git log --pretty=format:"%B" | grep -E "^(feat|\[minor\])" || echo "None"
+          else
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(feat|\[minor\])" || echo "None"
+          fi
           echo ""
           echo "### Fixes"
-          grep -E "^(fix)" commits.txt || echo "None"
+          if [ "$latest_tag" = "v0.0.0" ]; then
+            git log --pretty=format:"%B" | grep -E "^(fix)" || echo "None"
+          else
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(fix)" || echo "None"
+          fi
           echo ""
           echo "### Other Changes"
-          grep -E "^(chore|docs|style|refactor|perf|test|ci|build|revert)" commits.txt || echo "None"
+          if [ "$latest_tag" = "v0.0.0" ]; then
+            git log --pretty=format:"%B" | grep -E "^(chore|docs|style|refactor|perf|test|ci|build|revert)" || echo "None"
+          else
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(chore|docs|style|refactor|perf|test|ci|build|revert)" || echo "None"
+          fi
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Generate new version
-        if: steps.check_release.outputs.should_release == 'true'
         id: new_version
         run: |
           latest_tag="${{ steps.get_latest_tag.outputs.latest_tag }}"
@@ -175,12 +165,11 @@ jobs:
           echo "new_version=$new_version" >> $GITHUB_OUTPUT
 
       - name: Create Release
-        if: steps.check_release.outputs.should_release == 'true'
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.new_version.outputs.new_version }}
-          name: Release ${{ steps.new_version.outputs.new_version }}
+          name: noblocks ${{ steps.new_version.outputs.new_version }}
           body: |
             # Release ${{ steps.new_version.outputs.new_version }}
 

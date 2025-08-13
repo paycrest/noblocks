@@ -1,12 +1,14 @@
 import { useFundWallet } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
+import { useTokens } from "../context/TokensContext";
 import { trackEvent } from "./analytics";
-import { fetchSupportedTokens } from "../utils";
+import { Token } from "../types";
 
 export const useFundWalletHandler = (entryPoint: string) => {
   const { selectedNetwork } = useNetwork();
   const { refreshBalance } = useBalance();
+  const { allTokens } = useTokens();
 
   const { fundWallet } = useFundWallet({
     onUserExited: ({ fundingMethod, chain }) => {
@@ -64,9 +66,9 @@ export const useFundWalletHandler = (entryPoint: string) => {
     tokenAddress: `0x${string}`,
     onComplete?: (success: boolean) => void,
   ) => {
-    const fetchedTokens = fetchSupportedTokens(selectedNetwork.chain.name);
+    const fetchedTokens = allTokens[selectedNetwork.chain.name] || [];
     const selectedToken = fetchedTokens?.find(
-      (t) => t.address === tokenAddress,
+      (t: Token) => t.address === tokenAddress,
     );
 
     trackEvent("Funding started", {

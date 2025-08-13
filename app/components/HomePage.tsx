@@ -14,6 +14,7 @@ import {
 } from "./AnimatedComponents";
 import WalkthroughVideo from "./WalkthroughVideo";
 import { ScrollArrowLine, ScrollArrowHead } from "./ImageAssets";
+import { getBannerPadding } from "../utils";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -54,10 +55,9 @@ export function HomePage({
 
   return (
     <div className="flex w-full flex-col">
-      {/* Hero section */}
       <div
         id="hero"
-        className="flex min-h-screen w-full flex-col items-center justify-center overflow-y-auto py-20"
+        className={`flex min-h-dvh w-full flex-col items-center justify-center overflow-y-auto pb-20 ${getBannerPadding()}`}
       >
         <motion.div
           layout

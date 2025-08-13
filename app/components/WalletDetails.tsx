@@ -15,6 +15,7 @@ import {
   Wallet01Icon,
   ArrowLeft02Icon,
   ArrowDown01Icon,
+  RefreshIcon,
 } from "hugeicons-react";
 import Image from "next/image";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
@@ -50,7 +51,7 @@ export const WalletDetails = () => {
   const [isAddressCopied, setIsAddressCopied] = useState(false);
 
   const { selectedNetwork } = useNetwork();
-  const { allBalances, isLoading } = useBalance();
+  const { allBalances, isLoading, refreshBalance } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user } = usePrivy();
   const isDark = useActualTheme();
@@ -237,12 +238,32 @@ export const WalletDetails = () => {
                         </button>
                       </div>
 
-                      <div className="text-2xl font-medium text-text-body dark:text-white">
-                        {formatCurrency(
-                          activeBalance?.total ?? 0,
-                          "USD",
-                          "en-US",
-                        )}
+                      <div className="flex items-center justify-between">
+                        <div className="text-2xl font-medium text-text-body dark:text-white">
+                          {formatCurrency(
+                            activeBalance?.total ?? 0,
+                            "USD",
+                            "en-US",
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await refreshBalance();
+                            } catch (error) {
+                              console.error("Error refreshing balance:", error);
+                            }
+                          }}
+                          title="Refresh balance"
+                          aria-label="Refresh balance"
+                          disabled={isLoading}
+                          className="rounded-lg p-2 transition-colors hover:bg-accent-gray disabled:opacity-50 dark:hover:bg-white/10"
+                        >
+                          <RefreshIcon
+                            className={`size-5 text-outline-gray dark:text-white/50 ${isLoading ? "animate-spin" : ""}`}
+                          />
+                        </button>
                       </div>
 
                       {!isInjectedWallet && (

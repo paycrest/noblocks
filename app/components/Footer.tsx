@@ -117,7 +117,7 @@ export const Footer = () => {
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
       <motion.footer
-        className="relative mx-auto min-h-[400px] w-full max-w-screen-2xl px-5 max-sm:overflow-hidden md:items-center lg:min-h-[566px]"
+        className="relative mx-auto min-h-[360px] w-full max-w-screen-2xl overflow-hidden px-5 md:items-center lg:min-h-[540px]"
         role="contentinfo"
         layout
         transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -186,7 +186,7 @@ export const Footer = () => {
         />
         <div className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] overflow-hidden md:block 2xl:rounded-b-[84px]">
           <Image
-            src="images/footer-desktop-img.svg"
+            src="/images/footer-desktop-img.svg"
             alt="Footer Desktop Image"
             width={100}
             height={100}

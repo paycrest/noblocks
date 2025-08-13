@@ -7,7 +7,6 @@ import { useSearchParams } from "next/navigation";
 import {
   calculateDuration,
   classNames,
-  fetchSupportedTokens,
   formatCurrency,
   formatNumberWithCommas,
   getGatewayContractAddress,
@@ -16,7 +15,7 @@ import {
   getRpcUrl,
   publicKeyEncrypt,
 } from "../utils";
-import { useNetwork } from "../context/NetworksContext";
+import { useNetwork, useTokens } from "../context";
 import type {
   Token,
   TransactionPreviewProps,
@@ -64,6 +63,7 @@ export const TransactionPreview = ({
     useInjectedWallet();
 
   const { selectedNetwork } = useNetwork();
+  const { allTokens } = useTokens();
   const { currentStep, setCurrentStep } = useStep();
   const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
     useBalance();
@@ -119,8 +119,7 @@ export const TransactionPreview = ({
     network: selectedNetwork.chain.name,
   };
 
-  const fetchedTokens: Token[] =
-    fetchSupportedTokens(selectedNetwork.chain.name) || [];
+  const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
   const tokenAddress = fetchedTokens.find(
     (t) => t.symbol.toUpperCase() === token.toUpperCase(),

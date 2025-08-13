@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import {
   classNames,
-  SUPPORTED_TOKENS,
+  getTokenLogoIdentifier,
   generatePaginationItems,
   getRelativeDate,
 } from "../../utils";
@@ -47,9 +47,7 @@ export const TransactionListItem = ({
   onClick: () => void;
 }) => {
   // Get token logo based on currency
-  const tokenKey =
-    transaction.from_currency.toUpperCase() as keyof typeof SUPPORTED_TOKENS;
-  const tokenLogo = SUPPORTED_TOKENS[tokenKey] || "usdc";
+  const tokenLogo = getTokenLogoIdentifier(transaction.from_currency);
   const isDark = useActualTheme();
 
   return (
@@ -257,9 +255,7 @@ export default function TransactionList({
                 </div>
                 <div className="space-y-2">
                   {transactions.map((transaction) => {
-                    const tokenKey =
-                      transaction.from_currency.toUpperCase() as keyof typeof SUPPORTED_TOKENS;
-                    const tokenLogo = SUPPORTED_TOKENS[tokenKey] || "usdc";
+                    const tokenLogo = getTokenLogoIdentifier(transaction.from_currency);
 
                     return (
                       <motion.div

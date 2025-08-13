@@ -214,6 +214,14 @@ export type Token = {
   imageUrl?: string;
 };
 
+export type APIToken = {
+  symbol: string;
+  contractAddress: string;
+  decimals: number;
+  baseCurrency: string;
+  network: string;
+};
+
 export type InitiateKYCPayload = {
   signature: string;
   walletAddress: string;
@@ -246,6 +254,7 @@ export type Config = {
   hotjarSiteId: number;
   contactSupportUrl: string;
   googleVerificationCode: string;
+  noticeBannerText?: string; // Optional, for dynamic notice banner text
 };
 
 export type Network = {

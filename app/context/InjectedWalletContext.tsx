@@ -65,8 +65,7 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
             const [address] = await client.getAddresses();
 
             if (address) {
-              //@ts-ignore
-              setInjectedProvider(window.ethereum);
+              setInjectedProvider(window.ethereum as EIP1193Provider);
               setInjectedAddress(address);
               setInjectedReady(true);
             } else {
@@ -93,6 +92,12 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
     };
 
     initInjectedWallet();
+
+    return () => {
+      if (checkProvider) {
+        clearInterval(checkProvider);
+      }
+    };
   }, [searchParams]);
 
   return (

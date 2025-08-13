@@ -45,7 +45,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         total: count || 0,
         page,
         limit,
-        transactions: transactions as TransactionHistory[],
+        transactions: transactions as unknown as TransactionHistory[],
       },
     };
 

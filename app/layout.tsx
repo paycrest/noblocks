@@ -20,6 +20,7 @@ import WalletGate from "./components/WalletGate";
 import { MiniKitContextProvider } from "@/providers/MiniKitProvider";
 
 const inter = Inter({ subsets: ["latin"] });
+const appUrl = process.env.NEXT_PUBLIC_URL ?? "https://noblocks.xyz";
 
 export const metadata: Metadata = {
   title: {
@@ -31,11 +32,11 @@ export const metadata: Metadata = {
   other: {
     // this is where Farcaster Mini App embed
     "fc:miniapp": JSON.stringify({
-      url: "https://noblockz.vercel.app",
+      url: appUrl,
       window: { height: 600, width: 400 },
     }),
     "fc:frame": JSON.stringify({
-      url: "https://noblockz.vercel.app",
+      url: appUrl,
       window: { height: 600, width: 400 },
     }),
 
@@ -226,9 +227,9 @@ export default function RootLayout({
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <WalletGate>
+        <Providers>
           <MiniKitContextProvider>
-            <Providers>
+            <WalletGate>
               <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
                 <div className="relative">
                   <Navbar />
@@ -247,9 +248,9 @@ export default function RootLayout({
 
                 <PWAInstall />
               </div>
-            </Providers>
+            </WalletGate>
           </MiniKitContextProvider>
-        </WalletGate>
+        </Providers>
       </body>
     </html>
   );

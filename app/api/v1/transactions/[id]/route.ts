@@ -10,10 +10,6 @@ const TxUpdateSchema = z.object({
   status: z.enum(["pending", "submitted", "confirmed", "failed", "cancelled"]),
 });
 
-const StatusBodySchema = z.object({
-  status: z.enum(["pending", "submitted", "confirmed", "failed", "cancelled"]),
-});
-
 // Route handler for PUT requests
 export const PUT = withRateLimit(
   async (request: NextRequest, { params }: { params: { id: string } }) => {
@@ -46,7 +42,11 @@ export const PUT = withRateLimit(
       const parsed = TxUpdateSchema.safeParse(raw);
       if (!parsed.success) {
         return NextResponse.json(
-          { success: false, error: "Invalid transaction payload" },
+          {
+            success: false,
+            error: "Invalid transaction payload",
+            details: parsed.error.flatten().fieldErrors,
+          },
           { status: 400 },
         );
       }

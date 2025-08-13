@@ -52,7 +52,8 @@ export const PUT = withRateLimit(
       if (
         fetchError ||
         !transaction ||
-        transaction.wallet_address?.toLowerCase() !== walletAddress
+        (typeof transaction.wallet_address === "string" &&
+          transaction.wallet_address.toLowerCase() !== walletAddress)
       ) {
         return NextResponse.json(
           // { success: false, error: "Transaction not found" },

@@ -33,8 +33,9 @@ export default function WalletGate({
         // Auto-connect if injected=true or no account yet
 
         // Only prompt if explicitly requested (?injected=true)
-        if ((!accounts || accounts.length === 0) && injected === "true") {
-          accounts = await ethereum.request({ method: "eth_requestAccounts" });
+        if (accounts && accounts.length > 0) {
+          setAccount(accounts[0]);
+          setStatus("Wallet connected");
         } else {
           setStatus("No accounts found. Please unlock your wallet.");
         }

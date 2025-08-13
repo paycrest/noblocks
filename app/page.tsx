@@ -14,10 +14,6 @@ export default function Page() {
         setFrameReady();
       }
       try {
-        // const { sdk } = await import("@farcaster/miniapp-sdk");
-        // await sdk.actions.ready();
-        // console.log("Mini-app ready signal sent to Farcaster.");
-
         if (
           typeof window !== "undefined" &&
           (window as any).__farcasterMiniAppReady
@@ -25,7 +21,7 @@ export default function Page() {
           return;
         }
         const { sdk } = await import("@farcaster/miniapp-sdk");
-        await sdk.actions.ready();
+        // await sdk.actions.ready();
         if (typeof window !== "undefined") {
           (window as any).__farcasterMiniAppReady = true;
         }

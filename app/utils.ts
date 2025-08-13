@@ -82,6 +82,17 @@ export const formatCurrency = (
 };
 
 /**
+ * Converts CNGN (Nigerian Naira) amount to USD using the provided exchange rate
+ * @param cngnAmount - The amount in CNGN to convert
+ * @param rate - The CNGN/USD exchange rate (defaults to 1 if not provided)
+ * @returns The equivalent amount in USD
+ */
+export const convertCNGNtoUSD = (cngnAmount: number, rate: number = 1) => {
+  if (!cngnAmount || !rate) return 0;
+  return cngnAmount / rate;
+};
+
+/**
  * Encrypts data using the provided public key.
  * @param data - The data to be encrypted.
  * @param publicKeyPEM - The public key in PEM format.

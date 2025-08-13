@@ -28,6 +28,7 @@ export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
   thirdweb: {
     clientId: process.env.THIRDWEB_CLIENT_ID || "",
     domain: process.env.THIRDWEB_DOMAIN || "",
+    secretKey: process.env.THIRDWEB_SECRET_KEY || "",
   },
 };
 

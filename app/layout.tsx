@@ -14,6 +14,7 @@ import {
   PWAInstall,
   NoticeBanner,
 } from "./components";
+import MigrationBanner from "./components/migration/MigrationBanner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -241,6 +242,7 @@ export default function RootLayout({
           <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
             <div className="relative">
               <Navbar />
+              <MigrationBanner />
               {config.noticeBannerText && (
                 <NoticeBanner
                   textLines={config.noticeBannerText.split("|")}

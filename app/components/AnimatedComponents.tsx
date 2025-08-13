@@ -282,6 +282,7 @@ type AnimatedModalProps = {
   children: React.ReactNode;
   maxWidth?: string;
   dialogPanelClassName?: string;
+  showGradientHeader?: boolean;
 };
 
 export const AnimatedModal = ({
@@ -290,6 +291,7 @@ export const AnimatedModal = ({
   children,
   maxWidth = "25.75rem",
   dialogPanelClassName,
+  showGradientHeader = false,
 }: AnimatedModalProps) => (
   <AnimatePresence>
     {isOpen && (

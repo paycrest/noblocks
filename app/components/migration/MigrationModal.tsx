@@ -128,8 +128,8 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
 
       <div className="space-y-4 rounded-2xl bg-accent-gray p-4 text-text-body dark:bg-white/5 dark:text-white/80">
         <p>
-          We're upgrading to a faster, more secure wallet powered by Thirdweb.
-          What does this mean?
+          We&apos;re upgrading to a faster, more secure wallet powered by
+          Thirdweb. What does this mean?
         </p>
         <div className="space-y-4 rounded-[20px] border border-border-light bg-background-neutral p-3 dark:border-white/5 dark:bg-white/5">
           {[
@@ -327,11 +327,11 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
       <SadFaceIcon className="mx-auto size-10" />
       <div className="space-y-3 pb-5 text-center">
         <DialogTitle className="z-10 text-lg font-semibold">
-          Couldn't fetch all balances
+          Couldn&apos;t fetch all balances
         </DialogTitle>
         <p className="mx-auto max-w-xs text-center text-sm text-gray-500 dark:text-white/50">
-          We couldn't fetch all your balances. Please try again. If the issue
-          persists, contact support via the settings.
+          We couldn&apos;t fetch all your balances. Please try again. If the
+          issue persists, contact support via the settings.
         </p>
       </div>
       <button

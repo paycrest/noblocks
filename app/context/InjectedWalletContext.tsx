@@ -11,6 +11,7 @@ import { createWalletClient, custom } from "viem";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { shouldUseInjectedWallet } from "../utils";
+import type { EIP1193Provider } from "viem";
 
 interface InjectedWalletContextType {
   isInjectedWallet: boolean;
@@ -30,56 +31,65 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const [isInjectedWallet, setIsInjectedWallet] = useState(false);
   const [injectedAddress, setInjectedAddress] = useState<string | null>(null);
-  const [injectedProvider, setInjectedProvider] = useState<any | null>(null);
+  const [injectedProvider, setInjectedProvider] =
+    useState<EIP1193Provider | null>(null);
+
   const [injectedReady, setInjectedReady] = useState(false);
 
   useEffect(() => {
-    const initInjectedWallet = async () => {
-      // Check if we should use the injected wallet
-      const shouldUse = shouldUseInjectedWallet(searchParams);
+    let checkProvider: ReturnType<typeof setInterval> | null = null;
 
+    const initInjectedWallet = async () => {
+      const shouldUse = shouldUseInjectedWallet(searchParams);
       setIsInjectedWallet(shouldUse);
 
-      if (shouldUse && window.ethereum) {
-        try {
-          const client = createWalletClient({
-            transport: custom(window.ethereum as any),
-          });
+      if (!shouldUse) return;
 
-          await (window.ethereum as any).request({ method: "eth_requestAccounts" });
-          const [address] = await client.getAddresses();
+      let attempts = 0;
+      const maxAttempts = 10;
 
-          if (address) {
-            setInjectedProvider(window.ethereum);
-            setInjectedAddress(address);
-            setInjectedReady(true);
-          } else {
-            console.warn("No address returned from injected wallet.");
-            toast.error(
-              "Couldn't connect to your wallet. Please check your wallet connection.",
-            );
-            setIsInjectedWallet(false);
-          }
-        } catch (error) {
-          console.error("Failed to initialize injected wallet:", error);
+      checkProvider = setInterval(async () => {
+        attempts;
 
-          if ((error as any)?.code === 4001) {
-            toast.error("Connection to wallet was rejected.", {
-              description: "Proceeding without wallet connection.",
+        if (window.ethereum) {
+          if (checkProvider) clearInterval(checkProvider);
+
+          try {
+            const client = createWalletClient({
+              transport: custom(window.ethereum as any),
             });
-            // Reset injected wallet state on rejection
-            setIsInjectedWallet(false);
-            setInjectedProvider(null);
-            setInjectedAddress(null);
-            setInjectedReady(false);
-          } else {
-            toast.error(
-              "Failed to connect to wallet. Please refresh and try again.",
-            );
+
+            await (window.ethereum as any).request({
+              method: "eth_requestAccounts",
+            });
+            const [address] = await client.getAddresses();
+
+            if (address) {
+              //@ts-ignore
+              setInjectedProvider(window.ethereum);
+              setInjectedAddress(address);
+              setInjectedReady(true);
+            } else {
+              console.warn("No address returned from injected wallet.");
+              toast.error("Couldn't connect to your wallet.");
+              setIsInjectedWallet(false);
+            }
+          } catch (error) {
+            console.error("Failed to initialize injected wallet:", error);
+            toast.error("Failed to connect to wallet. Please refresh.");
             setIsInjectedWallet(false);
           }
         }
-      }
+
+        if (attempts >= maxAttempts) {
+          if (checkProvider) {
+            clearInterval(checkProvider);
+          }
+
+          console.error("⏳ Wallet provider not found after retries.");
+          toast.error("Wallet provider not found.");
+        }
+      }, 500); // retry every 0.5s
     };
 
     initInjectedWallet();

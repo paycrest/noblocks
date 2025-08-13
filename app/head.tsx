@@ -1,6 +1,11 @@
 export default function Head() {
+  // const miniAppJson = JSON.stringify({
+  //   url: "https://noblockz.vercel.app",
+  //   window: { height: 600, width: 400 },
+  // });
+  const appUrl = process.env.NEXT_PUBLIC_URL || "https://noblocks.vercel.app";
   const miniAppJson = JSON.stringify({
-    url: "https://noblockz.vercel.app",
+    url: appUrl,
     window: { height: 600, width: 400 },
   });
 

@@ -1,4 +1,11 @@
+import "server-only";
 import { createClient } from "@supabase/supabase-js";
+
+if (typeof window !== "undefined") {
+  throw new Error(
+    "Do not import app/lib/supabase.ts from client code; server-only.",
+  );
+}
 
 if (!process.env.SUPABASE_URL) {
   throw new Error("Missing env.SUPABASE_URL");

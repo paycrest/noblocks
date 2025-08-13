@@ -2,8 +2,8 @@
   "name": "Paycrest Mini App",
   "description": "A crypto-enabled mini app for sending and receiving stablecoins on Base using Farcaster.",
   "url": "https://noblockz.vercel.app",
-  "icon": "https://noblockz.vercel.app/android-chrome-192x192.png",
-  "screenshots": ["https://noblockz.vercel.app/desktop-wide.png"],
+  "icon": "https://noblockz.vercel.app/icons/android-chrome-192x192.png",
+  "screenshots": ["https://noblockz.vercel.app/screenshots/desktop-wide.png"],
   "developer": {
     "name": "CONSOLATION LOTACHI",
     "website": "https://github.com/KEM-CONSOLATION",

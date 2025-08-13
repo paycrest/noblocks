@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 
 export default function AutoConnect() {
-  const [ready, setReady] = useState(false);
-
   useEffect(() => {
     async function connect() {
       let attempts = 0;
@@ -20,25 +18,25 @@ export default function AutoConnect() {
 
       try {
         console.log("Requesting wallet connection...");
-        if (window.ethereum && typeof window.ethereum.request === "function") {
-          await window.ethereum.request({ method: "eth_requestAccounts" });
-          console.log("Wallet connected");
-        } else {
-          console.error("No Ethereum provider found");
+        const provider = window.ethereum as any;
+        if (typeof provider.request !== "function") {
+          console.error("Ethereum provider missing request()");
+          return;
         }
-
+        const accounts: string[] = await provider.request({
+          method: "eth_accounts",
+        });
+        if (!accounts || accounts.length === 0) {
+          await provider.request({ method: "eth_requestAccounts" });
+        }
         console.log("Wallet connected");
       } catch (err) {
         console.error("Failed to connect wallet:", err);
       }
-
-      setReady(true);
     }
 
     connect();
   }, []);
-
-  if (!ready) return null;
 
   return null;
 }

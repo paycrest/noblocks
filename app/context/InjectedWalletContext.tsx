@@ -11,6 +11,7 @@ import { createWalletClient, custom } from "viem";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { shouldUseInjectedWallet } from "../utils";
+import type { EIP1193Provider } from "viem";
 
 interface InjectedWalletContextType {
   isInjectedWallet: boolean;
@@ -30,10 +31,14 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const [isInjectedWallet, setIsInjectedWallet] = useState(false);
   const [injectedAddress, setInjectedAddress] = useState<string | null>(null);
-  const [injectedProvider, setInjectedProvider] = useState<any | null>(null);
+  const [injectedProvider, setInjectedProvider] =
+    useState<EIP1193Provider | null>(null);
+
   const [injectedReady, setInjectedReady] = useState(false);
 
   useEffect(() => {
+    let checkProvider: ReturnType<typeof setInterval> | null = null;
+
     const initInjectedWallet = async () => {
       const shouldUse = shouldUseInjectedWallet(searchParams);
       setIsInjectedWallet(shouldUse);
@@ -43,11 +48,11 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
       let attempts = 0;
       const maxAttempts = 10;
 
-      const checkProvider = setInterval(async () => {
-        attempts++;
+      checkProvider = setInterval(async () => {
+        attempts;
 
         if (window.ethereum) {
-          clearInterval(checkProvider);
+          if (checkProvider) clearInterval(checkProvider);
 
           try {
             const client = createWalletClient({
@@ -60,6 +65,7 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
             const [address] = await client.getAddresses();
 
             if (address) {
+              //@ts-ignore
               setInjectedProvider(window.ethereum);
               setInjectedAddress(address);
               setInjectedReady(true);
@@ -76,7 +82,10 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
         }
 
         if (attempts >= maxAttempts) {
-          clearInterval(checkProvider);
+          if (checkProvider) {
+            clearInterval(checkProvider);
+          }
+
           console.error("⏳ Wallet provider not found after retries.");
           toast.error("Wallet provider not found.");
         }

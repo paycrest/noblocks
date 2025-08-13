@@ -70,10 +70,5 @@
       "sizes": "16x16",
       "type": "image/png"
     }
-  ],
-  "accountAssociation": {
-    "header": "eyJmaWQiOjExNjI4ODAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHhBNzQ2N0M1RDczNzk3NjNhZERkM2Y4ZmVkMzJGRDk0MEY2Qzc3QzVkIn0",
-    "payload": "eyJkb21haW4iOiJub2Jsb2Nrei52ZXJjZWwuYXBwIn0",
-    "signature": "MHhkMzlmZjE0MzM2ZGIxNzk4NTkxNGE4ZGU3NzkwZWRjZWNhYWY0ODU4YTdiZTJkMjMyOTNhN2I3Yzc4YTE0ZjVkNzk0Y2EyMzYxYTZhYjM3NGVmMDQ0MTEyMTdlYjBkZWU4YWU4N2YwMTkzODQ3Mjg4ZGZiMjNkZmU5MWFjYjY4YzFj"
-  }
+  ]
 }

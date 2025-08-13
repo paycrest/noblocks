@@ -20,11 +20,15 @@ const nextConfig = {
         //   key: "X-Frame-Options",
         //   value: "DENY",
         // },
+        // {
+        //   key: "Content-Security-Policy",
+        //   value: "frame-ancestors *;",
+        // },
         {
           key: "Content-Security-Policy",
-          value: "frame-ancestors *;",
+          value:
+            "default-src 'self'; frame-ancestors 'self' https://warpcast.com https://*.warpcast.com https://*.farcaster.xyz",
         },
-
         {
           key: "X-XSS-Protection",
           value: "1; mode=block",
@@ -53,12 +57,19 @@ const nextConfig = {
       ],
     },
     {
-      source: "/farcaster.json",
+      source: "/.well-known/farcaster.json",
       headers: [
         { key: "Content-Type", value: "application/json" },
         { key: "Cache-Control", value: "public, max-age=3600" },
       ],
     },
+    // {
+    //   source: "/farcaster.json",
+    //   headers: [
+    //     { key: "Content-Type", value: "application/json" },
+    //     { key: "Cache-Control", value: "public, max-age=3600" },
+    //   ],
+    // },
   ],
   experimental: {
     optimizeCss: true,
@@ -72,10 +83,7 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "flagcdn.com",
-<<<<<<< HEAD
-=======
         pathname: "/**",
->>>>>>> f6b4e5d581ba260f2ef4c0fda0d7215cc0000fa5
       },
       {
         protocol: "https",

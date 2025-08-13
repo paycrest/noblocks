@@ -3,7 +3,7 @@ import { Suspense, useEffect } from "react";
 import { Preloader } from "./components";
 import { MainPageContent } from "./components/MainPageContent";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { sdk } from "@farcaster/miniapp-sdk";
+// import { sdk } from "@farcaster/miniapp-sdk";
 
 export default function Page() {
   const { setFrameReady, isFrameReady } = useMiniKit();
@@ -14,9 +14,21 @@ export default function Page() {
         setFrameReady();
       }
       try {
+        // const { sdk } = await import("@farcaster/miniapp-sdk");
+        // await sdk.actions.ready();
+        // console.log("Mini-app ready signal sent to Farcaster.");
+
+        if (
+          typeof window !== "undefined" &&
+          (window as any).__farcasterMiniAppReady
+        ) {
+          return;
+        }
         const { sdk } = await import("@farcaster/miniapp-sdk");
         await sdk.actions.ready();
-        console.log("Mini-app ready signal sent to Farcaster.");
+        if (typeof window !== "undefined") {
+          (window as any).__farcasterMiniAppReady = true;
+        }
       } catch (err) {
         console.error("Failed to signal ready:", err);
       }

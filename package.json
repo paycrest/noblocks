@@ -71,7 +71,8 @@
     "styled-components": "^6.1.19",
     "thirdweb": "^5.102.6",
     "viem": "^2.31.0",
-    "wagmi": "^2.16.1"
+    "wagmi": "^2.16.1",
+    "zod": "^4.0.17"
   },
   "devDependencies": {
     "@sanity/cli": "^3.99.0",

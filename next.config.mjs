@@ -72,7 +72,31 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "flagcdn.com",
+<<<<<<< HEAD
+=======
+        pathname: "/**",
+>>>>>>> f6b4e5d581ba260f2ef4c0fda0d7215cc0000fa5
       },
+      {
+        protocol: "https",
+        hostname: "cdn.sanity.io",
+        // Sanity image assets are served under /images/...
+        pathname: "/images/**",
+      },
+      {
+        protocol: "https",
+        hostname: "placehold.co",
+        pathname: "/**",
+      },
+      ...(process.env.NODE_ENV !== "production"
+        ? [
+            {
+              protocol: "https",
+              hostname: "picsum.photos",
+              pathname: "/**",
+            },
+          ]
+        : []),
     ],
   },
 };

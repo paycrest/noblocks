@@ -1,5 +1,5 @@
 export const baseBtnClasses =
-  "text-sm min-w-fit leading-normal min-h-11 rounded-xl px-4 py-2.5 font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:focus-visible:ring-offset-neutral-900";
+  "text-sm min-w-fit leading-normal min-h-11 rounded-xl px-4 py-2.5 font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:focus-visible:ring-offset-neutral-900 flex items-center justify-center";
 
 export const primaryBtnClasses = `${baseBtnClasses} bg-lavender-500 text-white disabled:bg-gray-300 disabled:text-white dark:disabled:bg-white/10 dark:disabled:text-white/50 hover:bg-lavender-600 dark:hover:bg-lavender-600`;
 

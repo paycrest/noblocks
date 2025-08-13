@@ -26,7 +26,7 @@ import {
 } from "../types";
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "../context/StepContext";
-import { clearFormState } from "../utils";
+import { clearFormState, getBannerPadding } from "../utils";
 import { useInjectedWallet } from "../context/InjectedWalletContext";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
@@ -341,7 +341,9 @@ export function MainPageContent({ onReady }: MainPageContentProps) {
               isRecipientFormOpen={isRecipientFormOpen}
             />
           ) : (
-            <div className="px-5 py-28">{transactionFormComponent}</div>
+            <div className={`px-5 py-28 ${getBannerPadding()}`}>
+              {transactionFormComponent}
+            </div>
           )}
         </>
       )}

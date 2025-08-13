@@ -6,10 +6,12 @@ import type {
   Currency,
   APIToken,
 } from "./types";
+import type { SanityPost, SanityCategory } from "./blog/types";
 import { erc20Abi } from "viem";
 import { colors } from "./mocks";
 import { fetchRate, fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
+import config from "./lib/config";
 
 /**
  * Concatenates and returns a string of class names.
@@ -914,4 +916,91 @@ export async function reorderCurrenciesByLocation(
   } catch {
     return currencies;
   }
+}
+
+// Blog utilities
+export function filterBlogsAndCategories({
+  blogs,
+  selectedCategory,
+  searchValue,
+  categoriesInPosts,
+}: {
+  blogs: SanityPost[];
+  selectedCategory: string;
+  searchValue: string;
+  categoriesInPosts: SanityCategory[];
+}): {
+  filteredBlogs: SanityPost[];
+  filteredCategoriesInPosts: SanityCategory[];
+  filterCategories: SanityCategory[];
+} {
+  // Filter blogs by category and search
+  const filteredBlogs = blogs.filter((blog: SanityPost) => {
+    const matchesCategory =
+      selectedCategory === "all" || blog.category?._id === selectedCategory;
+    const matchesSearch =
+      !searchValue ||
+      blog.title.toLowerCase().includes(searchValue.toLowerCase()) ||
+      blog.excerpt?.toLowerCase().includes(searchValue.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  // Update categories based on filtered blogs
+  const filteredCategoriesInPosts: SanityCategory[] = Array.from(
+    new Set(
+      filteredBlogs
+        .filter(
+          (post): post is SanityPost & { category: SanityCategory } =>
+            post.category !== undefined && post.category !== null,
+        )
+        .map((post) => post.category._id),
+    ),
+  )
+    .map(
+      (id) => filteredBlogs.find((post) => post.category?._id === id)?.category,
+    )
+    .filter((category): category is SanityCategory => category !== undefined);
+
+  // Update filter categories
+  const newFilterCategories: SanityCategory[] = [
+    { _id: "all", title: "All" },
+    ...(searchValue ? filteredCategoriesInPosts : categoriesInPosts),
+  ];
+
+  return {
+    filteredBlogs,
+    filteredCategoriesInPosts,
+    filterCategories: newFilterCategories,
+  };
+}
+
+/**
+ * Get banner padding classes based on banner visibility
+ * @returns string - CSS classes for banner padding
+ */
+export function getBannerPadding(): string {
+  const hasBanner = !!config.noticeBannerText;
+  return hasBanner ? "pt-52" : "pt-36";
+}
+
+/**
+ * Formats a number with proper decimal precision to avoid floating-point arithmetic issues.
+ * This is particularly useful for setting max values in forms.
+ * Always truncates to ensure the result never exceeds the original value.
+ * @param num - The number to format
+ * @param maxDecimals - Maximum number of decimal places (default: 4)
+ * @returns The formatted number as a number
+ */
+export function formatDecimalPrecision(
+  num: number,
+  maxDecimals: number = 4,
+): number {
+  if (typeof num !== "number" || isNaN(num)) {
+    return 0;
+  }
+
+  // Use Math.floor to truncate instead of rounding to ensure we never exceed the original value
+  const multiplier = Math.pow(10, maxDecimals);
+  const truncated = Math.floor(num * multiplier) / multiplier;
+  return truncated;
 }

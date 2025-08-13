@@ -1,5 +1,9 @@
+<<<<<<< HEAD
 "use client";
 import { Suspense, useEffect } from "react";
+=======
+import { Suspense } from "react";
+>>>>>>> f6b4e5d581ba260f2ef4c0fda0d7215cc0000fa5
 import { Preloader } from "./components";
 import { MainPageContent } from "./components/MainPageContent";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";

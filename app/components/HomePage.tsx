@@ -14,6 +14,7 @@ import {
 } from "./AnimatedComponents";
 import WalkthroughVideo from "./WalkthroughVideo";
 import { ScrollArrowLine, ScrollArrowHead } from "./ImageAssets";
+import { getBannerPadding } from "../utils";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -54,13 +55,9 @@ export function HomePage({
 
   return (
     <div className="flex w-full flex-col">
-      {/*
-        NOTE: pt-40 is for when the NoticeBanner is present (to offset the fixed navbar + banner).
-        If there is no NoticeBanner, change to pt-20 for correct spacing.
-      */}
       <div
         id="hero"
-        className="flex min-h-dvh w-full flex-col items-center justify-center overflow-y-auto pb-20 pt-40"
+        className={`flex min-h-dvh w-full flex-col items-center justify-center overflow-y-auto pb-20 ${getBannerPadding()}`}
       >
         <motion.div
           layout

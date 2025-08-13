@@ -61,7 +61,12 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
+  const {
+    smartWalletBalance,
+    injectedWalletBalance,
+    isLoading,
+    refreshBalance,
+  } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
 

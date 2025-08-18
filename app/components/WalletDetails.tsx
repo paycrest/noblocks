@@ -59,7 +59,11 @@ export const WalletDetails = () => {
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
 
   // Custom hook for CNGN rate fetching
-  const { rate, isLoading: isRateLoading, error: rateError } = useCNGNRate({
+  const {
+    rate,
+    isLoading: isRateLoading,
+    error: rateError,
+  } = useCNGNRate({
     network: selectedNetwork.chain.name,
     dependencies: [selectedNetwork],
   });
@@ -106,8 +110,6 @@ export const WalletDetails = () => {
   const handleBackToList = () => {
     setSelectedTransaction(null);
   };
-
-
 
   return (
     <>

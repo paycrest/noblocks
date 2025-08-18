@@ -18,7 +18,7 @@ interface CNGNRateState {
 /**
  * Custom hook for fetching CNGN (Nigerian Naira) exchange rates
  * Automatically selects the best supported token for the given network
- * 
+ *
  * @param options - Configuration options
  * @param options.network - The network name (e.g., "Base", "Arbitrum One")
  * @param options.autoFetch - Whether to automatically fetch on mount and dependency changes (default: true)
@@ -46,7 +46,7 @@ export function useCNGNRate({
     try {
       // Get the preferred token for this network dynamically
       const preferredToken = await getPreferredRateToken(network);
-      
+
       const rateResponse = await fetchRate({
         token: preferredToken,
         amount: 1,
@@ -92,16 +92,18 @@ export function useCNGNRate({
 /**
  * Utility function to get CNGN rate without the hook (for use in utility functions)
  * This is useful for places like fetchWalletBalance where hooks can't be used
- * 
+ *
  * @param network - The network name
  * @returns Promise that resolves to the CNGN rate or null if failed
  */
-export async function getCNGNRateForNetwork(network: string): Promise<number | null> {
+export async function getCNGNRateForNetwork(
+  network: string,
+): Promise<number | null> {
   try {
     if (!network) return null;
 
     const preferredToken = await getPreferredRateToken(network);
-    
+
     const rateResponse = await fetchRate({
       token: preferredToken,
       amount: 1,
@@ -113,7 +115,7 @@ export async function getCNGNRateForNetwork(network: string): Promise<number | n
       const numericRate = Number(rateResponse.data);
       return numericRate > 0 ? numericRate : null;
     }
-    
+
     return null;
   } catch (error) {
     console.error("Error fetching CNGN rate for network:", error);

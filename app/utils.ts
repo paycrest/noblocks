@@ -426,8 +426,11 @@ export async function fetchWalletBalance(
     if (typeof balances["cNGN"] === "number" && !isNaN(balances["cNGN"])) {
       totalBalance -= balances["cNGN"];
       try {
+        // Get the preferred token for this network dynamically
+        const preferredToken = await getPreferredRateToken(client.chain?.name || "");
+        
         const rate = await fetchRate({
-          token: "USDT",
+          token: preferredToken,
           amount: 1,
           currency: "NGN",
         });
@@ -974,6 +977,41 @@ export function filterBlogsAndCategories({
 export function getBannerPadding(): string {
   const hasBanner = !!config.noticeBannerText;
   return hasBanner ? "pt-52" : "pt-36";
+}
+
+/**
+ * Gets the preferred token for rate fetching on a specific network
+ * Prioritizes USDC, then USDT, then the first available token
+ * @param network - The network name (e.g., "Base", "Arbitrum One")
+ * @returns Promise<string> - The token symbol to use for rate fetching
+ */
+export async function getPreferredRateToken(network: string): Promise<string> {
+  try {
+    const supportedTokens = await getNetworkTokens(network);
+    if (!supportedTokens || supportedTokens.length === 0) {
+      // Fallback to USDC if no tokens available
+      return "USDC";
+    }
+
+    const tokenSymbols = supportedTokens.map(token => token.symbol);
+    
+    // Prioritize USDC first (most widely supported)
+    if (tokenSymbols.includes("USDC")) {
+      return "USDC";
+    }
+    
+    // Then USDT as fallback
+    if (tokenSymbols.includes("USDT")) {
+      return "USDT";
+    }
+    
+    // Use the first available token as last resort
+    return tokenSymbols[0];
+  } catch (error) {
+    console.error("Error getting preferred rate token:", error);
+    // Default fallback
+    return "USDC";
+  }
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   formatCurrency,
   getNetworkImageUrl,
   shortenAddress,
+  getPreferredRateToken,
 } from "../utils";
 import { useBalance } from "../context/BalanceContext";
 import { usePrivy } from "@privy-io/react-auth";
@@ -106,8 +107,11 @@ export const WalletDetails = () => {
   useEffect(() => {
     const getCNGNRate = async () => {
       try {
+        // Get the preferred token for this network dynamically
+        const preferredToken = await getPreferredRateToken(selectedNetwork.chain.name);
+        
         const rateResponse = await fetchRate({
-          token: "USDT",
+          token: preferredToken,
           amount: 1,
           currency: "NGN",
           network: selectedNetwork.chain.name

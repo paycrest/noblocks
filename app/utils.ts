@@ -10,7 +10,6 @@ import type { SanityPost, SanityCategory } from "./blog/types";
 import { erc20Abi } from "viem";
 import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
-import { getCNGNRateForNetwork } from "./hooks/useCNGNRate";
 import { toast } from "sonner";
 import config from "./lib/config";
 

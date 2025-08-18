@@ -102,7 +102,7 @@ export const TransactionForm = ({
   const { amountSent, amountReceived, token, currency } = watch();
 
   // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
-  const { rate: cngnRate } = useCNGNRate({
+  const { rate: cngnRate, error: cngnRateError } = useCNGNRate({
     network: selectedNetwork.chain.name,
     autoFetch: true, // Always fetch so it's available when needed
     dependencies: [selectedNetwork],
@@ -314,10 +314,17 @@ export const TransactionForm = ({
 
         const normalizedToken = token?.toUpperCase();
 
-        if (normalizedToken === "CNGN" && cngnRate && cngnRate > 0) {
-          maxAmountSentValue = 10000 * cngnRate;
-          minAmountSentValue = 0.5 * cngnRate;
-          setRateError(null); // Clear error on success
+        if (normalizedToken === "CNGN") {
+          if (cngnRate && cngnRate > 0) {
+            // Valid rate available - calculate limits and clear errors
+            maxAmountSentValue = 10000 * cngnRate;
+            minAmountSentValue = 0.5 * cngnRate;
+            setRateError(null);
+          } else {
+            // cNGN selected but no valid rate - set error
+            const errorMessage = cngnRateError || "No available quote";
+            setRateError(errorMessage);
+          }
         }
 
         formMethods.register("amountSent", {
@@ -377,7 +384,15 @@ export const TransactionForm = ({
 
       registerFormFields();
     },
-    [token, currency, formMethods, currencies, selectedNetwork, cngnRate],
+    [
+      token,
+      currency,
+      formMethods,
+      currencies,
+      selectedNetwork,
+      cngnRate,
+      cngnRateError,
+    ],
   );
 
   // Reorder currencies based on user location

@@ -188,6 +188,7 @@ export const Footer = () => {
           alt="Footer Mobile Image"
           height={100}
           width={100}
+          loading="lazy"
           className="absolute -right-2 bottom-0 w-full animate-[footer-bg-float_6s_ease-in-out_infinite] md:hidden"
         />
         <div className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] overflow-hidden md:block 2xl:rounded-b-[84px]">
@@ -197,6 +198,7 @@ export const Footer = () => {
             width={100}
             height={100}
             className="w-full animate-[footer-bg-float_6s_ease-in-out_infinite]"
+            priority
           />
         </div>
         <motion.img
@@ -210,6 +212,7 @@ export const Footer = () => {
             rocketStatus === "pending" ? rocketVariants.pending : rocketStatus
           }
           variants={rocketVariants}
+          loading="lazy"
           className="absolute bottom-7 right-8 z-10 w-full max-w-[120px] xsm:max-w-[175px] md:max-w-[250px] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[300px]"
           style={{ willChange: "transform, filter" }}
         />

@@ -1,3 +1,4 @@
+"use client";
 import {
   createContext,
   type FC,
@@ -6,7 +7,12 @@ import {
   useEffect,
   useState,
 } from "react";
-import { fetchWalletBalance, getRpcUrl } from "../utils";
+import {
+  fetchWalletBalance,
+  getRpcUrl,
+  calculateCorrectedTotalBalance,
+} from "../utils";
+import { useCNGNRate } from "../hooks/useCNGNRate";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -52,6 +58,12 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     useState<WalletBalances | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Hook for CNGN rate to correct total balances
+  const { rate: cngnRate } = useCNGNRate({
+    network: selectedNetwork.chain.name,
+    dependencies: [selectedNetwork],
+  });
+
   const fetchBalances = async () => {
     setIsLoading(true);
 
@@ -86,7 +98,15 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             publicClient,
             smartWalletAccount.address,
           );
-          setSmartWalletBalance(result);
+          // Apply cNGN conversion correction
+          const correctedTotal = calculateCorrectedTotalBalance(
+            result,
+            cngnRate,
+          );
+          setSmartWalletBalance({
+            ...result,
+            total: correctedTotal,
+          });
         } else {
           setSmartWalletBalance(null);
         }
@@ -96,7 +116,15 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             publicClient,
             externalWalletAccount.address,
           );
-          setExternalWalletBalance(result);
+          // Apply cNGN conversion correction
+          const correctedTotal = calculateCorrectedTotalBalance(
+            result,
+            cngnRate,
+          );
+          setExternalWalletBalance({
+            ...result,
+            total: correctedTotal,
+          });
         } else {
           setExternalWalletBalance(null);
         }
@@ -118,7 +146,15 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             publicClient,
             injectedAddress,
           );
-          setInjectedWalletBalance(result);
+          // Apply cNGN conversion correction
+          const correctedTotal = calculateCorrectedTotalBalance(
+            result,
+            cngnRate,
+          );
+          setInjectedWalletBalance({
+            ...result,
+            total: correctedTotal,
+          });
 
           setSmartWalletBalance(null);
           setExternalWalletBalance(null);
@@ -147,6 +183,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     isInjectedWallet,
     injectedReady,
     injectedAddress,
+    cngnRate,
   ]);
 
   const allBalances = {

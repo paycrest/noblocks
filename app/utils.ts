@@ -9,7 +9,7 @@ import type {
 import type { SanityPost, SanityCategory } from "./blog/types";
 import { erc20Abi } from "viem";
 import { colors } from "./mocks";
-import { fetchRate, fetchTokens } from "./api/aggregator";
+import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
 
@@ -421,27 +421,6 @@ export async function fetchWalletBalance(
       (acc: number, curr: number) => (acc || 0) + (curr || 0),
       0,
     );
-
-    // Add USD equivalent for cNGN
-    if (typeof balances["cNGN"] === "number" && !isNaN(balances["cNGN"])) {
-      totalBalance -= balances["cNGN"];
-      try {
-        const rate = await fetchRate({
-          token: "USDT",
-          amount: 1,
-          currency: "NGN",
-        });
-        if (
-          rate?.data &&
-          typeof rate.data === "string" &&
-          Number(rate.data) > 0
-        ) {
-          totalBalance += balances["cNGN"] / Number(rate.data);
-        }
-      } catch (error) {
-        console.error("Error fetching cNGN rate:", error);
-      }
-    }
   } catch (error) {
     return { total: 0, balances: {} };
   }
@@ -451,6 +430,41 @@ export async function fetchWalletBalance(
     total: isNaN(totalBalance) ? 0 : totalBalance,
     balances,
   };
+}
+
+/**
+ * Calculates the correct total balance by converting cNGN to USD equivalent
+ * This should be used at the context level where rates are available
+ * @param rawBalance - The raw balance object from fetchWalletBalance
+ * @param cngnRate - The current CNGN to USD rate
+ * @returns Corrected total balance with cNGN converted to USD
+ */
+export function calculateCorrectedTotalBalance(
+  rawBalance: { total: number; balances: Record<string, number> },
+  cngnRate: number | null,
+): number {
+  let correctedTotal = rawBalance.total;
+
+  // Check for both "cNGN" and "CNGN" keys (case sensitivity issue)
+  const cngnBalance =
+    rawBalance.balances["cNGN"] ?? rawBalance.balances["CNGN"];
+
+  // If there's cNGN balance and we have a rate, convert it
+  if (
+    typeof cngnBalance === "number" &&
+    !isNaN(cngnBalance) &&
+    cngnBalance > 0 &&
+    cngnRate &&
+    cngnRate > 0
+  ) {
+    // Remove the raw cNGN value (which was counted as 1:1 USD)
+    correctedTotal -= cngnBalance;
+    // Add back the USD equivalent
+    const usdEquivalent = cngnBalance / cngnRate;
+    correctedTotal += usdEquivalent;
+  }
+
+  return isNaN(correctedTotal) ? 0 : correctedTotal;
 }
 
 /**
@@ -974,6 +988,41 @@ export function filterBlogsAndCategories({
 export function getBannerPadding(): string {
   const hasBanner = !!config.noticeBannerText;
   return hasBanner ? "pt-52" : "pt-36";
+}
+
+/**
+ * Gets the preferred token for rate fetching on a specific network
+ * Prioritizes USDC, then USDT, then the first available token
+ * @param network - The network name (e.g., "Base", "Arbitrum One")
+ * @returns Promise<string> - The token symbol to use for rate fetching
+ */
+export async function getPreferredRateToken(network: string): Promise<string> {
+  try {
+    const supportedTokens = await getNetworkTokens(network);
+    if (!supportedTokens || supportedTokens.length === 0) {
+      // Fallback to USDC if no tokens available
+      return "USDC";
+    }
+
+    const tokenSymbols = supportedTokens.map((token) => token.symbol);
+
+    // Prioritize USDC first (most widely supported)
+    if (tokenSymbols.includes("USDC")) {
+      return "USDC";
+    }
+
+    // Then USDT as fallback
+    if (tokenSymbols.includes("USDT")) {
+      return "USDT";
+    }
+
+    // Use the first available token as last resort
+    return tokenSymbols[0];
+  } catch (error) {
+    console.error("Error getting preferred rate token:", error);
+    // Default fallback
+    return "USDC";
+  }
 }
 
 /**

@@ -422,20 +422,6 @@ export async function fetchWalletBalance(
       (acc: number, curr: number) => (acc || 0) + (curr || 0),
       0,
     );
-
-    // Add USD equivalent for cNGN
-    if (typeof balances["cNGN"] === "number" && !isNaN(balances["cNGN"])) {
-      totalBalance -= balances["cNGN"];
-      try {
-        // Get CNGN rate using the centralized utility function
-        const rate = await getCNGNRateForNetwork(client.chain?.name || "");
-        if (rate && rate > 0) {
-          totalBalance += balances["cNGN"] / rate;
-        }
-      } catch (error) {
-        console.error("Error fetching cNGN rate:", error);
-      }
-    }
   } catch (error) {
     return { total: 0, balances: {} };
   }
@@ -445,6 +431,41 @@ export async function fetchWalletBalance(
     total: isNaN(totalBalance) ? 0 : totalBalance,
     balances,
   };
+}
+
+/**
+ * Calculates the correct total balance by converting cNGN to USD equivalent
+ * This should be used at the context level where rates are available
+ * @param rawBalance - The raw balance object from fetchWalletBalance
+ * @param cngnRate - The current CNGN to USD rate
+ * @returns Corrected total balance with cNGN converted to USD
+ */
+export function calculateCorrectedTotalBalance(
+  rawBalance: { total: number; balances: Record<string, number> },
+  cngnRate: number | null,
+): number {
+  let correctedTotal = rawBalance.total;
+
+  // Check for both "cNGN" and "CNGN" keys (case sensitivity issue)
+  const cngnBalance =
+    rawBalance.balances["cNGN"] ?? rawBalance.balances["CNGN"];
+
+  // If there's cNGN balance and we have a rate, convert it
+  if (
+    typeof cngnBalance === "number" &&
+    !isNaN(cngnBalance) &&
+    cngnBalance > 0 &&
+    cngnRate &&
+    cngnRate > 0
+  ) {
+    // Remove the raw cNGN value (which was counted as 1:1 USD)
+    correctedTotal -= cngnBalance;
+    // Add back the USD equivalent
+    const usdEquivalent = cngnBalance / cngnRate;
+    correctedTotal += usdEquivalent;
+  }
+
+  return isNaN(correctedTotal) ? 0 : correctedTotal;
 }
 
 /**

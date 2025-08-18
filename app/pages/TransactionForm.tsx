@@ -62,12 +62,7 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const {
-    smartWalletBalance,
-    injectedWalletBalance,
-    isLoading,
-    refreshBalance,
-  } = useBalance();
+  const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
 
@@ -109,8 +104,8 @@ export const TransactionForm = ({
   // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
   const { rate: cngnRate } = useCNGNRate({
     network: selectedNetwork.chain.name,
-    autoFetch: token === "cNGN", // Only fetch when needed
-    dependencies: [selectedNetwork, token],
+    autoFetch: true, // Always fetch so it's available when needed
+    dependencies: [selectedNetwork],
   });
 
   const activeWallet = isInjectedWallet
@@ -317,7 +312,9 @@ export const TransactionForm = ({
         let maxAmountSentValue = 10000;
         let minAmountSentValue = 0.5;
 
-        if (token === "cNGN" && cngnRate && cngnRate > 0) {
+        const normalizedToken = token?.toUpperCase();
+
+        if (normalizedToken === "CNGN" && cngnRate && cngnRate > 0) {
           maxAmountSentValue = 10000 * cngnRate;
           minAmountSentValue = 0.5 * cngnRate;
           setRateError(null); // Clear error on success
@@ -354,7 +351,7 @@ export const TransactionForm = ({
           required: { value: false, message: "Add description" },
         });
 
-        if (token === "cNGN") {
+        if (normalizedToken === "CNGN") {
           // When cNGN is selected, only enable NGN
           currencies.forEach((currency) => {
             currency.disabled = currency.name !== "NGN";

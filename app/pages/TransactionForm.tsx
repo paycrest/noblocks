@@ -27,7 +27,8 @@ import {
 } from "../utils";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
-import { fetchKYCStatus, fetchRate } from "../api/aggregator";
+import { fetchKYCStatus } from "../api/aggregator";
+import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import {
   useBalance,
@@ -104,6 +105,13 @@ export const TransactionForm = ({
     formState: { errors, isValid, isDirty },
   } = formMethods;
   const { amountSent, amountReceived, token, currency } = watch();
+
+  // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
+  const { rate: cngnRate } = useCNGNRate({
+    network: selectedNetwork.chain.name,
+    autoFetch: token === "cNGN", // Only fetch when needed
+    dependencies: [selectedNetwork, token],
+  });
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
@@ -309,32 +317,10 @@ export const TransactionForm = ({
         let maxAmountSentValue = 10000;
         let minAmountSentValue = 0.5;
 
-        if (token === "cNGN") {
-          try {
-            const rate = await fetchRate({
-              token: "USDC",
-              amount: 1,
-              currency: "NGN",
-              network: selectedNetwork.chain.name
-                .toLowerCase()
-                .replace(/\s+/g, "-"),
-            });
-
-            if (
-              rate?.data &&
-              typeof rate.data === "string" &&
-              Number(rate.data) > 0
-            ) {
-              maxAmountSentValue = 10000 * Number(rate.data);
-              minAmountSentValue = 0.5 * Number(rate.data);
-              setRateError(null); // Clear error on success
-            }
-          } catch (error: any) {
-            setRateError(error?.message || "Unknown error");
-            toast.error("No available quote", {
-              description: error?.message || "Unknown error",
-            });
-          }
+        if (token === "cNGN" && cngnRate && cngnRate > 0) {
+          maxAmountSentValue = 10000 * cngnRate;
+          minAmountSentValue = 0.5 * cngnRate;
+          setRateError(null); // Clear error on success
         }
 
         formMethods.register("amountSent", {
@@ -394,7 +380,7 @@ export const TransactionForm = ({
 
       registerFormFields();
     },
-    [token, currency, formMethods, currencies, selectedNetwork],
+    [token, currency, formMethods, currencies, selectedNetwork, cngnRate],
   );
 
   // Reorder currencies based on user location

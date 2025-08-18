@@ -9,7 +9,8 @@ import type {
 import type { SanityPost, SanityCategory } from "./blog/types";
 import { erc20Abi } from "viem";
 import { colors } from "./mocks";
-import { fetchRate, fetchTokens } from "./api/aggregator";
+import { fetchTokens } from "./api/aggregator";
+import { getCNGNRateForNetwork } from "./hooks/useCNGNRate";
 import { toast } from "sonner";
 import config from "./lib/config";
 
@@ -426,20 +427,10 @@ export async function fetchWalletBalance(
     if (typeof balances["cNGN"] === "number" && !isNaN(balances["cNGN"])) {
       totalBalance -= balances["cNGN"];
       try {
-        // Get the preferred token for this network dynamically
-        const preferredToken = await getPreferredRateToken(client.chain?.name || "");
-        
-        const rate = await fetchRate({
-          token: preferredToken,
-          amount: 1,
-          currency: "NGN",
-        });
-        if (
-          rate?.data &&
-          typeof rate.data === "string" &&
-          Number(rate.data) > 0
-        ) {
-          totalBalance += balances["cNGN"] / Number(rate.data);
+        // Get CNGN rate using the centralized utility function
+        const rate = await getCNGNRateForNetwork(client.chain?.name || "");
+        if (rate && rate > 0) {
+          totalBalance += balances["cNGN"] / rate;
         }
       } catch (error) {
         console.error("Error fetching cNGN rate:", error);
@@ -993,18 +984,18 @@ export async function getPreferredRateToken(network: string): Promise<string> {
       return "USDC";
     }
 
-    const tokenSymbols = supportedTokens.map(token => token.symbol);
-    
+    const tokenSymbols = supportedTokens.map((token) => token.symbol);
+
     // Prioritize USDC first (most widely supported)
     if (tokenSymbols.includes("USDC")) {
       return "USDC";
     }
-    
+
     // Then USDT as fallback
     if (tokenSymbols.includes("USDT")) {
       return "USDT";
     }
-    
+
     // Use the first available token as last resort
     return tokenSymbols[0];
   } catch (error) {

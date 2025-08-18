@@ -18,11 +18,7 @@ export const useHotjar = () => {
         if (hotjarSiteId && !hotjarInitialized) {
           Hotjar.init(hotjarSiteId, hotjarVersion);
           hotjarInitialized = true;
-        } else if (!hotjarSiteId) {
-          console.warn("Hotjar ID is not defined");
         }
-      } else {
-        console.warn("User has not consented to analytics cookies");
       }
     };
 

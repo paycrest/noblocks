@@ -27,7 +27,8 @@ import {
 } from "../utils";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
-import { fetchKYCStatus, fetchRate } from "../api/aggregator";
+import { fetchKYCStatus } from "../api/aggregator";
+import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import {
   useBalance,
@@ -61,12 +62,7 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const {
-    smartWalletBalance,
-    injectedWalletBalance,
-    isLoading,
-    refreshBalance,
-  } = useBalance();
+  const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
 
@@ -104,6 +100,13 @@ export const TransactionForm = ({
     formState: { errors, isValid, isDirty },
   } = formMethods;
   const { amountSent, amountReceived, token, currency } = watch();
+
+  // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
+  const { rate: cngnRate, error: cngnRateError } = useCNGNRate({
+    network: selectedNetwork.chain.name,
+    autoFetch: true, // Always fetch so it's available when needed
+    dependencies: [selectedNetwork],
+  });
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
@@ -309,31 +312,18 @@ export const TransactionForm = ({
         let maxAmountSentValue = 10000;
         let minAmountSentValue = 0.5;
 
-        if (token === "cNGN") {
-          try {
-            const rate = await fetchRate({
-              token: "USDC",
-              amount: 1,
-              currency: "NGN",
-              network: selectedNetwork.chain.name
-                .toLowerCase()
-                .replace(/\s+/g, "-"),
-            });
+        const normalizedToken = token?.toUpperCase();
 
-            if (
-              rate?.data &&
-              typeof rate.data === "string" &&
-              Number(rate.data) > 0
-            ) {
-              maxAmountSentValue = 10000 * Number(rate.data);
-              minAmountSentValue = 0.5 * Number(rate.data);
-              setRateError(null); // Clear error on success
-            }
-          } catch (error: any) {
-            setRateError(error?.message || "Unknown error");
-            toast.error("No available quote", {
-              description: error?.message || "Unknown error",
-            });
+        if (normalizedToken === "CNGN") {
+          if (cngnRate && cngnRate > 0) {
+            // Valid rate available - calculate limits and clear errors
+            maxAmountSentValue = 10000 * cngnRate;
+            minAmountSentValue = 0.5 * cngnRate;
+            setRateError(null);
+          } else {
+            // cNGN selected but no valid rate - set error
+            const errorMessage = cngnRateError || "No available quote";
+            setRateError(errorMessage);
           }
         }
 
@@ -368,7 +358,7 @@ export const TransactionForm = ({
           required: { value: false, message: "Add description" },
         });
 
-        if (token === "cNGN") {
+        if (normalizedToken === "CNGN") {
           // When cNGN is selected, only enable NGN
           currencies.forEach((currency) => {
             currency.disabled = currency.name !== "NGN";
@@ -394,7 +384,15 @@ export const TransactionForm = ({
 
       registerFormFields();
     },
-    [token, currency, formMethods, currencies, selectedNetwork],
+    [
+      token,
+      currency,
+      formMethods,
+      currencies,
+      selectedNetwork,
+      cngnRate,
+      cngnRateError,
+    ],
   );
 
   // Reorder currencies based on user location

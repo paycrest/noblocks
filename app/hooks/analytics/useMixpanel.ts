@@ -12,7 +12,6 @@ export const initMixpanel = () => {
 
   const consent = Cookies.get("cookieConsent");
   if (!consent || !JSON.parse(consent).analytics) {
-    console.warn("User has not consented to analytics cookies");
     return;
   }
 
@@ -23,8 +22,6 @@ export const initMixpanel = () => {
     });
 
     initialized = true;
-  } else {
-    console.warn("Mixpanel token is not defined");
   }
 };
 
@@ -56,7 +53,6 @@ export const identifyUser = (
   },
 ) => {
   if (!initialized) {
-    console.warn("Mixpanel not initialized");
     return;
   }
 
@@ -80,7 +76,6 @@ export const trackEvent = (
   properties?: Dict | undefined,
 ) => {
   if (!initialized) {
-    console.warn("Mixpanel not initialized");
     return;
   }
   mixpanel.track(eventName, { ...properties, app: "Noblocks" });

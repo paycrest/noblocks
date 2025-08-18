@@ -20,6 +20,11 @@
 .DS_Store
 *.pem
 .hintrc
+.sanity/
+PR_DESCRIPTION.md
+.vercel
+.vscode
+.cursor
 
 # debug
 npm-debug.log*
@@ -33,17 +38,7 @@ yarn-error.log*
 keys/rsa.key.pub
 keys/rsa.key
 keys
-PR_DESCRIPTION.md
-
-# vercel
-.vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# editor
-.vscode
-
-# cursor
-.cursor/

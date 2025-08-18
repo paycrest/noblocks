@@ -11,6 +11,7 @@ import { useStep } from "../context";
 import { classNames } from "../utils";
 import { STEPS } from "../types";
 import { useRocketStatus } from "../context/RocketStatusContext";
+import Link from "next/link";
 
 const socials = [
   {
@@ -169,9 +170,11 @@ export const Footer = () => {
 
                 <div className="h-4 w-px bg-border-light dark:bg-white/10" />
 
-                <p className="text-sm text-black dark:text-white/80">
+               <Link href="http://tinyurl.com/noblocks-brand-kit" target="_blank">
+               <p className="text-sm text-black dark:text-white/80">
                   Brand Kit
                 </p>
+                </Link>
               </div>
             </div>
           </div>

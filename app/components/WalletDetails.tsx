@@ -333,6 +333,7 @@ export const WalletDetails = () => {
                                           width={32}
                                           height={32}
                                           className="size-8 rounded-full"
+                                          priority
                                         />
                                         <Image
                                           src={getNetworkImageUrl(

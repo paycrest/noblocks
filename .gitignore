@@ -28,7 +28,6 @@ yarn-error.log*
 
 # local env files
 .env
-.sanity
 .env*.local
 keys/rsa.key.pub
 keys/rsa.key

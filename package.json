@@ -67,7 +67,7 @@
     "viem": "^2.31.0"
   },
   "devDependencies": {
-    "@sanity/cli": "^3.99.0",
+    "@sanity/cli": "^4.4.1",
     "@sanity/vision": "^4.4.1",
     "@types/canvas-confetti": "^1.9.0",
     "@types/js-cookie": "^3.0.6",

@@ -33,6 +33,40 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
     { id: string; title: string }[]
   >([]);
 
+  // Horizontal scroll state for category row
+  const categoryScrollRef = useRef<HTMLDivElement | null>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState<boolean>(false);
+  const [canScrollRight, setCanScrollRight] = useState<boolean>(false);
+
+  useEffect(() => {
+    const updateArrows = () => {
+      const el = categoryScrollRef.current;
+      if (!el) return;
+      const { scrollLeft, scrollWidth, clientWidth } = el;
+      setCanScrollLeft(scrollLeft > 0);
+      setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 1);
+    };
+
+    updateArrows();
+    const el = categoryScrollRef.current;
+    el?.addEventListener("scroll", updateArrows, { passive: true });
+    window.addEventListener("resize", updateArrows);
+    return () => {
+      el?.removeEventListener("scroll", updateArrows as EventListener);
+      window.removeEventListener("resize", updateArrows);
+    };
+  }, []);
+
+  const scrollCategories = (direction: "left" | "right") => {
+    const el = categoryScrollRef.current;
+    if (!el) return;
+    const amount = Math.round(el.clientWidth * 0.7);
+    el.scrollBy({
+      left: direction === "left" ? -amount : amount,
+      behavior: "smooth",
+    });
+  };
+
   // Track page view on mount
   useEffect(() => {
     trackPageView("Blog Home");
@@ -165,7 +199,67 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
         >
           {/* Category Filter Scrollable Row */}
           <div className="relative min-w-0 flex-1">
-            <div className="scrollbar-hide flex gap-2 overflow-x-auto whitespace-nowrap pr-4">
+            {/* Left gradient overlay */}
+            {canScrollLeft ? (
+              <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-20 bg-gradient-to-r from-white to-transparent dark:from-[#0A0A0A]" />
+            ) : null}
+            {/* Right gradient overlay */}
+            {canScrollRight ? (
+              <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-20 bg-gradient-to-l from-white to-transparent dark:from-[#0A0A0A]" />
+            ) : null}
+
+            {/* Left scroll button */}
+            {canScrollLeft ? (
+              <button
+                type="button"
+                aria-label="Scroll categories left"
+                className="absolute left-1 top-0 z-20 -translate-y-1/2 rounded-full border border-black/5 bg-white/90 p-1.5 shadow-sm backdrop-blur-sm transition hover:bg-white dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
+                onClick={() => scrollCategories("left")}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-text-body dark:text-white/80"
+                >
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+            ) : null}
+
+            {/* Right scroll button */}
+            {canScrollRight ? (
+              <button
+                type="button"
+                aria-label="Scroll categories right"
+                className="absolute right-1 top-0 z-20 -translate-y-1/2 rounded-full border border-black/5 bg-white/90 p-1.5 shadow-sm backdrop-blur-sm transition hover:bg-white dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
+                onClick={() => scrollCategories("right")}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-text-body dark:text-white/80"
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            ) : null}
+
+            <div
+              ref={categoryScrollRef}
+              className="scrollbar-hide relative z-0 flex gap-2 overflow-x-auto whitespace-nowrap px-10"
+            >
               {filterCategories.map((cat) => (
                 <button
                   key={cat._id}

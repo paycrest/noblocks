@@ -31,7 +31,8 @@
     "@privy-io/react-auth": "^2.14.1",
     "@privy-io/server-auth": "^1.27.0",
     "@react-pdf/renderer": "^4.3.0",
-    "@sanity/client": "^7.8.1",
+    "@sanity/client": "^7.8.2",
+    "@sanity/icons": "^3.7.4",
     "@sanity/image-url": "^1.1.0",
     "@supabase/supabase-js": "^2.50.0",
     "@tanstack/react-query": "^5.80.7",
@@ -51,7 +52,7 @@
     "lru-cache": "^11.1.0",
     "mixpanel-browser": "^2.65.0",
     "next": "^15.3.3",
-    "next-sanity": "^7.1.4",
+    "next-sanity": "^10.0.12",
     "next-themes": "^0.4.6",
     "permissionless": "^0.2.47",
     "rate-limiter-flexible": "^7.1.1",
@@ -66,8 +67,8 @@
     "viem": "^2.31.0"
   },
   "devDependencies": {
-    "@sanity/cli": "^3.99.0",
-    "@sanity/vision": "^3.99.0",
+    "@sanity/cli": "^4.4.1",
+    "@sanity/vision": "^4.4.1",
     "@types/canvas-confetti": "^1.9.0",
     "@types/js-cookie": "^3.0.6",
     "@types/mixpanel-browser": "^2.60.0",
@@ -79,7 +80,7 @@
     "postcss": "^8.5.5",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.12",
-    "sanity": "^3.99.0",
+    "sanity": "^4.4.1",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3"
   },

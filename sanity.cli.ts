@@ -7,7 +7,7 @@ export default defineCliConfig({
     dataset: serverConfig.dataset,
   },
   /**
-   * Disable auto-updates to prevent version compatibility issues.
+   * Enable auto-updates for studios
    * Learn more at https://www.sanity.io/docs/cli#auto-updates
    */
   autoUpdates: true,

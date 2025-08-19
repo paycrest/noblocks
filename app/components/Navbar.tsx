@@ -110,10 +110,10 @@ export const Navbar = () => {
         <div className="flex items-start gap-2 lg:flex-1">
           <div
             className={`relative flex ${IS_MAIN_PRODUCTION_DOMAIN ? "items-center" : "items-start"} gap-5`}
+            ref={dropdownRef}
           >
             <div
               className="flex cursor-pointer items-center gap-1"
-              ref={dropdownRef}
               onMouseEnter={() => setIsDropdownOpen(true)}
               onMouseLeave={() => setIsDropdownOpen(false)}
             >

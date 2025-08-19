@@ -119,6 +119,9 @@ export const Navbar = () => {
             >
               <button
                 aria-label="Noblocks Logo Icon"
+                aria-haspopup="menu"
+                aria-expanded={isDropdownOpen}
+                aria-controls="navbar-dropdown"
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="flex items-center gap-1 max-sm:min-h-9 max-sm:rounded-lg max-sm:bg-accent-gray max-sm:p-2 dark:max-sm:bg-white/10"
@@ -147,11 +150,7 @@ export const Navbar = () => {
 
             {/* Blog Link - Desktop Only */}
             {!pathname.startsWith("/blog") && (
-              <div
-                className="hidden items-center sm:flex"
-                // onMouseEnter={() => setIsDropdownOpen(false)}
-                // onMouseLeave={() => setIsDropdownOpen(true)}
-              >
+              <div className="hidden items-center sm:flex">
                 <Link
                   href="/blog"
                   className="-mt-[3px] text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white"

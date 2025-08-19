@@ -109,12 +109,14 @@ export const Navbar = () => {
       >
         <div className="flex items-start gap-2 lg:flex-1">
           <div
-            className="relative flex items-start gap-5"
-            ref={dropdownRef}
-            onMouseEnter={() => setIsDropdownOpen(true)}
-            onMouseLeave={() => setIsDropdownOpen(false)}
+            className={`relative flex ${IS_MAIN_PRODUCTION_DOMAIN ? "items-center" : "items-start"} gap-5`}
           >
-            <div className="flex items-center gap-1">
+            <div
+              className="flex cursor-pointer items-center gap-1"
+              ref={dropdownRef}
+              onMouseEnter={() => setIsDropdownOpen(true)}
+              onMouseLeave={() => setIsDropdownOpen(false)}
+            >
               <button
                 aria-label="Noblocks Logo Icon"
                 type="button"
@@ -147,8 +149,8 @@ export const Navbar = () => {
             {!pathname.startsWith("/blog") && (
               <div
                 className="hidden items-center sm:flex"
-                onMouseEnter={() => setIsDropdownOpen(false)}
-                onMouseLeave={() => setIsDropdownOpen(true)}
+                // onMouseEnter={() => setIsDropdownOpen(false)}
+                // onMouseLeave={() => setIsDropdownOpen(true)}
               >
                 <Link
                   href="/blog"

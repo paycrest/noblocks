@@ -80,6 +80,7 @@ export function useCNGNRate({
     if (autoFetch) {
       fetchCNGNRate();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoFetch, fetchCNGNRate, ...dependencies]);
 
   return {

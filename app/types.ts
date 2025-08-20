@@ -347,10 +347,13 @@ export interface JWTProviderConfig {
     jwksUrl: string;
     issuer: string;
     algorithms: string[];
+    appId: string;
+    appSecret: string;
   };
   thirdweb?: {
     clientId: string;
     domain: string;
+    secretKey: string;
   };
 }
 
@@ -367,7 +370,7 @@ export interface VerifyJWTResult {
 export interface UpdateTransactionStatusPayload {
   transactionId: string;
   status: string;
-  accessToken: string;
+  accessToken?: string; // Optional for thirdweb migration
   walletAddress: string;
 }
 

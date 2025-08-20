@@ -50,7 +50,7 @@ import {
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
-import { usePrivy } from "@privy-io/react-auth";
+import { useActiveAccount } from "thirdweb/react";
 import { useRocketStatus } from "../context/RocketStatusContext";
 
 /**
@@ -82,13 +82,10 @@ export function TransactionStatus({
   const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
     useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const { user, getAccessToken } = usePrivy();
+  const account = useActiveAccount();
   const { setRocketStatus } = useRocketStatus();
 
-  const embeddedWallet = user?.linkedAccounts.find(
-    (account) =>
-      account.type === "wallet" && account.connectorType === "embedded",
-  ) as { address: string } | undefined;
+  const embeddedWallet = { address: account?.address };
 
   const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
@@ -137,10 +134,11 @@ export function TransactionStatus({
     const requestId = ++latestRequestIdRef.current;
 
     try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error("No access token available");
-      }
+      // TODO: Update with thirdweb authentication when needed
+      // const accessToken = await getAccessToken();
+      // if (!accessToken) {
+      //   throw new Error("No access token available");
+      // }
 
       // Get the stored transaction ID
       const transactionId = localStorage.getItem("currentTransactionId");
@@ -168,7 +166,7 @@ export function TransactionStatus({
         txHash:
           transactionStatus !== "refunded" ? createdHash : orderDetails?.txHash,
         timeSpent,
-        accessToken,
+        // accessToken, // TODO: Update with thirdweb authentication
         walletAddress: embeddedWallet.address,
       });
 

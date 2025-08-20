@@ -2,6 +2,7 @@
 import { Toaster } from "sonner";
 import { type ReactNode } from "react";
 import { ThemeProvider } from "next-themes";
+import { ThirdwebProvider } from "thirdweb/react";
 
 import { PrivyProvider } from "@privy-io/react-auth";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
@@ -12,6 +13,7 @@ import config from "./lib/config";
 import {
   BalanceProvider,
   InjectedWalletProvider,
+  MultiNetworkBalanceProvider,
   NetworkProvider,
   RocketStatusProvider,
   StepProvider,
@@ -27,9 +29,11 @@ function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
-        <PrivyConfigWrapper privyAppId={privyAppId}>
-          {children}
-        </PrivyConfigWrapper>
+        <ThirdwebProvider>
+          <PrivyConfigWrapper privyAppId={privyAppId}>
+            {children}
+          </PrivyConfigWrapper>
+        </ThirdwebProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );
@@ -86,9 +90,11 @@ function ContextProviders({ children }: { children: ReactNode }) {
         <TokensProvider>
           <StepProvider>
             <BalanceProvider>
-              <TransactionsProvider>
-                <RocketStatusProvider>{children}</RocketStatusProvider>
-              </TransactionsProvider>
+              <MultiNetworkBalanceProvider>
+                <TransactionsProvider>
+                  <RocketStatusProvider>{children}</RocketStatusProvider>
+                </TransactionsProvider>
+              </MultiNetworkBalanceProvider>
             </BalanceProvider>
           </StepProvider>
         </TokensProvider>

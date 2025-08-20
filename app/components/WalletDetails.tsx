@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   classNames,
   formatCurrency,
@@ -7,35 +7,30 @@ import {
   shortenAddress,
 } from "../utils";
 import { useBalance } from "../context/BalanceContext";
-import { usePrivy } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
+// import { TransferModal } from "./TransferModal"; // Component not available
 import {
   ArrowRight03Icon,
   Copy01Icon,
   Wallet01Icon,
   ArrowLeft02Icon,
   ArrowDown01Icon,
-  RefreshIcon,
 } from "hugeicons-react";
 import Image from "next/image";
-import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
+// import { FundWalletModal } from "./FundWalletModal"; // Component not available
 import { useInjectedWallet } from "../context";
 import { toast } from "sonner";
 import { Dialog } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  sidebarAnimation,
-  fadeInOut,
-  AnimatedModal,
-} from "./AnimatedComponents";
+import { sidebarAnimation, fadeInOut } from "./AnimatedComponents";
 import { TransactionDetails } from "./transaction/TransactionDetails";
 import type { TransactionHistory } from "../types";
 import { PiCheck } from "react-icons/pi";
 import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
-import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useActualTheme } from "../hooks/useActualTheme";
 import TransactionList from "./transaction/TransactionList";
-import { FundWalletForm, TransferForm } from "./index";
+import { useCNGNRate } from "@/app/hooks/useCNGNRate";
+import { useActiveAccount } from "thirdweb/react";
 
 export const WalletDetails = () => {
   const [isTransferModalOpen, setIsTransferModalOpen] =
@@ -50,47 +45,21 @@ export const WalletDetails = () => {
   const [isAddressCopied, setIsAddressCopied] = useState(false);
 
   const { selectedNetwork } = useNetwork();
-  const { allBalances, isLoading, refreshBalance } = useBalance();
+  const { allBalances, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const { user } = usePrivy();
   const isDark = useActualTheme();
 
-  // Custom hook for handling wallet funding
-  const { handleFundWallet } = useFundWalletHandler("Wallet details");
-
-  // Custom hook for CNGN rate fetching
-  const {
-    rate,
-    isLoading: isRateLoading,
-    error: rateError,
-  } = useCNGNRate({
-    network: selectedNetwork.chain.name,
-    dependencies: [selectedNetwork],
-  });
+  const account = useActiveAccount();
 
   // Determine active wallet based on wallet type
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : { address: account?.address };
 
   // Get appropriate balance based on wallet type
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
     : allBalances.smartWallet;
-
-  // Handler for funding wallet with specified amount and token
-  const handleFundWalletClick = async (
-    amount: string,
-    tokenAddress: `0x${string}`,
-    onComplete?: (success: boolean) => void,
-  ) => {
-    await handleFundWallet(
-      activeWallet?.address ?? "",
-      amount,
-      tokenAddress,
-      onComplete,
-    );
-  };
 
   // Close sidebar and reset selected transaction
   const handleSidebarClose = () => {
@@ -110,6 +79,16 @@ export const WalletDetails = () => {
   const handleBackToList = () => {
     setSelectedTransaction(null);
   };
+
+  // Custom hook for CNGN rate fetching
+  const {
+    rate,
+    isLoading: isRateLoading,
+    error: rateError,
+  } = useCNGNRate({
+    network: selectedNetwork.chain.name,
+    dependencies: [selectedNetwork],
+  });
 
   return (
     <>
@@ -206,7 +185,7 @@ export const WalletDetails = () => {
                         <div className="flex items-center gap-2">
                           <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
                           <p className="text-text-body dark:text-white/80">
-                            {shortenAddress(activeWallet?.address ?? "", 8)}
+                            {shortenAddress(account?.address ?? "", 8)}
                           </p>
                         </div>
                         <button
@@ -223,32 +202,12 @@ export const WalletDetails = () => {
                         </button>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <div className="text-2xl font-medium text-text-body dark:text-white">
-                          {formatCurrency(
-                            activeBalance?.total ?? 0,
-                            "USD",
-                            "en-US",
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              await refreshBalance();
-                            } catch (error) {
-                              console.error("Error refreshing balance:", error);
-                            }
-                          }}
-                          title="Refresh balance"
-                          aria-label="Refresh balance"
-                          disabled={isLoading}
-                          className="rounded-lg p-2 transition-colors hover:bg-accent-gray disabled:opacity-50 dark:hover:bg-white/10"
-                        >
-                          <RefreshIcon
-                            className={`size-5 text-outline-gray dark:text-white/50 ${isLoading ? "animate-spin" : ""}`}
-                          />
-                        </button>
+                      <div className="text-2xl font-medium text-text-body dark:text-white">
+                        {formatCurrency(
+                          activeBalance?.total ?? 0,
+                          "USD",
+                          "en-US",
+                        )}
                       </div>
 
                       {!isInjectedWallet && (
@@ -333,14 +292,16 @@ export const WalletDetails = () => {
                                           width={32}
                                           height={32}
                                           className="size-8 rounded-full"
-                                          priority
                                         />
                                         <Image
                                           src={getNetworkImageUrl(
                                             selectedNetwork,
                                             isDark,
                                           )}
-                                          alt={selectedNetwork.chain.name}
+                                          alt={
+                                            selectedNetwork.chain.name ??
+                                            "Network"
+                                          }
                                           width={16}
                                           height={16}
                                           className="absolute -bottom-1 -right-1 size-4 rounded-full"
@@ -404,19 +365,15 @@ export const WalletDetails = () => {
       {/* Transfer and Fund modals */}
       {!isInjectedWallet && (
         <>
-          <AnimatedModal
+          {/* <TransferModal
             isOpen={isTransferModalOpen}
             onClose={() => setIsTransferModalOpen(false)}
-          >
-            <TransferForm onClose={() => setIsTransferModalOpen(false)} />
-          </AnimatedModal>
+          />
 
-          <AnimatedModal
+          <FundWalletModal
             isOpen={isFundModalOpen}
             onClose={() => setIsFundModalOpen(false)}
-          >
-            <FundWalletForm onClose={() => setIsFundModalOpen(false)} />
-          </AnimatedModal>
+          /> */}
         </>
       )}
     </>

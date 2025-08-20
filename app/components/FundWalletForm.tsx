@@ -12,8 +12,7 @@ import { useActualTheme } from "../hooks/useActualTheme";
 import Image from "next/image";
 import { toast } from "sonner";
 import { ArrowLeft02Icon, Cancel01Icon } from "hugeicons-react";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+import { useActiveAccount } from "thirdweb/react";
 import { Token } from "../types";
 
 type MobileView = "wallet" | "settings" | "transfer" | "fund" | "history";
@@ -28,7 +27,7 @@ export const FundWalletForm: React.FC<{
   const { refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const { handleFundWallet } = useFundWalletHandler("Fund wallet form");
-  const { user } = usePrivy();
+  const account = useActiveAccount();
   const isDark = useActualTheme();
 
   const [fundingInProgress, setFundingInProgress] = useState(false);
@@ -71,9 +70,7 @@ export const FundWalletForm: React.FC<{
       const tokenAddress = fundTokens.find(
         (t: Token) => t.symbol.toUpperCase() === data.token,
       )?.address as `0x${string}`;
-      const smartWalletAccount = user?.linkedAccounts?.find(
-        (account) => account.type === "smart_wallet",
-      );
+      const smartWalletAccount = { address: account?.address };
       const walletAddress = smartWalletAccount?.address ?? "";
       setFundingInProgress(true);
       await handleFundWallet(

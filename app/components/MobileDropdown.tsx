@@ -1,26 +1,54 @@
 "use client";
+import Image from "next/image";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState, useEffect } from "react";
-import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
+import { useState } from "react";
+import {
+  Cancel01Icon,
+  ArrowRight01Icon,
+  Mail01Icon,
+  ColorsIcon,
+  Logout03Icon,
+  Setting07Icon,
+  Wallet01Icon,
+  ArrowLeft02Icon,
+  ArrowDown01Icon,
+  CustomerService01Icon,
+  Clock01Icon,
+  Key01Icon,
+} from "hugeicons-react";
+
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance, useTokens } from "../context";
-import { handleNetworkSwitch, detectWalletProvider } from "../utils";
-import { useLogout } from "@privy-io/react-auth";
+import { useBalance } from "../context/BalanceContext";
+import {
+  classNames,
+  // fetchSupportedTokens, // Function not available in current utils
+  handleNetworkSwitch,
+  detectWalletProvider,
+  getNetworkImageUrl,
+} from "../utils";
+import { PiCheck } from "react-icons/pi";
+import { ImSpinner } from "react-icons/im";
+import { ThemeSwitch } from "./ThemeSwitch";
+// import { TransferModal } from "./TransferModal"; // Component not available
+import { networks } from "../mocks";
+import { Network, Token } from "../types";
 import { toast } from "sonner";
 import { useStep } from "../context/StepContext";
 import { STEPS } from "../types";
+// import { FundWalletModal } from "./FundWalletModal"; // Component not available
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
+import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
+import { TransactionHistoryModal } from "./transaction/TransactionHistoryModal";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { useActualTheme } from "../hooks/useActualTheme";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-import { useTransactions } from "../context/TransactionsContext";
-import { networks } from "../mocks";
-import { Network, Token, TransactionHistory } from "../types";
-import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
-import { slideUpAnimation } from "./AnimatedComponents";
-import { FundWalletForm, TransferForm } from "./index";
+import { BalanceCardSkeleton } from "./BalanceSkeleton";
+import {
+  useActiveAccount,
+  useActiveWallet,
+  useDisconnect,
+} from "thirdweb/react";
 
 export const MobileDropdown = ({
   isOpen,
@@ -29,34 +57,35 @@ export const MobileDropdown = ({
   isOpen: boolean;
   onClose: () => void;
 }) => {
-  const [currentView, setCurrentView] = useState<
-    "wallet" | "settings" | "transfer" | "fund" | "history"
-  >("wallet");
+  const [currentView, setCurrentView] = useState<"wallet" | "settings">(
+    "wallet",
+  );
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isFundModalOpen, setIsFundModalOpen] = useState(false);
+  const [isTransactionHistoryModalOpen, setIsTransactionHistoryModalOpen] =
+    useState(false);
+  const [fundingInProgress, setFundingInProgress] = useState(false);
+  const [payEmbedConfig, setPayEmbedConfig] = useState<any>(null);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
-  const { user, linkEmail, updateEmail } = usePrivy();
-  const { allBalances, isLoading, refreshBalance } = useBalance();
-  const { allTokens } = useTokens();
-  const { logout } = useLogout({
-    onSuccess: () => {
-      setIsLoggingOut(false);
-    },
-  });
+  const { allBalances, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+
+  const account = useActiveAccount();
+  const wallet = useActiveWallet();
+  const { disconnect } = useDisconnect();
 
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
   const smartWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : { address: account?.address };
 
   const { currentStep } = useStep();
 
   const { disconnectWallet } = useWalletDisconnect();
-
-  const { showMfaEnrollmentModal } = useMfaEnrollment();
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(smartWallet?.address ?? "");
@@ -64,7 +93,7 @@ export const MobileDropdown = ({
   };
 
   const tokens: { name: string; imageUrl: string | undefined }[] = [];
-  const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
+  const fetchedTokens: Token[] = []; // TODO: Implement fetchSupportedTokens or use available token data
   for (const token of fetchedTokens) {
     tokens.push({
       name: token.symbol,
@@ -77,17 +106,33 @@ export const MobileDropdown = ({
     return token ? token.imageUrl : "";
   };
 
+  const slideUpAnimation = {
+    initial: { y: "100%", opacity: 0 },
+    animate: { y: 0, opacity: 1 },
+    exit: { y: "100%", opacity: 0 },
+    transition: {
+      type: "spring",
+      stiffness: 300,
+      damping: 30,
+      duration: 0.2,
+    },
+  };
+
   const handleFundWalletClick = async (
     amount: string,
     tokenAddress: `0x${string}`,
     onComplete?: (success: boolean) => void,
   ) => {
-    await handleFundWallet(
+    const payEmbedConfig = await handleFundWallet(
       smartWallet?.address ?? "",
       amount,
       tokenAddress,
       onComplete,
     );
+
+    // Show the PayEmbed component with the configuration
+    setFundingInProgress(true);
+    setPayEmbedConfig(payEmbedConfig);
   };
 
   const activeBalance = isInjectedWallet
@@ -125,29 +170,21 @@ export const MobileDropdown = ({
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
+      if (wallet) disconnect(wallet);
+
       // Disconnect external wallet if connected
-      await logout();
       if (window.ethereum) {
         await disconnectWallet();
       }
     } catch (error) {
       console.error("Error during logout:", error);
-      // Still proceed with logout even if wallet disconnection fails
-      await logout();
+
+      // Still proceed with logout even if external wallet disconnection fails
+      if (wallet) disconnect(wallet);
     }
   };
 
   const isDark = useActualTheme();
-
-  // --- History state ---
-  const [selectedTransaction, setSelectedTransaction] =
-    useState<TransactionHistory | null>(null);
-  const { clearTransactions } = useTransactions();
-  useEffect(() => {
-    if (currentView !== "history") clearTransactions();
-  }, [currentView, clearTransactions]);
-
-  const { client } = useSmartWallets();
 
   return (
     <>
@@ -156,7 +193,7 @@ export const MobileDropdown = ({
           <Dialog
             open={isOpen}
             onClose={onClose}
-            className="relative z-[60] max-h-[90vh] sm:hidden"
+            className="relative z-50 max-h-[90vh] sm:hidden"
           >
             <motion.div
               initial={{ opacity: 0 }}
@@ -169,89 +206,371 @@ export const MobileDropdown = ({
             <div className="fixed inset-0">
               <div className="flex h-full items-end">
                 <motion.div {...slideUpAnimation} className="w-full">
-                  <DialogPanel className="scrollbar-hide relative max-h-[90vh] w-full overflow-visible rounded-t-[30px] border border-border-light bg-white px-5 pt-6 shadow-xl *:text-sm dark:border-white/5 dark:bg-surface-overlay">
+                  <DialogPanel className="scrollbar-hide relative max-h-[90vh] w-full overflow-visible overflow-y-scroll rounded-t-[30px] border border-border-light bg-white px-5 pb-12 pt-6 shadow-xl *:text-sm dark:border-white/5 dark:bg-surface-overlay">
                     <AnimatePresence mode="wait">
-                      <motion.div
-                        key={currentView}
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{
-                          height: { duration: 0.35 },
-                          opacity: { duration: 0.2 },
-                        }}
-                        style={{ overflow: "hidden" }}
-                      >
-                        <div className="scrollbar-hide max-h-[90vh] overflow-y-scroll pb-12">
-                          {currentView === "wallet" && (
-                            <WalletView
-                              isInjectedWallet={isInjectedWallet}
-                              detectWalletProvider={detectWalletProvider}
-                              isLoading={isLoading}
-                              activeBalance={activeBalance}
-                              getTokenImageUrl={getTokenImageUrl}
-                              onTransfer={() => setCurrentView("transfer")}
-                              onFund={() => setCurrentView("fund")}
-                              smartWallet={smartWallet}
-                              handleCopyAddress={handleCopyAddress}
-                              isNetworkListOpen={isNetworkListOpen}
-                              setIsNetworkListOpen={setIsNetworkListOpen}
-                              networks={networks}
-                              selectedNetwork={selectedNetwork}
-                              isDark={isDark}
-                              handleNetworkSwitchWrapper={
-                                handleNetworkSwitchWrapper
-                              }
-                              onSettings={() => setCurrentView("settings")}
-                              onClose={onClose}
-                              onHistory={() => setCurrentView("history")}
-                              setSelectedNetwork={setSelectedNetwork}
-                              onRefreshBalance={refreshBalance}
-                            />
-                          )}
+                      {currentView === "wallet" && (
+                        <motion.div
+                          key="wallet"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="space-y-4"
+                        >
+                          <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-semibold text-text-body dark:text-white">
+                              Wallet
+                            </h2>
+                            <div className="flex items-center">
+                              <button
+                                type="button"
+                                title="Transactions"
+                                onClick={() =>
+                                  setIsTransactionHistoryModalOpen(true)
+                                }
+                                className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
+                              >
+                                <Clock01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Settings"
+                                onClick={() => setCurrentView("settings")}
+                                className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
+                              >
+                                <Setting07Icon className="size-5 text-outline-gray dark:text-white/50" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Close"
+                                onClick={onClose}
+                                className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
+                              >
+                                <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                              </button>
+                            </div>
+                          </div>
 
-                          {currentView === "settings" && (
-                            <SettingsView
-                              isInjectedWallet={isInjectedWallet}
-                              showMfaEnrollmentModal={showMfaEnrollmentModal}
-                              user={user}
-                              updateEmail={updateEmail}
-                              linkEmail={linkEmail}
-                              handleLogout={handleLogout}
-                              isLoggingOut={isLoggingOut}
-                              onBack={() => setCurrentView("wallet")}
-                            />
-                          )}
+                          {/* Smart Wallet Container */}
+                          <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
+                            <div className="flex items-center gap-1">
+                              <h3 className="font-light text-text-secondary dark:text-white/50">
+                                {isInjectedWallet
+                                  ? detectWalletProvider()
+                                  : "Noblocks Wallet"}
+                              </h3>
+                            </div>
 
-                          {currentView === "transfer" && (
-                            <div className="space-y-6">
-                              <TransferForm
-                                onClose={onClose}
-                                showBackButton
-                                setCurrentView={setCurrentView}
-                              />
+                            <div className="space-y-2">
+                              {isLoading ? (
+                                <BalanceCardSkeleton />
+                              ) : (
+                                Object.entries(
+                                  activeBalance?.balances || {},
+                                ).map(([token, balance]) => (
+                                  <div
+                                    key={token}
+                                    className="flex items-center gap-1"
+                                  >
+                                    {(() => {
+                                      const imageUrl = getTokenImageUrl(token);
+                                      return imageUrl ? (
+                                        <Image
+                                          src={imageUrl}
+                                          alt={token}
+                                          width={14}
+                                          height={14}
+                                          className="size-3.5"
+                                        />
+                                      ) : null;
+                                    })()}
+                                    <span className="font-medium dark:text-white/80">
+                                      {balance} {token}
+                                    </span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+
+                            {!isInjectedWallet && !isLoading && (
+                              <div className="grid grid-cols-2 gap-4">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsTransferModalOpen(true)}
+                                  className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                                >
+                                  Transfer
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsFundModalOpen(true)}
+                                  className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                                >
+                                  Fund
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Wallet Address Container */}
+                          {account?.address && (
+                            <div className="space-y-3 rounded-[20px] border border-border-light bg-transparent p-3 dark:border-white/10">
+                              <div className="flex items-center gap-2">
+                                <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                                <span className="text-sm text-text-secondary dark:text-white/50">
+                                  Wallet Address
+                                </span>
+                              </div>
+
+                              <span className="block break-words text-sm font-medium dark:text-white/80">
+                                {account?.address ?? ""}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={handleCopyAddress}
+                                className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 dark:bg-white/5 dark:text-white"
+                              >
+                                <span>Copy</span>
+                              </button>
                             </div>
                           )}
 
-                          {currentView === "fund" && (
-                            <FundWalletForm
-                              onClose={onClose}
-                              showBackButton
-                              setCurrentView={setCurrentView}
-                            />
-                          )}
-
-                          {currentView === "history" && (
-                            <HistoryView
-                              selectedTransaction={selectedTransaction}
-                              setSelectedTransaction={setSelectedTransaction}
-                              handleHistoryClose={() =>
-                                setCurrentView("wallet")
+                          <div
+                            className={classNames(
+                              "space-y-3 rounded-[20px] py-3",
+                              isNetworkListOpen
+                                ? "border border-border-light px-4 dark:border-white/10"
+                                : "",
+                            )}
+                          >
+                            <div
+                              className="flex cursor-pointer items-center justify-between"
+                              onClick={() =>
+                                setIsNetworkListOpen(!isNetworkListOpen)
                               }
-                            />
-                          )}
-                        </div>
-                      </motion.div>
+                            >
+                              <div
+                                className={classNames(
+                                  "flex items-center",
+                                  isNetworkListOpen ? "gap-3" : "gap-1",
+                                )}
+                              >
+                                <AnimatePresence mode="wait">
+                                  <motion.span
+                                    key={
+                                      isNetworkListOpen ? "select" : "network"
+                                    }
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className={classNames(
+                                      "font-medium text-text-body",
+                                      isNetworkListOpen
+                                        ? "text-base dark:text-white"
+                                        : "dark:text-white/80",
+                                    )}
+                                  >
+                                    {isNetworkListOpen
+                                      ? "Select network"
+                                      : "Network"}
+                                  </motion.span>
+                                </AnimatePresence>
+                              </div>
+                              <AnimatePresence mode="wait">
+                                {!isNetworkListOpen && (
+                                  <motion.div
+                                    initial={{ x: -10, opacity: 0 }}
+                                    animate={{ x: 0, opacity: 1 }}
+                                    exit={{ x: -10, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <Image
+                                      src={getNetworkImageUrl(
+                                        selectedNetwork,
+                                        isDark,
+                                      )}
+                                      alt={selectedNetwork.chain.name}
+                                      width={16}
+                                      height={16}
+                                      className="size-4 rounded-full"
+                                    />
+                                    <span className="text-text-body dark:text-white">
+                                      {selectedNetwork.chain.name}
+                                    </span>
+                                    <ArrowDown01Icon className="size-4 text-outline-gray transition-transform dark:text-white/50" />
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+
+                            <AnimatePresence>
+                              {isNetworkListOpen && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  className="space-y-2 overflow-hidden *:min-h-11"
+                                >
+                                  {networks.map((network) => (
+                                    <button
+                                      type="button"
+                                      key={network.chain.name}
+                                      onClick={() =>
+                                        handleNetworkSwitchWrapper(network)
+                                      }
+                                      className="flex w-full items-center justify-between"
+                                    >
+                                      <div className="flex items-center gap-2 py-2.5">
+                                        <Image
+                                          src={getNetworkImageUrl(
+                                            network,
+                                            isDark,
+                                          )}
+                                          alt={network.chain.name}
+                                          width={24}
+                                          height={24}
+                                          className="size-6"
+                                        />
+                                        <span className="text-text-body dark:text-white/80">
+                                          {network.chain.name}
+                                        </span>
+                                      </div>
+                                      {selectedNetwork.chain.name ===
+                                        network.chain.name && (
+                                        <PiCheck
+                                          className="size-5 text-green-900 dark:text-green-500"
+                                          strokeWidth={2}
+                                        />
+                                      )}
+                                    </button>
+                                  ))}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {currentView === "settings" && (
+                        <motion.div
+                          key="settings"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="space-y-6"
+                        >
+                          <div className="flex items-center justify-between">
+                            <button
+                              type="button"
+                              title="Back"
+                              onClick={() => setCurrentView("wallet")}
+                            >
+                              <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
+                            </button>
+                            <h2 className="text-lg font-semibold text-text-body dark:text-white">
+                              Settings
+                            </h2>
+                            <div className="w-10"></div>
+                          </div>
+
+                          <div className="space-y-2 *:min-h-11">
+                            {/* {!isInjectedWallet && (
+                              <button
+                                type="button"
+                                onClick={showMfaEnrollmentModal}
+                                className="flex w-full items-center gap-2.5"
+                              >
+                                <Key01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                                <p className="text-left text-text-body dark:text-white/80">
+                                  {user?.mfaMethods?.length
+                                    ? "Manage MFA"
+                                    : "Enable MFA"}
+                                </p>
+                              </button>
+                            )} */}
+
+                            {/* {!isInjectedWallet && user?.email ? (
+                              <button
+                                type="button"
+                                onClick={updateEmail}
+                                className="flex w-full items-center justify-between"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Mail01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                                  <span className="text-text-body dark:text-white/80">
+                                    Linked email
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="max-w-36 truncate text-text-disabled dark:text-white/30">
+                                    {user.email.address}
+                                  </span>
+                                  <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                                </div>
+                              </button>
+                            ) : !isInjectedWallet ? (
+                              <button
+                                type="button"
+                                onClick={linkEmail}
+                                className="flex w-full items-center justify-between"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Mail01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                                  <span className="text-text-body dark:text-white/80">
+                                    Link email address
+                                  </span>
+                                </div>
+                                <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                              </button>
+                            ) : null} */}
+
+                            <a
+                              href={config.contactSupportUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex w-full items-center justify-between"
+                            >
+                              <div className="flex items-center gap-3">
+                                <CustomerService01Icon className="size-5 text-outline-gray dark:text-white/50" />
+                                <span className="text-text-body dark:text-white/80">
+                                  Contact support
+                                </span>
+                              </div>
+                              <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                            </a>
+
+                            <div className="flex w-full items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <ColorsIcon className="size-5 text-outline-gray dark:text-white/50" />
+                                <span className="text-text-body dark:text-white/80">
+                                  Theme
+                                </span>
+                              </div>
+                              <ThemeSwitch />
+                            </div>
+
+                            {!isInjectedWallet && wallet && (
+                              <button
+                                type="button"
+                                onClick={handleLogout}
+                                className="flex w-full items-center justify-between"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Logout03Icon className="size-5 text-outline-gray dark:text-white/50" />
+                                  <span className="text-text-body dark:text-white/80">
+                                    Sign out
+                                  </span>
+                                </div>
+                                {isLoggingOut && (
+                                  <ImSpinner className="size-4 animate-spin text-outline-gray" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
                     </AnimatePresence>
                   </DialogPanel>
                 </motion.div>
@@ -260,6 +579,24 @@ export const MobileDropdown = ({
           </Dialog>
         )}
       </AnimatePresence>
+
+      {!isInjectedWallet && (
+        <>
+          {/* <TransferModal
+            isOpen={isTransferModalOpen}
+            onClose={() => setIsTransferModalOpen(false)}
+          />
+
+          <FundWalletModal
+            isOpen={isFundModalOpen}
+            onClose={() => setIsFundModalOpen(false)}
+          /> */}
+        </>
+      )}
+      <TransactionHistoryModal
+        isOpen={isTransactionHistoryModalOpen}
+        onClose={() => setIsTransactionHistoryModalOpen(false)}
+      />
     </>
   );
 };

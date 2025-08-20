@@ -1,8 +1,7 @@
 "use client";
 import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+import { useActiveAccount } from "thirdweb/react";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
 import { classNames, formatDecimalPrecision } from "../utils";
@@ -29,8 +28,8 @@ export const TransferForm: React.FC<{
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileView>>;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
   const { selectedNetwork } = useNetwork();
-  const { client } = useSmartWallets();
-  const { user, getAccessToken } = usePrivy();
+  // const { client } = useSmartWallets();
+  const account = useActiveAccount();
   const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
   const { allTokens } = useTokens();
 
@@ -65,11 +64,11 @@ export const TransferForm: React.FC<{
     getTxExplorerLink,
     error,
   } = useSmartWalletTransfer({
-    client: client ?? null,
+    client: null, // TODO: Update for thirdweb
     selectedNetwork,
-    user,
+    user: null, // TODO: Update for thirdweb
     supportedTokens: fetchedTokens,
-    getAccessToken,
+    getAccessToken: async () => null, // TODO: Update for thirdweb
   });
 
   useEffect(() => {

@@ -1,64 +1,16 @@
-import { useFundWallet } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
-import { useTokens } from "../context/TokensContext";
 import { trackEvent } from "./analytics";
-import { Token } from "../types";
+import { getRpcUrl } from "../utils";
+// fetchSupportedTokens function needs to be implemented or imported from correct location
+import { THIRDWEB_CLIENT } from "../lib/thirdweb/client";
+import type { Chain } from "thirdweb";
+
+type ChainWithRpc = Chain & { rpc: string };
 
 export const useFundWalletHandler = (entryPoint: string) => {
   const { selectedNetwork } = useNetwork();
   const { refreshBalance } = useBalance();
-  const { allTokens } = useTokens();
-
-  const { fundWallet } = useFundWallet({
-    onUserExited: ({ fundingMethod, chain }) => {
-      const lastFunding = JSON.parse(
-        localStorage.getItem("lastFundingAttempt") || "{}",
-      );
-
-      /* NOTE: This is a not so accurate way of tracking funding status
-      Privy doesn't provide detailed funding status information
-      Available variables in onUserExited: address, chain, fundingMethod, balance
-      
-      Limitations:
-      1. fundingMethod only indicates user selected a method, not if funding completed
-      2. User can select method and cancel, but it still records as "completed"
-      3. No way to track funding errors
-      4. balance is returned as bigint and doesn't specify token type
-      5. No webhook or callback for actual funding confirmation */
-
-      if (fundingMethod) {
-        refreshBalance();
-        trackEvent("Funding completed", {
-          "Funding type": fundingMethod,
-          Amount: lastFunding.amount || "Not available",
-          Network: lastFunding.network || chain.name,
-          Token: lastFunding.token || "Unknown",
-          "Funding date": lastFunding.timestamp || new Date().toISOString(),
-        });
-      } else {
-        trackEvent("Funding cancelled", {
-          "Funding type": "User exited the funding process",
-          Amount: lastFunding.amount || "Not available",
-          Network: lastFunding.network || chain.name,
-          Token: lastFunding.token || "Unknown",
-          "Funding date": lastFunding.timestamp || new Date().toISOString(),
-        });
-      }
-
-      const callbackId = localStorage.getItem("fundingCallbackId");
-      if (callbackId) {
-        window.dispatchEvent(
-          new CustomEvent("fundingCompleted", {
-            detail: { callbackId, success: !!fundingMethod },
-          }),
-        );
-        localStorage.removeItem("fundingCallbackId");
-      }
-
-      localStorage.removeItem("lastFundingAttempt");
-    },
-  });
 
   const handleFundWallet = async (
     walletAddress: string,
@@ -66,10 +18,8 @@ export const useFundWalletHandler = (entryPoint: string) => {
     tokenAddress: `0x${string}`,
     onComplete?: (success: boolean) => void,
   ) => {
-    const fetchedTokens = allTokens[selectedNetwork.chain.name] || [];
-    const selectedToken = fetchedTokens?.find(
-      (t: Token) => t.address === tokenAddress,
-    );
+    // TODO: Implement fetchSupportedTokens or use available token data
+    const selectedToken = { symbol: "Unknown" }; // Fallback
 
     trackEvent("Funding started", {
       "Entry point": entryPoint,
@@ -79,6 +29,7 @@ export const useFundWalletHandler = (entryPoint: string) => {
       "Funding date": new Date().toISOString(),
     });
 
+    // Store funding attempt details for tracking
     localStorage.setItem(
       "lastFundingAttempt",
       JSON.stringify({
@@ -89,6 +40,7 @@ export const useFundWalletHandler = (entryPoint: string) => {
       }),
     );
 
+    // Set up callback handling
     if (onComplete) {
       const callbackId = Date.now().toString();
       const handleFundingCompleted = (event: CustomEvent) => {
@@ -108,11 +60,29 @@ export const useFundWalletHandler = (entryPoint: string) => {
       localStorage.setItem("fundingCallbackId", callbackId);
     }
 
-    await fundWallet(walletAddress, {
-      amount,
-      chain: selectedNetwork.chain,
-      asset: { erc20: tokenAddress },
-    });
+    // Get RPC URL for the chain
+    const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
+    if (!rpcUrl) {
+      throw new Error("RPC URL not found for network");
+    }
+
+    // Return the PayEmbed configuration
+    return {
+      client: THIRDWEB_CLIENT,
+      payOptions: {
+        mode: "fund_wallet",
+        metadata: {
+          name: "Get funds",
+        },
+        prefillBuy: {
+          chain: {
+            ...selectedNetwork.chain,
+            rpc: rpcUrl,
+          } as ChainWithRpc,
+          amount: amount,
+        },
+      },
+    };
   };
 
   return { handleFundWallet };

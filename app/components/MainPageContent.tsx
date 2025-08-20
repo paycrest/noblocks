@@ -24,7 +24,7 @@ import {
   type StateProps,
   type TransactionStatusType,
 } from "../types";
-import { usePrivy } from "@privy-io/react-auth";
+import { useActiveAccount } from "thirdweb/react";
 import { useStep } from "../context/StepContext";
 import { clearFormState, getBannerPadding } from "../utils";
 import { useInjectedWallet } from "../context/InjectedWalletContext";
@@ -34,7 +34,7 @@ import { useNetwork } from "../context/NetworksContext";
 
 export function MainPageContent() {
   const searchParams = useSearchParams();
-  const { authenticated, ready } = usePrivy();
+  const account = useActiveAccount();
   const { currentStep, setCurrentStep } = useStep();
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
   const { selectedNetwork } = useNetwork();
@@ -110,13 +110,13 @@ export function MainPageContent() {
   useEffect(
     function resetOnLogout() {
       // Reset form if user logs out (but not for injected wallet)
-      if (!authenticated && !isInjectedWallet) {
+      if (!account && !isInjectedWallet) {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [authenticated, isInjectedWallet],
+    [account, isInjectedWallet],
   );
 
   useEffect(function ensureDefaultToken() {
@@ -259,11 +259,11 @@ export function MainPageContent() {
 
   const showLoading =
     isPageLoading ||
-    (!ready && !isInjectedWallet) ||
+    (false && !isInjectedWallet) ||
     (isInjectedWallet && !injectedReady);
 
   const isRecipientFormOpen =
-    !!currency && (authenticated || isInjectedWallet) && isUserVerified;
+    !!currency && (account || isInjectedWallet) && isUserVerified;
 
   const renderTransactionStep = () => {
     switch (currentStep) {

@@ -7,6 +7,7 @@ import {
   usePrivy,
   useMfaEnrollment,
 } from "@privy-io/react-auth";
+import { useActiveAccount } from "thirdweb/react";
 import { ImSpinner } from "react-icons/im";
 import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
@@ -34,6 +35,7 @@ export const SettingsDropdown = () => {
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const account = useActiveAccount();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -44,10 +46,7 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-        ?.address;
+  const walletAddress = isInjectedWallet ? injectedAddress : account?.address;
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(walletAddress ?? "");

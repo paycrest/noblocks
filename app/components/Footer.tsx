@@ -11,6 +11,7 @@ import { useStep } from "../context";
 import { classNames } from "../utils";
 import { STEPS } from "../types";
 import { useRocketStatus } from "../context/RocketStatusContext";
+import Link from "next/link";
 
 const socials = [
   {
@@ -169,9 +170,14 @@ export const Footer = () => {
 
                 <div className="h-4 w-px bg-border-light dark:bg-white/10" />
 
-                <p className="text-sm text-black dark:text-white/80">
+                <a
+                  href="https://tinyurl.com/noblocks-brand-kit"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-black dark:text-white/80"
+                >
                   Brand Kit
-                </p>
+                </a>
               </div>
             </div>
           </div>
@@ -182,6 +188,7 @@ export const Footer = () => {
           alt="Footer Mobile Image"
           height={100}
           width={100}
+          loading="lazy"
           className="absolute -right-2 bottom-0 w-full animate-[footer-bg-float_6s_ease-in-out_infinite] md:hidden"
         />
         <div className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] overflow-hidden md:block 2xl:rounded-b-[84px]">
@@ -191,6 +198,7 @@ export const Footer = () => {
             width={100}
             height={100}
             className="w-full animate-[footer-bg-float_6s_ease-in-out_infinite]"
+            priority
           />
         </div>
         <motion.img
@@ -204,6 +212,7 @@ export const Footer = () => {
             rocketStatus === "pending" ? rocketVariants.pending : rocketStatus
           }
           variants={rocketVariants}
+          loading="lazy"
           className="absolute bottom-7 right-8 z-10 w-full max-w-[120px] xsm:max-w-[175px] md:max-w-[250px] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[300px]"
           style={{ willChange: "transform, filter" }}
         />

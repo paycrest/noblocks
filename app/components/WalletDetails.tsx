@@ -31,14 +31,13 @@ import {
 import { TransactionDetails } from "./transaction/TransactionDetails";
 import type { TransactionHistory } from "../types";
 import { PiCheck } from "react-icons/pi";
-import { fetchRate } from "../api/aggregator";
 import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
+import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useActualTheme } from "../hooks/useActualTheme";
 import TransactionList from "./transaction/TransactionList";
 import { FundWalletForm, TransferForm } from "./index";
 
 export const WalletDetails = () => {
-  const [rate, setRate] = useState<number>(0);
   const [isTransferModalOpen, setIsTransferModalOpen] =
     useState<boolean>(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
@@ -58,6 +57,16 @@ export const WalletDetails = () => {
 
   // Custom hook for handling wallet funding
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
+
+  // Custom hook for CNGN rate fetching
+  const {
+    rate,
+    isLoading: isRateLoading,
+    error: rateError,
+  } = useCNGNRate({
+    network: selectedNetwork.chain.name,
+    dependencies: [selectedNetwork],
+  });
 
   // Determine active wallet based on wallet type
   const activeWallet = isInjectedWallet
@@ -101,30 +110,6 @@ export const WalletDetails = () => {
   const handleBackToList = () => {
     setSelectedTransaction(null);
   };
-
-  // Fetch CNGN rate on component mount
-  useEffect(() => {
-    const getCNGNRate = async () => {
-      try {
-        const rateResponse = await fetchRate({
-          token: "USDT",
-          amount: 1,
-          currency: "NGN",
-          network: selectedNetwork.chain.name
-            .toLowerCase()
-            .replace(/\s+/g, "-"),
-        });
-
-        if (rateResponse?.data && typeof rateResponse.data === "string") {
-          setRate(Number(rateResponse.data));
-        }
-      } catch (error) {
-        console.error("Error fetching CNGN rate:", error);
-      }
-    };
-
-    getCNGNRate();
-  }, [selectedNetwork]);
 
   return (
     <>
@@ -348,6 +333,7 @@ export const WalletDetails = () => {
                                           width={32}
                                           height={32}
                                           className="size-8 rounded-full"
+                                          priority
                                         />
                                         <Image
                                           src={getNetworkImageUrl(

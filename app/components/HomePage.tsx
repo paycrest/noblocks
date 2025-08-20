@@ -232,7 +232,8 @@ export function HomePage({
                           alt="Icon"
                           width={item.width}
                           height={item.height}
-                          className="scale-95 transition-all duration-300 group-hover:brightness-100 sm:scale-100"
+                          className="h-auto w-auto scale-95 transition-all duration-300 group-hover:brightness-100 sm:scale-100"
+                          loading="lazy"
                         />
                       </span>
                       <span className="text-xs font-normal sm:text-sm lg:text-base">

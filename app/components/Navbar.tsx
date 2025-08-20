@@ -115,7 +115,16 @@ export const Navbar = () => {
             <div
               className="flex cursor-pointer items-center gap-1"
               onMouseEnter={() => setIsDropdownOpen(true)}
-              onMouseLeave={() => setIsDropdownOpen(false)}
+              onMouseLeave={(e) => {
+                // Only close if we're not moving to the dropdown menu
+                const relatedTarget = e.relatedTarget as Node;
+                if (
+                  !relatedTarget ||
+                  !dropdownRef.current?.contains(relatedTarget)
+                ) {
+                  setIsDropdownOpen(false);
+                }
+              }}
             >
               <button
                 aria-label="Noblocks Logo Icon"
@@ -123,7 +132,10 @@ export const Navbar = () => {
                 aria-expanded={isDropdownOpen}
                 aria-controls="navbar-dropdown"
                 type="button"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setIsDropdownOpen(!isDropdownOpen);
+                }}
                 className="flex items-center gap-1 max-sm:min-h-9 max-sm:rounded-lg max-sm:bg-accent-gray max-sm:p-2 dark:max-sm:bg-white/10"
               >
                 {IS_MAIN_PRODUCTION_DOMAIN ? (
@@ -145,6 +157,10 @@ export const Navbar = () => {
                   isDropdownOpen ? "rotate-0" : "-rotate-90",
                   IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[15px]", // this adjusts the arrow position for beta logo
                 )}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setIsDropdownOpen(!isDropdownOpen);
+                }}
               />
             </div>
 
@@ -153,7 +169,7 @@ export const Navbar = () => {
               <div className="hidden items-center sm:flex">
                 <Link
                   href="/blog"
-                  className="-mt-[3px] text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white"
+                  className={` ${IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"} text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
                 >
                   Blog
                 </Link>
@@ -163,13 +179,16 @@ export const Navbar = () => {
             <AnimatePresence>
               {isDropdownOpen && (
                 <>
-                  <div className="absolute left-0 top-[calc(100%-0.5rem)] h-8 w-full" />
+                  {/* Invisible bridge to prevent dropdown from closing when moving cursor */}
+                  <div className="absolute left-0 top-[calc(100%-0.5rem)] z-40 h-6 w-full" />
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute left-0 top-full mt-4 w-48 rounded-lg border border-border-light bg-white p-2 text-sm shadow-lg dark:border-white/5 dark:bg-surface-overlay"
+                    className="absolute left-0 top-full z-50 mt-4 w-48 rounded-lg border border-border-light bg-white p-2 text-sm shadow-lg dark:border-white/5 dark:bg-surface-overlay"
+                    onMouseEnter={() => setIsDropdownOpen(true)}
+                    onMouseLeave={() => setIsDropdownOpen(false)}
                   >
                     {pathname !== "/" && (
                       <Link

@@ -15,6 +15,8 @@ import type {
   UpdateTransactionDetailsPayload,
   UpdateTransactionStatusPayload,
   APIToken,
+  UpdateKYCWalletAddressRequest,
+  UpdateKYCWalletAddressResponse,
 } from "../types";
 
 const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
@@ -172,6 +174,23 @@ export const fetchKYCStatus = async (
 ): Promise<KYCStatusResponse> => {
   try {
     const response = await axios.get(`${AGGREGATOR_URL}/kyc/${walletAddress}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Updates the KYC wallet address for a user
+ * @param {UpdateKYCWalletAddressRequest} payload - The KYC wallet address update payload
+ * @returns {Promise<UpdateKYCWalletAddressResponse>} The update response
+ * @throws {Error} If the API request fails
+ */
+export const updateKYCWalletAddress = async (
+  payload: UpdateKYCWalletAddressRequest,
+): Promise<UpdateKYCWalletAddressResponse> => {
+  try {
+    const response = await axios.post(`${AGGREGATOR_URL}/kyc/update_kyc_wallet_address`, payload);
     return response.data;
   } catch (error) {
     throw error;

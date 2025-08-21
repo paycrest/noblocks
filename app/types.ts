@@ -389,3 +389,16 @@ export type Currency = {
   label: string;
   disabled?: boolean;
 };
+
+export type UpdateKYCWalletAddressRequest = {
+  oldWalletAddress: string;
+  newWalletAddress: string;
+  signature: string;
+  nonce: string;
+};
+
+export type UpdateKYCWalletAddressResponse = {
+  status: string;
+  message: string;
+  data?: any;
+};

@@ -6,6 +6,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useActiveAccount } from "thirdweb/react";
+import { usePrivy } from "@privy-io/react-auth";
 import {
   CheckmarkCircle01Icon,
   InformationSquareIcon,
@@ -25,6 +26,7 @@ import {
 } from "@/app/utils";
 import { useActualTheme } from "@/app/hooks/useActualTheme";
 import { useCNGNRate } from "@/app/hooks/useCNGNRate";
+import { fetchKYCStatus, updateKYCWalletAddress } from "@/app/api/aggregator";
 
 interface MigrationModalProps {
   isOpen: boolean;
@@ -37,12 +39,18 @@ const fadeInOut = {
   exit: { opacity: 0 },
 };
 
-type Step = "initial" | "wallet" | "loading" | "success" | "failure";
+type Step = "initial" | "wallet" | "loading" | "success" | "failure" | "kyc-failed" | "balance-failed";
 
 const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
   const [currentStep, setCurrentStep] = useState<Step>("initial");
   const [isSigning, setIsSigning] = useState(false);
+  const [isKycUpdating, setIsKycUpdating] = useState(false);
+  const [kycMigrationSuccess, setKycMigrationSuccess] = useState(false);
+  const [oldWalletAddress, setOldWalletAddress] = useState<string>("");
+  const [privyUser, setPrivyUser] = useState<any>(null);
+  
   const account = useActiveAccount();
+  const { user } = usePrivy();
   const { allBalances } = useBalance();
   const isDark = useActualTheme();
   const { selectedNetwork } = useNetwork();
@@ -51,6 +59,22 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
     networkBalances,
     isLoading: isLoadingBalances,
   } = useMultiNetworkBalance();
+
+  // Reset state when modal opens/closes
+  const resetState = () => {
+    setCurrentStep("initial");
+    setIsSigning(false);
+    setIsKycUpdating(false);
+    setKycMigrationSuccess(false);
+    setOldWalletAddress("");
+    setPrivyUser(null);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      resetState();
+    }
+  }, [isOpen]);
 
   // Simple CNGN to USD conversion
   const convertCNGNtoUSD = (amount: number, rate: number) => amount / rate;
@@ -64,6 +88,63 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
     network: selectedNetwork.chain.name,
     dependencies: [selectedNetwork],
   });
+
+  // Get Privy smart wallet address
+  const getPrivySmartWalletAddress = () => {
+    if (!user?.linkedAccounts) return null;
+    const smartWallet = user.linkedAccounts.find(
+      (account) => account.type === "smart_wallet"
+    );
+    return smartWallet?.address || null;
+  };
+
+  // Check KYC status for a wallet address
+  const checkKYCStatus = async (walletAddress: string): Promise<boolean> => {
+    try {
+      const response = await fetchKYCStatus(walletAddress);
+      return response.data.status === "success";
+    } catch (error) {
+      // If KYC check fails (404 or other error), assume not verified
+      return false;
+    }
+  };
+
+  // Update KYC wallet address
+  const updateKYCWalletAddressForMigration = async (
+    oldWalletAddress: string,
+    newWalletAddress: string
+  ): Promise<boolean> => {
+    try {
+      const nonce = generateTimeBasedNonce({ length: 16 });
+      const message = `I accept the KYC wallet address migration from ${oldWalletAddress} to ${newWalletAddress} with nonce ${nonce}`;
+
+      let signature: string;
+      if (account) {
+        const signResult = await account.signMessage({
+          message,
+        });
+        signature = signResult;
+      } else {
+        throw new Error("No wallet available for signing");
+      }
+
+      const sigWithoutPrefix = signature.startsWith("0x")
+        ? signature.slice(2)
+        : signature;
+
+      const response = await updateKYCWalletAddress({
+        oldWalletAddress,
+        newWalletAddress,
+        signature: sigWithoutPrefix,
+        nonce,
+      });
+
+      return response.status === "success";
+    } catch (error) {
+      console.error("KYC wallet address update failed:", error);
+      return false;
+    }
+  };
 
   const handleApproveMigration = async () => {
     if (!account) {
@@ -86,11 +167,61 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
       }
 
       setCurrentStep("loading");
+
+      // Get Privy smart wallet address
+      const privySmartWalletAddress = getPrivySmartWalletAddress();
+      if (!privySmartWalletAddress) {
+        // No Privy smart wallet found, proceed with balance check
+        await fetchAllNetworkBalances(account?.address || "");
+        if (networkBalances.some((n) => n.error)) {
+          setCurrentStep("failure");
+        } else {
+          setCurrentStep("wallet");
+        }
+        return;
+      }
+
+      setOldWalletAddress(privySmartWalletAddress);
+
+      // Check KYC status for both wallets
+      const [oldWalletKYCVerified, newWalletKYCVerified] = await Promise.all([
+        checkKYCStatus(privySmartWalletAddress),
+        checkKYCStatus(account.address),
+      ]);
+
+      // Only update KYC if old wallet is verified and new wallet is not
+      if (oldWalletKYCVerified && !newWalletKYCVerified) {
+        setIsKycUpdating(true);
+        const kycUpdateSuccess = await updateKYCWalletAddressForMigration(
+          privySmartWalletAddress,
+          account.address
+        );
+        setIsKycUpdating(false);
+
+        if (!kycUpdateSuccess) {
+          setCurrentStep("kyc-failed");
+          return;
+        }
+
+        setKycMigrationSuccess(true);
+      }
+
+      // Proceed with balance check
       await fetchAllNetworkBalances(account?.address || "");
       if (networkBalances.some((n) => n.error)) {
-        setCurrentStep("failure");
+        setCurrentStep("balance-failed");
       } else {
-        setCurrentStep("wallet");
+        // Check if there are any balances to transfer
+        const hasBalances = networkBalances.some((network) =>
+          Object.values(network.balances).some((balance) => balance > 0)
+        );
+
+        if (!hasBalances) {
+          // No balances to transfer, go directly to success
+          setCurrentStep("success");
+        } else {
+          setCurrentStep("wallet");
+        }
       }
     } catch (error) {
       console.error("Error during signing:", error);
@@ -322,9 +453,19 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
       className="flex h-full flex-col items-center justify-center gap-4 py-40"
     >
       <div className="h-24 w-24 animate-spin rounded-full border-4 border-t-4 border-lavender-500 border-t-white"></div>
-      {isLoadingBalances && (
+      {isKycUpdating && (
+        <p className="text-center text-sm text-gray-500 dark:text-white/50">
+          Migrating KYC verification to new wallet...
+        </p>
+      )}
+      {isLoadingBalances && !isKycUpdating && (
         <p className="text-center text-sm text-gray-500 dark:text-white/50">
           Fetching balances across all networks...
+        </p>
+      )}
+      {!isKycUpdating && !isLoadingBalances && (
+        <p className="text-center text-sm text-gray-500 dark:text-white/50">
+          Processing migration...
         </p>
       )}
     </motion.div>
@@ -357,6 +498,69 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
     </motion.div>
   );
 
+  const renderKYCFailedState = () => (
+    <motion.div
+      key="kyc-failed"
+      {...fadeInOut}
+      className="relative space-y-6 pt-4"
+    >
+      <SadFaceIcon className="mx-auto size-10" />
+      <div className="space-y-3 pb-5 text-center">
+        <DialogTitle className="z-10 text-lg font-semibold">
+          KYC Migration Failed
+        </DialogTitle>
+        <p className="mx-auto max-w-xs text-center text-sm text-gray-500 dark:text-white/50">
+          We couldn&apos;t migrate your KYC verification to the new wallet address. 
+          Your funds are safe, but you may need to complete KYC verification again 
+          for the new wallet.
+        </p>
+      </div>
+      <button
+        type="button"
+        className={`${primaryBtnClasses} w-full`}
+        onClick={() => {
+          onClose();
+          setCurrentStep("initial");
+        }}
+      >
+        Close
+      </button>
+    </motion.div>
+  );
+
+  const renderBalanceFailedState = () => (
+    <motion.div
+      key="balance-failed"
+      {...fadeInOut}
+      className="relative space-y-6 pt-4"
+    >
+      <SadFaceIcon className="mx-auto size-10" />
+      <div className="space-y-3 pb-5 text-center">
+        <DialogTitle className="z-10 text-lg font-semibold">
+          Balance Check Failed
+        </DialogTitle>
+        <p className="mx-auto max-w-xs text-center text-sm text-gray-500 dark:text-white/50">
+          We couldn&apos;t fetch your balance information. 
+          {kycMigrationSuccess ? " Your KYC was successfully migrated. " : " "}
+          You can manually transfer your funds to your new wallet address:{" "}
+          <span className="font-mono text-xs break-all">
+            {account?.address}
+          </span>
+        </p>
+      </div>
+      <button
+        type="button"
+        className={`${primaryBtnClasses} w-full`}
+        onClick={() => {
+          onClose();
+          setCurrentStep("initial");
+        }}
+      >
+        Close
+      </button>
+    </motion.div>
+  );
+
   const renderSuccessState = () => (
     <motion.div
       key="success"
@@ -371,8 +575,10 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
         </DialogTitle>
 
         <p className="z-10 text-gray-500 dark:text-white/50">
-          Your funds are safely in your new wallet and you can now continue
-          converting your crypto to fiats at zero fees on noblocks
+          {kycMigrationSuccess 
+            ? "Your KYC verification and funds have been successfully migrated to your new wallet. You can now continue converting your crypto to fiats at zero fees on noblocks."
+            : "Your funds are safely in your new wallet and you can now continue converting your crypto to fiats at zero fees on noblocks"
+          }
         </p>
 
         <div className="absolute right-1/2 top-1/4 size-4 bg-[#FF7D52]/20 blur-sm"></div>
@@ -403,6 +609,10 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
         return renderLoadingState();
       case "failure":
         return renderFailureState();
+      case "kyc-failed":
+        return renderKYCFailedState();
+      case "balance-failed":
+        return renderBalanceFailedState();
       case "success":
         return renderSuccessState();
       default:

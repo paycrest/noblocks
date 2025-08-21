@@ -32,9 +32,10 @@ const BannerWithMigration: React.FC = () => {
     }
 
     try {
-      // Step 1: Get user details from ThirdWeb API to get email
-      const thirdwebResponse = await fetch(
-        `/api/thirdweb/user-details?walletAddress=${account.address}`,
+      console.log("🔍 BannerWithMigration: Using enhanced user lookup...");
+      // Use enhanced user lookup that tries Thirdweb first, then Privy fallback
+      const response = await fetch(
+        `/api/enhanced-user-lookup?walletAddress=${account.address}`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -42,68 +43,77 @@ const BannerWithMigration: React.FC = () => {
         },
       );
 
-      if (!thirdwebResponse.ok) {
-        console.error(
-          "Failed to fetch user details from thirdweb:",
-          await thirdwebResponse.text(),
+      if (!response.ok) {
+        console.error("❌ BannerWithMigration: Enhanced lookup failed");
+        setShouldShowMigrationLogic(false);
+        setIsCheckingMigration(false);
+        return;
+      }
+
+      const lookupResult = await response.json();
+      console.log(
+        "🔍 BannerWithMigration: Enhanced lookup result:",
+        lookupResult,
+      );
+
+      // Check if we found a user with email from either source
+      if (!lookupResult.email) {
+        console.log(
+          "❌ BannerWithMigration: No email found in either Thirdweb or Privy",
         );
         setShouldShowMigrationLogic(false);
         setIsCheckingMigration(false);
         return;
       }
 
-      const userData = await thirdwebResponse.json();
+      console.log(
+        `✅ BannerWithMigration: Found user email from ${lookupResult.source}: ${lookupResult.email}`,
+      );
 
-      // userData is an array of user details from thirdweb API
-      if (Array.isArray(userData) && userData.length > 0) {
-        const userEmail = userData[0]?.email;
+      // Check if user exists in Privy (this should always be true for privy source, but let's verify)
+      const privyResponse = await fetch("/api/check-privy-user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: lookupResult.email }),
+      });
 
-        if (userEmail) {
-          // Step 2: Check if this email had a Privy account
-          const privyResponse = await fetch("/api/check-privy-user", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ email: userEmail }),
-          });
+      if (privyResponse.ok) {
+        const privyResult = await privyResponse.json();
+        console.log(
+          "🔍 BannerWithMigration: Privy user exists:",
+          privyResult.exists,
+        );
 
-          if (privyResponse.ok) {
-            const privyResult = await privyResponse.json();
+        // For now, just check if user exists - skip balance check for banner visibility
+        setShouldShowMigrationLogic(privyResult.exists);
 
-            // For now, just check if user exists - skip balance check for banner visibility
-            setShouldShowMigrationLogic(privyResult.exists);
+        // TODO: Store the old wallet address from privyResult.user.linked_accounts
+        // for use in migration modal and other components that need it
+        if (privyResult.exists && privyResult.user) {
+          // Extract wallet address from linked accounts for future use
+          const walletAccounts = privyResult.user.linked_accounts?.filter(
+            (account: any) =>
+              account.type === "wallet" || account.type === "smart_wallet",
+          );
 
-            // TODO: Store the old wallet address from privyResult.user.linked_accounts
-            // for use in migration modal and other components that need it
-            if (privyResult.exists && privyResult.user) {
-              // Extract wallet address from linked accounts for future use
-              const walletAccounts = privyResult.user.linked_accounts?.filter(
-                (account: any) =>
-                  account.type === "wallet" || account.type === "smart_wallet",
-              );
-              if (walletAccounts?.length > 0) {
-                // Store the old wallet address - could be used by migration modal
-                // Legacy wallet address available: walletAccounts[0].address
-              }
-            }
-          } else {
-            console.error(
-              "Failed to check Privy user:",
-              await privyResponse.text(),
-            );
-            setShouldShowMigrationLogic(false);
+          if (walletAccounts?.length > 0) {
+            // Store the old wallet address - could be used by migration modal
+            // Legacy wallet address available: walletAccounts[0].address
           }
-        } else {
-          // No email found in ThirdWeb user details
-          setShouldShowMigrationLogic(false);
         }
       } else {
+        console.error("❌ BannerWithMigration: Failed to check Privy user");
         setShouldShowMigrationLogic(false);
       }
+
       setIsCheckingMigration(false);
     } catch (error) {
-      console.error("Error checking migration eligibility:", error);
+      console.error(
+        "❌ BannerWithMigration: Error checking migration eligibility:",
+        error,
+      );
       setShouldShowMigrationLogic(false);
       setIsCheckingMigration(false);
     }

@@ -27,7 +27,6 @@ const MigrationBanner: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
     }
 
     try {
-      console.log("🔍 Migration Banner: Using enhanced user lookup...");
       // Use enhanced user lookup that tries Thirdweb first, then Privy fallback
       const response = await fetch(
         `/api/enhanced-user-lookup?walletAddress=${account.address}`,
@@ -48,20 +47,12 @@ const MigrationBanner: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
       }
 
       const lookupResult = await response.json();
-      console.log("🔍 Migration Banner: Enhanced lookup result:", lookupResult);
 
       // Check if we found a user with email from either source
       if (!lookupResult.email) {
-        console.log(
-          "❌ Migration Banner: No email found in either Thirdweb or Privy",
-        );
         setShouldShowBanner(false);
         return;
       }
-
-      console.log(
-        `✅ Migration Banner: Found user email from ${lookupResult.source}: ${lookupResult.email}`,
-      );
 
       // Check if user exists in Privy (this should always be true for privy source, but let's verify)
       const privyResponse = await fetch("/api/check-privy-user", {
@@ -82,18 +73,13 @@ const MigrationBanner: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
       }
 
       const { exists } = await privyResponse.json();
-      console.log("🔍 Migration Banner: Privy user exists:", exists);
 
       if (!exists) {
-        console.log(
-          "❌ Migration Banner: User doesn't exist in Privy database",
-        );
         setShouldShowBanner(false);
         return;
       }
 
       // Show banner if user exists in Privy (temporarily disable balance check)
-      console.log("✅ Migration Banner: Showing migration banner");
       setShouldShowBanner(true);
     } catch (error) {
       console.error("Error checking for Privy user:", error);

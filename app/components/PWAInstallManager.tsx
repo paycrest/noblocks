@@ -10,10 +10,10 @@ export default function PWAInstall() {
         navigator.serviceWorker
           .register("/sw.js")
           .then((registration) => {
-            console.log("SW registered: ", registration);
+            // Service worker registered successfully
           })
           .catch((registrationError) => {
-            console.log("SW registration failed: ", registrationError);
+            console.error("SW registration failed: ", registrationError);
           });
       });
     }
@@ -21,7 +21,7 @@ export default function PWAInstall() {
     // Let the browser handle the beforeinstallprompt event naturally
     // No custom UI, no event prevention - just pure native behavior
     const handleAppInstalled = () => {
-      console.log("PWA was installed");
+      // PWA was installed successfully
     };
 
     window.addEventListener("appinstalled", handleAppInstalled);

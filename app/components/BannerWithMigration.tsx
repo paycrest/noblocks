@@ -32,7 +32,6 @@ const BannerWithMigration: React.FC = () => {
     }
 
     try {
-      console.log("🔍 BannerWithMigration: Using enhanced user lookup...");
       // Use enhanced user lookup that tries Thirdweb first, then Privy fallback
       const response = await fetch(
         `/api/enhanced-user-lookup?walletAddress=${account.address}`,
@@ -51,24 +50,13 @@ const BannerWithMigration: React.FC = () => {
       }
 
       const lookupResult = await response.json();
-      console.log(
-        "🔍 BannerWithMigration: Enhanced lookup result:",
-        lookupResult,
-      );
 
       // Check if we found a user with email from either source
       if (!lookupResult.email) {
-        console.log(
-          "❌ BannerWithMigration: No email found in either Thirdweb or Privy",
-        );
         setShouldShowMigrationLogic(false);
         setIsCheckingMigration(false);
         return;
       }
-
-      console.log(
-        `✅ BannerWithMigration: Found user email from ${lookupResult.source}: ${lookupResult.email}`,
-      );
 
       // Check if user exists in Privy (this should always be true for privy source, but let's verify)
       const privyResponse = await fetch("/api/check-privy-user", {
@@ -81,10 +69,6 @@ const BannerWithMigration: React.FC = () => {
 
       if (privyResponse.ok) {
         const privyResult = await privyResponse.json();
-        console.log(
-          "🔍 BannerWithMigration: Privy user exists:",
-          privyResult.exists,
-        );
 
         // For now, just check if user exists - skip balance check for banner visibility
         setShouldShowMigrationLogic(privyResult.exists);

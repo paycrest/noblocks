@@ -18,7 +18,6 @@ export async function GET(request: Request) {
 
   try {
     // Step 1: Try to get user details from Thirdweb first
-    console.log("🔍 Enhanced User Lookup: Trying Thirdweb API first...");
     const thirdwebApiUrl = `https://in-app-wallet.thirdweb.com/api/2023-11-30/embedded-wallet/user-details?queryBy=walletAddress&walletAddress=${walletAddress}`;
     const thirdwebSecretKey =
       DEFAULT_THIRDWEB_CONFIG?.thirdweb?.secretKey || "";
@@ -39,17 +38,12 @@ export async function GET(request: Request) {
       thirdwebData.length > 0 &&
       thirdwebData[0]?.email
     ) {
-      console.log("✅ Enhanced User Lookup: Found user with email in Thirdweb");
       return NextResponse.json({
         source: "thirdweb",
         userData: thirdwebData,
         email: thirdwebData[0].email,
       });
     }
-
-    console.log(
-      "⚠️ Enhanced User Lookup: No email found in Thirdweb, trying Privy fallback...",
-    );
 
     // Step 2: Fallback - Search Privy users by wallet address
     const privyAppId = DEFAULT_PRIVY_CONFIG.privy?.appId || "";
@@ -88,9 +82,6 @@ export async function GET(request: Request) {
             account.connector_type === "injected"
           ) {
             foundUser = user;
-            console.log(
-              "✅ Enhanced User Lookup: Found matching injected wallet in Privy",
-            );
             break;
           }
         }
@@ -116,9 +107,6 @@ export async function GET(request: Request) {
           privyUser: foundUser,
         });
       } else {
-        console.log(
-          "⚠️ Enhanced User Lookup: Found user in Privy but no email linked",
-        );
         return NextResponse.json({
           source: "privy",
           userData: [],
@@ -128,9 +116,6 @@ export async function GET(request: Request) {
       }
     }
 
-    console.log(
-      "❌ Enhanced User Lookup: User not found in either Thirdweb or Privy",
-    );
     return NextResponse.json({
       source: "none",
       userData: [],

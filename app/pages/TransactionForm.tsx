@@ -264,7 +264,7 @@ export const TransactionForm = ({
           ) {
             // silently fail if user is not found/verified
           } else {
-            console.log("error", error);
+            // Handle other errors silently
           }
         }
       };

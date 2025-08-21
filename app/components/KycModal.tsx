@@ -135,7 +135,6 @@ export const KycModal = ({
         }
       }
     } catch (error: unknown) {
-      console.log("error", error);
       if (
         error instanceof Error &&
         (error as any).response &&

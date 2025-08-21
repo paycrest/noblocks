@@ -10,6 +10,9 @@ const config: Config = {
   googleVerificationCode:
     process.env.NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE || "",
   noticeBannerText: process.env.NEXT_PUBLIC_NOTICE_BANNER_TEXT || "",
+  noticeBannerCtaText: process.env.NEXT_PUBLIC_NOTICE_BANNER_CTA_TEXT || "",
+  noticeBannerCtaUrl: process.env.NEXT_PUBLIC_NOTICE_BANNER_CTA_URL || "",
+  migrationMode: process.env.NEXT_PUBLIC_MIGRATION_MODE === "true",
 };
 
 export default config;

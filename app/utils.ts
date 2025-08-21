@@ -987,7 +987,7 @@ export function filterBlogsAndCategories({
  */
 export function getBannerPadding(): string {
   const hasBanner = !!config.noticeBannerText;
-  return hasBanner ? "pt-52" : "pt-36";
+  return hasBanner ? "pt-56" : "pt-36";
 }
 
 /**

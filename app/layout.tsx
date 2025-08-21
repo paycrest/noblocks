@@ -7,14 +7,8 @@ import config from "./lib/config";
 
 import Providers from "./providers";
 import MainContent from "./mainContent";
-import {
-  Footer,
-  Navbar,
-  LayoutWrapper,
-  PWAInstall,
-  NoticeBanner,
-} from "./components";
-import MigrationBanner from "./components/migration/MigrationBanner";
+import { Footer, Navbar, LayoutWrapper, PWAInstall } from "./components";
+import BannerWithMigration from "./components/BannerWithMigration";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -242,10 +236,7 @@ export default function RootLayout({
           <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
             <div className="relative">
               <Navbar />
-              <MigrationBanner />
-              {config.noticeBannerText && (
-                <NoticeBanner textLines={config.noticeBannerText.split("|")} />
-              )}
+              <BannerWithMigration />
             </div>
             <LayoutWrapper footer={<Footer />}>
               <MainContent>{children}</MainContent>

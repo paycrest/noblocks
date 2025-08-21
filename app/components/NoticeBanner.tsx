@@ -2,15 +2,39 @@
 import Image from "next/image";
 import React from "react";
 import { motion } from "framer-motion";
+import { whiteBtnClasses } from "./Styles";
 
 interface NoticeBannerProps {
   textLines: string[];
+  ctaText?: string;
+  onCtaClick?: () => void;
 }
 
-const NoticeBanner: React.FC<NoticeBannerProps> = ({ textLines }) => {
+// Helper function to parse text with bold formatting (*text*)
+const parseTextWithBold = (text: string): React.ReactNode[] => {
+  const parts = text.split(/(\*[^*]+\*)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+      // Remove asterisks and make bold
+      const boldText = part.slice(1, -1);
+      return (
+        <span key={index} className="font-semibold">
+          {boldText}
+        </span>
+      );
+    }
+    return part;
+  });
+};
+
+const NoticeBanner: React.FC<NoticeBannerProps> = ({
+  textLines,
+  ctaText,
+  onCtaClick,
+}) => {
   return (
     <motion.div
-      className="fixed left-0 right-0 top-16 z-30 mt-1 flex min-h-14 w-full items-center justify-center bg-[#2D77E2] px-0 md:px-0"
+      className="fixed left-0 right-0 top-20 z-30 mt-1 flex min-h-14 w-full items-center justify-center bg-[#2D77E2] px-0 md:px-0"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
@@ -37,22 +61,35 @@ const NoticeBanner: React.FC<NoticeBannerProps> = ({ textLines }) => {
             priority
           />
         </div>
-        {/* Text */}
-        <div className="relative z-10 flex flex-grow flex-col items-start justify-between gap-1 px-4 py-4 pl-6 text-left text-sm font-medium leading-tight text-white/80 sm:flex-row sm:items-center sm:px-0 sm:py-4 sm:pl-0 sm:text-left">
+        {/* Text and Button */}
+        <div
+          className={`relative z-10 flex flex-grow flex-col items-start justify-between ${ctaText ? "gap-3" : "gap-1"} px-4 py-4 pl-6 text-left text-sm font-medium leading-tight text-white/80 sm:flex-row sm:items-center sm:px-0 sm:py-4 sm:pl-0 sm:text-left`}
+        >
           <span className="flex-1">
             {textLines.length === 2 ? (
               <>
                 <span className="block font-semibold text-white">
-                  {textLines[0]}
+                  {parseTextWithBold(textLines[0])}
                 </span>
-                <span className="mt-1 block">{textLines[1]}</span>
+                <span className="mt-1 block">
+                  {parseTextWithBold(textLines[1])}
+                </span>
               </>
             ) : (
-              <span className="block font-semibold text-white">
-                {textLines[0]}
+              <span className="block font-normal text-white">
+                {parseTextWithBold(textLines[0])}
               </span>
             )}
           </span>
+          {ctaText && onCtaClick && (
+            <button
+              type="button"
+              className={`${whiteBtnClasses} min-h-9 flex-shrink-0 sm:ml-6`}
+              onClick={onCtaClick}
+            >
+              {ctaText}
+            </button>
+          )}
         </div>
       </div>
     </motion.div>

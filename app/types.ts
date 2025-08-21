@@ -255,6 +255,9 @@ export type Config = {
   contactSupportUrl: string;
   googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
+  noticeBannerCtaText?: string; // Optional, for CTA button text
+  noticeBannerCtaUrl?: string; // Optional, for CTA button URL
+  migrationMode: boolean; // Whether banner is in migration mode (shows modal instead of URL redirect)
 };
 
 export type Network = {

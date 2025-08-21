@@ -4,15 +4,34 @@ import NoticeBanner from "./NoticeBanner";
 import MigrationModal from "./migration/MigrationModal";
 import { useInjectedWallet } from "@/app/context";
 import { useActiveAccount } from "thirdweb/react";
+import { usePrivy } from "@privy-io/react-auth";
 import config from "@/app/lib/config";
+import { fetchKYCStatus } from "@/app/api/aggregator";
 
 const BannerWithMigration: React.FC = () => {
   const [migrationModalOpen, setMigrationModalOpen] = useState(false);
   const [shouldShowMigrationLogic, setShouldShowMigrationLogic] =
     useState(false);
   const [isCheckingMigration, setIsCheckingMigration] = useState(true);
+  const [isThirdwebKYCVerified, setIsThirdwebKYCVerified] = useState(false);
+  const [hasBalances, setHasBalances] = useState(false);
+  const [bannerText, setBannerText] = useState("");
+  const [ctaText, setCtaText] = useState("");
+  
   const { isInjectedWallet } = useInjectedWallet();
   const account = useActiveAccount();
+  const { user } = usePrivy();
+
+  // Check KYC status for a wallet address
+  const checkKYCStatus = async (walletAddress: string): Promise<boolean> => {
+    try {
+      const response = await fetchKYCStatus(walletAddress);
+      return response.data.status === "success";
+    } catch (error) {
+      // If KYC check fails (404 or other error), assume not verified
+      return false;
+    }
+  };
 
   const checkPrivyUser = useCallback(async () => {
     setIsCheckingMigration(true);
@@ -30,6 +49,15 @@ const BannerWithMigration: React.FC = () => {
       setIsCheckingMigration(false);
       return;
     }
+
+    // Get Privy smart wallet address
+    const getPrivySmartWalletAddress = () => {
+      if (!user?.linkedAccounts) return null;
+      const smartWallet = user.linkedAccounts.find(
+        (account) => account.type === "smart_wallet"
+      );
+      return smartWallet?.address || null;
+    };
 
     try {
       // Use enhanced user lookup that tries Thirdweb first, then Privy fallback
@@ -70,6 +98,36 @@ const BannerWithMigration: React.FC = () => {
       if (privyResponse.ok) {
         const privyResult = await privyResponse.json();
 
+        // Check KYC status for Thirdweb wallet
+        const thirdwebKYCVerified = await checkKYCStatus(account.address);
+        setIsThirdwebKYCVerified(thirdwebKYCVerified);
+
+        // Check if there are balances (simplified check)
+        const privySmartWalletAddress = getPrivySmartWalletAddress();
+        if (privySmartWalletAddress) {
+          // For now, assume there might be balances if user has a Privy smart wallet
+          setHasBalances(true);
+        } else {
+          setHasBalances(false);
+        }
+
+        // Set banner text based on KYC status and migration mode
+        if (config.migrationMode) {
+          if (thirdwebKYCVerified) {
+            // User is already KYC verified, show fund transfer reminder
+            setBannerText("Fund Transfer Reminder|You have funds in your old wallet that need to be transferred to your new wallet to complete the migration.");
+            setCtaText("Transfer Funds");
+          } else {
+            // User needs KYC migration
+            setBannerText("Migration Required|We're upgrading to a faster, more secure wallet. Complete your migration to continue using Noblocks.");
+            setCtaText("Start Migration");
+          }
+        } else {
+          // Use config text for non-migration mode
+          setBannerText(config.noticeBannerText || "");
+          setCtaText(config.noticeBannerCtaText || "");
+        }
+
         // For now, just check if user exists - skip balance check for banner visibility
         setShouldShowMigrationLogic(privyResult.exists);
 
@@ -101,7 +159,7 @@ const BannerWithMigration: React.FC = () => {
       setShouldShowMigrationLogic(false);
       setIsCheckingMigration(false);
     }
-  }, [isInjectedWallet, account?.address]);
+  }, [isInjectedWallet, account?.address, user?.linkedAccounts]);
 
   useEffect(() => {
     checkPrivyUser();
@@ -119,7 +177,7 @@ const BannerWithMigration: React.FC = () => {
   };
 
   // Only show banner if there's text configured
-  if (!config.noticeBannerText) return null;
+  if (!bannerText) return null;
 
   if (config.migrationMode) {
     // Migration mode: wait for check to complete, then only show for legacy users
@@ -135,9 +193,9 @@ const BannerWithMigration: React.FC = () => {
   return (
     <>
       <NoticeBanner
-        textLines={config.noticeBannerText.split("|")}
-        ctaText={config.noticeBannerCtaText}
-        onCtaClick={config.noticeBannerCtaText ? handleCtaClick : undefined}
+        textLines={bannerText.split("|")}
+        ctaText={ctaText}
+        onCtaClick={ctaText ? handleCtaClick : undefined}
       />
       {config.migrationMode && (
         <MigrationModal

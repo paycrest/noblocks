@@ -164,14 +164,14 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
             animate="animate"
             exit="exit"
           >
-            {/* Back to Blog Link */}
+            {/* Back to blog link */}
             <div className="w-full">
               <Link
                 href="/blog"
-                className="text-text-[#FFFFFF] inline-flex items-center gap-2 text-sm font-medium transition-colors hover:text-text-body dark:text-white/50 dark:hover:text-white"
+                className="inline-flex items-center gap-2 rounded-md text-sm font-medium text-text-secondary transition-colors hover:text-text-body focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 dark:text-white/70 dark:hover:text-white"
               >
-                <ArrowLeft02Icon className="h-4 w-4" />
-                <span className="text-[#ffffff]"> Back to blog</span>
+                <ArrowLeft02Icon aria-hidden="true" className="h-4 w-4" />
+                <span>Back to blog</span>
               </Link>
             </div>
             <h1 className="mb-4 text-3xl font-bold leading-tight text-text-body dark:text-white md:text-4xl">

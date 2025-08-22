@@ -10,7 +10,7 @@ import {
 import { useActiveAccount } from "thirdweb/react";
 import { ImSpinner } from "react-icons/im";
 import { PiCheck } from "react-icons/pi";
-import { useOutsideClick } from "../hooks";
+import { useOutsideClick } from "../hooks/useOutsideClick";
 import { classNames, shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 import {

@@ -6,7 +6,7 @@ import { ArrowDown01Icon, Tick02Icon } from "hugeicons-react";
 
 import { AnimatedFeedbackItem } from "../AnimatedComponents";
 import { InstitutionProps } from "@/app/types";
-import { useOutsideClick } from "@/app/hooks";
+import { useOutsideClick } from "@/app/hooks/useOutsideClick";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { InputError } from "@/app/components/InputError";
 import { classNames, getSavedRecipients } from "@/app/utils";

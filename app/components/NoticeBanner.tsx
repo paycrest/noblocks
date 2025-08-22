@@ -12,10 +12,12 @@ interface NoticeBannerProps {
   bannerId?: string; // For localStorage key
 }
 
-// Helper function to parse text with bold formatting (*text*)
-const parseTextWithBold = (text: string): React.ReactNode[] => {
-  const parts = text.split(/(\*[^*]+\*)/g);
-  return parts.map((part, index) => {
+// Helper function to parse text with bold formatting (*text*) and links [text](url)
+const parseTextWithFormatting = (text: string): React.ReactNode[] => {
+  // First split by bold formatting
+  const boldParts = text.split(/(\*[^*]+\*)/g);
+
+  return boldParts.map((part, index) => {
     if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
       // Remove asterisks and make bold
       const boldText = part.slice(1, -1);
@@ -25,7 +27,27 @@ const parseTextWithBold = (text: string): React.ReactNode[] => {
         </span>
       );
     }
-    return part;
+
+    // Then parse links within this part
+    const linkParts = part.split(/(\[[^\]]+\]\([^)]+\))/g);
+    return linkParts.map((linkPart, linkIndex) => {
+      const linkMatch = linkPart.match(/\[([^\]]+)\]\(([^)]+)\)/);
+      if (linkMatch) {
+        const [, linkText, linkUrl] = linkMatch;
+        return (
+          <a
+            key={`${index}-${linkIndex}`}
+            href={linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 transition-all hover:underline-offset-1"
+          >
+            {linkText}
+          </a>
+        );
+      }
+      return linkPart;
+    });
   });
 };
 
@@ -103,15 +125,15 @@ const NoticeBanner: React.FC<NoticeBannerProps> = ({
             {textLines.length === 2 ? (
               <>
                 <span className="block font-semibold text-white">
-                  {parseTextWithBold(textLines[0])}
+                  {parseTextWithFormatting(textLines[0])}
                 </span>
                 <span className="mt-1 block">
-                  {parseTextWithBold(textLines[1])}
+                  {parseTextWithFormatting(textLines[1])}
                 </span>
               </>
             ) : (
               <span className="block font-normal text-white">
-                {parseTextWithBold(textLines[0])}
+                {parseTextWithFormatting(textLines[0])}
               </span>
             )}
           </span>

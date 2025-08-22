@@ -1,81 +1,135 @@
-# Notice Banner Configuration
+# Notice Banner Component
 
-The Noblocks app supports a dynamic notice banner for important announcements or status updates. The banner now supports optional CTA buttons for enhanced interactivity.
+The Notice Banner component displays important announcements and migration information to users. The banner content is determined by migration mode and environment variables.
 
-## How to Configure
+## Features
 
-Set the following environment variables in your `.env.local` or deployment environment:
+- **Dynamic Content**: Shows different messages based on user type and migration status
+- **Environment Variables**: Uses env vars when migration mode is OFF, hardcoded logic when ON
+- **Close Button**: Users can dismiss the banner with localStorage persistence
+- **Link Support**: Supports markdown-style links `[text](url)` in banner text
+- **Bold Text**: Supports bold formatting with `*text*` syntax
+- **Responsive Design**: Adapts to mobile and desktop layouts
 
-```env
-# Optional: Notice banner text content
-NEXT_PUBLIC_NOTICE_BANNER_TEXT='Header|Description...'
+## Text Formatting
 
-# Optional: CTA button text for notice banner
-NEXT_PUBLIC_NOTICE_BANNER_CTA_TEXT='Learn More'
+The banner supports markdown-style formatting:
 
-# Optional: CTA button URL for notice banner
-NEXT_PUBLIC_NOTICE_BANNER_CTA_URL='https://example.com'
+### Bold Text
 
-# Optional: Migration mode - if true, CTA opens migration modal instead of URL
-NEXT_PUBLIC_MIGRATION_MODE=true
+Use asterisks to make text bold:
+
+```txt
+*This text will be bold*
 ```
 
-- Use the pipe character (`|`) to separate the header and description lines in the banner text.
-  - The first part will be the bold header.
-  - The second part (optional) will be the description.
-- Use asterisks (`*text*`) to make specific words or phrases bold within the text.
-- If the banner text variable is not set or is empty, the banner will not be displayed.
-- CTA button will appear if CTA text is provided.
-- If `NEXT_PUBLIC_MIGRATION_MODE=true`, the CTA will open a migration modal instead of redirecting to a URL.
-- If migration mode is false/unset and a URL is provided, the CTA will redirect to the URL.
-- If neither migration mode nor URL is configured, the CTA will do nothing.
+### Links
 
-### Examples
+Use markdown link syntax:
 
-#### Simple Notice Banner
-
-```env
-NEXT_PUBLIC_NOTICE_BANNER_TEXT='New feature alert|You can now view your transaction history via the wallet settings.'
+```txt
+[Click here](https://example.com)
 ```
 
-#### Notice Banner with Bold Text
+### Combined Formatting
 
-```env
-NEXT_PUBLIC_NOTICE_BANNER_TEXT='*Important Update*|System maintenance scheduled for *December 15th* from 2-4 AM UTC.'
+You can combine both:
+
+```txt
+*Bold text with a [link](https://example.com)*
 ```
 
-#### Notice Banner with CTA
+## Link Styling
 
-```env
-NEXT_PUBLIC_NOTICE_BANNER_TEXT='System Maintenance|Scheduled maintenance will occur on *Dec 15th* from *2-4 AM UTC*.'
-NEXT_PUBLIC_NOTICE_BANNER_CTA_TEXT='Learn More'
-NEXT_PUBLIC_NOTICE_BANNER_CTA_URL='https://status.noblocks.com'
+Links in the banner have the following styling:
+
+- **Default**: Underlined with `underline-offset-2`
+- **Hover**: `underline-offset-1` for a subtle animation
+- **Target**: Opens in new tab with `target="_blank"`
+- **Security**: Includes `rel="noopener noreferrer"`
+
+## Banner Logic
+
+The banner content is determined by the following logic:
+
+### Migration Mode Enabled (`NEXT_PUBLIC_MIGRATION_MODE=true`)
+
+**Legacy Users:**
+
+- **Privy KYC verified, Thirdweb not verified**: Shows migration modal
+- **Both KYC verified**: Shows fund transfer reminder or completion message
+- **Thirdweb KYC verified, Privy not**: Shows fund transfer reminder or completion message
+- **Neither KYC verified**: Shows upgrade announcement
+
+**New Users:**
+
+- Shows welcome message
+
+### Migration Mode Disabled (`NEXT_PUBLIC_MIGRATION_MODE=false`)
+
+**Primary**: Uses environment variables if set:
+
+- `NEXT_PUBLIC_NOTICE_BANNER_TEXT` - Banner text content
+- `NEXT_PUBLIC_NOTICE_BANNER_CTA_TEXT` - CTA button text
+
+**Fallback**: If env vars are not set:
+
+- **Legacy Users**: Shows upgrade announcement with link to old site
+- **New Users**: Shows welcome message
+
+## Usage Examples
+
+### Legacy User - Migration Required (Migration Mode)
+
+```txt
+Migration Required|We're upgrading to a faster, more secure wallet. Complete your migration to continue using Noblocks.
 ```
 
-#### Migration Banner
+### Legacy User - Fund Transfer Reminder
 
-The migration banner uses the migration mode flag to trigger the migration modal when the CTA is clicked.
-
-```env
-NEXT_PUBLIC_NOTICE_BANNER_TEXT=' |Noblocks is migrating, this is a legacy version that will be closed by *September, 2025*. Click on start migration to move to the new version.'
-NEXT_PUBLIC_NOTICE_BANNER_CTA_TEXT='Start migration'
-NEXT_PUBLIC_MIGRATION_MODE=true
+```txt
+Fund Transfer Reminder|You have funds in your old wallet that need to be transferred. Access your previous account at [old.noblocks.xyz](https://old.noblocks.xyz)
 ```
 
-#### Regular Announcement with URL
+### Legacy User - Upgrade Announcement (No Migration Mode)
 
-```env
-NEXT_PUBLIC_NOTICE_BANNER_TEXT='*New Feature*|Check out our latest payment options!'
-NEXT_PUBLIC_NOTICE_BANNER_CTA_TEXT='Explore Now'
-NEXT_PUBLIC_NOTICE_BANNER_CTA_URL='https://docs.noblocks.com/features'
-NEXT_PUBLIC_MIGRATION_MODE=false
+```txt
+We've upgraded to Thirdweb!|Access your previous account and funds at [old.noblocks.xyz](https://old.noblocks.xyz)
 ```
 
-## Use Cases
+### New User - Welcome Message
 
-- Network status updates
-- Maintenance announcements
-- Feature launches
-- General notifications
-- External link promotions
-- Documentation links
+```txt
+Welcome to Noblocks!|Experience faster, more secure crypto-to-fiat conversions powered by Thirdweb.
+```
+
+## Props
+
+```typescript
+interface NoticeBannerProps {
+  textLines: string[];        // Array of text lines (max 2)
+  ctaText?: string;          // Call-to-action button text
+  onCtaClick?: () => void;   // CTA button click handler
+  bannerId?: string;         // Unique ID for localStorage dismissal
+}
+```
+
+## Environment Variables
+
+The following environment variables are used when migration mode is OFF:
+
+- `NEXT_PUBLIC_NOTICE_BANNER_TEXT` - Banner text content (supports markdown links)
+- `NEXT_PUBLIC_NOTICE_BANNER_CTA_TEXT` - CTA button text
+- `NEXT_PUBLIC_NOTICE_BANNER_CTA_URL` - URL for CTA button (opens in new tab)
+
+When migration mode is ON, the banner uses hardcoded logic based on user type and KYC status.
+
+## Dismissal
+
+Banners can be dismissed by clicking the X button in the top-right corner. The dismissal is stored in localStorage using the pattern:
+
+```txt
+banner-dismissed-{bannerId}
+```
+
+This ensures the banner stays dismissed across browser sessions.

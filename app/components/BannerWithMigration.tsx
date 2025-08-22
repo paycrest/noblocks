@@ -4,32 +4,30 @@ import NoticeBanner from "./NoticeBanner";
 import MigrationModal from "./migration/MigrationModal";
 import { useInjectedWallet } from "@/app/context";
 import { useActiveAccount } from "thirdweb/react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import config from "@/app/lib/config";
 import { fetchKYCStatus } from "@/app/api/aggregator";
+import { useMultiNetworkBalance } from "@/app/context/MultiNetworkBalanceContext";
 
 const BannerWithMigration: React.FC = () => {
   const [migrationModalOpen, setMigrationModalOpen] = useState(false);
-  const [shouldShowMigrationLogic, setShouldShowMigrationLogic] =
-    useState(false);
   const [isCheckingMigration, setIsCheckingMigration] = useState(true);
   const [isThirdwebKYCVerified, setIsThirdwebKYCVerified] = useState(false);
+  const [isPrivyKYCVerified, setIsPrivyKYCVerified] = useState(false);
   const [hasBalances, setHasBalances] = useState(false);
-  const [bannerText, setBannerText] = useState("");
-  const [ctaText, setCtaText] = useState("");
   const [isLegacyUser, setIsLegacyUser] = useState(false);
 
   const { isInjectedWallet } = useInjectedWallet();
   const account = useActiveAccount();
   const { user } = usePrivy();
+  const { wallets } = useWallets();
+  const { fetchAllNetworkBalances } = useMultiNetworkBalance();
 
-  // Check KYC status for a wallet address
   const checkKYCStatus = async (walletAddress: string): Promise<boolean> => {
     try {
       const response = await fetchKYCStatus(walletAddress);
       return response.data.status === "success";
     } catch (error) {
-      // If KYC check fails (404 or other error), assume not verified
       return false;
     }
   };
@@ -37,31 +35,29 @@ const BannerWithMigration: React.FC = () => {
   const checkPrivyUser = useCallback(async () => {
     setIsCheckingMigration(true);
 
-    // Don't check if it's an injected wallet
-    if (isInjectedWallet) {
-      setShouldShowMigrationLogic(false);
+    if (isInjectedWallet || !account?.address) {
+      setIsLegacyUser(false);
       setIsCheckingMigration(false);
       return;
     }
 
-    // Only check if we have a thirdweb account
-    if (!account?.address) {
-      setShouldShowMigrationLogic(false);
-      setIsCheckingMigration(false);
-      return;
-    }
+    const getPrivyWalletAddresses = () => {
+      if (!wallets) return { embedded: null, smart: null };
 
-    // Get Privy smart wallet address
-    const getPrivySmartWalletAddress = () => {
-      if (!user?.linkedAccounts) return null;
-      const smartWallet = user.linkedAccounts.find(
+      const embeddedWallet = wallets.find(
+        (wallet) => wallet.walletClientType === "privy",
+      );
+      const smartWallet = user?.linkedAccounts?.find(
         (account) => account.type === "smart_wallet",
       );
-      return smartWallet?.address || null;
+
+      return {
+        embedded: embeddedWallet?.address || null,
+        smart: smartWallet?.address || null,
+      };
     };
 
     try {
-      // Use enhanced user lookup that tries Thirdweb first, then Privy fallback
       const response = await fetch(
         `/api/privy/enhanced-lookup?walletAddress=${account.address}`,
         {
@@ -72,22 +68,20 @@ const BannerWithMigration: React.FC = () => {
       );
 
       if (!response.ok) {
-        console.error("❌ BannerWithMigration: Enhanced lookup failed");
-        setShouldShowMigrationLogic(false);
+        console.error("Enhanced lookup failed");
+        setIsLegacyUser(false);
         setIsCheckingMigration(false);
         return;
       }
 
       const lookupResult = await response.json();
 
-      // Check if we found a user with email from either source
       if (!lookupResult.email) {
-        setShouldShowMigrationLogic(false);
+        setIsLegacyUser(false);
         setIsCheckingMigration(false);
         return;
       }
 
-      // Check if user exists in Privy (this should always be true for privy source, but let's verify)
       const privyResponse = await fetch("/api/privy/check-user", {
         method: "POST",
         headers: {
@@ -99,72 +93,44 @@ const BannerWithMigration: React.FC = () => {
       if (privyResponse.ok) {
         const privyResult = await privyResponse.json();
 
-        // Check KYC status for Thirdweb wallet
-        const thirdwebKYCVerified = await checkKYCStatus(account.address);
-        setIsThirdwebKYCVerified(thirdwebKYCVerified);
+        const { embedded: privyEmbeddedAddress, smart: privySmartAddress } =
+          getPrivyWalletAddresses();
 
-        // Check if there are balances (simplified check)
-        const privySmartWalletAddress = getPrivySmartWalletAddress();
-        if (privySmartWalletAddress) {
-          // For now, assume there might be balances if user has a Privy smart wallet
-          setHasBalances(true);
+        const thirdwebKYCVerified = await checkKYCStatus(account.address);
+        const privyKYCVerified = privyEmbeddedAddress
+          ? await checkKYCStatus(privyEmbeddedAddress)
+          : false;
+
+        setIsThirdwebKYCVerified(thirdwebKYCVerified);
+        setIsPrivyKYCVerified(privyKYCVerified);
+
+        // Check if there are actual balances using multi-network balance check
+        if (privySmartAddress) {
+          try {
+            const networkBalances =
+              await fetchAllNetworkBalances(privySmartAddress);
+            const hasAnyBalance =
+              networkBalances?.some((balance) => balance.total > 0) || false;
+            setHasBalances(hasAnyBalance);
+          } catch (error) {
+            console.error("Failed to fetch balances:", error);
+            setHasBalances(false);
+          }
         } else {
           setHasBalances(false);
         }
 
-        // Set banner text based on KYC status and migration mode
-        if (config.migrationMode) {
-          if (thirdwebKYCVerified) {
-            // User is already KYC verified, show fund transfer reminder
-            setBannerText(
-              "Fund Transfer Reminder|You have funds in your old wallet that need to be transferred to your new wallet to complete the migration.",
-            );
-            setCtaText("Transfer Funds");
-          } else {
-            // User needs KYC migration
-            setBannerText(
-              "Migration Required|We're upgrading to a faster, more secure wallet. Complete your migration to continue using Noblocks.",
-            );
-            setCtaText("Start Migration");
-          }
-        } else {
-          // Use config text for non-migration mode
-          setBannerText(config.noticeBannerText || "");
-          setCtaText(config.noticeBannerCtaText || "");
-        }
-
         // Set legacy user status
         setIsLegacyUser(privyResult.exists);
-        setShouldShowMigrationLogic(privyResult.exists);
-
-        // TODO: Store the old wallet address from privyResult.user.linked_accounts
-        // for use in migration modal and other components that need it
-        if (privyResult.exists && privyResult.user) {
-          // Extract wallet address from linked accounts for future use
-          const walletAccounts = privyResult.user.linked_accounts?.filter(
-            (account: any) =>
-              account.type === "wallet" || account.type === "smart_wallet",
-          );
-
-          if (walletAccounts?.length > 0) {
-            // Store the old wallet address - could be used by migration modal
-            // Legacy wallet address available: walletAccounts[0].address
-          }
-        }
       } else {
-        console.error("❌ BannerWithMigration: Failed to check Privy user");
+        console.error("Failed to check Privy user");
         setIsLegacyUser(false);
-        setShouldShowMigrationLogic(false);
       }
 
       setIsCheckingMigration(false);
     } catch (error) {
-      console.error(
-        "❌ BannerWithMigration: Error checking migration eligibility:",
-        error,
-      );
+      console.error("Error checking migration eligibility:", error);
       setIsLegacyUser(false);
-      setShouldShowMigrationLogic(false);
       setIsCheckingMigration(false);
     }
   }, [isInjectedWallet, account?.address, user?.linkedAccounts]);
@@ -187,36 +153,69 @@ const BannerWithMigration: React.FC = () => {
     // If neither migration mode nor URL, CTA does nothing
   };
 
-  // Determine banner content based on user type and migration mode
   let finalBannerText = "";
   let finalCtaText = "";
 
   if (isCheckingMigration) {
-    return null; // Don't show anything while checking
+    return null;
   }
 
-  if (config.migrationMode) {
-    // Migration mode: show migration banner for legacy users only
-    if (isLegacyUser) {
-      finalBannerText = bannerText;
-      finalCtaText = ctaText;
+  // Use environment variables when migration mode is OFF
+  if (!config.migrationMode) {
+    if (config.noticeBannerText) {
+      finalBannerText = config.noticeBannerText;
+      finalCtaText = config.noticeBannerCtaText || "";
+    } else {
+      // Fallback messages when no env vars are set
+      if (isLegacyUser) {
+        finalBannerText =
+          "We've upgraded to Thirdweb!|Access your previous account and funds at [old.noblocks.xyz](https://old.noblocks.xyz)";
+        finalCtaText = "Go to Old Site";
+      } else {
+        finalBannerText =
+          "Welcome to Noblocks!|Experience faster, more secure crypto-to-fiat conversions powered by Thirdweb.";
+        finalCtaText = "Get Started";
+      }
     }
   } else {
-    // Non-migration mode: show announcement for all users
+    // Migration mode ON - use hardcoded logic
     if (isLegacyUser) {
-      // Legacy user: direct to old site
-      finalBannerText =
-        "We've upgraded to Thirdweb!|Access your previous account and funds at old.noblocks.xyz";
-      finalCtaText = "Go to Old Site";
+      if (isPrivyKYCVerified && !isThirdwebKYCVerified) {
+        finalBannerText =
+          "Migration Required|We're upgrading to a faster, more secure wallet. Complete your migration to continue using Noblocks.";
+        finalCtaText = "Start Migration";
+      } else if (isPrivyKYCVerified && isThirdwebKYCVerified) {
+        if (hasBalances) {
+          finalBannerText =
+            "Fund Transfer Reminder|You have funds in your old wallet that need to be transferred. Access your previous account at [old.noblocks.xyz](https://old.noblocks.xyz)";
+          finalCtaText = "Transfer Funds";
+        } else {
+          finalBannerText =
+            "Migration Complete|Your account has been successfully upgraded to Thirdweb. Access your previous account at [old.noblocks.xyz](https://old.noblocks.xyz)";
+          finalCtaText = "Go to Old Site";
+        }
+      } else if (!isPrivyKYCVerified && isThirdwebKYCVerified) {
+        if (hasBalances) {
+          finalBannerText =
+            "Fund Transfer Reminder|You have funds in your old wallet that need to be transferred. Access your previous account at [old.noblocks.xyz](https://old.noblocks.xyz)";
+          finalCtaText = "Transfer Funds";
+        } else {
+          finalBannerText =
+            "Migration Complete|Your account has been successfully upgraded to Thirdweb. Access your previous account at [old.noblocks.xyz](https://old.noblocks.xyz)";
+          finalCtaText = "Go to Old Site";
+        }
+      } else {
+        finalBannerText =
+          "We've upgraded to Thirdweb!|Access your previous account and funds at [old.noblocks.xyz](https://old.noblocks.xyz)";
+        finalCtaText = "Go to Old Site";
+      }
     } else {
-      // New user: welcome message
       finalBannerText =
         "Welcome to Noblocks!|Experience faster, more secure crypto-to-fiat conversions powered by Thirdweb.";
       finalCtaText = "Get Started";
     }
   }
 
-  // Only show banner if there's content
   if (!finalBannerText) return null;
 
   return (

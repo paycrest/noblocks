@@ -61,17 +61,19 @@ export const useMigrationStatus = () => {
   }, [wallets, user?.linkedAccounts]);
 
   // Helper function to check balances
-  const checkUserBalances = async (
-    smartWalletAddress: string,
-  ): Promise<boolean> => {
-    try {
-      const networkBalances = await fetchAllNetworkBalances(smartWalletAddress);
-      return networkBalances?.some((balance) => balance.total > 0) || false;
-    } catch (error) {
-      console.error("Failed to fetch balances:", error);
-      return false;
-    }
-  };
+  const checkUserBalances = useCallback(
+    async (smartWalletAddress: string): Promise<boolean> => {
+      try {
+        const networkBalances =
+          await fetchAllNetworkBalances(smartWalletAddress);
+        return networkBalances?.some((balance) => balance.total > 0) || false;
+      } catch (error) {
+        console.error("Failed to fetch balances:", error);
+        return false;
+      }
+    },
+    [fetchAllNetworkBalances],
+  );
 
   // Main function to check Privy user and determine status
   const checkPrivyUser = useCallback(async () => {
@@ -177,7 +179,7 @@ export const useMigrationStatus = () => {
     isInjectedWallet,
     account?.address,
     getPrivyWalletAddresses,
-    fetchAllNetworkBalances,
+    checkUserBalances,
   ]);
 
   return {

@@ -9,9 +9,11 @@
 
 > **Additional documentation is available in the [`docs/`](docs/) directory.**
 
-This branch contains the codebase for Noblocks. Noblocks simplifies cryptocurrency-to-local currency conversion using a decentralized liquidity protocol, providing a seamless user experience powered by [Paycrest Protocol](https://paycrest.io/).
+This branch contains the codebase for Noblocks. Noblocks simplifies cryptocurrency-to-local currency conversion using a decentralized liquidity protocol, providing a seamless user experience powered by [Paycrest Protocol](https://paycrest.io/) and [Thirdweb](https://thirdweb.com/) for wallet and authentication.
 
 Visit the live site at [noblocks.xyz](https://noblocks.xyz).
+
+> **Migration Notice**: Noblocks has upgraded from Privy to Thirdweb for enhanced wallet and authentication capabilities. Legacy Privy users can seamlessly migrate their accounts through our built-in migration system.
 
 ## Running Locally
 
@@ -32,9 +34,13 @@ To run the project locally, follow these steps:
      cp .env.example .env.local
      ```
 
-   - Add your privy app ID (`NEXT_PUBLIC_PRIVY_APP_ID`) to the `.env.local` file.
-   - Setup your [Privy](https://www.privy.io/) account by doing the following: - Get your app ID: ![image](https://github.com/paycrest/noblocks/blob/main/public/images/Screenshot%202025-02-06%20at%2016.12.19.png?raw=true) - Add your local domain URL: ![image](https://github.com/paycrest/noblocks/blob/main/public/images/Screenshot%202025-02-06%20at%2016.10.44.png?raw=true) - Enable smart wallet and configure chains: ![image](public/images/Screenshot%202025-02-25%20at%2001.14.22.png) - Enable funding: ![image](public/images/Screenshot%202025-02-25%20at%2002.08.23.png)
-     P.S: Check out the privy docs for more information - <https://docs.privy.io/guide/react/quickstart>
+   - Add your Thirdweb client ID (`NEXT_PUBLIC_THIRDWEB_CLIENT_ID`) to the `.env.local` file.
+   - Setup your [Thirdweb](https://thirdweb.com/) account by doing the following:
+     - Get your client ID from the [Thirdweb Dashboard](https://thirdweb.com/dashboard)
+     - Add your local domain URL to the allowed domains
+     - Configure your wallet settings and supported chains
+   - For legacy Privy users, you'll also need your Privy app ID (`NEXT_PUBLIC_PRIVY_APP_ID`) for migration purposes.
+     P.S: Check out the [Thirdweb docs](https://portal.thirdweb.com/) for more information
 
 3. Install dependencies and start the development server:
 
@@ -63,6 +69,7 @@ For more details, visit [paycrest.io](https://paycrest.io).
 
 ## 🛠️ Technologies Used
 
+- [Thirdweb](https://thirdweb.com/) for wallet and authentication
 - [Shield3](https://shield3.com/) for OFAC compliance
 - [Biconomy](https://biconomy.io/) for gasless transactions
 

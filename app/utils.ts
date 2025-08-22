@@ -569,6 +569,154 @@ export function shouldUseInjectedWallet(
 }
 
 /**
+ * Interface for banner content configuration.
+ */
+export interface BannerContent {
+  text: string;
+  ctaText: string;
+}
+
+/**
+ * Interface for user migration status information.
+ */
+export interface UserStatus {
+  isLegacyUser: boolean;
+  isThirdwebKYCVerified: boolean;
+  isPrivyKYCVerified: boolean;
+  hasBalances: boolean;
+}
+
+/**
+ * Determines banner content for migration mode based on user status.
+ *
+ * This function handles the complex logic for displaying appropriate banner messages
+ * when migration mode is enabled. It considers the user's legacy status, KYC verification
+ * status for both Privy and Thirdweb wallets, and whether they have balances.
+ *
+ * @param status - The user's migration status information
+ * @returns Banner content with text and CTA button text
+ */
+export const getMigrationModeBannerContent = (
+  status: UserStatus,
+): BannerContent => {
+  const {
+    isLegacyUser,
+    isPrivyKYCVerified,
+    isThirdwebKYCVerified,
+    hasBalances,
+  } = status;
+
+  if (!isLegacyUser) {
+    return {
+      text: "Welcome to Noblocks!|Experience faster, more secure crypto-to-fiat conversions powered by Thirdweb.",
+      ctaText: "Get Started",
+    };
+  }
+
+  // Legacy user logic
+  if (isPrivyKYCVerified && !isThirdwebKYCVerified) {
+    return {
+      text: "Migration Required|We're upgrading to a faster, more secure wallet. Complete your migration to continue using Noblocks.",
+      ctaText: "Start Migration",
+    };
+  }
+
+  if (isPrivyKYCVerified && isThirdwebKYCVerified) {
+    if (hasBalances) {
+      return {
+        text: "Fund Transfer Reminder|You have funds in your old wallet that need to be transferred. Access your previous account at [old.noblocks.xyz](https://old.noblocks.xyz)",
+        ctaText: "Transfer Funds",
+      };
+    } else {
+      return {
+        text: "Migration Complete|Your account has been successfully upgraded to Thirdweb. Access your previous account at [old.noblocks.xyz](https://old.noblocks.xyz)",
+        ctaText: "Go to Old Site",
+      };
+    }
+  }
+
+  if (!isPrivyKYCVerified && isThirdwebKYCVerified) {
+    if (hasBalances) {
+      return {
+        text: "Fund Transfer Reminder|You have funds in your old wallet that need to be transferred. Access your previous account at [old.noblocks.xyz](https://old.noblocks.xyz)",
+        ctaText: "Transfer Funds",
+      };
+    } else {
+      return {
+        text: "Migration Complete|Your account has been successfully upgraded to Thirdweb. Access your previous account at [old.noblocks.xyz](https://old.noblocks.xyz)",
+        ctaText: "Go to Old Site",
+      };
+    }
+  }
+
+  // Neither KYC verified
+  return {
+    text: "We've upgraded to Thirdweb!|Access your previous account and funds at [old.noblocks.xyz](https://old.noblocks.xyz)",
+    ctaText: "Go to Old Site",
+  };
+};
+
+/**
+ * Determines banner content for non-migration mode based on user status.
+ *
+ * This function handles banner content when migration mode is disabled. It primarily
+ * uses environment variables for banner text and CTA, with fallback messages for
+ * legacy users and new users when environment variables are not set.
+ *
+ * @param status - The user's migration status information
+ * @returns Banner content with text and CTA button text
+ */
+export const getNonMigrationModeBannerContent = (
+  status: UserStatus,
+): BannerContent => {
+  if (config.noticeBannerText) {
+    return {
+      text: config.noticeBannerText,
+      ctaText: config.noticeBannerCtaText || "",
+    };
+  }
+
+  // Fallback messages when no env vars are set
+  if (status.isLegacyUser) {
+    return {
+      text: "We've upgraded to Thirdweb!|Access your previous account and funds at [old.noblocks.xyz](https://old.noblocks.xyz)",
+      ctaText: "Go to Old Site",
+    };
+  } else {
+    return {
+      text: "Welcome to Noblocks!|Experience faster, more secure crypto-to-fiat conversions powered by Thirdweb.",
+      ctaText: "Get Started",
+    };
+  }
+};
+
+/**
+ * Main function to determine banner content based on migration mode and user status.
+ *
+ * This is the primary function for determining what banner content to display.
+ * It checks if migration is currently being checked, then delegates to the appropriate
+ * content function based on whether migration mode is enabled or disabled.
+ *
+ * @param status - The user's migration status information
+ * @param isCheckingMigration - Whether migration status is currently being checked
+ * @returns Banner content with text and CTA button text, or null if checking migration
+ */
+export const getBannerContent = (
+  status: UserStatus,
+  isCheckingMigration: boolean,
+): BannerContent | null => {
+  if (isCheckingMigration) {
+    return null;
+  }
+
+  if (config.migrationMode) {
+    return getMigrationModeBannerContent(status);
+  } else {
+    return getNonMigrationModeBannerContent(status);
+  }
+};
+
+/**
  * Generates a random color based on the provided name.
  *
  * @param name - The name of the recipient to generate a color for.

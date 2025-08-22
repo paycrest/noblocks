@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import type { AnimatedComponentProps } from "../types";
 import { classNames } from "../utils";
+import { Cancel01Icon } from "hugeicons-react";
 
 // Animation variants and transition
 const pageVariants = {
@@ -288,12 +289,13 @@ export const AnimatedModal = ({
   isOpen,
   onClose,
   children,
-  maxWidth = "25.75rem",
+  maxWidth = "27.3125rem",
   dialogPanelClassName,
-}: AnimatedModalProps) => (
+  showGradientHeader = false,
+}: AnimatedModalProps & { showGradientHeader?: boolean }) => (
   <AnimatePresence>
     {isOpen && (
-      <Dialog open={isOpen} onClose={onClose} className="relative z-[60]">
+      <Dialog open={isOpen} onClose={onClose} className="relative z-50">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -316,12 +318,35 @@ export const AnimatedModal = ({
           >
             <DialogPanel
               className={classNames(
-                "relative mx-auto w-full overflow-y-auto bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-2xl",
+                "relative mx-auto w-full",
                 dialogPanelClassName || "",
               )}
               style={{ maxWidth: window.innerWidth > 640 ? maxWidth : "none" }}
             >
-              {children}
+              <motion.div layout initial={false} className="relative">
+                {showGradientHeader && (
+                  <motion.div
+                    layout
+                    className="h-24 w-full bg-gradient-to-r from-[#d4e269] via-[#b0a6e4] to-[#f9f1fe] dark:from-[#7b8c12] dark:via-[#243b81] dark:to-[#1d1324] max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl"
+                  >
+                    <Cancel01Icon
+                      className="absolute right-4 top-4 size-6 cursor-pointer text-text-secondary dark:text-white/50"
+                      onClick={onClose}
+                    />
+                  </motion.div>
+                )}
+
+                <motion.div
+                  layout
+                  initial={false}
+                  className={classNames(
+                    "w-full overflow-y-auto bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl",
+                    showGradientHeader ? "-mt-10" : "",
+                  )}
+                >
+                  <motion.div layout="position">{children}</motion.div>
+                </motion.div>
+              </motion.div>
             </DialogPanel>
           </motion.div>
         </div>

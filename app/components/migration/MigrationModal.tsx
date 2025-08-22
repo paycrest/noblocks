@@ -12,6 +12,9 @@ import {
   InformationSquareIcon,
   Wallet01Icon,
   ArrowRight01Icon,
+  Tick01Icon,
+  ArrowRight04Icon,
+  Copy01Icon,
 } from "hugeicons-react";
 import {
   FingerPrintScanIconGradient,
@@ -39,7 +42,12 @@ const fadeInOut = {
   exit: { opacity: 0 },
 };
 
-type Step = "initial" | "kyc-success" | "fund-transfer" | "loading" | "success" | "failure" | "kyc-failed";
+type Step =
+  | "initial"
+  | "kyc-success"
+  | "fund-transfer"
+  | "loading"
+  | "kyc-failed";
 
 const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
   const [currentStep, setCurrentStep] = useState<Step>("initial");
@@ -50,7 +58,8 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
   const [privyUser, setPrivyUser] = useState<any>(null);
   const [isThirdwebKYCVerified, setIsThirdwebKYCVerified] = useState(false);
   const [hasBalances, setHasBalances] = useState(false);
-  
+  const [showCopyTick, setShowCopyTick] = useState(false);
+
   const account = useActiveAccount();
   const { user } = usePrivy();
   const { allBalances } = useBalance();
@@ -64,7 +73,7 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
 
   // Reset state when modal opens/closes
   const resetState = () => {
-    setCurrentStep("initial");
+    // setCurrentStep("initial"); // Commented out for testing
     setIsSigning(false);
     setIsKycUpdating(false);
     setKycMigrationSuccess(false);
@@ -84,7 +93,7 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
   const getPrivySmartWalletAddress = () => {
     if (!user?.linkedAccounts) return null;
     const smartWallet = user.linkedAccounts.find(
-      (account) => account.type === "smart_wallet"
+      (account) => account.type === "smart_wallet",
     );
     return smartWallet?.address || null;
   };
@@ -98,12 +107,12 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
       // If KYC check fails (404 or other error), assume not verified
       return false;
     }
-    };
+  };
 
   // Update KYC wallet address
   const updateKYCWalletAddressForMigration = async (
     oldWalletAddress: string,
-    newWalletAddress: string
+    newWalletAddress: string,
   ): Promise<boolean> => {
     try {
       const nonce = generateTimeBasedNonce({ length: 16 });
@@ -163,7 +172,7 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
       if (newWalletKYCVerified) {
         await fetchAllNetworkBalances(account?.address || "");
         const hasAnyBalances = networkBalances.some((network) =>
-          Object.values(network.balances).some((balance) => balance > 0)
+          Object.values(network.balances).some((balance) => balance > 0),
         );
         setHasBalances(hasAnyBalances);
         setCurrentStep("fund-transfer");
@@ -175,7 +184,7 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
         setIsKycUpdating(true);
         const kycUpdateSuccess = await updateKYCWalletAddressForMigration(
           privySmartWalletAddress || "",
-          account.address
+          account.address,
         );
         setIsKycUpdating(false);
 
@@ -192,26 +201,25 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
       // If neither wallet is verified, just show fund transfer
       await fetchAllNetworkBalances(account?.address || "");
       const hasAnyBalances = networkBalances.some((network) =>
-        Object.values(network.balances).some((balance) => balance > 0)
+        Object.values(network.balances).some((balance) => balance > 0),
       );
       setHasBalances(hasAnyBalances);
       setCurrentStep("fund-transfer");
-
     } catch (error) {
       console.error("Error during migration:", error);
       toast.error("Migration failed");
-      setCurrentStep("failure");
+      setCurrentStep("kyc-failed");
     } finally {
       setIsSigning(false);
     }
   };
 
   const handleCompleteMigration = () => {
-    setCurrentStep("success");
+    onClose();
   };
 
   const handleProceedWithoutFunds = () => {
-    setCurrentStep("success");
+    onClose();
   };
 
   const renderInitialState = () => (
@@ -230,46 +238,39 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
             height={24}
             className="rounded-full"
           />
-          <div className="rounded-r-[20px] rounded-bl-[6px] rounded-tl-[16px] bg-accent-gray px-3 py-1 text-text-body dark:bg-white/10 dark:text-white/80">
+          <div className="rounded-r-[20px] rounded-bl-[6px] rounded-tl-[16px] bg-accent-gray px-3 py-1 text-text-body dark:bg-white/5 dark:text-white/80">
             Hello, we are migrating!
           </div>
         </div>
       </div>
 
       <div className="space-y-4 rounded-2xl bg-accent-gray p-4 text-text-body dark:bg-white/5 dark:text-white/80">
-        <p>
+        <p className="text-sm">
           We&apos;re upgrading to a faster, more secure wallet powered by
-          Thirdweb. What does this mean?
+          Thirdweb.
         </p>
-        <div className="space-y-4 rounded-[20px] border border-border-light bg-background-neutral p-3 dark:border-white/5 dark:bg-white/5">
-          <div className="space-y-3">
-            <h4 className="text-base font-medium text-neutral-800 dark:text-white/80">
-              To complete migration:
-            </h4>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
-                  <span className="text-xs font-medium text-green-600 dark:text-green-400">1</span>
-                </div>
-                <span className="text-sm text-text-body dark:text-white/80">
-                  Re-verify your account (new wallet will be assigned)
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900">
-                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400">2</span>
-                </div>
-                <span className="text-sm text-text-body dark:text-white/80">
-                  Move your funds from old.noblocks.xyz to your new wallet
-                </span>
-              </div>
-            </div>
-          </div>
+        <div className="space-y-1">
+          <h4 className="text-sm font-medium text-neutral-800 dark:text-white/80">
+            To complete migration:
+          </h4>
+          <ol className="list-inside list-decimal space-y-1">
+            <li className="text-sm text-text-body dark:text-white/80">
+              Migrate KYC from your old account to your new wallet
+            </li>
+            <li className="text-sm text-text-body dark:text-white/80">
+              Move your funds from{" "}
+              <a
+                href="https://old.noblocks.xyz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors hover:text-lavender-500 dark:hover:text-lavender-500"
+              >
+                old.noblocks.xyz
+              </a>{" "}
+              to your new wallet
+            </li>
+          </ol>
         </div>
-        <p>
-          All you have to do is approve the re-verification and we will do all the
-          heavy lifting for you
-        </p>
       </div>
 
       <button
@@ -278,23 +279,28 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
         onClick={handleApproveMigration}
         disabled={isSigning}
       >
-        {isSigning ? "Processing..." : "Re-verify in 2 minutes!"}
+        {isSigning ? "Processing..." : "Migrate KYC"}
       </button>
     </motion.div>
   );
 
   const renderKYCSuccessState = () => (
-    <motion.div key="kyc-success" {...fadeInOut} className="space-y-4">
-      <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
+    <motion.div key="kyc-success" {...fadeInOut} className="relative space-y-4">
+      <div className="relative space-y-3 rounded-2xl bg-accent-gray p-6 text-center dark:bg-white/5">
+        <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
 
-      <div className="space-y-3 pb-5 text-center">
-        <DialogTitle className="z-10 text-lg font-semibold">
+        <DialogTitle className="z-10 text-lg font-semibold text-text-body dark:text-white">
           Re-verification successful
         </DialogTitle>
 
-        <p className="z-10 text-gray-500 dark:text-white/50">
-          You can now finish your migration to a new, faster and more secure wallet experience.
+        <p className="z-10 text-text-body dark:text-white/80">
+          You can now finish your migration to a new, faster and more secure
+          wallet experience.
         </p>
+
+        <div className="absolute right-1/2 top-1/4 size-4 bg-[#FF7D52]/20 blur-sm"></div>
+        <div className="absolute bottom-1/2 right-1/4 size-2 bg-[#00ACFF]/70 blur-sm"></div>
+        <div className="absolute bottom-1/3 left-1/4 size-4 bg-[#FFB633]/20 blur-sm"></div>
       </div>
 
       <div className="space-y-1 text-sm">
@@ -307,7 +313,7 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
             height={24}
             className="rounded-full"
           />
-          <div className="rounded-r-[20px] rounded-bl-[6px] rounded-tl-[16px] bg-accent-gray px-3 py-1 text-text-body dark:bg-white/10 dark:text-white/80">
+          <div className="rounded-r-[20px] rounded-bl-[6px] rounded-tl-[16px] bg-accent-gray px-3 py-1 text-text-body dark:bg-white/5 dark:text-white/80">
             Thank you for choosing us
           </div>
         </div>
@@ -336,78 +342,102 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
             className="rounded-full"
           />
           <div className="rounded-r-[20px] rounded-bl-[6px] rounded-tl-[16px] bg-accent-gray px-3 py-1 text-text-body dark:bg-white/10 dark:text-white/80">
-            To finish your migration, kindly take the next step in the migration process 👆
+            To finish your migration, kindly take the next step in the migration
+            process 👇
           </div>
         </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="space-y-3">
+      <div className="rounded-2xl bg-white/5 py-4 dark:bg-white/5">
+        <div className="space-y-4 px-4">
           <h4 className="text-base font-medium text-neutral-800 dark:text-white/80">
             Migration steps
           </h4>
-          <div className="space-y-3">
+          <div className="space-y-5">
             <div className="flex items-center gap-3">
-              <CheckmarkCircle01Icon className="size-5 text-green-500" />
-              <span className="text-sm text-text-body dark:text-white/80">
+              <Tick01Icon className="size-8 flex-shrink-0 text-green-500" />
+              <span className="text-sm text-text-secondary dark:text-white/50">
                 Reverify your account (new wallet assigned)
               </span>
             </div>
-            <div className="flex items-center gap-3">
-              <ArrowRight01Icon className="size-5 text-blue-500" />
-              <span className="text-sm text-text-body dark:text-white/80">
-                Go to old.noblocks.xyz, log in and move your funds to your new wallet
-              </span>
+            <div className="flex items-start gap-3 pb-3">
+              <ArrowRight04Icon className="size-8 flex-shrink-0 text-white" />
+              <div className="text-sm text-text-body dark:text-white/80">
+                Go to{" "}
+                <a
+                  href="https://old.noblocks.xyz"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-lavender-500 hover:underline"
+                >
+                  old.noblocks.xyz
+                </a>
+                , log in and move your funds to your new wallet
+                {!hasBalances && (
+                  <>
+                    <br />
+                    <div className="pt-2 text-xs italic text-text-secondary dark:text-white/50">
+                      Don&apos;t have any funds in your old wallet?{" "}
+                      <button
+                        type="button"
+                        className="text-lavender-500 hover:underline"
+                        onClick={handleProceedWithoutFunds}
+                      >
+                        proceed here
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
-        {!hasBalances && (
-          <div className="text-sm text-text-secondary dark:text-white/50">
-            Don&apos;t have any funds in your old wallet?{" "}
-            <button
-              type="button"
-              className="text-blue-500 hover:underline"
-              onClick={handleProceedWithoutFunds}
-            >
-              proceed here
-            </button>
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <h4 className="text-base font-medium text-neutral-800 dark:text-white/80">
+        <div className="border-t border-dashed border-white/5 pb-2 pt-3">
+          <h4 className="mb-3 px-4 text-sm text-neutral-800 dark:text-white/50">
             Your new wallet
           </h4>
-          <div className="flex items-center gap-2 rounded-lg border border-border-light bg-background-neutral p-3 dark:border-white/5 dark:bg-white/5">
-            <span className="font-mono text-sm text-text-body dark:text-white/80">
-              {shortenAddress(account?.address || "", 6, 6)}
-            </span>
+          <div className="flex items-center gap-2 px-4">
             <button
               type="button"
               onClick={() => {
                 navigator.clipboard.writeText(account?.address || "");
                 toast.success("Wallet address copied!");
+                setShowCopyTick(true);
+                setTimeout(() => setShowCopyTick(false), 2000);
               }}
-              className="ml-auto"
+              className="flex w-full items-center justify-between gap-2 transition-opacity hover:opacity-80"
               aria-label="Copy wallet address"
             >
-              <svg className="size-4 text-text-secondary dark:text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
+              <span className="text-lg font-semibold text-text-body dark:text-white">
+                {shortenAddress(account?.address || "", 13, 11)}
+              </span>
+
+              {showCopyTick ? (
+                <Tick01Icon
+                  className="size-4 text-green-500"
+                  strokeWidth={2.5}
+                />
+              ) : (
+                <Copy01Icon
+                  className="size-4 text-text-body dark:text-white"
+                  strokeWidth={2.5}
+                />
+              )}
             </button>
           </div>
         </div>
+      </div>
 
-        <div className="flex gap-2.5 rounded-xl bg-background-neutral p-3 text-text-secondary dark:bg-white/5 dark:text-white/50">
-          <InformationSquareIcon className="mt-1 size-4 flex-shrink-0" />
-          <p className="text-sm">
-            Your funds are safe. This upgrade makes your wallet faster and more secure.{" "}
-            <a href="#" className="text-blue-500 hover:underline">
-              Learn more
-            </a>
-          </p>
-        </div>
+      <div className="flex gap-2.5 rounded-xl bg-background-neutral p-2 text-text-secondary dark:bg-white/5 dark:text-white/50">
+        <InformationSquareIcon className="mt-1 size-4 flex-shrink-0" />
+        <p className="text-sm">
+          Your funds are safe. This upgrade makes your wallet faster and more
+          secure.{" "}
+          <a href="#" className="text-blue-500 hover:underline">
+            Learn more
+          </a>
+        </p>
       </div>
     </motion.div>
   );
@@ -437,22 +467,22 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
     </motion.div>
   );
 
-  const renderFailureState = () => (
-    <motion.div
-      key="failure"
-      {...fadeInOut}
-      className="relative space-y-6 pt-4"
-    >
-      <SadFaceIcon className="mx-auto size-10" />
-      <div className="space-y-3 pb-5 text-center">
-        <DialogTitle className="z-10 text-lg font-semibold">
-          Migration Failed
+  const renderKYCFailedState = () => (
+    <motion.div key="kyc-failed" {...fadeInOut} className="relative space-y-4">
+      <div className="relative space-y-3 rounded-2xl bg-accent-gray p-6 text-center dark:bg-white/5">
+        <SadFaceIcon className="mx-auto size-10" />
+
+        <DialogTitle className="z-10 text-lg font-semibold text-text-body dark:text-white">
+          KYC Migration Failed
         </DialogTitle>
-        <p className="mx-auto max-w-xs text-center text-sm text-gray-500 dark:text-white/50">
-          We couldn&apos;t complete the migration process. Please try again. If
-          the issue persists, contact support via the settings.
+
+        <p className="z-10 text-text-body dark:text-white/80">
+          We couldn&apos;t migrate your KYC verification to the new wallet
+          address. Your funds are safe, but you may need to complete KYC
+          verification again for the new wallet.
         </p>
       </div>
+
       <button
         type="button"
         className={`${primaryBtnClasses} w-full`}
@@ -460,71 +490,6 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
         disabled={isSigning}
       >
         Retry Migration
-      </button>
-    </motion.div>
-  );
-
-  const renderKYCFailedState = () => (
-    <motion.div
-      key="kyc-failed"
-      {...fadeInOut}
-      className="relative space-y-6 pt-4"
-    >
-      <SadFaceIcon className="mx-auto size-10" />
-      <div className="space-y-3 pb-5 text-center">
-        <DialogTitle className="z-10 text-lg font-semibold">
-          KYC Migration Failed
-        </DialogTitle>
-        <p className="mx-auto max-w-xs text-center text-sm text-gray-500 dark:text-white/50">
-          We couldn&apos;t migrate your KYC verification to the new wallet address. 
-          Your funds are safe, but you may need to complete KYC verification again 
-          for the new wallet.
-        </p>
-      </div>
-      <button
-        type="button"
-        className={`${primaryBtnClasses} w-full`}
-        onClick={() => {
-          onClose();
-          setCurrentStep("initial");
-        }}
-      >
-        Close
-      </button>
-    </motion.div>
-  );
-
-  const renderSuccessState = () => (
-    <motion.div
-      key="success"
-      {...fadeInOut}
-      className="relative space-y-6 pt-4"
-    >
-      <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
-
-      <div className="space-y-3 pb-5 text-center">
-        <DialogTitle className="z-10 text-lg font-semibold">
-          Migration successful
-        </DialogTitle>
-
-        <p className="z-10 text-gray-500 dark:text-white/50">
-          Your KYC verification and funds have been successfully migrated to your new wallet. You can now continue converting your crypto to fiats at zero fees on noblocks.
-        </p>
-
-        <div className="absolute right-1/2 top-1/4 size-4 bg-[#FF7D52]/20 blur-sm"></div>
-        <div className="absolute bottom-1/2 right-1/4 size-2 bg-[#00ACFF]/70 blur-sm"></div>
-        <div className="absolute bottom-1/3 left-1/4 size-4 bg-[#FFB633]/20 blur-sm"></div>
-      </div>
-
-      <button
-        type="button"
-        className={`${primaryBtnClasses} w-full`}
-        onClick={() => {
-          onClose();
-          setCurrentStep("initial");
-        }}
-      >
-        Let&apos;s go!
       </button>
     </motion.div>
   );
@@ -539,19 +504,15 @@ const MigrationModal: React.FC<MigrationModalProps> = ({ isOpen, onClose }) => {
         return renderFundTransferState();
       case "loading":
         return renderLoadingState();
-      case "failure":
-        return renderFailureState();
       case "kyc-failed":
         return renderKYCFailedState();
-      case "success":
-        return renderSuccessState();
       default:
         return null;
     }
   };
 
   return (
-    <AnimatedModal isOpen={isOpen} onClose={onClose}>
+    <AnimatedModal isOpen={isOpen} onClose={onClose} showGradientHeader>
       {renderCurrentStep()}
     </AnimatedModal>
   );

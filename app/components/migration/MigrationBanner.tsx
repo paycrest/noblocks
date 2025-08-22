@@ -29,7 +29,7 @@ const MigrationBanner: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
     try {
       // Use enhanced user lookup that tries Thirdweb first, then Privy fallback
       const response = await fetch(
-        `/api/enhanced-user-lookup?walletAddress=${account.address}`,
+        `/api/privy/enhanced-lookup?walletAddress=${account.address}`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -55,7 +55,7 @@ const MigrationBanner: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
       }
 
       // Check if user exists in Privy (this should always be true for privy source, but let's verify)
-      const privyResponse = await fetch("/api/check-privy-user", {
+      const privyResponse = await fetch("/api/privy/check-user", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

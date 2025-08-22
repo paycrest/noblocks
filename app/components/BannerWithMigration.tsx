@@ -17,7 +17,8 @@ const BannerWithMigration: React.FC = () => {
   const [hasBalances, setHasBalances] = useState(false);
   const [bannerText, setBannerText] = useState("");
   const [ctaText, setCtaText] = useState("");
-  
+  const [isLegacyUser, setIsLegacyUser] = useState(false);
+
   const { isInjectedWallet } = useInjectedWallet();
   const account = useActiveAccount();
   const { user } = usePrivy();
@@ -54,7 +55,7 @@ const BannerWithMigration: React.FC = () => {
     const getPrivySmartWalletAddress = () => {
       if (!user?.linkedAccounts) return null;
       const smartWallet = user.linkedAccounts.find(
-        (account) => account.type === "smart_wallet"
+        (account) => account.type === "smart_wallet",
       );
       return smartWallet?.address || null;
     };
@@ -62,7 +63,7 @@ const BannerWithMigration: React.FC = () => {
     try {
       // Use enhanced user lookup that tries Thirdweb first, then Privy fallback
       const response = await fetch(
-        `/api/enhanced-user-lookup?walletAddress=${account.address}`,
+        `/api/privy/enhanced-lookup?walletAddress=${account.address}`,
         {
           headers: {
             "Content-Type": "application/json",
@@ -87,7 +88,7 @@ const BannerWithMigration: React.FC = () => {
       }
 
       // Check if user exists in Privy (this should always be true for privy source, but let's verify)
-      const privyResponse = await fetch("/api/check-privy-user", {
+      const privyResponse = await fetch("/api/privy/check-user", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -115,11 +116,15 @@ const BannerWithMigration: React.FC = () => {
         if (config.migrationMode) {
           if (thirdwebKYCVerified) {
             // User is already KYC verified, show fund transfer reminder
-            setBannerText("Fund Transfer Reminder|You have funds in your old wallet that need to be transferred to your new wallet to complete the migration.");
+            setBannerText(
+              "Fund Transfer Reminder|You have funds in your old wallet that need to be transferred to your new wallet to complete the migration.",
+            );
             setCtaText("Transfer Funds");
           } else {
             // User needs KYC migration
-            setBannerText("Migration Required|We're upgrading to a faster, more secure wallet. Complete your migration to continue using Noblocks.");
+            setBannerText(
+              "Migration Required|We're upgrading to a faster, more secure wallet. Complete your migration to continue using Noblocks.",
+            );
             setCtaText("Start Migration");
           }
         } else {
@@ -128,7 +133,8 @@ const BannerWithMigration: React.FC = () => {
           setCtaText(config.noticeBannerCtaText || "");
         }
 
-        // For now, just check if user exists - skip balance check for banner visibility
+        // Set legacy user status
+        setIsLegacyUser(privyResult.exists);
         setShouldShowMigrationLogic(privyResult.exists);
 
         // TODO: Store the old wallet address from privyResult.user.linked_accounts
@@ -147,6 +153,7 @@ const BannerWithMigration: React.FC = () => {
         }
       } else {
         console.error("❌ BannerWithMigration: Failed to check Privy user");
+        setIsLegacyUser(false);
         setShouldShowMigrationLogic(false);
       }
 
@@ -156,6 +163,7 @@ const BannerWithMigration: React.FC = () => {
         "❌ BannerWithMigration: Error checking migration eligibility:",
         error,
       );
+      setIsLegacyUser(false);
       setShouldShowMigrationLogic(false);
       setIsCheckingMigration(false);
     }
@@ -166,9 +174,12 @@ const BannerWithMigration: React.FC = () => {
   }, [checkPrivyUser]);
 
   const handleCtaClick = () => {
-    if (config.migrationMode) {
-      // If migration mode, open migration modal
+    if (config.migrationMode && isLegacyUser) {
+      // If migration mode and legacy user, open migration modal
       setMigrationModalOpen(true);
+    } else if (isLegacyUser) {
+      // Legacy user but not in migration mode - go to old site
+      window.open("https://old.noblocks.xyz", "_blank");
     } else if (config.noticeBannerCtaUrl) {
       // If there's a URL, open it
       window.open(config.noticeBannerCtaUrl, "_blank");
@@ -176,26 +187,45 @@ const BannerWithMigration: React.FC = () => {
     // If neither migration mode nor URL, CTA does nothing
   };
 
-  // Only show banner if there's text configured
-  if (!bannerText) return null;
+  // Determine banner content based on user type and migration mode
+  let finalBannerText = "";
+  let finalCtaText = "";
+
+  if (isCheckingMigration) {
+    return null; // Don't show anything while checking
+  }
 
   if (config.migrationMode) {
-    // Migration mode: wait for check to complete, then only show for legacy users
-    if (isCheckingMigration) {
-      return null;
+    // Migration mode: show migration banner for legacy users only
+    if (isLegacyUser) {
+      finalBannerText = bannerText;
+      finalCtaText = ctaText;
     }
-    if (!shouldShowMigrationLogic) {
-      return null;
+  } else {
+    // Non-migration mode: show announcement for all users
+    if (isLegacyUser) {
+      // Legacy user: direct to old site
+      finalBannerText =
+        "We've upgraded to Thirdweb!|Access your previous account and funds at old.noblocks.xyz";
+      finalCtaText = "Go to Old Site";
+    } else {
+      // New user: welcome message
+      finalBannerText =
+        "Welcome to Noblocks!|Experience faster, more secure crypto-to-fiat conversions powered by Thirdweb.";
+      finalCtaText = "Get Started";
     }
   }
-  // Non-migration mode: show for everyone (if text exists)
+
+  // Only show banner if there's content
+  if (!finalBannerText) return null;
 
   return (
     <>
       <NoticeBanner
-        textLines={bannerText.split("|")}
-        ctaText={ctaText}
-        onCtaClick={ctaText ? handleCtaClick : undefined}
+        textLines={finalBannerText.split("|")}
+        ctaText={finalCtaText}
+        onCtaClick={finalCtaText ? handleCtaClick : undefined}
+        bannerId={isLegacyUser ? "legacy-user" : "new-user"}
       />
       {config.migrationMode && (
         <MigrationModal

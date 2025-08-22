@@ -176,6 +176,20 @@ export const Navbar = () => {
               </div>
             )}
 
+            {/* Swap Link - Show on /blog and nested blog routes */}
+            {pathname.startsWith("/blog") && (
+              <div className="hidden items-center sm:flex">
+                <Link
+                  href="/"
+                  className={`${
+                    IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"
+                  } text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
+                >
+                  Swap
+                </Link>
+              </div>
+            )}
+
             <AnimatePresence>
               {isDropdownOpen && (
                 <>

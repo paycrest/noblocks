@@ -50,7 +50,7 @@ export const GET = withRateLimit(
           total: count || 0,
           page,
           limit,
-          transactions: transactions as TransactionHistory[],
+          transactions: transactions as unknown as TransactionHistory[],
         },
       };
 

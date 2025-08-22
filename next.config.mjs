@@ -16,9 +16,18 @@ const nextConfig = {
           key: "X-Content-Type-Options",
           value: "nosniff",
         },
+        // {
+        //   key: "X-Frame-Options",
+        //   value: "DENY",
+        // },
+        // {
+        //   key: "Content-Security-Policy",
+        //   value: "frame-ancestors *;",
+        // },
         {
-          key: "X-Frame-Options",
-          value: "DENY",
+          key: "Content-Security-Policy",
+          value:
+            "default-src 'self'; frame-ancestors 'self' https://warpcast.com https://*.warpcast.com https://*.farcaster.xyz",
         },
         {
           key: "X-XSS-Protection",
@@ -47,6 +56,20 @@ const nextConfig = {
         },
       ],
     },
+    {
+      source: "/.well-known/farcaster.json",
+      headers: [
+        { key: "Content-Type", value: "application/json" },
+        { key: "Cache-Control", value: "public, max-age=3600" },
+      ],
+    },
+    // {
+    //   source: "/farcaster.json",
+    //   headers: [
+    //     { key: "Content-Type", value: "application/json" },
+    //     { key: "Cache-Control", value: "public, max-age=3600" },
+    //   ],
+    // },
   ],
   experimental: {
     optimizeCss: true,

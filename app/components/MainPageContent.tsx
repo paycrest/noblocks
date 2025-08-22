@@ -32,7 +32,24 @@ import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 
-export function MainPageContent() {
+type MainPageContentProps = {
+  onReady?: () => void;
+};
+export function MainPageContent({ onReady }: MainPageContentProps) {
+  // useEffect(() => {
+  //   onReady?.();
+  // }, [onReady]);
+
+  const onReadyRef = useRef(onReady);
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
+  useEffect(() => {
+    onReadyRef.current?.();
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const searchParams = useSearchParams();
   const { authenticated, ready } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();

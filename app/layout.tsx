@@ -7,6 +7,7 @@ import config from "./lib/config";
 
 import Providers from "./providers";
 import MainContent from "./mainContent";
+
 import {
   Footer,
   Navbar,
@@ -14,8 +15,12 @@ import {
   PWAInstall,
   NoticeBanner,
 } from "./components";
+import { EarlyReady } from "./early-ready";
+import WalletGate from "./components/WalletGate";
+import { MiniKitContextProvider } from "@/providers/MiniKitProvider";
 
 const inter = Inter({ subsets: ["latin"] });
+const appUrl = process.env.NEXT_PUBLIC_URL ?? "https://noblocks.xyz";
 
 export const metadata: Metadata = {
   title: {
@@ -24,19 +29,29 @@ export const metadata: Metadata = {
   },
   description:
     "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
+  other: {
+    // this is where Farcaster Mini App embed
+    "fc:miniapp": JSON.stringify({
+      url: appUrl,
+      window: { height: 600, width: 400 },
+    }),
+    "fc:frame": JSON.stringify({
+      url: appUrl,
+      window: { height: 600, width: 400 },
+    }),
+
+    // PWA / Microsoft tags
+    "mobile-web-app-capable": "yes",
+    "msapplication-TileColor": "#317EFB",
+    "msapplication-tap-highlight": "no",
+  },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Noblocks",
   },
-  other: {
-    "mobile-web-app-capable": "yes",
-    "msapplication-TileColor": "#317EFB",
-    "msapplication-tap-highlight": "no",
-  },
   keywords: [
-    // Stablecoin Primary Keywords
     "stablecoin payments",
     "USDC payments",
     "USDT payments",
@@ -44,8 +59,6 @@ export const metadata: Metadata = {
     "stablecoin remittance",
     "crypto remittance",
     "stablecoin transfer",
-
-    // Stablecoin to Fiat Keywords
     "USDC to bank transfer",
     "USDT to bank transfer",
     "DAI to bank transfer",
@@ -54,16 +67,12 @@ export const metadata: Metadata = {
     "stablecoin to mobile money",
     "USDC to mobile money",
     "USDT to mobile money",
-
-    // Stablecoin Benefits Keywords
     "instant stablecoin transfer",
     "low fee stablecoin transfer",
     "cheap crypto remittance",
     "fast stablecoin payment",
     "secure stablecoin transfer",
     "reliable crypto payment",
-
-    // Stablecoin Use Cases
     "send stablecoins to Africa",
     "USDC to Nigeria",
     "USDT to Kenya",
@@ -71,65 +80,46 @@ export const metadata: Metadata = {
     "stablecoin to Tanzania",
     "USDC to Uganda",
     "USDT to South Africa",
-
-    // Stablecoin Technology Keywords
     "blockchain remittance",
     "crypto payment solution",
     "digital currency transfer",
     "tokenized remittance",
     "smart contract payments",
     "on-chain payments",
-
-    // Stablecoin Comparison Keywords
     "better than traditional remittance",
     "cheaper than bank transfer",
     "faster than wire transfer",
     "more reliable than traditional payment",
     "better than fiat transfer",
-
-    // Stablecoin Security Keywords
-    "secure stablecoin transfer",
     "safe crypto payment",
     "regulated stablecoin transfer",
     "compliant crypto remittance",
     "trusted stablecoin service",
-
-    // Stablecoin Education Keywords
     "how to use stablecoins",
     "stablecoin remittance guide",
     "crypto payment tutorial",
     "stablecoin transfer guide",
     "learn crypto remittance",
-
-    // Stablecoin Business Keywords
     "business stablecoin payment",
     "corporate crypto remittance",
     "B2B stablecoin transfer",
     "enterprise crypto payment",
     "business USDC transfer",
-
-    // Stablecoin Network Keywords
     "Polygon stablecoin transfer",
     "Base stablecoin payment",
     "Arbitrum stablecoin transfer",
     "BNB Chain stablecoin payment",
     "Ethereum stablecoin transfer",
-
-    // Stablecoin Features Keywords
     "24/7 stablecoin transfer",
     "borderless crypto payment",
     "global stablecoin transfer",
     "instant settlement",
     "real-time crypto payment",
-
-    // Stablecoin Problem-Solution Keywords
     "high remittance fee solution",
     "slow transfer solution",
     "expensive payment alternative",
     "complex remittance simplified",
     "difficult transfer solution",
-
-    // Stablecoin Trend Keywords
     "next-gen remittance",
     "future of payments",
     "modern money transfer",
@@ -238,21 +228,28 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <Providers>
-          <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-            <div className="relative">
-              <Navbar />
-              {config.noticeBannerText && (
-                <NoticeBanner
-                  textLines={config.noticeBannerText.split("|")}
-                />
-              )}
-            </div>
-            <LayoutWrapper footer={<Footer />}>
-              <MainContent>{children}</MainContent>
-            </LayoutWrapper>
+          <MiniKitContextProvider>
+            <WalletGate>
+              <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
+                <div className="relative">
+                  <Navbar />
+                  {config.noticeBannerText && (
+                    <NoticeBanner
+                      textLines={config.noticeBannerText.split("|")}
+                    />
+                  )}
+                </div>
+                <LayoutWrapper footer={<Footer />}>
+                  <MainContent>
+                    <EarlyReady />
+                    {children}
+                  </MainContent>
+                </LayoutWrapper>
 
-            <PWAInstall />
-          </div>
+                <PWAInstall />
+              </div>
+            </WalletGate>
+          </MiniKitContextProvider>
         </Providers>
       </body>
     </html>

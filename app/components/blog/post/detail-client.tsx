@@ -153,11 +153,11 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
         className={`mx-auto flex w-full max-w-screen-2xl flex-col gap-12 px-5 py-10 sm:px-8 ${getBannerPadding()}`}
       >
         {/* Main Content + Sidebar */}
-        <div className="flex w-full flex-col gap-8 md:flex-row">
+        <div className="flex w-full flex-col gap-[30px] md:flex-row md:justify-center lg:gap-[112px]">
           {/* Main Content */}
           <motion.main
             ref={contentRef}
-            className="min-w-0 flex-1 space-y-11 sm:space-y-8"
+            className="w-full min-w-0 max-w-[737px] flex-1 space-y-11 sm:space-y-8"
             variants={fadeBlur}
             initial="initial"
             animate="animate"

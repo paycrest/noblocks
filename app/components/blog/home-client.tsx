@@ -38,7 +38,13 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
     useState<boolean>(false);
   const [isMobileSearchActive, setIsMobileSearchActive] =
     useState<boolean>(false);
+  const [mobileCategoryFilter, setMobileCategoryFilter] = useState<string>("");
   const mobileCategoryRef = useRef<HTMLDivElement | null>(null);
+  const [mobileMenuPosition, setMobileMenuPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
 
   // Track page view on mount
   useEffect(() => {
@@ -78,17 +84,41 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
     });
   }, [blogPosts, selectedCategory, urlSearchValue]);
 
+  // Position mobile category menu when opened and on resize/scroll
+  useEffect(() => {
+    const updateMenuPosition = () => {
+      if (!isMobileCategoryOpen) return;
+      const container = mobileCategoryRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      setMobileMenuPosition({
+        top: Math.round(rect.bottom + 150),
+        left: Math.round(rect.left),
+        width: Math.round(rect.width),
+      });
+    };
+
+    updateMenuPosition();
+    if (isMobileCategoryOpen) {
+      window.addEventListener("resize", updateMenuPosition);
+      window.addEventListener("scroll", updateMenuPosition, true);
+    }
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [isMobileCategoryOpen]);
+
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      setSearch("");
       setIsSearchOpen(false);
       setShowSuggestions(false);
 
-      // Update URL with search parameter
+      // this Updates the  URL with search parameter
       const params = new URLSearchParams(searchParams.toString());
       if (search.trim()) {
         params.set("search", search.trim());
-        // Clear category when searching
+        // this Clears category when searching
         params.delete("category");
       } else {
         params.delete("search");
@@ -98,10 +128,10 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
   };
 
   const handleSuggestionClick = (suggestion: { id: string; title: string }) => {
-    // Update URL with search parameter
+    //this Updates URL with search parameter
     const params = new URLSearchParams(searchParams.toString());
     params.set("search", suggestion.title);
-    // Clear category when searching
+    // this Clears category when searching
     params.delete("category");
     router.push(`/blog?${params.toString()}`);
   };
@@ -113,18 +143,25 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
     } else {
       params.set("category", categoryId);
     }
-    // Clear search when changing category
+    // this Clears search when changing category
     params.delete("search");
     router.push(`/blog?${params.toString()}`);
   };
 
-  // Create filter categories with "All Posts" option
+  //this Creates filter categories with "All Posts" option
   const filterCategories = [{ _id: "all", title: "All Posts" }, ...categories];
 
-  // Determine the active category - if there's a search, no category should be active
+  // this Determines the active category - if there's a search, no category should be active
   const activeCategory = urlSearchValue ? null : selectedCategory;
 
-  // Get the first blog for featured section and rest for recent blogs
+  // these are Categories to display in mobile dropdown filtered by the mobile category filter
+  const displayedCategories = useMemo(() => {
+    const term = mobileCategoryFilter.trim().toLowerCase();
+    if (!term) return filterCategories;
+    return filterCategories.filter((c) => c.title.toLowerCase().includes(term));
+  }, [filterCategories, mobileCategoryFilter]);
+
+  // this Gets the first blog for featured section and rest for recent blogs
   const firstBlog = filteredBlogs[0];
   const recentBlogs = filteredBlogs.slice(1);
 
@@ -197,74 +234,48 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
               <>
                 <div
                   ref={mobileCategoryRef}
-                  className="relative isolate z-[2147483647] w-full"
+                  className="relative isolate z-[999999999] w-full"
                 >
-                  <button
-                    type="button"
-                    aria-haspopup="listbox"
-                    aria-expanded={isMobileCategoryOpen}
-                    onClick={() => setIsMobileCategoryOpen((v) => !v)}
-                    className="flex w-full items-center justify-between rounded-xl border border-gray-300 bg-white px-3 py-2 text-left text-sm text-text-body transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:text-white dark:hover:border-white/30"
-                  >
-                    <span className="truncate">
-                      {filterCategories.find((c) => c._id === activeCategory)
-                        ?.title || "Select category"}
-                    </span>
-                    {/* Chevron Down */}
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="ml-2 h-4 w-4 text-gray-500 dark:text-white/60"
+                  <div className="flex w-full items-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30">
+                    <input
+                      type="text"
+                      className="flex-1 bg-transparent px-3 py-2 text-sm text-text-body placeholder-text-secondary outline-none dark:text-white dark:placeholder-white/30"
+                      placeholder="Select category"
+                      value={mobileCategoryFilter}
+                      onChange={(e) => {
+                        setMobileCategoryFilter(e.target.value);
+                        if (!isMobileCategoryOpen) {
+                          setIsMobileCategoryOpen(true);
+                        }
+                      }}
+                      onFocus={() => setIsMobileCategoryOpen(true)}
+                    />
+                    <button
+                      type="button"
+                      aria-haspopup="listbox"
+                      aria-expanded={isMobileCategoryOpen}
+                      onClick={() => setIsMobileCategoryOpen((v) => !v)}
+                      className="flex items-center justify-center px-3 py-2"
                     >
-                      <path
-                        d="M6 9l6 6 6-6"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
-                  <AnimatePresence>
-                    {isMobileCategoryOpen ? (
-                      <motion.div
-                        key="menu"
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.2 }}
-                        role="listbox"
-                        className="absolute left-0 top-[100px] isolate z-[2147483647] w-full overflow-hidden rounded-[24px] bg-[#141414] p-5 shadow-lg"
+                      {/* Chevron Down */}
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4 text-gray-500 dark:text-white/60"
                       >
-                        <ul className="max-h-[70vh] divide-y divide-gray-100 overflow-auto dark:divide-white/5">
-                          {filterCategories.map((cat) => (
-                            <li key={cat._id}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedCategory(cat._id);
-                                  setIsMobileCategoryOpen(false);
-                                }}
-                                className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${
-                                  activeCategory === cat._id
-                                    ? "text-lavender-600 dark:text-white"
-                                    : "text-text-body/80 dark:text-white/80"
-                                }`}
-                              >
-                                <span className="truncate">{cat.title}</span>
-                                {activeCategory === cat._id ? (
-                                  <span className="ml-2 h-2 w-2 rounded-full bg-lavender-500" />
-                                ) : null}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
+                        <path
+                          d="M6 9l6 6 6-6"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
                 <button
@@ -274,6 +285,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                     setIsMobileSearchActive(true);
                     setIsSearchOpen(false);
                     setIsMobileCategoryOpen(false);
+                    setMobileCategoryFilter("");
                     setSearch("");
                     setShowSuggestions(false);
                   }}
@@ -307,6 +319,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                   className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30"
                   onClick={() => {
                     setIsMobileSearchActive(false);
+                    setMobileCategoryFilter("");
                     setSearch("");
                   }}
                   aria-label="Close search"
@@ -441,6 +454,74 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
           ) : null}
         </motion.div>
       </main>
+
+      <AnimatePresence>
+        {isMobileCategoryOpen ? (
+          <>
+            {/* backdrop to allow outside click close and ensure stacking */}
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[999999998] bg-black/40"
+              onClick={() => setIsMobileCategoryOpen(false)}
+            />
+            <motion.div
+              key="menu"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              role="listbox"
+              className="fixed z-[999999999] overflow-hidden rounded-[24px] border border-white/10 bg-[#141414] p-5 shadow-2xl"
+              style={{
+                top: mobileMenuPosition?.top ?? 0,
+                left: mobileMenuPosition?.left ?? 0,
+                width: mobileMenuPosition?.width ?? undefined,
+              }}
+            >
+              <ul className="max-h-[70vh] divide-y divide-gray-100 overflow-auto dark:divide-white/5">
+                <p className="py-[12px] text-[16px] font-[600] text-[#FFFFFF]">
+                  Categories
+                </p>
+                {displayedCategories.length === 0 ? (
+                  <li>
+                    <div className="px-3 py-2 text-left text-sm text-text-body/60 dark:text-white/60">
+                      No matching categories
+                    </div>
+                  </li>
+                ) : null}
+                {displayedCategories.map((cat) => (
+                  <li key={cat._id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory(cat._id);
+                        setMobileCategoryFilter(
+                          cat.title === "All Posts" ? "" : cat.title,
+                        );
+                        setIsMobileCategoryOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between py-[12px] text-left text-[14px] text-sm font-[500] text-[#FFFFFF] transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${
+                        activeCategory === cat._id
+                          ? "text-lavender-600 dark:text-white"
+                          : "text-text-body/80 dark:text-white/80"
+                      }`}
+                    >
+                      <span className="truncate">{cat.title}</span>
+                      {activeCategory === cat._id ? (
+                        <span className="ml-2 h-2 w-2 rounded-full bg-lavender-500" />
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          </>
+        ) : null}
+      </AnimatePresence>
 
       {/* Search Modal */}
       <SearchModal

@@ -478,8 +478,8 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
               className="fixed z-[999999999] overflow-hidden rounded-[24px] border border-white/10 bg-[#141414] p-5 shadow-2xl"
               style={{
                 top: mobileMenuPosition?.top ?? 0,
-                left: mobileMenuPosition?.left ?? 0,
-                width: mobileMenuPosition?.width ?? undefined,
+                left: "2.5%",
+                width: "95%",
               }}
             >
               <ul className="max-h-[70vh] divide-y divide-gray-100 overflow-auto dark:divide-white/5">

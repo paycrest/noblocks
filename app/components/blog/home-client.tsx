@@ -1,5 +1,11 @@
 "use client";
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useLayoutEffect,
+} from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { SanityPost, SanityCategory } from "@/app/blog/types";
 import {
@@ -90,15 +96,15 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
     });
   }, [blogPosts, selectedCategory, urlSearchValue]);
 
-  // Position mobile category menu when opened and on resize/scroll
-  useEffect(() => {
+  // Position mobile category menu when opened and on resize/scroll (pre-paint to prevent flicker)
+  useLayoutEffect(() => {
     const updateMenuPosition = () => {
       if (!isMobileCategoryOpen) return;
       const container = mobileCategoryRef.current;
       if (!container) return;
       const rect = container.getBoundingClientRect();
       setMobileMenuPosition({
-        top: Math.round(rect.bottom + 160),
+        top: Math.round(rect.bottom),
         left: Math.round(rect.left),
         width: Math.round(rect.width),
       });
@@ -106,12 +112,16 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
 
     updateMenuPosition();
     if (isMobileCategoryOpen) {
-      window.addEventListener("resize", updateMenuPosition);
-      window.addEventListener("scroll", updateMenuPosition, true);
+      // window.addEventListener("resize", updateMenuPosition);
+      // window.addEventListener("scroll", updateMenuPosition, true);
+      window.addEventListener("resize", updateMenuPosition, { passive: true });
+      window.addEventListener("scroll", updateMenuPosition, { passive: true });
     }
     return () => {
       window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition, true);
+      window.removeEventListener("scroll", updateMenuPosition);
+      // window.removeEventListener("resize", updateMenuPosition);
+      // window.removeEventListener("scroll", updateMenuPosition, true);
     };
   }, [isMobileCategoryOpen]);
 

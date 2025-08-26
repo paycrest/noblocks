@@ -104,7 +104,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
       if (!container) return;
       const rect = container.getBoundingClientRect();
       setMobileMenuPosition({
-        top: Math.round(rect.bottom),
+        top: Math.round(rect.bottom + 160),
         left: Math.round(rect.left),
         width: Math.round(rect.width),
       });

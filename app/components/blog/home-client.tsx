@@ -112,16 +112,12 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
 
     updateMenuPosition();
     if (isMobileCategoryOpen) {
-      // window.addEventListener("resize", updateMenuPosition);
-      // window.addEventListener("scroll", updateMenuPosition, true);
       window.addEventListener("resize", updateMenuPosition, { passive: true });
       window.addEventListener("scroll", updateMenuPosition, { passive: true });
     }
     return () => {
       window.removeEventListener("resize", updateMenuPosition);
       window.removeEventListener("scroll", updateMenuPosition);
-      // window.removeEventListener("resize", updateMenuPosition);
-      // window.removeEventListener("scroll", updateMenuPosition, true);
     };
   }, [isMobileCategoryOpen]);
 

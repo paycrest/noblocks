@@ -1,8 +1,20 @@
 "use client";
-import React, { useEffect, useMemo, useState, useRef } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useLayoutEffect,
+} from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { SanityPost, SanityCategory } from "@/app/blog/types";
-import { SearchingIcon, FilterIcon, Search01Icon } from "hugeicons-react";
+import {
+  SearchingIcon,
+  FilterIcon,
+  Search01Icon,
+  ArrowDown01Icon,
+  Cancel01Icon,
+} from "hugeicons-react";
 import BlogCard from "@/app/components/blog/list/blog-card";
 import FeaturedBlog from "@/app/components/blog/list/featured-blog";
 import { SearchModal } from "@/app/components/blog/shared";
@@ -11,7 +23,7 @@ import {
   trackBlogCardClick,
 } from "@/app/hooks/analytics/useMixpanel";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { fadeBlur } from "@/app/components/blog/shared/animations";
 import { getBannerPadding } from "@/app/utils";
 
@@ -32,6 +44,19 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
   const [filteredSuggestions, setFilteredSuggestions] = useState<
     { id: string; title: string }[]
   >([]);
+
+  // Mobile-only UI state
+  const [isMobileCategoryOpen, setIsMobileCategoryOpen] =
+    useState<boolean>(false);
+  const [isMobileSearchActive, setIsMobileSearchActive] =
+    useState<boolean>(false);
+  const [mobileCategoryFilter, setMobileCategoryFilter] = useState<string>("");
+  const mobileCategoryRef = useRef<HTMLDivElement | null>(null);
+  const [mobileMenuPosition, setMobileMenuPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
 
   // Track page view on mount
   useEffect(() => {
@@ -71,17 +96,41 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
     });
   }, [blogPosts, selectedCategory, urlSearchValue]);
 
+  // Position mobile category menu when opened and on resize/scroll (pre-paint to prevent flicker)
+  useLayoutEffect(() => {
+    const updateMenuPosition = () => {
+      if (!isMobileCategoryOpen) return;
+      const container = mobileCategoryRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      setMobileMenuPosition({
+        top: Math.round(rect.bottom + 160),
+        left: Math.round(rect.left),
+        width: Math.round(rect.width),
+      });
+    };
+
+    updateMenuPosition();
+    if (isMobileCategoryOpen) {
+      window.addEventListener("resize", updateMenuPosition, { passive: true });
+      window.addEventListener("scroll", updateMenuPosition, { passive: true });
+    }
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition);
+    };
+  }, [isMobileCategoryOpen]);
+
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      setSearch("");
       setIsSearchOpen(false);
       setShowSuggestions(false);
 
-      // Update URL with search parameter
+      // this Updates the  URL with search parameter
       const params = new URLSearchParams(searchParams.toString());
       if (search.trim()) {
         params.set("search", search.trim());
-        // Clear category when searching
+        // this Clears category when searching
         params.delete("category");
       } else {
         params.delete("search");
@@ -91,10 +140,10 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
   };
 
   const handleSuggestionClick = (suggestion: { id: string; title: string }) => {
-    // Update URL with search parameter
+    //this Updates URL with search parameter
     const params = new URLSearchParams(searchParams.toString());
     params.set("search", suggestion.title);
-    // Clear category when searching
+    // this Clears category when searching
     params.delete("category");
     router.push(`/blog?${params.toString()}`);
   };
@@ -106,18 +155,25 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
     } else {
       params.set("category", categoryId);
     }
-    // Clear search when changing category
+    // this Clears search when changing category
     params.delete("search");
     router.push(`/blog?${params.toString()}`);
   };
 
-  // Create filter categories with "All Posts" option
+  //this Creates filter categories with "All Posts" option
   const filterCategories = [{ _id: "all", title: "All Posts" }, ...categories];
 
-  // Determine the active category - if there's a search, no category should be active
+  // this Determines the active category - if there's a search, no category should be active
   const activeCategory = urlSearchValue ? null : selectedCategory;
 
-  // Get the first blog for featured section and rest for recent blogs
+  // these are Categories to display in mobile dropdown filtered by the mobile category filter
+  const displayedCategories = useMemo(() => {
+    const term = mobileCategoryFilter.trim().toLowerCase();
+    if (!term) return filterCategories;
+    return filterCategories.filter((c) => c.title.toLowerCase().includes(term));
+  }, [filterCategories, mobileCategoryFilter]);
+
+  // this Gets the first blog for featured section and rest for recent blogs
   const firstBlog = filteredBlogs[0];
   const recentBlogs = filteredBlogs.slice(1);
 
@@ -161,10 +217,10 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
           initial="initial"
           animate="animate"
           exit="exit"
-          className="relative mb-2 flex w-full items-center gap-2 sm:gap-6"
+          className="relative mb-2 flex w-full items-center gap-2 overflow-visible sm:gap-6"
         >
-          {/* Category Filter Scrollable Row */}
-          <div className="relative min-w-0 flex-1">
+          {/* Category Filter (Desktop/Tablet - scrollable chips) */}
+          <div className="relative hidden min-w-0 flex-1 sm:block">
             <div className="scrollbar-hide flex gap-2 overflow-x-auto whitespace-nowrap pr-4">
               {filterCategories.map((cat) => (
                 <button
@@ -181,6 +237,96 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Category Selector + Search (Mobile) */}
+          <div className="relative flex w-full flex-1 items-center gap-2 sm:hidden">
+            {/* Collapsed state: category input + search icon */}
+            {!isMobileSearchActive ? (
+              <div className="flex w-full items-center gap-[20px]">
+                <div
+                  ref={mobileCategoryRef}
+                  className="relative isolate z-[999999999] w-full"
+                >
+                  <div className="flex w-full items-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30">
+                    <input
+                      type="text"
+                      className="flex-1 bg-transparent px-3 py-2 text-sm text-text-body placeholder-text-secondary outline-none dark:text-white dark:placeholder-white/30"
+                      placeholder="Select category"
+                      value={mobileCategoryFilter}
+                      onChange={(e) => {
+                        setMobileCategoryFilter(e.target.value);
+                        if (!isMobileCategoryOpen) {
+                          setIsMobileCategoryOpen(true);
+                        }
+                      }}
+                      onFocus={() => setIsMobileCategoryOpen(true)}
+                    />
+                    <button
+                      type="button"
+                      aria-haspopup="listbox"
+                      aria-expanded={isMobileCategoryOpen}
+                      onClick={() => setIsMobileCategoryOpen((v) => !v)}
+                      className="flex items-center justify-center px-3 py-2"
+                    >
+                      {/* Chevron Down */}
+                      <ArrowDown01Icon className="h-4 w-4 text-gray-500 dark:text-white/60" />
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30"
+                  onClick={() => {
+                    setIsMobileSearchActive(true);
+                    setIsSearchOpen(false);
+                    setIsMobileCategoryOpen(false);
+                    setMobileCategoryFilter("");
+                    setSearch("");
+                    setShowSuggestions(false);
+                  }}
+                  aria-label="Open search"
+                >
+                  <Search01Icon className="h-5 w-5 text-gray-400 dark:text-white/50" />
+                </button>
+              </div>
+            ) : (
+              // Expanded state: full-width search input
+              <div className="flex w-full items-center gap-[20px]">
+                <div className="flex h-[36px] w-full items-center rounded-xl border border-gray-300 bg-white py-2 pl-2.5 pr-2 transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30">
+                  <Search01Icon className="h-4 w-4 text-gray-400 dark:text-white/50" />
+                  <input
+                    ref={searchInputRef}
+                    type="search"
+                    className="w-full flex-1 bg-transparent px-2.5 text-[14px] text-sm font-normal leading-[24px] text-text-body placeholder-text-secondary outline-none dark:text-white dark:placeholder-white/30"
+                    placeholder="Search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      handleSearchKeyDown(e);
+                      if (e.key === "Enter") {
+                        setIsMobileSearchActive(false);
+                      }
+                    }}
+                  />
+                </div>
+                <div className="">
+                  <button
+                    type="button"
+                    className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30"
+                    onClick={() => {
+                      setIsMobileSearchActive(false);
+                      setMobileCategoryFilter("");
+                      setSearch("");
+                    }}
+                    aria-label="Close search"
+                  >
+                    <Cancel01Icon className="h-4 w-4 text-gray-500 dark:text-white/60" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           {/* Search Bar (Desktop) */}
           <div className="hidden w-full min-w-[200px] max-w-[300px] flex-shrink-0 sm:flex">
@@ -202,23 +348,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
               />
             </div>
           </div>
-          {/* Search Icon (Mobile/Tablet) */}
-          <div className="ml-2 flex flex-shrink-0 sm:hidden">
-            {!isSearchOpen ? (
-              <button
-                type="button"
-                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30"
-                onClick={() => {
-                  setIsSearchOpen(true);
-                  setSearch("");
-                  setShowSuggestions(false);
-                }}
-                aria-label="Open search"
-              >
-                <Search01Icon className="h-5 w-5 text-gray-400 dark:text-white/50" />
-              </button>
-            ) : null}
-          </div>
+          {/* Search Icon (Mobile/Tablet) - replaced by inline mobile search above */}
         </motion.div>
 
         {/* Featured Blog (hide in search mode) */}
@@ -308,6 +438,74 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
           ) : null}
         </motion.div>
       </main>
+
+      <AnimatePresence>
+        {isMobileCategoryOpen ? (
+          <>
+            {/* backdrop to allow outside click close and ensure stacking */}
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[999999998] bg-black/40"
+              onClick={() => setIsMobileCategoryOpen(false)}
+            />
+            <motion.div
+              key="menu"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              role="listbox"
+              className="fixed z-[999999999] overflow-hidden rounded-[24px] border border-white/10 bg-[#141414] p-5 shadow-2xl"
+              style={{
+                top: mobileMenuPosition?.top ?? 0,
+                left: "2.5%",
+                width: "95%",
+              }}
+            >
+              <ul className="max-h-[70vh] divide-y divide-gray-100 overflow-auto dark:divide-white/5">
+                <p className="py-[12px] text-[16px] font-[600] text-[#FFFFFF]">
+                  Categories
+                </p>
+                {displayedCategories.length === 0 ? (
+                  <li>
+                    <div className="px-3 py-2 text-left text-sm text-text-body/60 dark:text-white/60">
+                      No matching categories
+                    </div>
+                  </li>
+                ) : null}
+                {displayedCategories.map((cat) => (
+                  <li key={cat._id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory(cat._id);
+                        setMobileCategoryFilter(
+                          cat.title === "All Posts" ? "" : cat.title,
+                        );
+                        setIsMobileCategoryOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between py-[12px] text-left text-[14px] text-sm font-[500] text-[#FFFFFF] transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${
+                        activeCategory === cat._id
+                          ? "text-lavender-600 dark:text-white"
+                          : "text-text-body/80 dark:text-white/80"
+                      }`}
+                    >
+                      <span className="truncate">{cat.title}</span>
+                      {activeCategory === cat._id ? (
+                        <span className="ml-2 h-2 w-2 rounded-full bg-lavender-500" />
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          </>
+        ) : null}
+      </AnimatePresence>
 
       {/* Search Modal */}
       <SearchModal

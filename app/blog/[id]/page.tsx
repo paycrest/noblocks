@@ -2,10 +2,29 @@ import DetailClient from "@/app/components/blog/post/detail-client";
 import { getPost, getRecentPosts } from "@/app/lib/sanity-data";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
+import type { PortableTextBlock } from "@portabletext/types";
 
 // Force dynamic rendering to ensure fresh data
 export const dynamic = "force-dynamic";
 
+// Helper function to extract plain text from PortableText blocks
+const extractPlainTextFromPortableText = (
+  blocks: PortableTextBlock[],
+): string => {
+  if (!blocks || !Array.isArray(blocks)) return "";
+
+  return blocks
+    .map((block) => {
+      if (block._type === "block" && block.children) {
+        return block.children
+          .map((child) => ("text" in child ? child.text : ""))
+          .join("");
+      }
+      return "";
+    })
+    .join(" ")
+    .trim();
+};
 export async function generateMetadata({
   params,
 }: {
@@ -14,12 +33,21 @@ export async function generateMetadata({
   const { id } = await params;
   const post = await getPost(id);
   if (!post) return {};
+
   return {
     title: post.title,
-    description: post.excerpt || undefined,
+    description:
+      post.excerpt ||
+      (post.body
+        ? extractPlainTextFromPortableText(post.body).slice(0, 120) + "..."
+        : ""),
     openGraph: {
       title: post.title,
-      description: post.excerpt || undefined,
+      description:
+        post.excerpt ||
+        (post.body
+          ? extractPlainTextFromPortableText(post.body).slice(0, 120) + "..."
+          : ""),
       images: post.mainImage
         ? [
             {
@@ -35,7 +63,11 @@ export async function generateMetadata({
     twitter: {
       card: "summary_large_image",
       title: post.title,
-      description: post.excerpt || undefined,
+      description:
+        post.excerpt ||
+        (post.body
+          ? extractPlainTextFromPortableText(post.body).slice(0, 120) + "..."
+          : ""),
       images: post.mainImage ? [post.mainImage] : [],
     },
   };

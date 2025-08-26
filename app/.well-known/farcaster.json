@@ -1,13 +1,13 @@
 {
-  "name": "Paycrest Mini App",
-  "description": "A crypto-enabled mini app for sending and receiving stablecoins on Base using Farcaster.",
-  "url": "https://noblockz.vercel.app",
-  "icon": "https://noblockz.vercel.app/android-chrome-192x192.png",
-  "screenshots": ["https://noblockz.vercel.app/desktop-wide.png"],
+  "name": "Noblocks",
+  "description": "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
+  "url": "noblocks.xyz",
+  "icon": "noblocks.xyz/icons/android-chrome-192x192.png",
+  "screenshots": ["noblocks.xyz/screenshots/-wide.png"],
   "developer": {
-    "name": "CONSOLATION LOTACHI",
-    "website": "https://github.com/KEM-CONSOLATION",
-    "contact": "mailto:consolationlotachi@email.com"
+    "name": "Paycrest",
+    "website": "https://paycrest.io",
+    "contact": "mailto:info@paycrest.io"
   },
   "accountAssociation": {
     "header": "eyJmaWQiOjExNjI4ODAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHhBNzQ2N0M1RDczNzk3NjNhZERkM2Y4ZmVkMzJGRDk0MEY2Qzc3QzVkIn0",

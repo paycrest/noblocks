@@ -20,7 +20,6 @@ export function EarlyReady() {
         if (typeof window !== "undefined") {
           (window as any).__farcasterMiniAppReady = true;
         }
-        console.log("✅ Mini-app early ready signal sent");
       } catch (err) {
         console.error("❌ Early ready failed", err);
       }

@@ -52,6 +52,7 @@ export const metadata: Metadata = {
     title: "Noblocks",
   },
   keywords: [
+    // Stablecoin Primary Keywords
     "stablecoin payments",
     "USDC payments",
     "USDT payments",
@@ -59,6 +60,8 @@ export const metadata: Metadata = {
     "stablecoin remittance",
     "crypto remittance",
     "stablecoin transfer",
+
+    // Stablecoin to Fiat Keywords
     "USDC to bank transfer",
     "USDT to bank transfer",
     "DAI to bank transfer",
@@ -67,12 +70,16 @@ export const metadata: Metadata = {
     "stablecoin to mobile money",
     "USDC to mobile money",
     "USDT to mobile money",
+
+    // Stablecoin Benefits Keywords
     "instant stablecoin transfer",
     "low fee stablecoin transfer",
     "cheap crypto remittance",
     "fast stablecoin payment",
     "secure stablecoin transfer",
     "reliable crypto payment",
+
+    // Stablecoin Use Cases
     "send stablecoins to Africa",
     "USDC to Nigeria",
     "USDT to Kenya",
@@ -80,46 +87,65 @@ export const metadata: Metadata = {
     "stablecoin to Tanzania",
     "USDC to Uganda",
     "USDT to South Africa",
+
+    // Stablecoin Technology Keywords
     "blockchain remittance",
     "crypto payment solution",
     "digital currency transfer",
     "tokenized remittance",
     "smart contract payments",
     "on-chain payments",
+
+    // Stablecoin Comparison Keywords
     "better than traditional remittance",
     "cheaper than bank transfer",
     "faster than wire transfer",
     "more reliable than traditional payment",
     "better than fiat transfer",
+
+    // Stablecoin Security Keywords
+    "secure stablecoin transfer",
     "safe crypto payment",
     "regulated stablecoin transfer",
     "compliant crypto remittance",
     "trusted stablecoin service",
+
+    // Stablecoin Education Keywords
     "how to use stablecoins",
     "stablecoin remittance guide",
     "crypto payment tutorial",
     "stablecoin transfer guide",
     "learn crypto remittance",
+
+    // Stablecoin Business Keywords
     "business stablecoin payment",
     "corporate crypto remittance",
     "B2B stablecoin transfer",
     "enterprise crypto payment",
     "business USDC transfer",
+
+    // Stablecoin Network Keywords
     "Polygon stablecoin transfer",
     "Base stablecoin payment",
     "Arbitrum stablecoin transfer",
     "BNB Chain stablecoin payment",
     "Ethereum stablecoin transfer",
+
+    // Stablecoin Features Keywords
     "24/7 stablecoin transfer",
     "borderless crypto payment",
     "global stablecoin transfer",
     "instant settlement",
     "real-time crypto payment",
+
+    // Stablecoin Problem-Solution Keywords
     "high remittance fee solution",
     "slow transfer solution",
     "expensive payment alternative",
     "complex remittance simplified",
     "difficult transfer solution",
+
+    // Stablecoin Trend Keywords
     "next-gen remittance",
     "future of payments",
     "modern money transfer",

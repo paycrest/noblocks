@@ -561,13 +561,11 @@ export function clearFormState(formMethods: any) {
  * @param searchParams - The URL search parameters to check for the 'injected' flag
  * @returns boolean indicating whether to use injected wallet
  */
-
 export function shouldUseInjectedWallet(
   searchParams: URLSearchParams,
 ): boolean {
-  const injectedParam = (searchParams.get("injected") || "").toLowerCase();
-  // ethereum provider is checked later in the component
-  return injectedParam === "true" || injectedParam === "1";
+  const injectedParam = searchParams.get("injected");
+  return Boolean(injectedParam === "true" && window.ethereum);
 }
 
 /**

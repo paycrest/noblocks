@@ -11,7 +11,6 @@ import { createWalletClient, custom } from "viem";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { shouldUseInjectedWallet } from "../utils";
-import type { EIP1193Provider } from "viem";
 
 interface InjectedWalletContextType {
   isInjectedWallet: boolean;
@@ -31,73 +30,61 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const [isInjectedWallet, setIsInjectedWallet] = useState(false);
   const [injectedAddress, setInjectedAddress] = useState<string | null>(null);
-  const [injectedProvider, setInjectedProvider] =
-    useState<EIP1193Provider | null>(null);
-
+  const [injectedProvider, setInjectedProvider] = useState<any | null>(null);
   const [injectedReady, setInjectedReady] = useState(false);
 
   useEffect(() => {
-    let checkProvider: ReturnType<typeof setInterval> | null = null;
-
     const initInjectedWallet = async () => {
+      // Check if we should use the injected wallet
       const shouldUse = shouldUseInjectedWallet(searchParams);
+
       setIsInjectedWallet(shouldUse);
 
-      if (!shouldUse) return;
+      if (shouldUse && window.ethereum) {
+        try {
+          const client = createWalletClient({
+            transport: custom(window.ethereum as any),
+          });
 
-      let attempts = 0;
-      const maxAttempts = 10;
+          await (window.ethereum as any).request({
+            method: "eth_requestAccounts",
+          });
+          const [address] = await client.getAddresses();
 
-      checkProvider = setInterval(async () => {
-        attempts;
+          if (address) {
+            setInjectedProvider(window.ethereum);
+            setInjectedAddress(address);
+            setInjectedReady(true);
+          } else {
+            console.warn("No address returned from injected wallet.");
+            toast.error(
+              "Couldn't connect to your wallet. Please check your wallet connection.",
+            );
+            setIsInjectedWallet(false);
+          }
+        } catch (error) {
+          console.error("Failed to initialize injected wallet:", error);
 
-        if (window.ethereum) {
-          if (checkProvider) clearInterval(checkProvider);
-
-          try {
-            const client = createWalletClient({
-              transport: custom(window.ethereum as any),
+          if ((error as any)?.code === 4001) {
+            toast.error("Connection to wallet was rejected.", {
+              description: "Proceeding without wallet connection.",
             });
-
-            await (window.ethereum as any).request({
-              method: "eth_requestAccounts",
-            });
-            const [address] = await client.getAddresses();
-
-            if (address) {
-              setInjectedProvider(window.ethereum as EIP1193Provider);
-              setInjectedAddress(address);
-              setInjectedReady(true);
-            } else {
-              console.warn("No address returned from injected wallet.");
-              toast.error("Couldn't connect to your wallet.");
-              setIsInjectedWallet(false);
-            }
-          } catch (error) {
-            console.error("Failed to initialize injected wallet:", error);
-            toast.error("Failed to connect to wallet. Please refresh.");
+            // Reset injected wallet state on rejection
+            setIsInjectedWallet(false);
+            setInjectedProvider(null);
+            setInjectedAddress(null);
+            setInjectedReady(false);
+          } else {
+            toast.error(
+              "Failed to connect to wallet. Please refresh and try again.",
+            );
             setIsInjectedWallet(false);
           }
         }
-
-        if (attempts >= maxAttempts) {
-          if (checkProvider) {
-            clearInterval(checkProvider);
-          }
-
-          console.error("⏳ Wallet provider not found after retries.");
-          toast.error("Wallet provider not found.");
-        }
-      }, 500); // retry every 0.5s
+      }
     };
 
     initInjectedWallet();
-
-    return () => {
-      if (checkProvider) {
-        clearInterval(checkProvider);
-      }
-    };
   }, [searchParams]);
 
   return (

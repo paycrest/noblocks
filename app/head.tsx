@@ -1,6 +1,6 @@
 export default function Head() {
   // const miniAppJson = JSON.stringify({
-  //   url: "https://noblockz.vercel.app",
+  //   url: "https://noblocks.xyz",
   //   window: { height: 600, width: 400 },
   // });
   const appUrl = process.env.NEXT_PUBLIC_URL || "https://noblocks.vercel.app";
@@ -20,15 +20,7 @@ export default function Head() {
 
       {/* Farcaster Mini App embed */}
       <meta name="fc:miniapp" content={miniAppJson} />
-      {/* <meta name="fc:frame" content={miniAppJson} />
-      <meta property="fc:frame" content="vNext" />
-      <meta
-        property="fc:frame:image"
-        content="https://noblockz.vercel.app//desktop-wide.png"
-      /> */}
-      {/* <meta property="fc:frame:image" content={`${baseUrl}/desktop-wide.png`} />
-      <meta property="fc:frame:button:1" content="Open App" />
-      <meta property="fc:frame:button:1:action" content="link" /> */}
+
       <meta
         property="fc:frame:button:1:target"
         content={`${baseUrl}?injected=true`}

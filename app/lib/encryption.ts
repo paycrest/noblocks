@@ -11,9 +11,7 @@ export async function encryptRecipientData(
     });
 
     if (error) throw error;
-
-    // return Buffer.from(data, "base64");
-    return Buffer.from(data as string, "base64");
+    return Buffer.from(data, "base64");
   } catch (error) {
     console.error("Error encrypting recipient data:", error);
     throw new Error("Failed to encrypt sensitive data");
@@ -32,22 +30,7 @@ export async function decryptRecipientData(
     if (error) throw error;
     if (!data) throw new Error("Decrypted data is null");
 
-    // Type assertion and validation
-    let decryptedString: string;
-
-    if (typeof data === "string") {
-      decryptedString = data;
-    } else if (typeof data === "object" && data !== null) {
-      // If RPC returns an object, check if it has the decrypted value
-      decryptedString =
-        (data as any).decrypted_data ||
-        (data as any).result ||
-        JSON.stringify(data);
-    } else {
-      throw new Error("Unexpected data type returned from decrypt function");
-    }
-
-    return JSON.parse(decryptedString) as Recipient;
+    return JSON.parse(data) as Recipient;
   } catch (error) {
     console.error("Error decrypting recipient data:", error);
     throw new Error("Failed to decrypt sensitive data");

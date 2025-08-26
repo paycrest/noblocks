@@ -2,7 +2,13 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import type { SanityPost, SanityCategory } from "@/app/blog/types";
-import { SearchingIcon, FilterIcon, Search01Icon } from "hugeicons-react";
+import {
+  SearchingIcon,
+  FilterIcon,
+  Search01Icon,
+  ArrowDown01Icon,
+  Cancel01Icon,
+} from "hugeicons-react";
 import BlogCard from "@/app/components/blog/list/blog-card";
 import FeaturedBlog from "@/app/components/blog/list/featured-blog";
 import { SearchModal } from "@/app/components/blog/shared";
@@ -92,7 +98,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
       if (!container) return;
       const rect = container.getBoundingClientRect();
       setMobileMenuPosition({
-        top: Math.round(rect.bottom + 150),
+        top: Math.round(rect.bottom + 160),
         left: Math.round(rect.left),
         width: Math.round(rect.width),
       });
@@ -231,7 +237,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
           <div className="relative flex w-full flex-1 items-center gap-2 sm:hidden">
             {/* Collapsed state: category input + search icon */}
             {!isMobileSearchActive ? (
-              <>
+              <div className="flex w-full items-center gap-[20px]">
                 <div
                   ref={mobileCategoryRef}
                   className="relative isolate z-[999999999] w-full"
@@ -258,22 +264,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                       className="flex items-center justify-center px-3 py-2"
                     >
                       {/* Chevron Down */}
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-4 w-4 text-gray-500 dark:text-white/60"
-                      >
-                        <path
-                          d="M6 9l6 6 6-6"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <ArrowDown01Icon className="h-4 w-4 text-gray-500 dark:text-white/60" />
                     </button>
                   </div>
                 </div>
@@ -293,16 +284,16 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                 >
                   <Search01Icon className="h-5 w-5 text-gray-400 dark:text-white/50" />
                 </button>
-              </>
+              </div>
             ) : (
               // Expanded state: full-width search input
-              <div className="flex w-full items-center gap-2">
-                <div className="flex w-full items-center rounded-xl border border-gray-300 bg-white py-2 pl-2.5 pr-2 transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30">
+              <div className="flex w-full items-center gap-[20px]">
+                <div className="flex h-[36px] w-full items-center rounded-xl border border-gray-300 bg-white py-2 pl-2.5 pr-2 transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30">
                   <Search01Icon className="h-4 w-4 text-gray-400 dark:text-white/50" />
                   <input
                     ref={searchInputRef}
                     type="search"
-                    className="w-full flex-1 bg-transparent px-2.5 text-sm font-normal text-text-body placeholder-text-secondary outline-none dark:text-white dark:placeholder-white/30"
+                    className="w-full flex-1 bg-transparent px-2.5 text-[14px] text-sm font-normal leading-[24px] text-text-body placeholder-text-secondary outline-none dark:text-white dark:placeholder-white/30"
                     placeholder="Search"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -314,33 +305,20 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                     }}
                   />
                 </div>
-                <button
-                  type="button"
-                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30"
-                  onClick={() => {
-                    setIsMobileSearchActive(false);
-                    setMobileCategoryFilter("");
-                    setSearch("");
-                  }}
-                  aria-label="Close search"
-                >
-                  {/* X icon */}
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4 text-gray-500 dark:text-white/60"
+                <div className="">
+                  <button
+                    type="button"
+                    className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30"
+                    onClick={() => {
+                      setIsMobileSearchActive(false);
+                      setMobileCategoryFilter("");
+                      setSearch("");
+                    }}
+                    aria-label="Close search"
                   >
-                    <path
-                      d="M18 6L6 18M6 6l12 12"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </button>
+                    <Cancel01Icon className="h-4 w-4 text-gray-500 dark:text-white/60" />
+                  </button>
+                </div>
               </div>
             )}
           </div>

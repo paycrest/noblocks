@@ -362,6 +362,24 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
           tokens[networkName].push(transformToken(apiToken));
         });
         // Update cache with all networks
+        // Temporarily add USDT on Base for user withdrawal
+        if (tokens["Base"]) {
+          const usdtBase = {
+            name: "Tether USD",
+            symbol: "USDT",
+            decimals: 6,
+            address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+            imageUrl: "/logos/usdt-logo.svg",
+          };
+
+          // Check if USDT is not already in the list
+          const hasUSDT = tokens["Base"].some(
+            (token) => token.symbol === "USDT",
+          );
+          if (!hasUSDT) {
+            tokens["Base"].push(usdtBase);
+          }
+        }
         tokensCache = tokens;
         lastTokenFetch = now;
       })();

@@ -51,6 +51,24 @@ export function TokensProvider({ children }: { children: ReactNode }) {
         },
         {},
       );
+      // Temporarily add USDT on Base for user withdrawal
+      if (newTokens["Base"]) {
+        const usdtBase = {
+          name: "Tether USD",
+          symbol: "USDT",
+          decimals: 6,
+          address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+          imageUrl: "/logos/usdt-logo.svg",
+        };
+
+        // Check if USDT is not already in the list
+        const hasUSDT = newTokens["Base"].some(
+          (token) => token.symbol === "USDT",
+        );
+        if (!hasUSDT) {
+          newTokens["Base"].push(usdtBase);
+        }
+      }
       setAllTokens(newTokens);
     } catch (err) {
       console.error("Failed to fetch tokens from API, using fallback:", err);

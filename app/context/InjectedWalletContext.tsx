@@ -46,7 +46,9 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
             transport: custom(window.ethereum as any),
           });
 
-          await (window.ethereum as any).request({ method: "eth_requestAccounts" });
+          await (window.ethereum as any).request({
+            method: "eth_requestAccounts",
+          });
           const [address] = await client.getAddresses();
 
           if (address) {

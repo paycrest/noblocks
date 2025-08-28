@@ -7,6 +7,7 @@ import config from "./lib/config";
 
 import Providers from "./providers";
 import MainContent from "./mainContent";
+
 import {
   Footer,
   Navbar,
@@ -14,8 +15,12 @@ import {
   PWAInstall,
   NoticeBanner,
 } from "./components";
+import { EarlyReady } from "./early-ready";
+import WalletGate from "./components/WalletGate";
+import { MiniKitContextProvider } from "@/providers/MiniKitProvider";
 
 const inter = Inter({ subsets: ["latin"] });
+const appUrl = process.env.NEXT_PUBLIC_URL ?? "https://noblocks.xyz";
 
 export const metadata: Metadata = {
   title: {
@@ -24,16 +29,27 @@ export const metadata: Metadata = {
   },
   description:
     "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
+  other: {
+    // this is where Farcaster Mini App embed
+    "fc:miniapp": JSON.stringify({
+      url: appUrl,
+      window: { height: 600, width: 400 },
+    }),
+    "fc:frame": JSON.stringify({
+      url: appUrl,
+      window: { height: 600, width: 400 },
+    }),
+
+    // PWA / Microsoft tags
+    "mobile-web-app-capable": "yes",
+    "msapplication-TileColor": "#317EFB",
+    "msapplication-tap-highlight": "no",
+  },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Noblocks",
-  },
-  other: {
-    "mobile-web-app-capable": "yes",
-    "msapplication-TileColor": "#317EFB",
-    "msapplication-tap-highlight": "no",
   },
   keywords: [
     // Stablecoin Primary Keywords
@@ -151,11 +167,11 @@ export const metadata: Metadata = {
     google: config.googleVerificationCode,
   },
   alternates: {
-    canonical: "https://noblocks.xyz",
+    canonical: appUrl,
   },
   publisher: "Paycrest",
   authors: [{ name: "Paycrest", url: "https://paycrest.io" }],
-  metadataBase: new URL("https://noblocks.xyz"),
+  metadataBase: new URL(appUrl),
   openGraph: {
     title: "Noblocks",
     description:
@@ -238,21 +254,28 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <Providers>
-          <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-            <div className="relative">
-              <Navbar />
-              {config.noticeBannerText && (
-                <NoticeBanner
-                  textLines={config.noticeBannerText.split("|")}
-                />
-              )}
-            </div>
-            <LayoutWrapper footer={<Footer />}>
-              <MainContent>{children}</MainContent>
-            </LayoutWrapper>
+          <MiniKitContextProvider>
+            <WalletGate>
+              <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
+                <div className="relative">
+                  <Navbar />
+                  {config.noticeBannerText && (
+                    <NoticeBanner
+                      textLines={config.noticeBannerText.split("|")}
+                    />
+                  )}
+                </div>
+                <LayoutWrapper footer={<Footer />}>
+                  <MainContent>
+                    <EarlyReady />
+                    {children}
+                  </MainContent>
+                </LayoutWrapper>
 
-            <PWAInstall />
-          </div>
+                <PWAInstall />
+              </div>
+            </WalletGate>
+          </MiniKitContextProvider>
         </Providers>
       </body>
     </html>

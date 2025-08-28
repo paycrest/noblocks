@@ -242,9 +242,7 @@ export default function RootLayout({
             <div className="relative">
               <Navbar />
               {config.noticeBannerText && (
-                <NoticeBanner
-                  textLines={config.noticeBannerText.split("|")}
-                />
+                <NoticeBanner textLines={config.noticeBannerText.split("|")} />
               )}
             </div>
             <LayoutWrapper footer={<Footer />}>

@@ -16,6 +16,7 @@ export default function WalletGate({
       const injected = new URLSearchParams(window.location.search).get(
         "injected",
       );
+
       const ethereum = (window as any).ethereum;
 
       if (!ethereum) {
@@ -37,6 +38,16 @@ export default function WalletGate({
           setAccount(accounts[0]);
           setStatus("Wallet connected");
         } else {
+          if (injected === "true") {
+            accounts = await ethereum.request({
+              method: "eth_requestAccounts",
+            });
+            if (accounts?.length) {
+              setAccount(accounts[0]);
+              setStatus("Wallet connected");
+              return;
+            }
+          }
           setStatus("No accounts found. Please unlock your wallet.");
         }
       } catch (err) {

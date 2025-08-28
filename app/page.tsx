@@ -2,11 +2,10 @@ import { Suspense } from "react";
 import { Preloader } from "./components";
 import { MainPageContent } from "./components/MainPageContent";
 import { Metadata } from "next";
-import config from "./lib/config";
 
 export const metadata: Metadata = {
   title: {
-    default: "Noblocks - Decentalized Payments Interface",
+    default: "Noblocks - Decentralized Payments Interface",
     template: "%s | Noblocks",
   },
   description:

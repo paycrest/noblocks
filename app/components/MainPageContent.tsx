@@ -32,20 +32,7 @@ import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 
-type MainPageContentProps = {
-  onReady?: () => void;
-};
-export function MainPageContent({ onReady }: MainPageContentProps) {
-  const onReadyRef = useRef(onReady);
-
-  useEffect(() => {
-    onReadyRef.current = onReady;
-  }, [onReady]);
-
-  useEffect(() => {
-    onReadyRef.current?.();
-  }, []);
-
+export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();

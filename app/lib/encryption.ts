@@ -1,13 +1,22 @@
 import { supabaseAdmin } from "@/app/lib/supabase";
 import type { Recipient } from "@/app/types";
 
+function getEncryptionKey(): string {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key || key.length < 16) {
+    // length heuristic to catch obviously bad keys; tune as needed
+    throw new Error("ENCRYPTION_KEY is missing or invalid");
+  }
+  return key;
+}
+
 export async function encryptRecipientData(
   recipientData: Recipient,
 ): Promise<Buffer> {
   try {
     const { data, error } = await supabaseAdmin.rpc("encrypt_recipient_data", {
       recipient_json: JSON.stringify(recipientData),
-      encryption_key: process.env.ENCRYPTION_KEY!,
+      encryption_key: getEncryptionKey(),
     });
 
     if (error) throw error;
@@ -24,7 +33,7 @@ export async function decryptRecipientData(
   try {
     const { data, error } = await supabaseAdmin.rpc("decrypt_recipient_data", {
       encrypted_data: encryptedData.toString("base64"),
-      encryption_key: process.env.ENCRYPTION_KEY!,
+      encryption_key: getEncryptionKey(),
     });
 
     if (error) throw error;

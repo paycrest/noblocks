@@ -167,11 +167,11 @@ export const metadata: Metadata = {
     google: config.googleVerificationCode,
   },
   alternates: {
-    canonical: "https://noblocks.xyz",
+    canonical: appUrl,
   },
   publisher: "Paycrest",
   authors: [{ name: "Paycrest", url: "https://paycrest.io" }],
-  metadataBase: new URL("https://noblocks.xyz"),
+  metadataBase: new URL(appUrl),
   openGraph: {
     title: "Noblocks",
     description:

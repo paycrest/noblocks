@@ -1,9 +1,5 @@
 export default function Head() {
-  // const miniAppJson = JSON.stringify({
-  //   url: "https://noblocks.xyz",
-  //   window: { height: 600, width: 400 },
-  // });
-  const appUrl = process.env.NEXT_PUBLIC_URL || "https://noblocks.vercel.app";
+  const appUrl = process.env.NEXT_PUBLIC_URL || "https://noblocks.xyz";
   const baseUrl = appUrl.replace(/\/$/, "");
   const miniAppJson = JSON.stringify({
     url: baseUrl,

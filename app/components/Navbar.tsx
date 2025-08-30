@@ -189,7 +189,6 @@ export const Navbar = () => {
                 </Link>
               </div>
             )}
-
             <AnimatePresence>
               {isDropdownOpen && (
                 <>

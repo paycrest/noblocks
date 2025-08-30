@@ -25,7 +25,6 @@ const extractPlainTextFromPortableText = (
     .join(" ")
     .trim();
 };
-
 export async function generateMetadata({
   params,
 }: {

@@ -253,6 +253,8 @@ export default function RootLayout({
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        {/* Signal Farcaster readiness as early as possible */}
+        <EarlyReady />
         <Providers>
           <MiniKitContextProvider>
             <WalletGate>
@@ -267,7 +269,6 @@ export default function RootLayout({
                 </div>
                 <LayoutWrapper footer={<Footer />}>
                   <MainContent>
-                    <EarlyReady />
                     {children}
                   </MainContent>
                 </LayoutWrapper>

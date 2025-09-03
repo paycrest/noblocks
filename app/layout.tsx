@@ -20,7 +20,7 @@ import WalletGate from "./components/WalletGate";
 import { MiniKitContextProvider } from "@/providers/MiniKitProvider";
 
 const inter = Inter({ subsets: ["latin"] });
-const appUrl = process.env.NEXT_PUBLIC_URL ?? "https://noblocks.xyz";
+const appUrl = config.appUrl;
 
 export const metadata: Metadata = {
   title: {

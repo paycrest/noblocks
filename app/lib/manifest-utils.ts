@@ -2,7 +2,7 @@ export function withValidProperties<T extends Record<string, unknown>>(
   properties: T,
 ): Partial<T> {
   const entries = Object.entries(properties).flatMap(([key, value]) => {
-    if (value == null) return []; // drop undefined/null
+    if (value == null) return [];
     if (Array.isArray(value)) {
       const filtered = value.filter((v) =>
         typeof v === "string" ? v.trim().length > 0 : v != null,

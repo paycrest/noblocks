@@ -565,7 +565,30 @@ export function shouldUseInjectedWallet(
   searchParams: URLSearchParams,
 ): boolean {
   const injectedParam = searchParams.get("injected");
-  return Boolean(injectedParam === "true" && window.ethereum);
+  const hasEthereum = typeof window !== "undefined" && (window as any).ethereum;
+
+  // Detect if running inside Farcaster Mini App environment
+  const isLikelyFarcasterMiniApp = (() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const w = window as any;
+      const ua = navigator.userAgent || "";
+      const ref = document.referrer || "";
+      // Heuristics: ready flag, UA/referrer hints, embedded context
+      return (
+        Boolean(w.__farcasterMiniAppReady) ||
+        /Farcaster|Warpcast/i.test(ua) ||
+        /warpcast\.com/i.test(ref)
+      );
+    } catch {
+      return false;
+    }
+  })();
+
+  // Treat Farcaster Mini App as injected flow if a provider exists
+  if (isLikelyFarcasterMiniApp && hasEthereum) return true;
+
+  return Boolean(injectedParam === "true" && hasEthereum);
 }
 
 /**

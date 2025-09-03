@@ -1,7 +1,27 @@
 import { withValidProperties } from "../lib/manifest-utils";
+import config from "../lib/config";
 
 export async function GET() {
-  const baseUrl = process.env.NEXT_PUBLIC_URL;
+  const {
+    farcasterHeader,
+    farcasterPayload,
+    farcasterSignatuure,
+    publicUrl,
+    onchainKitProjectName,
+    appSubstitle,
+    appDescription,
+    appIcon,
+    appSpashImage,
+    splashBackgroundColor,
+    appPrimaryCategory,
+    appHeroImageprocess,
+    appTagline,
+    appOgTitle,
+    appOgDescription,
+    publicAppOGImage,
+    noIndex,
+  } = config;
+  const baseUrl = publicUrl;
   if (!baseUrl) {
     return Response.json(
       { error: "NEXT_PUBLIC_URL is required" },
@@ -10,9 +30,9 @@ export async function GET() {
   }
 
   const farcaster = {
-    header: process.env.FARCASTER_HEADER,
-    payload: process.env.FARCASTER_PAYLOAD,
-    signature: process.env.FARCASTER_SIGNATURE,
+    header: farcasterHeader,
+    payload: farcasterPayload,
+    signature: farcasterSignatuure,
   };
 
   const hasAnyFarcasterVar = Object.values(farcaster).some(Boolean);
@@ -36,28 +56,26 @@ export async function GET() {
 
     frame: withValidProperties({
       version: "1",
-      name: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
-      subtitle: process.env.NEXT_PUBLIC_APP_SUBTITLE,
-      description: process.env.NEXT_PUBLIC_APP_DESCRIPTION,
+      name: onchainKitProjectName,
+      subtitle: appSubstitle,
+      description: appDescription,
       screenshotUrls: [],
-      iconUrl: process.env.NEXT_PUBLIC_APP_ICON,
-      splashImageUrl: process.env.NEXT_PUBLIC_APP_SPLASH_IMAGE,
-      splashBackgroundColor: process.env.NEXT_PUBLIC_SPLASH_BACKGROUND_COLOR,
+      iconUrl: appIcon,
+      splashImageUrl: appSpashImage,
+      splashBackgroundColor: splashBackgroundColor,
 
-      // homeUrl: URL as any,
       homeUrl: baseUrl,
       webhookUrl: new URL("/api/webhook", baseUrl).toString(),
-      // webhookUrl: `${URL}/api/webhook`,
-      primaryCategory: process.env.NEXT_PUBLIC_APP_PRIMARY_CATEGORY,
+      primaryCategory: appPrimaryCategory,
       tags: [],
-      heroImageUrl: process.env.NEXT_PUBLIC_APP_HERO_IMAGE,
-      tagline: process.env.NEXT_PUBLIC_APP_TAGLINE,
-      ogTitle: process.env.NEXT_PUBLIC_APP_OG_TITLE,
-      ogDescription: process.env.NEXT_PUBLIC_APP_OG_DESCRIPTION,
-      ogImageUrl: process.env.NEXT_PUBLIC_APP_OG_IMAGE,
+      heroImageUrl: appHeroImageprocess,
+      tagline: appTagline,
+      ogTitle: appOgTitle,
+      ogDescription: appOgDescription,
+      ogImageUrl: publicAppOGImage,
       // use only while testing
       // Enable only during testing via env
-      ...(process.env.NEXT_PUBLIC_NOINDEX === "true" && { noindex: "true" }),
+      ...(noIndex === "true" && { noindex: "true" }),
       //   noindex?: string | string[] | boolean | undefined;
     }),
   });

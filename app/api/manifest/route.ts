@@ -1,5 +1,7 @@
+import config from "@/app/lib/config";
+
 export async function GET() {
-  const appUrl = process.env.NEXT_PUBLIC_URL ?? "https://noblocks.xyz";
+  const { appUrl } = config;
   const appName = "Noblocks";
 
   const manifest = {

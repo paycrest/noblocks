@@ -4,7 +4,6 @@ import type { Recipient } from "@/app/types";
 function getEncryptionKey(): string {
   const key = process.env.ENCRYPTION_KEY;
   if (!key || key.length < 16) {
-    // length heuristic to catch obviously bad keys; tune as needed
     throw new Error("ENCRYPTION_KEY is missing or invalid");
   }
   return key;

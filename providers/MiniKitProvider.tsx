@@ -1,13 +1,15 @@
 "use client";
 
+import config from "@/app/lib/config";
 import { MiniKitProvider } from "@coinbase/onchainkit/minikit";
 import { ReactNode } from "react";
 import { base } from "wagmi/chains";
 
 export function MiniKitContextProvider({ children }: { children: ReactNode }) {
-  const apiKey = process.env.NEXT_PUBLIC_CDP_API_KEY;
-  if (!apiKey) {
-    if (process.env.NODE_ENV !== "production") {
+  const { cdpApiKey, nodeEnv } = config;
+
+  if (!cdpApiKey) {
+    if (nodeEnv !== "production") {
       // eslint-disable-next-line no-console
       console.warn(
         "MiniKitContextProvider: NEXT_PUBLIC_CDP_API_KEY is not set. Rendering without MiniKitProvider.",
@@ -17,7 +19,7 @@ export function MiniKitContextProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <MiniKitProvider apiKey={apiKey} chain={base}>
+    <MiniKitProvider cdpApiKey={cdpApiKey} chain={base}>
       {children}
     </MiniKitProvider>
   );

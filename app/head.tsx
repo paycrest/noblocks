@@ -1,5 +1,8 @@
+import config from "./lib/config";
+
 export default function Head() {
-  const appUrl = process.env.NEXT_PUBLIC_URL || "https://noblocks.xyz";
+  const { appUrl } = config;
+
   const baseUrl = appUrl.replace(/\/$/, "");
   const miniAppJson = JSON.stringify({
     url: baseUrl,

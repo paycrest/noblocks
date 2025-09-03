@@ -19,6 +19,22 @@ export default function WalletGate({
 
       const ethereum = (window as any).ethereum;
 
+      // Detect Farcaster Mini App environment heuristically
+      const isLikelyFarcasterMiniApp = (() => {
+        try {
+          const w = window as any;
+          const ua = navigator.userAgent || "";
+          const ref = document.referrer || "";
+          return (
+            Boolean(w.__farcasterMiniAppReady) ||
+            /Farcaster|Warpcast/i.test(ua) ||
+            /warpcast\.com/i.test(ref)
+          );
+        } catch {
+          return false;
+        }
+      })();
+
       if (!ethereum) {
         setStatus(
           "No wallet found. Please install MetaMask or another Web3 wallet.",
@@ -38,7 +54,7 @@ export default function WalletGate({
           setAccount(accounts[0]);
           setStatus("Wallet connected");
         } else {
-          if (injected === "true") {
+          if (injected === "true" || isLikelyFarcasterMiniApp) {
             accounts = await ethereum.request({
               method: "eth_requestAccounts",
             });

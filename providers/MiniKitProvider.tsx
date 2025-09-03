@@ -19,7 +19,7 @@ export function MiniKitContextProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <MiniKitProvider cdpApiKey={cdpApiKey} chain={base}>
+    <MiniKitProvider apiKey={cdpApiKey} chain={base}>
       {children}
     </MiniKitProvider>
   );

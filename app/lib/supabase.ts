@@ -3,17 +3,16 @@ import config from "./config";
 
 const { supabaseRoleKey, supabaseUrl } = config;
 
-if (!supabaseUrl) {
-  throw new Error("Missing env.SUPABASE_URL");
-}
-if (!supabaseRoleKey) {
-  throw new Error("Missing env.SUPABASE_SERVICE_ROLE_KEY");
+// Initialize Supabase client with service role key only when envs are available.
+// Avoid throwing at module import time to keep Next.js build workable.
+let client: any = null;
+if (supabaseUrl && supabaseRoleKey) {
+  client = createClient(supabaseUrl, supabaseRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 }
 
-// Initialize Supabase client with service role key
-export const supabaseAdmin = createClient(supabaseUrl, supabaseRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
-});
+export const supabaseAdmin: any = client;

@@ -21,13 +21,14 @@ const nextConfig = {
           key: "Content-Security-Policy",
           value:
             "default-src 'self'; base-uri 'self'; " +
-            "frame-ancestors 'self' https://warpcast.com https://*.warpcast.com https://*.farcaster.xyz; " +
+            // Allow embedding in Warpcast plus known wrapper hosts (e.g., warpcast-wallet.vercel.app)
+            "frame-ancestors 'self' https://warpcast.com https://*.warpcast.com https://*.farcaster.xyz https://*.vercel.app; " +
             "img-src 'self' data: https:; " +
             "connect-src 'self' https: wss:; " +
             "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; " +
             "style-src 'self' 'unsafe-inline'; " +
             "font-src 'self' data:; " +
-            "frame-src https://warpcast.com https://*.warpcast.com https://*.farcaster.xyz",
+            "frame-src https://warpcast.com https://*.warpcast.com https://*.farcaster.xyz https://*.vercel.app",
         },
         {
           key: "X-XSS-Protection",

@@ -247,6 +247,27 @@ export type KYCStatusResponse = {
 };
 
 export type Config = {
+  nodeEnv: string;
+  noIndex: string;
+  onchainKitProjectName: string;
+  appSubstitle: string;
+  appDescription: string;
+  appIcon: string;
+  appSpashImage: string;
+  splashBackgroundColor: string;
+  appPrimaryCategory: string;
+  appHeroImageprocess: string;
+  appTagline: string;
+  appOgTitle: string;
+  appOgDescription: string;
+  publicAppOGImage: string;
+  publicUrl: string;
+  farcasterHeader: string;
+  farcasterPayload: string;
+  farcasterSignatuure: string;
+  supabaseUrl: string;
+  supabaseRoleKey: string;
+  appUrl: string;
   aggregatorUrl: string;
   privyAppId: string;
   thirdwebClientId: string;
@@ -255,6 +276,7 @@ export type Config = {
   contactSupportUrl: string;
   googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
+  cdpApiKey?: string;
 };
 
 export type Network = {

@@ -10,6 +10,28 @@ const config: Config = {
   googleVerificationCode:
     process.env.NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE || "",
   noticeBannerText: process.env.NEXT_PUBLIC_NOTICE_BANNER_TEXT || "",
+  cdpApiKey: process.env.NEXT_PUBLIC_CDP_API_KEY || "",
+  appUrl: process.env.NEXT_PUBLIC_URL || "https://noblocks.xyz",
+  supabaseUrl: process.env.SUPABASE_URL || "",
+  supabaseRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  farcasterHeader: process.env.FARCASTER_HEADER || "",
+  farcasterPayload: process.env.FARCASTER_PAYLOAD || "",
+  farcasterSignatuure: process.env.FARCASTER_SIGNATURE || "",
+  publicUrl: process.env.NEXT_PUBLIC_URL || "",
+  onchainKitProjectName: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME || "",
+  appSubstitle: process.env.NEXT_PUBLIC_APP_SUBTITLE || "",
+  appDescription: process.env.NEXT_PUBLIC_APP_DESCRIPTION || "",
+  appIcon: process.env.NEXT_PUBLIC_APP_ICON || "",
+  appSpashImage: process.env.NEXT_PUBLIC_APP_SPLASH_IMAGE || "",
+  splashBackgroundColor: process.env.NEXT_PUBLIC_SPLASH_BACKGROUND_COLOR || "",
+  appPrimaryCategory: process.env.NEXT_PUBLIC_APP_PRIMARY_CATEGORY || "",
+  appHeroImageprocess: process.env.NEXT_PUBLIC_APP_HERO_IMAGE || "",
+  appTagline: process.env.NEXT_PUBLIC_APP_TAGLINE || "",
+  appOgTitle: process.env.NEXT_PUBLIC_APP_OG_TITLE || "",
+  appOgDescription: process.env.NEXT_PUBLIC_APP_OG_DESCRIPTION || "",
+  publicAppOGImage: process.env.NEXT_PUBLIC_APP_OG_IMAGE || "",
+  noIndex: process.env.NEXT_PUBLIC_NOINDEX || "",
+  nodeEnv: process.env.NODE_ENV || "",
 };
 
 export default config;

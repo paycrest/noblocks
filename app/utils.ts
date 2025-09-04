@@ -657,7 +657,7 @@ export function clearFormState(formMethods: any) {
 }
 
 /**
- * Determines if the app should use an injected wallet.
+ * Determines whether to use the injected wallet based on URL parameters and environment detection.
  *
  * @param searchParams - The URL search parameters to check for the 'injected' flag
  * @returns boolean indicating whether to use injected wallet
@@ -666,7 +666,43 @@ export function shouldUseInjectedWallet(
   searchParams: URLSearchParams,
 ): boolean {
   const injectedParam = searchParams.get("injected");
-  return Boolean(injectedParam === "true" && window.ethereum);
+  const hasEthereum = typeof window !== "undefined" && (window as any).ethereum;
+
+  // Detect if running inside Farcaster Mini App environment
+  const isLikelyFarcasterMiniApp = (() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const w = window as any;
+      const ua = navigator.userAgent || "";
+      const ref = document.referrer || "";
+      const url = window.location.href || "";
+
+      // More aggressive detection for Farcaster Mini App
+      return (
+        Boolean(w.__farcasterMiniAppReady) ||
+        Boolean(w.farcaster) ||
+        Boolean(w.warpcast) ||
+        /Farcaster|Warpcast/i.test(ua) ||
+        /warpcast\.com/i.test(ref) ||
+        /warpcast\.com/i.test(url) ||
+        /farcaster\.xyz/i.test(url) ||
+        /farcaster\.xyz/i.test(ref) ||
+        // Check if we're in an iframe or embedded context
+        window !== window.top ||
+        // Check for Farcaster-specific query parameters
+        searchParams.has("farcaster") ||
+        searchParams.has("warpcast") ||
+        searchParams.has("miniapp")
+      );
+    } catch {
+      return false;
+    }
+  })();
+
+  // Treat Farcaster Mini App as injected flow if a provider exists
+  if (isLikelyFarcasterMiniApp && hasEthereum) return true;
+
+  return Boolean(injectedParam === "true" && hasEthereum);
 }
 
 /**

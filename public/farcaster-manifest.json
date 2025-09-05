@@ -13,8 +13,8 @@
     "dark": "https://noblocks-ialc.vercel.app/icons/android-chrome-192x192.png"
   },
   "splash_screen": {
-    "light": "https://noblocks-ialc.vercel.app/images/desktop-wide.png",
-    "dark": "https://noblocks-ialc.vercel.app/images/desktop-wide.png"
+    "light": "https://noblocks-ialc.vercel.app/screenshots/desktop-wide.png",
+    "dark": "https://noblocks-ialc.vercel.app/screenshots/desktop-wide.png"
   },
   "navigation_bar": {
     "visible": true,

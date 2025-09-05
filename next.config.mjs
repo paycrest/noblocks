@@ -75,7 +75,7 @@ const nextConfig = {
       path: false,
       os: false,
     };
-    
+
     // Handle Mixpanel on server-side only
     if (isServer) {
       config.externals = config.externals || [];
@@ -83,7 +83,7 @@ const nextConfig = {
         'mixpanel': 'commonjs mixpanel'
       });
     }
-    
+
     return config;
   },
   compiler: {
@@ -109,12 +109,12 @@ const nextConfig = {
       },
       ...(process.env.NODE_ENV !== "production"
         ? [
-            {
-              protocol: "https",
-              hostname: "picsum.photos",
-              pathname: "/**",
-            },
-          ]
+          {
+            protocol: "https",
+            hostname: "picsum.photos",
+            pathname: "/**",
+          },
+        ]
         : []),
     ],
   },
@@ -125,6 +125,16 @@ const nextConfig = {
         as: "*.js"
       }
     }
+  },
+  async redirects() {
+    return [
+      {
+        source: "/.well-known/farcaster.json",
+        destination:
+          "https://api.farcaster.xyz/miniapps/hosted-manifest/01991820-b784-c889-4e4c-3b48e8c2aada",
+        permanent: false,
+      },
+    ];
   },
 };
 

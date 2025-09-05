@@ -2,19 +2,19 @@
   "name": "Noblocks",
   "description": "A crypto-enabled mini app for sending and receiving stablecoins on Base using Farcaster.",
   "app": {
-    "url": "https://noblocks.xyz",
+    "url": "https://noblocks-ialc.vercel.app",
     "window": {
       "height": 600,
       "width": 400
     }
   },
   "icon": {
-    "light": "https://noblocks.xyz/icons/android-chrome-192x192.png",
-    "dark": "https://noblocks.xyz/icons/android-chrome-192x192.png"
+    "light": "https://noblocks-ialc.vercel.app/icons/android-chrome-192x192.png",
+    "dark": "https://noblocks-ialc.vercel.app/icons/android-chrome-192x192.png"
   },
   "splash_screen": {
-    "light": "https://noblocks.xyz/images/desktop-wide.png",
-    "dark": "https://noblocks.xyz/images/desktop-wide.png"
+    "light": "https://noblocks-ialc.vercel.app/images/desktop-wide.png",
+    "dark": "https://noblocks-ialc.vercel.app/images/desktop-wide.png"
   },
   "navigation_bar": {
     "visible": true,
@@ -28,8 +28,8 @@
     "contact": "mailto:consolationlotachi@email.com"
   },
   "accountAssociation": {
-    "header": "eyJmaWQiOjExNjI4ODAsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHhBNzQ2N0M1RDczNzk3NjNhZERkM2Y4ZmVkMzJGRDk0MEY2Qzc3QzVkIn0",
-    "payload": "eyJkb21haW4iOiJub2Jsb2Nrei54eXoifQ",
-    "signature": "MHhkMzlmZjE0MzM2ZGIxNzk4NTkxNGE4ZGU3NzkwZWRjZWNhYWY0ODU4YTdiZTJkMjMyOTNhN2I3Yzc4YTE0ZjVkNzk0Y2EyMzYxYTZhYjM3NGVmMDQ0MTEyMTdlYjBkZWU4YWU4N2YwMTkzODQ3Mjg4ZGZiMjNkZmU5MWFjYjY4YzFj"
+    "header": "eyJmaWQiOjExNjI4ODAsInR5cGUiOiJhdXRoIiwia2V5IjoiMHgzZERCMTQ5RGNBMEZjMDcxM0ZjMzhBQ2IxNjdDMzM2NzIwQjVGMDdmIn0",
+    "payload": "eyJkb21haW4iOiJub2Jsb2Nrcy1pYWxjLnZlcmNlbC5hcHAifQ",
+    "signature": "qV6dj7aiufYm6/Lnb79FhFQD3jETpubKivIbqXyFVdZK8kvLOsE/bMw0b3YN2iTbp44RAD83IXt0mJVjW8NuVRw="
   }
 }

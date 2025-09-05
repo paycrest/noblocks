@@ -88,6 +88,17 @@ const nextConfig = {
         : []),
     ],
   },
+
+  async redirects() {
+    return [
+      {
+        source: "/.well-known/farcaster.json",
+        destination:
+          "https://api.farcaster.xyz/miniapps/hosted-manifest/01991820-b784-c889-4e4c-3b48e8c2aada",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

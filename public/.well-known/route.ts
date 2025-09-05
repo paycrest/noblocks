@@ -5,7 +5,7 @@ export async function GET() {
   const {
     farcasterHeader,
     farcasterPayload,
-    farcasterSignatuure,
+    farcasterSignature, // fixed typo
     publicUrl,
     onchainKitProjectName,
     appSubstitle,
@@ -21,39 +21,42 @@ export async function GET() {
     publicAppOGImage,
     noIndex,
   } = config;
-  const baseUrl = publicUrl;
-  if (!baseUrl) {
-    return Response.json(
-      { error: "NEXT_PUBLIC_URL is required" },
-      { status: 500 },
+
+  if (!publicUrl) {
+    return new Response(
+      JSON.stringify({ error: "NEXT_PUBLIC_URL is required" }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
 
   const farcaster = {
     header: farcasterHeader,
     payload: farcasterPayload,
-    signature: farcasterSignatuure,
+    signature: farcasterSignature,
   };
 
   const hasAnyFarcasterVar = Object.values(farcaster).some(Boolean);
   if (!hasAnyFarcasterVar) {
-    // Allow non-Farcaster deployments to return 404 for this endpoint
     return new Response("Not configured as Farcaster mini app", {
       status: 404,
     });
   }
+
   const missing = Object.entries(farcaster)
-    .filter(([, v]) => !v)
-    .map(([k]) => `FARCASTER_${k.toUpperCase()}`);
+    .filter(([, value]) => !value)
+    .map(([key]) => `FARCASTER_${key.toUpperCase()}`);
+
   if (missing.length) {
-    return Response.json(
-      { error: `Incomplete Farcaster config. Missing: ${missing.join(", ")}` },
-      { status: 500 },
+    return new Response(
+      JSON.stringify({
+        error: `Incomplete Farcaster config. Missing: ${missing.join(", ")}`,
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
-  return Response.json({
-    accountAssociation: farcaster,
 
+  const manifest = {
+    accountAssociation: farcaster,
     frame: withValidProperties({
       version: "1",
       name: onchainKitProjectName,
@@ -63,9 +66,8 @@ export async function GET() {
       iconUrl: appIcon,
       splashImageUrl: appSpashImage,
       splashBackgroundColor: splashBackgroundColor,
-
-      homeUrl: baseUrl,
-      webhookUrl: new URL("/api/webhook", baseUrl).toString(),
+      homeUrl: publicUrl,
+      webhookUrl: new URL("/api/webhook", publicUrl).toString(),
       primaryCategory: appPrimaryCategory,
       tags: [],
       heroImageUrl: appHeroImageprocess,
@@ -73,9 +75,16 @@ export async function GET() {
       ogTitle: appOgTitle,
       ogDescription: appOgDescription,
       ogImageUrl: publicAppOGImage,
-      ...(noIndex === "true" && process.env.NODE_ENV !== "production"
-        ? { noindex: "true" }
-        : {}),
+      ...(noIndex === "true" ? { noindex: true } : {}),
     }),
+  };
+
+  return new Response(JSON.stringify(manifest), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=0, must-revalidate",
+      "Access-Control-Allow-Origin": "*",
+    },
   });
 }

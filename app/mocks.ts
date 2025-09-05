@@ -10,6 +10,10 @@ export const acceptedCurrencies = [
     label: "Nigerian Naira (NGN)",
   },
   {
+    name: "IDR",
+    label: "Indonesian Rupiah (IDR)",
+  },
+  {
     name: "GHS",
     label: "Ghanaian Cedi (GHS)",
     disabled: true,

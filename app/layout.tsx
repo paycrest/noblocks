@@ -14,6 +14,8 @@ import {
   PWAInstall,
   NoticeBanner,
 } from "./components";
+import { EarlyReady } from "./early-ready";
+import { MiniKitContextProvider } from "@/providers/MiniKitProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -237,21 +239,26 @@ export default function RootLayout({
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <Providers>
-          <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-            <div className="relative">
-              <Navbar />
-              {config.noticeBannerText && (
-                <NoticeBanner textLines={config.noticeBannerText.split("|")} />
-              )}
-            </div>
-            <LayoutWrapper footer={<Footer />}>
-              <MainContent>{children}</MainContent>
-            </LayoutWrapper>
+        <EarlyReady />
+        <MiniKitContextProvider>
+          <Providers>
+            <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
+              <div className="relative">
+                <Navbar />
+                {config.noticeBannerText && (
+                  <NoticeBanner
+                    textLines={config.noticeBannerText.split("|")}
+                  />
+                )}
+              </div>
+              <LayoutWrapper footer={<Footer />}>
+                <MainContent>{children}</MainContent>
+              </LayoutWrapper>
 
-            <PWAInstall />
-          </div>
-        </Providers>
+              <PWAInstall />
+            </div>
+          </Providers>
+        </MiniKitContextProvider>
       </body>
     </html>
   );

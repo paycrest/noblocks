@@ -73,10 +73,9 @@ export async function GET() {
       ogTitle: appOgTitle,
       ogDescription: appOgDescription,
       ogImageUrl: publicAppOGImage,
-      // use only while testing
-      // Enable only during testing via env
-      ...(noIndex === "true" && { noindex: "true" }),
-      //   noindex?: string | string[] | boolean | undefined;
+      ...(noIndex === "true" && process.env.NODE_ENV !== "production"
+        ? { noindex: "true" }
+        : {}),
     }),
   });
 }

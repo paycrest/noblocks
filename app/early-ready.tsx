@@ -15,6 +15,7 @@ export function EarlyReady() {
         }
         const { sdk } = await import("@farcaster/miniapp-sdk");
         if (cancelled) return;
+        console.log("✅ Ready called");
         await sdk.actions.ready();
         // Post defensive ready messages for hosts that listen to postMessage
         try {

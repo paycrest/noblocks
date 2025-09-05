@@ -256,7 +256,7 @@ export type Config = {
   appSpashImage: string;
   splashBackgroundColor: string;
   appPrimaryCategory: string;
-  appHeroImageprocess: string;
+  appHeroImage: string;
   appTagline: string;
   appOgTitle: string;
   appOgDescription: string;

@@ -21,15 +21,27 @@ const config: Config = {
   onchainKitProjectName: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME || "",
   appSubstitle: process.env.NEXT_PUBLIC_APP_SUBTITLE || "",
   appDescription: process.env.NEXT_PUBLIC_APP_DESCRIPTION || "",
-  appIcon: process.env.NEXT_PUBLIC_APP_ICON || "",
-  appSpashImage: process.env.NEXT_PUBLIC_APP_SPLASH_IMAGE || "",
+  appIcon:
+    process.env.NEXT_PUBLIC_APP_ICON ||
+    "https://noblocks-ialc.vercel.app/icons/android-chrome-192x192.png",
+  appSpashImage:
+    process.env.NEXT_PUBLIC_APP_SPLASH_IMAGE ||
+    "https://noblocks-ialc.vercel.app/screenshots/desktop-wide.png",
   splashBackgroundColor: process.env.NEXT_PUBLIC_SPLASH_BACKGROUND_COLOR || "",
   appPrimaryCategory: process.env.NEXT_PUBLIC_APP_PRIMARY_CATEGORY || "",
-  appHeroImageprocess: process.env.NEXT_PUBLIC_APP_HERO_IMAGE || "",
-  appTagline: process.env.NEXT_PUBLIC_APP_TAGLINE || "",
-  appOgTitle: process.env.NEXT_PUBLIC_APP_OG_TITLE || "",
-  appOgDescription: process.env.NEXT_PUBLIC_APP_OG_DESCRIPTION || "",
-  publicAppOGImage: process.env.NEXT_PUBLIC_APP_OG_IMAGE || "",
+  appHeroImage:
+    process.env.NEXT_PUBLIC_APP_HERO_IMAGE ||
+    "https://noblocks-ialc.vercel.app/screenshots/desktop-wide.png",
+  appTagline:
+    process.env.NEXT_PUBLIC_APP_TAGLINE || "Stablecoin payments made easy.",
+  appOgTitle:
+    process.env.NEXT_PUBLIC_APP_OG_TITLE || "Noblocks – Stablecoin mini app",
+  appOgDescription:
+    process.env.NEXT_PUBLIC_APP_OG_DESCRIPTION ||
+    "Send & receive stablecoins on Base without leaving Warpcast.",
+  publicAppOGImage:
+    process.env.NEXT_PUBLIC_APP_OG_IMAGE ||
+    "https://noblocks-ialc.vercel.app/og-preview.png",
   noIndex: process.env.NEXT_PUBLIC_NOINDEX || "",
   nodeEnv: process.env.NODE_ENV || "",
 };

@@ -36,6 +36,12 @@ export const metadata: Metadata = {
     "mobile-web-app-capable": "yes",
     "msapplication-TileColor": "#317EFB",
     "msapplication-tap-highlight": "no",
+
+    "fc:frame": "vNext",
+    "fc:frame:image": "https://noblocks-ialc.vercel.app/api/og",
+    "fc:frame:button:1": "Open App",
+    "fc:frame:button:1:action": "link",
+    "fc:frame:button:1:target": "https://noblocks-ialc.vercel.app",
   },
   keywords: [
     // Stablecoin Primary Keywords

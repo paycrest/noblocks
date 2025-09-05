@@ -18,7 +18,11 @@ const nextConfig = {
         },
         {
           key: "X-Frame-Options",
-          value: "DENY",
+          value: "ALLOWALL",
+        },
+        {
+          key: "Content-Security-Policy",
+          value: "frame-ancestors *",
         },
         {
           key: "X-XSS-Protection",

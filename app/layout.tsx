@@ -3,7 +3,18 @@ import React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
-import { AppLayout } from "./components";
+import Providers from "./providers";
+import MainContent from "./mainContent";
+import {
+  Footer,
+  Navbar,
+  LayoutWrapper,
+  PWAInstall,
+  NoticeBanner,
+} from "./components";
+import { EarlyReady } from "./early-ready";
+import { MiniKitContextProvider } from "@/providers/MiniKitProvider";
+import config from "./lib/config";
 
 export const dynamic = "force-static";
 
@@ -240,7 +251,26 @@ export default function RootLayout({
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <AppLayout>{children}</AppLayout>
+        <EarlyReady />
+        <MiniKitContextProvider>
+          <Providers>
+            <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
+              <div className="relative">
+                <Navbar />
+                {config.noticeBannerText && (
+                  <NoticeBanner
+                    textLines={config.noticeBannerText.split("|")}
+                  />
+                )}
+              </div>
+              <LayoutWrapper footer={<Footer />}>
+                <MainContent>{children}</MainContent>
+              </LayoutWrapper>
+
+              <PWAInstall />
+            </div>
+          </Providers>
+        </MiniKitContextProvider>
       </body>
     </html>
   );

@@ -23,7 +23,7 @@ const nextConfig = {
         {
           key: "Content-Security-Policy",
           value:
-            "frame-ancestors 'self' https://noblocks-ialc.vercel.app http://localhost:3000 https://auth.privy.io;",
+            "frame-ancestors 'self' https://noblocks-ialc.vercel.app http://localhost:3000 https://auth.privy.io https://warpcast.com https://*.farcaster.xyz;",
         },
         {
           key: "X-XSS-Protection",

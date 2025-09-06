@@ -20,13 +20,13 @@
     "visible": true,
     "title": "Noblocks"
   },
-  "version": "1.0.0",
+  "version": "10.0.0",
   "categories": ["finance", "web3"],
   "developer": {
-    "name": "CONSOLATION",
-    "url": "https://noblocks-ialc.vercel.app"
+    "name": "CONSOLATION LOTACHI",
+    "website": "https://github.com/KEM-CONSOLATION",
+    "contact": "mailto:consolationlotachi@email.com"
   },
-
   "accountAssociation": {
     "header": "eyJmaWQiOjExNjI4ODAsInR5cGUiOiJhdXRoIiwia2V5IjoiMHgzZERCMTQ5RGNBMEZjMDcxM0ZjMzhBQ2IxNjdDMzM2NzIwQjVGMDdmIn0",
     "payload": "eyJkb21haW4iOiJub2Jsb2Nrcy1pYWxjLnZlcmNlbC5hcHAifQ",

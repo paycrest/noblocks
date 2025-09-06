@@ -11,6 +11,7 @@ import { createWalletClient, custom } from "viem";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { shouldUseInjectedWallet } from "../utils";
+import { sdk } from "@farcaster/miniapp-sdk";
 
 interface InjectedWalletContextType {
   isInjectedWallet: boolean;
@@ -40,19 +41,46 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
 
       setIsInjectedWallet(shouldUse);
 
-      if (shouldUse && window.ethereum) {
+      if (shouldUse) {
         try {
-          const client = createWalletClient({
-            transport: custom(window.ethereum as any),
+          let ethereumProvider = window.ethereum;
+          let client;
+
+          // Try to use Farcaster SDK's Ethereum provider first
+          try {
+            const farcasterProvider = await sdk.wallet.getEthereumProvider();
+            if (farcasterProvider) {
+              ethereumProvider = farcasterProvider;
+              console.log("Using Farcaster SDK Ethereum provider");
+            }
+          } catch (farcasterError) {
+            console.warn(
+              "Farcaster SDK provider not available, falling back to window.ethereum:",
+              farcasterError,
+            );
+          }
+
+          if (!ethereumProvider) {
+            throw new Error("No Ethereum provider available");
+          }
+
+          client = createWalletClient({
+            transport: custom(ethereumProvider as any),
           });
 
-          await (window.ethereum as any).request({ method: "eth_requestAccounts" });
+          // Add a small delay to ensure provider is ready
+          await new Promise((resolve) => setTimeout(resolve, 100));
+
+          await (ethereumProvider as any).request({
+            method: "eth_requestAccounts",
+          });
           const [address] = await client.getAddresses();
 
           if (address) {
-            setInjectedProvider(window.ethereum);
+            setInjectedProvider(ethereumProvider);
             setInjectedAddress(address);
             setInjectedReady(true);
+            console.log("Successfully connected to wallet:", address);
           } else {
             console.warn("No address returned from injected wallet.");
             toast.error(
@@ -72,9 +100,17 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
             setInjectedProvider(null);
             setInjectedAddress(null);
             setInjectedReady(false);
+          } else if ((error as any)?.message?.includes("User rejected")) {
+            toast.error("Wallet connection was cancelled by user.", {
+              description: "You can try connecting again later.",
+            });
+            setIsInjectedWallet(false);
           } else {
             toast.error(
               "Failed to connect to wallet. Please refresh and try again.",
+              {
+                description: "If the problem persists, try restarting the app.",
+              },
             );
             setIsInjectedWallet(false);
           }
@@ -82,7 +118,10 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
       }
     };
 
-    initInjectedWallet();
+    // Add a small delay to ensure the page is fully loaded
+    const timeoutId = setTimeout(initInjectedWallet, 200);
+
+    return () => clearTimeout(timeoutId);
   }, [searchParams]);
 
   return (

@@ -257,6 +257,23 @@ export default function RootLayout({
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+
+        <Script id="farcaster-early-ready" strategy="beforeInteractive">
+          {`
+    (function() {
+      try {
+        if (!window.__farcasterMiniAppReady) {
+          window.__farcasterMiniAppReady = true;
+          window.parent?.postMessage({ type: "farcaster:ready" }, "*");
+          window.parent?.postMessage({ type: "miniapp:ready" }, "*");
+        }
+      } catch (err) {
+        console.error("Inline early ready failed", err);
+      }
+    })();
+  `}
+        </Script>
+
         <EarlyReady />
         <MiniKitContextProvider>
           <Providers>

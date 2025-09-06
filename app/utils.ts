@@ -682,6 +682,7 @@ export function shouldUseInjectedWallet(
         Boolean(w.__farcasterMiniAppReady) ||
         Boolean(w.farcaster) ||
         Boolean(w.warpcast) ||
+        Boolean(w.farcasterMiniApp) ||
         /Farcaster|Warpcast/i.test(ua) ||
         /warpcast\.com/i.test(ref) ||
         /warpcast\.com/i.test(url) ||
@@ -692,7 +693,9 @@ export function shouldUseInjectedWallet(
         // Check for Farcaster-specific query parameters
         searchParams.has("farcaster") ||
         searchParams.has("warpcast") ||
-        searchParams.has("miniapp")
+        searchParams.has("miniapp") ||
+        // Check for Farcaster SDK availability
+        (typeof w !== "undefined" && w.sdk && w.sdk.wallet)
       );
     } catch {
       return false;

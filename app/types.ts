@@ -250,10 +250,10 @@ export type Config = {
   nodeEnv: string;
   noIndex: string;
   onchainKitProjectName: string;
-  appSubstitle: string;
+  appSubtitle: string;
   appDescription: string;
   appIcon: string;
-  appSpashImage: string;
+  appSplashImage: string;
   splashBackgroundColor: string;
   appPrimaryCategory: string;
   appHeroImage: string;
@@ -264,9 +264,8 @@ export type Config = {
   publicUrl: string;
   farcasterHeader: string;
   farcasterPayload: string;
-  farcasterSignatuure: string;
+  farcasterSignature: string;
   supabaseUrl: string;
-  supabaseRoleKey: string;
   appUrl: string;
   aggregatorUrl: string;
   privyAppId: string;

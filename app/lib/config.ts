@@ -15,6 +15,7 @@ const config: Config = {
   cdpApiKey: process.env.NEXT_PUBLIC_CDP_API_KEY || "",
   appUrl: process.env.NEXT_PUBLIC_URL || "https://noblocks.xyz",
   supabaseUrl: process.env.SUPABASE_URL || "",
+  supabaseRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
   farcasterHeader: process.env.FARCASTER_HEADER || "",
   farcasterPayload: process.env.FARCASTER_PAYLOAD || "",
   farcasterSignature: process.env.FARCASTER_SIGNATURE || "",
@@ -87,5 +88,4 @@ export const serverConfig = {
   dataset: process.env.SANITY_STUDIO_DATASET || "",
   apiVersion: "2024-01-01", // Pin to a stable date
   useCdn: false, // Set to false for fresh data
-  supabaseRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
 };

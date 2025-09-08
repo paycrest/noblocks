@@ -14,7 +14,7 @@ export function withValidProperties<T extends Record<string, unknown>>(
       return trimmed.length > 0 ? [[key, trimmed]] : [];
     }
     if (typeof value === "boolean") {
-      return value === true ? [[key, value]] : [];
+      return [[key, value]];
     }
     return [[key, value]];
   });

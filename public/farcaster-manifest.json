@@ -2,26 +2,27 @@
   "name": "Noblocks",
   "description": "A crypto-enabled mini app for sending and receiving stablecoins on Base using Farcaster.",
   "app": {
-    "url": "https://noblocks-ialc.vercel.app",
+    "url": "https://noblocks.xyz",
     "window": {
       "height": 600,
       "width": 400
     }
   },
   "icon": {
-    "light": "https://noblocks-ialc.vercel.app/icons/android-chrome-192x192.png",
-    "dark": "https://noblocks-ialc.vercel.app/icons/android-chrome-192x192.png"
+    "light": "https://https://noblocks.xyz/icons/android-chrome-192x192.png",
+    "dark": "https://https://noblocks.xyz/icons/android-chrome-192x192.png"
   },
   "splash_screen": {
-    "light": "https://noblocks-ialc.vercel.app/screenshots/desktop-wide.png",
-    "dark": "https://noblocks-ialc.vercel.app/screenshots/desktop-wide.png"
+    "light": "https://https://noblocks.xyz/android-chrome-192x192.png",
+    "dark": "https://https://noblocks.xyz/android-chrome-192x192.png"
   },
   "navigation_bar": {
     "visible": true,
     "title": "Noblocks"
   },
-  "version": "10.0.0",
-  "categories": ["finance", "web3"],
+  "version": "1.0.0",
+  "primaryCategory": "finance",
+  "tags": ["web3"],
   "developer": {
     "name": "CONSOLATION LOTACHI",
     "website": "https://github.com/KEM-CONSOLATION",

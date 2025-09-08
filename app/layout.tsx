@@ -38,10 +38,10 @@ export const metadata: Metadata = {
     "msapplication-tap-highlight": "no",
 
     "fc:frame": "vNext",
-    "fc:frame:image": "https://noblocks-ialc.vercel.app/api/og",
+    "fc:frame:image": `${config.publicUrl ?? "https://noblocks.xyz"}/images/og-image.jpg`,
     "fc:frame:button:1": "Open App",
     "fc:frame:button:1:action": "link",
-    "fc:frame:button:1:target": "https://noblocks-ialc.vercel.app",
+    "fc:frame:button:1:target": `${config.publicUrl ?? "https://noblocks.xyz"}`,
   },
   keywords: [
     // Stablecoin Primary Keywords

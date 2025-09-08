@@ -119,9 +119,13 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
     };
 
     // Add a small delay to ensure the page is fully loaded
-    const timeoutId = setTimeout(initInjectedWallet, 200);
 
-    return () => clearTimeout(timeoutId);
+    let cancelled = false;
+    const timeoutId = setTimeout(() => !cancelled && initInjectedWallet(), 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
   }, [searchParams]);
 
   return (

@@ -22,7 +22,7 @@ const config: Config = {
   appDescription: process.env.NEXT_PUBLIC_APP_DESCRIPTION || "",
   appIcon:
     process.env.NEXT_PUBLIC_APP_ICON ||
-    "https://https://noblocks.xyz/icons/android-chrome-192x192.png",
+    "https://https://noblocks.xyz/icons/favicon_.png",
   appSplashImage:
     process.env.NEXT_PUBLIC_APP_SPLASH_IMAGE ||
     "https://https://noblocks.xyz/screenshots/desktop-wide.png",

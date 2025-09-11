@@ -62,17 +62,19 @@ jobs:
           minor_count=$(grep -c "minor\|feature" prs.txt || echo "0")
 
           # Count commits with different types
-          # Breaking changes (major)
-          commit_major_count=$(grep -c "^(feat!|BREAKING CHANGE)" commits.txt || echo "0")
-
+          # Breaking changes (major) - handle BREAKING CHANGE separately due to space
+          commit_major_count=$(grep -E "^feat\\!" commits.txt | wc -l || echo "0")
+          commit_breaking_count=$(grep -E "BREAKING CHANGE" commits.txt | wc -l || echo "0")
+          commit_major_count=$((commit_major_count + commit_breaking_count))
+          
           # Features (minor)
-          commit_minor_count=$(grep -c "^(feat|\[minor\])" commits.txt || echo "0")
-
+          commit_minor_count=$(grep -E "^(feat|\[minor\])" commits.txt | wc -l || echo "0")
+          
           # Fixes (patch)
-          commit_fix_count=$(grep -c "^(fix)" commits.txt || echo "0")
-
+          commit_fix_count=$(grep -E "^(fix)" commits.txt | wc -l || echo "0")
+          
           # Other conventional commits (patch)
-          commit_other_count=$(grep -c "^(chore|docs|style|refactor|perf|test|ci|build|revert)" commits.txt || echo "0")
+          commit_other_count=$(grep -E "^(chore|docs|style|refactor|perf|test|ci|build|revert)" commits.txt | wc -l || echo "0")
 
           # Use the higher count between PR labels and commit messages
           if [ "$major_count" -gt 0 ] || [ "$commit_major_count" -gt 0 ]; then
@@ -103,9 +105,11 @@ jobs:
           echo "formatted_commits<<EOF" >> $GITHUB_OUTPUT
           echo "### Breaking Changes"
           if [ "$latest_tag" = "v0.0.0" ]; then
-            git log --pretty=format:"%B" | grep -E "^(feat!|BREAKING CHANGE)" || echo "None"
+            git log --pretty=format:"%B" | grep -E "^feat\\!" || echo "None"
+            git log --pretty=format:"%B" | grep -E "BREAKING CHANGE" || echo "None"
           else
-            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(feat!|BREAKING CHANGE)" || echo "None"
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^feat\\!" || echo "None"
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "BREAKING CHANGE" || echo "None"
           fi
           echo ""
           echo "### Features"

@@ -71,7 +71,7 @@ const PageLayout = ({
   const walletAddress = isInjectedWallet
     ? injectedAddress
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-        ?.address;
+      ?.address;
 
   return (
     <>
@@ -158,30 +158,30 @@ export function MainPageContent() {
 
   // State props for child components
   const stateProps: StateProps = {
-      formValues,
-      setFormValues,
+    formValues,
+    setFormValues,
 
-      rate,
-      setRate,
-      isFetchingRate,
-      setIsFetchingRate,
-      rateError,
-      setRateError,
+    rate,
+    setRate,
+    isFetchingRate,
+    setIsFetchingRate,
+    rateError,
+    setRateError,
 
-      institutions,
-      setInstitutions,
-      isFetchingInstitutions,
-      setIsFetchingInstitutions,
+    institutions,
+    setInstitutions,
+    isFetchingInstitutions,
+    setIsFetchingInstitutions,
 
-      selectedRecipient,
-      setSelectedRecipient,
+    selectedRecipient,
+    setSelectedRecipient,
 
-      orderId,
-      setOrderId,
-      setCreatedAt,
-      setTransactionStatus,
-    }
-    
+    orderId,
+    setOrderId,
+    setCreatedAt,
+    setTransactionStatus,
+  }
+
   useEffect(function setPageLoadingState() {
     setOrderId("");
     setIsPageLoading(false);

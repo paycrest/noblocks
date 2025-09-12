@@ -31,6 +31,7 @@ import { useInjectedWallet } from "../context/InjectedWalletContext";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
+import { useMiniMode } from "../hooks/useMiniMode";
 
 export function MainPageContent() {
   const searchParams = useSearchParams();
@@ -38,6 +39,7 @@ export function MainPageContent() {
   const { currentStep, setCurrentStep } = useStep();
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
   const { selectedNetwork } = useNetwork();
+  const isMiniMode = useMiniMode();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
@@ -328,12 +330,19 @@ export function MainPageContent() {
           <Disclaimer />
           <CookieConsent />
           {!isInjectedWallet && <NetworkSelectionModal />}{" "}
-          {currentStep === STEPS.FORM ? (
+          {isMiniMode ? (
+            // Mini mode: Show only transaction components
+            <div className={`px-5 py-28 ${getBannerPadding()}`}>
+              {transactionFormComponent}
+            </div>
+          ) : currentStep === STEPS.FORM ? (
+            // Normal mode: Show full homepage with marketing content
             <HomePage
               transactionFormComponent={transactionFormComponent}
               isRecipientFormOpen={isRecipientFormOpen}
             />
           ) : (
+            // Normal mode: Show transaction components with padding
             <div className={`px-5 py-28 ${getBannerPadding()}`}>
               {transactionFormComponent}
             </div>

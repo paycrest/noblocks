@@ -14,6 +14,8 @@ import {
   PWAInstall,
   NoticeBanner,
 } from "./components";
+import { EarlyReady } from "./early-ready";
+import { MiniKitContextProvider } from "@/providers/MiniKitProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -34,6 +36,12 @@ export const metadata: Metadata = {
     "mobile-web-app-capable": "yes",
     "msapplication-TileColor": "#317EFB",
     "msapplication-tap-highlight": "no",
+
+    "fc:frame": "vNext",
+    "fc:frame:image": `${config.publicUrl ?? "https://noblocks.xyz"}/images/og-image.jpg`,
+    "fc:frame:button:1": "Open App",
+    "fc:frame:button:1:action": "link",
+    "fc:frame:button:1:target": `${config.publicUrl ?? "https://noblocks.xyz"}`,
   },
   keywords: [
     // Stablecoin Primary Keywords
@@ -236,22 +244,27 @@ export default function RootLayout({
           type="application/ld+json"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-        <Providers>
-          <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-            <div className="relative">
-              <Navbar />
-              {config.noticeBannerText && (
-                <NoticeBanner textLines={config.noticeBannerText.split("|")} />
-              )}
-            </div>
-            <LayoutWrapper footer={<Footer />}>
-              <MainContent>{children}</MainContent>
-            </LayoutWrapper>
+        ></Script>
+        <EarlyReady />
+        <MiniKitContextProvider>
+          <Providers>
+            <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
+              <div className="relative">
+                <Navbar />
+                {config.noticeBannerText && (
+                  <NoticeBanner
+                    textLines={config.noticeBannerText.split("|")}
+                  />
+                )}
+              </div>
+              <LayoutWrapper footer={<Footer />}>
+                <MainContent>{children}</MainContent>
+              </LayoutWrapper>
 
-            <PWAInstall />
-          </div>
-        </Providers>
+              <PWAInstall />
+            </div>
+          </Providers>
+        </MiniKitContextProvider>
       </body>
     </html>
   );

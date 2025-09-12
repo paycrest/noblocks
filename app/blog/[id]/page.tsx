@@ -1,6 +1,6 @@
 import DetailClient from "@/app/components/blog/post/detail-client";
 import { getPost, getRecentPosts } from "@/app/lib/sanity-data";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Metadata } from "next";
 import type { PortableTextBlock } from "@portabletext/types";
 
@@ -75,9 +75,17 @@ export async function generateMetadata({
 
 export default async function BlogPostDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ mini?: string }>;
 }) {
+  // Redirect to home page if in mini mode
+  const resolvedSearchParams = await searchParams;
+  if (resolvedSearchParams.mini === "true") {
+    redirect("/?mini=true");
+  }
+
   const { id } = await params;
   const post = await getPost(id);
   if (!post) notFound();

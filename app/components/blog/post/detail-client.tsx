@@ -130,12 +130,8 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
     // Track the share event
     trackSocialShare(platform, post._id, post.title);
 
-    // Open the share URL in a new window
-    window.open(
-      shareUrl,
-      "_blank",
-      "width=600,height=400,scrollbars=yes,resizable=yes",
-    );
+    // Open the share URL in a new tab
+    window.open(shareUrl, "_blank");
   };
 
   const handleRecentBlogClick = (recentPost: SanityPost) => {

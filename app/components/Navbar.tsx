@@ -293,7 +293,7 @@ export const Navbar = () => {
               )}
             </>
           ) : (
-            !isInjectedWallet && !isMiniMode && (
+            !isInjectedWallet && (
               <button
                 type="button"
                 className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}

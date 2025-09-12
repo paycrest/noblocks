@@ -2,6 +2,7 @@ import React, { Suspense } from "react";
 import { getPosts, getCategories, getCachedPosts } from "@/app/lib/sanity-data";
 import HomeClient from "@/app/components/blog/home-client";
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 // Force dynamic rendering to ensure fresh data
 export const dynamic = "force-dynamic";
@@ -43,7 +44,17 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ mini?: string }>;
+}) {
+  // Redirect to home page if in mini mode
+  const resolvedSearchParams = await searchParams;
+  if (resolvedSearchParams.mini === "true") {
+    redirect("/?mini=true");
+  }
+
   // Fetch data from Sanity (cached to avoid duplicate fetch in metadata)
   const sanityPosts = await getCachedPosts();
   const sanityCategories = await getCategories();

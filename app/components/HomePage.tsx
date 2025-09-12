@@ -15,6 +15,7 @@ import {
 import WalkthroughVideo from "./WalkthroughVideo";
 import { ScrollArrowLine, ScrollArrowHead } from "./ImageAssets";
 import { getBannerPadding } from "../utils";
+import { useMiniMode } from "../hooks/useMiniMode";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -46,6 +47,8 @@ export function HomePage({
   transactionFormComponent,
   isRecipientFormOpen,
 }: HomePageProps) {
+  const isMiniMode = useMiniMode();
+  
   const handleScrollToForm = () => {
     const formElement = document.getElementById("hero");
     if (formElement) {
@@ -139,8 +142,9 @@ export function HomePage({
         </motion.div>
       </div>
 
-      {/* All additional content - always visible, scroll-triggered animations */}
-      <div className="-mt-2 w-full lg:-mt-4">
+      {/* All additional content - only visible in normal mode, scroll-triggered animations */}
+      {!isMiniMode && (
+        <div className="-mt-2 w-full lg:-mt-4">
         <BlurRevealSection
           id="video-section"
           className="mx-auto mb-[4.875rem] w-full max-w-[62.75rem] scroll-mt-24 px-5 md:mb-[11.5625rem]"
@@ -429,7 +433,8 @@ export function HomePage({
             ));
           })()}
         </BlurRevealSection>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

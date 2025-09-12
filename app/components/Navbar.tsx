@@ -27,6 +27,7 @@ import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useMiniMode } from "../hooks/useMiniMode";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -37,6 +38,7 @@ export const Navbar = () => {
   const { selectedNetwork } = useNetwork();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const isDark = useActualTheme();
+  const isMiniMode = useMiniMode();
 
   const { ready, authenticated, user } = usePrivy();
 
@@ -164,8 +166,8 @@ export const Navbar = () => {
               />
             </div>
 
-            {/* Blog Link - Desktop Only */}
-            {!pathname.startsWith("/blog") && (
+            {/* Blog Link - Desktop Only - Hidden in mini mode */}
+            {!pathname.startsWith("/blog") && !isMiniMode && (
               <div className="hidden items-center sm:flex">
                 <Link
                   href="/blog"
@@ -176,8 +178,8 @@ export const Navbar = () => {
               </div>
             )}
 
-            {/* Swap Link - Show on /blog and nested blog routes */}
-            {pathname.startsWith("/blog") && (
+            {/* Swap Link - Show on /blog and nested blog routes - Hidden in mini mode */}
+            {pathname.startsWith("/blog") && !isMiniMode && (
               <div className="hidden items-center sm:flex">
                 <Link
                   href="/"
@@ -212,7 +214,7 @@ export const Navbar = () => {
                         Home
                       </Link>
                     )}
-                    {!pathname.startsWith("/blog") && (
+                    {!pathname.startsWith("/blog") && !isMiniMode && (
                       <Link
                         href="/blog"
                         className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5 sm:hidden"

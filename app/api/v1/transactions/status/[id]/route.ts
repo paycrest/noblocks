@@ -12,9 +12,9 @@ import {
 export const PUT = withRateLimit(
   async (request: NextRequest, { params }: { params: { id: string } }) => {
     const startTime = Date.now();
+    const { id } = await params;
     
     try {
-      const { id } = await params;
       const body = await request.json();
 
       // Track API request

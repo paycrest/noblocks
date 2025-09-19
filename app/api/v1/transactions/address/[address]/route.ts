@@ -16,12 +16,13 @@ export const GET = withRateLimit(
   ) => {
     const startTime = Date.now();
     
-    try {
-      // Await params to get the address
-      const { address } = await context.params;
+    // Await params to get the address
+    const { address } = await context.params;
 
-      // Fallback to URL pathname if address is not in params
-      const finalAddress = address || request.nextUrl.pathname.split("/").pop();
+    // Fallback to URL pathname if address is not in params
+    const finalAddress = address || request.nextUrl.pathname.split("/").pop();
+    
+    try {
 
       if (!finalAddress) {
         trackApiError(request, `/api/v1/transactions/address/${address}`, 'GET', new Error('Missing wallet address'), 400);

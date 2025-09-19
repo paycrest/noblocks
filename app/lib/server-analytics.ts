@@ -52,12 +52,12 @@ export const trackServerEvent = (
       timestamp: new Date().toISOString(),
     };
 
-    if (distinctId) {
-      mixpanel.track(distinctId, eventName, eventData);
-    } else {
-      // Track as anonymous event if no distinct ID
-      mixpanel.track(eventName, eventData);
-    }
+    // Add distinct_id to event data if provided
+    const finalEventData = distinctId 
+      ? { ...eventData, distinct_id: distinctId }
+      : eventData;
+    
+    mixpanel.track(eventName, finalEventData);
 
     if (process.env.NODE_ENV === 'development') {
       console.log(`[Server Analytics] ${eventName}:`, eventData);
@@ -243,13 +243,5 @@ export const trackSystemEvent = (
   });
 };
 
-/**
- * Flush all pending events (useful for serverless environments)
- */
-export const flushServerEvents = () => {
-  try {
-    mixpanel.flush();
-  } catch (error) {
-    console.error('Error flushing server events:', error);
-  }
-};
+// Note: Mixpanel server library automatically handles event batching and sending
+// No manual flush is needed as events are sent immediately

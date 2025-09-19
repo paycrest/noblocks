@@ -46,6 +46,10 @@ export const MobileDropdown = ({
   });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
+  const activeWallet = isInjectedWallet
+    ? { address: injectedAddress, type: "injected_wallet" }
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
   const smartWallet = isInjectedWallet
@@ -125,6 +129,24 @@ export const MobileDropdown = ({
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
+      // Track server-side logout before client-side logout
+      if (activeWallet?.address) {
+        try {
+          await fetch('/api/track-logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress: activeWallet.address,
+              privyUserId: user?.id,
+              logoutMethod: 'mobile_dropdown'
+            })
+          });
+        } catch (trackingError) {
+          console.error('Failed to track logout:', trackingError);
+          // Continue with logout even if tracking fails
+        }
+      }
+
       // Disconnect external wallet if connected
       await logout();
       if (window.ethereum) {

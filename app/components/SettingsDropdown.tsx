@@ -77,6 +77,24 @@ export const SettingsDropdown = () => {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
+      // Track server-side logout before client-side logout
+      if (walletAddress) {
+        try {
+          await fetch('/api/track-logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress,
+              privyUserId: user?.id,
+              logoutMethod: 'settings_dropdown'
+            })
+          });
+        } catch (trackingError) {
+          console.error('Failed to track logout:', trackingError);
+          // Continue with logout even if tracking fails
+        }
+      }
+
       await logout();
       if (window.ethereum) {
         await disconnectWallet();

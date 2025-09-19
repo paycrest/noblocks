@@ -59,9 +59,6 @@ export const trackServerEvent = (
     
     mixpanel.track(eventName, finalEventData);
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[Server Analytics] ${eventName}:`, eventData);
-    }
   } catch (error) {
     console.error('Server-side tracking error:', error);
   }
@@ -89,9 +86,6 @@ export const identifyServerUser = (
 
     mixpanel.people.set(distinctId, userData);
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[Server Analytics] User identified:`, distinctId, userData);
-    }
   } catch (error) {
     console.error('Server-side user identification error:', error);
   }
@@ -243,5 +237,3 @@ export const trackSystemEvent = (
   });
 };
 
-// Note: Mixpanel server library automatically handles event batching and sending
-// No manual flush is needed as events are sent immediately

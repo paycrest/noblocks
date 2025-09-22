@@ -260,7 +260,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function(d, w, c) {
-                w.BrevoConversationsID = '6863a99dd26058e80704ca5c';
+                w.BrevoConversationsID = '${config.brevoConversationsId}';
                 w[c] = w[c] || function() {
                   (w[c].q = w[c].q || []).push(arguments);
                 };

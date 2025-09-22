@@ -252,6 +252,26 @@ export default function RootLayout({
             <PWAInstall />
           </div>
         </Providers>
+        
+        {/* Brevo Chat Widget */}
+        <Script
+          id="brevo-chat-widget"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(d, w, c) {
+                w.BrevoConversationsID = '6863a99dd26058e80704ca5c';
+                w[c] = w[c] || function() {
+                  (w[c].q = w[c].q || []).push(arguments);
+                };
+                var s = d.createElement('script');
+                s.async = true;
+                s.src = 'https://conversations-widget.brevo.com/brevo-conversations.js';
+                if (d.head) d.head.appendChild(s);
+              })(document, window, 'BrevoConversations');
+            `,
+          }}
+        />
       </body>
     </html>
   );

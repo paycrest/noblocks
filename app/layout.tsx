@@ -234,7 +234,7 @@ export default function RootLayout({
       >
         <Script
           id="noblocks-ld-json"
-          type="application/ld json"
+          type="application/ld+json"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />

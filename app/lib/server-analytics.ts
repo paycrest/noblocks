@@ -1,12 +1,23 @@
-import Mixpanel from 'mixpanel';
 import { NextRequest } from 'next/server';
 import config from './config';
 
-// Initialize Mixpanel server-side instance
-const mixpanel = Mixpanel.init(config.mixpanelToken, {
-  debug: process.env.NODE_ENV === 'development',
-  protocol: 'https',
-});
+// Lazy load Mixpanel to avoid webpack issues
+let mixpanel: any = null;
+
+const getMixpanel = () => {
+  if (!mixpanel && config.mixpanelToken) {
+    try {
+      const Mixpanel = require('mixpanel');
+      mixpanel = Mixpanel.init(config.mixpanelToken, {
+        debug: process.env.NODE_ENV === 'development',
+        protocol: 'https',
+      });
+    } catch (error) {
+      console.warn('Mixpanel not available:', error instanceof Error ? error.message : String(error));
+    }
+  }
+  return mixpanel;
+};
 
 // Types for server-side tracking
 export interface ServerEventProperties {
@@ -45,6 +56,12 @@ export const trackServerEvent = (
       return;
     }
 
+    const mixpanelInstance = getMixpanel();
+    if (!mixpanelInstance) {
+      console.warn('Mixpanel not available');
+      return;
+    }
+
     const eventData = {
       ...properties,
       app: 'Noblocks',
@@ -57,7 +74,7 @@ export const trackServerEvent = (
       ? { ...eventData, distinct_id: distinctId }
       : eventData;
     
-    mixpanel.track(eventName, finalEventData);
+    mixpanelInstance.track(eventName, finalEventData);
 
   } catch (error) {
     console.error('Server-side tracking error:', error);
@@ -77,6 +94,12 @@ export const identifyServerUser = (
       return;
     }
 
+    const mixpanelInstance = getMixpanel();
+    if (!mixpanelInstance) {
+      console.warn('Mixpanel not available');
+      return;
+    }
+
     const userData = {
       ...properties,
       $last_seen: new Date().toISOString(),
@@ -84,7 +107,7 @@ export const identifyServerUser = (
       server_side: true,
     };
 
-    mixpanel.people.set(distinctId, userData);
+    mixpanelInstance.people.set(distinctId, userData);
 
   } catch (error) {
     console.error('Server-side user identification error:', error);

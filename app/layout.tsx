@@ -1,3 +1,4 @@
+
 import "./globals.css";
 import React from "react";
 import type { Metadata } from "next";
@@ -233,7 +234,7 @@ export default function RootLayout({
       >
         <Script
           id="noblocks-ld-json"
-          type="application/ld+json"
+          type="application/ld json"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
@@ -252,26 +253,22 @@ export default function RootLayout({
             <PWAInstall />
           </div>
         </Providers>
-        
+
         {/* Brevo Chat Widget */}
-        <Script
-          id="brevo-chat-widget"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function(d, w, c) {
-                w.BrevoConversationsID = '${config.brevoConversationsId}';
-                w[c] = w[c] || function() {
-                  (w[c].q = w[c].q || []).push(arguments);
-                };
-                var s = d.createElement('script');
-                s.async = true;
-                s.src = 'https://conversations-widget.brevo.com/brevo-conversations.js';
-                if (d.head) d.head.appendChild(s);
-              })(document, window, 'BrevoConversations');
-            `,
-          }}
-        />
+        {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && (
+          <>
+            {" "}
+            <Script id="brevo-chat-config" strategy="afterInteractive">
+              {" "}
+              {`window.BrevoConversationsID=${JSON.stringify(config.brevoConversationsId)};window.BrevoConversations=window.BrevoConversations||function(){(window.BrevoConversations.q=window.BrevoConversations.q||[]).push(arguments)};`}{" "}
+            </Script>{" "}
+            <Script
+              id="brevo-chat-widget"
+              src="https://conversations-widget.brevo.com/brevo-conversations.js"
+              strategy="afterInteractive"
+            />{" "}
+          </>
+        )}
       </body>
     </html>
   );

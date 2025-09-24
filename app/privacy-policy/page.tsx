@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "https://noblocks.xyz/images/og-privacy.jpg",
+        url: "https://noblocks.xyz/images/og-image.jpg",
         width: 1200,
         height: 630,
         alt: "Noblocks Privacy Policy"

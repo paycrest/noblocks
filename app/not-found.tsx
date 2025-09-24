@@ -1,3 +1,4 @@
+"use client"
 import { Metadata } from "next";
 import Link from "next/link";
 import { motion } from "framer-motion";

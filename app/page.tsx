@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "https://noblocks.xyz/images/og-homepage.jpg",
+        url: "https://noblocks.xyz/images/og-image.jpg",
         width: 1200,
         height: 630,
         alt: "Noblocks - Send stablecoins to any bank or mobile wallet"
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Noblocks - Decentralized Payments Interface",
     description: "Send stablecoins to any bank or mobile wallet globally. USDC, USDT, and DAI payments with instant settlement.",
-    images: ["https://noblocks.xyz/images/og-homepage.jpg"]
+    images: ["https://noblocks.xyz/images/og-image.jpg"]
   },
   alternates: {
     canonical: "https://noblocks.xyz"

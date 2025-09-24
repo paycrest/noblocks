@@ -130,8 +130,10 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
     // Track the share event
     trackSocialShare(platform, post._id, post.title);
 
-    // Open the share URL in a new tab
-    window.open(shareUrl, "_blank");
+    // Open the share URL in a new tab (hardened)
+    const newWin = window.open(shareUrl, "_blank", "noopener,noreferrer");
+    // Fallback for browsers that ignore 'noopener'
+    if (newWin) newWin.opener = null;
   };
 
   const handleRecentBlogClick = (recentPost: SanityPost) => {

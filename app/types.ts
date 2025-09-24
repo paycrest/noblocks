@@ -255,6 +255,7 @@ export type Config = {
   contactSupportUrl: string;
   googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
+  brevoConversationsId: string; // Brevo chat widget ID
 };
 
 export type Network = {

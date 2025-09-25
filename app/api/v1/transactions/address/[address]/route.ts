@@ -10,14 +10,12 @@ import {
 } from "@/app/lib/server-analytics";
 
 export const GET = withRateLimit(
-  async (
-    request: NextRequest,
-    context: { params: Promise<{ address: string }> },
-  ) => {
-    const startTime = Date.now();
-    
-    // Await params to get the address
-    const { address } = await context.params;
+  async (  
+    request: NextRequest,  
+    context: { params: { address: string } },  
+  ) => {  
+    const startTime = Date.now();  
+    const { address } = context.params;  
 
     // Fallback to URL pathname if address is not in params
     const finalAddress = address || request.nextUrl.pathname.split("/").pop();

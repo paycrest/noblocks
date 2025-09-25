@@ -39,10 +39,12 @@ export const useMixpanel = () => {
     };
 
     window.addEventListener("cookieConsentChange", handleConsentChange);
+    window.addEventListener("cookieConsent", handleConsentChange);
     handleConsentChange();
 
     return () => {
       window.removeEventListener("cookieConsentChange", handleConsentChange);
+      window.removeEventListener("cookieConsent", handleConsentChange);
     };
   }, []);
 };

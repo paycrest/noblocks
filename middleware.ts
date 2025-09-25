@@ -54,7 +54,12 @@ async function authorizationMiddleware(req: NextRequest) {
       console.error("RPC error when setting wallet address:", rpcError);
     }
 
-    const response = NextResponse.next();
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-wallet-address", walletAddress);
+    const response = NextResponse.next({
+      request: { headers: requestHeaders },
+    });
+    // Optional: also expose to client responses if needed
     response.headers.set("x-wallet-address", walletAddress);
 
     // Log successful response for analytics

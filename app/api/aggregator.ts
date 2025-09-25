@@ -16,11 +16,11 @@ import type {
   UpdateTransactionStatusPayload,
   APIToken,
 } from "../types";
-import { 
-  trackServerEvent, 
-  trackBusinessEvent, 
-  trackApiRequest, 
-  trackApiResponse 
+import {
+  trackServerEvent,
+  trackBusinessEvent,
+  trackApiRequest,
+  trackApiResponse,
 } from "../lib/server-analytics";
 
 const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
@@ -44,13 +44,13 @@ export const fetchRate = async ({
   network,
 }: RatePayload): Promise<RateResponse> => {
   const startTime = Date.now();
-  
+
   try {
     // Track external API request
-    trackServerEvent('External API Request', {
-      service: 'aggregator',
-      endpoint: '/rates',
-      method: 'GET',
+    trackServerEvent("External API Request", {
+      service: "aggregator",
+      endpoint: "/rates",
+      method: "GET",
       token,
       amount,
       currency,
@@ -73,8 +73,8 @@ export const fetchRate = async ({
 
     // Track successful response
     const responseTime = Date.now() - startTime;
-    trackApiResponse('/rates', 'GET', 200, responseTime, {
-      service: 'aggregator',
+    trackApiResponse("/rates", "GET", 200, responseTime, {
+      service: "aggregator",
       token,
       amount,
       currency,
@@ -84,7 +84,7 @@ export const fetchRate = async ({
     });
 
     // Track business event
-    trackBusinessEvent('Rate Fetched', {
+    trackBusinessEvent("Rate Fetched", {
       token,
       amount,
       currency,
@@ -101,18 +101,18 @@ export const fetchRate = async ({
     return data;
   } catch (error) {
     const responseTime = Date.now() - startTime;
-    
+
     // Track API error
-    trackServerEvent('External API Error', {
-      service: 'aggregator',
-      endpoint: '/rates',
-      method: 'GET',
+    trackServerEvent("External API Error", {
+      service: "aggregator",
+      endpoint: "/rates",
+      method: "GET",
       token,
       amount,
       currency,
       provider_id: providerId,
       network,
-      error_message: error instanceof Error ? error.message : 'Unknown error',
+      error_message: error instanceof Error ? error.message : "Unknown error",
       response_time_ms: responseTime,
     });
 
@@ -170,15 +170,15 @@ export const fetchAccountName = async (
   payload: VerifyAccountPayload,
 ): Promise<string> => {
   const startTime = Date.now();
-  
+
   try {
     // Track external API request
-    trackServerEvent('External API Request', {
-      service: 'aggregator',
-      endpoint: '/verify-account',
-      method: 'POST',
+    trackServerEvent("External API Request", {
+      service: "aggregator",
+      endpoint: "/verify-account",
+      method: "POST",
       institution: payload.institution,
-      account_identifier: payload.accountIdentifier,
+      // account_identifier omitted to avoid PII in analytics
     });
 
     const response = await axios.post(
@@ -188,32 +188,30 @@ export const fetchAccountName = async (
 
     // Track successful response
     const responseTime = Date.now() - startTime;
-    trackApiResponse('/verify-account', 'POST', 200, responseTime, {
-      service: 'aggregator',
+    trackApiResponse("/verify-account", "POST", 200, responseTime, {
+      service: "aggregator",
       institution: payload.institution,
-      account_identifier: payload.accountIdentifier,
-      account_name: response.data.data,
+      // account_identifier omitted
+     // account_name omitted
     });
 
     // Track business event
-    trackBusinessEvent('Account Verification', {
+    trackBusinessEvent("Account Verification", {
       institution: payload.institution,
-      account_identifier: payload.accountIdentifier,
-      account_name: response.data.data,
     });
 
     return response.data.data;
   } catch (error) {
     const responseTime = Date.now() - startTime;
-    
+
     // Track API error
-    trackServerEvent('External API Error', {
-      service: 'aggregator',
-      endpoint: '/verify-account',
-      method: 'POST',
+    trackServerEvent('External API Error', {  
+      service: "aggregator",
+      endpoint: "/verify-account",
+      method: "POST",
       institution: payload.institution,
-      account_identifier: payload.accountIdentifier,
-      error_message: error instanceof Error ? error.message : 'Unknown error',
+      // account_identifier omitted
+      error_message: error instanceof Error ? error.message : "Unknown error",
       response_time_ms: responseTime,
     });
 
@@ -253,13 +251,13 @@ export const initiateKYC = async (
   payload: InitiateKYCPayload,
 ): Promise<InitiateKYCResponse> => {
   const startTime = Date.now();
-  
+
   try {
     // Track external API request
-    trackServerEvent('External API Request', {
-      service: 'aggregator',
-      endpoint: '/kyc',
-      method: 'POST',
+    trackServerEvent("External API Request", {
+      service: "aggregator",
+      endpoint: "/kyc",
+      method: "POST",
       wallet_address: payload.walletAddress,
     });
 
@@ -268,28 +266,28 @@ export const initiateKYC = async (
     // Track successful response
     const responseTime = Date.now() - startTime;
     trackApiResponse('/kyc', 'POST', 200, responseTime, {
-      service: 'aggregator',
+      service: "aggregator",
       wallet_address: payload.walletAddress,
-      kyc_url: response.data.data?.url,
+      // kyc_url omitted  
     });
 
     // Track business event
-    trackBusinessEvent('KYC Initiated', {
+    trackBusinessEvent("KYC Initiated", {
       wallet_address: payload.walletAddress,
-      kyc_url: response.data.data?.url,
+      
     });
 
     return response.data;
   } catch (error) {
     const responseTime = Date.now() - startTime;
-    
+
     // Track API error
-    trackServerEvent('External API Error', {
-      service: 'aggregator',
-      endpoint: '/kyc',
-      method: 'POST',
+    trackServerEvent("External API Error", {
+      service: "aggregator",
+      endpoint: "/kyc",
+      method: "POST",
       wallet_address: payload.walletAddress,
-      error_message: error instanceof Error ? error.message : 'Unknown error',
+      error_message: error instanceof Error ? error.message : "Unknown error",
       response_time_ms: responseTime,
     });
 
@@ -307,13 +305,13 @@ export const fetchKYCStatus = async (
   walletAddress: string,
 ): Promise<KYCStatusResponse> => {
   const startTime = Date.now();
-  
+
   try {
     // Track external API request
-    trackServerEvent('External API Request', {
-      service: 'aggregator',
-      endpoint: '/kyc/status',
-      method: 'GET',
+    trackServerEvent("External API Request", {
+      service: "aggregator",
+      endpoint: "/kyc/status",
+      method: "GET",
       wallet_address: walletAddress,
     });
 
@@ -321,14 +319,14 @@ export const fetchKYCStatus = async (
 
     // Track successful response
     const responseTime = Date.now() - startTime;
-    trackApiResponse('/kyc/status', 'GET', 200, responseTime, {
-      service: 'aggregator',
+    trackApiResponse("/kyc/status", "GET", 200, responseTime, {
+      service: "aggregator",
       wallet_address: walletAddress,
       kyc_status: response.data.data?.status,
     });
 
     // Track business event
-    trackBusinessEvent('KYC Status Checked', {
+    trackBusinessEvent("KYC Status Checked", {
       wallet_address: walletAddress,
       kyc_status: response.data.data?.status,
     });
@@ -336,14 +334,14 @@ export const fetchKYCStatus = async (
     return response.data;
   } catch (error) {
     const responseTime = Date.now() - startTime;
-    
+
     // Track API error
-    trackServerEvent('External API Error', {
-      service: 'aggregator',
-      endpoint: '/kyc/status',
-      method: 'GET',
+    trackServerEvent("External API Error", {
+      service: "aggregator",
+      endpoint: "/kyc/status",
+      method: "GET",
       wallet_address: walletAddress,
-      error_message: error instanceof Error ? error.message : 'Unknown error',
+      error_message: error instanceof Error ? error.message : "Unknown error",
       response_time_ms: responseTime,
     });
 

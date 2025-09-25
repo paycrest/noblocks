@@ -36,9 +36,9 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const { refreshType = 'manual', page = 1, limit = 20 } = body;
 
     // Get current transaction count for comparison
-    const { count: currentCount } = await supabaseAdmin
-      .from("transactions")
-      .select("*", { count: "exact" })
+    const { count: currentCount } = await supabaseAdmin  
+      .from("transactions")  
+      .select("*", { count: "exact", head: true })  
       .eq("wallet_address", walletAddress);
 
     // Fetch updated transactions

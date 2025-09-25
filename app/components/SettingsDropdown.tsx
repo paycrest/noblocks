@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
 import { createWalletClient, custom } from "viem";
-import { trackEvent } from "../hooks/analytics";
+import { trackEvent } from "../hooks/analytics/client";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 
 export const SettingsDropdown = () => {

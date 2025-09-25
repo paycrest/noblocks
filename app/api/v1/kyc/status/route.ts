@@ -42,7 +42,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         status: kycStatus.data?.status || 'unknown',
         verified: kycStatus.data?.status === 'verified',
         checkedAt: new Date().toISOString(),
-        kycData: kycStatus.data,
+        // kycData intentionally omitted to avoid exposing sensitive info 
       },
     };
 

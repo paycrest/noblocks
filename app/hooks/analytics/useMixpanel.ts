@@ -19,13 +19,13 @@ export const initMixpanel = () => {
     mixpanel.init(mixpanelToken, {
       track_pageview: true,
       persistence: "localStorage",
-      ignore_dnt: true,
-      verbose: process.env.NODE_ENV === 'development',
+      ignore_dnt: false,
+      verbose: process.env.NODE_ENV === "development",
     });
 
     initialized = true;
   } else {
-    console.warn('Mixpanel token is not defined');
+    console.warn("Mixpanel token is not defined");
   }
 };
 
@@ -58,7 +58,7 @@ export const identifyUser = (
 ) => {
   try {
     if (!initialized) {
-      console.warn('Mixpanel not initialized');
+      console.warn("Mixpanel not initialized");
       return;
     }
 
@@ -68,15 +68,21 @@ export const identifyUser = (
     }
 
     mixpanel.identify(address);
-    mixpanel.people.set({
+    const peopleProps: Record<string, unknown> = {
       login_method: properties.login_method || "unknown",
       $last_login: new Date(),
       $signup_date: properties.createdAt,
-      $email: properties.email?.address,
       isNewUser: properties.isNewUser,
-    });
+    };
+    if (
+      process.env.NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS === "true" &&
+      properties.email?.address
+    ) {
+      (peopleProps as any).$email = properties.email.address;
+    }
+    mixpanel.people.set(peopleProps);
   } catch (error) {
-    console.error('Mixpanel user identification error:', error);
+    console.error("Mixpanel user identification error:", error);
   }
 };
 
@@ -86,7 +92,7 @@ export const trackEvent = (
 ) => {
   try {
     if (!initialized) {
-      console.warn('Mixpanel not initialized');
+      console.warn("Mixpanel not initialized");
       return;
     }
 
@@ -97,7 +103,7 @@ export const trackEvent = (
 
     mixpanel.track(eventName, { ...properties, app: "Noblocks" });
   } catch (error) {
-    console.error('Mixpanel tracking error:', error);
+    console.error("Mixpanel tracking error:", error);
   }
 };
 

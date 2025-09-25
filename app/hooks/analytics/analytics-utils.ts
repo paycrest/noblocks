@@ -145,17 +145,18 @@ export const trackUserInteraction = (
 /**
  * Track errors with enhanced context
  */
-export const trackError = (
-  error: Error,
-  context: Record<string, any> = {},
-  appName: string = APP_NAMES.NOBLOCKS
-) => {
-  trackAnalyticsEvent(ANALYTICS_EVENTS.ERROR_OCCURRED, {
-    [ANALYTICS_PROPERTIES.ERROR_MESSAGE]: error.message,
-    [ANALYTICS_PROPERTIES.ERROR_CODE]: error.name,
-    [ANALYTICS_PROPERTIES.ERROR_STACK]: error.stack,
-    ...context,
-  }, appName);
+export const trackError = (  
+  error: Error,  
+  context: Record<string, any> = {},  
+  appName: string = APP_NAMES.NOBLOCKS  
+) => {  
+  const isProd = typeof process !== 'undefined' && process.env.NODE_ENV === 'production';  
+  trackAnalyticsEvent(ANALYTICS_EVENTS.ERROR_OCCURRED, {  
+    [ANALYTICS_PROPERTIES.ERROR_MESSAGE]: error.message,  
+    [ANALYTICS_PROPERTIES.ERROR_CODE]: error.name,  
+    ...(isProd ? {} : { [ANALYTICS_PROPERTIES.ERROR_STACK]: error.stack }),  
+    ...context,  
+  }, appName);  
 };
 
 /**
@@ -222,5 +223,19 @@ export const performanceTracker = {
   }
 };
 
-// Export all utilities
-export * from './useMixpanel';
+// Export specific utilities from useMixpanel (excluding trackPageView to avoid collision)
+export {
+  initMixpanel,
+  useMixpanel,
+  identifyUser,
+  trackEvent,
+  trackBlogCardClick,
+  trackBlogReadingStarted,
+  trackBlogReadingCompleted,
+  trackCopyLink,
+  trackGetStartedClick,
+  trackRecentBlogClick,
+  trackSearch,
+  trackFooterLinkClick,
+  trackSocialShare
+} from './useMixpanel';

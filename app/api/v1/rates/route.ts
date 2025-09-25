@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/app/lib/rate-limit";
-import { 
-  trackApiRequest, 
-  trackApiResponse, 
+import {
+  trackApiRequest,
+  trackApiResponse,
   trackApiError,
-  trackBusinessEvent 
+  trackBusinessEvent,
 } from "@/app/lib/server-analytics";
 import { fetchRate } from "@/app/api/aggregator";
 
 // Route handler for GET requests - Rate fetching
 export const GET = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
-  
+
   try {
     // Get the wallet address from the header set by the middleware
     const walletAddress = request.headers
@@ -19,21 +19,33 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       ?.toLowerCase();
 
     // Track API request (wallet address is optional for rate fetching)
-    trackApiRequest(request, '/api/v1/rates', 'GET', {
-      wallet_address: walletAddress || 'anonymous',
+    trackApiRequest(request, "/api/v1/rates", "GET", {
+      wallet_address: walletAddress || "anonymous",
     });
 
     const searchParams = request.nextUrl.searchParams;
-    const token = searchParams.get("token");
-    const amount = parseFloat(searchParams.get("amount") || "1");
-    const currency = searchParams.get("currency");
+    const token = searchParams.get("token")?.trim();
+    const rawAmount = searchParams.get("amount");
+    const amount = rawAmount === null ? 1 : Number(rawAmount);
+    const currency = searchParams.get("currency")?.trim();
     const providerId = searchParams.get("providerId");
     const network = searchParams.get("network");
 
-    if (!token || !currency) {
-      trackApiError(request, '/api/v1/rates', 'GET', new Error('Missing required parameters'), 400);
+    const invalidAmount = Number.isNaN(amount) || amount <= 0;
+    if (!token || !currency || invalidAmount) {
+      trackApiError(
+        request,
+        "/api/v1/rates",
+        "GET",
+        new Error("Missing required parameters"),
+        400,
+      );
       return NextResponse.json(
-        { success: false, error: "Token and currency are required" },
+        {
+          success: false,
+          error:
+            "token and currency are required; amount must be a positive number",
+        },
         { status: 400 },
       );
     }
@@ -62,8 +74,8 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
     // Track successful API response
     const responseTime = Date.now() - startTime;
-    trackApiResponse('/api/v1/rates', 'GET', 200, responseTime, {
-      wallet_address: walletAddress || 'anonymous',
+    trackApiResponse("/api/v1/rates", "GET", 200, responseTime, {
+      wallet_address: walletAddress || "anonymous",
       token,
       amount,
       currency,
@@ -73,8 +85,8 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     });
 
     // Track business event
-    trackBusinessEvent('Rate Fetched via API', {
-      wallet_address: walletAddress || 'anonymous',
+    trackBusinessEvent("Rate Fetched via API", {
+      wallet_address: walletAddress || "anonymous",
       token,
       amount,
       currency,
@@ -89,7 +101,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
     // Track API error
     const responseTime = Date.now() - startTime;
-    trackApiError(request, '/api/v1/rates', 'GET', error as Error, 500, {
+    trackApiError(request, "/api/v1/rates", "GET", error as Error, 500, {
       response_time_ms: responseTime,
     });
 

@@ -1,6 +1,6 @@
-import { NextRequest } from 'next/server';
-import { getServerMixpanelToken } from './server-config';
-import * as crypto from 'crypto';
+import { NextRequest } from "next/server";
+import { getServerMixpanelToken } from "./server-config";
+import * as crypto from "crypto";
 
 // Lazy load Mixpanel to avoid webpack issues
 let mixpanel: any = null;
@@ -9,58 +9,72 @@ const getMixpanel = () => {
   const serverToken = getServerMixpanelToken();
   if (!mixpanel && serverToken) {
     try {
-      const Mixpanel = require('mixpanel');
+      const Mixpanel = require("mixpanel");
       mixpanel = Mixpanel.init(serverToken, {
-        debug: process.env.NODE_ENV === 'development',
-        protocol: 'https',
+        debug: process.env.NODE_ENV === "development",
+        protocol: "https",
       });
     } catch (error) {
-      console.warn('Mixpanel not available:', error instanceof Error ? error.message : String(error));
+      console.warn(
+        "Mixpanel not available:",
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
   return mixpanel;
 };
 
 // Privacy configuration
-const PRIVACY_MODE = process.env.MIXPANEL_PRIVACY_MODE === 'strict';
-const INCLUDE_IP = process.env.MIXPANEL_INCLUDE_IP === 'true';
-const INCLUDE_ERROR_STACKS = process.env.MIXPANEL_INCLUDE_ERROR_STACKS === 'true';
+const PRIVACY_MODE = process.env.MIXPANEL_PRIVACY_MODE === "strict";
+const INCLUDE_IP = process.env.MIXPANEL_INCLUDE_IP === "true";
+const INCLUDE_ERROR_STACKS =
+  process.env.MIXPANEL_INCLUDE_ERROR_STACKS === "true";
 
 // Utility functions for privacy-safe tracking
 const hashWalletAddress = (walletAddress: string): string => {
-  if (!walletAddress) return '';
-  return crypto.createHash('sha256').update(walletAddress.toLowerCase()).digest('hex').substring(0, 8);
+  if (!walletAddress) return "";
+  return crypto
+    .createHash("sha256")
+    .update(walletAddress.toLowerCase())
+    .digest("hex")
+    .substring(0, 8);
 };
 
 const hashTransactionId = (transactionId: string): string => {
-  if (!transactionId) return '';
-  return crypto.createHash('sha256').update(transactionId).digest('hex').substring(0, 8);
+  if (!transactionId) return "";
+  return crypto
+    .createHash("sha256")
+    .update(transactionId)
+    .digest("hex")
+    .substring(0, 8);
 };
 
 const hashIPAddress = (ip: string): string => {
-  if (!ip || ip === 'unknown') return '';
-  return crypto.createHash('sha256').update(ip).digest('hex').substring(0, 8);
+  if (!ip || ip === "unknown") return "";
+  return crypto.createHash("sha256").update(ip).digest("hex").substring(0, 8);
 };
 
-const sanitizeProperties = (properties: Record<string, any>): Record<string, any> => {
+const sanitizeProperties = (
+  properties: Record<string, any>,
+): Record<string, any> => {
   const sanitized = { ...properties };
-  
+
   // Hash sensitive fields
   if (sanitized.wallet_address) {
     sanitized.wallet_address_hash = hashWalletAddress(sanitized.wallet_address);
     delete sanitized.wallet_address;
   }
-  
+
   if (sanitized.transaction_id) {
     sanitized.transaction_id_hash = hashTransactionId(sanitized.transaction_id);
     delete sanitized.transaction_id;
   }
-  
+
   if (sanitized.tx_hash) {
     sanitized.tx_hash_hash = hashTransactionId(sanitized.tx_hash);
     delete sanitized.tx_hash;
   }
-  
+
   // Handle IP addresses based on privacy settings
   if (sanitized.ip_address) {
     if (PRIVACY_MODE || !INCLUDE_IP) {
@@ -68,12 +82,12 @@ const sanitizeProperties = (properties: Record<string, any>): Record<string, any
       delete sanitized.ip_address;
     }
   }
-  
+
   // Handle error stacks based on privacy settings
   if (sanitized.error_stack && (PRIVACY_MODE || !INCLUDE_ERROR_STACKS)) {
     delete sanitized.error_stack;
   }
-  
+
   return sanitized;
 };
 
@@ -106,37 +120,36 @@ export interface UserProperties {
 export const trackServerEvent = (
   eventName: string,
   properties: ServerEventProperties = {},
-  distinctId?: string
+  distinctId?: string,
 ) => {
   try {
     const serverToken = getServerMixpanelToken();
     if (!serverToken) {
-      console.warn('Mixpanel token not configured for server-side tracking');
+      console.warn("Mixpanel token not configured for server-side tracking");
       return;
     }
 
     const mixpanelInstance = getMixpanel();
     if (!mixpanelInstance) {
-      console.warn('Mixpanel not available');
+      console.warn("Mixpanel not available");
       return;
     }
 
     const eventData = {
-      ...properties,
-      app: 'Noblocks',
+      ...sanitizeProperties(properties),
+      app: "Noblocks",
       server_side: true,
       timestamp: new Date().toISOString(),
     };
 
     // Add distinct_id to event data if provided
-    const finalEventData = distinctId 
+    const finalEventData = distinctId
       ? { ...eventData, distinct_id: distinctId }
       : eventData;
-    
-    mixpanelInstance.track(eventName, finalEventData);
 
+    mixpanelInstance.track(eventName, finalEventData);
   } catch (error) {
-    console.error('Server-side tracking error:', error);
+    console.error("Server-side tracking error:", error);
   }
 };
 
@@ -145,32 +158,31 @@ export const trackServerEvent = (
  */
 export const identifyServerUser = (
   distinctId: string,
-  properties: UserProperties = {}
+  properties: UserProperties = {},
 ) => {
   try {
     const serverToken = getServerMixpanelToken();
     if (!serverToken) {
-      console.warn('Mixpanel token not configured for server-side tracking');
+      console.warn("Mixpanel token not configured for server-side tracking");
       return;
     }
 
     const mixpanelInstance = getMixpanel();
     if (!mixpanelInstance) {
-      console.warn('Mixpanel not available');
+      console.warn("Mixpanel not available");
       return;
     }
 
     const userData = {
       ...properties,
       $last_seen: new Date().toISOString(),
-      app: 'Noblocks',
+      app: "Noblocks",
       server_side: true,
     };
 
     mixpanelInstance.people.set(distinctId, userData);
-
   } catch (error) {
-    console.error('Server-side user identification error:', error);
+    console.error("Server-side user identification error:", error);
   }
 };
 
@@ -181,14 +193,15 @@ export const trackApiRequest = (
   request: NextRequest,
   endpoint: string,
   method: string,
-  properties: ServerEventProperties = {}
+  properties: ServerEventProperties = {},
 ) => {
-  const userAgent = request.headers.get('user-agent') || 'unknown';
-  const ip = request.headers.get('x-forwarded-for') || 
-            request.headers.get('x-real-ip') || 
-            'unknown';
-  
-  trackServerEvent('API Request', {
+  const userAgent = request.headers.get("user-agent") || "unknown";
+  const ip =
+    request.headers.get("x-forwarded-for") ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
+
+  trackServerEvent("API Request", {
     ...sanitizeProperties(properties),
     endpoint,
     method,
@@ -206,9 +219,9 @@ export const trackApiResponse = (
   method: string,
   statusCode: number,
   responseTime: number,
-  properties: ServerEventProperties = {}
+  properties: ServerEventProperties = {},
 ) => {
-  trackServerEvent('API Response', {
+  trackServerEvent("API Response", {
     ...sanitizeProperties(properties),
     endpoint,
     method,
@@ -226,14 +239,15 @@ export const trackApiError = (
   method: string,
   error: Error,
   statusCode: number = 500,
-  properties: ServerEventProperties = {}
+  properties: ServerEventProperties = {},
 ) => {
-  const userAgent = request.headers.get('user-agent') || 'unknown';
-  const ip = request.headers.get('x-forwarded-for') || 
-            request.headers.get('x-real-ip') || 
-            'unknown';
+  const userAgent = request.headers.get("user-agent") || "unknown";
+  const ip =
+    request.headers.get("x-forwarded-for") ||
+    request.headers.get("x-real-ip") ||
+    "unknown";
 
-  trackServerEvent('API Error', {
+  trackServerEvent("API Error", {
     ...sanitizeProperties(properties),
     endpoint,
     method,
@@ -252,13 +266,18 @@ export const trackApiError = (
 export const trackTransactionEvent = (
   eventName: string,
   walletAddress: string,
-  properties: ServerEventProperties = {}
+  properties: ServerEventProperties = {},
 ) => {
-  trackServerEvent(eventName, {
-    ...properties,
-    wallet_address: walletAddress,
-    transaction_type: 'crypto_to_fiat',
-  }, walletAddress);
+  const distinct = PRIVACY_MODE
+    ? hashWalletAddress(walletAddress)
+    : walletAddress;
+     trackServerEvent(eventName, {
+      ...properties,
+      wallet_address: walletAddress,
+      transaction_type: "crypto_to_fiat",
+    },
+    distinct,
+  );
 };
 
 /**
@@ -267,13 +286,20 @@ export const trackTransactionEvent = (
 export const trackFundingEvent = (
   eventName: string,
   walletAddress: string,
-  properties: ServerEventProperties = {}
+  properties: ServerEventProperties = {},
 ) => {
-  trackServerEvent(eventName, {
-    ...properties,
-    wallet_address: walletAddress,
-    funding_type: 'wallet_funding',
-  }, walletAddress);
+  const distinct = PRIVACY_MODE
+    ? hashWalletAddress(walletAddress)
+    : walletAddress;
+  trackServerEvent(
+    eventName,
+    {
+      ...properties,
+      wallet_address: walletAddress,
+      funding_type: "wallet_funding",
+    },
+    distinct,
+  );
 };
 
 /**
@@ -282,13 +308,20 @@ export const trackFundingEvent = (
 export const trackAuthEvent = (
   eventName: string,
   walletAddress: string,
-  properties: ServerEventProperties = {}
+  properties: ServerEventProperties = {},
 ) => {
-  trackServerEvent(eventName, {
-    ...properties,
-    wallet_address: walletAddress,
-    auth_type: 'wallet_authentication',
-  }, walletAddress);
+  const distinct = PRIVACY_MODE
+    ? hashWalletAddress(walletAddress)
+    : walletAddress;
+  trackServerEvent(
+    eventName,
+    {
+      ...properties,
+      wallet_address: walletAddress,
+      auth_type: "wallet_authentication",
+    },
+    distinct,
+  );
 };
 
 /**
@@ -297,12 +330,16 @@ export const trackAuthEvent = (
 export const trackBusinessEvent = (
   eventName: string,
   properties: ServerEventProperties = {},
-  distinctId?: string
+  distinctId?: string,
 ) => {
-  trackServerEvent(eventName, {
-    ...sanitizeProperties(properties),
-    business_event: true,
-  }, distinctId);
+  trackServerEvent(
+    eventName,
+    {
+      ...sanitizeProperties(properties),
+      business_event: true,
+    },
+    distinctId,
+  );
 };
 
 /**
@@ -310,8 +347,8 @@ export const trackBusinessEvent = (
  */
 export const trackSystemEvent = (
   eventName: string,
-  level: 'info' | 'warning' | 'error' | 'critical',
-  properties: ServerEventProperties = {}
+  level: "info" | "warning" | "error" | "critical",
+  properties: ServerEventProperties = {},
 ) => {
   trackServerEvent(eventName, {
     ...properties,
@@ -319,4 +356,3 @@ export const trackSystemEvent = (
     log_level: level,
   });
 };
-

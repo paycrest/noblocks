@@ -10,6 +10,21 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    if (process.env.NODE_ENV === "production") {
+      const origin = request.headers.get("origin");
+      const allowed = process.env.NEXT_PUBLIC_APP_URL;
+      if (
+        origin &&
+        allowed &&
+        new URL(origin).origin !== new URL(allowed).origin
+      ) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden" },
+          { status: 403 },
+        );
+      }
+    }
     const { walletAddress, privyUserId, logoutMethod } = body as {
       walletAddress?: string;
       privyUserId?: string;

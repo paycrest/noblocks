@@ -23,7 +23,7 @@ export const PUT = withRateLimit(
       if (!walletAddress) {
         trackApiError(
           request,
-          `/api/v1/transactions/status/${id}`,
+          `/api/v1/transactions/${id}`,
           "PUT",
           new Error("Unauthorized"),
           401,
@@ -33,7 +33,7 @@ export const PUT = withRateLimit(
           { status: 401 },
         );
       }
-      trackApiRequest(request, `/api/v1/transactions/status/${id}`, "PUT", {
+      trackApiRequest(request, `/api/v1/transactions/${id}`, "PUT", {
         wallet_address: walletAddress,
         transaction_id: id,
         new_status: body.status,

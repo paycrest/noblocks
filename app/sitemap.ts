@@ -6,12 +6,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const posts = await getCachedPosts();
   
   // Create blog post URLs
-  const blogPosts = posts.map((post) => ({
-    url: `https://noblocks.xyz/blog/${post.slug}`,
-    lastModified: new Date(post.publishedAt || new Date()),
-    changeFrequency: "weekly" as const,
-    priority: 0.8,
-  }));
+  const blogPosts = posts  
+    .filter((p) => p?.slug?.current)  
+    .map((post) => ({  
+      url: `https://noblocks.xyz/blog/${post.slug.current}`,  
+      lastModified: post.publishedAt ? new Date(post.publishedAt) : new Date(),  
+      changeFrequency: "weekly" as const,  
+      priority: 0.8,  
+    }));  
 
   return [
     {
@@ -21,11 +23,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1,
     },
     {
-      url: "https://noblocks.xyz/blog",
-      lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 0.9,
-    },
+      url: "https://noblocks.xyz/blog",  
+      lastModified: new Date(),  
+      changeFrequency: "daily",  
+      priority: 0.6,  
+    },  
     ...blogPosts,
     {
       url: "https://noblocks.xyz/terms",

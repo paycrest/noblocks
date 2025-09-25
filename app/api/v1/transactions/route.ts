@@ -104,26 +104,35 @@ export const POST = withRateLimit(async (request: NextRequest) => {
   
   try {
     // Get the wallet address from the header set by the middleware
-    const walletAddress = request.headers.get("x-wallet-address");
+    const walletAddress = request.headers.get("x-wallet-address")?.toLowerCase();  
 
-    if (!walletAddress) {
-      trackApiError(request, '/api/v1/transactions', 'POST', new Error('Unauthorized'), 401);
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 },
-      );
-    }
+    if (!walletAddress) {  
+      trackApiError(request, '/api/v1/transactions', 'POST', new Error('Unauthorized'), 401);  
+      return NextResponse.json(  
+        { success: false, error: "Unauthorized" },  
+        { status: 401 },  
+      );  
+    }  
 
-    // Track API request
-    trackApiRequest(request, '/api/v1/transactions', 'POST', {
-      wallet_address: walletAddress,
-    });
+    // Track API request  
+    trackApiRequest(request, '/api/v1/transactions', 'POST', {  
+      wallet_address: walletAddress,  
+    });  
+    
 
-    const body = await request.json();
-    // Normalize wallet addresses to lowercase for comparison and storage
-    const normalizedBodyWalletAddress = body.walletAddress.toLowerCase();
+    const body = await request.json();  
+    
+    if (!body?.walletAddress) {  
+      trackApiError(request, '/api/v1/transactions', 'POST', new Error('Missing wallet address in body'), 400);  
+      return NextResponse.json(  
+        { success: false, error: 'Bad Request: Missing wallet address' },  
+        { status: 400 },  
+      );  
+    }  
+    // Normalize wallet addresses to lowercase for comparison and storage  
+    const normalizedBodyWalletAddress = String(body.walletAddress).toLowerCase();  
 
-    if (normalizedBodyWalletAddress !== walletAddress) {
+    if (normalizedBodyWalletAddress !== walletAddress) {  
       trackApiError(request, '/api/v1/transactions', 'POST', new Error('Wallet address mismatch'), 403);
       return NextResponse.json(
         { success: false, error: "Unauthorized: Wallet address mismatch" },

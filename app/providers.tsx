@@ -19,7 +19,7 @@ import {
   TransactionsProvider,
 } from "./context";
 import { useActualTheme } from "./hooks/useActualTheme";
-import { useMixpanel } from "./hooks/analytics";
+import { useMixpanel } from "./hooks/analytics/client";
 
 function Providers({ children }: { children: ReactNode }) {
   const { privyAppId } = config;

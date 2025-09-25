@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { trackApiRequest, trackApiResponse, trackApiError } from './server-analytics';
-
+import { NextRequest, NextResponse } from 'next/server';  
+import { trackApiRequest, trackApiResponse, trackApiError } from './server-analytics';  
+import { withRateLimit } from './rate-limit'; 
 /**
  * Analytics middleware wrapper for API routes
  * Automatically tracks API requests, responses, and errors
@@ -71,5 +71,7 @@ export function withRateLimitAndAnalytics<T extends any[]>(
     message?: string;
   }
 ) {
-  return withAnalytics(handler);
+    // Analytics outermost so 429 responses are tracked as API Response.
+return withAnalytics(withRateLimit(handler) as any);
+
 }

@@ -25,12 +25,14 @@ export const GET = withRateLimit(
     try {
 
       if (!finalAddress) {
-        trackApiError(request, `/api/v1/transactions/address/${address}`, 'GET', new Error('Missing wallet address'), 400);
+              trackApiError(request, request.nextUrl.pathname, 'GET', new Error('Missing wallet address'), 400);  
+
         return NextResponse.json(
           { success: false, error: "Missing wallet address" },
           { status: 400 },
         );
       }
+      
 
       // Track API request
       trackApiRequest(request, `/api/v1/transactions/address/${finalAddress}`, 'GET', {
@@ -50,7 +52,7 @@ export const GET = withRateLimit(
       } = await supabaseAdmin
         .from("transactions")
         .select("*", { count: "exact" })
-        .eq("wallet_address", address)
+        .eq("wallet_address", finalAddress)
         .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);
 

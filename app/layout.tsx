@@ -158,8 +158,8 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://noblocks.xyz",
   },
-  publisher: "Paycrest",
-  authors: [{ name: "Paycrest", url: "https://paycrest.io" }],
+  publisher: "Noblocks",
+  authors: [{ name: "Noblocks", url: "https://noblocks.xyz" }],
   metadataBase: new URL("https://noblocks.xyz"),
   openGraph: {
     title: "Noblocks - Decentralized Payments Interface",
@@ -204,17 +204,17 @@ const jsonLd = {
   operatingSystem: "Web",
   url: "https://noblocks.xyz",
   sameAs: [
-    "https://twitter.com/noblocks_xyz",
-    "https://github.com/paycrest",
-    "https://paycrest.io"
+    "https://x.com/noblocks_xyz",
+    "https://github.com/paycrest/noblocks",
+    "https://noblocks.xyz"
   ],
   publisher: {
     "@type": "Organization",
-    name: "Paycrest",
-    url: "https://paycrest.io",
+    name: "Noblocks",
+    url: "https://noblocks.xyz",
     logo: {
       "@type": "ImageObject",
-      url: "https://noblocks.xyz/images/logo.png"
+      url: "https://noblocks.xyz/icons/noblocks-logo.svg"
     }
   },
   offers: {

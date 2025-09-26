@@ -150,31 +150,6 @@ export const MobileDropdown = ({
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      // Track server-side logout before client-side logout (non-blocking)
-      if (activeWallet?.address) {
-        const trackingPayload = {
-          walletAddress: activeWallet.address,
-          logoutMethod: 'mobile_dropdown'
-        };
-
-        // Use navigator.sendBeacon when available for better reliability
-        if (navigator.sendBeacon) {
-          try {
-            navigator.sendBeacon(
-              '/api/track-logout',
-              JSON.stringify(trackingPayload)
-            );
-          } catch (beaconError) {
-            console.warn('sendBeacon failed, falling back to fetch:', beaconError);
-            // Fallback to fetch with timeout
-            trackLogoutWithFetch(trackingPayload);
-          }
-        } else {
-          // Fallback to fetch with timeout
-          trackLogoutWithFetch(trackingPayload);
-        }
-      }
-
       // Disconnect external wallet if connected
       await logout();
       if (window.ethereum) {

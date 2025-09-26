@@ -36,6 +36,10 @@ export const metadata: Metadata = {
     "msapplication-TileColor": "#317EFB",
     "msapplication-tap-highlight": "no",
   },
+  applicationName: "Noblocks",
+  category: "Finance",
+  classification: "Financial Technology",
+  referrer: "origin-when-cross-origin",
   keywords: [
     // Stablecoin Primary Keywords
     "stablecoin payments",
@@ -154,22 +158,26 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://noblocks.xyz",
   },
-  publisher: "Paycrest",
-  authors: [{ name: "Paycrest", url: "https://paycrest.io" }],
+  publisher: "Noblocks",
+  authors: [{ name: "Noblocks", url: "https://noblocks.xyz" }],
   metadataBase: new URL("https://noblocks.xyz"),
   openGraph: {
-    title: "Noblocks",
+    title: "Noblocks - Decentralized Payments Interface",
     description:
       "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
     url: "https://noblocks.xyz",
     siteName: "Noblocks",
     images: [
       {
-        url: "/images/og-image.jpg",
+        url: "https://noblocks.xyz/images/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Noblocks - Decentralized Payments Interface",
       },
     ],
     locale: "en_US",
     type: "website",
+    countryName: "United States",
   },
   icons: {
     icon: "/favicon.ico",
@@ -177,11 +185,12 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Noblocks",
+    title: "Noblocks - Decentralized Payments Interface",
     description:
       "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
     creator: "@noblocks_xyz",
-    images: ["/images/og-image.jpg"],
+    site: "@noblocks_xyz",
+    images: ["https://noblocks.xyz/images/og-image.jpg"],
   },
 };
 
@@ -190,35 +199,65 @@ const jsonLd = {
   "@type": "WebApplication",
   name: "Noblocks",
   description:
-    "The first interface for decentralized payments to any bank or mobile wallet",
+    "The first interface for decentralized payments to any bank or mobile wallet, powered by a distributed network of liquidity nodes.",
   applicationCategory: "FinanceApplication",
   operatingSystem: "Web",
+  url: "https://noblocks.xyz",
+  sameAs: [
+    "https://x.com/noblocks_xyz",
+    "https://github.com/paycrest/noblocks",
+    "https://noblocks.xyz"
+  ],
+  publisher: {
+    "@type": "Organization",
+    name: "Noblocks",
+    url: "https://noblocks.xyz",
+    logo: {
+      "@type": "ImageObject",
+      url: "https://noblocks.xyz/icons/noblocks-logo.svg"
+    }
+  },
   offers: {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
+    availability: "https://schema.org/InStock",
+    validFrom: "2024-01-01"
   },
   featureList: [
     "USDC payments",
-    "USDT payments",
+    "USDT payments", 
     "DAI payments",
     "Instant stablecoin transfers",
     "Low-fee crypto remittance",
     "Cross-border stablecoin payments",
     "Crypto to bank transfers",
     "Crypto to mobile money",
+    "24/7 availability",
+    "Global reach",
+    "Secure transactions",
+    "Real-time processing"
   ],
   supportedNetworks: [
     "Polygon",
-    "Base",
+    "Base", 
     "Arbitrum",
     "BNB Chain",
     "Ethereum",
     "Celo",
     "Lisk",
-    "Optimism",
+    "Optimism"
   ],
   supportedStablecoins: ["USDC", "USDT", "DAI", "cNGN"],
+  audience: {
+    "@type": "Audience",
+    audienceType: "Cryptocurrency users, Remittance senders, DeFi users"
+  },
+  potentialAction: {
+    "@type": "UseAction",
+    target: "https://noblocks.xyz",
+    name: "Send stablecoin payments"
+  }
 };
 
 export default function RootLayout({

@@ -1,8 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyJWT } from "@/app/lib/jwt";
-import { supabaseAdmin } from "@/app/lib/supabase";
 import { getWalletAddressFromPrivyUserId } from "@/app/lib/privy";
 import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
+
+/**
+ * Determines if a request is internal or authorized to receive sensitive headers
+ * This prevents identifier leakage to external clients
+ */
+function isInternalOrAuthorizedRequest(req: NextRequest): boolean {
+  // Check for internal API key (server-to-server requests)
+  const internalAuth = req.headers.get("x-internal-auth");
+  const expectedInternalAuth = process.env.INTERNAL_API_KEY;
+  if (internalAuth && expectedInternalAuth && internalAuth === expectedInternalAuth) {
+    return true;
+  }
+
+  // Check for specific internal origins (if configured)
+  const origin = req.headers.get("origin");
+  const allowedInternalOrigins = process.env.INTERNAL_ORIGINS?.split(",") || [];
+  if (origin && allowedInternalOrigins.some(allowedOrigin => 
+    new URL(origin).origin === new URL(allowedOrigin).origin
+  )) {
+    return true;
+  }
+
+  // Check for specific user agent patterns that indicate internal services
+  const userAgent = req.headers.get("user-agent") || "";
+  const internalUserAgents = [
+    "Paycrest-Internal",
+    "Noblocks-Internal",
+    "Server-Side-Rendering"
+  ];
+  if (internalUserAgents.some(pattern => userAgent.includes(pattern))) {
+    return true;
+  }
+
+  // Default to false - external clients should not receive wallet address
+  return false;
+}
 
 async function authorizationMiddleware(req: NextRequest) {
   const startTime = Date.now();
@@ -42,16 +77,24 @@ async function authorizationMiddleware(req: NextRequest) {
     }
     const walletAddress = await getWalletAddressFromPrivyUserId(privyUserId);
 
+    // Set wallet context via internal server route (non-blocking)
     try {
-      const { error } = await supabaseAdmin.rpc("set_current_wallet_address", {
-        wallet_address: walletAddress,
-      });
-
-      if (error) {
-        console.error("Failed to set wallet address for RLS:", error);
+      const internalAuth = process.env.INTERNAL_API_KEY;
+      if (internalAuth) {
+        // Fire-and-forget call to internal server route
+        fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/internal/set-wallet-context`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-auth': internalAuth,
+          },
+          body: JSON.stringify({ walletAddress }),
+        }).catch(error => {
+          console.warn('Failed to set wallet context:', error);
+        });
       }
-    } catch (rpcError) {
-      console.error("RPC error when setting wallet address:", rpcError);
+    } catch (contextError) {
+      console.warn('Error setting wallet context:', contextError);
     }
 
     const requestHeaders = new Headers(req.headers);
@@ -59,8 +102,13 @@ async function authorizationMiddleware(req: NextRequest) {
     const response = NextResponse.next({
       request: { headers: requestHeaders },
     });
-    // Optional: also expose to client responses if needed
-    response.headers.set("x-wallet-address", walletAddress);
+    
+    // Only set x-wallet-address header for internal/authorized requests
+    // This prevents identifier leakage to external clients
+    const isInternalRequest = isInternalOrAuthorizedRequest(req);
+    if (isInternalRequest) {
+      response.headers.set("x-wallet-address", walletAddress);
+    }
 
     // Log successful response for analytics
     const responseTime = Date.now() - startTime;

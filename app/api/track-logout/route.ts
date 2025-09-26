@@ -25,9 +25,8 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-    const { walletAddress, privyUserId, logoutMethod } = body as {
+    const { walletAddress, logoutMethod } = body as {
       walletAddress?: string;
-      privyUserId?: string;
       logoutMethod?: string;
     };
     const wallet =
@@ -47,7 +46,6 @@ export async function POST(request: NextRequest) {
       "Server Logout Detected",
       {
         wallet_address: wallet,
-        privy_user_id: privyUserId || "unknown",
         logout_method: logoutMethod || "unknown",
         logout_source: "client_request",
       },

@@ -126,24 +126,52 @@ export const MobileDropdown = ({
     setIsNetworkListOpen(false);
   };
 
+  // Helper function for fallback fetch with timeout
+  const trackLogoutWithFetch = (payload: { walletAddress: string; logoutMethod: string }) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+
+    fetch('/api/track-logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    })
+    .catch(error => {
+      if (error.name !== 'AbortError') {
+        console.warn('Logout tracking failed:', error);
+      }
+    })
+    .finally(() => {
+      clearTimeout(timeoutId);
+    });
+  };
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      // Track server-side logout before client-side logout
+      // Track server-side logout before client-side logout (non-blocking)
       if (activeWallet?.address) {
-        try {
-          await fetch('/api/track-logout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              walletAddress: activeWallet.address,
-              privyUserId: user?.id,
-              logoutMethod: 'mobile_dropdown'
-            })
-          });
-        } catch (trackingError) {
-          console.error('Failed to track logout:', trackingError);
-          // Continue with logout even if tracking fails
+        const trackingPayload = {
+          walletAddress: activeWallet.address,
+          logoutMethod: 'mobile_dropdown'
+        };
+
+        // Use navigator.sendBeacon when available for better reliability
+        if (navigator.sendBeacon) {
+          try {
+            navigator.sendBeacon(
+              '/api/track-logout',
+              JSON.stringify(trackingPayload)
+            );
+          } catch (beaconError) {
+            console.warn('sendBeacon failed, falling back to fetch:', beaconError);
+            // Fallback to fetch with timeout
+            trackLogoutWithFetch(trackingPayload);
+          }
+        } else {
+          // Fallback to fetch with timeout
+          trackLogoutWithFetch(trackingPayload);
         }
       }
 

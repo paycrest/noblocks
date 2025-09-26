@@ -105,11 +105,9 @@ jobs:
           echo "formatted_commits<<EOF" >> $GITHUB_OUTPUT
           echo "### Breaking Changes"
           if [ "$latest_tag" = "v0.0.0" ]; then
-            git log --pretty=format:"%B" | grep -E "^feat\\!" || echo "None"
-            git log --pretty=format:"%B" | grep -E "BREAKING CHANGE" || echo "None"
+            git log --pretty=format:"%B" | grep -E "^(feat!|BREAKING CHANGE)" || echo "None"
           else
-            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^feat\\!" || echo "None"
-            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "BREAKING CHANGE" || echo "None"
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(feat!|BREAKING CHANGE)" || echo "None"
           fi
           echo ""
           echo "### Features"

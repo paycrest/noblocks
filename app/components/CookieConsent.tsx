@@ -13,7 +13,7 @@ import {
   Label,
   Field,
 } from "@headlessui/react";
-import { useHotjar, useMixpanel } from "../hooks/analytics";
+import { useHotjar, useMixpanel } from "../hooks/analytics/client";
 
 const Button = ({
   onClick,

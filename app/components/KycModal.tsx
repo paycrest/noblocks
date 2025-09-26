@@ -18,7 +18,7 @@ import { fadeInOut } from "./AnimatedComponents";
 import { generateTimeBasedNonce } from "../utils";
 import { fetchKYCStatus, initiateKYC } from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
-import { trackEvent } from "../hooks/analytics";
+import { trackEvent } from "../hooks/analytics/client";
 import { Cancel01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
 import { useInjectedWallet } from "../context";
 

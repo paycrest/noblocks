@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { trackApiRequest, trackApiResponse, trackApiError } from "@/app/lib/server-analytics";
 
 export async function POST(request: NextRequest) {
+  // Security guard: Verify internal authentication
+  const internalAuth = request.headers.get("x-internal-auth");
+  const expectedAuth = process.env.INTERNAL_API_KEY;
+  
+  if (!internalAuth || !expectedAuth || internalAuth !== expectedAuth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { type, ...data } = body;

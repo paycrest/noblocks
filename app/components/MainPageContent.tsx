@@ -75,7 +75,7 @@ export function MainPageContent() {
     },
   });
   const { watch } = formMethods;
-  const { currency, amountSent, token } = watch();
+  const { currency, amountSent, amountReceived, token } = watch();
 
   // State props for child components
   const stateProps: StateProps = {
@@ -164,6 +164,9 @@ export function MainPageContent() {
 
       if (!currency) return;
 
+      // Only fetch rate if at least one amount is greater than 0
+      if (!amountSent && !amountReceived) return;
+
       const getRate = async (shouldUseProvider = true) => {
         setIsFetchingRate(true);
         try {
@@ -180,7 +183,7 @@ export function MainPageContent() {
 
           const rate = await fetchRate({
             token,
-            amount: amountSent || 1,
+            amount: amountSent || 100,
             currency,
             providerId,
             network: selectedNetwork.chain.name
@@ -231,7 +234,14 @@ export function MainPageContent() {
         clearTimeout(timeoutId);
       };
     },
-    [amountSent, currency, token, searchParams, selectedNetwork],
+    [
+      amountSent,
+      amountReceived,
+      currency,
+      token,
+      searchParams,
+      selectedNetwork,
+    ],
   );
 
   const handleFormSubmit = (data: FormData) => {

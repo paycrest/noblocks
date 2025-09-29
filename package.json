@@ -6,7 +6,7 @@
     "name": "Paycrest",
     "email": "info@paycrest.io",
     "url": "https://paycrest.io"
-  },
+  }, 
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",

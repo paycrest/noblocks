@@ -158,7 +158,7 @@ export function getRpcUrl(network: string) {
     case "Polygon":
       return `https://137.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "BNB Smart Chain":
-      return `https://56.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return "https://bsc-dataseed.bnbchain.org/";
     case "Base":
       return `https://8453.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Arbitrum One":

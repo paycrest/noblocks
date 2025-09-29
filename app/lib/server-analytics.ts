@@ -147,6 +147,14 @@ export const trackServerEvent = (
       ? { ...eventData, distinct_id: distinctId }
       : eventData;
 
+    // Debug logging for development
+    if (process.env.NODE_ENV === "development") {
+      console.log("Sending server-side event to Mixpanel:", {
+        event: eventName,
+        properties: finalEventData,
+      });
+    }
+
     mixpanelInstance.track(eventName, finalEventData);
   } catch (error) {
     console.error("Server-side tracking error:", error);

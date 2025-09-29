@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyJWT } from "@/app/lib/jwt";
 import { getWalletAddressFromPrivyUserId } from "@/app/lib/privy";
 import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
+import { trackApiRequest, trackApiResponse, trackApiError } from "@/app/lib/server-analytics";
 
 /**
  * Determines if a request is internal or authorized to receive sensitive headers
@@ -19,22 +20,16 @@ async function authorizationMiddleware(req: NextRequest) {
   const endpoint = req.nextUrl.pathname;
   const method = req.method;
 
-  // Log API request for analytics (Edge Runtime compatible)
-  console.log(`[Middleware Analytics] API Request: ${method} ${endpoint}`, {
+  // Track API request for analytics
+  trackApiRequest(req, endpoint, method, {
     middleware: true,
     has_auth_header: !!req.headers.get("Authorization"),
-    user_agent: req.headers.get("user-agent"),
-    timestamp: new Date().toISOString(),
   });
 
   const token = req.headers.get("Authorization")?.replace("Bearer ", "");
   if (!token) {
     const responseTime = Date.now() - startTime;
-    console.log(`[Middleware Analytics] API Error: Missing JWT`, {
-      endpoint,
-      method,
-      status_code: 401,
-      response_time_ms: responseTime,
+    trackApiError(req, endpoint, method, new Error("Missing JWT"), 401, {
       middleware: true,
       error_type: "missing_jwt",
     });
@@ -51,11 +46,7 @@ async function authorizationMiddleware(req: NextRequest) {
 
     if (!privyUserId) {
       const responseTime = Date.now() - startTime;
-      console.log(`[Middleware Analytics] API Error: Invalid JWT - Missing Subject`, {
-        endpoint,
-        method,
-        status_code: 401,
-        response_time_ms: responseTime,
+      trackApiError(req, endpoint, method, new Error("Invalid JWT: Missing subject"), 401, {
         middleware: true,
         error_type: "jwt_missing_subject",
       });
@@ -67,14 +58,9 @@ async function authorizationMiddleware(req: NextRequest) {
   } catch (jwtError) {
     const responseTime = Date.now() - startTime;
     console.error("JWT verification error in middleware:", jwtError);
-    console.log(`[Middleware Analytics] API Error`, {
-      endpoint,
-      method,
-      status_code: 401,
-      response_time_ms: responseTime,
+    trackApiError(req, endpoint, method, jwtError instanceof Error ? jwtError : new Error("Unknown JWT error"), 401, {
       middleware: true,
       error_type: "jwt_verification_failed",
-      error_message: jwtError instanceof Error ? jwtError.message : "Unknown JWT error",
     });
     return NextResponse.json({ error: "Invalid JWT" }, { status: 401 });
   }
@@ -86,11 +72,7 @@ async function authorizationMiddleware(req: NextRequest) {
     
     if (!walletAddress) {
       const responseTime = Date.now() - startTime;
-      console.log(`[Middleware Analytics] API Error: Wallet Resolution Failed`, {
-        endpoint,
-        method,
-        status_code: 502,
-        response_time_ms: responseTime,
+      trackApiError(req, endpoint, method, new Error("Unable to resolve wallet address"), 502, {
         middleware: true,
         error_type: "wallet_resolution_failed",
         privy_user_id: privyUserId,
@@ -103,14 +85,9 @@ async function authorizationMiddleware(req: NextRequest) {
   } catch (walletError) {
     const responseTime = Date.now() - startTime;
     console.error("Wallet resolution error in middleware:", walletError);
-    console.log(`[Middleware Analytics] API Error: Wallet Resolution Exception`, {
-      endpoint,
-      method,
-      status_code: 502,
-      response_time_ms: responseTime,
+    trackApiError(req, endpoint, method, walletError instanceof Error ? walletError : new Error("Unknown wallet error"), 502, {
       middleware: true,
       error_type: "wallet_resolution_failed",
-      error_message: walletError instanceof Error ? walletError.message : "Unknown wallet error",
       privy_user_id: privyUserId,
     });
     return NextResponse.json(
@@ -164,26 +141,12 @@ async function authorizationMiddleware(req: NextRequest) {
     response.headers.set("x-wallet-address", walletAddress);
   }
 
-  // Log successful response for analytics
+  // Track successful response for analytics
   const responseTime = Date.now() - startTime;
-  console.log(`[Middleware Analytics] API Response: Success`, {
-    endpoint,
-    method,
-    status_code: 200,
-    response_time_ms: responseTime,
+  trackApiResponse(endpoint, method, 200, responseTime, {
     middleware: true,
     wallet_address: walletAddress,
     privy_user_id: privyUserId,
-  });
-
-  // Log server-side login detection
-  console.log(`[Middleware Analytics] Server Login Detected`, {
-    wallet_address: walletAddress,
-    privy_user_id: privyUserId,
-    endpoint,
-    method,
-    response_time_ms: responseTime,
-    login_source: "api_request",
   });
 
   return response;

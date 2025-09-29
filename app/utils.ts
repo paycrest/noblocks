@@ -155,6 +155,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
 // write function to get rpc url for a given network
 export function getRpcUrl(network: string) {
   switch (network) {
+    case "Ethereum":
+      return `https://1.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Polygon":
       return `https://137.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "BNB Smart Chain":

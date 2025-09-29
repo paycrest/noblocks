@@ -6,29 +6,62 @@ export const metadata: Metadata = {
     default: "Noblocks Blog - Decentralized Payments News",
     template: "%s | Noblocks Blog",
   },
-  description: "Noblocks Blog - Decentralized payments, news, and updates.",
+  description: "Noblocks Blog - Your source for decentralized payments insights, stablecoin news, crypto remittance guides, and Web3 financial technology updates. Learn about USDC, USDT, DAI transfers, cross-border payments, and the future of digital finance.",
   keywords: [
-    "decentralized payments",
-    "stablecoin news",
-    "crypto remittance",
-    "web3 blog",
-    "blockchain updates",
+    // Primary Blog Keywords
     "Noblocks blog",
-    "USDC news",
-    "USDT news",
-    "DAI news",
-    "crypto to bank",
-    "stablecoin to fiat",
-    "web3 Africa",
-    "crypto education",
-    "remittance trends",
-    "cross-border payments",
-    "liquidity nodes",
-    "crypto adoption",
-    "decentralized finance",
+    "decentralized payments blog",
+    "stablecoin news",
+    "crypto remittance blog",
+    "web3 finance blog",
+    "blockchain payments blog",
+    
+    // Stablecoin Blog Keywords
+    "USDC news and updates",
+    "USDT market insights",
+    "DAI stablecoin analysis",
+    "stablecoin adoption trends",
+    "crypto to bank transfer guide",
+    "stablecoin to fiat conversion",
+    
+    // Geographic Keywords
+    "crypto Africa news",
+    "web3 Africa blog",
+    "Nigeria crypto news",
+    "African fintech blog",
+    "emerging markets crypto",
+    
+    // Educational Keywords
+    "crypto education blog",
+    "blockchain tutorials",
+    "defi learning resources",
+    "stablecoin how-to guides",
+    "crypto remittance education",
+    "digital payments guide",
+    
+    // Industry Keywords
     "fintech blog",
-    "crypto insights",
-    "stablecoin adoption",
+    "payments industry news",
+    "remittance technology",
+    "cross-border payments blog",
+    "digital finance insights",
+    "crypto market analysis",
+    
+    // Technical Keywords
+    "liquidity nodes",
+    "decentralized finance",
+    "blockchain technology",
+    "smart contracts",
+    "web3 infrastructure",
+    "crypto protocols",
+    
+    // Trend Keywords
+    "future of payments",
+    "next-gen remittance",
+    "digital currency trends",
+    "crypto adoption news",
+    "blockchain innovation",
+    "fintech disruption",
   ].join(", "),
   robots: {
     index: true,
@@ -71,14 +104,37 @@ const jsonLd = {
   "@context": "https://schema.org",
   "@type": "Blog",
   name: "Noblocks Blog",
-  description: "Noblocks Blog - Decentralized payments, news, and updates.",
+  description: "Your source for decentralized payments insights, stablecoin news, crypto remittance guides, and Web3 financial technology updates.",
   publisher: {
     "@type": "Organization",
     name: "Paycrest",
     url: "https://paycrest.io",
+    logo: {
+      "@type": "ImageObject",
+      url: "https://noblocks.xyz/logos/noblocks-logo.svg",
+    },
   },
   url: "https://noblocks.xyz/blog",
   inLanguage: "en-US",
+  about: [
+    {
+      "@type": "Thing",
+      name: "Decentralized Payments",
+    },
+    {
+      "@type": "Thing", 
+      name: "Stablecoin Technology",
+    },
+    {
+      "@type": "Thing",
+      name: "Crypto Remittance",
+    },
+    {
+      "@type": "Thing",
+      name: "Web3 Finance",
+    },
+  ],
+  keywords: "decentralized payments, stablecoin news, crypto remittance, web3 finance, blockchain payments, USDC, USDT, DAI, cross-border payments, fintech blog",
   blogPost: [], // Will be populated dynamically per post page
 };
 

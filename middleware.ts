@@ -2,7 +2,30 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyJWT } from "@/app/lib/jwt";
 import { getWalletAddressFromPrivyUserId } from "@/app/lib/privy";
 import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
-import { trackApiRequest, trackApiResponse, trackApiError } from "@/app/lib/server-analytics";
+
+// Edge-safe analytics helper
+async function trackMiddlewareAnalytics(
+  type: "request" | "response" | "error",
+  data: any,
+  baseUrl: string
+) {
+  try {
+    const internalAuth = process.env.INTERNAL_API_KEY;
+    if (!internalAuth) return;
+
+    await fetch(`${baseUrl}/api/internal/middleware-analytics`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-auth": internalAuth,
+      },
+      body: JSON.stringify({ type, ...data }),
+    });
+  } catch (error) {
+    // Silently fail - don't break middleware for analytics
+    console.warn("Middleware analytics failed:", error);
+  }
+}
 
 /**
  * Determines if a request is internal or authorized to receive sensitive headers
@@ -21,18 +44,28 @@ async function authorizationMiddleware(req: NextRequest) {
   const method = req.method;
 
   // Track API request for analytics
-  trackApiRequest(req, endpoint, method, {
-    middleware: true,
-    has_auth_header: !!req.headers.get("Authorization"),
-  });
+  trackMiddlewareAnalytics("request", {
+    endpoint,
+    method,
+    properties: {
+      middleware: true,
+      has_auth_header: !!req.headers.get("Authorization"),
+    },
+  }, req.nextUrl.origin);
 
   const token = req.headers.get("Authorization")?.replace("Bearer ", "");
   if (!token) {
     const responseTime = Date.now() - startTime;
-    trackApiError(req, endpoint, method, new Error("Missing JWT"), 401, {
-      middleware: true,
-      error_type: "missing_jwt",
-    });
+    trackMiddlewareAnalytics("error", {
+      endpoint,
+      method,
+      statusCode: 401,
+      errorMessage: "Missing JWT",
+      properties: {
+        middleware: true,
+        error_type: "missing_jwt",
+      },
+    }, req.nextUrl.origin);
     return NextResponse.json({ error: "Missing JWT" }, { status: 401 });
   }
 
@@ -46,10 +79,16 @@ async function authorizationMiddleware(req: NextRequest) {
 
     if (!privyUserId) {
       const responseTime = Date.now() - startTime;
-      trackApiError(req, endpoint, method, new Error("Invalid JWT: Missing subject"), 401, {
-        middleware: true,
-        error_type: "jwt_missing_subject",
-      });
+        trackMiddlewareAnalytics("error", {
+          endpoint,
+          method,
+          statusCode: 401,
+          errorMessage: "Invalid JWT: Missing subject",
+          properties: {
+            middleware: true,
+            error_type: "jwt_missing_subject",
+          },
+        }, req.nextUrl.origin);
       return NextResponse.json(
         { error: "Invalid JWT: Missing subject" },
         { status: 401 },
@@ -58,10 +97,16 @@ async function authorizationMiddleware(req: NextRequest) {
   } catch (jwtError) {
     const responseTime = Date.now() - startTime;
     console.error("JWT verification error in middleware:", jwtError);
-    trackApiError(req, endpoint, method, jwtError instanceof Error ? jwtError : new Error("Unknown JWT error"), 401, {
-      middleware: true,
-      error_type: "jwt_verification_failed",
-    });
+    trackMiddlewareAnalytics("error", {
+      endpoint,
+      method,
+      statusCode: 401,
+      errorMessage: jwtError instanceof Error ? jwtError.message : "Unknown JWT error",
+      properties: {
+        middleware: true,
+        error_type: "jwt_verification_failed",
+      },
+    }, req.nextUrl.origin);
     return NextResponse.json({ error: "Invalid JWT" }, { status: 401 });
   }
 
@@ -72,11 +117,17 @@ async function authorizationMiddleware(req: NextRequest) {
     
     if (!walletAddress) {
       const responseTime = Date.now() - startTime;
-      trackApiError(req, endpoint, method, new Error("Unable to resolve wallet address"), 502, {
-        middleware: true,
-        error_type: "wallet_resolution_failed",
-        privy_user_id: privyUserId,
-      });
+        trackMiddlewareAnalytics("error", {
+          endpoint,
+          method,
+          statusCode: 502,
+          errorMessage: "Unable to resolve wallet address",
+          properties: {
+            middleware: true,
+            error_type: "wallet_resolution_failed",
+            privy_user_id: privyUserId,
+          },
+        }, req.nextUrl.origin);
       return NextResponse.json(
         { error: "Unable to resolve wallet address" },
         { status: 502 },
@@ -85,11 +136,17 @@ async function authorizationMiddleware(req: NextRequest) {
   } catch (walletError) {
     const responseTime = Date.now() - startTime;
     console.error("Wallet resolution error in middleware:", walletError);
-    trackApiError(req, endpoint, method, walletError instanceof Error ? walletError : new Error("Unknown wallet error"), 502, {
-      middleware: true,
-      error_type: "wallet_resolution_failed",
-      privy_user_id: privyUserId,
-    });
+    trackMiddlewareAnalytics("error", {
+      endpoint,
+      method,
+      statusCode: 502,
+      errorMessage: walletError instanceof Error ? walletError.message : "Unknown wallet error",
+      properties: {
+        middleware: true,
+        error_type: "wallet_resolution_failed",
+        privy_user_id: privyUserId,
+      },
+    }, req.nextUrl.origin);
     return NextResponse.json(
       { error: "Unable to resolve wallet address" },
       { status: 502 },
@@ -143,11 +200,17 @@ async function authorizationMiddleware(req: NextRequest) {
 
   // Track successful response for analytics
   const responseTime = Date.now() - startTime;
-  trackApiResponse(endpoint, method, 200, responseTime, {
-    middleware: true,
-    wallet_address: walletAddress,
-    privy_user_id: privyUserId,
-  });
+  trackMiddlewareAnalytics("response", {
+    endpoint,
+    method,
+    statusCode: 200,
+    responseTime,
+    properties: {
+      middleware: true,
+      wallet_address: walletAddress,
+      privy_user_id: privyUserId,
+    },
+  }, req.nextUrl.origin);
 
   return response;
 }

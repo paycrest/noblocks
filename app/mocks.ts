@@ -1,40 +1,4 @@
-import { arbitrum, base, bsc, polygon, lisk, celo } from "viem/chains";
-import { defineChain } from "viem";
-
-// Custom BSC configuration with multiple RPC endpoints for better reliability
-export const customBsc = defineChain({
-  ...bsc,
-  rpcUrls: {
-    default: {
-      http: [
-        "https://bsc-dataseed.binance.org/",
-        "https://bsc-dataseed1.defibit.io/",
-        "https://bsc-dataseed1.ninicoin.io/",
-        "https://bsc-dataseed2.defibit.io/",
-        "https://bsc-dataseed3.defibit.io/",
-        "https://bsc-dataseed4.defibit.io/",
-        "https://bsc-dataseed1.binance.org/",
-        "https://bsc-dataseed2.binance.org/",
-        "https://bsc-dataseed3.binance.org/",
-        "https://bsc-dataseed4.binance.org/",
-      ],
-    },
-    public: {
-      http: [
-        "https://bsc-dataseed.binance.org/",
-        "https://bsc-dataseed1.defibit.io/",
-        "https://bsc-dataseed1.ninicoin.io/",
-        "https://bsc-dataseed2.defibit.io/",
-        "https://bsc-dataseed3.defibit.io/",
-        "https://bsc-dataseed4.defibit.io/",
-        "https://bsc-dataseed1.binance.org/",
-        "https://bsc-dataseed2.binance.org/",
-        "https://bsc-dataseed3.binance.org/",
-        "https://bsc-dataseed4.binance.org/",
-      ],
-    },
-  },
-});
+import { arbitrum, base, bsc, polygon, lisk, celo, mainnet } from "viem/chains";
 
 export const acceptedCurrencies = [
   {
@@ -73,6 +37,10 @@ export const acceptedCurrencies = [
 
 export const networks = [
   {
+    chain: mainnet,
+    imageUrl: "/logos/ethereum-logo.svg",
+  },
+  {
     chain: arbitrum,
     imageUrl: "/logos/arbitrum-one-logo.svg",
   },
@@ -81,7 +49,7 @@ export const networks = [
     imageUrl: "/logos/base-logo.svg",
   },
   {
-    chain: customBsc,
+    chain: bsc,
     imageUrl: "/logos/bnb-smart-chain-logo.svg",
   },
   {

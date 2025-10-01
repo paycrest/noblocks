@@ -155,10 +155,12 @@ export const getExplorerLink = (network: string, txHash: string) => {
 // write function to get rpc url for a given network
 export function getRpcUrl(network: string) {
   switch (network) {
+    case "Ethereum":
+      return `https://1.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Polygon":
       return `https://137.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "BNB Smart Chain":
-      return "https://bsc-dataseed.bnbchain.org/";
+      return `https://56.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Base":
       return `https://8453.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Arbitrum One":
@@ -275,6 +277,13 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       address: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
       imageUrl: "/logos/usdt-logo.svg",
     },
+    {
+      name: "cNGN",
+      symbol: "cNGN",
+      decimals: 6,
+      address: "0x52828daa48c1a9a06f37500882b42daf0be04c3b",
+      imageUrl: "/logos/cngn-logo.svg",
+    },
   ],
   "BNB Smart Chain": [
     {
@@ -290,6 +299,13 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       decimals: 18,
       address: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
       imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "cNGN",
+      symbol: "cNGN",
+      decimals: 6,
+      address: "0xa8aea66b361a8d53e8865c62d142167af28af058",
+      imageUrl: "/logos/cngn-logo.svg",
     },
   ],
   Celo: [

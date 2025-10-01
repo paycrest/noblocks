@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { primaryBtnClasses, secondaryBtnClasses } from "./components";
-import { classNames } from "./utils";
 
 export default function NotFoundClient() {
   return (
@@ -50,11 +49,11 @@ export default function NotFoundClient() {
         transition={{ delay: 0.6, duration: 0.6 }}
         className="flex flex-col items-center gap-4 text-sm sm:flex-row sm:justify-center"
       >
-        <Link href="/" className={classNames(primaryBtnClasses)}>
+        <Link href="/" className={primaryBtnClasses}>
           Go Back Home
         </Link>
 
-        <Link href="/blog" className={classNames(secondaryBtnClasses)}>
+        <Link href="/blog" className={secondaryBtnClasses}>
           Visit Blog
         </Link>
       </motion.div>

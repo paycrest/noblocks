@@ -50,7 +50,7 @@ export function useCNGNRate({
 
       const rateResponse = await fetchRate({
         token: preferredToken,
-        amount: 1,
+        amount: 100,
         currency: "NGN",
         network: network.toLowerCase().replace(/\s+/g, "-"),
       });
@@ -107,7 +107,7 @@ export async function getCNGNRateForNetwork(
 
     const rateResponse = await fetchRate({
       token: preferredToken,
-      amount: 1,
+      amount: 100,
       currency: "NGN",
       network: network.toLowerCase().replace(/\s+/g, "-"),
     });

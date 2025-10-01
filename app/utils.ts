@@ -419,6 +419,34 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
             tokens["Base"].push(usdtBase);
           }
         }
+
+        // Manually add Ethereum tokens since aggregator doesn't support it yet
+        if (!tokens["Ethereum"]) {
+          tokens["Ethereum"] = [
+            {
+              name: "USD Coin",
+              symbol: "USDC",
+              decimals: 6,
+              address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+              imageUrl: "/logos/usdc-logo.svg",
+            },
+            {
+              name: "Tether USD",
+              symbol: "USDT",
+              decimals: 6,
+              address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+              imageUrl: "/logos/usdt-logo.svg",
+            },
+            {
+              name: "Dai Stablecoin",
+              symbol: "DAI",
+              decimals: 18,
+              address: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+              imageUrl: "/logos/dai-logo.svg",
+            },
+          ];
+        }
+
         tokensCache = tokens;
         lastTokenFetch = now;
       })();

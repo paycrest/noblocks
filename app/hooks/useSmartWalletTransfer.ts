@@ -3,6 +3,7 @@ import { encodeFunctionData, erc20Abi, parseUnits } from "viem";
 import { toast } from "sonner";
 import { getExplorerLink } from "../utils";
 import { saveTransaction } from "../api/aggregator";
+import { trackEvent } from "./analytics/useMixpanel";
 import type { Token, Network } from "../types";
 import type { User } from "@privy-io/react-auth";
 
@@ -79,6 +80,16 @@ export function useSmartWalletTransfer({
 
   const transfer = useCallback(
     async ({ amount, token, recipientAddress, resetForm }: TransferArgs) => {
+      // Track transfer attempt
+      trackEvent("Transfer started", {
+        Amount: amount,
+        "Send token": token,
+        "Recipient address": recipientAddress,
+        Network: selectedNetwork.chain.name,
+        "Wallet type": "Smart wallet",
+        "Transfer date": new Date().toISOString(),
+      });
+
       setIsLoading(true);
       setIsSuccess(false);
       setError("");
@@ -96,7 +107,16 @@ export function useSmartWalletTransfer({
         const tokenAddress = tokenData?.address as `0x${string}` | undefined;
         const tokenDecimals = tokenData?.decimals;
         if (!tokenAddress || tokenDecimals === undefined) {
-          setError(`Token data not found for ${token}.`);
+          const error = `Token data not found for ${token}.`;
+          setError(error);
+          trackEvent("Transfer failed", {
+            Amount: amount,
+            "Send token": token,
+            "Recipient address": recipientAddress,
+            Network: selectedNetwork.chain.name,
+            "Reason for failure": error,
+            "Transfer date": new Date().toISOString(),
+          });
           throw new Error(
             `Token data not found for ${token}. Available tokens: ${availableTokens.map((t) => t.symbol).join(", ")}`,
           );
@@ -123,6 +143,17 @@ export function useSmartWalletTransfer({
         setIsSuccess(true);
         setIsLoading(false);
         toast.success(`${amount.toString()} ${token} successfully transferred`);
+        
+        // Track successful transfer
+        trackEvent("Transfer completed", {
+          Amount: amount,
+          "Send token": token,
+          "Recipient address": recipientAddress,
+          Network: selectedNetwork.chain.name,
+          "Transaction hash": hash,
+          "Transfer date": new Date().toISOString(),
+        });
+        
         // Save to transaction history
         await saveTransferTransaction({
           txHash: hash,
@@ -133,13 +164,26 @@ export function useSmartWalletTransfer({
         if (resetForm) resetForm();
         if (refreshBalance) refreshBalance();
       } catch (e: unknown) {
-        setError(
-          (e as { shortMessage?: string; message?: string }).shortMessage ||
-            (e as { message?: string }).message ||
-            "Transfer failed",
-        );
+        const errorMessage = (e as { shortMessage?: string; message?: string }).shortMessage ||
+          (e as { message?: string }).message ||
+          "Transfer failed";
+        
+        setError(errorMessage);
         setIsLoading(false);
         setIsSuccess(false);
+
+        // Track failed transfer
+        trackEvent("Transfer failed", {
+          Amount: amount,
+          "Send token": token,
+          "Recipient address": recipientAddress,
+          Network: selectedNetwork.chain.name,
+          "Reason for failure": errorMessage,
+          "Transfer date": new Date().toISOString(),
+          "Error type": errorMessage.includes("429") ? "RPC Rate Limited" : 
+                       errorMessage.includes("HTTP") ? "RPC Connection Error" : 
+                       "Transaction Error",
+        });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

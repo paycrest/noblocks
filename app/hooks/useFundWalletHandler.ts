@@ -2,7 +2,7 @@ import { useFundWallet } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { useTokens } from "../context/TokensContext";
-import { trackEvent } from "./analytics";
+import { trackEvent } from "./analytics/useMixpanel";
 import { Token } from "../types";
 
 export const useFundWalletHandler = (entryPoint: string) => {

@@ -13,7 +13,7 @@ import { baseBtnClasses } from "./Styles";
 import { WalletDetails } from "./WalletDetails";
 import { NetworksDropdown } from "./NetworksDropdown";
 import { SettingsDropdown } from "./SettingsDropdown";
-import { identifyUser, trackEvent } from "../hooks/analytics";
+import { identifyUser, trackEvent } from "../hooks/analytics/client";
 import {
   shortenAddress,
   IS_MAIN_PRODUCTION_DOMAIN,

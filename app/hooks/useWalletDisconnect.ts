@@ -1,5 +1,5 @@
 import { createWalletClient, custom } from 'viem';
-import { trackEvent } from './analytics';
+import { trackEvent } from './analytics/useMixpanel';
 import { toast } from 'sonner';
 
 export const useWalletDisconnect = () => {

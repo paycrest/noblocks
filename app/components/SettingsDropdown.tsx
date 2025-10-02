@@ -25,12 +25,10 @@ import {
 import { toast } from "sonner";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
-import { createWalletClient, custom } from "viem";
-import { trackEvent } from "../hooks/analytics";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 
 export const SettingsDropdown = () => {
-  const { user, exportWallet, updateEmail } = usePrivy();
+  const { user, updateEmail } = usePrivy();
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
@@ -74,9 +72,55 @@ export const SettingsDropdown = () => {
 
   const { disconnectWallet } = useWalletDisconnect();
 
+  // Helper function for fallback fetch with timeout
+  const trackLogoutWithFetch = (payload: { walletAddress: string; logoutMethod: string }) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+
+    fetch('/api/track-logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    })
+    .catch(error => {
+      if (error.name !== 'AbortError') {
+        console.warn('Logout tracking failed:', error);
+      }
+    })
+    .finally(() => {
+      clearTimeout(timeoutId);
+    });
+  };
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
+      // Track server-side logout before client-side logout (non-blocking)
+      if (walletAddress) {
+        const trackingPayload = {
+          walletAddress,
+          logoutMethod: 'settings_dropdown'
+        };
+
+        // Use navigator.sendBeacon when available for better reliability
+        if (navigator.sendBeacon) {
+          try {
+            navigator.sendBeacon(
+              '/api/track-logout',
+              JSON.stringify(trackingPayload)
+            );
+          } catch (beaconError) {
+            console.warn('sendBeacon failed, falling back to fetch:', beaconError);
+            // Fallback to fetch with timeout
+            trackLogoutWithFetch(trackingPayload);
+          }
+        } else {
+          // Fallback to fetch with timeout
+          trackLogoutWithFetch(trackingPayload);
+        }
+      }
+
       await logout();
       if (window.ethereum) {
         await disconnectWallet();

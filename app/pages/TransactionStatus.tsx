@@ -38,7 +38,7 @@ import {
   type TransactionStatusProps,
 } from "../types";
 import { toast } from "sonner";
-import { trackEvent } from "../hooks/analytics";
+import { trackEvent } from "../hooks/analytics/client";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";

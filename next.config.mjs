@@ -52,6 +52,36 @@ const nextConfig = {
     optimizeCss: true,
     optimizePackageImports: ["@headlessui/react", "framer-motion"],
   },
+  serverExternalPackages: ['mixpanel', 'https-proxy-agent'],
+  webpack: (config, { isServer }) => {
+    // Handle both client and server-side fallbacks
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      net: false,
+      tls: false,
+      fs: false,
+      crypto: false,
+      stream: false,
+      util: false,
+      url: false,
+      assert: false,
+      http: false,
+      https: false,
+      zlib: false,
+      path: false,
+      os: false,
+    };
+    
+    // Handle Mixpanel on server-side only
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push({
+        'mixpanel': 'commonjs mixpanel'
+      });
+    }
+    
+    return config;
+  },
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",
   },

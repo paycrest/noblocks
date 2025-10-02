@@ -38,7 +38,7 @@ import {
 import { useBalance, useInjectedWallet, useStep } from "../context";
 
 import { fetchAggregatorPublicKey, saveTransaction } from "../api/aggregator";
-import { trackEvent } from "../hooks/analytics";
+import { trackEvent } from "../hooks/analytics/client";
 import { ImSpinner } from "react-icons/im";
 import { InformationSquareIcon } from "hugeicons-react";
 import { PiCheckCircleFill } from "react-icons/pi";

@@ -19,6 +19,7 @@ import {
   TransactionsProvider,
 } from "./context";
 import { useActualTheme } from "./hooks/useActualTheme";
+import { useMixpanel } from "./hooks/analytics/client";
 
 function Providers({ children }: { children: ReactNode }) {
   const { privyAppId } = config;
@@ -80,6 +81,8 @@ function PrivyConfigWrapper({
 }
 
 function ContextProviders({ children }: { children: ReactNode }) {
+  useMixpanel(); // Initialize Mixpanel analytics
+  
   return (
     <NetworkProvider>
       <InjectedWalletProvider>

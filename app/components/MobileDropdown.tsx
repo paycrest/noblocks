@@ -46,6 +46,10 @@ export const MobileDropdown = ({
   });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
+  const activeWallet = isInjectedWallet
+    ? { address: injectedAddress, type: "injected_wallet" }
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
   const smartWallet = isInjectedWallet
@@ -120,6 +124,27 @@ export const MobileDropdown = ({
     );
 
     setIsNetworkListOpen(false);
+  };
+
+  // Helper function for fallback fetch with timeout
+  const trackLogoutWithFetch = (payload: { walletAddress: string; logoutMethod: string }) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+
+    fetch('/api/track-logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    })
+    .catch(error => {
+      if (error.name !== 'AbortError') {
+        console.warn('Logout tracking failed:', error);
+      }
+    })
+    .finally(() => {
+      clearTimeout(timeoutId);
+    });
   };
 
   const handleLogout = async () => {

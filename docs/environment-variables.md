@@ -19,29 +19,37 @@ NEXT_PUBLIC_THIRDWEB_CLIENT_ID=
 
 ```bash
 # Client-side analytics
-NEXT_PUBLIC_MIXPANEL_TOKEN=               # Client-side Mixpanel token
+# Client-side Mixpanel token
+NEXT_PUBLIC_MIXPANEL_TOKEN=
 NEXT_PUBLIC_HOTJAR_SITE_ID=
 
 # Server-side analytics (NEW)
-MIXPANEL_TOKEN=                           # Server-side Mixpanel token
-MIXPANEL_PRIVACY_MODE=strict              # Privacy mode: "strict" or "normal"
-MIXPANEL_INCLUDE_IP=false                 # Include IP addresses in server analytics
-MIXPANEL_INCLUDE_ERROR_STACKS=false       # Include error stacks in analytics
-NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS=false # Include emails in client analytics
+# Server-side Mixpanel token
+MIXPANEL_TOKEN=
+# Privacy mode: "strict" or "normal"
+MIXPANEL_PRIVACY_MODE=strict
+# Include IP addresses in server analytics
+MIXPANEL_INCLUDE_IP=false
+# Include error stacks in analytics
+MIXPANEL_INCLUDE_ERROR_STACKS=false
+# Include emails in client analytics
+NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS=false
 ```
 
 ### Security
 
 ```bash
 # Internal API Security (NEW)
-INTERNAL_API_KEY=                         # Secret for internal API endpoints
+# Secret for internal API endpoints
+INTERNAL_API_KEY=
 ```
 
 ### Feature Flags
 
 ```bash
 # Feature toggles (NEW)
-ENABLE_WALLET_CONTEXT_SYNC=false          # Enable wallet context sync in middleware
+# Enable wallet context sync in middleware
+ENABLE_WALLET_CONTEXT_SYNC=false
 ```
 
 ### Database & Authentication
@@ -65,7 +73,8 @@ NEXT_PUBLIC_CONTACT_SUPPORT_URL=
 NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE=
 
 # Notice banner
-NEXT_PUBLIC_NOTICE_BANNER_TEXT= # See docs/notice-banner.md
+# See docs/notice-banner.md
+NEXT_PUBLIC_NOTICE_BANNER_TEXT=
 ```
 
 ### Content Management (Sanity)

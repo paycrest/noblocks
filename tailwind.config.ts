@@ -27,7 +27,8 @@ const config: Config = {
           900: "#3E3B6D",
         },
         warning: {
-          text: '#FFECC214',
+          bg: '#FFECC214',
+          text: '#F2C71C',
         },
         surface: {
           overlay: "#202020",

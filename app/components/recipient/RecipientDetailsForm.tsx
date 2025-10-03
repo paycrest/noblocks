@@ -2,7 +2,7 @@
 import { ImSpinner } from "react-icons/im";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown01Icon, Tick02Icon } from "hugeicons-react";
+import { ArrowDown01Icon, InformationSquareIcon, Tick02Icon } from "hugeicons-react";
 
 import { AnimatedFeedbackItem } from "../AnimatedComponents";
 import { InstitutionProps } from "@/app/types";
@@ -363,6 +363,7 @@ export const RecipientDetailsForm = ({
 
                   <Tick02Icon className="text-lg text-green-700 dark:text-green-500 max-sm:hidden" />
                 </AnimatedFeedbackItem>
+                
               ) : recipientNameError ? (
                 <InputError message={recipientNameError} />
               ) : null}
@@ -371,6 +372,16 @@ export const RecipientDetailsForm = ({
         </AnimatePresence>
       </div>
 
+      <AnimatedFeedbackItem>
+        {recipientName && (
+        <div className="h-[48px] w-full bg-warning-bg px-3 py-2 rounded-xl flex items-start gap-4">
+          <InformationSquareIcon className="text-warning-text w-[24px] h-[24px] mr-2" />
+          <p className="text-xs font-light text-warning-text leading-tight">
+              Make sure the recipient's account number is accurate before proceeding with your swap. <a href="#" className="text-lavender-700 text-semibold">Learn more.</a>
+          </p>
+        </div>
+        )}
+      </AnimatedFeedbackItem>
       <SelectBankModal
         isOpen={isSelectBankModalOpen}
         onClose={() => setIsSelectBankModalOpen(false)}

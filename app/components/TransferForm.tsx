@@ -115,7 +115,7 @@ export const TransferForm: React.FC<{
     }
   }, [isTransferSuccess, onSuccess]);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside or pressing Escape
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -132,11 +132,24 @@ export const TransferForm: React.FC<{
       }
     };
 
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (isNetworkDropdownOpen) {
+          setIsNetworkDropdownOpen(false);
+        }
+        if (isCurrencyDropdownOpen) {
+          setIsCurrencyDropdownOpen(false);
+        }
+      }
+    };
+
     document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [isNetworkDropdownOpen, isCurrencyDropdownOpen]);
 
   const handleBalanceMaxClick = () => {
     const formattedBalance = formatDecimalPrecision(tokenBalance, 4);
@@ -326,7 +339,16 @@ export const TransferForm: React.FC<{
           <button
             type="button"
             onClick={() => setIsNetworkDropdownOpen(!isNetworkDropdownOpen)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setIsNetworkDropdownOpen(!isNetworkDropdownOpen);
+              }
+            }}
             className="min-h-12 w-full rounded-xl border border-border-input bg-transparent px-4 py-3 text-left text-sm transition-all focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:focus-within:border-white/40"
+            aria-haspopup="listbox"
+            aria-expanded={isNetworkDropdownOpen}
+            aria-controls="recipient-network-listbox"
           >
             <span
               className={
@@ -346,16 +368,29 @@ export const TransferForm: React.FC<{
 
           {/* Dropdown Menu */}
           {isNetworkDropdownOpen && (
-            <div className="scrollbar-hide absolute left-0 right-0 top-full z-50 mt-1 max-h-60 w-full overflow-y-auto overflow-x-hidden rounded-xl border border-border-input bg-white shadow-lg dark:border-white/20 dark:bg-neutral-800">
+            <div 
+              id="recipient-network-listbox"
+              role="listbox"
+              className="scrollbar-hide absolute left-0 right-0 top-full z-50 mt-1 max-h-60 w-full overflow-y-auto overflow-x-hidden rounded-xl border border-border-input bg-white shadow-lg dark:border-white/20 dark:bg-neutral-800"
+            >
               {recipientNetworks.map((network) => (
                 <button
                   key={network.name}
                   type="button"
+                  role="option"
+                  aria-selected={recipientNetwork === network.name}
                   onClick={() => {
                     setValue("recipientNetwork", network.name);
                     setIsNetworkDropdownOpen(false);
                   }}
-                  className="flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-gray-50 dark:hover:bg-white/5"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setValue("recipientNetwork", network.name);
+                      setIsNetworkDropdownOpen(false);
+                    }
+                  }}
+                  className="flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-gray-50 dark:hover:bg-white/5 focus:bg-gray-50 dark:focus:bg-white/5"
                 >
                   <img
                     src={network.imageUrl}
@@ -377,10 +412,7 @@ export const TransferForm: React.FC<{
 
       {/* Amount field */}
       <div className="w-full max-w-full space-y-2">
-        <div
-          className="relative rounded-lg border border-border-input bg-transparent dark:border-white/20"
-          style={{ width: "372px", height: "94px" }}
-        >
+        <div className="relative w-full rounded-lg border border-border-input bg-transparent dark:border-white/20 sm:h-[94px]">
           <label
             htmlFor="amount"
             className="absolute left-4 top-3 text-sm font-medium text-text-secondary dark:text-white/70"
@@ -420,10 +452,7 @@ export const TransferForm: React.FC<{
           />
 
           {/* Balance section - positioned on the right side */}
-          <div
-            className="absolute right-4 top-3 flex items-center gap-2"
-            style={{ width: "126px", height: "20px", gap: "8px" }}
-          >
+          <div className="absolute right-4 top-3 flex items-center gap-2">
             <Wallet01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
             <span className="text-sm font-medium text-neutral-900 dark:text-white/80">
               {isLoading || smartWalletBalance === null ? (
@@ -448,13 +477,16 @@ export const TransferForm: React.FC<{
                 onClick={() =>
                   setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen)
                 }
-                className="flex items-center justify-between gap-0 rounded-3xl bg-lavender-600 text-white transition-all hover:bg-lavender-600 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900"
-                style={{
-                  width: "145px",
-                  height: "36px",
-                  padding: "8px",
-                  gap: "0px",
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen);
+                  }
                 }}
+                className="flex items-center justify-between gap-0 rounded-3xl bg-lavender-600 text-white transition-all hover:bg-lavender-600 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 w-[145px] h-9 px-2"
+                aria-haspopup="listbox"
+                aria-expanded={isCurrencyDropdownOpen}
+                aria-controls="currency-listbox"
               >
                 <span className="text-sm font-medium">
                   {token || "Select currency"}
@@ -469,26 +501,28 @@ export const TransferForm: React.FC<{
               {/* Currency Dropdown Menu */}
               {isCurrencyDropdownOpen && (
                 <div
-                  className="absolute right-0 top-full z-50 mt-2 rounded-lg border border-border-input bg-white shadow-lg dark:border-white/20 dark:bg-neutral-800"
-                  style={{
-                    width: "230px",
-                    minHeight: "112px",
-                    paddingTop: "8px",
-                    paddingRight: "0px",
-                    paddingBottom: "8px",
-                    paddingLeft: "0px",
-                    gap: "8px",
-                  }}
+                  id="currency-listbox"
+                  role="listbox"
+                  className="absolute right-0 top-full z-50 mt-2 rounded-lg border border-border-input bg-white shadow-lg dark:border-white/20 dark:bg-neutral-800 w-[230px] min-h-[112px] pt-2 pb-2"
                 >
                   {tokens.map((tokenOption) => (
                     <button
                       key={tokenOption.name}
                       type="button"
+                      role="option"
+                      aria-selected={token === tokenOption.name}
                       onClick={() => {
                         setValue("token", tokenOption.name);
                         setIsCurrencyDropdownOpen(false);
                       }}
-                      className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/5"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setValue("token", tokenOption.name);
+                          setIsCurrencyDropdownOpen(false);
+                        }
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/5 focus:bg-gray-50 dark:focus:bg-white/5"
                     >
                       <img
                         src={tokenOption.imageUrl}
@@ -506,16 +540,16 @@ export const TransferForm: React.FC<{
                 </div>
               )}
             </div>
-          </div>
-          {errors.amount && (
-            <AnimatedComponent
-              variant={slideInOut}
-              className="absolute -bottom-6 left-0 text-xs text-red-500"
-            >
-              {errors.amount.message}
-            </AnimatedComponent>
-          )}
         </div>
+        {errors.amount && (
+          <AnimatedComponent
+            variant={slideInOut}
+              className="absolute -bottom-6 left-0 text-xs text-red-500"
+          >
+            {errors.amount.message}
+          </AnimatedComponent>
+        )}
+      </div>
         {/* {renderBalanceSection()} */}
       </div>
 

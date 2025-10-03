@@ -26,6 +26,9 @@ const config: Config = {
           800: "#58549A",
           900: "#3E3B6D",
         },
+        warning: {
+          text: '#FFECC214',
+        },
         surface: {
           overlay: "#202020",
           canvas: "#141414",

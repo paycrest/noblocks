@@ -8,6 +8,7 @@ export { default as PWAInstall } from "./PWAInstallManager";
 export { ThemeSwitch } from "./ThemeSwitch";
 export { WalletDetails } from "./WalletDetails";
 export { SettingsDropdown } from "./SettingsDropdown";
+export { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 
 export {
   AnimatedPage,

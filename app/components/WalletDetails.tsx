@@ -36,6 +36,7 @@ import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useActualTheme } from "../hooks/useActualTheme";
 import TransactionList from "./transaction/TransactionList";
 import { FundWalletForm, TransferForm } from "./index";
+import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 
 export const WalletDetails = () => {
   const [isTransferModalOpen, setIsTransferModalOpen] =
@@ -48,6 +49,7 @@ export const WalletDetails = () => {
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionHistory | null>(null);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
   const { selectedNetwork } = useNetwork();
   const { allBalances, isLoading, refreshBalance } = useBalance();
@@ -101,6 +103,7 @@ export const WalletDetails = () => {
   // Copy wallet address to clipboard with feedback
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(activeWallet?.address ?? "");
+    setIsWarningModalOpen(true);
     setIsAddressCopied(true);
     toast.success("Address copied to clipboard");
     setTimeout(() => setIsAddressCopied(false), 2000);
@@ -419,6 +422,12 @@ export const WalletDetails = () => {
           </AnimatedModal>
         </>
       )}
+
+      <CopyAddressWarningModal
+        isOpen={isWarningModalOpen}
+        onClose={() => setIsWarningModalOpen(false)}
+        address={activeWallet?.address ?? ""}
+      />
     </>
   );
 };

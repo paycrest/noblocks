@@ -31,7 +31,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
 
   // Track modal view when opened
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && selectedNetwork) {
       trackEvent("copy_address_modal_viewed", {
         network: selectedNetwork.chain.name,
         chain_id: selectedNetwork.chain.id,
@@ -40,10 +40,12 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
   }, [isOpen, selectedNetwork, trackEvent]);
 
   const handleAcknowledge = () => {
+    if (isOpen && selectedNetwork) {
     trackEvent("copy_address_modal_acknowledged", {
       network: selectedNetwork.chain.name,
       chain_id: selectedNetwork.chain.id,
     });
+  }
     onClose();
   };
 
@@ -93,7 +95,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-[412px] min-h-[530px] h-fit bg-white dark:bg-surface-overlay p-5 rounded-xl"
+              className="relative w-full max-w-[412px] min-h-[530px] h-fit bg-white dark:bg-surface-overlay p-5 rounded-lg"
             >
               {/* Header with warning icon */}
               <div className="flex flex-col items-start gap-4 mb-4">
@@ -118,7 +120,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
               </div>
 
               {/* copied address */}
-              <div className="flex flex-col items-start mb-2 rounded-xl bg-accent-gray dark:bg-surface-canvas h-[110px] px-3 py-3 relative w-full border border-border-light dark:border-white/10">
+              <div className="flex flex-col items-start mb-2 rounded-lg bg-accent-gray dark:bg-surface-canvas h-[110px] px-3 py-3 relative w-full border border-border-light dark:border-white/10">
                 <Wallet01Icon className="text-text-secondary dark:text-white/50 w-[16px] h-[16px]" />
                 <p className="text-sm text-text-secondary dark:text-white/50 text-wrap break-all mt-2 max-w-2/3">
                   {address || "No address available"}
@@ -135,7 +137,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
               </div>
 
               {/* Supported networks list */}
-              <div className="flex flex-col gap-2 items-start mb-2 rounded-xl bg-transparent h-fit px-3 py-3 relative w-full border border-border-light dark:border-white/10">
+              <div className="flex flex-col gap-2 items-start mb-2 rounded-lg bg-transparent h-fit px-3 py-3 relative w-full border border-border-light dark:border-white/10">
                 <h4 className="text-[12px] font-medium text-text-secondary dark:text-white/50 mb-2">
                   Supported Networks
                 </h4>
@@ -163,17 +165,17 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
               </div>
 
               {/* Warning note */}
-              <div className="h-[48px] w-full bg-[#FFECC214] px-3 py-2 rounded-xl mb-4 flex items-start gap-4">
+              <div className="h-[48px] w-full bg-[#FFECC214] px-3 py-2 rounded-lg mb-4 flex items-start gap-4">
                 <InformationSquareIcon className="text-[#F2C71C] w-[24px] h-[24px] mr-2" />
                 <p className="text-[11px] font-light text-[#F2C71C] leading-tight">
-                  Only send funds to the supported networks, sending to an unlisted network will lead to lost of funds
+                  Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
                 </p>
               </div>
 
               {/* Action button */}
               <button
                 onClick={handleAcknowledge}
-                className="w-full text-sm bg-lavender-500 hover:bg-lavender-600 text-white font-medium py-3 px-4 rounded-xl transition-colors focus:outline-none"
+                className="w-full text-sm bg-lavender-500 hover:bg-lavender-600 text-white font-medium py-3 px-4 rounded-lg transition-colors focus:outline-none"
               >
                 Got it
               </button>
@@ -209,7 +211,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                     </div>
 
                     {/* copied address */}
-                    <div className="flex flex-col items-start mb-2 rounded-xl bg-accent-gray dark:bg-surface-canvas h-[110px] px-3 py-3 relative w-full border border-border-light dark:border-white/10">
+                    <div className="flex flex-col items-start mb-2 rounded-lg bg-accent-gray dark:bg-surface-canvas h-[110px] px-3 py-3 relative w-full border border-border-light dark:border-white/10">
                       <Wallet01Icon className="text-text-secondary dark:text-white/50 w-[16px] h-[16px]" />
                       <p className="text-sm text-text-secondary dark:text-white/50 text-wrap break-all mt-2 max-w-2/3">
                         {address || "No address available"}
@@ -226,7 +228,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                     </div>
 
                     {/* Supported networks list */}
-                    <div className="flex flex-col gap-2 items-start mb-2 rounded-xl bg-transparent h-fit px-3 py-3 relative w-full border border-border-light dark:border-white/10">
+                    <div className="flex flex-col gap-2 items-start mb-2 rounded-lg bg-transparent h-fit px-3 py-3 relative w-full border border-border-light dark:border-white/10">
                       <h4 className="text-[12px] font-medium text-text-secondary dark:text-white/50 mb-2">
                         Supported Networks
                       </h4>
@@ -254,17 +256,17 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                     </div>
 
                     {/* Warning note */}
-                    <div className="h-[48px] w-full bg-[#FFECC214] px-3 py-2 rounded-xl mb-4 flex items-start gap-4">
+                    <div className="h-[48px] w-full bg-[#FFECC214] px-3 py-2 rounded-lg mb-4 flex items-start gap-4">
                       <InformationSquareIcon className="text-[#F2C71C] w-[24px] h-[24px] mr-2" />
                       <p className="text-[11px] font-light text-[#F2C71C] leading-tight">
-                        Only send funds to the supported networks, sending to an unlisted network will lead to lost of funds
+                        Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
                       </p>
                     </div>
 
                     {/* Action button */}
                     <button
                       onClick={handleAcknowledge}
-                      className="w-full text-sm bg-lavender-500 hover:bg-lavender-600 text-white font-medium py-3 px-4 rounded-xl transition-colors focus:outline-none"
+                      className="w-full text-sm bg-lavender-500 hover:bg-lavender-600 text-white font-medium py-3 px-4 rounded-lg transition-colors focus:outline-none"
                     >
                       Got it
                     </button>

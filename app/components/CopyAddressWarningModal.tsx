@@ -49,14 +49,14 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
     onClose();
   };
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      onClose();
-    }
-  };
 
   useEffect(() => {
     if (isOpen) {
+      const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
       document.addEventListener("keydown", handleKeyDown);
       return () => document.removeEventListener("keydown", handleKeyDown);
     }
@@ -95,7 +95,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-[412px] min-h-[530px] h-fit bg-white dark:bg-surface-overlay p-5 rounded-lg"
+              className="relative w-full max-w-[412px] min-h-[530px] h-fit bg-white dark:bg-surface-overlay p-5 rounded-[20px]"
             >
               {/* Header with warning icon */}
               <div className="flex flex-col items-start gap-4 mb-4">
@@ -165,7 +165,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
               </div>
 
               {/* Warning note */}
-              <div className="h-[48px] w-full bg-warning-text px-3 py-2 rounded-lg mb-4 flex items-start gap-4">
+              <div className="h-[48px] w-full bg-warning-text px-3 py-2 rounded-xl mb-4 flex items-start gap-4">
                 <InformationSquareIcon className="text-[#F2C71C] w-[24px] h-[24px] mr-2" />
                 <p className="text-xs font-light text-[#F2C71C] leading-tight">
                   Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
@@ -175,7 +175,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
               {/* Action button */}
               <button
                 onClick={handleAcknowledge}
-                className="w-full text-sm bg-lavender-500 hover:bg-lavender-600 text-white font-medium py-3 px-4 rounded-lg transition-colors focus:outline-none"
+                className="w-full text-sm bg-lavender-500 hover:bg-lavender-600 text-white font-medium py-3 px-4 rounded-3xl transition-colors focus:outline-none"
               >
                 Got it
               </button>
@@ -186,7 +186,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
           <div className="fixed inset-0 sm:hidden">
             <div className="flex h-full items-end">
               <motion.div {...slideUpAnimation} className="w-full">
-                <DialogPanel className="scrollbar-hide relative max-h-[90vh] w-full overflow-visible rounded-t-[30px] border border-border-light bg-white px-5 pt-6 shadow-xl dark:border-white/5 dark:bg-surface-overlay">
+                <DialogPanel className="scrollbar-hide relative max-h-[90vh] w-full overflow-visible rounded-t-[20px] border border-border-light bg-white px-5 pt-6 shadow-xl dark:border-white/5 dark:bg-surface-overlay">
                   <div className="scrollbar-hide max-h-[90vh] overflow-y-scroll pb-12">
                     {/* Header with warning icon */}
                     <div className="flex flex-col items-start gap-4 mb-4">
@@ -256,7 +256,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                     </div>
 
                     {/* Warning note */}
-                    <div className="h-[48px] w-full bg-warning-text px-3 py-2 rounded-lg mb-4 flex items-start gap-4">
+                    <div className="h-[48px] w-full bg-warning-text px-3 py-2 rounded-xl mb-4 flex items-start gap-4">
                       <InformationSquareIcon className="text-[#F2C71C] w-[24px] h-[24px] mr-2" />
                       <p className="text-xs font-light text-[#F2C71C] leading-tight">
                         Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
@@ -266,7 +266,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                     {/* Action button */}
                     <button
                       onClick={handleAcknowledge}
-                      className="w-full text-sm bg-lavender-500 hover:bg-lavender-600 text-white font-medium py-3 px-4 rounded-lg transition-colors focus:outline-none"
+                      className="w-full text-sm bg-lavender-500 hover:bg-lavender-600 text-white font-medium py-3 px-4 rounded-3xl transition-colors focus:outline-none"
                     >
                       Got it
                     </button>

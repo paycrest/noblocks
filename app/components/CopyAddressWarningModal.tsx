@@ -106,7 +106,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                 <div className="flex-1">
                   <h3
                     id="copy-address-warning-title"
-                    className="text-[18px] font-semibold text-text-body dark:text-white mb-2"
+                    className="text-lg font-semibold text-text-body dark:text-white mb-2"
                   >
                     You just copied your wallet address!
                   </h3>
@@ -138,7 +138,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
 
               {/* Supported networks list */}
               <div className="flex flex-col gap-2 items-start mb-2 rounded-lg bg-transparent h-fit px-3 py-3 relative w-full border border-border-light dark:border-white/10">
-                <h4 className="text-[12px] font-medium text-text-secondary dark:text-white/50 mb-2">
+                <h4 className="text-xs font-medium text-text-secondary dark:text-white/50 mb-2">
                   Supported Networks
                 </h4>
                 <div className=" flex flex-wrap gap-2 w-full h-full ">
@@ -156,7 +156,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                           className=" w-full h-full object-contain"
                         />
                       </div>
-                      <span className="text-[12px] font-medium text-text-body dark:text-white/80">
+                      <span className="text-xs font-medium text-text-body dark:text-white/80">
                         {network.chain.name}
                       </span>
                     </div>
@@ -165,7 +165,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
               </div>
 
               {/* Warning note */}
-              <div className="h-[48px] w-full bg-[#FFECC214] px-3 py-2 rounded-lg mb-4 flex items-start gap-4">
+              <div className="h-[48px] w-full bg-warning-text px-3 py-2 rounded-lg mb-4 flex items-start gap-4">
                 <InformationSquareIcon className="text-[#F2C71C] w-[24px] h-[24px] mr-2" />
                 <p className="text-[11px] font-light text-[#F2C71C] leading-tight">
                   Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
@@ -229,7 +229,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
 
                     {/* Supported networks list */}
                     <div className="flex flex-col gap-2 items-start mb-2 rounded-lg bg-transparent h-fit px-3 py-3 relative w-full border border-border-light dark:border-white/10">
-                      <h4 className="text-[12px] font-medium text-text-secondary dark:text-white/50 mb-2">
+                      <h4 className="text-xs font-medium text-text-secondary dark:text-white/50 mb-2">
                         Supported Networks
                       </h4>
                       <div className=" flex flex-wrap gap-2 w-full h-full ">
@@ -247,7 +247,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                                 className=" w-full h-full object-contain"
                               />
                             </div>
-                            <span className="text-[12px] font-medium text-text-body dark:text-white/80">
+                            <span className="text-xs font-medium text-text-body dark:text-white/80">
                               {network.chain.name}
                             </span>
                           </div>
@@ -256,7 +256,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                     </div>
 
                     {/* Warning note */}
-                    <div className="h-[48px] w-full bg-[#FFECC214] px-3 py-2 rounded-lg mb-4 flex items-start gap-4">
+                    <div className="h-[48px] w-full bg-warning-text px-3 py-2 rounded-lg mb-4 flex items-start gap-4">
                       <InformationSquareIcon className="text-[#F2C71C] w-[24px] h-[24px] mr-2" />
                       <p className="text-[11px] font-light text-[#F2C71C] leading-tight">
                         Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds

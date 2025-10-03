@@ -21,6 +21,7 @@ import { Network, Token, TransactionHistory } from "../types";
 import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm, TransferForm } from "./index";
+import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 
 export const MobileDropdown = ({
   isOpen,
@@ -34,6 +35,7 @@ export const MobileDropdown = ({
   >("wallet");
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, linkEmail, updateEmail } = usePrivy();
@@ -65,6 +67,7 @@ export const MobileDropdown = ({
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(smartWallet?.address ?? "");
     toast.success("Address copied to clipboard");
+    setIsWarningModalOpen(true);
   };
 
   const tokens: { name: string; imageUrl: string | undefined }[] = [];
@@ -285,6 +288,12 @@ export const MobileDropdown = ({
           </Dialog>
         )}
       </AnimatePresence>
+
+      <CopyAddressWarningModal 
+        isOpen={isWarningModalOpen}
+        onClose={() => setIsWarningModalOpen(false)}
+        address={smartWallet?.address ?? ""}
+      />
     </>
   );
 };

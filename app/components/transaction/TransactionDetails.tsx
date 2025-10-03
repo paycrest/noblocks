@@ -6,6 +6,7 @@ import { ImSpinner } from "react-icons/im";
 import { toast } from "sonner";
 import { pdf } from "@react-pdf/renderer";
 import { PDFReceipt } from "../PDFReceipt";
+import { CopyAddressWarningModal } from "../CopyAddressWarningModal";
 import type { TransactionHistory, Network } from "../../types";
 import {
   getExplorerLink,
@@ -44,6 +45,7 @@ const getNetworkFromName = (networkName: string): Network | null => {
 
 export function TransactionDetails({ transaction }: TransactionDetailsProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const { selectedNetwork } = useNetwork();
   const isDark = useActualTheme();
   if (!transaction) return null;
@@ -240,6 +242,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                       transaction.recipient.account_identifier,
                     );
                     toast.success("Address copied");
+                    setIsWarningModalOpen(true);
                   }}
                 >
                   <Copy01Icon
@@ -421,6 +424,12 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
           )}
         </button>
       )}
+
+      <CopyAddressWarningModal 
+            isOpen={isWarningModalOpen}
+            onClose={() => setIsWarningModalOpen(false)}
+            address={transaction.recipient.account_identifier ?? ""}
+        />
     </motion.div>
   );
 }

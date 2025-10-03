@@ -166,8 +166,8 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
 
               {/* Warning note */}
               <div className="h-[48px] w-full bg-warning-text px-3 py-2 rounded-xl mb-4 flex items-start gap-4">
-                <InformationSquareIcon className="text-[#F2C71C] w-[24px] h-[24px] mr-2" />
-                <p className="text-xs font-light text-[#F2C71C] leading-tight">
+                <InformationSquareIcon className="text-warning-text w-[24px] h-[24px] mr-2" />
+                <p className="text-xs font-light text-warning-text leading-tight">
                   Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
                 </p>
               </div>

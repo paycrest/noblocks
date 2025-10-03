@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
+import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 
 export const SettingsDropdown = () => {
   const { user, updateEmail } = usePrivy();
@@ -35,6 +36,7 @@ export const SettingsDropdown = () => {
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({
@@ -51,6 +53,7 @@ export const SettingsDropdown = () => {
     navigator.clipboard.writeText(walletAddress ?? "");
     setIsAddressCopied(true);
     setTimeout(() => setIsAddressCopied(false), 2000);
+    setIsWarningModalOpen(true);
   };
 
   const { logout } = useLogout({
@@ -293,6 +296,12 @@ export const SettingsDropdown = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <CopyAddressWarningModal 
+        isOpen={isWarningModalOpen}
+        onClose={() => setIsWarningModalOpen(false)}
+        address={walletAddress ?? ""}
+      />
     </div>
   );
 };

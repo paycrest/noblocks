@@ -51,7 +51,7 @@ export function TokensProvider({ children }: { children: ReactNode }) {
         },
         {},
       );
-      // Temporarily add USDT on Base
+      // Temporarily add USDT on Base for user withdrawal
       if (newTokens["Base"]) {
         const usdtBase = {
           name: "Tether USD",
@@ -69,12 +69,6 @@ export function TokensProvider({ children }: { children: ReactNode }) {
           newTokens["Base"].push(usdtBase);
         }
       }
-
-      // Manually add Ethereum tokens since aggregator doesn't support it yet
-      if (!newTokens["Ethereum"] && FALLBACK_TOKENS["Ethereum"]) {
-        newTokens["Ethereum"] = FALLBACK_TOKENS["Ethereum"];
-      }
-
       setAllTokens(newTokens);
     } catch (err) {
       console.error("Failed to fetch tokens from API, using fallback:", err);

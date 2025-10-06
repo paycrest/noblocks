@@ -29,7 +29,10 @@ const config: Config = {
         },
         yellow: {
           primary: "#F2C71C",
-          secondary: "#ffecc2"
+          secondary: "#ffecc2",
+        },
+        warning: {
+          text: '#FFECC214',
         },
         surface: {
           overlay: "#202020",

@@ -29,7 +29,7 @@ const config: Config = {
         warning: {
           background: '#FFECC2',
           text: '#F2C71C',
-          light: '#61500B'
+          foreground: '#61500B'
         },
         surface: {
           overlay: "#202020",

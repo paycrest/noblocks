@@ -123,7 +123,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
               <div className="flex flex-col items-start mb-2 rounded-xl bg-white dark:bg-surface-canvas min-h-[110px] h-fit gap-3 px-3 py-3 relative w-full border border-border-light dark:border-white/10">
                 <Wallet01Icon className="text-text-secondary dark:text-white/50" size={16} />
                 <div className="w-full flex items-start justify-between relative gap-4  mt-0">
-                  <p className="text-lg font-medium text-black dark:text-white/70 w-[80%] text-wrap break-all max-w-2/3">
+                  <p className="text-lg font-medium text-black dark:text-white/70 w-[80%] text-wrap break-all">
                     {address || "No address available"}
                   </p>
                   {isAddressCopied ? (
@@ -169,8 +169,8 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
 
               {/* Warning note */}
               <div className="h-[48px] w-full bg-warning-background/[36%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start gap-0.5">
-                <InformationSquareIcon className="text-warning-light dark:text-warning-text w-[24px] h-[24px] mr-2" />
-                <p className="text-xs font-light text-warning-light dark:text-warning-text leading-tight">
+                <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[24px] h-[24px] mr-2" />
+                <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight">
                   Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
                 </p>
               </div>
@@ -217,7 +217,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                     <div className="flex flex-col items-start mb-2 rounded-xl bg-white dark:bg-surface-canvas min-h-[110px] h-fit gap-3 px-3 py-3 relative w-full border border-border-light dark:border-white/10">
                       <Wallet01Icon className="text-text-secondary dark:text-white/50" size={16} />
                       <div className="w-full flex items-start justify-between relative gap-4  mt-0">
-                        <p className="text-lg font-medium text-black dark:text-white/70 w-[80%] text-wrap break-all max-w-2/3">
+                        <p className="text-lg font-medium text-black dark:text-white/70 w-[80%] text-wrap break-all">
                           {address || "No address available"}
                         </p>
                         {isAddressCopied ? (
@@ -263,8 +263,8 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
 
                     {/* Warning note */}
                     <div className="h-[48px] w-full bg-warning-background/[36%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start gap-0.5">
-                      <InformationSquareIcon className="text-warning-light dark:text-warning-text w-[24px] h-[24px] mr-2" />
-                      <p className="text-xs font-light text-warning-light dark:text-warning-text leading-tight">
+                      <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[24px] h-[24px] mr-2" />
+                      <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight">
                         Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
                       </p>
                     </div>

@@ -161,7 +161,10 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
   };
 
   //this Creates filter categories with "All Posts" option
-  const filterCategories = [{ _id: "all", title: "All Posts" }, ...categories];
+  const filterCategories = useMemo(
+    () => [{ _id: "all", title: "All Posts" }, ...categories],
+    [categories],
+  );
 
   // this Determines the active category - if there's a search, no category should be active
   const activeCategory = urlSearchValue ? null : selectedCategory;
@@ -265,7 +268,6 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                     <button
                       type="button"
                       aria-haspopup="listbox"
-                      aria-expanded={isMobileCategoryOpen}
                       onClick={() => setIsMobileCategoryOpen((v) => !v)}
                       className="flex items-center justify-center px-3 py-2"
                     >

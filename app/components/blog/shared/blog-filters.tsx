@@ -13,16 +13,15 @@ const BlogFilters: React.FC<BlogFiltersProps> = ({
   onSelectCategory,
 }) => {
   return (
-    <div className="flex gap-2 mb-6 overflow-x-auto">
+    <div className="mb-6 flex gap-2 overflow-x-auto">
       <button
         type="button"
-        className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+        className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${
           selectedCategoryId === null
             ? "bg-blue-600 text-white"
             : "bg-[#23262F] text-gray-200 hover:bg-blue-700"
         }`}
         onClick={() => onSelectCategory(null)}
-        aria-pressed={selectedCategoryId === null}
       >
         All posts
       </button>
@@ -30,13 +29,12 @@ const BlogFilters: React.FC<BlogFiltersProps> = ({
         <button
           type="button"
           key={cat._id}
-          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+          className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors ${
             selectedCategoryId === cat._id
               ? "bg-blue-600 text-white"
               : "bg-[#23262F] text-gray-200 hover:bg-blue-700"
           }`}
           onClick={() => onSelectCategory(cat._id)}
-          aria-pressed={selectedCategoryId === cat._id}
         >
           {cat.title}
         </button>

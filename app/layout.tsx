@@ -1,4 +1,3 @@
-
 import "./globals.css";
 import React from "react";
 import type { Metadata } from "next";
@@ -206,7 +205,7 @@ const jsonLd = {
   sameAs: [
     "https://x.com/noblocks_xyz",
     "https://github.com/paycrest/noblocks",
-    "https://noblocks.xyz"
+    "https://noblocks.xyz",
   ],
   publisher: {
     "@type": "Organization",
@@ -214,19 +213,19 @@ const jsonLd = {
     url: "https://noblocks.xyz",
     logo: {
       "@type": "ImageObject",
-      url: "https://noblocks.xyz/icons/noblocks-logo.svg"
-    }
+      url: "https://noblocks.xyz/icons/noblocks-logo.svg",
+    },
   },
   offers: {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
     availability: "https://schema.org/InStock",
-    validFrom: "2024-01-01"
+    validFrom: "2024-01-01",
   },
   featureList: [
     "USDC payments",
-    "USDT payments", 
+    "USDT payments",
     "DAI payments",
     "Instant stablecoin transfers",
     "Low-fee crypto remittance",
@@ -236,28 +235,28 @@ const jsonLd = {
     "24/7 availability",
     "Global reach",
     "Secure transactions",
-    "Real-time processing"
+    "Real-time processing",
   ],
   supportedNetworks: [
     "Polygon",
-    "Base", 
+    "Base",
     "Arbitrum",
     "BNB Chain",
     "Ethereum",
     "Celo",
     "Lisk",
-    "Optimism"
+    "Optimism",
   ],
   supportedStablecoins: ["USDC", "USDT", "DAI", "cNGN"],
   audience: {
     "@type": "Audience",
-    audienceType: "Cryptocurrency users, Remittance senders, DeFi users"
+    audienceType: "Cryptocurrency users, Remittance senders, DeFi users",
   },
   potentialAction: {
     "@type": "UseAction",
     target: "https://noblocks.xyz",
-    name: "Send stablecoin payments"
-  }
+    name: "Send stablecoin payments",
+  },
 };
 
 export default function RootLayout({

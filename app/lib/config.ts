@@ -6,7 +6,6 @@ const config: Config = {
   thirdwebClientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || "",
   mixpanelToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || "",
   hotjarSiteId: Number(process.env.NEXT_PUBLIC_HOTJAR_SITE_ID || ""),
-  contactSupportUrl: process.env.NEXT_PUBLIC_CONTACT_SUPPORT_URL || "",
   googleVerificationCode:
     process.env.NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE || "",
   noticeBannerText: process.env.NEXT_PUBLIC_NOTICE_BANNER_TEXT || "",

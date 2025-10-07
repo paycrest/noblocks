@@ -252,7 +252,6 @@ export type Config = {
   thirdwebClientId: string;
   mixpanelToken: string;
   hotjarSiteId: number;
-  contactSupportUrl: string;
   googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
   brevoConversationsId: string; // Brevo chat widget ID

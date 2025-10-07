@@ -66,8 +66,6 @@ PRIVY_ISSUER=privy.io
 ### External Services
 
 ```bash
-# Support chat
-NEXT_PUBLIC_CONTACT_SUPPORT_URL=
 
 # SEO
 NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE=

@@ -73,24 +73,27 @@ export const SettingsDropdown = () => {
   const { disconnectWallet } = useWalletDisconnect();
 
   // Helper function for fallback fetch with timeout
-  const trackLogoutWithFetch = (payload: { walletAddress: string; logoutMethod: string }) => {
+  const trackLogoutWithFetch = (payload: {
+    walletAddress: string;
+    logoutMethod: string;
+  }) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
 
-    fetch('/api/track-logout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch("/api/track-logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      signal: controller.signal
+      signal: controller.signal,
     })
-    .catch(error => {
-      if (error.name !== 'AbortError') {
-        console.warn('Logout tracking failed:', error);
-      }
-    })
-    .finally(() => {
-      clearTimeout(timeoutId);
-    });
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          console.warn("Logout tracking failed:", error);
+        }
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
+      });
   };
 
   const handleLogout = async () => {
@@ -100,18 +103,21 @@ export const SettingsDropdown = () => {
       if (walletAddress) {
         const trackingPayload = {
           walletAddress,
-          logoutMethod: 'settings_dropdown'
+          logoutMethod: "settings_dropdown",
         };
 
         // Use navigator.sendBeacon when available for better reliability
         if (navigator.sendBeacon) {
           try {
             navigator.sendBeacon(
-              '/api/track-logout',
-              JSON.stringify(trackingPayload)
+              "/api/track-logout",
+              JSON.stringify(trackingPayload),
             );
           } catch (beaconError) {
-            console.warn('sendBeacon failed, falling back to fetch:', beaconError);
+            console.warn(
+              "sendBeacon failed, falling back to fetch:",
+              beaconError,
+            );
             // Fallback to fetch with timeout
             trackLogoutWithFetch(trackingPayload);
           }
@@ -280,7 +286,7 @@ export const SettingsDropdown = () => {
         )}
       </AnimatePresence>
 
-      <CopyAddressWarningModal 
+      <CopyAddressWarningModal
         isOpen={isWarningModalOpen}
         onClose={() => setIsWarningModalOpen(false)}
         address={walletAddress ?? ""}

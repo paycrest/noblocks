@@ -26,6 +26,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { fadeBlur } from "@/app/components/blog/shared/animations";
 import { getBannerPadding } from "@/app/utils";
+import { FlexibleDropdown } from "@/app/components/FlexibleDropdown";
 
 interface HomeClientProps {
   blogPosts: SanityPost[];
@@ -46,17 +47,8 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
   >([]);
 
   // Mobile-only UI state
-  const [isMobileCategoryOpen, setIsMobileCategoryOpen] =
-    useState<boolean>(false);
   const [isMobileSearchActive, setIsMobileSearchActive] =
     useState<boolean>(false);
-  const [mobileCategoryFilter, setMobileCategoryFilter] = useState<string>("");
-  const mobileCategoryRef = useRef<HTMLDivElement | null>(null);
-  const [mobileMenuPosition, setMobileMenuPosition] = useState<{
-    top: number;
-    left: number;
-    width: number;
-  } | null>(null);
 
   // Track page view on mount
   useEffect(() => {
@@ -96,30 +88,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
     });
   }, [blogPosts, selectedCategory, urlSearchValue]);
 
-  // Position mobile category menu when opened and on resize/scroll (pre-paint to prevent flicker)
-  useLayoutEffect(() => {
-    const updateMenuPosition = () => {
-      if (!isMobileCategoryOpen) return;
-      const container = mobileCategoryRef.current;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      setMobileMenuPosition({
-        top: Math.round(rect.bottom + 160),
-        left: Math.round(rect.left),
-        width: Math.round(rect.width),
-      });
-    };
-
-    updateMenuPosition();
-    if (isMobileCategoryOpen) {
-      window.addEventListener("resize", updateMenuPosition, { passive: true });
-      window.addEventListener("scroll", updateMenuPosition, { passive: true });
-    }
-    return () => {
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition);
-    };
-  }, [isMobileCategoryOpen]);
+  // Removed custom mobile category menu positioning in favor of FlexibleDropdown
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -166,12 +135,11 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
   // this Determines the active category - if there's a search, no category should be active
   const activeCategory = urlSearchValue ? null : selectedCategory;
 
-  // these are Categories to display in mobile dropdown filtered by the mobile category filter
-  const displayedCategories = useMemo(() => {
-    const term = mobileCategoryFilter.trim().toLowerCase();
-    if (!term) return filterCategories;
-    return filterCategories.filter((c) => c.title.toLowerCase().includes(term));
-  }, [filterCategories, mobileCategoryFilter]);
+  // Build dropdown data for FlexibleDropdown
+  const dropdownData = useMemo(
+    () => filterCategories.map((c) => ({ name: c._id, label: c.title })),
+    [filterCategories],
+  );
 
   // this Gets the first blog for featured section and rest for recent blogs
   const firstBlog = filteredBlogs[0];
@@ -241,38 +209,28 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
 
           {/* Category Selector + Search (Mobile) */}
           <div className="relative flex w-full flex-1 items-center gap-2 sm:hidden">
-            {/* Collapsed state: category input + search icon */}
             {!isMobileSearchActive ? (
               <div className="flex w-full items-center gap-[20px]">
-                <div
-                  ref={mobileCategoryRef}
-                  className="relative isolate z-[999999999] w-full"
-                >
-                  <div className="flex w-full items-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30">
-                    <input
-                      type="text"
-                      className="flex-1 bg-transparent px-3 py-2 text-sm text-text-body placeholder-text-secondary outline-none dark:text-white dark:placeholder-white/30"
-                      placeholder="Select category"
-                      value={mobileCategoryFilter}
-                      onChange={(e) => {
-                        setMobileCategoryFilter(e.target.value);
-                        if (!isMobileCategoryOpen) {
-                          setIsMobileCategoryOpen(true);
-                        }
-                      }}
-                      onFocus={() => setIsMobileCategoryOpen(true)}
-                    />
-                    <button
-                      type="button"
-                      aria-haspopup="listbox"
-                      aria-expanded={isMobileCategoryOpen}
-                      onClick={() => setIsMobileCategoryOpen((v) => !v)}
-                      className="flex items-center justify-center px-3 py-2"
-                    >
-                      {/* Chevron Down */}
-                      <ArrowDown01Icon className="h-4 w-4 text-gray-500 dark:text-white/60" />
-                    </button>
-                  </div>
+                <div className="w-full">
+                  <FlexibleDropdown
+                    data={dropdownData}
+                    selectedItem={activeCategory ?? undefined}
+                    onSelect={(name) => setSelectedCategory(name)}
+                    mobileTitle="Select category"
+                  >
+                    {({ selectedItem, toggleDropdown }) => (
+                      <button
+                        type="button"
+                        onClick={toggleDropdown}
+                        className="flex w-full items-center justify-between rounded-xl border border-gray-300 bg-white px-3 py-2 text-left dark:border-white/20 dark:bg-background-neutral/0"
+                      >
+                        <span className="text-sm text-text-body dark:text-white">
+                          {selectedItem?.label ?? "Select category"}
+                        </span>
+                        <ArrowDown01Icon className="h-4 w-4 text-gray-500 dark:text-white/60" />
+                      </button>
+                    )}
+                  </FlexibleDropdown>
                 </div>
 
                 <button
@@ -281,8 +239,6 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                   onClick={() => {
                     setIsMobileSearchActive(true);
                     setIsSearchOpen(false);
-                    setIsMobileCategoryOpen(false);
-                    setMobileCategoryFilter("");
                     setSearch("");
                     setShowSuggestions(false);
                   }}
@@ -317,7 +273,6 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                     className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30"
                     onClick={() => {
                       setIsMobileSearchActive(false);
-                      setMobileCategoryFilter("");
                       setSearch("");
                     }}
                     aria-label="Close search"
@@ -438,74 +393,6 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
           ) : null}
         </motion.div>
       </main>
-
-      <AnimatePresence>
-        {isMobileCategoryOpen ? (
-          <>
-            {/* backdrop to allow outside click close and ensure stacking */}
-            <motion.div
-              key="backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="fixed inset-0 z-[999999998] bg-black/40"
-              onClick={() => setIsMobileCategoryOpen(false)}
-            />
-            <motion.div
-              key="menu"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              role="listbox"
-              className="fixed z-[999999999] overflow-hidden rounded-[24px] border border-white/10 bg-[#141414] p-5 shadow-2xl"
-              style={{
-                top: mobileMenuPosition?.top ?? 0,
-                left: "2.5%",
-                width: "95%",
-              }}
-            >
-              <ul className="max-h-[70vh] divide-y divide-gray-100 overflow-auto dark:divide-white/5">
-                <p className="py-[12px] text-[16px] font-[600] text-[#FFFFFF]">
-                  Categories
-                </p>
-                {displayedCategories.length === 0 ? (
-                  <li>
-                    <div className="px-3 py-2 text-left text-sm text-text-body/60 dark:text-white/60">
-                      No matching categories
-                    </div>
-                  </li>
-                ) : null}
-                {displayedCategories.map((cat) => (
-                  <li key={cat._id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCategory(cat._id);
-                        setMobileCategoryFilter(
-                          cat.title === "All Posts" ? "" : cat.title,
-                        );
-                        setIsMobileCategoryOpen(false);
-                      }}
-                      className={`flex w-full items-center justify-between py-[12px] text-left text-[14px] text-sm font-[500] text-[#FFFFFF] transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${
-                        activeCategory === cat._id
-                          ? "text-lavender-600 dark:text-white"
-                          : "text-text-body/80 dark:text-white/80"
-                      }`}
-                    >
-                      <span className="truncate">{cat.title}</span>
-                      {activeCategory === cat._id ? (
-                        <span className="ml-2 h-2 w-2 rounded-full bg-lavender-500" />
-                      ) : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </motion.div>
-          </>
-        ) : null}
-      </AnimatePresence>
 
       {/* Search Modal */}
       <SearchModal

@@ -41,9 +41,7 @@ export const PausedNetworkNotice: React.FC<PausedNetworkNoticeProps> = ({
                 ? "swaps are"
                 : "swaps are"}{" "}
               currently paused due to an ongoing migration. Please try again
-              soon or contact support.
-              {" "}
-              for more info.
+              soon or contact support for more info.
             </span>
           </div>
         </motion.div>

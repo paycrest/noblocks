@@ -16,6 +16,7 @@ import {
   ArrowLeft02Icon,
   Cancel01Icon,
   ArrowDown01Icon,
+  InformationSquareIcon,
 } from "hugeicons-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -189,7 +190,7 @@ export const FundWalletForm: React.FC<{
   return (
     <form onSubmit={handleFundSubmit(handleFund)} className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 bg-white dark:bg-surface-overlay">
         {showBackButton && setCurrentView ? (
           <button
             type="button"
@@ -208,22 +209,14 @@ export const FundWalletForm: React.FC<{
             Deposit tokens into your smart wallet
           </p>
         </div>
-        <button
-          type="button"
-          aria-label="Close fund modal"
-          onClick={handleFundModalClose}
-          className="hidden rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10 sm:block"
-        >
-          <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
-        </button>
         <div className="w-10 sm:hidden" />
       </div>
       {/* Amount field */}
       <div className="w-full max-w-full space-y-2">
-        <div className="relative w-full rounded-lg border border-border-input dark:border-white/20 dark:bg-black2 sm:h-[94px]">
+        <div className="relative w-full rounded-xl border border-border-input dark:border-white/10 dark:bg-black2 sm:h-[94px]">
           <label
             htmlFor="amount"
-            className="absolute left-4 top-3 text-sm font-medium text-text-secondary dark:text-white/70"
+            className="absolute left-4 top-3 text-sm font-light text-text-secondary dark:text-white/70"
           >
             Amount
           </label>
@@ -273,10 +266,10 @@ export const FundWalletForm: React.FC<{
       </div>
 
       {/* Network field */}
-      <div className="w-full max-w-full space-y-2 rounded-lg p-4 dark:bg-black2">
+      <div className="w-full max-w-full space-y-2 rounded-xl p-4 dark:bg-black2 border-[0.3px] border-border-light dark:border-white/0">
         <label
           htmlFor="network"
-          className="text-sm font-medium text-text-secondary dark:text-white/70"
+          className="text-sm font-medium text-black dark:text-white/70"
         >
           Network
         </label>
@@ -376,28 +369,17 @@ export const FundWalletForm: React.FC<{
           )}
         </div>
 
-        {/* Network warning */}
-        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-800 dark:bg-yellow-900/10">
-          <div className="flex items-start gap-2">
-            <div className="flex-shrink-0">
-              <Image
-                src="/images/information-square.png"
-                alt="information square"
-                width={16}
-                height={16}
-              />
-            </div>
-            <p className="text-xs text-yellow-800 dark:text-yellow-200">
-              Only send funds to the selected network, sending to a different
-              network will lead to loss of funds.
-            </p>
-          </div>
+        {/* Warning note */}
+        <div className="h-[48px] w-full bg-warning-background/[8%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start gap-0.5">
+          <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[20px] h-[24px] mr-2" />
+          <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight">
+            Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
+          </p>
         </div>
       </div>
 
       {/* Deposit information */}
-      <div className="rounded-lg bg-gray-100 px-4 py-3 dark:bg-gray-800">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-white/50">
+        <div className="flex flex-wrap text-wrap break-all items-center gap-2 text-xs text-text-secondary dark:text-white/50 p-2 rounded-xl border-[0.3px] border-border-light dark:border-white/10">
           <span>You are depositing this amount via</span>
           <img
             src={getNetworkImageUrl(
@@ -409,27 +391,26 @@ export const FundWalletForm: React.FC<{
             alt={selectedNetwork.chain.name}
             className="h-4 w-4 flex-shrink-0 rounded-full"
           />
-          <span className="font-medium text-gray-600 dark:text-white/70">
+          <span className="font-light text-text-secondary dark:text-white/70">
             {selectedNetwork.chain.name} network
           </span>
         </div>
-      </div>
 
       {/* Action buttons */}
       <div className="flex gap-3">
         <button
           type="button"
           onClick={handleFundModalClose}
-          className="min-h-12 rounded-xl bg-gray-700 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900"
+          className="min-h-12 rounded-xl bg-gray-100 text-text-body dark:bg-white/10 dark:text-white px-6 py-3 text-sm font-semibold transition-all hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900"
         >
           Cancel
         </button>
         <button
           type="submit"
           className={classNames(
-            "min-h-12 flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900",
+            "min-h-12 flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900",
             !isFundValid || !isFundDirty || isFundConfirming
-              ? "bg-gray-300 text-gray-500 dark:bg-white/10 dark:text-white/50"
+              ? "bg-gray-300 text-white dark:bg-white/10 dark:text-white/50"
               : "bg-lavender-500 text-gray-300 hover:bg-lavender-500 dark:hover:bg-lavender-500",
           )}
           disabled={!isFundValid || !isFundDirty || isFundConfirming}

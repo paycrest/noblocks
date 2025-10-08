@@ -1,4 +1,4 @@
-import { arbitrum, base, bsc, polygon, lisk, mainnet } from "viem/chains";
+import { arbitrum, base, bsc, polygon, lisk } from "viem/chains";
 import {
   addRpcUrlOverrideToChain,
   type PrivyClientConfig,
@@ -19,7 +19,7 @@ const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
       connectionOptions: "smartWalletOnly",
     },
   },
-  supportedChains: [mainnet, base, bscOverride, arbitrum, polygon, lisk],
+  supportedChains: [base, bscOverride, arbitrum, polygon, lisk],
 };
 
 export const lightModeConfig: PrivyClientConfig = {

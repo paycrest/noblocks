@@ -22,6 +22,7 @@ import { acceptedCurrencies } from "../mocks";
 import {
   classNames,
   formatNumberWithCommas,
+  formatDecimalPrecision,
   currencyToCountryCode,
   reorderCurrenciesByLocation,
 } from "../utils";
@@ -142,8 +143,8 @@ export const TransactionForm = ({
 
   const handleBalanceMaxClick = () => {
     if (balance > 0) {
-      const maxAmount = balance.toFixed(4);
-      setValue("amountSent", parseFloat(maxAmount), {
+      const maxAmount = formatDecimalPrecision(balance, 2);
+      setValue("amountSent", maxAmount, {
         shouldValidate: true,
         shouldDirty: true,
       });
@@ -586,7 +587,10 @@ export const TransactionForm = ({
                         <span
                           className={amountSent > balance ? "text-red-500" : ""}
                         >
-                          {formatNumberWithCommasForDisplay(balance)} {token}
+                          {formatNumberWithCommas(
+                            formatDecimalPrecision(balance, 2),
+                          )}{" "}
+                          {token}
                         </span>
                         {balance > 0 && (
                           <button

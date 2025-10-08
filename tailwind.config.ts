@@ -32,7 +32,9 @@ const config: Config = {
           secondary: "#ffecc2",
         },
         warning: {
-          text: '#FFECC214',
+          background: '#FFECC2',
+          text: '#F2C71C',
+          foreground: '#61500B'
         },
         surface: {
           overlay: "#202020",

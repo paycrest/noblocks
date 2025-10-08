@@ -213,7 +213,7 @@ export const FundWalletForm: React.FC<{
       </div>
       {/* Amount field */}
       <div className="w-full max-w-full space-y-2">
-        <div className="relative w-full rounded-xl border border-border-input dark:border-white/10 dark:bg-black2 sm:h-[94px]">
+        <div className="relative w-full rounded-xl border border-border-input dark:border-white/10 dark:bg-black2 h-[94px]">
           <label
             htmlFor="amount"
             className="absolute left-4 top-3 text-sm font-light text-text-secondary dark:text-white/70"

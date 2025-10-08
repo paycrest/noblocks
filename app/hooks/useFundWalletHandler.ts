@@ -108,10 +108,13 @@ export const useFundWalletHandler = (entryPoint: string) => {
       localStorage.setItem("fundingCallbackId", callbackId);
     }
 
-    await fundWallet(walletAddress, {
-      amount,
-      chain: selectedNetwork.chain,
-      asset: { erc20: tokenAddress },
+    await fundWallet({
+      address: walletAddress,
+      options: {
+        amount,
+        chain: selectedNetwork.chain,
+        asset: { erc20: tokenAddress },
+      },
     });
   };
 

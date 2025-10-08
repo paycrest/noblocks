@@ -2,7 +2,12 @@
 
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Copy01Icon, InformationSquareIcon, Wallet01Icon, WalletDone01Icon } from "hugeicons-react";
+import {
+  Copy01Icon,
+  InformationSquareIcon,
+  Wallet01Icon,
+  WalletDone01Icon,
+} from "hugeicons-react";
 import { useNetwork } from "../context/NetworksContext";
 import { networks } from "../mocks";
 import { useActualTheme } from "../hooks/useActualTheme";
@@ -20,11 +25,9 @@ interface CopyAddressWarningModalProps {
   address: string;
 }
 
-export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = ({
-  isOpen,
-  onClose,
-  address,
-}) => {
+export const CopyAddressWarningModal: React.FC<
+  CopyAddressWarningModalProps
+> = ({ isOpen, onClose, address }) => {
   const { selectedNetwork } = useNetwork();
   const isDark = useActualTheme();
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -37,7 +40,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
         chain_id: selectedNetwork.chain.id,
       });
     }
-  }, [isOpen, selectedNetwork, trackEvent]);
+  }, [isOpen, selectedNetwork]);
 
   const handleAcknowledge = () => {
     if (isOpen && selectedNetwork) {
@@ -49,7 +52,6 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
     onClose();
   };
 
-
   useEffect(() => {
     if (isOpen) {
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -60,7 +62,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
       document.addEventListener("keydown", handleKeyDown);
       return () => document.removeEventListener("keydown", handleKeyDown);
     }
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   // Copy wallet address to clipboard with feedback
   const handleCopyAddress = () => {
@@ -85,20 +87,20 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/25 dark:bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/25 backdrop-blur-sm dark:bg-black/40"
           />
 
           {/* Desktop Modal */}
-          <div className="hidden sm:flex fixed inset-0 items-center justify-center p-4">
+          <div className="fixed inset-0 hidden items-center justify-center p-4 sm:flex">
             <DialogPanel
               as={motion.div}
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-[412px] min-h-[530px] h-fit bg-white dark:bg-surface-overlay p-5 rounded-[20px]"
+              className="relative h-fit min-h-[530px] w-full max-w-[412px] rounded-[20px] bg-white p-5 dark:bg-surface-overlay"
             >
               {/* Header with warning icon */}
-              <div className="flex flex-col items-start gap-4 mb-4">
+              <div className="mb-4 flex flex-col items-start gap-4">
                 <WalletDone01Icon
                   size={28}
                   className="text-text-secondary dark:text-white/50"
@@ -106,33 +108,40 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                 <div className="flex-1">
                   <h3
                     id="copy-address-warning-title"
-                    className="text-lg font-semibold text-text-body dark:text-white mb-2"
+                    className="mb-2 text-lg font-semibold text-text-body dark:text-white"
                   >
                     You just copied your wallet address!
                   </h3>
                   <p
                     id="copy-address-warning-description"
-                    className="text-sm font-normal text-text-body dark:text-white/70 max-w-[85%]"
+                    className="max-w-[85%] text-sm font-normal text-text-body dark:text-white/70"
                   >
-                    If you are depositing funds to it, ensure you are depositing on only the supported networks
+                    If you are depositing funds to it, ensure you are depositing
+                    on only the supported networks
                   </p>
                 </div>
               </div>
 
               {/* copied address */}
-              <div className="flex flex-col items-start mb-2 rounded-xl bg-white dark:bg-surface-canvas min-h-[110px] h-fit gap-3 px-3 py-3 relative w-full border border-border-light dark:border-white/10">
-                <Wallet01Icon className="text-text-secondary dark:text-white/50" size={16} />
-                <div className="w-full flex items-start justify-between relative gap-4  mt-0">
-                  <p className="text-lg font-medium text-black dark:text-white/70 w-[80%] text-wrap break-all">
+              <div className="relative mb-2 flex h-fit min-h-[110px] w-full flex-col items-start gap-3 rounded-xl border border-border-light bg-white px-3 py-3 dark:border-white/10 dark:bg-surface-canvas">
+                <Wallet01Icon
+                  className="text-text-secondary dark:text-white/50"
+                  size={16}
+                />
+                <div className="relative mt-0 flex w-full items-start justify-between gap-4">
+                  <p className="w-[80%] text-wrap break-all text-lg font-medium text-black dark:text-white/70">
                     {address || "No address available"}
                   </p>
                   {isAddressCopied ? (
-                    <PiCheck size={24} className=" text-green-900 dark:text-green-500 absolute bottom-2 right-2" />
+                    <PiCheck
+                      size={24}
+                      className="absolute bottom-2 right-2 text-green-900 dark:text-green-500"
+                    />
                   ) : (
                     <Copy01Icon
                       onClick={handleCopyAddress}
                       size={24}
-                      className="cursor-pointer text-icon-outline-secondary absolute bottom-2 right-2 transition-all group-hover:text-lavender-500 dark:text-white/50 dark:hover:text-white"
+                      className="absolute bottom-2 right-2 cursor-pointer text-icon-outline-secondary transition-all group-hover:text-lavender-500 dark:text-white/50 dark:hover:text-white"
                       strokeWidth={2}
                     />
                   )}
@@ -140,23 +149,23 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
               </div>
 
               {/* Supported networks list */}
-              <div className="flex flex-col gap-2 items-start mb-2 rounded-xl bg-transparent h-fit px-3 py-3 relative w-full border border-border-light dark:border-white/5">
-                <h4 className="text-xs font-light text-text-secondary dark:text-white/50 mb-2">
+              <div className="relative mb-2 flex h-fit w-full flex-col items-start gap-2 rounded-xl border border-border-light bg-transparent px-3 py-3 dark:border-white/5">
+                <h4 className="mb-2 text-xs font-light text-text-secondary dark:text-white/50">
                   Supported networks
                 </h4>
-                <div className=" flex flex-wrap gap-2 w-full h-full ">
+                <div className="flex h-full w-full flex-wrap gap-2">
                   {networks.map((network) => (
                     <div
                       key={network.chain.id}
-                      className="flex items-center gap-0.5 p-2 bg-accent-gray dark:bg-white/10 w-fit h-[24px] rounded-full"
+                      className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"
                     >
-                      <div className="w-[16px] h-[16px]">
+                      <div className="h-[16px] w-[16px]">
                         <Image
                           src={getNetworkImageUrl(network, isDark)}
                           alt={`${network.chain.name} logo`}
                           width={24}
                           height={24}
-                          className=" w-full h-full object-contain rounded-full"
+                          className="h-full w-full rounded-full object-contain"
                         />
                       </div>
                       <span className="text-xs font-medium text-text-body dark:text-white/80">
@@ -168,17 +177,18 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
               </div>
 
               {/* Warning note */}
-              <div className="h-[48px] w-full bg-warning-background/[36%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start gap-0.5">
-                <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[24px] h-[24px] mr-2" />
-                <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight">
-                  Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
+              <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
+                <InformationSquareIcon className="mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
+                <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
+                  Only send funds to the supported networks, sending to an
+                  unlisted network will lead to loss of funds
                 </p>
               </div>
 
               {/* Action button */}
               <button
                 onClick={handleAcknowledge}
-                className="w-full text-sm bg-lavender-500 hover:bg-lavender-600 text-white font-medium py-3 px-4 rounded-xl transition-colors focus:outline-none"
+                className="w-full rounded-xl bg-lavender-500 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-lavender-600 focus:outline-none"
               >
                 Got it
               </button>
@@ -192,7 +202,7 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                 <DialogPanel className="scrollbar-hide relative max-h-[90vh] w-full overflow-visible rounded-t-[20px] border border-border-light bg-white px-5 pt-6 shadow-xl dark:border-white/5 dark:bg-surface-overlay">
                   <div className="scrollbar-hide max-h-[90vh] overflow-y-scroll pb-12">
                     {/* Header with warning icon */}
-                    <div className="flex flex-col items-start gap-4 mb-4">
+                    <div className="mb-4 flex flex-col items-start gap-4">
                       <WalletDone01Icon
                         size={28}
                         className="text-text-secondary dark:text-white/50"
@@ -200,33 +210,40 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                       <div className="flex-1">
                         <h3
                           id="copy-address-warning-title"
-                          className="text-lg font-semibold text-text-body dark:text-white mb-2"
+                          className="mb-2 text-lg font-semibold text-text-body dark:text-white"
                         >
                           You just copied your wallet address!
                         </h3>
                         <p
                           id="copy-address-warning-description"
-                          className="text-sm font-normal text-text-body dark:text-white/70 max-w-[85%]"
+                          className="max-w-[85%] text-sm font-normal text-text-body dark:text-white/70"
                         >
-                          If you are depositing funds to it, ensure you are depositing on only the supported networks
+                          If you are depositing funds to it, ensure you are
+                          depositing on only the supported networks
                         </p>
                       </div>
                     </div>
 
                     {/* copied address */}
-                    <div className="flex flex-col items-start mb-2 rounded-xl bg-white dark:bg-surface-canvas min-h-[110px] h-fit gap-3 px-3 py-3 relative w-full border border-border-light dark:border-white/10">
-                      <Wallet01Icon className="text-text-secondary dark:text-white/50" size={16} />
-                      <div className="w-full flex items-start justify-between relative gap-4  mt-0">
-                        <p className="text-lg font-medium text-black dark:text-white/70 w-[80%] text-wrap break-all">
+                    <div className="relative mb-2 flex h-fit min-h-[110px] w-full flex-col items-start gap-3 rounded-xl border border-border-light bg-white px-3 py-3 dark:border-white/10 dark:bg-surface-canvas">
+                      <Wallet01Icon
+                        className="text-text-secondary dark:text-white/50"
+                        size={16}
+                      />
+                      <div className="relative mt-0 flex w-full items-start justify-between gap-4">
+                        <p className="w-[80%] text-wrap break-all text-lg font-medium text-black dark:text-white/70">
                           {address || "No address available"}
                         </p>
                         {isAddressCopied ? (
-                          <PiCheck size={24} className=" text-green-900 dark:text-green-500 absolute bottom-2 right-2" />
+                          <PiCheck
+                            size={24}
+                            className="absolute bottom-2 right-2 text-green-900 dark:text-green-500"
+                          />
                         ) : (
                           <Copy01Icon
                             onClick={handleCopyAddress}
                             size={24}
-                            className="cursor-pointer text-icon-outline-secondary absolute bottom-2 right-2 transition-all group-hover:text-lavender-500 dark:text-white/50 dark:hover:text-white"
+                            className="absolute bottom-2 right-2 cursor-pointer text-icon-outline-secondary transition-all group-hover:text-lavender-500 dark:text-white/50 dark:hover:text-white"
                             strokeWidth={2}
                           />
                         )}
@@ -234,23 +251,23 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                     </div>
 
                     {/* Supported networks list */}
-                    <div className="flex flex-col gap-2 items-start mb-2 rounded-xl bg-transparent h-fit px-3 py-3 relative w-full border border-border-light dark:border-white/5">
-                      <h4 className="text-xs font-light text-text-secondary dark:text-white/50 mb-2">
+                    <div className="relative mb-2 flex h-fit w-full flex-col items-start gap-2 rounded-xl border border-border-light bg-transparent px-3 py-3 dark:border-white/5">
+                      <h4 className="mb-2 text-xs font-light text-text-secondary dark:text-white/50">
                         Supported networks
                       </h4>
-                      <div className=" flex flex-wrap gap-2 w-full h-full ">
+                      <div className="flex h-full w-full flex-wrap gap-2">
                         {networks.map((network) => (
                           <div
                             key={network.chain.id}
-                            className="flex items-center gap-0.5 p-2 bg-accent-gray dark:bg-white/10 w-fit h-[24px] rounded-full"
+                            className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"
                           >
-                            <div className="w-[16px] h-[16px]">
+                            <div className="h-[16px] w-[16px]">
                               <Image
                                 src={getNetworkImageUrl(network, isDark)}
                                 alt={`${network.chain.name} logo`}
                                 width={24}
                                 height={24}
-                                className=" w-full h-full object-contain rounded-full"
+                                className="h-full w-full rounded-full object-contain"
                               />
                             </div>
                             <span className="text-xs font-medium text-text-body dark:text-white/80">
@@ -262,17 +279,18 @@ export const CopyAddressWarningModal: React.FC<CopyAddressWarningModalProps> = (
                     </div>
 
                     {/* Warning note */}
-                    <div className="h-[48px] w-full bg-warning-background/[36%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start gap-0.5">
-                      <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[24px] h-[24px] mr-2" />
-                      <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight">
-                        Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
+                    <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
+                      <InformationSquareIcon className="mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
+                      <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
+                        Only send funds to the supported networks, sending to an
+                        unlisted network will lead to loss of funds
                       </p>
                     </div>
 
                     {/* Action button */}
                     <button
                       onClick={handleAcknowledge}
-                      className="w-full text-sm bg-lavender-500 hover:bg-lavender-600 text-white font-medium py-3 px-4 rounded-xl transition-colors focus:outline-none"
+                      className="w-full rounded-xl bg-lavender-500 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-lavender-600 focus:outline-none"
                     >
                       Got it
                     </button>

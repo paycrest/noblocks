@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { withRateLimit } from "@/app/lib/rate-limit";
+import {
+  isValidEvmAddress,
+  isValidEmailWithLength,
+} from "@/app/lib/validation";
 
 // POST /api/blockfest/participants
 // Body: { walletAddress: string, email?: string, source?: string }
@@ -24,16 +28,28 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     const walletAddress = String(body.walletAddress).trim().toLowerCase();
-    const email = body.email ? String(body.email).trim() : null;
-    const source = body.source ? String(body.source).trim() : "modal";
+    const emailRaw = body.email ? String(body.email).trim() : null;
+    const sourceRaw = body.source ? String(body.source).trim() : "modal";
 
     // Basic EVM address validation
-    if (!/^0x[a-f0-9]{40}$/.test(walletAddress)) {
+    if (!isValidEvmAddress(walletAddress)) {
       return NextResponse.json(
         { success: false, error: "Invalid wallet address format" },
         { status: 400 },
       );
     }
+
+    // Validate email format if provided
+    if (emailRaw && !isValidEmailWithLength(emailRaw)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid email format" },
+        { status: 400 },
+      );
+    }
+
+    // Apply length limit to source field (max 100 chars)
+    const source = sourceRaw.length <= 100 ? sourceRaw : "modal";
+    const email = emailRaw;
 
     // Upsert participant (idempotent)
     // normalized_address is auto-populated by trigger from wallet_address

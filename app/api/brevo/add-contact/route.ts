@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import { brevoConfig } from "@/app/lib/server-config";
+import { isValidEmailWithLength } from "@/app/lib/validation";
 import axios from "axios";
 
 // POST /api/brevo/add-contact
@@ -29,14 +30,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     // Basic email validation
     // RFC 5321 caps email at 320 chars (64 local + @ + 255 domain)
-    if (email.length > 320) {
-      return NextResponse.json(
-        { success: false, error: "Invalid email format" },
-        { status: 400 },
-      );
-    }
-
-    if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email)) {
+    if (!isValidEmailWithLength(email)) {
       return NextResponse.json(
         { success: false, error: "Invalid email format" },
         { status: 400 },

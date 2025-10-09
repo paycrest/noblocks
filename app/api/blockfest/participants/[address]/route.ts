@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { withRateLimit } from "@/app/lib/rate-limit";
+import { isValidEvmAddress } from "@/app/lib/validation";
 
 // GET /api/blockfest/participants/[address]
 export const GET = withRateLimit(
@@ -11,7 +12,7 @@ export const GET = withRateLimit(
       const decodedAddress = decodeURIComponent(address ?? "")
         .trim()
         .toLowerCase();
-      if (!/^0x[a-f0-9]{40}$/.test(decodedAddress)) {
+      if (!isValidEvmAddress(decodedAddress)) {
         return NextResponse.json(
           { success: false, error: "Invalid wallet address format" },
           { status: 400 },

@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import axios from "axios";
 
 type ClaimState = {
   claimed: boolean | null;
@@ -31,14 +32,13 @@ export function BlockFestClaimProvider({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await axios.get(
         `/api/blockfest/participants/${encodeURIComponent(walletAddress)}`,
       );
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || "Failed to check status");
+      if (!res.data.success) {
+        throw new Error(res.data.error || "Failed to check status");
       }
-      setClaimed(Boolean(json.exists));
+      setClaimed(Boolean(res.data.exists));
     } catch (e: any) {
       setError(e?.message || "Failed to check status");
       setClaimed(false);

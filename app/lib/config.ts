@@ -31,6 +31,11 @@ export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
   },
 };
 
+export const brevoConfig = {
+  apiKey: process.env.BREVO_API_KEY || "",
+  listId: process.env.BREVO_LIST_ID || "",
+};
+
 // Sanity-specific configuration for client-side (Next.js app)
 export const clientConfig = {
   projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "",

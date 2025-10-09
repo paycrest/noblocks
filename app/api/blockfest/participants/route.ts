@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/app/lib/supabase";
 import { withRateLimit } from "@/app/lib/rate-limit";
 
 // POST /api/blockfest/participants
-// Body: { walletAddress: string }
+// Body: { walletAddress: string, email?: string, source?: string }
 export const POST = withRateLimit(async (request: NextRequest) => {
   const start = Date.now();
   try {
@@ -24,6 +24,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     const walletAddress = String(body.walletAddress).trim().toLowerCase();
+    const email = body.email ? String(body.email).trim() : null;
+    const source = body.source ? String(body.source).trim() : "modal";
 
     // Basic EVM address validation
     if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
@@ -37,6 +39,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const { error } = await supabaseAdmin.from("blockfest_participants").upsert(
       {
         wallet_address: walletAddress,
+        email,
+        source,
       },
       { onConflict: "wallet_address" },
     );
@@ -44,7 +48,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     if (error) {
       console.error("Supabase upsert error (blockfest_participants):", error);
       return NextResponse.json(
-        { success: false, error: "Failed to save participant" },
+        {
+          success: false,
+          error: error.message || "Failed to save participant",
+          response_time_ms: Date.now() - start,
+        },
         { status: 500 },
       );
     }

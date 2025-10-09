@@ -7,8 +7,11 @@ export const GET = withRateLimit(
   async (_req: NextRequest, { params }: { params: { address: string } }) => {
     const start = Date.now();
     try {
-      const address = decodeURIComponent(params.address ?? "").trim();
-      if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+      const { address } = await params;
+      const decodedAddress = decodeURIComponent(address ?? "")
+        .trim()
+        .toLowerCase();
+      if (!/^0x[a-fA-F0-9]{40}$/.test(decodedAddress)) {
         return NextResponse.json(
           { success: false, error: "Invalid wallet address format" },
           { status: 400 },
@@ -18,7 +21,7 @@ export const GET = withRateLimit(
       const { data, error } = await supabaseAdmin
         .from("blockfest_participants")
         .select("wallet_address")
-        .eq("wallet_address", address)
+        .eq("wallet_address", decodedAddress)
         .limit(1)
         .maybeSingle();
 
@@ -27,7 +30,7 @@ export const GET = withRateLimit(
         return NextResponse.json(
           {
             success: false,
-            error: "Failed to check participant",
+            error: error.message || "Failed to check participant",
             response_time_ms: Date.now() - start,
           },
           { status: 500 },

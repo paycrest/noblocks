@@ -12,6 +12,7 @@ import { ImSpinner } from "react-icons/im";
 import confetti from "canvas-confetti";
 import { useBlockFestClaim } from "@/app/context/BlockFestClaimContext";
 import { usePrivy } from "@privy-io/react-auth";
+import axios from "axios";
 
 interface BlockFestCashbackModalProps {
   isOpen: boolean;
@@ -75,36 +76,65 @@ export default function BlockFestCashbackModal({
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
-      // TODO: Implement cashback claim logic
-      console.log("Claiming cashback for email:", data.email);
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Persist wallet claim (if wallet available)
       const walletAddress = user?.wallet?.address || "";
-      if (/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
-        try {
-          const res = await fetch("/api/blockfest/participants", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ walletAddress }),
-          });
-          const json = await res.json();
-          if (!res.ok || !json.success) {
-            throw new Error(json.error || "Failed to save participant");
-          }
-          // Update in-memory state
-          markClaimed();
-        } catch (e) {
-          console.error("Failed to persist participant:", e);
-          toast.error("Could not save cashback enrollment", {
-            description:
-              e instanceof Error ? e.message : "Please try again shortly",
-          });
-          throw e;
-        }
+
+      // Validate wallet address
+      if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        toast.error("Invalid wallet address", {
+          description: "Please ensure you're properly connected",
+        });
+        setIsSubmitting(false);
+        return;
       }
+
+      // Execute both API calls in parallel
+      const [supabaseResult, brevoResult] = await Promise.allSettled([
+        // Supabase: Save participant
+        axios
+          .post("/api/blockfest/participants", {
+            walletAddress,
+            email: data.email,
+            source: "modal",
+          })
+          .then((res) => {
+            if (!res.data.success) {
+              throw new Error(res.data.error || "Failed to save participant");
+            }
+            return res.data;
+          }),
+
+        // Brevo: Add contact to list
+        axios
+          .post("/api/brevo/add-contact", { email: data.email })
+          .then((res) => {
+            if (!res.data.success) {
+              throw new Error(res.data.error || "Failed to add email to list");
+            }
+            return res.data;
+          }),
+      ]);
+
+      // Check Supabase result (critical)
+      if (supabaseResult.status === "rejected") {
+        console.error("Supabase error:", supabaseResult.reason);
+        toast.error("Could not save cashback enrollment", {
+          description:
+            supabaseResult.reason instanceof Error
+              ? supabaseResult.reason.message
+              : "Please try again shortly",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Check Brevo result (non-critical, log only)
+      if (brevoResult.status === "rejected") {
+        console.error("Brevo error:", brevoResult.reason);
+        // Don't block user success, but log for monitoring
+      }
+
+      // Update in-memory state
+      markClaimed();
 
       // Fire confetti
       confetti({
@@ -118,6 +148,9 @@ export default function BlockFestCashbackModal({
       reset();
     } catch (error) {
       console.error("Failed to claim cashback:", error);
+      toast.error("Something went wrong", {
+        description: "Please try again",
+      });
     } finally {
       setIsSubmitting(false);
     }

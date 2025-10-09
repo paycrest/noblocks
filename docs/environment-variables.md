@@ -73,6 +73,10 @@ NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE=
 # Notice banner
 # See docs/notice-banner.md
 NEXT_PUBLIC_NOTICE_BANNER_TEXT=
+
+# Brevo Email Marketing
+BREVO_API_KEY=
+BREVO_LIST_ID=
 ```
 
 ### Content Management (Sanity)

@@ -10,8 +10,20 @@ create table if not exists public.blockfest_participants (
 create index if not exists idx_blockfest_participants_wallet
   on public.blockfest_participants (wallet_address);
 
--- Basic RLS setup (optional; keep open for admin-only service role writes)
+-- Enable Row Level Security (RLS)
 alter table public.blockfest_participants enable row level security;
 
--- Allow service-role key to perform all actions; client should not access directly
--- (In Supabase, service role bypasses RLS; no client policy is added here.)
+-- Allow all insert/update operations (API is rate-limited and validates input)
+create policy "Allow inserts for blockfest participants"
+on public.blockfest_participants for insert
+with check (true);
+
+create policy "Allow updates for blockfest participants"
+on public.blockfest_participants for update
+using (true)
+with check (true);
+
+-- Allow reads (needed for checking claim status)
+create policy "Allow reads for blockfest participants"
+on public.blockfest_participants for select
+using (true);

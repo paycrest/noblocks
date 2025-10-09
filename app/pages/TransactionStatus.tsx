@@ -653,21 +653,23 @@ export function TransactionStatus({
         <AnimatePresence>
           {["validated", "settled", "refunded"].includes(transactionStatus) && (
             <>
-              {/* BlockFest Cashback Component - only when settled and claimed */}
-              {transactionStatus === "settled" && claimed === true && (
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.45}
-                  className="flex justify-center"
-                >
-                  <BlockFestCashbackComponent
-                    cashbackAmount={(Number(amount) * 0.01).toFixed(2)}
-                    cashbackPercentage="1%"
-                  />
-                </AnimatedComponent>
-              )}
+              {/* BlockFest Cashback Component - only when settled and claimed and on Base network */}
+              {transactionStatus === "settled" &&
+                claimed === true &&
+                orderDetails?.network === "Base" && (
+                  <AnimatedComponent
+                    variant={slideInOut}
+                    delay={0.45}
+                    className="flex justify-center"
+                  >
+                    <BlockFestCashbackComponent
+                      cashbackAmount={(Number(amount) * 0.01).toFixed(2)}
+                      cashbackPercentage="1%"
+                    />
+                  </AnimatedComponent>
+                )}
 
-              {!(transactionStatus === "settled" && claimed === true) && (
+              {!(transactionStatus === "settled") && (
                 <AnimatedComponent
                   variant={slideInOut}
                   delay={0.5}
@@ -798,7 +800,11 @@ export function TransactionStatus({
 
         <AnimatePresence>
           {["validated", "settled"].includes(transactionStatus) &&
-            !(transactionStatus === "settled" && claimed === true) && (
+            !(
+              transactionStatus === "settled" &&
+              claimed === true &&
+              orderDetails?.network === "Base"
+            ) && (
               <AnimatedComponent
                 variant={slideInOut}
                 delay={0.8}

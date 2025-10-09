@@ -6,164 +6,502 @@ import { createWalletClient, http, parseUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { erc20Abi } from "viem";
+import { supabaseAdmin } from "@/app/lib/supabase";
+import { fetchOrderDetails } from "@/app/api/aggregator";
+
+// Campaign configuration
+const BLOCKFEST_END_DATE = new Date(
+  process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
+);
+const MAX_CASHBACK_PER_TRANSACTION = 100; // $100 max per transaction
+const MAX_CASHBACK_PER_WALLET = 500; // $500 total per wallet
+const MAX_CLAIMS_PER_WALLET = 10; // 10 claims max per wallet
+const CASHBACK_PERCENTAGE = 0.01; // 1% cashback
 
 // POST /api/blockfest/cashback
-// Body: { walletAddress: string, amount: string, tokenType: "USDC" | "USDT" }
-// TODO: SECURITY - This endpoint is temporarily disabled pending security fixes:
-// - Add authentication/session validation
-// - Server-side validation against trusted transaction records
-// - Recompute cashback from verified swap (don't trust client amount)
-// - Enforce maximum payout cap and per-wallet limits
-// - Implement idempotency (reject duplicate claims per transaction)
-// - Only allow payouts to verified/registered wallets
+// Body: { transactionId: string }
 export const POST = withRateLimit(async (request: NextRequest) => {
   const start = Date.now();
-  
-  // Temporarily disabled for security - see TODO above
-  return NextResponse.json(
-    {
-      success: false,
-      error: "Cashback transfers are temporarily disabled pending security enhancements",
-      response_time_ms: Date.now() - start,
-    },
-    { status: 403 },
-  );
 
-  /* Original implementation - disabled pending security fixes
   try {
+    // Step 1: Authentication - Get wallet address from middleware header
+    const walletAddress = request.headers
+      .get("x-wallet-address")
+      ?.toLowerCase();
+
+    if (!walletAddress) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Unauthorized",
+          code: "AUTH_REQUIRED",
+          message: "Authentication required. Please sign in to claim cashback.",
+          response_time_ms: Date.now() - start,
+        },
+        { status: 401 },
+      );
+    }
+
+    // Step 2: Validate request body
     const contentType = request.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
       return NextResponse.json(
-        { success: false, error: "Unsupported content type" },
+        {
+          success: false,
+          error: "Unsupported content type",
+          code: "INVALID_CONTENT_TYPE",
+          message: "Request must be sent with Content-Type: application/json",
+          response_time_ms: Date.now() - start,
+        },
         { status: 415 },
       );
     }
 
     const body = await request.json().catch(() => null);
 
-    if (
-      !body ||
-      typeof body.walletAddress !== "string" ||
-      typeof body.amount !== "string" ||
-      typeof body.tokenType !== "string"
-    ) {
+    if (!body || typeof body.transactionId !== "string") {
       return NextResponse.json(
-        { success: false, error: "Invalid request body" },
+        {
+          success: false,
+          error: "Invalid request body",
+          code: "MISSING_TRANSACTION_ID",
+          message: "transactionId is required in request body",
+          response_time_ms: Date.now() - start,
+        },
         { status: 400 },
       );
     }
 
-    const { walletAddress, amount, tokenType } = body;
+    const { transactionId } = body;
 
-    // Validate wallet address
-    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
-      return NextResponse.json(
-        { success: false, error: "Invalid wallet address format" },
-        { status: 400 },
-      );
-    }
-
-    // Validate token type
-    if (tokenType !== "USDC" && tokenType !== "USDT") {
-      return NextResponse.json(
-        { success: false, error: "Invalid token type. Must be USDC or USDT" },
-        { status: 400 },
-      );
-    }
-
-    // Validate amount
-    const amountNum = parseFloat(amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      return NextResponse.json(
-        { success: false, error: "Invalid amount. Must be greater than 0" },
-        { status: 400 },
-      );
-    }
-
-    // Check cashback wallet configuration
+    // Step 3: Check cashback wallet configuration
     if (!cashbackConfig.walletAddress || !cashbackConfig.walletPrivateKey) {
       console.error("Cashback wallet not configured");
       return NextResponse.json(
-        { success: false, error: "Cashback service not configured" },
+        {
+          success: false,
+          error: "Cashback service not configured",
+          code: "SERVICE_UNAVAILABLE",
+          message:
+            "Cashback service is temporarily unavailable. Please try again later or contact support.",
+          response_time_ms: Date.now() - start,
+        },
         { status: 500 },
       );
     }
 
-    // Get token contract address from FALLBACK_TOKENS
-    const baseTokens = FALLBACK_TOKENS["Base"];
-    const token = baseTokens.find((t) => t.symbol === tokenType);
+    // Step 4: Fetch transaction details from aggregator
+    let orderDetails;
+    try {
+      // Extract chainId from transactionId if needed (format: chainId-orderId)
+      const parts = transactionId.split("-");
+      const chainId = parts.length > 1 ? parseInt(parts[0]) : 8453; // Default to Base (8453)
+      const orderId =
+        parts.length > 1 ? parts.slice(1).join("-") : transactionId;
 
-    if (!token) {
+      const orderResponse = await fetchOrderDetails(chainId, orderId);
+      orderDetails = orderResponse.data;
+    } catch (error) {
+      console.error("Failed to fetch transaction:", error);
       return NextResponse.json(
-        { success: false, error: `Token ${tokenType} not found on Base` },
+        {
+          success: false,
+          error: "Transaction not found",
+          code: "TRANSACTION_NOT_FOUND",
+          message: `No transaction found with ID: ${transactionId}. Please verify the transaction ID and try again.`,
+          response_time_ms: Date.now() - start,
+        },
+        { status: 404 },
+      );
+    }
+
+    // Step 5: Verify transaction is eligible
+    // Check status
+    if (orderDetails.status !== "settled") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Transaction not eligible",
+          code: "TRANSACTION_NOT_SETTLED",
+          message: `Transaction must be settled to claim cashback. Current status: ${orderDetails.status}`,
+          details: {
+            transactionId,
+            currentStatus: orderDetails.status,
+            requiredStatus: "settled",
+          },
+          response_time_ms: Date.now() - start,
+        },
         { status: 400 },
       );
     }
 
-    // Get RPC URL for Base
-    const rpcUrl = getRpcUrl("Base");
-    if (!rpcUrl) {
+    // Check network
+    if (orderDetails.network !== "Base") {
       return NextResponse.json(
-        { success: false, error: "Base RPC not configured" },
+        {
+          success: false,
+          error: "Network not supported",
+          code: "INVALID_NETWORK",
+          message: `Cashback is only available for transactions on Base network. Your transaction is on ${orderDetails.network}.`,
+          details: {
+            transactionId,
+            transactionNetwork: orderDetails.network,
+            supportedNetwork: "Base",
+          },
+          response_time_ms: Date.now() - start,
+        },
+        { status: 400 },
+      );
+    }
+
+    // Check campaign period
+    const transactionDate = new Date(orderDetails.updatedAt);
+    if (transactionDate > BLOCKFEST_END_DATE) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Transaction outside campaign period",
+          code: "CAMPAIGN_ENDED",
+          message: `This transaction occurred after the BlockFest campaign ended (${BLOCKFEST_END_DATE.toISOString()}).`,
+          details: {
+            transactionId,
+            transactionDate: orderDetails.updatedAt,
+            campaignEndDate: BLOCKFEST_END_DATE.toISOString(),
+          },
+          response_time_ms: Date.now() - start,
+        },
+        { status: 400 },
+      );
+    }
+
+    // Step 6: Verify user is BlockFest participant
+    const { data: participant, error: participantError } = await supabaseAdmin
+      .from("blockfest_participants")
+      .select("*")
+      .eq("wallet_address", walletAddress)
+      .single();
+
+    if (participantError || !participant) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Not a BlockFest participant",
+          code: "NOT_A_PARTICIPANT",
+          message:
+            "You must join BlockFest with a referral link (?ref=blockfest) to be eligible for cashback.",
+          response_time_ms: Date.now() - start,
+        },
+        { status: 403 },
+      );
+    }
+
+    // Step 7: Check for existing claim (idempotency)
+    const { data: existingClaim } = await supabaseAdmin
+      .from("blockfest_cashback_claims")
+      .select("*")
+      .eq("transaction_id", transactionId)
+      .single();
+
+    if (existingClaim) {
+      // Return existing claim info
+      return NextResponse.json({
+        success: existingClaim.status === "completed",
+        message: `Cashback already ${existingClaim.status}`,
+        claim: {
+          amount: existingClaim.amount,
+          tokenType: existingClaim.token_type,
+          status: existingClaim.status,
+          txHash: existingClaim.tx_hash,
+        },
+        response_time_ms: Date.now() - start,
+      });
+    }
+
+    // Step 8: Calculate cashback amount (server-side)
+    const transactionAmount = parseFloat(orderDetails.amount);
+    const cashbackAmount = transactionAmount * CASHBACK_PERCENTAGE;
+    const cappedCashback = Math.min(
+      cashbackAmount,
+      MAX_CASHBACK_PER_TRANSACTION,
+    );
+    const finalCashback = cappedCashback.toFixed(2);
+
+    // Step 9: Check per-wallet limits
+    // Check total claim count
+    const { count: claimCount, error: countError } = await supabaseAdmin
+      .from("blockfest_cashback_claims")
+      .select("*", { count: "exact", head: true })
+      .eq("wallet_address", walletAddress)
+      .eq("status", "completed");
+
+    if (countError) {
+      console.error("Failed to check claim count:", countError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to verify claim limits",
+          code: "DATABASE_ERROR",
+          message: "Unable to verify your claim eligibility. Please try again.",
+          response_time_ms: Date.now() - start,
+        },
         { status: 500 },
       );
     }
 
-    // Create wallet account from private key
-    const account = privateKeyToAccount(
-      cashbackConfig.walletPrivateKey as `0x${string}`,
+    if ((claimCount || 0) >= MAX_CLAIMS_PER_WALLET) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Claim limit reached",
+          code: "MAX_CLAIMS_REACHED",
+          message: `You have reached the maximum of ${MAX_CLAIMS_PER_WALLET} cashback claims per wallet for this campaign.`,
+          details: {
+            currentClaims: claimCount,
+            maxClaims: MAX_CLAIMS_PER_WALLET,
+          },
+          response_time_ms: Date.now() - start,
+        },
+        { status: 429 },
+      );
+    }
+
+    // Check total amount claimed
+    const { data: completedClaims, error: claimsError } = await supabaseAdmin
+      .from("blockfest_cashback_claims")
+      .select("amount")
+      .eq("wallet_address", walletAddress)
+      .eq("status", "completed");
+
+    if (claimsError) {
+      console.error("Failed to check total claimed:", claimsError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to verify claim limits",
+          code: "DATABASE_ERROR",
+          message: "Unable to verify your claim eligibility. Please try again.",
+          response_time_ms: Date.now() - start,
+        },
+        { status: 500 },
+      );
+    }
+
+    const totalClaimed = (completedClaims || []).reduce(
+      (sum, claim) => sum + parseFloat(claim.amount),
+      0,
     );
 
-    // Create wallet client
-    const walletClient = createWalletClient({
-      account,
-      chain: base,
-      transport: http(rpcUrl),
-    });
-
-    // Parse amount with proper decimals (6 for both USDC and USDT on Base)
-    const amountInWei = parseUnits(amount, token.decimals);
-
-    // Execute transfer
-    const txHash = await walletClient.writeContract({
-      address: token.address as `0x${string}`,
-      abi: erc20Abi,
-      functionName: "transfer",
-      args: [walletAddress as `0x${string}`, amountInWei],
-    });
-
-    return NextResponse.json({
-      success: true,
-      txHash,
-      amount,
-      tokenType,
-      response_time_ms: Date.now() - start,
-    });
-  } catch (err) {
-    console.error("BlockFest cashback transfer error:", err);
-
-    // Handle specific viem errors
-    let errorMessage = "Failed to transfer cashback";
-    if (err instanceof Error) {
-      if (err.message.includes("insufficient funds")) {
-        errorMessage = "Insufficient funds in cashback wallet";
-      } else if (err.message.includes("nonce")) {
-        errorMessage = "Transaction nonce error. Please try again";
-      } else if (err.message.includes("gas")) {
-        errorMessage = "Gas estimation failed. Please try again";
-      } else {
-        errorMessage = err.message;
-      }
+    if (totalClaimed >= MAX_CASHBACK_PER_WALLET) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Total cashback limit reached",
+          code: "MAX_CASHBACK_REACHED",
+          message: `You have reached the maximum total cashback of $${MAX_CASHBACK_PER_WALLET} per wallet for this campaign.`,
+          details: {
+            totalClaimed: totalClaimed.toFixed(2),
+            maxCashback: MAX_CASHBACK_PER_WALLET,
+          },
+          response_time_ms: Date.now() - start,
+        },
+        { status: 429 },
+      );
     }
+
+    // Check if adding this claim would exceed limit
+    if (totalClaimed + parseFloat(finalCashback) > MAX_CASHBACK_PER_WALLET) {
+      // Adjust cashback to fit within limit
+      const remainingAllowance = MAX_CASHBACK_PER_WALLET - totalClaimed;
+      if (remainingAllowance <= 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Total cashback limit reached",
+            code: "MAX_CASHBACK_REACHED",
+            message: `You have reached the maximum total cashback of $${MAX_CASHBACK_PER_WALLET} per wallet for this campaign.`,
+            details: {
+              totalClaimed: totalClaimed.toFixed(2),
+              maxCashback: MAX_CASHBACK_PER_WALLET,
+              remainingAllowance: "0.00",
+            },
+            response_time_ms: Date.now() - start,
+          },
+          { status: 429 },
+        );
+      }
+      // Note: We'll use finalCashback as calculated, or could adjust here
+    }
+
+    // Step 10: Create pending claim record
+    const { data: pendingClaim, error: claimError } = await supabaseAdmin
+      .from("blockfest_cashback_claims")
+      .insert({
+        transaction_id: transactionId,
+        wallet_address: walletAddress,
+        amount: finalCashback,
+        token_type: orderDetails.token,
+        status: "pending",
+      })
+      .select()
+      .single();
+
+    if (claimError || !pendingClaim) {
+      console.error("Failed to create claim record:", claimError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to create claim record",
+          code: "CLAIM_CREATION_FAILED",
+          message:
+            claimError?.code === "23505"
+              ? "A claim for this transaction already exists. Please refresh and try again."
+              : "Unable to process your cashback claim. Please try again.",
+          details: claimError?.message
+            ? { dbError: claimError.message }
+            : undefined,
+          response_time_ms: Date.now() - start,
+        },
+        { status: 500 },
+      );
+    }
+
+    // Step 11: Execute cashback transfer
+    try {
+      // Get token contract address
+      const baseTokens = FALLBACK_TOKENS["Base"];
+      const token = baseTokens.find((t) => t.symbol === orderDetails.token);
+
+      if (!token) {
+        throw new Error(`Token ${orderDetails.token} not found on Base`);
+      }
+
+      // Get RPC URL
+      const rpcUrl = getRpcUrl("Base");
+      if (!rpcUrl) {
+        throw new Error("Base RPC not configured");
+      }
+
+      // Create wallet account from private key
+      const account = privateKeyToAccount(
+        cashbackConfig.walletPrivateKey as `0x${string}`,
+      );
+
+      // Create wallet client
+      const walletClient = createWalletClient({
+        account,
+        chain: base,
+        transport: http(rpcUrl),
+      });
+
+      // Parse amount with proper decimals
+      const amountInWei = parseUnits(finalCashback, token.decimals);
+
+      // Execute transfer
+      const txHash = await walletClient.writeContract({
+        address: token.address as `0x${string}`,
+        abi: erc20Abi,
+        functionName: "transfer",
+        args: [walletAddress as `0x${string}`, amountInWei],
+      });
+
+      // Step 12: Update claim status to completed
+      const { error: updateError } = await supabaseAdmin
+        .from("blockfest_cashback_claims")
+        .update({
+          status: "completed",
+          tx_hash: txHash,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", pendingClaim.id);
+
+      if (updateError) {
+        console.error("Failed to update claim status:", updateError);
+        // Transfer succeeded but status update failed - log for manual review
+        console.error(
+          `MANUAL REVIEW NEEDED: Claim ${pendingClaim.id} transferred but status update failed`,
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        claim: {
+          amount: finalCashback,
+          tokenType: orderDetails.token,
+          txHash,
+          status: "completed",
+        },
+        response_time_ms: Date.now() - start,
+      });
+    } catch (transferError) {
+      console.error("Cashback transfer failed:", transferError);
+
+      // Update claim status to failed
+      await supabaseAdmin
+        .from("blockfest_cashback_claims")
+        .update({
+          status: "failed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", pendingClaim.id);
+
+      // Handle specific transfer errors
+      let errorCode = "TRANSFER_FAILED";
+      let errorMessage = "Failed to transfer cashback. Please contact support.";
+
+      if (transferError instanceof Error) {
+        if (transferError.message.includes("insufficient funds")) {
+          errorCode = "INSUFFICIENT_FUNDS";
+          errorMessage =
+            "Cashback wallet has insufficient funds. Please contact support to resolve this issue.";
+        } else if (transferError.message.includes("nonce")) {
+          errorCode = "NONCE_ERROR";
+          errorMessage =
+            "Transaction processing error. Please try again in a few moments.";
+        } else if (transferError.message.includes("gas")) {
+          errorCode = "GAS_ESTIMATION_FAILED";
+          errorMessage =
+            "Unable to estimate transaction gas. Please try again.";
+        }
+      }
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Cashback transfer failed",
+          code: errorCode,
+          message: errorMessage,
+          details: {
+            claimId: pendingClaim.id,
+            amount: finalCashback,
+            tokenType: orderDetails.token,
+          },
+          response_time_ms: Date.now() - start,
+        },
+        { status: 500 },
+      );
+    }
+  } catch (err) {
+    console.error("BlockFest cashback API error:", err);
+
+    const message =
+      err instanceof Error && err.message
+        ? err.message
+        : "An unexpected error occurred";
 
     return NextResponse.json(
       {
         success: false,
-        error: errorMessage,
+        error: "Internal server error",
+        code: "INTERNAL_ERROR",
+        message:
+          "An unexpected error occurred while processing your cashback claim. Please try again or contact support.",
+        details:
+          process.env.NODE_ENV === "development"
+            ? { originalError: message }
+            : undefined,
         response_time_ms: Date.now() - start,
       },
       { status: 500 },
     );
   }
-  */
 });

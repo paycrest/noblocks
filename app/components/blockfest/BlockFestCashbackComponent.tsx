@@ -11,29 +11,27 @@ import axios from "axios";
 import { toast } from "sonner";
 
 interface BlockFestCashbackComponentProps {
-  cashbackAmount?: string; // e.g., "0.02"
+  transactionId: string;
   cashbackPercentage?: string;
-  tokenType: "USDC" | "USDT";
-  userWalletAddress: string;
 }
 
 type TransferStatus = "idle" | "loading" | "success" | "error";
 
 export default function BlockFestCashbackComponent({
-  cashbackAmount = "0.00",
+  transactionId,
   cashbackPercentage = "1%",
-  tokenType,
-  userWalletAddress,
 }: BlockFestCashbackComponentProps) {
   const { theme } = useTheme();
   const [transferStatus, setTransferStatus] = useState<TransferStatus>("idle");
   const [hasTransferred, setHasTransferred] = useState(false);
+  const [cashbackAmount, setCashbackAmount] = useState<string>("0.00");
+  const [tokenType, setTokenType] = useState<string>("");
 
   // Execute cashback transfer on component mount
   useEffect(() => {
     const executeCashbackTransfer = async () => {
       // Prevent duplicate transfers
-      if (hasTransferred || !userWalletAddress || !cashbackAmount) {
+      if (hasTransferred || !transactionId) {
         return;
       }
 
@@ -41,16 +39,17 @@ export default function BlockFestCashbackComponent({
 
       try {
         const response = await axios.post("/api/blockfest/cashback", {
-          walletAddress: userWalletAddress,
-          amount: cashbackAmount,
-          tokenType,
+          transactionId,
         });
 
         if (response.data.success) {
+          const claim = response.data.claim;
+          setCashbackAmount(claim.amount);
+          setTokenType(claim.tokenType);
           setTransferStatus("success");
           setHasTransferred(true);
           toast.success("Cashback transferred successfully!", {
-            description: `${cashbackPercentage} (${cashbackAmount} ${tokenType}) has been added to your wallet`,
+            description: `${cashbackPercentage} (${claim.amount} ${claim.tokenType}) has been added to your wallet`,
           });
         } else {
           throw new Error(response.data.error || "Transfer failed");
@@ -58,23 +57,37 @@ export default function BlockFestCashbackComponent({
       } catch (error) {
         console.error("Cashback transfer error:", error);
         setTransferStatus("error");
-        toast.error("Cashback transfer failed", {
-          description:
-            error instanceof Error
-              ? error.message
-              : "Please contact support for assistance",
+
+        // Extract error details from API response
+        let errorTitle = "Cashback transfer failed";
+        let errorMessage = "Please contact support for assistance";
+
+        if (axios.isAxiosError(error) && error.response?.data) {
+          const errorData = error.response.data;
+          // Use the detailed message from API response
+          errorMessage = errorData.message || errorData.error || errorMessage;
+
+          // Log error code for debugging
+          if (errorData.code) {
+            console.error(
+              "Cashback error code:",
+              errorData.code,
+              errorData.details,
+            );
+          }
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+
+        toast.error(errorTitle, {
+          description: errorMessage,
+          duration: 6000, // Show error longer for user to read
         });
       }
     };
 
     executeCashbackTransfer();
-  }, [
-    userWalletAddress,
-    cashbackAmount,
-    tokenType,
-    hasTransferred,
-    cashbackPercentage,
-  ]);
+  }, [transactionId, hasTransferred, cashbackPercentage]);
 
   // Get banner text based on transfer status
   const getBannerText = () => {
@@ -117,75 +130,77 @@ export default function BlockFestCashbackComponent({
         {getBannerText()}
       </div>
 
-      {/* Description and social buttons */}
-      <div className="flex flex-col gap-3 px-3 pb-1">
-        <div className="text-sm font-light text-text-body dark:text-white">
-          Post your swap on X or Farcaster, tag{" "}
-          <a
-            href="https://x.com/noblocks_xyz"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-lavender-500 hover:underline"
-          >
-            @noblocks_xyz
-          </a>
-          ,{" "}
-          <a
-            href="https://x.com/basedwestafrica"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-lavender-500 hover:underline"
-          >
-            @basedwestafrica
-          </a>{" "}
-          and{" "}
-          <a
-            href="https://x.com/blockfestafrica"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-lavender-500 hover:underline"
-          >
-            @blockfestafrica
-          </a>{" "}
-          then show your post at the Noblocks booth to get your extra{" "}
-          <span className="font-medium">1%</span> instantly added to your
-          wallet.
-        </div>
+      {/* Description and social buttons - only show on success */}
+      {transferStatus === "success" && (
+        <div className="flex flex-col gap-3 px-3 pb-1">
+          <div className="text-sm font-light text-text-body dark:text-white">
+            Post your swap on X or Farcaster, tag{" "}
+            <a
+              href="https://x.com/noblocks_xyz"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-lavender-500 hover:underline"
+            >
+              @noblocks_xyz
+            </a>
+            ,{" "}
+            <a
+              href="https://x.com/basedwestafrica"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-lavender-500 hover:underline"
+            >
+              @basedwestafrica
+            </a>{" "}
+            and{" "}
+            <a
+              href="https://x.com/blockfestafrica"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-lavender-500 hover:underline"
+            >
+              @blockfestafrica
+            </a>{" "}
+            then show your post at the Noblocks booth to get your extra{" "}
+            <span className="font-medium">1%</span> instantly added to your
+            wallet.
+          </div>
 
-        <div className="flex gap-3">
-          {/* X (Twitter) Button */}
-          <a
-            aria-label="Share on Twitter"
-            rel="noopener noreferrer"
-            target="_blank"
-            href="https://x.com/intent/tweet?text=Just%20got%201%%20cashback%20on%20my%20swap%20at%20BlockFest!%20Thanks%20@noblocks_xyz%20@basedwestafrica%20@blockfestafrica%20for%20the%20amazing%20experience%20🎉%20#BlockFest%20#BaseNetwork"
-            className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
-          >
-            {theme === "dark" ? (
-              <XIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
-            ) : (
-              <XIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
-            )}
-            X (Twitter)
-          </a>
+          <div className="flex gap-3">
+            {/* X (Twitter) Button */}
+            <a
+              aria-label="Share on Twitter"
+              rel="noopener noreferrer"
+              target="_blank"
+              href="https://x.com/intent/tweet?text=Just%20got%201%%20cashback%20on%20my%20swap%20at%20BlockFest!%20Thanks%20@noblocks_xyz%20@basedwestafrica%20@blockfestafrica%20for%20the%20amazing%20experience%20🎉%20#BlockFest%20#BaseNetwork"
+              className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+            >
+              {theme === "dark" ? (
+                <XIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
+              ) : (
+                <XIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
+              )}
+              X (Twitter)
+            </a>
 
-          {/* Farcaster Button */}
-          <a
-            aria-label="Share on Farcaster"
-            rel="noopener noreferrer"
-            target="_blank"
-            href="https://warpcast.com/~/compose?text=Just%20got%201%%20cashback%20on%20my%20swap%20at%20BlockFest!%20Thanks%20@noblocks_xyz%20@basedwestafrica%20@blockfestafrica%20for%20the%20amazing%20experience%20🎉%20#BlockFest%20#BaseNetwork"
-            className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
-          >
-            {theme === "dark" ? (
-              <FarcasterIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
-            ) : (
-              <FarcasterIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
-            )}
-            Farcaster
-          </a>
+            {/* Farcaster Button */}
+            <a
+              aria-label="Share on Farcaster"
+              rel="noopener noreferrer"
+              target="_blank"
+              href="https://warpcast.com/~/compose?text=Just%20got%201%%20cashback%20on%20my%20swap%20at%20BlockFest!%20Thanks%20@noblocks_xyz%20@basedwestafrica%20@blockfestafrica%20for%20the%20amazing%20experience%20🎉%20#BlockFest%20#BaseNetwork"
+              className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+            >
+              {theme === "dark" ? (
+                <FarcasterIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
+              ) : (
+                <FarcasterIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
+              )}
+              Farcaster
+            </a>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -657,28 +657,18 @@ export function TransactionStatus({
               {transactionStatus === "settled" &&
                 claimed === true &&
                 orderDetails?.network === "Base" &&
-                (() => {
-                  // Use the actual active wallet (injected or embedded)
-                  const payoutAddress = isInjectedWallet
-                    ? injectedAddress
-                    : embeddedWallet?.address;
-                  
-                  // Only render if we have a valid payout address
-                  return payoutAddress ? (
-                    <AnimatedComponent
-                      variant={slideInOut}
-                      delay={0.45}
-                      className="flex justify-center"
-                    >
-                      <BlockFestCashbackComponent
-                        cashbackAmount={(Number(amount) * 0.01).toFixed(2)}
-                        cashbackPercentage="1%"
-                        tokenType={token as "USDC" | "USDT"}
-                        userWalletAddress={payoutAddress}
-                      />
-                    </AnimatedComponent>
-                  ) : null;
-                })()}
+                orderId && (
+                  <AnimatedComponent
+                    variant={slideInOut}
+                    delay={0.45}
+                    className="flex justify-center"
+                  >
+                    <BlockFestCashbackComponent
+                      transactionId={orderId}
+                      cashbackPercentage="1%"
+                    />
+                  </AnimatedComponent>
+                )}
 
               {["validated", "settled"].includes(transactionStatus) && (
                 <AnimatedComponent

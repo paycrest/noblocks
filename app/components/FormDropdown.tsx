@@ -21,7 +21,7 @@ export const FormDropdown = ({
   onSelect,
   data,
   className,
-  isCTA,
+  isCTA = false,
   dropdownWidth,
 }: FormDropdownProps) => {
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});

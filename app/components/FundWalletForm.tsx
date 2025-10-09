@@ -107,9 +107,20 @@ export const FundWalletForm: React.FC<{
   const handleFund = async (data: { amount: number; token: string }) => {
     try {
       setIsFundConfirming(true);
+      if (!data.token) {
+        setIsFundConfirming(false);
+        toast.error("Please select a currency");
+        return;
+     }
       const tokenAddress = fundTokens.find(
         (t: Token) => t.symbol.toUpperCase() === data.token,
       )?.address as `0x${string}`;
+
+      if (!tokenAddress) {
+        setIsFundConfirming(false);
+        toast.error("Selected token is not available on this network");
+        return;
+      }
       const smartWalletAccount = user?.linkedAccounts?.find(
         (account) => account.type === "smart_wallet",
       );
@@ -406,11 +417,11 @@ export const FundWalletForm: React.FC<{
           type="submit"
           className={classNames(
             "min-h-12 flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900",
-            !isFundValid || !isFundDirty || isFundConfirming
+            !isFundValid || !isFundDirty || isFundConfirming || !fundToken
               ? "bg-gray-300 text-white dark:bg-white/10 dark:text-white/50"
               : "bg-lavender-500 text-primary hover:bg-lavender-500 dark:hover:bg-lavender-500",
           )}
-          disabled={!isFundValid || !isFundDirty || isFundConfirming}
+          disabled={!isFundValid || !isFundDirty || isFundConfirming || !fundToken}
         >
           {isFundConfirming ? "Loading..." : "Continue"}
         </button>

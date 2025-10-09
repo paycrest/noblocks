@@ -532,11 +532,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
   } catch (err) {
     console.error("BlockFest cashback API error:", err);
 
-    const message =
-      err instanceof Error && err.message
-        ? err.message
-        : "An unexpected error occurred";
-
     return NextResponse.json(
       {
         success: false,
@@ -544,10 +539,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         code: "INTERNAL_ERROR",
         message:
           "An unexpected error occurred while processing your cashback claim. Please try again or contact support.",
-        details:
-          process.env.NODE_ENV === "development"
-            ? { originalError: message }
-            : undefined,
         response_time_ms: Date.now() - start,
       },
       { status: 500 },

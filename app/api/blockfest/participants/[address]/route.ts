@@ -31,7 +31,7 @@ export const GET = withRateLimit(
         return NextResponse.json(
           {
             success: false,
-            error: error.message || "Failed to check participant",
+            error: "Failed to check participant",
             response_time_ms: Date.now() - start,
           },
           { status: 500 },
@@ -45,14 +45,10 @@ export const GET = withRateLimit(
       });
     } catch (err) {
       console.error("BlockFest participants GET error:", err);
-      const message =
-        err instanceof Error && err.message
-          ? err.message
-          : "Internal Server Error";
       return NextResponse.json(
         {
           success: false,
-          error: message,
+          error: "Internal Server Error",
           response_time_ms: Date.now() - start,
         },
         { status: 500 },

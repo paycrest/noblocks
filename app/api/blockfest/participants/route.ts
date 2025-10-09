@@ -47,8 +47,17 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Apply length limit to source field (max 100 chars)
-    const source = sourceRaw.length <= 100 ? sourceRaw : "modal";
+    // Validate source field length (max 100 chars)
+    if (sourceRaw.length > 100) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Source field exceeds maximum length of 100 characters",
+        },
+        { status: 400 },
+      );
+    }
+    const source = sourceRaw;
     const email = emailRaw;
 
     // Upsert participant (idempotent)
@@ -74,18 +83,44 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
+    // Non-blocking Brevo sync - only if email is provided
+    if (email) {
+      Promise.allSettled([
+        fetch(`${request.nextUrl.origin}/api/brevo/add-contact`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        }).then((res) => {
+          if (!res.ok) {
+            throw new Error(`Brevo sync failed: ${res.status}`);
+          }
+          return res.json();
+        }),
+      ])
+        .then((results) => {
+          results.forEach((result) => {
+            if (result.status === "rejected") {
+              console.error("Background Brevo sync failed:", result.reason);
+            }
+          });
+        })
+        .catch((err) => {
+          console.error("Unexpected error in Brevo background task:", err);
+        });
+    }
+
     return NextResponse.json({
       success: true,
       response_time_ms: Date.now() - start,
     });
   } catch (err) {
     console.error("BlockFest participants API error:", err);
-    const message =
-      err instanceof Error && err.message
-        ? err.message
-        : "Internal Server Error";
     return NextResponse.json(
-      { success: false, error: message, response_time_ms: Date.now() - start },
+      {
+        success: false,
+        error: "Internal Server Error",
+        response_time_ms: Date.now() - start,
+      },
       { status: 500 },
     );
   }

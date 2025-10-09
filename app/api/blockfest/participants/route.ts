@@ -67,7 +67,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       return NextResponse.json(
         {
           success: false,
-          error: error.message || "Failed to save participant",
+          error: "Failed to save participant",
           response_time_ms: Date.now() - start,
         },
         { status: 500 },

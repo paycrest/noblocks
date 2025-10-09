@@ -38,4 +38,3 @@ export function isValidEmail(email: string): boolean {
 export function isValidEmailWithLength(email: string): boolean {
   return email.length <= 320 && isValidEmail(email);
 }
-

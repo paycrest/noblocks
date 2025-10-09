@@ -15,6 +15,7 @@ import {
 import WalkthroughVideo from "./WalkthroughVideo";
 import { ScrollArrowLine, ScrollArrowHead } from "./ImageAssets";
 import { getBannerPadding } from "../utils";
+import { BlockFestBanner } from "./BlockFestBanner";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -73,7 +74,7 @@ export function HomePage({
             animate={{
               height: isRecipientFormOpen ? 0 : "auto",
               opacity: isRecipientFormOpen ? 0 : 1,
-              marginBottom: isRecipientFormOpen ? 0 : "2.875rem",
+              marginBottom: isRecipientFormOpen ? 0 : "2rem",
             }}
             transition={{ duration: 0.7, ease: "easeInOut" }}
           >
@@ -104,7 +105,8 @@ export function HomePage({
             animate="animate"
             transition={{ duration: 0.8, ease: "easeOut", delay: 0.6 }}
           >
-            {transactionFormComponent}
+            <BlockFestBanner />
+            <div className="mt-4">{transactionFormComponent}</div>
           </motion.div>
 
           <motion.div

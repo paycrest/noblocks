@@ -51,6 +51,7 @@ import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
 import { usePrivy } from "@privy-io/react-auth";
+import BlockFestCashbackComponent from "../components/BlockFestCashbackComponent";
 import { useRocketStatus } from "../context/RocketStatusContext";
 
 /**
@@ -650,6 +651,17 @@ export function TransactionStatus({
         <AnimatePresence>
           {["validated", "settled", "refunded"].includes(transactionStatus) && (
             <>
+              {/* BlockFest Cashback Component - only for settled transactions */}
+              {transactionStatus === "settled" && (
+                <AnimatedComponent
+                  variant={slideInOut}
+                  delay={0.45}
+                  className="flex justify-center"
+                >
+                  <BlockFestCashbackComponent />
+                </AnimatedComponent>
+              )}
+
               <AnimatedComponent
                 variant={slideInOut}
                 delay={0.5}
@@ -806,9 +818,9 @@ export function TransactionStatus({
                   className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                 >
                   {resolvedTheme === "dark" ? (
-                    <XIconDarkTheme className="size-5" />
+                    <XIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
                   ) : (
-                    <XIconLightTheme className="size-5" />
+                    <XIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
                   )}
                   X (Twitter)
                 </a>
@@ -820,11 +832,11 @@ export function TransactionStatus({
                   className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                 >
                   {resolvedTheme === "dark" ? (
-                    <FarcasterIconDarkTheme className="size-5" />
+                    <FarcasterIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
                   ) : (
-                    <FarcasterIconLightTheme className="size-5" />
+                    <FarcasterIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
                   )}
-                  Warpcast
+                  Farcaster
                 </a>
               </div>
             </AnimatedComponent>

@@ -15,6 +15,8 @@ import {
   CookieConsent,
   Disclaimer,
 } from "./";
+import { BlockFestCashbackModal } from "./BlockFestCashbackModal";
+import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
 import { fetchRate, fetchSupportedInstitutions } from "../api/aggregator";
 import {
   STEPS,
@@ -38,9 +40,11 @@ export function MainPageContent() {
   const { currentStep, setCurrentStep } = useStep();
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
   const { selectedNetwork } = useNetwork();
+  const { isBlockFestReferral } = useBlockFestReferral();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
+  const [isBlockFestModalOpen, setIsBlockFestModalOpen] = useState(false);
 
   const [rate, setRate] = useState<number>(0);
   const [formValues, setFormValues] = useState<FormData>({} as FormData);
@@ -106,6 +110,18 @@ export function MainPageContent() {
     setOrderId("");
     setIsPageLoading(false);
   }, []);
+
+  // Show BlockFest modal when referral is detected
+  useEffect(() => {
+    if (isBlockFestReferral && authenticated && ready) {
+      // Small delay to ensure page is fully loaded
+      const timer = setTimeout(() => {
+        setIsBlockFestModalOpen(true);
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isBlockFestReferral, authenticated, ready]);
 
   useEffect(
     function resetOnLogout() {
@@ -337,7 +353,11 @@ export function MainPageContent() {
         <>
           <Disclaimer />
           <CookieConsent />
-          {!isInjectedWallet && <NetworkSelectionModal />}{" "}
+          {!isInjectedWallet && <NetworkSelectionModal />}
+          <BlockFestCashbackModal
+            isOpen={isBlockFestModalOpen}
+            onClose={() => setIsBlockFestModalOpen(false)}
+          />
           {currentStep === STEPS.FORM ? (
             <HomePage
               transactionFormComponent={transactionFormComponent}

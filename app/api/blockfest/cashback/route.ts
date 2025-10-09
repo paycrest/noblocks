@@ -335,7 +335,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     const totalClaimed = (completedClaims || []).reduce(
-      (sum, claim) => sum + parseFloat(claim.amount),
+      (sum, claim) => sum + (parseFloat(claim.amount) || 0),
       0,
     );
 
@@ -356,29 +356,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Check if adding this claim would exceed limit
-    if (totalClaimed + parseFloat(finalCashback) > MAX_CASHBACK_PER_WALLET) {
-      // Adjust cashback to fit within limit
-      const remainingAllowance = MAX_CASHBACK_PER_WALLET - totalClaimed;
-      if (remainingAllowance <= 0) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Total cashback limit reached",
-            code: "MAX_CASHBACK_REACHED",
-            message: `You have reached the maximum total cashback of $${MAX_CASHBACK_PER_WALLET} per wallet for this campaign.`,
-            details: {
-              totalClaimed: totalClaimed.toFixed(2),
-              maxCashback: MAX_CASHBACK_PER_WALLET,
-              remainingAllowance: "0.00",
-            },
-            response_time_ms: Date.now() - start,
-          },
-          { status: 429 },
-        );
-      }
-      // Note: We'll use finalCashback as calculated, or could adjust here
-    }
+    // Adjust cashback to fit within remaining per-wallet allowance
+    const remainingAllowance = MAX_CASHBACK_PER_WALLET - totalClaimed;
+    const adjustedCashback = Math.min(
+      parseFloat(finalCashback),
+      remainingAllowance,
+    );
+    const finalAdjustedCashback = adjustedCashback.toFixed(2);
 
     // Step 12: Create pending claim record
     const { data: pendingClaim, error: claimError } = await supabaseAdmin
@@ -386,7 +370,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       .insert({
         transaction_id: transactionId,
         wallet_address: walletAddress,
-        amount: finalCashback,
+        amount: finalAdjustedCashback,
         token_type: orderDetails.token,
         status: "pending",
       })
@@ -429,10 +413,18 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         throw new Error("Base RPC not configured");
       }
 
+      // Validate private key format
+      const privateKey = cashbackConfig.walletPrivateKey;
+      if (
+        !privateKey ||
+        !privateKey.startsWith("0x") ||
+        privateKey.length !== 66
+      ) {
+        throw new Error("Invalid private key format in configuration");
+      }
+
       // Create wallet account from private key
-      const account = privateKeyToAccount(
-        cashbackConfig.walletPrivateKey as `0x${string}`,
-      );
+      const account = privateKeyToAccount(privateKey as `0x${string}`);
 
       // Create wallet client
       const walletClient = createWalletClient({
@@ -442,7 +434,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       });
 
       // Parse amount with proper decimals
-      const amountInWei = parseUnits(finalCashback, token.decimals);
+      const amountInWei = parseUnits(finalAdjustedCashback, token.decimals);
 
       // Execute transfer
       const txHash = await walletClient.writeContract({
@@ -473,7 +465,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       return NextResponse.json({
         success: true,
         claim: {
-          amount: finalCashback,
+          amount: finalAdjustedCashback,
           tokenType: orderDetails.token,
           txHash,
           status: "completed",
@@ -520,7 +512,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           message: errorMessage,
           details: {
             claimId: pendingClaim.id,
-            amount: finalCashback,
+            amount: finalAdjustedCashback,
             tokenType: orderDetails.token,
           },
           response_time_ms: Date.now() - start,

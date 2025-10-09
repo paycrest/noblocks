@@ -380,14 +380,14 @@ export const FundWalletForm: React.FC<{
         {/* Warning note */}
         <div className="h-[48px] w-full bg-warning-background/[8%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start justify-start gap-0.5">
           <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[24px] h-[24px] mr-1 -mt-0.5" />
-          <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight text-wrap break-all">
+          <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight text-wrap break-words">
             Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
           </p>
         </div>
       </div>
 
       {/* Deposit information */}
-        <div className="flex flex-wrap text-wrap break-all items-center gap-1 text-xs text-text-secondary dark:text-white/50 p-2 rounded-lg border-[0.3px] border-border-light dark:border-white/10">
+        <div className="flex flex-wrap text-wrap break-words items-center gap-1 text-xs text-text-secondary dark:text-white/50 p-2 rounded-lg border-[0.3px] border-border-light dark:border-white/10">
           <span>You are depositing this amount via</span>
           <img
             src={getNetworkImageUrl(
@@ -409,7 +409,7 @@ export const FundWalletForm: React.FC<{
         <button
           type="button"
           onClick={handleFundModalClose}
-          className="min-h-12 rounded-2xl bg-gray-100 text-text-body dark:bg-white/10 dark:text-white px-6 py-3 text-sm font-semibold transition-all hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900"
+          className="min-h-12 rounded-2xl bg-gray-100 text-text-body dark:bg-white/10 dark:text-white px-6 py-3 text-sm font-semibold transition-all hover:bg-gray-200 dark:hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900"
         >
           Cancel
         </button>

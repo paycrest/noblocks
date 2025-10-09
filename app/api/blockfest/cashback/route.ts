@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import { cashbackConfig } from "@/app/lib/server-config";
 import { FALLBACK_TOKENS, getRpcUrl } from "@/app/utils";
-import { createWalletClient, http, parseUnits } from "viem";
+import { createWalletClient, createPublicClient, http, parseUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { erc20Abi } from "viem";
@@ -112,6 +112,55 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           response_time_ms: Date.now() - start,
         },
         { status: 404 },
+      );
+    }
+
+    // Step 4.5: Verify transaction ownership via blockchain
+    try {
+      const rpcUrl = getRpcUrl("Base");
+      if (!rpcUrl) {
+        throw new Error("Base RPC not configured");
+      }
+
+      const publicClient = createPublicClient({
+        chain: base,
+        transport: http(rpcUrl),
+      });
+
+      const txData = await publicClient.getTransaction({
+        hash: orderDetails.txHash as `0x${string}`,
+      });
+
+      // Verify the transaction sender matches the authenticated wallet
+      if (txData.from.toLowerCase() !== walletAddress) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Transaction ownership verification failed",
+            code: "NOT_TRANSACTION_OWNER",
+            message:
+              "You can only claim cashback for your own transactions. This transaction belongs to a different wallet.",
+            details: {
+              transactionId,
+              txHash: orderDetails.txHash,
+            },
+            response_time_ms: Date.now() - start,
+          },
+          { status: 403 },
+        );
+      }
+    } catch (error) {
+      console.error("Failed to verify transaction ownership:", error);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Transaction verification failed",
+          code: "VERIFICATION_ERROR",
+          message:
+            "Unable to verify transaction ownership. Please try again or contact support.",
+          response_time_ms: Date.now() - start,
+        },
+        { status: 500 },
       );
     }
 

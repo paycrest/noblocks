@@ -1,9 +1,7 @@
-"use server";
-
 /**
  * Server-only configuration
  * This module contains sensitive environment variables that should NEVER be exposed to the client.
- * Only import this in API routes and server-side code.
+ * Only import this in API routes and server-side code (never in client components).
  */
 
 /**
@@ -31,3 +29,10 @@ export const cashbackConfig = {
     process.env.CASHBACK_WALLET_PRIVATE_KEY || "",
   ),
 };
+
+export function getServerMixpanelToken(): string {
+  return validateConfig(
+    "MIXPANEL_SERVER_TOKEN",
+    process.env.MIXPANEL_SERVER_TOKEN || "",
+  );
+}

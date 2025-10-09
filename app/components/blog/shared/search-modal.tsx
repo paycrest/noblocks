@@ -161,9 +161,6 @@ export function SearchModal({
                 autoFocus={inputAutoFocus}
                 role="combobox"
                 aria-controls={suggestionsId}
-                aria-expanded={
-                  showSuggestions && filteredSuggestions.length > 0
-                }
                 aria-haspopup="listbox"
                 aria-autocomplete="list"
                 aria-activedescendant={
@@ -171,6 +168,7 @@ export function SearchModal({
                     ? `${suggestionsId}-option-${activeIndex}`
                     : undefined
                 }
+                aria-expanded="false"
               />
             </div>
             {/* Suggestions Dropdown */}
@@ -186,7 +184,6 @@ export function SearchModal({
                         key={suggestion.id}
                         id={`${suggestionsId}-option-${index}`}
                         role="option"
-                        aria-selected={index === activeIndex}
                         className={`cursor-pointer px-4 py-2 text-sm text-text-body transition hover:bg-gray-100 dark:text-white dark:hover:bg-white/10 ${
                           index === activeIndex
                             ? "bg-gray-100 dark:bg-white/10"

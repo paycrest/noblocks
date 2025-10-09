@@ -103,7 +103,8 @@ export default function BlockFestCashbackComponent({
     };
 
     executeCashbackTransfer();
-  }, [transactionId, hasTransferred, cashbackPercentage, getAccessToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactionId, hasTransferred]);
 
   // Get banner text based on transfer status
   const getBannerText = () => {

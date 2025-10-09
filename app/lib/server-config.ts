@@ -1,3 +1,5 @@
+import "server-only";
+
 /**
  * Server-only configuration
  * This module contains sensitive environment variables that should NEVER be exposed to the client.

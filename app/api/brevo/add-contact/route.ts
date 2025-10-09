@@ -28,6 +28,14 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const email = String(body.email).trim().toLowerCase();
 
     // Basic email validation
+    // RFC 5321 caps email at 320 chars (64 local + @ + 255 domain)
+    if (email.length > 320) {
+      return NextResponse.json(
+        { success: false, error: "Invalid email format" },
+        { status: 400 },
+      );
+    }
+
     if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email)) {
       return NextResponse.json(
         { success: false, error: "Invalid email format" },
@@ -61,6 +69,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           // Brevo returns 201 for new contact, 204 for updated contact, 200 for some scenarios
           return status === 200 || status === 201 || status === 204;
         },
+        timeout: 5000, // 5 second timeout to prevent hanging
       },
     );
 

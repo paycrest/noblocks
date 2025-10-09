@@ -55,6 +55,9 @@ import { BlockFestCashbackComponent } from "../components/blockfest";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { useRocketStatus } from "../context/RocketStatusContext";
 
+// Allowed tokens for BlockFest cashback
+const ALLOWED_CASHBACK_TOKENS = new Set(["USDC", "USDT"]);
+
 /**
  * Renders the transaction status component.
  *
@@ -112,9 +115,6 @@ export function TransactionStatus({
   const recipientName = String(watch("recipientName")) || "";
   const accountIdentifier = watch("accountIdentifier") || "";
   const institution = watch("institution") || "";
-
-  // Allowed tokens for BlockFest cashback
-  const ALLOWED_CASHBACK_TOKENS = new Set(["USDC", "USDT"]);
 
   // Check if recipient is already in beneficiaries
   const isRecipientInBeneficiaries = useMemo(() => {

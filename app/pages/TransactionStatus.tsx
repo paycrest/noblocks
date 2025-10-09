@@ -113,6 +113,9 @@ export function TransactionStatus({
   const accountIdentifier = watch("accountIdentifier") || "";
   const institution = watch("institution") || "";
 
+  // Allowed tokens for BlockFest cashback
+  const ALLOWED_CASHBACK_TOKENS = new Set(["USDC", "USDT"]);
+
   // Check if recipient is already in beneficiaries
   const isRecipientInBeneficiaries = useMemo(() => {
     const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
@@ -657,7 +660,9 @@ export function TransactionStatus({
               {transactionStatus === "settled" &&
                 claimed === true &&
                 orderDetails?.network === "Base" &&
-                orderId && (
+                orderId &&
+                orderDetails?.token &&
+                ALLOWED_CASHBACK_TOKENS.has(orderDetails.token) && (
                   <AnimatedComponent
                     variant={slideInOut}
                     delay={0.45}

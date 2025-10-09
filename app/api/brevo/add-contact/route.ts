@@ -49,7 +49,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       "https://api.brevo.com/v3/contacts",
       {
         email,
-        listIds: [parseInt(brevoConfig.listId)],
+        listIds: [parseInt(brevoConfig.listId, 10)],
         updateEnabled: true, // Update contact if already exists
       },
       {
@@ -58,7 +58,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           "api-key": brevoConfig.apiKey,
         },
         validateStatus: (status) => {
-          // Brevo returns 201 for new contact, 204 for updated contact
+          // Brevo returns 201 for new contact, 204 for updated contact, 200 for some scenarios
           return status === 200 || status === 201 || status === 204;
         },
       },

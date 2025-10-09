@@ -9,6 +9,7 @@ import { secondaryBtnClasses } from "../Styles";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "sonner";
+import { usePrivy } from "@privy-io/react-auth";
 
 interface BlockFestCashbackComponentProps {
   transactionId: string;
@@ -22,6 +23,7 @@ export default function BlockFestCashbackComponent({
   cashbackPercentage = "1%",
 }: BlockFestCashbackComponentProps) {
   const { theme } = useTheme();
+  const { getAccessToken } = usePrivy();
   const [transferStatus, setTransferStatus] = useState<TransferStatus>("idle");
   const [hasTransferred, setHasTransferred] = useState(false);
   const [cashbackAmount, setCashbackAmount] = useState<string>("0.00");
@@ -38,9 +40,23 @@ export default function BlockFestCashbackComponent({
       setTransferStatus("loading");
 
       try {
-        const response = await axios.post("/api/blockfest/cashback", {
-          transactionId,
-        });
+        // Get Privy access token for authentication
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          throw new Error("Authentication required. Please sign in.");
+        }
+
+        const response = await axios.post(
+          "/api/blockfest/cashback",
+          {
+            transactionId,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          },
+        );
 
         if (response.data.success) {
           const claim = response.data.claim;
@@ -87,7 +103,7 @@ export default function BlockFestCashbackComponent({
     };
 
     executeCashbackTransfer();
-  }, [transactionId, hasTransferred, cashbackPercentage]);
+  }, [transactionId, hasTransferred, cashbackPercentage, getAccessToken]);
 
   // Get banner text based on transfer status
   const getBannerText = () => {

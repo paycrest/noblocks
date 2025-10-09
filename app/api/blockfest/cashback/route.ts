@@ -115,7 +115,26 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Step 4.5: Verify transaction ownership via blockchain
+    // Step 4.5: Verify network is Base (must check before blockchain verification)
+    if (orderDetails.network !== "Base") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Network not supported",
+          code: "INVALID_NETWORK",
+          message: `Cashback is only available for transactions on Base network. Your transaction is on ${orderDetails.network}.`,
+          details: {
+            transactionId,
+            transactionNetwork: orderDetails.network,
+            supportedNetwork: "Base",
+          },
+          response_time_ms: Date.now() - start,
+        },
+        { status: 400 },
+      );
+    }
+
+    // Step 5: Verify transaction ownership via blockchain
     try {
       const rpcUrl = getRpcUrl("Base");
       if (!rpcUrl) {
@@ -164,8 +183,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Step 5: Verify transaction is eligible
-    // Check status
+    // Step 6: Verify transaction status
     if (orderDetails.status !== "settled") {
       return NextResponse.json(
         {
@@ -184,26 +202,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Check network
-    if (orderDetails.network !== "Base") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Network not supported",
-          code: "INVALID_NETWORK",
-          message: `Cashback is only available for transactions on Base network. Your transaction is on ${orderDetails.network}.`,
-          details: {
-            transactionId,
-            transactionNetwork: orderDetails.network,
-            supportedNetwork: "Base",
-          },
-          response_time_ms: Date.now() - start,
-        },
-        { status: 400 },
-      );
-    }
-
-    // Check campaign period
+    // Step 7: Check campaign period
     const transactionDate = new Date(orderDetails.updatedAt);
     if (transactionDate > BLOCKFEST_END_DATE) {
       return NextResponse.json(
@@ -223,7 +222,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Step 6: Verify user is BlockFest participant
+    // Step 8: Verify user is BlockFest participant
     const { data: participant, error: participantError } = await supabaseAdmin
       .from("blockfest_participants")
       .select("*")
@@ -244,7 +243,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Step 7: Check for existing claim (idempotency)
+    // Step 9: Check for existing claim (idempotency)
     const { data: existingClaim } = await supabaseAdmin
       .from("blockfest_cashback_claims")
       .select("*")
@@ -266,7 +265,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       });
     }
 
-    // Step 8: Calculate cashback amount (server-side)
+    // Step 10: Calculate cashback amount (server-side)
     const transactionAmount = parseFloat(orderDetails.amount);
     const cashbackAmount = transactionAmount * CASHBACK_PERCENTAGE;
     const cappedCashback = Math.min(
@@ -275,7 +274,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     );
     const finalCashback = cappedCashback.toFixed(2);
 
-    // Step 9: Check per-wallet limits
+    // Step 11: Check per-wallet limits
     // Check total claim count
     const { count: claimCount, error: countError } = await supabaseAdmin
       .from("blockfest_cashback_claims")
@@ -381,7 +380,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       // Note: We'll use finalCashback as calculated, or could adjust here
     }
 
-    // Step 10: Create pending claim record
+    // Step 12: Create pending claim record
     const { data: pendingClaim, error: claimError } = await supabaseAdmin
       .from("blockfest_cashback_claims")
       .insert({
@@ -414,7 +413,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Step 11: Execute cashback transfer
+    // Step 13: Execute cashback transfer
     try {
       // Get token contract address
       const baseTokens = FALLBACK_TOKENS["Base"];
@@ -453,7 +452,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         args: [walletAddress as `0x${string}`, amountInWei],
       });
 
-      // Step 12: Update claim status to completed
+      // Step 14: Update claim status to completed
       const { error: updateError } = await supabaseAdmin
         .from("blockfest_cashback_claims")
         .update({

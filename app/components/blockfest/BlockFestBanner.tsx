@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 
@@ -9,7 +9,7 @@ const BLOCKFEST_END_DATE = new Date(
   process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
 );
 
-export default function BlockFestBanner() {
+function BlockFestBanner() {
   const [timeLeft, setTimeLeft] = useState(
     Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now()),
   );
@@ -94,3 +94,6 @@ export default function BlockFestBanner() {
     </motion.div>
   );
 }
+
+// Memoize to prevent parent re-renders from countdown timer
+export default memo(BlockFestBanner);

@@ -17,24 +17,42 @@ export function BlockFestClaimGate({
 }) {
   const { claimed, checkClaim } = useBlockFestClaim();
   const hasCheckedRef = useRef(false);
+  const hasShownModalRef = useRef(false);
 
   // One-time claim check when wallet is ready
   useEffect(() => {
-    if (!hasCheckedRef.current && authenticated && ready) {
+    if (!hasCheckedRef.current && authenticated && ready && userAddress) {
       if (/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
         hasCheckedRef.current = true;
         checkClaim(userAddress);
       }
     }
-  }, [authenticated, ready, userAddress, checkClaim]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated, ready, userAddress]);
 
-  // Show modal only if referred and not yet claimed
+  // Reset refs when user logs out
   useEffect(() => {
-    if (isReferred && authenticated && ready && claimed === false) {
+    if (!authenticated) {
+      hasCheckedRef.current = false;
+      hasShownModalRef.current = false;
+    }
+  }, [authenticated]);
+
+  // Show modal only once if referred and not yet claimed
+  useEffect(() => {
+    if (
+      !hasShownModalRef.current &&
+      isReferred &&
+      authenticated &&
+      ready &&
+      claimed === false
+    ) {
+      hasShownModalRef.current = true;
       const t = setTimeout(onShowModal, 1000);
       return () => clearTimeout(t);
     }
-  }, [isReferred, authenticated, ready, claimed, onShowModal]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReferred, authenticated, ready, claimed]);
 
   return null;
 }

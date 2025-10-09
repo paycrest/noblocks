@@ -49,7 +49,7 @@ export function BlockFestClaimProvider({
   }, []);
 
   const markClaimed = useCallback(() => setClaimed(true), []);
-  
+
   const resetClaim = useCallback(() => {
     setClaimed(null);
     setError(null);

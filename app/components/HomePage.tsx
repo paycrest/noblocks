@@ -5,7 +5,7 @@ import { ArrowRight04Icon } from "hugeicons-react";
 import FAQs from "./FAQs";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { ReactNode, useState } from "react";
+import { ReactNode, memo } from "react";
 import {
   blurReveal,
   BlurRevealSection,
@@ -44,7 +44,7 @@ const heroLineVariants = {
   }),
 };
 
-export function HomePage({
+function HomePageComponent({
   transactionFormComponent,
   isRecipientFormOpen,
   showBlockFestBanner = false,
@@ -437,3 +437,6 @@ export function HomePage({
     </div>
   );
 }
+
+// Memoize to prevent re-renders when parent state changes (e.g., modal closing)
+export const HomePage = memo(HomePageComponent);

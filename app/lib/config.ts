@@ -36,6 +36,11 @@ export const brevoConfig = {
   listId: process.env.BREVO_LIST_ID || "",
 };
 
+export const cashbackConfig = {
+  walletAddress: process.env.CASHBACK_WALLET_ADDRESS || "",
+  walletPrivateKey: process.env.CASHBACK_WALLET_PRIVATE_KEY || "",
+};
+
 // Sanity-specific configuration for client-side (Next.js app)
 export const clientConfig = {
   projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "",

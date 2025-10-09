@@ -6,29 +6,115 @@ import {
 } from "../ImageAssets";
 import { useTheme } from "next-themes";
 import { secondaryBtnClasses } from "../Styles";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { toast } from "sonner";
 
 interface BlockFestCashbackComponentProps {
   cashbackAmount?: string; // e.g., "0.02"
   cashbackPercentage?: string;
+  tokenType: "USDC" | "USDT";
+  userWalletAddress: string;
 }
+
+type TransferStatus = "idle" | "loading" | "success" | "error";
 
 export default function BlockFestCashbackComponent({
   cashbackAmount = "0.00",
   cashbackPercentage = "1%",
+  tokenType,
+  userWalletAddress,
 }: BlockFestCashbackComponentProps) {
   const { theme } = useTheme();
+  const [transferStatus, setTransferStatus] = useState<TransferStatus>("idle");
+  const [hasTransferred, setHasTransferred] = useState(false);
+
+  // Execute cashback transfer on component mount
+  useEffect(() => {
+    const executeCashbackTransfer = async () => {
+      // Prevent duplicate transfers
+      if (hasTransferred || !userWalletAddress || !cashbackAmount) {
+        return;
+      }
+
+      setTransferStatus("loading");
+
+      try {
+        const response = await axios.post("/api/blockfest/cashback", {
+          walletAddress: userWalletAddress,
+          amount: cashbackAmount,
+          tokenType,
+        });
+
+        if (response.data.success) {
+          setTransferStatus("success");
+          setHasTransferred(true);
+          toast.success("Cashback transferred successfully!", {
+            description: `${cashbackPercentage} (${cashbackAmount} ${tokenType}) has been added to your wallet`,
+          });
+        } else {
+          throw new Error(response.data.error || "Transfer failed");
+        }
+      } catch (error) {
+        console.error("Cashback transfer error:", error);
+        setTransferStatus("error");
+        toast.error("Cashback transfer failed", {
+          description:
+            error instanceof Error
+              ? error.message
+              : "Please contact support for assistance",
+        });
+      }
+    };
+
+    executeCashbackTransfer();
+  }, [
+    userWalletAddress,
+    cashbackAmount,
+    tokenType,
+    hasTransferred,
+    cashbackPercentage,
+  ]);
+
+  // Get banner text based on transfer status
+  const getBannerText = () => {
+    switch (transferStatus) {
+      case "loading":
+        return "Processing your cashback, please wait...";
+      case "success":
+        return (
+          <>
+            <span className="text-sm font-semibold text-white">
+              {cashbackPercentage} ({cashbackAmount} {tokenType})
+            </span>
+            <span className="text-sm text-white">
+              {" "}
+              cashback has been added to your wallet
+            </span>
+          </>
+        );
+      case "error":
+        return "Cashback couldn't be completed. Please try again or contact support.";
+      default:
+        return (
+          <>
+            <span className="text-sm font-semibold text-white">
+              {cashbackPercentage} ({cashbackAmount} {tokenType})
+            </span>
+            <span className="text-sm text-white">
+              {" "}
+              cashback has been added to your wallet
+            </span>
+          </>
+        );
+    }
+  };
 
   return (
     <div className="inline-flex w-80 flex-col items-center justify-start gap-3 rounded-[20px] bg-gray-50 px-1 pb-3 pt-1 dark:bg-white/5">
       {/* Banner with cashback message */}
       <div className="relative rounded-2xl bg-[url('/images/blockfest/blockfest-banner-bg.svg')] bg-cover bg-left-top bg-no-repeat py-1 pl-12 pr-2.5">
-        <span className="text-sm font-semibold text-white">
-          {cashbackPercentage} ({cashbackAmount} USDC)
-        </span>
-        <span className="text-sm text-white">
-          {" "}
-          cashback has been added to your wallet
-        </span>
+        {getBannerText()}
       </div>
 
       {/* Description and social buttons */}

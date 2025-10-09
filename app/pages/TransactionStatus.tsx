@@ -665,6 +665,8 @@ export function TransactionStatus({
                     <BlockFestCashbackComponent
                       cashbackAmount={(Number(amount) * 0.01).toFixed(2)}
                       cashbackPercentage="1%"
+                      tokenType={token as "USDC" | "USDT"}
+                      userWalletAddress={embeddedWallet?.address || ""}
                     />
                   </AnimatedComponent>
                 )}

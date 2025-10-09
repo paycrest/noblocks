@@ -23,13 +23,19 @@ interface FormData {
   email: string;
 }
 
-const COUNTDOWN_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+// BlockFest end date from environment variable (ISO 8601 format with timezone)
+// Example: 2025-10-11T23:59:00+01:00 (October 11th, 2025 at 11:59 PM UTC+1)
+const BLOCKFEST_END_DATE = new Date(
+  process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
+);
 
 export default function BlockFestCashbackModal({
   isOpen,
   onClose,
 }: BlockFestCashbackModalProps) {
-  const [timeLeft, setTimeLeft] = useState(COUNTDOWN_DURATION);
+  const [timeLeft, setTimeLeft] = useState(
+    Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now()),
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { markClaimed } = useBlockFestClaim();
   const { user } = usePrivy();
@@ -48,28 +54,39 @@ export default function BlockFestCashbackModal({
 
   // Countdown timer effect
   useEffect(() => {
-    if (!isOpen) {
-      setTimeLeft(COUNTDOWN_DURATION);
-      return;
-    }
+    const calculateTimeLeft = () => {
+      const remaining = Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now());
+      setTimeLeft(remaining);
+      return remaining;
+    };
+
+    // Initial calculation
+    calculateTimeLeft();
 
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1000) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1000;
-      });
+      const remaining = calculateTimeLeft();
+      if (remaining === 0) {
+        clearInterval(timer);
+      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOpen]);
+  }, []);
 
   // Format time remaining
   const formatTime = (milliseconds: number) => {
-    const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((milliseconds % (1000 * 60)) / 1000);
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const days = Math.floor(totalSeconds / (24 * 60 * 60));
+    const hours = Math.floor((totalSeconds % (24 * 60 * 60)) / (60 * 60));
+    const minutes = Math.floor((totalSeconds % (60 * 60)) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (days > 0) {
+      return `${days}d ${hours}h ${minutes}m`;
+    }
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${seconds}s`;
+    }
     return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   };
 

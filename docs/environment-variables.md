@@ -79,6 +79,16 @@ BREVO_API_KEY=
 BREVO_LIST_ID=
 ```
 
+### Campaign Management
+
+```bash
+# BlockFest Campaign
+# End date for BlockFest cashback offer (ISO 8601 format with timezone)
+# Format: YYYY-MM-DDTHH:mm:ss±HH:mm
+# Example: 2025-10-11T23:59:00+01:00 (October 11th, 2025 at 11:59 PM UTC+1)
+NEXT_PUBLIC_BLOCKFEST_END_DATE=2025-10-11T23:59:00+01:00
+```
+
 ### Content Management (Sanity)
 
 ```bash

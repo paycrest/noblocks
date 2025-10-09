@@ -3,19 +3,33 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 
+// BlockFest end date from environment variable (ISO 8601 format with timezone)
+// Example: 2025-10-11T23:59:00+01:00 (October 11th, 2025 at 11:59 PM UTC+1)
+const BLOCKFEST_END_DATE = new Date(
+  process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
+);
+
 export default function BlockFestBanner() {
-  const [timeLeft, setTimeLeft] = useState(60 * 60 * 1000); // 1 hour in milliseconds
+  const [timeLeft, setTimeLeft] = useState(
+    Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now()),
+  );
 
   // Countdown timer effect
   useEffect(() => {
+    const calculateTimeLeft = () => {
+      const remaining = Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now());
+      setTimeLeft(remaining);
+      return remaining;
+    };
+
+    // Initial calculation
+    calculateTimeLeft();
+
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1000) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1000;
-      });
+      const remaining = calculateTimeLeft();
+      if (remaining === 0) {
+        clearInterval(timer);
+      }
     }, 1000);
 
     return () => clearInterval(timer);
@@ -23,8 +37,18 @@ export default function BlockFestBanner() {
 
   // Format time remaining
   const formatTime = (milliseconds: number) => {
-    const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((milliseconds % (1000 * 60)) / 1000);
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const days = Math.floor(totalSeconds / (24 * 60 * 60));
+    const hours = Math.floor((totalSeconds % (24 * 60 * 60)) / (60 * 60));
+    const minutes = Math.floor((totalSeconds % (60 * 60)) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (days > 0) {
+      return `${days}d ${hours}h ${minutes}m`;
+    }
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${seconds}s`;
+    }
     return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   };
 
@@ -56,7 +80,7 @@ export default function BlockFestBanner() {
 
         {/* Banner with background */}
         <div className="bg-top-center w-full rounded-bl-2xl rounded-br-2xl rounded-tl-sm rounded-tr-2xl bg-[url('/images/blockfest/blockfest-banner-bg.svg')] bg-cover py-2.5 pl-16 pr-4">
-          <div className="max-w-xs">
+          <div className="w-full">
             <span className="text-sm text-white">
               Enjoy up to 2% cashback on all transactions on Base Network Today!
               Offer expires in{" "}

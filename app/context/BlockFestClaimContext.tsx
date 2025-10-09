@@ -42,7 +42,9 @@ export function BlockFestClaimProvider({
       setClaimed(Boolean(res.data.exists));
     } catch (e: any) {
       setError(e?.message || "Failed to check status");
-      setClaimed(false);
+      // Keep claimed state as-is if already true, otherwise set to null (unknown)
+      // This prevents reopening the modal for users who already claimed
+      setClaimed((prev) => (prev === true ? true : null));
     } finally {
       setLoading(false);
     }

@@ -89,6 +89,11 @@ BREVO_LIST_ID=
 NEXT_PUBLIC_BLOCKFEST_END_DATE=2025-10-11T23:59:00+01:00
 
 # BlockFest Cashback Wallet
+# WARNING: These credentials control funds and must be kept secure:
+# - Never commit these values to version control
+# - Use secure secret management in production (e.g., AWS Secrets Manager, HashiCorp Vault)
+# - Rotate keys regularly
+# - Restrict access to authorized personnel only
 CASHBACK_WALLET_ADDRESS=
 CASHBACK_WALLET_PRIVATE_KEY=
 ```

@@ -656,22 +656,31 @@ export function TransactionStatus({
               {/* BlockFest Cashback Component - only when settled and claimed and on Base network */}
               {transactionStatus === "settled" &&
                 claimed === true &&
-                orderDetails?.network === "Base" && (
-                  <AnimatedComponent
-                    variant={slideInOut}
-                    delay={0.45}
-                    className="flex justify-center"
-                  >
-                    <BlockFestCashbackComponent
-                      cashbackAmount={(Number(amount) * 0.01).toFixed(2)}
-                      cashbackPercentage="1%"
-                      tokenType={token as "USDC" | "USDT"}
-                      userWalletAddress={embeddedWallet?.address || ""}
-                    />
-                  </AnimatedComponent>
-                )}
+                orderDetails?.network === "Base" &&
+                (() => {
+                  // Use the actual active wallet (injected or embedded)
+                  const payoutAddress = isInjectedWallet
+                    ? injectedAddress
+                    : embeddedWallet?.address;
+                  
+                  // Only render if we have a valid payout address
+                  return payoutAddress ? (
+                    <AnimatedComponent
+                      variant={slideInOut}
+                      delay={0.45}
+                      className="flex justify-center"
+                    >
+                      <BlockFestCashbackComponent
+                        cashbackAmount={(Number(amount) * 0.01).toFixed(2)}
+                        cashbackPercentage="1%"
+                        tokenType={token as "USDC" | "USDT"}
+                        userWalletAddress={payoutAddress}
+                      />
+                    </AnimatedComponent>
+                  ) : null;
+                })()}
 
-              {!(transactionStatus === "settled") && (
+              {["validated", "settled"].includes(transactionStatus) && (
                 <AnimatedComponent
                   variant={slideInOut}
                   delay={0.5}

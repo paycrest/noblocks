@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/app/lib/rate-limit";
-import { brevoConfig } from "@/app/lib/config";
+import { brevoConfig } from "@/app/lib/server-config";
 import axios from "axios";
 
 // POST /api/brevo/add-contact

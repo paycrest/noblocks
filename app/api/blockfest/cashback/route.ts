@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/app/lib/rate-limit";
-import { cashbackConfig } from "@/app/lib/config";
+import { cashbackConfig } from "@/app/lib/server-config";
 import { FALLBACK_TOKENS, getRpcUrl } from "@/app/utils";
 import { createWalletClient, http, parseUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -9,8 +9,27 @@ import { erc20Abi } from "viem";
 
 // POST /api/blockfest/cashback
 // Body: { walletAddress: string, amount: string, tokenType: "USDC" | "USDT" }
+// TODO: SECURITY - This endpoint is temporarily disabled pending security fixes:
+// - Add authentication/session validation
+// - Server-side validation against trusted transaction records
+// - Recompute cashback from verified swap (don't trust client amount)
+// - Enforce maximum payout cap and per-wallet limits
+// - Implement idempotency (reject duplicate claims per transaction)
+// - Only allow payouts to verified/registered wallets
 export const POST = withRateLimit(async (request: NextRequest) => {
   const start = Date.now();
+  
+  // Temporarily disabled for security - see TODO above
+  return NextResponse.json(
+    {
+      success: false,
+      error: "Cashback transfers are temporarily disabled pending security enhancements",
+      response_time_ms: Date.now() - start,
+    },
+    { status: 403 },
+  );
+
+  /* Original implementation - disabled pending security fixes
   try {
     const contentType = request.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
@@ -146,4 +165,5 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       { status: 500 },
     );
   }
+  */
 });

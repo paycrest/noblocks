@@ -1,14 +1,17 @@
-// Server-only configuration
-// This module should NEVER be imported in client-side code
-// to prevent server secrets from leaking to the browser
+"use server";
 
-export const getServerMixpanelToken = (): string => {
-  return process.env.MIXPANEL_TOKEN || "";
+/**
+ * Server-only configuration
+ * This module contains sensitive environment variables that should NEVER be exposed to the client.
+ * Only import this in API routes and server-side code.
+ */
+
+export const brevoConfig = {
+  apiKey: process.env.BREVO_API_KEY || "",
+  listId: process.env.BREVO_LIST_ID || "",
 };
 
-export const getServerConfig = () => {
-  return {
-    mixpanelToken: getServerMixpanelToken(),
-    // Add other server-only secrets here as needed
-  };
+export const cashbackConfig = {
+  walletAddress: process.env.CASHBACK_WALLET_ADDRESS || "",
+  walletPrivateKey: process.env.CASHBACK_WALLET_PRIVATE_KEY || "",
 };

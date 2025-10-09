@@ -6,10 +6,6 @@ create table if not exists public.blockfest_participants (
   created_at timestamptz not null default now()
 );
 
--- Helpful index (redundant with PK, but keeps pattern consistent if PK changes)
-create index if not exists idx_blockfest_participants_wallet
-  on public.blockfest_participants (wallet_address);
-
 -- Enable Row Level Security (RLS)
 alter table public.blockfest_participants enable row level security;
 

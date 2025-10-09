@@ -51,7 +51,8 @@ import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
 import { usePrivy } from "@privy-io/react-auth";
-import BlockFestCashbackComponent from "../components/BlockFestCashbackComponent";
+import { BlockFestCashbackComponent } from "../components/blockfest";
+import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { useRocketStatus } from "../context/RocketStatusContext";
 
 /**
@@ -78,6 +79,7 @@ export function TransactionStatus({
   supportedInstitutions,
   setOrderId,
 }: TransactionStatusProps) {
+  const { claimed } = useBlockFestClaim();
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
   const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
@@ -651,43 +653,48 @@ export function TransactionStatus({
         <AnimatePresence>
           {["validated", "settled", "refunded"].includes(transactionStatus) && (
             <>
-              {/* BlockFest Cashback Component - only for settled transactions */}
-              {transactionStatus === "settled" && (
+              {/* BlockFest Cashback Component - only when settled and claimed */}
+              {transactionStatus === "settled" && claimed === true && (
                 <AnimatedComponent
                   variant={slideInOut}
                   delay={0.45}
                   className="flex justify-center"
                 >
-                  <BlockFestCashbackComponent />
+                  <BlockFestCashbackComponent
+                    cashbackAmount={(Number(amount) * 0.01).toFixed(2)}
+                    cashbackPercentage="1%"
+                  />
                 </AnimatedComponent>
               )}
 
-              <AnimatedComponent
-                variant={slideInOut}
-                delay={0.5}
-                className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
-              >
-                {["validated", "settled"].includes(transactionStatus) && (
+              {!(transactionStatus === "settled" && claimed === true) && (
+                <AnimatedComponent
+                  variant={slideInOut}
+                  delay={0.5}
+                  className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
+                >
+                  {["validated", "settled"].includes(transactionStatus) && (
+                    <button
+                      type="button"
+                      onClick={handleGetReceipt}
+                      className={`w-fit ${secondaryBtnClasses}`}
+                      disabled={isGettingReceipt}
+                    >
+                      {isGettingReceipt ? "Generating..." : "Get receipt"}
+                    </button>
+                  )}
+
                   <button
                     type="button"
-                    onClick={handleGetReceipt}
-                    className={`w-fit ${secondaryBtnClasses}`}
-                    disabled={isGettingReceipt}
+                    onClick={handleBackButtonClick}
+                    className={`w-fit ${primaryBtnClasses}`}
                   >
-                    {isGettingReceipt ? "Generating..." : "Get receipt"}
+                    {transactionStatus === "refunded"
+                      ? "Retry transaction"
+                      : "New payment"}
                   </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleBackButtonClick}
-                  className={`w-fit ${primaryBtnClasses}`}
-                >
-                  {transactionStatus === "refunded"
-                    ? "Retry transaction"
-                    : "New payment"}
-                </button>
-              </AnimatedComponent>
+                </AnimatedComponent>
+              )}
 
               {["validated", "settled"].includes(transactionStatus) &&
                 !isRecipientInBeneficiaries && (
@@ -790,57 +797,58 @@ export function TransactionStatus({
         </AnimatePresence>
 
         <AnimatePresence>
-          {["validated", "settled"].includes(transactionStatus) && (
-            <AnimatedComponent
-              variant={slideInOut}
-              delay={0.8}
-              className="w-full space-y-4 text-gray-500 dark:text-white/50"
-            >
-              <hr className="w-full border-dashed border-border-light dark:border-white/10" />
+          {["validated", "settled"].includes(transactionStatus) &&
+            !(transactionStatus === "settled" && claimed === true) && (
+              <AnimatedComponent
+                variant={slideInOut}
+                delay={0.8}
+                className="w-full space-y-4 text-gray-500 dark:text-white/50"
+              >
+                <hr className="w-full border-dashed border-border-light dark:border-white/10" />
 
-              <p>Help spread the word</p>
+                <p>Help spread the word</p>
 
-              <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
-                <YellowHeart className="size-8 flex-shrink-0" />
-                <p>
-                  Yay! I just swapped {token} for {currency} in{" "}
-                  {calculateDuration(createdAt, completedAt)} on noblocks.xyz
-                </p>
-                <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
-              </div>
+                <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
+                  <YellowHeart className="size-8 flex-shrink-0" />
+                  <p>
+                    Yay! I just swapped {token} for {currency} in{" "}
+                    {calculateDuration(createdAt, completedAt)} on noblocks.xyz
+                  </p>
+                  <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
+                </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <a
-                  aria-label="Share on Twitter"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
-                  className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
-                >
-                  {resolvedTheme === "dark" ? (
-                    <XIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
-                  ) : (
-                    <XIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
-                  )}
-                  X (Twitter)
-                </a>
-                <a
-                  aria-label="Share on Warpcast"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
-                  className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
-                >
-                  {resolvedTheme === "dark" ? (
-                    <FarcasterIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
-                  ) : (
-                    <FarcasterIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
-                  )}
-                  Farcaster
-                </a>
-              </div>
-            </AnimatedComponent>
-          )}
+                <div className="flex flex-wrap items-center gap-3">
+                  <a
+                    aria-label="Share on Twitter"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                    href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
+                    className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                  >
+                    {resolvedTheme === "dark" ? (
+                      <XIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
+                    ) : (
+                      <XIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
+                    )}
+                    X (Twitter)
+                  </a>
+                  <a
+                    aria-label="Share on Warpcast"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                    href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
+                    className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                  >
+                    {resolvedTheme === "dark" ? (
+                      <FarcasterIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
+                    ) : (
+                      <FarcasterIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
+                    )}
+                    Farcaster
+                  </a>
+                </div>
+              </AnimatedComponent>
+            )}
         </AnimatePresence>
       </div>
     </div>

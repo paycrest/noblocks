@@ -3,12 +3,15 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { AnimatedModal } from "./AnimatedComponents";
-import { primaryBtnClasses, inputClasses } from "./Styles";
-import { classNames } from "../utils";
-import { InputError } from "./InputError";
+import { AnimatedModal } from "../AnimatedComponents";
+import { primaryBtnClasses, inputClasses } from "../Styles";
+import { classNames } from "../../utils";
+import { InputError } from "../InputError";
+import { toast } from "sonner";
 import { ImSpinner } from "react-icons/im";
 import confetti from "canvas-confetti";
+import { useBlockFestClaim } from "@/app/context/BlockFestClaimContext";
+import { usePrivy } from "@privy-io/react-auth";
 
 interface BlockFestCashbackModalProps {
   isOpen: boolean;
@@ -21,12 +24,14 @@ interface FormData {
 
 const COUNTDOWN_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
 
-export const BlockFestCashbackModal = ({
+export default function BlockFestCashbackModal({
   isOpen,
   onClose,
-}: BlockFestCashbackModalProps) => {
+}: BlockFestCashbackModalProps) {
   const [timeLeft, setTimeLeft] = useState(COUNTDOWN_DURATION);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { markClaimed } = useBlockFestClaim();
+  const { user } = usePrivy();
 
   const {
     register,
@@ -75,6 +80,31 @@ export const BlockFestCashbackModal = ({
 
       // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      // Persist wallet claim (if wallet available)
+      const walletAddress = user?.wallet?.address || "";
+      if (/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        try {
+          const res = await fetch("/api/blockfest/participants", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ walletAddress }),
+          });
+          const json = await res.json();
+          if (!res.ok || !json.success) {
+            throw new Error(json.error || "Failed to save participant");
+          }
+          // Update in-memory state
+          markClaimed();
+        } catch (e) {
+          console.error("Failed to persist participant:", e);
+          toast.error("Could not save cashback enrollment", {
+            description:
+              e instanceof Error ? e.message : "Please try again shortly",
+          });
+          throw e;
+        }
+      }
 
       // Fire confetti
       confetti({
@@ -204,4 +234,4 @@ export const BlockFestCashbackModal = ({
       </div>
     </AnimatedModal>
   );
-};
+}

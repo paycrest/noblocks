@@ -15,7 +15,12 @@ import {
   CookieConsent,
   Disclaimer,
 } from "./";
-import { BlockFestCashbackModal } from "./BlockFestCashbackModal";
+import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
+import {
+  BlockFestClaimProvider,
+  useBlockFestClaim,
+} from "../context/BlockFestClaimContext";
+import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
 import { fetchRate, fetchSupportedInstitutions } from "../api/aggregator";
 import {
@@ -111,17 +116,7 @@ export function MainPageContent() {
     setIsPageLoading(false);
   }, []);
 
-  // Show BlockFest modal when referral is detected
-  useEffect(() => {
-    if (isBlockFestReferral && authenticated && ready) {
-      // Small delay to ensure page is fully loaded
-      const timer = setTimeout(() => {
-        setIsBlockFestModalOpen(true);
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isBlockFestReferral, authenticated, ready]);
+  // Claimed state gating handled in BlockFestClaimGate component
 
   useEffect(
     function resetOnLogout() {
@@ -345,30 +340,52 @@ export function MainPageContent() {
       </AnimatePresence>
     </motion.div>
   );
+  const MainContent = () => {
+    const { claimed } = useBlockFestClaim();
+    const { user } = usePrivy();
+
+    return (
+      <>
+        <BlockFestClaimGate
+          isReferred={isBlockFestReferral}
+          authenticated={authenticated}
+          ready={ready}
+          userAddress={(user?.wallet?.address as string) || ""}
+          onShowModal={() => setIsBlockFestModalOpen(true)}
+        />
+
+        <Disclaimer />
+        <CookieConsent />
+        {!isInjectedWallet && <NetworkSelectionModal />}
+
+        <BlockFestCashbackModal
+          isOpen={isBlockFestModalOpen}
+          onClose={() => setIsBlockFestModalOpen(false)}
+        />
+
+        {currentStep === STEPS.FORM ? (
+          <HomePage
+            transactionFormComponent={transactionFormComponent}
+            isRecipientFormOpen={isRecipientFormOpen}
+            showBlockFestBanner={claimed === true}
+          />
+        ) : (
+          <div className={`px-5 py-28 ${getBannerPadding()}`}>
+            {transactionFormComponent}
+          </div>
+        )}
+      </>
+    );
+  };
+
   return (
     <div className="flex w-full flex-col">
       {showLoading ? (
         <Preloader isLoading={true} />
       ) : (
-        <>
-          <Disclaimer />
-          <CookieConsent />
-          {!isInjectedWallet && <NetworkSelectionModal />}
-          <BlockFestCashbackModal
-            isOpen={isBlockFestModalOpen}
-            onClose={() => setIsBlockFestModalOpen(false)}
-          />
-          {currentStep === STEPS.FORM ? (
-            <HomePage
-              transactionFormComponent={transactionFormComponent}
-              isRecipientFormOpen={isRecipientFormOpen}
-            />
-          ) : (
-            <div className={`px-5 py-28 ${getBannerPadding()}`}>
-              {transactionFormComponent}
-            </div>
-          )}
-        </>
+        <BlockFestClaimProvider>
+          <MainContent />
+        </BlockFestClaimProvider>
       )}
     </div>
   );

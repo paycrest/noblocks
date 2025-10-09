@@ -15,7 +15,7 @@ import {
 import WalkthroughVideo from "./WalkthroughVideo";
 import { ScrollArrowLine, ScrollArrowHead } from "./ImageAssets";
 import { getBannerPadding } from "../utils";
-import { BlockFestBanner } from "./BlockFestBanner";
+import { BlockFestBanner } from "./blockfest";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -27,6 +27,7 @@ const crimsonPro = Crimson_Pro({
 interface HomePageProps {
   transactionFormComponent: ReactNode;
   isRecipientFormOpen: boolean;
+  showBlockFestBanner?: boolean;
 }
 
 const heroLineVariants = {
@@ -46,6 +47,7 @@ const heroLineVariants = {
 export function HomePage({
   transactionFormComponent,
   isRecipientFormOpen,
+  showBlockFestBanner = false,
 }: HomePageProps) {
   const handleScrollToForm = () => {
     const formElement = document.getElementById("hero");
@@ -105,7 +107,7 @@ export function HomePage({
             animate="animate"
             transition={{ duration: 0.8, ease: "easeOut", delay: 0.6 }}
           >
-            <BlockFestBanner />
+            {showBlockFestBanner && <BlockFestBanner />}
             <div className="mt-4">{transactionFormComponent}</div>
           </motion.div>
 

@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 
-export const BlockFestBanner = () => {
+export default function BlockFestBanner() {
   const [timeLeft, setTimeLeft] = useState(60 * 60 * 1000); // 1 hour in milliseconds
 
   // Countdown timer effect
@@ -63,4 +63,4 @@ export const BlockFestBanner = () => {
       </div>
     </div>
   );
-};
+}

@@ -3,17 +3,17 @@ import {
   XIconDarkTheme,
   FarcasterIconLightTheme,
   FarcasterIconDarkTheme,
-} from "./ImageAssets";
+} from "../ImageAssets";
 import { useTheme } from "next-themes";
-import { secondaryBtnClasses } from "./Styles";
+import { secondaryBtnClasses } from "../Styles";
 
 interface BlockFestCashbackComponentProps {
-  cashbackAmount?: string;
+  cashbackAmount?: string; // e.g., "0.02"
   cashbackPercentage?: string;
 }
 
 export default function BlockFestCashbackComponent({
-  cashbackAmount = "0.02 USDC",
+  cashbackAmount = "0.00",
   cashbackPercentage = "1%",
 }: BlockFestCashbackComponentProps) {
   const { theme } = useTheme();
@@ -23,7 +23,7 @@ export default function BlockFestCashbackComponent({
       {/* Banner with cashback message */}
       <div className="relative rounded-2xl bg-[url('/images/blockfest/blockfest-banner-bg.svg')] bg-cover bg-left-top bg-no-repeat py-1 pl-12 pr-2.5">
         <span className="text-sm font-semibold text-white">
-          1% ({cashbackAmount})
+          {cashbackPercentage} ({cashbackAmount} USDC)
         </span>
         <span className="text-sm text-white">
           {" "}

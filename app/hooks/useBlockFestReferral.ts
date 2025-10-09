@@ -12,13 +12,5 @@ export const useBlockFestReferral = () => {
     setIsBlockFestReferral(isBlockFest);
   }, [searchParams]);
 
-  const clearBlockFestReferral = () => {
-    localStorage.removeItem("blockfest-referral");
-    setIsBlockFestReferral(false);
-  };
-
-  return {
-    isBlockFestReferral,
-    clearBlockFestReferral,
-  };
+  return { isBlockFestReferral };
 };

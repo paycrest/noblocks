@@ -647,6 +647,7 @@ export const TransactionForm = ({
                 defaultTitle="Select token"
                 data={tokens}
                 defaultSelectedItem={token}
+                isCTA={false}
                 onSelect={(selectedToken) =>
                   setValue("token", selectedToken, { shouldDirty: true })
                 }

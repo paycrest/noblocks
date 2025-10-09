@@ -2,8 +2,8 @@
  * Server-only configuration
  * This module contains sensitive environment variables that should NEVER be exposed to the client.
  * Only import this in API routes and server-side code (never in client components).
- * 
- * Note: Cannot use "server-only" import here as this module is indirectly imported 
+ *
+ * Note: Cannot use "server-only" import here as this module is indirectly imported
  * through server-analytics.ts -> aggregator.ts -> KycModal.tsx chain.
  * Security is maintained because these env vars are not NEXT_PUBLIC_ prefixed.
  */

@@ -341,8 +341,15 @@ export function MainPageContent() {
     </motion.div>
   );
   const MainContent = () => {
-    const { claimed } = useBlockFestClaim();
+    const { claimed, resetClaim } = useBlockFestClaim();
     const { user } = usePrivy();
+
+    // Reset claim state on logout
+    useEffect(() => {
+      if (!authenticated && !isInjectedWallet) {
+        resetClaim();
+      }
+    }, [authenticated, isInjectedWallet, resetClaim]);
 
     return (
       <>

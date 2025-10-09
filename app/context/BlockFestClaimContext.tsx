@@ -14,6 +14,7 @@ type ClaimState = {
   error?: string | null;
   checkClaim: (walletAddress: string) => Promise<void>;
   markClaimed: () => void;
+  resetClaim: () => void;
 };
 
 const Ctx = createContext<ClaimState | undefined>(undefined);
@@ -48,10 +49,16 @@ export function BlockFestClaimProvider({
   }, []);
 
   const markClaimed = useCallback(() => setClaimed(true), []);
+  
+  const resetClaim = useCallback(() => {
+    setClaimed(null);
+    setError(null);
+    setLoading(false);
+  }, []);
 
   const value = useMemo(
-    () => ({ claimed, loading, error, checkClaim, markClaimed }),
-    [claimed, loading, error, checkClaim, markClaimed],
+    () => ({ claimed, loading, error, checkClaim, markClaimed, resetClaim }),
+    [claimed, loading, error, checkClaim, markClaimed, resetClaim],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -809,7 +809,9 @@ export function TransactionStatus({
             !(
               transactionStatus === "settled" &&
               claimed === true &&
-              orderDetails?.network === "Base"
+              orderDetails?.network === "Base" &&
+              orderDetails?.token &&
+              ALLOWED_CASHBACK_TOKENS.has(orderDetails.token)
             ) && (
               <AnimatedComponent
                 variant={slideInOut}

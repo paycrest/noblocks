@@ -52,12 +52,28 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
+    // Validate list ID is a valid integer
+    const listId = parseInt(brevoConfig.listId, 10);
+    if (isNaN(listId) || !Number.isInteger(listId)) {
+      console.error(
+        "Brevo misconfigured: invalid list ID:",
+        brevoConfig.listId,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Email service misconfigured: invalid Brevo list ID",
+        },
+        { status: 500 },
+      );
+    }
+
     // Call Brevo API
     const brevoResponse = await axios.post(
       "https://api.brevo.com/v3/contacts",
       {
         email,
-        listIds: [parseInt(brevoConfig.listId, 10)],
+        listIds: [listId],
         updateEnabled: true, // Update contact if already exists
       },
       {
@@ -78,28 +94,40 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       response_time_ms: Date.now() - start,
     });
   } catch (err) {
-    console.error("Brevo add-contact API error:", err);
-
-    // Handle axios errors
+    // Sanitize error logging to avoid leaking API key
     if (axios.isAxiosError(err) && err.response) {
-      const errorMessage =
-        err.response.data?.message || "Failed to add contact to list";
+      console.error("Brevo API error:", {
+        message: err.message,
+        status: err.response.status,
+        statusText: err.response.statusText,
+        data: err.response.data,
+        // Avoid logging err.config or err.config.headers (contains API key)
+      });
+
+      // Return generic message to client
       return NextResponse.json(
         {
           success: false,
-          error: errorMessage,
+          error: "Failed to add contact to list",
           response_time_ms: Date.now() - start,
         },
         { status: err.response.status },
       );
     }
 
-    const message =
-      err instanceof Error && err.message
-        ? err.message
-        : "Internal Server Error";
+    // Log non-Axios errors safely
+    console.error(
+      "Brevo add-contact API error:",
+      err instanceof Error ? err.message : String(err),
+    );
+
+    // Generic error for client
     return NextResponse.json(
-      { success: false, error: message, response_time_ms: Date.now() - start },
+      {
+        success: false,
+        error: "Failed to add contact to list",
+        response_time_ms: Date.now() - start,
+      },
       { status: 500 },
     );
   }

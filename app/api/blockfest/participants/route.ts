@@ -36,13 +36,14 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     // Upsert participant (idempotent)
+    // normalized_address is auto-populated by trigger from wallet_address
     const { error } = await supabaseAdmin.from("blockfest_participants").upsert(
       {
         wallet_address: walletAddress,
         email,
         source,
       },
-      { onConflict: "wallet_address" },
+      { onConflict: "normalized_address" },
     );
 
     if (error) {

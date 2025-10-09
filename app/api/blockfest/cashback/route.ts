@@ -227,7 +227,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const { data: participant, error: participantError } = await supabaseAdmin
       .from("blockfest_participants")
       .select("*")
-      .eq("wallet_address", walletAddress)
+      .eq("normalized_address", walletAddress)
       .single();
 
     if (participantError || !participant) {

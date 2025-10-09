@@ -125,18 +125,9 @@ export default function BlockFestCashbackComponent({
         );
       case "error":
         return "Cashback couldn't be completed. Please try again or contact support.";
+      case "idle":
       default:
-        return (
-          <>
-            <span className="text-sm font-semibold text-white">
-              {cashbackPercentage} ({cashbackAmount} {tokenType})
-            </span>
-            <span className="text-sm text-white">
-              {" "}
-              cashback has been added to your wallet
-            </span>
-          </>
-        );
+        return "Verifying your cashback eligibility...";
     }
   };
 

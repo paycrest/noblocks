@@ -21,7 +21,7 @@ export const GET = withRateLimit(
       const { data, error } = await supabaseAdmin
         .from("blockfest_participants")
         .select("wallet_address")
-        .eq("wallet_address", decodedAddress)
+        .eq("normalized_address", decodedAddress)
         .limit(1)
         .maybeSingle();
 

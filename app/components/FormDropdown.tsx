@@ -52,7 +52,7 @@ export const FormDropdown = ({
           )}
         >
           {selectedItem?.name ? (
-            <div className="mr-1 flex items-center gap-1">
+            <div className="mr-0 flex items-center gap-1 bg-gray-50 dark:bg-neutral-800">
               <FlagImage
                 item={selectedItem}
                 imageErrors={imageErrors}
@@ -71,9 +71,9 @@ export const FormDropdown = ({
           <div
             className={classNames(
               selectedItem?.name && !imageErrors[selectedItem?.name]
-                ? "ml-5"
+                ? "ml-0"
                 : "",
-              "mr-1",
+              "mr-0",
             )}
           >
             <ArrowDown01Icon

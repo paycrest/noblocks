@@ -18,6 +18,7 @@ import {
   CheckmarkCircle01Icon,
   Wallet01Icon,
   ArrowDown01Icon,
+  InformationSquareIcon,
 } from "hugeicons-react";
 import { Token } from "../types";
 import { networks } from "../mocks";
@@ -44,15 +45,13 @@ export const TransferForm: React.FC<{
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
   const networkDropdownRef = useRef<HTMLDivElement>(null);
 
-  // State for currency dropdown
-  const [isCurrencyDropdownOpen, setIsCurrencyDropdownOpen] = useState(false);
-  const currencyDropdownRef = useRef<HTMLDivElement>(null);
 
   const formMethods = useForm<{
     amount: number;
     token: string;
     recipientAddress: string;
     recipientNetwork: string;
+    recipientNetworkImageUrl: string;
   }>({ mode: "onChange" });
   const {
     handleSubmit,
@@ -62,7 +61,7 @@ export const TransferForm: React.FC<{
     reset,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { token, amount, recipientNetwork } = watch();
+  const { token, amount, recipientNetwork, recipientNetworkImageUrl } = watch();
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
   const tokens = fetchedTokens.map((token) => ({
@@ -94,11 +93,10 @@ export const TransferForm: React.FC<{
   });
 
   useEffect(() => {
-    if (!token) {
-      setValue("token", "USDC");
-    }
     if (!recipientNetwork) {
       setValue("recipientNetwork", selectedNetwork.chain.name);
+      const networkImageUrl = getNetworkImageUrl(selectedNetwork, isDark);
+      setValue("recipientNetworkImageUrl", networkImageUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -124,21 +122,12 @@ export const TransferForm: React.FC<{
       ) {
         setIsNetworkDropdownOpen(false);
       }
-      if (
-        currencyDropdownRef.current &&
-        !currencyDropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsCurrencyDropdownOpen(false);
-      }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         if (isNetworkDropdownOpen) {
           setIsNetworkDropdownOpen(false);
-        }
-        if (isCurrencyDropdownOpen) {
-          setIsCurrencyDropdownOpen(false);
         }
       }
     };
@@ -149,7 +138,7 @@ export const TransferForm: React.FC<{
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isNetworkDropdownOpen, isCurrencyDropdownOpen]);
+  }, [isNetworkDropdownOpen]);
 
   const handleBalanceMaxClick = () => {
     const formattedBalance = formatDecimalPrecision(tokenBalance, 4);
@@ -308,7 +297,7 @@ export const TransferForm: React.FC<{
               },
             })}
             className={classNames(
-              "min-h-12 w-full rounded-xl border border-border-input bg-transparent py-3 pl-10 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
+              "min-h-12 w-full rounded-xl border border-border-input dark:bg-black2 py-3 pl-10 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
               errors.recipientAddress
                 ? "text-red-500 dark:text-red-500"
                 : "text-neutral-900 dark:text-white/80",
@@ -351,12 +340,17 @@ export const TransferForm: React.FC<{
             aria-controls="recipient-network-listbox"
           >
             <span
-              className={
+              className={`flex items-center gap-3 ${
                 recipientNetwork
                   ? "text-neutral-900 dark:text-white"
                   : "text-gray-400 dark:text-white/30"
-              }
+              }`}
             >
+              <img
+                  src={recipientNetworkImageUrl}
+                  alt={recipientNetwork}
+                  className="h-6 w-6 rounded-full"
+                />
               {recipientNetwork || "Select network"}
             </span>
             <ArrowDown01Icon
@@ -371,7 +365,7 @@ export const TransferForm: React.FC<{
             <div 
               id="recipient-network-listbox"
               role="listbox"
-              className="scrollbar-hide absolute left-0 right-0 top-full z-50 mt-1 max-h-60 w-full overflow-y-auto overflow-x-hidden rounded-xl border border-border-input bg-white shadow-lg dark:border-white/20 dark:bg-neutral-800"
+              className="scrollbar-hide absolute left-0 right-0 top-full z-50 mt-1 max-h-[144px] w-full overflow-y-auto overflow-x-hidden rounded-xl border border-border-input bg-white shadow-lg dark:border-white/20 dark:bg-neutral-800"
             >
               {recipientNetworks.map((network) => (
                 <button
@@ -381,12 +375,14 @@ export const TransferForm: React.FC<{
                   aria-selected={recipientNetwork === network.name}
                   onClick={() => {
                     setValue("recipientNetwork", network.name);
+                    setValue("recipientNetworkImageUrl", network.imageUrl);
                     setIsNetworkDropdownOpen(false);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       setValue("recipientNetwork", network.name);
+                      setValue("recipientNetworkImageUrl", network.imageUrl);
                       setIsNetworkDropdownOpen(false);
                     }
                   }}
@@ -400,9 +396,6 @@ export const TransferForm: React.FC<{
                   <span className="truncate text-sm font-medium text-neutral-900 dark:text-white">
                     {network.name}
                   </span>
-                  {recipientNetwork === network.name && (
-                    <div className="ml-auto h-2 w-2 rounded-full bg-lavender-500"></div>
-                  )}
                 </button>
               ))}
             </div>
@@ -412,7 +405,7 @@ export const TransferForm: React.FC<{
 
       {/* Amount field */}
       <div className="w-full max-w-full space-y-2">
-        <div className="relative w-full rounded-lg border border-border-input bg-transparent dark:border-white/20 sm:h-[94px]">
+        <div className="relative w-full rounded-2xl border-[0.3px] border-border-input bg-transparent dark:bg-black2 dark:border-white/20 h-[94px]">
           <label
             htmlFor="amount"
             className="absolute left-4 top-3 text-sm font-medium text-text-secondary dark:text-white/70"
@@ -452,9 +445,10 @@ export const TransferForm: React.FC<{
           />
 
           {/* Balance section - positioned on the right side */}
-          <div className="absolute right-4 top-3 flex items-center gap-2">
-            <Wallet01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
-            <span className="text-sm font-medium text-neutral-900 dark:text-white/80">
+          {token && (
+            <div className="absolute right-4 top-3 flex items-center gap-2">
+            <Wallet01Icon size={16} className=" text-icon-outline-secondary dark:text-white/50" />
+            <span className="text-sm font-normal text-neutral-900 dark:text-white">
               {isLoading || smartWalletBalance === null ? (
                 <BalanceSkeleton className="w-12" />
               ) : (
@@ -468,108 +462,41 @@ export const TransferForm: React.FC<{
             >
               Max
             </button>
+          </div>)}
+          
+
+          <div className="absolute bottom-3 right-4">
+            <FormDropdown
+              defaultTitle="Select currency"
+              data={tokens}
+              defaultSelectedItem={"Select currency"}
+              isCTA={true}
+              onSelect={(selectedToken: string) =>
+                setValue("token", selectedToken)
+              }
+              className="min-w-44"
+              dropdownWidth={192}
+            />
           </div>
-
-          <div className="absolute bottom-3 right-4" ref={currencyDropdownRef}>
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() =>
-                  setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen)
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setIsCurrencyDropdownOpen(!isCurrencyDropdownOpen);
-                  }
-                }}
-                className="flex items-center justify-between gap-0 rounded-3xl bg-lavender-600 text-white transition-all hover:bg-lavender-600 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 dark:focus:ring-offset-neutral-900 w-[145px] h-9 px-2"
-                aria-haspopup="listbox"
-                aria-expanded={isCurrencyDropdownOpen}
-                aria-controls="currency-listbox"
-              >
-                <span className="text-sm font-medium">
-                  {token || "Select currency"}
-                </span>
-                <ArrowDown01Icon
-                  className={`size-4 transition-transform ${
-                    isCurrencyDropdownOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-
-              {/* Currency Dropdown Menu */}
-              {isCurrencyDropdownOpen && (
-                <div
-                  id="currency-listbox"
-                  role="listbox"
-                  className="absolute right-0 top-full z-50 mt-2 rounded-lg border border-border-input bg-white shadow-lg dark:border-white/20 dark:bg-neutral-800 w-[230px] min-h-[112px] pt-2 pb-2"
-                >
-                  {tokens.map((tokenOption) => (
-                    <button
-                      key={tokenOption.name}
-                      type="button"
-                      role="option"
-                      aria-selected={token === tokenOption.name}
-                      onClick={() => {
-                        setValue("token", tokenOption.name);
-                        setIsCurrencyDropdownOpen(false);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          setValue("token", tokenOption.name);
-                          setIsCurrencyDropdownOpen(false);
-                        }
-                      }}
-                      className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-white/5 focus:bg-gray-50 dark:focus:bg-white/5"
-                    >
-                      <img
-                        src={tokenOption.imageUrl}
-                        alt={tokenOption.name}
-                        className="h-6 w-6 rounded-full"
-                      />
-                      <span className="text-sm font-medium text-neutral-900 dark:text-white">
-                        {tokenOption.name}
-                      </span>
-                      {token === tokenOption.name && (
-                        <div className="ml-auto h-2 w-2 rounded-full bg-lavender-500"></div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-        </div>
-        {errors.amount && (
+      </div>
+      {errors.amount && (
           <AnimatedComponent
             variant={slideInOut}
-              className="absolute -bottom-6 left-0 text-xs text-red-500"
+              className="relative top-1 left-2 text-xs text-red-500"
           >
             {errors.amount.message}
           </AnimatedComponent>
         )}
       </div>
-        {/* {renderBalanceSection()} */}
-      </div>
 
       {/* Network compatibility warning */}
       {showNetworkWarning && (
-        <div className="bg-yellow-secondary dark:bg-yellow-secondary/20 rounded-lg p-3">
-          <div className="flex items-start gap-2">
-            <div className="flex-shrink-0">
-              <Image
-                src="/images/information-square.png"
-                alt="information square"
-                width={16}
-                height={16}
-              />
-            </div>
-            <p className="text-yellow-primary dark:text-yellow-primary text-sm">
+            <div className="h-[48px] w-full bg-warning-background/[8%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start justify-start gap-0.5">
+            <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[24px] h-[24px] mr-2 -mt-0.5" />
+            <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight text-wrap">
               Ensure that the withdrawal address supports {recipientNetwork}{" "}
               network to avoid loss of funds.
             </p>
-          </div>
         </div>
       )}
 
@@ -578,11 +505,11 @@ export const TransferForm: React.FC<{
         type="submit"
         className={classNames(
           "min-h-12 w-full rounded-xl px-4 py-3 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900",
-          !isValid || !isDirty || isConfirming
+          !isValid || !isDirty || isConfirming || !token || !(amount > 0)
             ? "bg-gray-300 text-gray-500 dark:bg-white/10 dark:text-white/50"
             : "bg-lavender-500 text-white hover:bg-lavender-600 dark:hover:bg-lavender-600",
         )}
-        disabled={!isValid || !isDirty || isConfirming}
+        disabled={!isValid || !isDirty || isConfirming || !token || !(amount > 0)}
       >
         {isConfirming ? "Confirming..." : "Continue"}
       </button>

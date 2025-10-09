@@ -4,12 +4,10 @@ import { useForm } from "react-hook-form";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
 import { classNames, getNetworkImageUrl } from "../utils";
-import { primaryBtnClasses } from "./Styles";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useActualTheme } from "../hooks/useActualTheme";
-import Image from "next/image";
 import { networks } from "../mocks";
 import { toast } from "sonner";
 import {
@@ -213,7 +211,7 @@ export const FundWalletForm: React.FC<{
       </div>
       {/* Amount field */}
       <div className="w-full max-w-full space-y-2">
-        <div className="relative w-full rounded-xl border border-border-input dark:border-white/10 dark:bg-black2 h-[94px]">
+        <div className="relative w-full rounded-2xl border border-border-input dark:border-white/10 dark:bg-black2 h-[94px]">
           <label
             htmlFor="amount"
             className="absolute left-4 top-3 text-sm font-light text-text-secondary dark:text-white/70"
@@ -246,6 +244,7 @@ export const FundWalletForm: React.FC<{
               defaultTitle="Select currency"
               data={fundTokenOptions}
               defaultSelectedItem={fundToken}
+              isCTA={false}
               onSelect={(selectedToken: string) =>
                 setFundValue("token", selectedToken)
               }
@@ -254,19 +253,20 @@ export const FundWalletForm: React.FC<{
             />
           </div>
 
-          {fundErrors.amount && (
+          
+        </div>
+        {fundErrors.amount && (
             <AnimatedComponent
               variant={slideInOut}
-              className="absolute -bottom-6 left-0 text-xs text-red-500"
+              className="relative left-2 text-xs text-red-500"
             >
               {fundErrors.amount.message}
             </AnimatedComponent>
           )}
-        </div>
       </div>
 
       {/* Network field */}
-      <div className="w-full max-w-full space-y-2 rounded-xl p-4 dark:bg-black2 border-[0.3px] border-border-light dark:border-white/0">
+      <div className="w-full max-w-full space-y-2 rounded-2xl p-4 dark:bg-black2 border-[0.3px] border-border-light dark:border-white/0">
         <label
           htmlFor="network"
           className="text-sm font-medium text-black dark:text-white/70"
@@ -310,7 +310,7 @@ export const FundWalletForm: React.FC<{
               </span>
             </div>
             <ArrowDown01Icon
-              className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 text-outline-gray transition-transform dark:text-white/50 ${
+              className={`absolute right-3 top-[45%] size-4 -translate-y-1/2 text-outline-gray transition-transform dark:text-white/50 ${
                 isNetworkDropdownOpen ? "rotate-180" : ""
               }`}
             />
@@ -321,7 +321,7 @@ export const FundWalletForm: React.FC<{
             <div
               id="network-listbox"
               role="listbox"
-              className="scrollbar-hide absolute left-0 right-0 top-full z-50 mt-1 max-h-60 w-full overflow-y-auto overflow-x-hidden rounded-xl border border-border-input bg-white shadow-lg dark:border-white/20 dark:bg-neutral-800"
+              className="scrollbar-hide absolute left-0 right-0 top-full z-50 mt-1 max-h-[144px] w-full overflow-y-scroll overflow-x-hidden rounded-xl border border-border-input bg-white shadow-lg dark:border-white/20 dark:bg-neutral-800"
             >
               {availableNetworks.map((network) => (
                 <button
@@ -360,9 +360,6 @@ export const FundWalletForm: React.FC<{
                   <span className="truncate text-sm font-medium text-neutral-900 dark:text-white">
                     {network.name}
                   </span>
-                  {selectedNetwork.chain.name === network.name && (
-                    <div className="ml-auto h-2 w-2 rounded-full bg-lavender-500"></div>
-                  )}
                 </button>
               ))}
             </div>
@@ -370,16 +367,16 @@ export const FundWalletForm: React.FC<{
         </div>
 
         {/* Warning note */}
-        <div className="h-[48px] w-full bg-warning-background/[8%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start gap-0.5">
-          <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[20px] h-[24px] mr-2" />
-          <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight">
+        <div className="h-[48px] w-full bg-warning-background/[8%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start justify-start gap-0.5">
+          <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[24px] h-[24px] mr-1 -mt-0.5" />
+          <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight text-wrap break-all">
             Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
           </p>
         </div>
       </div>
 
       {/* Deposit information */}
-        <div className="flex flex-wrap text-wrap break-all items-center gap-2 text-xs text-text-secondary dark:text-white/50 p-2 rounded-xl border-[0.3px] border-border-light dark:border-white/10">
+        <div className="flex flex-wrap text-wrap break-all items-center gap-1 text-xs text-text-secondary dark:text-white/50 p-2 rounded-lg border-[0.3px] border-border-light dark:border-white/10">
           <span>You are depositing this amount via</span>
           <img
             src={getNetworkImageUrl(
@@ -401,7 +398,7 @@ export const FundWalletForm: React.FC<{
         <button
           type="button"
           onClick={handleFundModalClose}
-          className="min-h-12 rounded-xl bg-gray-100 text-text-body dark:bg-white/10 dark:text-white px-6 py-3 text-sm font-semibold transition-all hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900"
+          className="min-h-12 rounded-2xl bg-gray-100 text-text-body dark:bg-white/10 dark:text-white px-6 py-3 text-sm font-semibold transition-all hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900"
         >
           Cancel
         </button>
@@ -411,7 +408,7 @@ export const FundWalletForm: React.FC<{
             "min-h-12 flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900",
             !isFundValid || !isFundDirty || isFundConfirming
               ? "bg-gray-300 text-white dark:bg-white/10 dark:text-white/50"
-              : "bg-lavender-500 text-gray-300 hover:bg-lavender-500 dark:hover:bg-lavender-500",
+              : "bg-lavender-500 text-primary hover:bg-lavender-500 dark:hover:bg-lavender-500",
           )}
           disabled={!isFundValid || !isFundDirty || isFundConfirming}
         >

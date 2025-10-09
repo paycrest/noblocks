@@ -11,7 +11,7 @@ export const GET = withRateLimit(
       const decodedAddress = decodeURIComponent(address ?? "")
         .trim()
         .toLowerCase();
-      if (!/^0x[a-fA-F0-9]{40}$/.test(decodedAddress)) {
+      if (!/^0x[a-f0-9]{40}$/.test(decodedAddress)) {
         return NextResponse.json(
           { success: false, error: "Invalid wallet address format" },
           { status: 400 },

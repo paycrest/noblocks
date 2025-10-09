@@ -28,7 +28,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const source = body.source ? String(body.source).trim() : "modal";
 
     // Basic EVM address validation
-    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+    if (!/^0x[a-f0-9]{40}$/.test(walletAddress)) {
       return NextResponse.json(
         { success: false, error: "Invalid wallet address format" },
         { status: 400 },

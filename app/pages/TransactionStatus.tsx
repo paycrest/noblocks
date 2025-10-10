@@ -699,34 +699,32 @@ export function TransactionStatus({
                 </AnimatedComponent>
               )}
 
-              {["validated", "settled"].includes(transactionStatus) && (
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.5}
-                  className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
-                >
-                  {["validated", "settled"].includes(transactionStatus) && (
-                    <button
-                      type="button"
-                      onClick={handleGetReceipt}
-                      className={`w-fit ${secondaryBtnClasses}`}
-                      disabled={isGettingReceipt}
-                    >
-                      {isGettingReceipt ? "Generating..." : "Get receipt"}
-                    </button>
-                  )}
-
+              <AnimatedComponent
+                variant={slideInOut}
+                delay={0.5}
+                className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
+              >
+                {["validated", "settled"].includes(transactionStatus) && (
                   <button
                     type="button"
-                    onClick={handleBackButtonClick}
-                    className={`w-fit ${primaryBtnClasses}`}
+                    onClick={handleGetReceipt}
+                    className={`w-fit ${secondaryBtnClasses}`}
+                    disabled={isGettingReceipt}
                   >
-                    {transactionStatus === "refunded"
-                      ? "Retry transaction"
-                      : "New payment"}
+                    {isGettingReceipt ? "Generating..." : "Get receipt"}
                   </button>
-                </AnimatedComponent>
-              )}
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleBackButtonClick}
+                  className={`w-fit ${primaryBtnClasses}`}
+                >
+                  {transactionStatus === "refunded"
+                    ? "Retry transaction"
+                    : "New payment"}
+                </button>
+              </AnimatedComponent>
 
               {["validated", "settled"].includes(transactionStatus) &&
                 !isRecipientInBeneficiaries && (

@@ -659,7 +659,7 @@ export function TransactionStatus({
               {/* BlockFest Cashback Component - only when validated/settled and claimed and on Base network */}
               {["validated", "settled"].includes(transactionStatus) &&
                 claimed === true &&
-                orderDetails?.network === "Base" &&
+                orderDetails?.network?.toLowerCase() === "base" &&
                 orderId &&
                 orderDetails?.token &&
                 ALLOWED_CASHBACK_TOKENS.has(orderDetails.token) && (
@@ -809,7 +809,7 @@ export function TransactionStatus({
             !(
               ["validated", "settled"].includes(transactionStatus) &&
               claimed === true &&
-              orderDetails?.network === "Base" &&
+              orderDetails?.network?.toLowerCase() === "base" &&
               orderDetails?.token &&
               ALLOWED_CASHBACK_TOKENS.has(orderDetails.token)
             ) && (

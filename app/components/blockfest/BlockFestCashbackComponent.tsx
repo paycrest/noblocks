@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "sonner";
 import { usePrivy } from "@privy-io/react-auth";
+import { classNames } from "@/app/utils";
 
 interface BlockFestCashbackComponentProps {
   transactionId: string;
@@ -132,9 +133,16 @@ export default function BlockFestCashbackComponent({
   };
 
   return (
-    <div className="inline-flex w-80 flex-col items-center justify-start gap-3 rounded-[20px] bg-gray-50 px-1 pb-3 pt-1 dark:bg-white/5">
+    <div
+      className={classNames(
+        "inline-flex w-80 flex-col items-center justify-start gap-3 rounded-[20px]",
+        transferStatus === "success"
+          ? "bg-gray-50 px-1 pb-3 pt-1 dark:bg-white/5"
+          : "",
+      )}
+    >
       {/* Banner with cashback message */}
-      <div className="relative rounded-2xl bg-[url('/images/blockfest/blockfest-banner-bg.svg')] bg-cover bg-left-top bg-no-repeat py-1 pl-12 pr-2.5">
+      <div className="relative rounded-2xl bg-[url('/images/blockfest/blockfest-banner-bg.svg')] bg-cover bg-left-top bg-no-repeat py-1 pl-12 pr-2.5 text-sm">
         {getBannerText()}
       </div>
 

@@ -71,7 +71,7 @@ export const FormDropdown = ({
           <div
             className={classNames(
               selectedItem?.name && !imageErrors[selectedItem?.name]
-                ? "ml-0"
+                ? "ml-6"
                 : "",
               "mr-0",
             )}

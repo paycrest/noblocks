@@ -9,6 +9,7 @@ import {
   WalletDone01Icon,
 } from "hugeicons-react";
 import { useNetwork } from "../context/NetworksContext";
+import { useInjectedWallet } from "../context";
 import { networks } from "../mocks";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useEffect, useState } from "react";
@@ -29,8 +30,16 @@ export const CopyAddressWarningModal: React.FC<
   CopyAddressWarningModalProps
 > = ({ isOpen, onClose, address }) => {
   const { selectedNetwork } = useNetwork();
+  const { isInjectedWallet } = useInjectedWallet();
   const isDark = useActualTheme();
   const [isAddressCopied, setIsAddressCopied] = useState(false);
+
+  // Filter networks based on wallet type (same logic as NetworksDropdown):
+  // - If isInjectedWallet is true: show all networks (including Celo)
+  // - If isInjectedWallet is false: filter out Celo (smart wallet only)
+  const supportedNetworks = networks.filter(
+    (network) => isInjectedWallet || network.chain.name !== "Celo"
+  );
 
   // Track modal view when opened
   useEffect(() => {
@@ -154,7 +163,7 @@ export const CopyAddressWarningModal: React.FC<
                   Supported networks
                 </h4>
                 <div className="flex h-full w-full flex-wrap gap-2">
-                  {networks.map((network) => (
+                  {supportedNetworks.map((network) => (
                     <div
                       key={network.chain.id}
                       className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"
@@ -256,7 +265,7 @@ export const CopyAddressWarningModal: React.FC<
                         Supported networks
                       </h4>
                       <div className="flex h-full w-full flex-wrap gap-2">
-                        {networks.map((network) => (
+                        {supportedNetworks.map((network) => (
                           <div
                             key={network.chain.id}
                             className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"

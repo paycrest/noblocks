@@ -49,7 +49,8 @@ export const CopyAddressWarningModal: React.FC<
   const fundTokenOptions = fundTokens.map((token: Token) => ({
     name: token.symbol,
     imageUrl: token.imageUrl,
-  }))
+  }));
+
   // Track modal view when opened
   useEffect(() => {
     if (isOpen && selectedNetwork) {
@@ -172,14 +173,14 @@ export const CopyAddressWarningModal: React.FC<
                   Supported StableCoins
                 </h4>
                 <div className="flex h-full w-full flex-wrap gap-2 mb-2">
-                  {fundTokenOptions.map((token, index) => (
+                  {fundTokenOptions.map((token) => (
                     <div
-                      key={index}
+                      key={`${selectedNetwork.chain.id}-${token.name}`}
                       className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"
                     >
                       <div className="h-[16px] w-[16px]">
                         <Image
-                          src={token.imageUrl ?? "/default-token.png"}
+                          src={token.imageUrl!}
                           alt={`${token.name} logo`}
                           width={24}
                           height={24}
@@ -298,14 +299,14 @@ export const CopyAddressWarningModal: React.FC<
                         Supported StableCoins
                       </h4>
                       <div className="flex h-full w-full flex-wrap gap-2 mb-2">
-                        {fundTokenOptions.map((token, index) => (
+                        {fundTokenOptions.map((token) => (
                           <div
-                            key={index}
+                            key={`${selectedNetwork.chain.id}-${token.name}`}
                             className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"
                           >
                             <div className="h-[16px] w-[16px]">
                               <Image
-                                src={token.imageUrl ?? "/default-token.png"}
+                                src={token.imageUrl!}
                                 alt={`${token.name} logo`}
                                 width={24}
                                 height={24}

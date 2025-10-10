@@ -656,8 +656,8 @@ export function TransactionStatus({
         <AnimatePresence>
           {["validated", "settled", "refunded"].includes(transactionStatus) && (
             <>
-              {/* BlockFest Cashback Component - only when settled and claimed and on Base network */}
-              {transactionStatus === "settled" &&
+              {/* BlockFest Cashback Component - only when validated/settled and claimed and on Base network */}
+              {["validated", "settled"].includes(transactionStatus) &&
                 claimed === true &&
                 orderDetails?.network === "Base" &&
                 orderId &&
@@ -807,7 +807,7 @@ export function TransactionStatus({
         <AnimatePresence>
           {["validated", "settled"].includes(transactionStatus) &&
             !(
-              transactionStatus === "settled" &&
+              ["validated", "settled"].includes(transactionStatus) &&
               claimed === true &&
               orderDetails?.network === "Base" &&
               orderDetails?.token &&

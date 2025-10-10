@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
-import { classNames, getNetworkImageUrl } from "../utils";
+import { classNames, getNetworkImageUrl, shouldUseInjectedWallet } from "../utils";
+import { useSearchParams } from "next/navigation";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
@@ -28,11 +29,13 @@ export const FundWalletForm: React.FC<{
   showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileView>>;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
+  const searchParams = useSearchParams();
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const { handleFundWallet } = useFundWalletHandler("Fund wallet form");
   const { user } = usePrivy();
+  const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
   const [fundingInProgress, setFundingInProgress] = useState(false);
@@ -65,10 +68,13 @@ export const FundWalletForm: React.FC<{
   }));
 
   // Networks for network selection
-  const availableNetworks = networks.map((network) => ({
-    name: network.chain.name,
-    imageUrl: getNetworkImageUrl(network, isDark),
-  }));
+  // Filter out Celo for non-injected wallets (smart wallets)
+  const availableNetworks = networks
+    .filter((network) => useInjectedWallet || network.chain.name !== "Celo")
+    .map((network) => ({
+      name: network.chain.name,
+      imageUrl: getNetworkImageUrl(network, isDark),
+    }));
 
   useEffect(() => {
     if (!fundToken) {
@@ -222,13 +228,14 @@ export const FundWalletForm: React.FC<{
       </div>
       {/* Amount field */}
       <div className="w-full max-w-full space-y-2">
-        <div className="relative w-full rounded-2xl border border-border-input dark:border-white/10 dark:bg-black2 h-[94px]">
-          <label
-            htmlFor="amount"
-            className="absolute left-4 top-3 text-sm font-light text-text-secondary dark:text-white/70"
-          >
-            Amount
-          </label>
+        <div className="relative w-full flex flex-col justify-between rounded-2xl border border-border-input dark:border-white/10 dark:bg-black2 min-h-[94px] px-4 py-2">
+        <label
+          htmlFor="amount"
+          className="text-sm font-light text-text-secondary dark:text-white/70"
+        >
+          Amount
+        </label>
+        <div className="flex items-center justify-between gap-2 w-full">
           <input
             id="amount"
             type="number"
@@ -241,7 +248,7 @@ export const FundWalletForm: React.FC<{
                 message: "Invalid amount",
               },
             })}
-            className={`absolute bottom-3 left-4 right-20 bg-transparent text-3xl font-medium outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
+            className={`w-full py-2 bg-transparent text-3xl font-medium outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
               fundErrors.amount
                 ? "text-red-500 dark:text-red-500"
                 : "text-neutral-900 dark:text-white"
@@ -249,23 +256,19 @@ export const FundWalletForm: React.FC<{
             placeholder="0"
             title="Enter amount to fund"
           />
-
-          <div className="absolute bottom-3 right-4">
-            <FormDropdown
-              defaultTitle="Select currency"
-              data={fundTokenOptions}
-              defaultSelectedItem={fundToken}
-              isCTA={false}
-              onSelect={(selectedToken: string) =>
-                setFundValue("token", selectedToken)
-              }
-              className="min-w-44"
-              dropdownWidth={192}
-            />
-          </div>
-
-          
+          <FormDropdown
+            defaultTitle="Select currency"
+            data={fundTokenOptions}
+            defaultSelectedItem={fundToken}
+            isCTA={false}
+            onSelect={(selectedToken: string) =>
+              setFundValue("token", selectedToken)
+            }
+            className="min-w-32"
+            dropdownWidth={192}
+          />
         </div>
+                </div>
         {fundErrors.amount && (
             <AnimatedComponent
               variant={slideInOut}

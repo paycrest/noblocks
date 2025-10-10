@@ -9,15 +9,18 @@ import {
   WalletDone01Icon,
 } from "hugeicons-react";
 import { useNetwork } from "../context/NetworksContext";
+import { useTokens } from "../context";
 import { networks } from "../mocks";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { getNetworkImageUrl } from "../utils";
+import { shouldUseInjectedWallet, getNetworkImageUrl } from "../utils";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/useMixpanel";
 import { PiCheck } from "react-icons/pi";
 import { slideUpAnimation } from "./AnimatedComponents";
+import { Token } from "../types";
+import { useSearchParams } from "next/navigation";
 
 interface CopyAddressWarningModalProps {
   isOpen: boolean;
@@ -29,8 +32,24 @@ export const CopyAddressWarningModal: React.FC<
   CopyAddressWarningModalProps
 > = ({ isOpen, onClose, address }) => {
   const { selectedNetwork } = useNetwork();
+  const searchParams = useSearchParams();
+  const useInjectedWallet = shouldUseInjectedWallet(searchParams);
+  const { allTokens } = useTokens();
   const isDark = useActualTheme();
   const [isAddressCopied, setIsAddressCopied] = useState(false);
+
+  // Filter networks based on wallet type (same logic as NetworksDropdown):
+  // - If isInjectedWallet is true: show all networks (including Celo)
+  // - If isInjectedWallet is false: filter out Celo (smart wallet only)
+  const supportedNetworks = networks.filter(
+    (network) => useInjectedWallet || network.chain.name !== "Celo"
+  );
+
+  const fundTokens = allTokens[selectedNetwork.chain.name] || [];
+  const fundTokenOptions = fundTokens.map((token: Token) => ({
+    name: token.symbol,
+    imageUrl: token.imageUrl,
+  }));
 
   // Track modal view when opened
   useEffect(() => {
@@ -150,11 +169,35 @@ export const CopyAddressWarningModal: React.FC<
 
               {/* Supported networks list */}
               <div className="relative mb-2 flex h-fit w-full flex-col items-start gap-2 rounded-xl border border-border-light bg-transparent px-3 py-3 dark:border-white/5">
-                <h4 className="mb-2 text-xs font-light text-text-secondary dark:text-white/50">
+                <h4 className="mb-1 text-xs font-light text-text-secondary dark:text-white/50">
+                  Supported StableCoins
+                </h4>
+                <div className="flex h-full w-full flex-wrap gap-2 mb-2">
+                  {fundTokenOptions.map((token) => (
+                    <div
+                      key={`${selectedNetwork.chain.id}-${token.name}`}
+                      className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"
+                    >
+                      <div className="h-[16px] w-[16px]">
+                        <Image
+                          src={token.imageUrl!}
+                          alt={`${token.name} logo`}
+                          width={24}
+                          height={24}
+                          className="h-full w-full rounded-full object-contain"
+                        />
+                      </div>
+                      <span className="text-xs font-medium text-text-body dark:text-white/80">
+                        {token.name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <h4 className="mb-1 text-xs font-light text-text-secondary dark:text-white/50">
                   Supported networks
                 </h4>
                 <div className="flex h-full w-full flex-wrap gap-2">
-                  {networks.map((network) => (
+                  {supportedNetworks.map((network) => (
                     <div
                       key={network.chain.id}
                       className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"
@@ -252,11 +295,36 @@ export const CopyAddressWarningModal: React.FC<
 
                     {/* Supported networks list */}
                     <div className="relative mb-2 flex h-fit w-full flex-col items-start gap-2 rounded-xl border border-border-light bg-transparent px-3 py-3 dark:border-white/5">
-                      <h4 className="mb-2 text-xs font-light text-text-secondary dark:text-white/50">
+                      <h4 className="mb-1 text-xs font-light text-text-secondary dark:text-white/50">
+                        Supported StableCoins
+                      </h4>
+                      <div className="flex h-full w-full flex-wrap gap-2 mb-2">
+                        {fundTokenOptions.map((token) => (
+                          <div
+                            key={`${selectedNetwork.chain.id}-${token.name}`}
+                            className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"
+                          >
+                            <div className="h-[16px] w-[16px]">
+                              <Image
+                                src={token.imageUrl!}
+                                alt={`${token.name} logo`}
+                                width={24}
+                                height={24}
+                                className="h-full w-full rounded-full object-contain"
+                              />
+                            </div>
+                            <span className="text-xs font-medium text-text-body dark:text-white/80">
+                              {token.name}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <h4 className="mb-1 text-xs font-light text-text-secondary dark:text-white/50">
                         Supported networks
                       </h4>
                       <div className="flex h-full w-full flex-wrap gap-2">
-                        {networks.map((network) => (
+                        {supportedNetworks.map((network) => (
                           <div
                             key={network.chain.id}
                             className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"

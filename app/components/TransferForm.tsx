@@ -5,7 +5,8 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
-import { classNames, formatDecimalPrecision } from "../utils";
+import { classNames, formatDecimalPrecision, shouldUseInjectedWallet } from "../utils";
+import { useSearchParams } from "next/navigation";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
@@ -34,11 +35,13 @@ export const TransferForm: React.FC<{
   showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileView>>;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
+  const searchParams = useSearchParams();
   const { selectedNetwork } = useNetwork();
   const { client } = useSmartWallets();
   const { user, getAccessToken } = usePrivy();
   const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
   const { allTokens } = useTokens();
+  const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
   // State for network dropdown
@@ -71,10 +74,13 @@ export const TransferForm: React.FC<{
   const tokenBalance = Number(smartWalletBalance?.balances?.[token]) || 0;
 
   // Networks for recipient network selection
-  const recipientNetworks = networks.map((network) => ({
-    name: network.chain.name,
-    imageUrl: getNetworkImageUrl(network, isDark),
-  }));
+  // Filter out Celo for non-injected wallets (smart wallets)
+  const recipientNetworks = networks
+    .filter((network) => useInjectedWallet || network.chain.name !== "Celo")
+    .map((network) => ({
+      name: network.chain.name,
+      imageUrl: getNetworkImageUrl(network, isDark),
+    }));
 
   const {
     isLoading: isConfirming,
@@ -340,29 +346,27 @@ export const TransferForm: React.FC<{
             aria-controls="recipient-network-listbox"
           >
             <span
-              className={`flex items-center gap-3 ${
-                recipientNetwork
+              className={`flex items-center gap-3 ${recipientNetwork
                   ? "text-neutral-900 dark:text-white"
                   : "text-gray-400 dark:text-white/30"
-              }`}
+                }`}
             >
               <img
-                  src={recipientNetworkImageUrl}
-                  alt={recipientNetwork}
-                  className="h-6 w-6 rounded-full"
-                />
+                src={recipientNetworkImageUrl}
+                alt={recipientNetwork}
+                className="h-6 w-6 rounded-full"
+              />
               {recipientNetwork || "Select network"}
             </span>
             <ArrowDown01Icon
-              className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 text-outline-gray transition-transform dark:text-white/50 ${
-                isNetworkDropdownOpen ? "rotate-180" : ""
-              }`}
+              className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 text-outline-gray transition-transform dark:text-white/50 ${isNetworkDropdownOpen ? "rotate-180" : ""
+                }`}
             />
           </button>
 
           {/* Dropdown Menu */}
           {isNetworkDropdownOpen && (
-            <div 
+            <div
               id="recipient-network-listbox"
               role="listbox"
               className="scrollbar-hide absolute left-0 right-0 top-full z-50 mt-1 max-h-[144px] w-full overflow-y-auto overflow-x-hidden rounded-xl border border-border-input bg-white shadow-lg dark:border-white/20 dark:bg-neutral-800"
@@ -405,67 +409,66 @@ export const TransferForm: React.FC<{
 
       {/* Amount field */}
       <div className="w-full max-w-full space-y-2">
-        <div className="relative w-full rounded-2xl border-[0.3px] border-border-input bg-transparent dark:bg-black2 dark:border-white/20 h-[94px]">
-          <label
-            htmlFor="amount"
-            className="absolute left-4 top-3 text-sm font-medium text-text-secondary dark:text-white/70"
-          >
-            Amount
-          </label>
-          <input
-            id="amount"
-            type="number"
-            step="0.0001"
-            {...register("amount", {
-              required: {
-                value: true,
-                message: "Amount is required",
-              },
-              disabled: !token,
-              min: {
-                value: 0.0001,
-                message: `Min. amount is 0.0001`,
-              },
-              max: {
-                value: tokenBalance,
-                message: `Max. amount is ${tokenBalance}`,
-              },
-              pattern: {
-                value: /^\d+(\.\d{1,4})?$/,
-                message: "Invalid amount",
-              },
-            })}
-            className={`absolute bottom-3 left-4 right-20 bg-transparent text-3xl font-medium outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-              errors.amount
-                ? "text-red-500 dark:text-red-500"
-                : "text-neutral-900 dark:text-white"
-            }`}
-            placeholder="0"
-            title="Enter amount to send"
-          />
-
-          {/* Balance section - positioned on the right side */}
-          {token && (
-            <div className="absolute right-4 top-3 flex items-center gap-2">
-            <Wallet01Icon size={16} className=" text-icon-outline-secondary dark:text-white/50" />
-            <span className="text-sm font-normal text-neutral-900 dark:text-white">
-              {isLoading || smartWalletBalance === null ? (
-                <BalanceSkeleton className="w-12" />
-              ) : (
-                `${tokenBalance} ${token}`
-              )}
-            </span>
-            <button
-              type="button"
-              onClick={handleBalanceMaxClick}
-              className="text-sm font-medium text-lavender-500 transition-colors hover:text-lavender-600"
+        <div className="w-full flex flex-col gap-3 px-4 py-3 rounded-2xl border-[0.3px] border-border-input bg-transparent dark:bg-black2 dark:border-white/20 min-h-[94px] h-fit">
+          <div className="flex justify-between gap-1">
+            <label
+              htmlFor="amount"
+              className=" text-sm font-medium text-text-secondary dark:text-white/70"
             >
-              Max
-            </button>
-          </div>)}
-          
+              Amount
+            </label>
+            {token && (
+              <div className=" flex items-center gap-2">
+                <Wallet01Icon size={16} className=" text-icon-outline-secondary dark:text-white/50" />
+                <span className="text-sm font-normal text-neutral-900 dark:text-white">
+                  {isLoading || smartWalletBalance === null ? (
+                    <BalanceSkeleton className="w-12" />
+                  ) : (
+                    `${tokenBalance} ${token}`
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleBalanceMaxClick}
+                  className="text-sm font-medium text-lavender-500 transition-colors hover:text-lavender-600"
+                >
+                  Max
+                </button>
+              </div>)}
+          </div>
 
-          <div className="absolute bottom-3 right-4">
+          <div className="flex items-center justify-between gap-2 ">
+            <input
+              id="amount"
+              type="number"
+              step="0.0001"
+              {...register("amount", {
+                required: {
+                  value: true,
+                  message: "Amount is required",
+                },
+                disabled: !token,
+                min: {
+                  value: 0.0001,
+                  message: `Min. amount is 0.0001`,
+                },
+                max: {
+                  value: tokenBalance,
+                  message: `Max. amount is ${tokenBalance}`,
+                },
+                pattern: {
+                  value: /^\d+(\.\d{1,4})?$/,
+                  message: "Invalid amount",
+                },
+              })}
+              className={` bg-transparent w-full text-3xl font-medium outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amount
+                  ? "text-red-500 dark:text-red-500"
+                  : "text-neutral-900 dark:text-white"
+                }`}
+              placeholder="0"
+              title="Enter amount to send"
+            />
+
             <FormDropdown
               defaultTitle="Select currency"
               data={tokens}
@@ -474,15 +477,15 @@ export const TransferForm: React.FC<{
               onSelect={(selectedToken: string) =>
                 setValue("token", selectedToken)
               }
-              className="min-w-44"
+              className="min-w-32"
               dropdownWidth={192}
             />
           </div>
-      </div>
-      {errors.amount && (
+        </div>
+        {errors.amount && (
           <AnimatedComponent
             variant={slideInOut}
-              className="relative top-1 left-2 text-xs text-red-500"
+            className="relative top-1 left-2 text-xs text-red-500"
           >
             {errors.amount.message}
           </AnimatedComponent>
@@ -491,12 +494,12 @@ export const TransferForm: React.FC<{
 
       {/* Network compatibility warning */}
       {showNetworkWarning && (
-            <div className="h-[48px] w-full bg-warning-background/[8%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start justify-start gap-0.5">
-            <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[24px] h-[24px] mr-2 -mt-0.5" />
-            <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight text-wrap">
-              Ensure that the withdrawal address supports {recipientNetwork}{" "}
-              network to avoid loss of funds.
-            </p>
+        <div className="h-[48px] w-full bg-warning-background/[8%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start justify-start gap-0.5">
+          <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[24px] h-[24px] mr-2 -mt-0.5" />
+          <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight text-wrap">
+            Ensure that the withdrawal address supports {recipientNetwork}{" "}
+            network to avoid loss of funds.
+          </p>
         </div>
       )}
 

@@ -1,11 +1,21 @@
 import { NextRequest } from "next/server";
 import { getServerMixpanelToken } from "./server-config";
-import * as crypto from "crypto";
+
+// Check if we're on the server
+const isServer = typeof window === "undefined";
+
+// Conditionally import crypto only on server
+let crypto: typeof import("crypto") | null = null;
+if (isServer) {
+  crypto = require("crypto");
+}
 
 // Lazy load Mixpanel to avoid webpack issues
 let mixpanel: any = null;
 
 const getMixpanel = () => {
+  if (!isServer) return null; // Skip on client
+
   const serverToken = getServerMixpanelToken();
   if (!mixpanel && serverToken) {
     try {
@@ -32,7 +42,7 @@ const INCLUDE_ERROR_STACKS =
 
 // Utility functions for privacy-safe tracking
 const hashWalletAddress = (walletAddress: string): string => {
-  if (!walletAddress) return "";
+  if (!walletAddress || !crypto) return "";
   return crypto
     .createHash("sha256")
     .update(walletAddress.toLowerCase())
@@ -41,7 +51,7 @@ const hashWalletAddress = (walletAddress: string): string => {
 };
 
 const hashTransactionId = (transactionId: string): string => {
-  if (!transactionId) return "";
+  if (!transactionId || !crypto) return "";
   return crypto
     .createHash("sha256")
     .update(transactionId)
@@ -50,7 +60,7 @@ const hashTransactionId = (transactionId: string): string => {
 };
 
 const hashIPAddress = (ip: string): string => {
-  if (!ip || ip === "unknown") return "";
+  if (!ip || ip === "unknown" || !crypto) return "";
   return crypto.createHash("sha256").update(ip).digest("hex").substring(0, 8);
 };
 
@@ -122,6 +132,9 @@ export const trackServerEvent = (
   properties: ServerEventProperties = {},
   distinctId?: string,
 ) => {
+  // Skip tracking on client side
+  if (!isServer) return;
+
   try {
     const serverToken = getServerMixpanelToken();
     if (!serverToken) {
@@ -203,6 +216,9 @@ export const trackApiRequest = (
   method: string,
   properties: ServerEventProperties = {},
 ) => {
+  // Skip tracking on client side
+  if (!isServer) return;
+
   const userAgent = request.headers.get("user-agent") || "unknown";
   const ip =
     request.headers.get("x-forwarded-for") ||
@@ -215,7 +231,7 @@ export const trackApiRequest = (
     method,
     user_agent: userAgent,
     ip_address: ip,
-    request_id: crypto.randomUUID(),
+    request_id: crypto?.randomUUID() || "unknown",
   });
 };
 
@@ -229,6 +245,9 @@ export const trackApiResponse = (
   responseTime: number,
   properties: ServerEventProperties = {},
 ) => {
+  // Skip tracking on client side
+  if (!isServer) return;
+
   trackServerEvent("API Response", {
     ...sanitizeProperties(properties),
     endpoint,
@@ -249,6 +268,9 @@ export const trackApiError = (
   statusCode: number = 500,
   properties: ServerEventProperties = {},
 ) => {
+  // Skip tracking on client side
+  if (!isServer) return;
+
   const userAgent = request.headers.get("user-agent") || "unknown";
   const ip =
     request.headers.get("x-forwarded-for") ||
@@ -264,7 +286,7 @@ export const trackApiError = (
     error_stack: error.stack,
     user_agent: userAgent,
     ip_address: ip,
-    request_id: crypto.randomUUID(),
+    request_id: crypto?.randomUUID() || "unknown",
   });
 };
 
@@ -279,7 +301,9 @@ export const trackTransactionEvent = (
   const distinct = PRIVACY_MODE
     ? hashWalletAddress(walletAddress)
     : walletAddress;
-     trackServerEvent(eventName, {
+  trackServerEvent(
+    eventName,
+    {
       ...properties,
       wallet_address: walletAddress,
       transaction_type: "crypto_to_fiat",

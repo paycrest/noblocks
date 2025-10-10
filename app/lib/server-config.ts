@@ -51,6 +51,9 @@ export const cashbackConfig = {
 };
 
 export function getServerMixpanelToken(): string {
+  // Return empty string on client side
+  if (typeof window !== "undefined") return "";
+
   return validateConfig(
     "MIXPANEL_SERVER_TOKEN",
     process.env.MIXPANEL_SERVER_TOKEN || "",

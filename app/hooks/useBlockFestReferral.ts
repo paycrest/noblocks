@@ -9,14 +9,20 @@ export const useBlockFestReferral = () => {
   useEffect(() => {
     // Guard against null searchParams (SSR or edge cases)
     if (!searchParams) {
-      setIsBlockFestReferral(false);
+      if (isBlockFestReferral !== false) {
+        setIsBlockFestReferral(false);
+      }
       return;
     }
-    
+
     const ref = searchParams.get("ref");
     const isBlockFest = ref === "blockfest";
-    setIsBlockFestReferral(isBlockFest);
-  }, [searchParams]);
+
+    // Only update state if the value actually changed
+    if (isBlockFest !== isBlockFestReferral) {
+      setIsBlockFestReferral(isBlockFest);
+    }
+  }, [searchParams, isBlockFestReferral]);
 
   return { isBlockFestReferral };
 };

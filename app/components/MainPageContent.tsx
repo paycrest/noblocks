@@ -1,7 +1,7 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -16,10 +16,7 @@ import {
   Disclaimer,
 } from "./";
 import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
-import {
-  BlockFestClaimProvider,
-  useBlockFestClaim,
-} from "../context/BlockFestClaimContext";
+import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
 import { fetchRate, fetchSupportedInstitutions } from "../api/aggregator";
@@ -38,6 +35,66 @@ import { useInjectedWallet } from "../context/InjectedWalletContext";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
+import { useBlockFestModal } from "../context/BlockFestModalContext";
+
+const PageLayout = ({
+  authenticated,
+  isInjectedWallet,
+  ready,
+  currentStep,
+  transactionFormComponent,
+  isRecipientFormOpen,
+  isBlockFestReferral,
+}: {
+  authenticated: boolean;
+  isInjectedWallet: boolean;
+  ready: boolean;
+  currentStep: string;
+  transactionFormComponent: React.ReactNode;
+  isRecipientFormOpen: boolean;
+  isBlockFestReferral: boolean;
+}) => {
+  const { claimed, resetClaim } = useBlockFestClaim();
+  const { user } = usePrivy();
+  const { isOpen, openModal, closeModal } = useBlockFestModal();
+
+  // Clean up claim state when user logs out
+  useEffect(() => {
+    if (!authenticated && !isInjectedWallet) {
+      resetClaim();
+    }
+  }, [authenticated, isInjectedWallet, resetClaim]);
+
+  return (
+    <>
+      <BlockFestClaimGate
+        isReferred={isBlockFestReferral}
+        authenticated={authenticated}
+        ready={ready}
+        userAddress={(user?.wallet?.address as string) || ""}
+        onShowModal={openModal}
+      />
+
+      <Disclaimer />
+      <CookieConsent />
+      {!isInjectedWallet && <NetworkSelectionModal />}
+
+      <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
+
+      {currentStep === STEPS.FORM ? (
+        <HomePage
+          transactionFormComponent={transactionFormComponent}
+          isRecipientFormOpen={isRecipientFormOpen}
+          showBlockFestBanner={claimed === true}
+        />
+      ) : (
+        <div className={`px-5 py-28 ${getBannerPadding()}`}>
+          {transactionFormComponent}
+        </div>
+      )}
+    </>
+  );
+};
 
 export function MainPageContent() {
   const searchParams = useSearchParams();
@@ -49,7 +106,6 @@ export function MainPageContent() {
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
-  const [isBlockFestModalOpen, setIsBlockFestModalOpen] = useState(false);
 
   const [rate, setRate] = useState<number>(0);
   const [formValues, setFormValues] = useState<FormData>({} as FormData);
@@ -116,11 +172,9 @@ export function MainPageContent() {
     setIsPageLoading(false);
   }, []);
 
-  // Claimed state gating handled in BlockFestClaimGate component
-
   useEffect(
     function resetOnLogout() {
-      // Reset form if user logs out (but not for injected wallet)
+      // Reset form when user logs out (but not for injected wallets)
       if (!authenticated && !isInjectedWallet) {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
@@ -131,7 +185,7 @@ export function MainPageContent() {
   );
 
   useEffect(function ensureDefaultToken() {
-    // Default token to USDC if missing
+    // Make sure we always have USDC as default
     if (!formMethods.getValues("token")) {
       formMethods.reset({ token: "USDC" });
     }
@@ -140,7 +194,7 @@ export function MainPageContent() {
 
   useEffect(
     function resetProviderErrorOnChange() {
-      // Reset providerErrorShown on query param change
+      // Reset error flag when switching providers
       const newProvider =
         searchParams.get("provider") || searchParams.get("PROVIDER");
       if (!failedProviders.current.has(newProvider || "")) {
@@ -331,68 +385,33 @@ export function MainPageContent() {
     }
   };
 
-  const transactionFormComponent = (
-    <motion.div id="swap" layout>
-      <AnimatePresence mode="wait">
-        <AnimatedPage componentKey={currentStep}>
-          {renderTransactionStep()}
-        </AnimatedPage>
-      </AnimatePresence>
-    </motion.div>
+  const transactionFormComponent = useMemo(
+    () => (
+      <motion.div id="swap" layout>
+        <AnimatePresence mode="wait">
+          <AnimatedPage componentKey={currentStep}>
+            {renderTransactionStep()}
+          </AnimatedPage>
+        </AnimatePresence>
+      </motion.div>
+    ),
+    [currentStep, renderTransactionStep],
   );
-  const MainContent = () => {
-    const { claimed, resetClaim } = useBlockFestClaim();
-    const { user } = usePrivy();
-
-    // Reset claim state on logout
-    useEffect(() => {
-      if (!authenticated && !isInjectedWallet) {
-        resetClaim();
-      }
-    }, [authenticated, isInjectedWallet, resetClaim]);
-
-    return (
-      <>
-        <BlockFestClaimGate
-          isReferred={isBlockFestReferral}
-          authenticated={authenticated}
-          ready={ready}
-          userAddress={(user?.wallet?.address as string) || ""}
-          onShowModal={() => setIsBlockFestModalOpen(true)}
-        />
-
-        <Disclaimer />
-        <CookieConsent />
-        {!isInjectedWallet && <NetworkSelectionModal />}
-
-        <BlockFestCashbackModal
-          isOpen={isBlockFestModalOpen}
-          onClose={() => setIsBlockFestModalOpen(false)}
-        />
-
-        {currentStep === STEPS.FORM ? (
-          <HomePage
-            transactionFormComponent={transactionFormComponent}
-            isRecipientFormOpen={isRecipientFormOpen}
-            showBlockFestBanner={claimed === true}
-          />
-        ) : (
-          <div className={`px-5 py-28 ${getBannerPadding()}`}>
-            {transactionFormComponent}
-          </div>
-        )}
-      </>
-    );
-  };
 
   return (
     <div className="flex w-full flex-col">
       {showLoading ? (
         <Preloader isLoading={true} />
       ) : (
-        <BlockFestClaimProvider>
-          <MainContent />
-        </BlockFestClaimProvider>
+        <PageLayout
+          authenticated={authenticated}
+          isInjectedWallet={isInjectedWallet}
+          ready={ready}
+          currentStep={currentStep}
+          transactionFormComponent={transactionFormComponent}
+          isRecipientFormOpen={isRecipientFormOpen}
+          isBlockFestReferral={isBlockFestReferral}
+        />
       )}
     </div>
   );

@@ -17,6 +17,7 @@ import {
   StepProvider,
   TokensProvider,
   TransactionsProvider,
+  BlockFestModalProvider,
 } from "./context";
 import { useActualTheme } from "./hooks/useActualTheme";
 import { useMixpanel } from "./hooks/analytics/client";
@@ -92,7 +93,9 @@ function ContextProviders({ children }: { children: ReactNode }) {
             <BalanceProvider>
               <TransactionsProvider>
                 <BlockFestClaimProvider>
-                  <RocketStatusProvider>{children}</RocketStatusProvider>
+                  <BlockFestModalProvider>
+                    <RocketStatusProvider>{children}</RocketStatusProvider>
+                  </BlockFestModalProvider>
                 </BlockFestClaimProvider>
               </TransactionsProvider>
             </BalanceProvider>

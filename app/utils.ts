@@ -237,6 +237,13 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdc-logo.svg",
     },
     {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
       name: "cNGN",
       symbol: "cNGN",
       decimals: 6,

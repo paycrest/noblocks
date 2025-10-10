@@ -116,7 +116,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     // Step 4.5: Verify network is Base (must check before blockchain verification)
-    if (orderDetails.network !== "Base") {
+    if (orderDetails.network?.toLowerCase() !== "base") {
       return NextResponse.json(
         {
           success: false,
@@ -184,17 +184,17 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     // Step 6: Verify transaction status
-    if (orderDetails.status !== "settled") {
+    if (!["validated", "settled"].includes(orderDetails.status)) {
       return NextResponse.json(
         {
           success: false,
           error: "Transaction not eligible",
-          code: "TRANSACTION_NOT_SETTLED",
-          message: `Transaction must be settled to claim cashback. Current status: ${orderDetails.status}`,
+          code: "TRANSACTION_NOT_COMPLETE",
+          message: `Transaction must be validated or settled to claim cashback. Current status: ${orderDetails.status}`,
           details: {
             transactionId,
             currentStatus: orderDetails.status,
-            requiredStatus: "settled",
+            requiredStatus: "validated or settled",
           },
           response_time_ms: Date.now() - start,
         },

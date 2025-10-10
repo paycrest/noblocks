@@ -5,7 +5,7 @@ import { ArrowRight04Icon } from "hugeicons-react";
 import FAQs from "./FAQs";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { ReactNode, useState } from "react";
+import { ReactNode, memo } from "react";
 import {
   blurReveal,
   BlurRevealSection,
@@ -15,6 +15,7 @@ import {
 import WalkthroughVideo from "./WalkthroughVideo";
 import { ScrollArrowLine, ScrollArrowHead } from "./ImageAssets";
 import { getBannerPadding } from "../utils";
+import { BlockFestBanner } from "./blockfest";
 
 const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
@@ -26,6 +27,7 @@ const crimsonPro = Crimson_Pro({
 interface HomePageProps {
   transactionFormComponent: ReactNode;
   isRecipientFormOpen: boolean;
+  showBlockFestBanner?: boolean;
 }
 
 const heroLineVariants = {
@@ -42,9 +44,10 @@ const heroLineVariants = {
   }),
 };
 
-export function HomePage({
+function HomePageComponent({
   transactionFormComponent,
   isRecipientFormOpen,
+  showBlockFestBanner = false,
 }: HomePageProps) {
   const handleScrollToForm = () => {
     const formElement = document.getElementById("hero");
@@ -73,7 +76,7 @@ export function HomePage({
             animate={{
               height: isRecipientFormOpen ? 0 : "auto",
               opacity: isRecipientFormOpen ? 0 : 1,
-              marginBottom: isRecipientFormOpen ? 0 : "2.875rem",
+              marginBottom: isRecipientFormOpen ? 0 : "2rem",
             }}
             transition={{ duration: 0.7, ease: "easeInOut" }}
           >
@@ -104,7 +107,8 @@ export function HomePage({
             animate="animate"
             transition={{ duration: 0.8, ease: "easeOut", delay: 0.6 }}
           >
-            {transactionFormComponent}
+            {showBlockFestBanner && <BlockFestBanner />}
+            <div className="mt-4">{transactionFormComponent}</div>
           </motion.div>
 
           <motion.div
@@ -433,3 +437,6 @@ export function HomePage({
     </div>
   );
 }
+
+// Memoize to prevent re-renders when parent state changes (e.g., modal closing)
+export const HomePage = memo(HomePageComponent);

@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance, useTokens } from "../context";
+import { useBalance, useTokens, useInjectedWallet } from "../context";
 import { classNames, formatDecimalPrecision } from "../utils";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import { FormDropdown } from "./FormDropdown";
@@ -39,6 +39,7 @@ export const TransferForm: React.FC<{
   const { user, getAccessToken } = usePrivy();
   const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
   const { allTokens } = useTokens();
+  const { isInjectedWallet } = useInjectedWallet();
   const isDark = useActualTheme();
 
   // State for network dropdown
@@ -71,10 +72,13 @@ export const TransferForm: React.FC<{
   const tokenBalance = Number(smartWalletBalance?.balances?.[token]) || 0;
 
   // Networks for recipient network selection
-  const recipientNetworks = networks.map((network) => ({
-    name: network.chain.name,
-    imageUrl: getNetworkImageUrl(network, isDark),
-  }));
+  // Filter out Celo for non-injected wallets (smart wallets)
+  const recipientNetworks = networks
+    .filter((network) => isInjectedWallet || network.chain.name !== "Celo")
+    .map((network) => ({
+      name: network.chain.name,
+      imageUrl: getNetworkImageUrl(network, isDark),
+    }));
 
   const {
     isLoading: isConfirming,

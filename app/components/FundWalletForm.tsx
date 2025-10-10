@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance, useTokens } from "../context";
+import { useBalance, useTokens, useInjectedWallet } from "../context";
 import { classNames, getNetworkImageUrl } from "../utils";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
@@ -33,6 +33,7 @@ export const FundWalletForm: React.FC<{
   const { allTokens } = useTokens();
   const { handleFundWallet } = useFundWalletHandler("Fund wallet form");
   const { user } = usePrivy();
+  const { isInjectedWallet } = useInjectedWallet();
   const isDark = useActualTheme();
 
   const [fundingInProgress, setFundingInProgress] = useState(false);
@@ -65,10 +66,13 @@ export const FundWalletForm: React.FC<{
   }));
 
   // Networks for network selection
-  const availableNetworks = networks.map((network) => ({
-    name: network.chain.name,
-    imageUrl: getNetworkImageUrl(network, isDark),
-  }));
+  // Filter out Celo for non-injected wallets (smart wallets)
+  const availableNetworks = networks
+    .filter((network) => isInjectedWallet || network.chain.name !== "Celo")
+    .map((network) => ({
+      name: network.chain.name,
+      imageUrl: getNetworkImageUrl(network, isDark),
+    }));
 
   useEffect(() => {
     if (!fundToken) {

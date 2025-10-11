@@ -8,6 +8,7 @@ import { base } from "viem/chains";
 import { erc20Abi } from "viem";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { fetchOrderDetails } from "@/app/api/aggregator";
+import { getSmartWalletAddressFromPrivyUserId } from "@/app/lib/privy";
 
 // Campaign configuration
 const BLOCKFEST_END_DATE = new Date(
@@ -25,11 +26,9 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
   try {
     // Step 1: Authentication - Get wallet address from middleware header
-    const walletAddress = request.headers
-      .get("x-wallet-address")
-      ?.toLowerCase();
+    const userId = request.headers.get("x-user-id");
 
-    if (!walletAddress) {
+    if (!userId) {
       return NextResponse.json(
         {
           success: false,
@@ -41,6 +40,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         { status: 401 },
       );
     }
+
+    const walletAddress = await getSmartWalletAddressFromPrivyUserId(userId);
 
     // Step 2: Validate request body
     const contentType = request.headers.get("content-type") || "";

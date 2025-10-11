@@ -1,10 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { AnimatedModal } from "../AnimatedComponents";
-import { primaryBtnClasses, inputClasses } from "../Styles";
 import { classNames } from "../../utils";
 import { InputError } from "../InputError";
 import { toast } from "sonner";
@@ -13,6 +12,7 @@ import confetti from "canvas-confetti";
 import { useBlockFestClaim } from "@/app/context/BlockFestClaimContext";
 import { usePrivy } from "@privy-io/react-auth";
 import axios from "axios";
+import { useInjectedWallet } from "../../context";
 
 interface BlockFestCashbackModalProps {
   isOpen: boolean;
@@ -38,6 +38,7 @@ export default function BlockFestCashbackModal({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { markClaimed } = useBlockFestClaim();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user } = usePrivy();
 
   const {
@@ -93,10 +94,14 @@ export default function BlockFestCashbackModal({
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
-      const walletAddress = user?.wallet?.address || "";
+      const walletAddress = isInjectedWallet
+        ? injectedAddress
+        : user?.linkedAccounts.find(
+            (account) => account.type === "smart_wallet",
+          )?.address;
 
       // Validate wallet address
-      if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress ?? "")) {
         toast.error("Invalid wallet address", {
           description: "Please ensure you're properly connected",
         });

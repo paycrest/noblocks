@@ -188,7 +188,7 @@ export default function BlockFestCashbackComponent({
               aria-label="Share on Twitter"
               rel="noopener noreferrer"
               target="_blank"
-              href="https://x.com/intent/tweet?text=Just%20got%201%%20cashback%20on%20my%20swap%20at%20BlockFest!%20Thanks%20@noblocks_xyz%20@basedwestafrica%20@blockfestafrica%20for%20the%20amazing%20experience%20🎉%20#BlockFest%20#BaseNetwork"
+              href="https://x.com/intent/tweet?text=I%20just%20swapped%20live%20at%20%40blockfestafrica%20using%20%40noblocks_xyz%20on%20%40Base%20with%20%40BasedWestAfrica%20in%20seconds%20for%202%25%20cashback%20⚡️%0A%0APull%20up%20if%20you're%20around%20and%20use%20the%20link%20below%20to%20claim%20yours%20💰%0A%0A%23BlockfestAfrica2025%20%23UseNoblocks%0A%0Ahttps%3A%2F%2Fnoblocks.xyz%3Fref%3Dblockfest"
               className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
             >
               {theme === "dark" ? (
@@ -204,7 +204,7 @@ export default function BlockFestCashbackComponent({
               aria-label="Share on Farcaster"
               rel="noopener noreferrer"
               target="_blank"
-              href="https://warpcast.com/~/compose?text=Just%20got%201%%20cashback%20on%20my%20swap%20at%20BlockFest!%20Thanks%20@noblocks_xyz%20@basedwestafrica%20@blockfestafrica%20for%20the%20amazing%20experience%20🎉%20#BlockFest%20#BaseNetwork"
+              href="https://warpcast.com/~/compose?text=I%20just%20swapped%20live%20at%20%40blockfestafrica%20using%20%40noblocks_xyz%20on%20%40Base%20with%20%40BasedWestAfrica%20in%20seconds%20for%202%25%20cashback%20⚡️%0A%0APull%20up%20if%20you're%20around%20and%20use%20the%20link%20below%20to%20claim%20yours%20💰%0A%0A%23BlockfestAfrica2025%20%23UseNoblocks%0A%0Ahttps%3A%2F%2Fnoblocks.xyz%3Fref%3Dblockfest"
               className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
             >
               {theme === "dark" ? (

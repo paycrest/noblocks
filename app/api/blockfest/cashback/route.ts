@@ -95,6 +95,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     let orderDetails;
     try {
       // Extract chainId from transactionId if needed (format: chainId-orderId)
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       const parts = transactionId.split("-");
       const chainId = parts.length > 1 ? parseInt(parts[0]) : 8453; // Default to Base (8453)
       const orderId =

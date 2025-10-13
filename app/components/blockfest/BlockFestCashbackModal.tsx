@@ -1,10 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { AnimatedModal } from "../AnimatedComponents";
-import { primaryBtnClasses, inputClasses } from "../Styles";
 import { classNames } from "../../utils";
 import { InputError } from "../InputError";
 import { toast } from "sonner";
@@ -13,6 +12,8 @@ import confetti from "canvas-confetti";
 import { useBlockFestClaim } from "@/app/context/BlockFestClaimContext";
 import { usePrivy } from "@privy-io/react-auth";
 import axios from "axios";
+import { useInjectedWallet } from "../../context";
+import { isBlockFestActive, getBlockFestTimeRemaining } from "../../utils";
 
 interface BlockFestCashbackModalProps {
   isOpen: boolean;
@@ -23,21 +24,14 @@ interface FormData {
   email: string;
 }
 
-// BlockFest end date from environment variable (ISO 8601 format with timezone)
-// Example: 2025-10-11T23:59:00+01:00 (October 11th, 2025 at 11:59 PM UTC+1)
-const BLOCKFEST_END_DATE = new Date(
-  process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
-);
-
 export default function BlockFestCashbackModal({
   isOpen,
   onClose,
 }: BlockFestCashbackModalProps) {
-  const [timeLeft, setTimeLeft] = useState(
-    Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now()),
-  );
+  const [timeLeft, setTimeLeft] = useState(getBlockFestTimeRemaining());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { markClaimed } = useBlockFestClaim();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user } = usePrivy();
 
   const {
@@ -55,7 +49,7 @@ export default function BlockFestCashbackModal({
   // Countdown timer effect
   useEffect(() => {
     const calculateTimeLeft = () => {
-      const remaining = Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now());
+      const remaining = getBlockFestTimeRemaining();
       setTimeLeft(remaining);
       return remaining;
     };
@@ -91,12 +85,25 @@ export default function BlockFestCashbackModal({
   };
 
   const onSubmit = async (data: FormData) => {
+    // Early return if BlockFest campaign has expired
+    if (!isBlockFestActive()) {
+      toast.error("Campaign expired", {
+        description:
+          "BlockFest campaign has ended. Registration is no longer available.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      const walletAddress = user?.wallet?.address || "";
+      const walletAddress = isInjectedWallet
+        ? injectedAddress
+        : user?.linkedAccounts.find(
+            (account) => account.type === "smart_wallet",
+          )?.address;
 
       // Validate wallet address
-      if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress ?? "")) {
         toast.error("Invalid wallet address", {
           description: "Please ensure you're properly connected",
         });

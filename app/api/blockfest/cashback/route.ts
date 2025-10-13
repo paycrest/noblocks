@@ -8,11 +8,10 @@ import { base } from "viem/chains";
 import { erc20Abi } from "viem";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { fetchOrderDetails } from "@/app/api/aggregator";
+import { getSmartWalletAddressFromPrivyUserId } from "@/app/lib/privy";
+import { BLOCKFEST_END_DATE } from "@/app/utils";
 
 // Campaign configuration
-const BLOCKFEST_END_DATE = new Date(
-  process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
-);
 const MAX_CASHBACK_PER_TRANSACTION = 100; // $100 max per transaction
 const MAX_CASHBACK_PER_WALLET = 500; // $500 total per wallet
 const MAX_CLAIMS_PER_WALLET = 10; // 10 claims max per wallet
@@ -25,11 +24,9 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
   try {
     // Step 1: Authentication - Get wallet address from middleware header
-    const walletAddress = request.headers
-      .get("x-wallet-address")
-      ?.toLowerCase();
+    const userId = request.headers.get("x-user-id");
 
-    if (!walletAddress) {
+    if (!userId) {
       return NextResponse.json(
         {
           success: false,
@@ -41,6 +38,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         { status: 401 },
       );
     }
+
+    const walletAddress = await getSmartWalletAddressFromPrivyUserId(userId);
 
     // Step 2: Validate request body
     const contentType = request.headers.get("content-type") || "";
@@ -94,6 +93,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     let orderDetails;
     try {
       // Extract chainId from transactionId if needed (format: chainId-orderId)
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       const parts = transactionId.split("-");
       const chainId = parts.length > 1 ? parseInt(parts[0]) : 8453; // Default to Base (8453)
       const orderId =
@@ -134,56 +134,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Step 5: Verify transaction ownership via blockchain
-    try {
-      const rpcUrl = getRpcUrl("Base");
-      if (!rpcUrl) {
-        throw new Error("Base RPC not configured");
-      }
-
-      const publicClient = createPublicClient({
-        chain: base,
-        transport: http(rpcUrl),
-      });
-
-      const txData = await publicClient.getTransaction({
-        hash: orderDetails.txHash as `0x${string}`,
-      });
-
-      // Verify the transaction sender matches the authenticated wallet
-      if (txData.from.toLowerCase() !== walletAddress) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Transaction ownership verification failed",
-            code: "NOT_TRANSACTION_OWNER",
-            message:
-              "You can only claim cashback for your own transactions. This transaction belongs to a different wallet.",
-            details: {
-              transactionId,
-              txHash: orderDetails.txHash,
-            },
-            response_time_ms: Date.now() - start,
-          },
-          { status: 403 },
-        );
-      }
-    } catch (error) {
-      console.error("Failed to verify transaction ownership:", error);
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Transaction verification failed",
-          code: "VERIFICATION_ERROR",
-          message:
-            "Unable to verify transaction ownership. Please try again or contact support.",
-          response_time_ms: Date.now() - start,
-        },
-        { status: 500 },
-      );
-    }
-
-    // Step 6: Verify transaction status
+    // Step 5: Verify transaction status
     if (!["validated", "settled"].includes(orderDetails.status)) {
       return NextResponse.json(
         {
@@ -202,7 +153,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Step 7: Check campaign period
+    // Step 6: Check campaign period
     const transactionDate = new Date(orderDetails.updatedAt);
     if (transactionDate > BLOCKFEST_END_DATE) {
       return NextResponse.json(
@@ -222,7 +173,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Step 8: Verify user is BlockFest participant
+    // Step 7: Verify user is BlockFest participant
     const { data: participant, error: participantError } = await supabaseAdmin
       .from("blockfest_participants")
       .select("*")
@@ -243,7 +194,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Step 9: Check for existing claim (idempotency)
+    // Step 8: Check for existing claim (idempotency)
     const { data: existingClaim } = await supabaseAdmin
       .from("blockfest_cashback_claims")
       .select("*")
@@ -265,7 +216,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       });
     }
 
-    // Step 10: Calculate cashback amount (server-side)
+    // Step 9: Calculate cashback amount (server-side)
     const transactionAmount = parseFloat(orderDetails.amount);
     const cashbackAmount = transactionAmount * CASHBACK_PERCENTAGE;
     const cappedCashback = Math.min(
@@ -274,7 +225,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     );
     const finalCashback = cappedCashback.toFixed(2);
 
-    // Step 11: Check per-wallet limits
+    // Step 10: Check per-wallet limits
     // Check total claim count
     const { count: claimCount, error: countError } = await supabaseAdmin
       .from("blockfest_cashback_claims")
@@ -364,7 +315,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     );
     const finalAdjustedCashback = adjustedCashback.toFixed(2);
 
-    // Step 12: Create pending claim record
+    // Step 11: Create pending claim record
     const { data: pendingClaim, error: claimError } = await supabaseAdmin
       .from("blockfest_cashback_claims")
       .insert({
@@ -397,7 +348,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Step 13: Execute cashback transfer
+    // Step 12: Execute cashback transfer
     try {
       // Get token contract address
       const baseTokens = FALLBACK_TOKENS["Base"];
@@ -444,7 +395,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         args: [walletAddress as `0x${string}`, amountInWei],
       });
 
-      // Step 14: Update claim status to completed
+      // Step 13: Update claim status to completed
       const { error: updateError } = await supabaseAdmin
         .from("blockfest_cashback_claims")
         .update({

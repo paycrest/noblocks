@@ -2,22 +2,15 @@
 import { useState, useEffect, memo } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-
-// BlockFest end date from environment variable (ISO 8601 format with timezone)
-// Example: 2025-10-11T23:59:00+01:00 (October 11th, 2025 at 11:59 PM UTC+1)
-const BLOCKFEST_END_DATE = new Date(
-  process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
-);
+import { getBlockFestTimeRemaining } from "../../utils";
 
 function BlockFestBanner() {
-  const [timeLeft, setTimeLeft] = useState(
-    Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now()),
-  );
+  const [timeLeft, setTimeLeft] = useState(getBlockFestTimeRemaining());
 
   // Countdown timer effect
   useEffect(() => {
     const calculateTimeLeft = () => {
-      const remaining = Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now());
+      const remaining = getBlockFestTimeRemaining();
       setTimeLeft(remaining);
       return remaining;
     };

@@ -5,11 +5,28 @@ import {
   isValidEvmAddress,
   isValidEmailWithLength,
 } from "@/app/lib/validation";
+import { BLOCKFEST_END_DATE } from "@/app/utils";
 
 // POST /api/blockfest/participants
 // Body: { walletAddress: string, email?: string, source?: string }
 export const POST = withRateLimit(async (request: NextRequest) => {
   const start = Date.now();
+
+  // Early return if BlockFest campaign has expired
+  if (Date.now() > BLOCKFEST_END_DATE.getTime()) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Campaign ended",
+        code: "CAMPAIGN_ENDED",
+        message:
+          "BlockFest campaign has ended. Registration is no longer available.",
+        response_time_ms: Date.now() - start,
+      },
+      { status: 410 },
+    );
+  }
+
   try {
     const contentType = request.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {

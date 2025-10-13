@@ -31,15 +31,14 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "../context/StepContext";
 import { clearFormState, getBannerPadding } from "../utils";
-import { useInjectedWallet } from "../context/InjectedWalletContext";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
+import { useInjectedWallet } from "../context";
 
 const PageLayout = ({
   authenticated,
-  isInjectedWallet,
   ready,
   currentStep,
   transactionFormComponent,
@@ -47,7 +46,6 @@ const PageLayout = ({
   isBlockFestReferral,
 }: {
   authenticated: boolean;
-  isInjectedWallet: boolean;
   ready: boolean;
   currentStep: string;
   transactionFormComponent: React.ReactNode;
@@ -57,6 +55,7 @@ const PageLayout = ({
   const { claimed, resetClaim } = useBlockFestClaim();
   const { user } = usePrivy();
   const { isOpen, openModal, closeModal } = useBlockFestModal();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   // Clean up claim state when user logs out
   useEffect(() => {
@@ -65,13 +64,18 @@ const PageLayout = ({
     }
   }, [authenticated, isInjectedWallet, resetClaim]);
 
+  const walletAddress = isInjectedWallet
+    ? injectedAddress
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
+        ?.address;
+
   return (
     <>
       <BlockFestClaimGate
         isReferred={isBlockFestReferral}
         authenticated={authenticated}
         ready={ready}
-        userAddress={(user?.wallet?.address as string) || ""}
+        userAddress={walletAddress ?? ""}
         onShowModal={openModal}
       />
 
@@ -405,7 +409,6 @@ export function MainPageContent() {
       ) : (
         <PageLayout
           authenticated={authenticated}
-          isInjectedWallet={isInjectedWallet}
           ready={ready}
           currentStep={currentStep}
           transactionFormComponent={transactionFormComponent}

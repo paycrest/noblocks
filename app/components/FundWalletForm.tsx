@@ -20,6 +20,7 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { Token } from "../types";
+import Image from "next/image";
 
 type MobileView = "wallet" | "settings" | "transfer" | "fund" | "history";
 
@@ -303,7 +304,7 @@ export const FundWalletForm: React.FC<{
             aria-controls="network-listbox"
           >
             <div className="flex items-center gap-3">
-              <img
+              <Image
                 src={getNetworkImageUrl(
                   networks.find(
                     (n) => n.chain.name === selectedNetwork.chain.name,
@@ -311,6 +312,8 @@ export const FundWalletForm: React.FC<{
                   isDark,
                 )}
                 alt={selectedNetwork.chain.name}
+                width={24}
+                height={24}
                 className="h-6 w-6 rounded-full"
               />
               <span
@@ -366,10 +369,12 @@ export const FundWalletForm: React.FC<{
                   }}
                   className="flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-gray-50 focus:bg-gray-50 dark:hover:bg-white/5 dark:focus:bg-white/5"
                 >
-                  <img
+                  <Image
                     src={network.imageUrl}
                     alt={network.name}
                     className="h-6 w-6 rounded-full"
+                    width={24}
+                    height={24}
                   />
                   <span className="truncate text-sm font-medium text-neutral-900 dark:text-white">
                     {network.name}
@@ -392,7 +397,7 @@ export const FundWalletForm: React.FC<{
       {/* Deposit information */}
         <div className="flex flex-wrap text-wrap break-words items-center gap-1 text-xs text-text-secondary dark:text-white/50 p-2 rounded-lg border-[0.3px] border-border-light dark:border-white/10">
           <span>You are depositing this amount via</span>
-          <img
+          <Image
             src={getNetworkImageUrl(
               networks.find(
                 (n) => n.chain.name === selectedNetwork.chain.name,
@@ -400,6 +405,8 @@ export const FundWalletForm: React.FC<{
               isDark,
             )}
             alt={selectedNetwork.chain.name}
+            width={16}
+            height={16}
             className="h-4 w-4 flex-shrink-0 rounded-full"
           />
           <span className="font-light text-text-secondary dark:text-white/70">

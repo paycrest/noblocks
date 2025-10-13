@@ -350,7 +350,7 @@ export const TransferForm: React.FC<{
                   ? "text-neutral-900 dark:text-white"
                   : "text-gray-400 dark:text-white/30"
                 }`}
-            >
+            >{recipientNetwork && (
               <Image
                 src={recipientNetworkImageUrl}
                 alt={recipientNetwork}
@@ -358,6 +358,7 @@ export const TransferForm: React.FC<{
                 width={24}
                 height={24}
               />
+            )}
               {recipientNetwork || "Select network"}
             </span>
             <ArrowDown01Icon

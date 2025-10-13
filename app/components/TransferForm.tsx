@@ -350,12 +350,15 @@ export const TransferForm: React.FC<{
                   ? "text-neutral-900 dark:text-white"
                   : "text-gray-400 dark:text-white/30"
                 }`}
-            >
-              <img
+            >{recipientNetwork && (
+              <Image
                 src={recipientNetworkImageUrl}
                 alt={recipientNetwork}
                 className="h-6 w-6 rounded-full"
+                width={24}
+                height={24}
               />
+            )}
               {recipientNetwork || "Select network"}
             </span>
             <ArrowDown01Icon
@@ -392,10 +395,12 @@ export const TransferForm: React.FC<{
                   }}
                   className="flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-gray-50 dark:hover:bg-white/5 focus:bg-gray-50 dark:focus:bg-white/5"
                 >
-                  <img
+                  <Image
                     src={network.imageUrl}
                     alt={network.name}
                     className="h-6 w-6 rounded-full"
+                    width={24}
+                    height={24}
                   />
                   <span className="truncate text-sm font-medium text-neutral-900 dark:text-white">
                     {network.name}

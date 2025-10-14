@@ -27,6 +27,8 @@ export interface SavedBeneficiariesModalProps {
   recipientToDelete: RecipientDetails | null;
   currency: string;
   institutions: InstitutionProps[];
+  isLoading?: boolean;
+  error?: string | null;
 }
 
 export type SelectBankModalProps = {

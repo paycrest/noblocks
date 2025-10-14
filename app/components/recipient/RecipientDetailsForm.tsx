@@ -39,7 +39,7 @@ export const RecipientDetailsForm = ({
     formState: { errors },
   } = formMethods;
 
-  const { getAccessToken } = usePrivy();
+  const { getAccessToken, ready, authenticated, user } = usePrivy();
 
   const { currency } = watch();
   const institution = watch("institution");
@@ -186,29 +186,49 @@ export const RecipientDetailsForm = ({
   // * USE EFFECTS
 
   useEffect(() => {
+    let isCancelled = false;
+
     const loadRecipients = async () => {
-      setIsLoadingRecipients(true);
-      setRecipientsError(null);
+      // Wait until Privy is ready to avoid false auth errors
+      if (!ready) return;
+
+      // If unauthenticated, clear state and exit
+      if (!authenticated) {
+        if (!isCancelled) {
+          setSavedRecipients([]);
+          setRecipientsError(null);
+          setIsLoadingRecipients(false);
+        }
+        return;
+      }
+
+      if (!isCancelled) {
+        setIsLoadingRecipients(true);
+        setRecipientsError(null);
+      }
 
       try {
         const accessToken = await getAccessToken();
         if (!accessToken) {
-          setRecipientsError("Authentication required");
+          if (!isCancelled) setRecipientsError("Authentication required");
           return;
         }
 
         const recipients = await fetchSavedRecipients(accessToken);
-        setSavedRecipients(recipients);
+        if (!isCancelled) setSavedRecipients(recipients);
       } catch (error) {
         console.error("Error loading recipients:", error);
-        setRecipientsError("Failed to load saved recipients");
+        if (!isCancelled) setRecipientsError("Failed to load saved recipients");
       } finally {
-        setIsLoadingRecipients(false);
+        if (!isCancelled) setIsLoadingRecipients(false);
       }
     };
 
     loadRecipients();
-  }, []);
+    return () => {
+      isCancelled = true;
+    };
+  }, [ready, authenticated, user?.id, getAccessToken]);
 
   useEffect(() => {
     if (selectedInstitution) {

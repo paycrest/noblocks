@@ -19,6 +19,7 @@ export {
   slideInOut,
   scaleInOut,
   fadeInOut,
+  fadeUpAnimation,
   dropdownVariants,
 } from "./AnimatedComponents";
 

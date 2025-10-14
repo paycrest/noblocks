@@ -7,7 +7,7 @@ import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
 async function trackMiddlewareAnalytics(
   type: "request" | "response" | "error",
   data: any,
-  baseUrl: string
+  baseUrl: string,
 ) {
   try {
     const internalAuth = process.env.INTERNAL_API_KEY;
@@ -44,28 +44,36 @@ async function authorizationMiddleware(req: NextRequest) {
   const method = req.method;
 
   // Track API request for analytics
-  trackMiddlewareAnalytics("request", {
-    endpoint,
-    method,
-    properties: {
-      middleware: true,
-      has_auth_header: !!req.headers.get("Authorization"),
+  trackMiddlewareAnalytics(
+    "request",
+    {
+      endpoint,
+      method,
+      properties: {
+        middleware: true,
+        has_auth_header: !!req.headers.get("Authorization"),
+      },
     },
-  }, req.nextUrl.origin);
+    req.nextUrl.origin,
+  );
 
   const token = req.headers.get("Authorization")?.replace("Bearer ", "");
   if (!token) {
     const responseTime = Date.now() - startTime;
-    trackMiddlewareAnalytics("error", {
-      endpoint,
-      method,
-      statusCode: 401,
-      errorMessage: "Missing JWT",
-      properties: {
-        middleware: true,
-        error_type: "missing_jwt",
+    trackMiddlewareAnalytics(
+      "error",
+      {
+        endpoint,
+        method,
+        statusCode: 401,
+        errorMessage: "Missing JWT",
+        properties: {
+          middleware: true,
+          error_type: "missing_jwt",
+        },
       },
-    }, req.nextUrl.origin);
+      req.nextUrl.origin,
+    );
     return NextResponse.json({ error: "Missing JWT" }, { status: 401 });
   }
 
@@ -79,7 +87,9 @@ async function authorizationMiddleware(req: NextRequest) {
 
     if (!privyUserId) {
       const responseTime = Date.now() - startTime;
-        trackMiddlewareAnalytics("error", {
+      trackMiddlewareAnalytics(
+        "error",
+        {
           endpoint,
           method,
           statusCode: 401,
@@ -88,7 +98,9 @@ async function authorizationMiddleware(req: NextRequest) {
             middleware: true,
             error_type: "jwt_missing_subject",
           },
-        }, req.nextUrl.origin);
+        },
+        req.nextUrl.origin,
+      );
       return NextResponse.json(
         { error: "Invalid JWT: Missing subject" },
         { status: 401 },
@@ -97,16 +109,21 @@ async function authorizationMiddleware(req: NextRequest) {
   } catch (jwtError) {
     const responseTime = Date.now() - startTime;
     console.error("JWT verification error in middleware:", jwtError);
-    trackMiddlewareAnalytics("error", {
-      endpoint,
-      method,
-      statusCode: 401,
-      errorMessage: jwtError instanceof Error ? jwtError.message : "Unknown JWT error",
-      properties: {
-        middleware: true,
-        error_type: "jwt_verification_failed",
+    trackMiddlewareAnalytics(
+      "error",
+      {
+        endpoint,
+        method,
+        statusCode: 401,
+        errorMessage:
+          jwtError instanceof Error ? jwtError.message : "Unknown JWT error",
+        properties: {
+          middleware: true,
+          error_type: "jwt_verification_failed",
+        },
       },
-    }, req.nextUrl.origin);
+      req.nextUrl.origin,
+    );
     return NextResponse.json({ error: "Invalid JWT" }, { status: 401 });
   }
 
@@ -114,10 +131,12 @@ async function authorizationMiddleware(req: NextRequest) {
   let walletAddress;
   try {
     walletAddress = await getWalletAddressFromPrivyUserId(privyUserId);
-    
+
     if (!walletAddress) {
       const responseTime = Date.now() - startTime;
-        trackMiddlewareAnalytics("error", {
+      trackMiddlewareAnalytics(
+        "error",
+        {
           endpoint,
           method,
           statusCode: 502,
@@ -127,7 +146,9 @@ async function authorizationMiddleware(req: NextRequest) {
             error_type: "wallet_resolution_failed",
             privy_user_id: privyUserId,
           },
-        }, req.nextUrl.origin);
+        },
+        req.nextUrl.origin,
+      );
       return NextResponse.json(
         { error: "Unable to resolve wallet address" },
         { status: 502 },
@@ -136,17 +157,24 @@ async function authorizationMiddleware(req: NextRequest) {
   } catch (walletError) {
     const responseTime = Date.now() - startTime;
     console.error("Wallet resolution error in middleware:", walletError);
-    trackMiddlewareAnalytics("error", {
-      endpoint,
-      method,
-      statusCode: 502,
-      errorMessage: walletError instanceof Error ? walletError.message : "Unknown wallet error",
-      properties: {
-        middleware: true,
-        error_type: "wallet_resolution_failed",
-        privy_user_id: privyUserId,
+    trackMiddlewareAnalytics(
+      "error",
+      {
+        endpoint,
+        method,
+        statusCode: 502,
+        errorMessage:
+          walletError instanceof Error
+            ? walletError.message
+            : "Unknown wallet error",
+        properties: {
+          middleware: true,
+          error_type: "wallet_resolution_failed",
+          privy_user_id: privyUserId,
+        },
       },
-    }, req.nextUrl.origin);
+      req.nextUrl.origin,
+    );
     return NextResponse.json(
       { error: "Unable to resolve wallet address" },
       { status: 502 },
@@ -157,31 +185,36 @@ async function authorizationMiddleware(req: NextRequest) {
   const setWalletContext = async () => {
     const internalAuth = process.env.INTERNAL_API_KEY;
     if (!internalAuth) {
-      console.warn('INTERNAL_API_KEY not configured, skipping wallet context setting');
+      console.warn(
+        "INTERNAL_API_KEY not configured, skipping wallet context setting",
+      );
       return;
     }
 
     // Fire-and-forget is best moved to a route handler using after().
     // If kept, prefer same-origin and gate behind a flag.
     if (process.env.ENABLE_WALLET_CONTEXT_SYNC === "true") {
-      const url = new URL("/api/internal/set-wallet-context", req.nextUrl.origin);
+      const url = new URL(
+        "/api/internal/set-wallet-context",
+        req.nextUrl.origin,
+      );
       // Note: still not guaranteed to complete in middleware.
       fetch(url, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'x-internal-auth': internalAuth,
+          "Content-Type": "application/json",
+          "x-internal-auth": internalAuth,
         },
         body: JSON.stringify({ walletAddress }),
       }).catch((error) => {
-        console.warn('Failed to set wallet context:', error);
+        console.warn("Failed to set wallet context:", error);
       });
     }
   };
 
   // Execute wallet context setting (non-blocking but with proper error handling)
-  setWalletContext().catch(error => {
-    console.error('Unhandled error in wallet context setting:', error);
+  setWalletContext().catch((error) => {
+    console.error("Unhandled error in wallet context setting:", error);
   });
 
   // Step 4: Create response with proper headers
@@ -191,7 +224,7 @@ async function authorizationMiddleware(req: NextRequest) {
   const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
-  
+
   // Only set x-wallet-address and x-user-id header for internal/authorized requests
   // This prevents identifier leakage to external clients
   const isInternalRequest = isInternalOrAuthorizedRequest(req);
@@ -202,17 +235,21 @@ async function authorizationMiddleware(req: NextRequest) {
 
   // Track successful response for analytics
   const responseTime = Date.now() - startTime;
-  trackMiddlewareAnalytics("response", {
-    endpoint,
-    method,
-    statusCode: 200,
-    responseTime,
-    properties: {
-      middleware: true,
-      wallet_address: walletAddress,
-      privy_user_id: privyUserId,
+  trackMiddlewareAnalytics(
+    "response",
+    {
+      endpoint,
+      method,
+      statusCode: 200,
+      responseTime,
+      properties: {
+        middleware: true,
+        wallet_address: walletAddress,
+        privy_user_id: privyUserId,
+      },
     },
-  }, req.nextUrl.origin);
+    req.nextUrl.origin,
+  );
 
   return response;
 }
@@ -225,6 +262,7 @@ export const config = {
     "/api/v1/transactions/:path*",
     "/api/v1/account/verify",
     "/api/v1/account/:path*",
+    "/api/v1/recipients",
     "/api/blockfest/cashback",
     // (optional) add other instrumented API routes:
     // '/api/v1/kyc/:path*', '/api/v1/rates', '/api/v1/rates/:path*'

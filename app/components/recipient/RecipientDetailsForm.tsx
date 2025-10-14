@@ -8,13 +8,18 @@ import { AnimatedFeedbackItem } from "../AnimatedComponents";
 import { InstitutionProps } from "@/app/types";
 import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
+import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames, getSavedRecipients } from "@/app/utils";
+import { classNames } from "@/app/utils";
 import {
-  LOCAL_STORAGE_KEY_RECIPIENTS,
   RecipientDetails,
   RecipientDetailsFormProps,
 } from "@/app/components/recipient/types";
+import type { RecipientDetailsWithId } from "@/app/types";
+import {
+  fetchSavedRecipients,
+  deleteSavedRecipient,
+} from "@/app/api/aggregator";
 import { SavedBeneficiariesModal } from "@/app/components/recipient/SavedBeneficiariesModal";
 import { SelectBankModal } from "@/app/components/recipient/SelectBankModal";
 
@@ -34,6 +39,8 @@ export const RecipientDetailsForm = ({
     formState: { errors },
   } = formMethods;
 
+  const { getAccessToken } = usePrivy();
+
   const { currency } = watch();
   const institution = watch("institution");
   const accountIdentifier = watch("accountIdentifier");
@@ -52,9 +59,11 @@ export const RecipientDetailsForm = ({
   const [isFetchingRecipientName, setIsFetchingRecipientName] = useState(false);
   const [recipientNameError, setRecipientNameError] = useState("");
 
-  const [savedRecipients, setSavedRecipients] = useState<RecipientDetails[]>(
-    [],
-  );
+  const [savedRecipients, setSavedRecipients] = useState<
+    RecipientDetailsWithId[]
+  >([]);
+  const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
+  const [recipientsError, setRecipientsError] = useState<string | null>(null);
 
   const [recipientToDelete, setRecipientToDelete] =
     useState<RecipientDetails | null>(null);
@@ -118,37 +127,79 @@ export const RecipientDetailsForm = ({
     setIsModalOpen(false);
   };
 
-  const deleteRecipient = (recipientToDelete: RecipientDetails) => {
+  const deleteRecipient = async (recipientToDelete: RecipientDetails) => {
     setRecipientToDelete(recipientToDelete);
-    setTimeout(() => {
+
+    // Find the recipient with ID from the saved recipients
+    const recipientWithId = savedRecipients.find(
+      (r) =>
+        r.accountIdentifier === recipientToDelete.accountIdentifier &&
+        r.institutionCode === recipientToDelete.institutionCode,
+    );
+
+    if (!recipientWithId) {
+      console.error("Recipient not found for deletion");
+      setRecipientToDelete(null);
+      return;
+    }
+
+    // Delete from API
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      console.error("No access token available");
+      setRecipientToDelete(null);
+      return;
+    }
+
+    const success = await deleteSavedRecipient(recipientWithId.id, accessToken);
+
+    if (success) {
+      // Update local state after successful API deletion
       const updatedRecipients = savedRecipients.filter(
-        (r) =>
-          r.accountIdentifier !== recipientToDelete.accountIdentifier ||
-          r.institution !== recipientToDelete.institution,
+        (r) => r.id !== recipientWithId.id,
       );
 
       setSavedRecipients(updatedRecipients);
 
-      localStorage.setItem(
-        LOCAL_STORAGE_KEY_RECIPIENTS,
-        JSON.stringify(updatedRecipients),
-      );
-
       if (
         selectedRecipient?.accountIdentifier ===
-        recipientToDelete.accountIdentifier
+          recipientToDelete.accountIdentifier &&
+        selectedRecipient?.institutionCode === recipientToDelete.institutionCode
       ) {
         setSelectedRecipient(null);
       }
       setRecipientToDelete(null);
-    }, 300); // delay deletion to allow for animation
+    } else {
+      // Reset deletion state on failure
+      setRecipientToDelete(null);
+    }
   };
 
   // * USE EFFECTS
 
   useEffect(() => {
-    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
-    setSavedRecipients(savedRecipients);
+    const loadRecipients = async () => {
+      setIsLoadingRecipients(true);
+      setRecipientsError(null);
+
+      try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          setRecipientsError("Authentication required");
+          return;
+        }
+
+        const recipients = await fetchSavedRecipients(accessToken);
+        setSavedRecipients(recipients);
+      } catch (error) {
+        console.error("Error loading recipients:", error);
+        setRecipientsError("Failed to load saved recipients");
+      } finally {
+        setIsLoadingRecipients(false);
+      }
+    };
+
+    loadRecipients();
   }, []);
 
   useEffect(() => {
@@ -394,6 +445,8 @@ export const RecipientDetailsForm = ({
         recipientToDelete={recipientToDelete}
         currency={currency}
         institutions={institutions}
+        isLoading={isLoadingRecipients}
+        error={recipientsError}
       />
     </>
   );

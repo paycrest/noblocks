@@ -1,6 +1,7 @@
 "use client";
 import { Button, DialogTitle } from "@headlessui/react";
 import { InformationSquareIcon, Cancel01Icon } from "hugeicons-react";
+import { ImSpinner } from "react-icons/im";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo } from "react";
 import { AnimatedModal } from "../AnimatedComponents";
@@ -8,7 +9,6 @@ import { AnimatedModal } from "../AnimatedComponents";
 import { RecipientListItem } from "./RecipientListItem";
 import { SearchInput } from "./SearchInput";
 import { SavedBeneficiariesModalProps } from "./types";
-import { classNames } from "@/app/utils";
 
 export const SavedBeneficiariesModal = ({
   isOpen,
@@ -19,6 +19,8 @@ export const SavedBeneficiariesModal = ({
   recipientToDelete,
   currency,
   institutions,
+  isLoading = false,
+  error = null,
 }: SavedBeneficiariesModalProps) => {
   const [beneficiarySearchTerm, setBeneficiarySearchTerm] = useState("");
 
@@ -85,7 +87,32 @@ export const SavedBeneficiariesModal = ({
         className="mt-2 h-[21rem] overflow-y-auto sm:h-[14rem]"
       >
         <AnimatePresence>
-          {filteredSavedRecipients.length > 0 ? (
+          {isLoading ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center gap-3 py-12 text-center"
+            >
+              <ImSpinner className="h-5 w-5 animate-spin text-gray-400" />
+              <p className="font-medium text-text-secondary dark:text-white/50">
+                Loading saved beneficiaries...
+              </p>
+            </motion.div>
+          ) : error ? (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="text-red-600 dark:text-red-400"
+            >
+              <div className="flex flex-col items-center gap-2 py-12 text-center">
+                <InformationSquareIcon className="size-5" />
+                <p className="font-medium">{error}</p>
+                <p className="text-sm opacity-75">Please try again later</p>
+              </div>
+            </motion.div>
+          ) : filteredSavedRecipients.length > 0 ? (
             filteredSavedRecipients.map((recipient, index) => (
               <motion.div
                 key={`${recipient.accountIdentifier}-${index}`}
@@ -95,6 +122,7 @@ export const SavedBeneficiariesModal = ({
                   height: 0,
                   backgroundColor: "#4D2121",
                 }}
+                transition={{ duration: 0.3 }}
               >
                 <RecipientListItem
                   recipient={recipient}

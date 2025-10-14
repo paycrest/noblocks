@@ -31,7 +31,9 @@ const config: Config = {
     "https://noblocks.xyz/screenshots/desktop-wide.png",
   splashBackgroundColor: process.env.NEXT_PUBLIC_SPLASH_BACKGROUND_COLOR || "",
   appPrimaryCategory: process.env.NEXT_PUBLIC_APP_PRIMARY_CATEGORY || "",
-  appHeroImage: process.env.NEXT_PUBLIC_APP_HERO_IMAGE || "",
+  appHeroImage:
+    process.env.NEXT_PUBLIC_APP_HERO_IMAGE ||
+    "https://noblocks.xyz/screenshots/desktop-wide.png",
   appTagline:
     process.env.NEXT_PUBLIC_APP_TAGLINE || "Stablecoin payments made easy.",
   appOgTitle:

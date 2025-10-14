@@ -127,50 +127,58 @@ export const RecipientDetailsForm = ({
     setIsModalOpen(false);
   };
 
-  const deleteRecipient = async (recipientToDelete: RecipientDetails) => {
-    setRecipientToDelete(recipientToDelete);
+  const deleteRecipient = async (recipientToDeleteParam: RecipientDetails) => {
+    setRecipientToDelete(recipientToDeleteParam);
 
-    // Find the recipient with ID from the saved recipients
-    const recipientWithId = savedRecipients.find(
-      (r) =>
-        r.accountIdentifier === recipientToDelete.accountIdentifier &&
-        r.institutionCode === recipientToDelete.institutionCode,
-    );
-
-    if (!recipientWithId) {
-      console.error("Recipient not found for deletion");
-      setRecipientToDelete(null);
-      return;
-    }
-
-    // Delete from API
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      console.error("No access token available");
-      setRecipientToDelete(null);
-      return;
-    }
-
-    const success = await deleteSavedRecipient(recipientWithId.id, accessToken);
-
-    if (success) {
-      // Update local state after successful API deletion
-      const updatedRecipients = savedRecipients.filter(
-        (r) => r.id !== recipientWithId.id,
+    try {
+      // Find the recipient with ID from the saved recipients
+      const recipientWithId = savedRecipients.find(
+        (r) =>
+          r.accountIdentifier === recipientToDeleteParam.accountIdentifier &&
+          r.institutionCode === recipientToDeleteParam.institutionCode,
       );
 
-      setSavedRecipients(updatedRecipients);
-
-      if (
-        selectedRecipient?.accountIdentifier ===
-          recipientToDelete.accountIdentifier &&
-        selectedRecipient?.institutionCode === recipientToDelete.institutionCode
-      ) {
-        setSelectedRecipient(null);
+      if (!recipientWithId) {
+        console.error("Recipient not found for deletion");
+        return;
       }
-      setRecipientToDelete(null);
-    } else {
-      // Reset deletion state on failure
+
+      // Delete from API
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        console.error("No access token available");
+        return;
+      }
+
+      const success = await deleteSavedRecipient(
+        recipientWithId.id,
+        accessToken,
+      );
+
+      if (success) {
+        // Update local state after successful API deletion
+        const updatedRecipients = savedRecipients.filter(
+          (r) => r.id !== recipientWithId.id,
+        );
+
+        setSavedRecipients(updatedRecipients);
+
+        if (
+          selectedRecipient?.accountIdentifier ===
+            recipientToDeleteParam.accountIdentifier &&
+          selectedRecipient?.institutionCode ===
+            recipientToDeleteParam.institutionCode
+        ) {
+          setSelectedRecipient(null);
+        }
+      } else {
+        setRecipientsError("Failed to delete recipient");
+      }
+    } catch (error) {
+      console.error("Error deleting recipient:", error);
+      setRecipientsError("Failed to delete recipient");
+    } finally {
+      // Always clear deletion loading state
       setRecipientToDelete(null);
     }
   };

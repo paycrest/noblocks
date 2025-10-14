@@ -248,7 +248,6 @@ export const CopyAddressWarningModal: React.FC<
                     id="acknowledge" 
                     checked={dontShowAgain}
                     onChange={(e) => {
-                      e.stopPropagation();
                       setDontShowAgain(e.target.checked);
                     }}
                     className="cursor-pointer rounded-xl w-[19px] h-[19px] border-[2px] dark:border-white/30 accent-lavender-500"
@@ -284,7 +283,6 @@ export const CopyAddressWarningModal: React.FC<
                           You just copied your wallet address!
                         </Dialog.Title>
                         <Dialog.Description
-                          id="copy-address-warning-description"
                           className="max-w-[95%] text-sm font-normal text-text-body dark:text-white/70"
                         >
                           Only deposit <span className="font-semibold">supported stablecoins</span> on <span className="font-semibold">supported networks</span>. Depositing unsupported tokens or using unsupported networks may result in loss of funds.

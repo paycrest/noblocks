@@ -28,7 +28,7 @@ export const PausedNetworkNotice: React.FC<PausedNetworkNoticeProps> = ({
           transition={{ duration: 0.2, type: "spring" }}
         >
           <InformationCircleIcon
-            className="mt-1 size-3.5 flex-shrink-0 text-text-secondary dark:text-white/30"
+            className="mt-1 size-3.5 shrink-0 text-text-secondary dark:text-white/30"
             aria-hidden="true"
           />
           <div className="flex-1 text-sm">

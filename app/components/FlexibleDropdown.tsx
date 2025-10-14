@@ -167,7 +167,7 @@ export const FlexibleDropdown = ({
           {item.label ?? item.name}
         </span>
       </div>
-      <div className="ml-2 flex min-w-[24px] flex-shrink-0 items-center justify-end">
+      <div className="ml-2 flex min-w-[24px] shrink-0 items-center justify-end">
         {item.disabled ? (
           <SquareLock02Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
         ) : selectedItem?.name === item.name ? (
@@ -183,9 +183,9 @@ export const FlexibleDropdown = ({
       static
       open={isOpen}
       onClose={() => setIsOpen(false)}
-      className="relative z-[100] sm:hidden"
+      className="relative z-100 sm:hidden"
     >
-      <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+      <DialogBackdrop className="fixed inset-0 bg-black/30 backdrop-blur-xs" />
       <motion.div
         initial="closed"
         animate="open"
@@ -233,7 +233,7 @@ export const FlexibleDropdown = ({
         variants={dropdownVariants}
         aria-label="Dropdown menu"
         className={classNames(
-          "mt-2 max-h-60 space-y-0.5 overflow-y-auto rounded-xl border border-border-light bg-white p-2 shadow-xl focus:outline-none dark:border-white/10 dark:bg-neutral-800",
+          "mt-2 max-h-60 space-y-0.5 overflow-y-auto rounded-xl border border-border-light bg-white p-2 shadow-xl focus:outline-hidden dark:border-white/10 dark:bg-neutral-800",
           className,
         )}
       >

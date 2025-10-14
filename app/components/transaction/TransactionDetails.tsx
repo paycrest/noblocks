@@ -412,7 +412,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
           title="Download transaction receipt"
           onClick={handleGetReceipt}
           disabled={isLoading}
-          className="w-full rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-text-body transition-all hover:bg-[#EBEBEF] focus:outline-none disabled:opacity-70 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+          className="w-full rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-text-body transition-all hover:bg-[#EBEBEF] focus:outline-hidden disabled:opacity-70 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
         >
           {isLoading ? (
             <div className="flex items-center justify-center gap-2">

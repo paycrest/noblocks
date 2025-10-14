@@ -16,7 +16,7 @@ const RecentBlogsSkeleton: React.FC = () => (
   >
     <div className="flex gap-4 overflow-x-auto pb-2">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="min-w-[320px] max-w-xs flex-shrink-0">
+        <div key={i} className="min-w-[320px] max-w-xs shrink-0">
           <BlogCardSkeleton />
         </div>
       ))}

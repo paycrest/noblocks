@@ -552,7 +552,7 @@ export const TransactionForm = ({
   };
 
   return (
-    <div className="mx-auto max-w-[27.3125rem]">
+    <div className="mx-auto max-w-109.25">
       <motion.form
         layout
         onSubmit={handleSubmit(onSubmit)}
@@ -635,7 +635,7 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedSentAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-hidden transition-all placeholder:text-gray-400 focus:outline-hidden disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
                   authenticated && (amountSent > balance || errors.amountSent)
                     ? "text-red-500 dark:text-red-500"
                     : "text-neutral-900 dark:text-white/80"
@@ -658,7 +658,7 @@ export const TransactionForm = ({
             {(errors.amountSent || (authenticated && amountSent > balance)) && (
               <AnimatedComponent
                 variant={slideInOut}
-                className="!mt-0 text-xs text-red-500"
+                className="mt-0! text-xs text-red-500"
               >
                 {errors.amountSent?.message ||
                   (authenticated && amountSent > balance
@@ -712,7 +712,7 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedReceivedAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-hidden transition-all placeholder:text-gray-400 focus:outline-hidden disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
                   errors.amountReceived
                     ? "text-red-500 dark:text-red-500"
                     : "text-neutral-900 dark:text-white/80"
@@ -764,7 +764,7 @@ export const TransactionForm = ({
                       formMethods.setValue("memo", e.target.value);
                     }}
                     value={formMethods.watch("memo")}
-                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
+                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-hidden disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
                       errors.memo
                         ? "text-red-500 dark:text-red-500"
                         : "text-text-body dark:text-white/80"
@@ -848,7 +848,7 @@ export const TransactionForm = ({
                 ) : null}
               </div>
               <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">
-                <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
+                <div className="h-px w-1/2 shrink bg-linear-to-tr from-white to-gray-300 dark:bg-linear-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
                 <p className="min-w-fit">Swap usually completes in 30s</p>
               </div>
             </AnimatedComponent>

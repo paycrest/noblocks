@@ -142,7 +142,7 @@ export default function BlockFestCashbackComponent({
       )}
     >
       {/* Banner with cashback message */}
-      <div className="relative rounded-2xl bg-[url('/images/blockfest/blockfest-banner-bg.svg')] bg-cover bg-left-top bg-no-repeat py-1 pl-12 pr-2.5 text-sm">
+      <div className="relative rounded-2xl bg-[url('/images/blockfest/blockfest-banner-bg.svg')] bg-cover bg-top-left bg-no-repeat py-1 pl-12 pr-2.5 text-sm">
         {getBannerText()}
       </div>
 
@@ -189,7 +189,7 @@ export default function BlockFestCashbackComponent({
               rel="noopener noreferrer"
               target="_blank"
               href="https://x.com/intent/tweet?text=I%20just%20swapped%20live%20at%20%40blockfestafrica%20using%20%40noblocks_xyz%20on%20%40Base%20with%20%40BasedWestAfrica%20in%20seconds%20for%202%25%20cashback%20⚡️%0A%0APull%20up%20if%20you're%20around%20and%20use%20the%20link%20below%20to%20claim%20yours%20💰%0A%0A%23BlockfestAfrica2025%20%23UseNoblocks%0A%0Ahttps%3A%2F%2Fnoblocks.xyz%3Fref%3Dblockfest"
-              className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+              className={`min-h-9 rounded-full! ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
             >
               {theme === "dark" ? (
                 <XIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
@@ -205,7 +205,7 @@ export default function BlockFestCashbackComponent({
               rel="noopener noreferrer"
               target="_blank"
               href="https://warpcast.com/~/compose?text=I%20just%20swapped%20live%20at%20%40blockfestafrica%20using%20%40noblocks_xyz%20on%20%40Base%20with%20%40BasedWestAfrica%20in%20seconds%20for%202%25%20cashback%20⚡️%0A%0APull%20up%20if%20you're%20around%20and%20use%20the%20link%20below%20to%20claim%20yours%20💰%0A%0A%23BlockfestAfrica2025%20%23UseNoblocks%0A%0Ahttps%3A%2F%2Fnoblocks.xyz%3Fref%3Dblockfest"
-              className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+              className={`min-h-9 rounded-full! ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
             >
               {theme === "dark" ? (
                 <FarcasterIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />

@@ -46,7 +46,7 @@ const TermsClient = () => {
         </div>
 
         {showFade && (
-          <div className="pointer-events-none absolute -bottom-9 left-0 right-0 h-16 bg-gradient-to-t from-white to-transparent dark:from-neutral-900" />
+          <div className="pointer-events-none absolute -bottom-9 left-0 right-0 h-16 bg-linear-to-t from-white to-transparent dark:from-neutral-900" />
         )}
       </div>
     </>

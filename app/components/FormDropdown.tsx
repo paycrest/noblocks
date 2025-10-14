@@ -42,7 +42,7 @@ export const FormDropdown = ({
           type="button"
           onClick={toggleDropdown}
           className={classNames(
-            "flex h-9 items-center gap-1 rounded-full p-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95",
+            "flex h-9 items-center gap-1 rounded-full p-1.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95",
             selectedItem?.name
               ? "bg-gray-50 dark:bg-neutral-800"
               : isCTA

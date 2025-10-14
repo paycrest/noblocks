@@ -11,11 +11,11 @@ export const BalanceCardSkeleton = () => (
         <div className="flex items-center gap-3">
           <div className="size-8 animate-pulse rounded-full bg-gray-200 dark:bg-white/10" />
           <div className="space-y-2">
-            <div className="h-4 w-16 animate-pulse rounded bg-gray-200 dark:bg-white/10" />
-            <div className="h-4 w-12 animate-pulse rounded bg-gray-200 dark:bg-white/10" />
+            <div className="h-4 w-16 animate-pulse rounded-sm bg-gray-200 dark:bg-white/10" />
+            <div className="h-4 w-12 animate-pulse rounded-sm bg-gray-200 dark:bg-white/10" />
           </div>
         </div>
-        <div className="h-4 w-20 animate-pulse rounded bg-gray-200 dark:bg-white/10" />
+        <div className="h-4 w-20 animate-pulse rounded-sm bg-gray-200 dark:bg-white/10" />
       </div>
     ))}
   </div>

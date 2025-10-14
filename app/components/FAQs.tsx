@@ -59,7 +59,7 @@ function AccordionItem({
       <button
         type="button"
         className={
-          `flex w-full items-center gap-4 rounded-tl-2xl rounded-tr-2xl border-[#EBEBEF] bg-[#F9FAFB] p-4 text-left focus:outline-none dark:border-[#FFFFFF1A] dark:bg-[#FFFFFF0D]` +
+          `flex w-full items-center gap-4 rounded-tl-2xl rounded-tr-2xl border-[#EBEBEF] bg-[#F9FAFB] p-4 text-left focus:outline-hidden dark:border-[#FFFFFF1A] dark:bg-[#FFFFFF0D]` +
           (!isOpen ? " rounded-bl-xl rounded-br-xl" : "")
         }
         onClick={onClick}
@@ -101,7 +101,7 @@ export default function FAQs() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section className="mx-auto mb-[5.3125rem] flex w-full max-w-[999px] flex-col gap-6 px-5 lg:mb-[17.75rem] lg:grid lg:grid-cols-[1fr_2fr]">
+    <section className="mx-auto mb-21.25 flex w-full max-w-[999px] flex-col gap-6 px-5 lg:mb-71 lg:grid lg:grid-cols-[1fr_2fr]">
       <h2
         className={`${crimsonPro.className} flex flex-wrap gap-1 text-center text-[2rem] font-semibold italic sm:gap-2 sm:text-[2.95rem] md:text-6xl lg:max-w-[294px] lg:flex-col lg:items-start lg:gap-5 lg:text-left lg:leading-[0.9]`}
       >

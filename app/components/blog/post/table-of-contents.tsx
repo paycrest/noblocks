@@ -205,7 +205,7 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ sections }) => {
                 } `}
               >
                 {activeSection === section.id && (
-                  <span className="absolute left-[-16px] top-1/2 h-8 w-px -translate-y-1/2 rounded bg-white" />
+                  <span className="absolute left-[-16px] top-1/2 h-8 w-px -translate-y-1/2 rounded-sm bg-white" />
                 )}
                 {section.title}
               </a>

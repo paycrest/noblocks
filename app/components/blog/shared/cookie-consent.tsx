@@ -114,12 +114,12 @@ const CookieConsent = () => {
         checked={checked}
         onChange={onChange}
         disabled={disabled}
-        className={`group ml-auto mt-1 block size-5 flex-shrink-0 rounded border-2 border-border-light bg-lavender-50 data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:bg-transparent dark:data-[checked]:border-lavender-500 dark:data-[checked]:bg-lavender-500 ${
+        className={`group ml-auto mt-1 block size-5 shrink-0 rounded border-2 border-border-light bg-lavender-50 data-checked:border-lavender-500 data-checked:bg-lavender-500 dark:border-white/30 dark:bg-transparent dark:data-checked:border-lavender-500 dark:data-checked:bg-lavender-500 ${
           disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
         }`}
       >
         <svg
-          className="stroke-white opacity-0 group-data-[checked]:opacity-100"
+          className="stroke-white opacity-0 group-data-checked:opacity-100"
           viewBox="0 0 14 14"
           fill="none"
         >
@@ -151,7 +151,7 @@ const CookieConsent = () => {
             exit={{ opacity: 0, y: 50 }}
             className="fixed z-50 p-4 max-sm:bottom-0 max-sm:left-0 max-sm:right-0 sm:bottom-5 sm:right-5"
           >
-            <div className="w-full space-y-4 rounded-[30px] border border-border-light bg-background-neutral px-5 py-6 shadow-lg transition-colors dark:border-white/5 dark:bg-surface-overlay sm:max-w-[25.75rem] sm:rounded-3xl">
+            <div className="w-full space-y-4 rounded-[30px] border border-border-light bg-background-neutral px-5 py-6 shadow-lg transition-colors dark:border-white/5 dark:bg-surface-overlay sm:max-w-103 sm:rounded-3xl">
               <div className="space-y-3 text-lavender-500">
                 <h2 className="text-lg font-semibold">We use cookies</h2>
                 <p className="text-foreground text-sm">
@@ -198,14 +198,14 @@ const CookieConsent = () => {
             onClose={() => setIsModalOpen(false)}
             className="relative z-40"
           >
-            <DialogBackdrop className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm backdrop-filter transition-opacity data-[closed]:opacity-0" />
-            <DialogPanel className="fixed inset-0 flex items-end justify-center transition-transform data-[closed]:scale-95 data-[closed]:opacity-0 sm:items-center sm:p-4">
+            <DialogBackdrop className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-xs backdrop-filter transition-opacity data-closed:opacity-0" />
+            <DialogPanel className="fixed inset-0 flex items-end justify-center transition-transform data-closed:scale-95 data-closed:opacity-0 sm:items-center sm:p-4">
               <motion.div
                 initial="hidden"
                 animate="visible"
                 exit="hidden"
                 variants={modalVariants}
-                className="w-full space-y-4 rounded-t-[30px] bg-lavender-50 px-5 py-6 shadow-lg dark:border-white/10 dark:bg-surface-overlay dark:shadow-xl sm:max-w-[25.75rem] sm:rounded-[30px]"
+                className="w-full space-y-4 rounded-t-[30px] bg-lavender-50 px-5 py-6 shadow-lg dark:border-white/10 dark:bg-surface-overlay dark:shadow-xl sm:max-w-103 sm:rounded-[30px]"
               >
                 <div className="space-y-3 text-lavender-500">
                   <DialogTitle className="text-lg font-semibold">

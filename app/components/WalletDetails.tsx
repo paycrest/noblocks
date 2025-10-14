@@ -123,7 +123,7 @@ export const WalletDetails = () => {
         onClick={() => {
           setIsSidebarOpen(!isSidebarOpen);
         }}
-        className="flex h-9 items-center justify-center gap-2 rounded-xl bg-accent-gray px-2.5 py-2.5 transition-colors duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900 sm:py-0"
+        className="flex h-9 items-center justify-center gap-2 rounded-xl bg-accent-gray px-2.5 py-2.5 transition-colors duration-300 hover:bg-border-light focus:outline-hidden focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900 sm:py-0"
       >
         <Wallet01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
         <div className="h-9 w-px border-r border-dashed border-border-light dark:border-white/10" />
@@ -158,7 +158,7 @@ export const WalletDetails = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+                className="fixed inset-0 bg-black/30 backdrop-blur-xs"
                 onClick={handleSidebarClose}
               />
 
@@ -307,7 +307,7 @@ export const WalletDetails = () => {
                     </div>
 
                     {/* Tab content */}
-                    <div className="scrollbar-hide mt-6 w-full flex-grow overflow-y-scroll">
+                    <div className="scrollbar-hide mt-6 w-full grow overflow-y-scroll">
                       <AnimatePresence mode="wait">
                         {activeTab === "balances" ? (
                           // Balances tab content

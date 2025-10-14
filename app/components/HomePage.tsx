@@ -101,7 +101,7 @@ function HomePageComponent({
           </motion.section>
 
           <motion.div
-            className="px-5 pb-[8.0625rem] sm:pb-24"
+            className="px-5 pb-32.25 sm:pb-24"
             variants={blurReveal}
             initial="initial"
             animate="animate"
@@ -147,14 +147,14 @@ function HomePageComponent({
       <div className="-mt-2 w-full lg:-mt-4">
         <BlurRevealSection
           id="video-section"
-          className="mx-auto mb-[4.875rem] w-full max-w-[62.75rem] scroll-mt-24 px-5 md:mb-[11.5625rem]"
+          className="mx-auto mb-19.5 w-full max-w-251 scroll-mt-24 px-5 md:mb-46.25"
           delay={1.4}
           whileInView={false}
         >
           <WalkthroughVideo />
         </BlurRevealSection>
 
-        <BlurRevealSection className="mb-[9.375rem] flex w-full flex-col items-center justify-center gap-11 px-5 sm:gap-[54px] md:mb-[7.875rem]">
+        <BlurRevealSection className="mb-37.5 flex w-full flex-col items-center justify-center gap-11 px-5 sm:gap-[54px] md:mb-31.5">
           <BlurRevealTitle className="text-center dark:opacity-80">
             <span className="text-2xl font-semibold sm:text-[2.25rem] md:text-[2.875rem]">
               Ways you can use{" "}
@@ -166,7 +166,7 @@ function HomePageComponent({
             </span>
           </BlurRevealTitle>
 
-          <BlurRevealContent className="container mx-auto grid w-full grid-cols-1 gap-4 sm:border-[#EBEBEF] md:max-w-[59rem] md:grid-cols-2 md:gap-6 md:rounded-[28px] md:border md:p-6 md:dark:border-[#FFFFFF1A]">
+          <BlurRevealContent className="container mx-auto grid w-full grid-cols-1 gap-4 sm:border-[#EBEBEF] md:max-w-236 md:grid-cols-2 md:gap-6 md:rounded-[28px] md:border md:p-6 md:dark:border-[#FFFFFF1A]">
             {(() => {
               const useCases = [
                 {
@@ -251,7 +251,7 @@ function HomePageComponent({
           </BlurRevealContent>
         </BlurRevealSection>
 
-        <BlurRevealSection className="mb-[4.6875rem] flex w-full flex-col items-center justify-center gap-6 px-5 md:mb-[11.5625rem]">
+        <BlurRevealSection className="mb-18.75 flex w-full flex-col items-center justify-center gap-6 px-5 md:mb-46.25">
           <BlurRevealTitle className="flex flex-col items-center gap-6">
             <h3 className="text-2xl font-semibold sm:text-[2.25rem] md:text-[2.875rem]">
               Rates like no other
@@ -315,7 +315,7 @@ function HomePageComponent({
           <FAQs />
         </BlurRevealSection>
 
-        <BlurRevealSection className="relative mx-auto mb-24 flex h-[865px] w-full max-w-screen-2xl items-start overflow-hidden px-5 xmd:h-[550px] sm:h-[600px] md:mb-24 md:h-[850px]">
+        <BlurRevealSection className="relative mx-auto mb-24 flex h-[865px] w-full max-w-(--breakpoint-2xl) items-start overflow-hidden px-5 xmd:h-[550px] sm:h-[600px] md:mb-24 md:h-[850px]">
           {/* Desktop/Tablet Illustration */}
           <div className="absolute bottom-0 right-0 z-0 hidden h-full w-full xmd:block">
             <Image
@@ -367,7 +367,7 @@ function HomePageComponent({
           </div>
         </BlurRevealSection>
 
-        <BlurRevealSection className="mx-auto mb-24 flex w-full max-w-[1440px] flex-col justify-center px-5 md:mb-[10rem] md:gap-10 lg:flex-row-reverse lg:items-center">
+        <BlurRevealSection className="mx-auto mb-24 flex w-full max-w-[1440px] flex-col justify-center px-5 md:mb-40 md:gap-10 lg:flex-row-reverse lg:items-center">
           <div className="w-full space-y-4 lg:max-w-[302px]">
             <button
               type="button"
@@ -376,7 +376,7 @@ function HomePageComponent({
               Coming soon
             </button>
             <h3 className="flex flex-col font-semibold sm:gap-2">
-              <span className="text-2xl sm:text-4xl md:text-5xl lg:!leading-[1.5]">
+              <span className="text-2xl sm:text-4xl md:text-5xl lg:leading-normal!">
                 Download Noblocks
               </span>
               <span
@@ -385,7 +385,7 @@ function HomePageComponent({
                 Mobile App
               </span>
             </h3>
-            <p className="pt-2 text-base font-normal leading-7 lg:text-lg lg:leading-[1.875rem]">
+            <p className="pt-2 text-base font-normal leading-7 lg:text-lg lg:leading-7.5">
               Your no. 1 app to change stablecoins to cash in less than{" "}
               <span
                 className={`${crimsonPro.className} text-lg italic lg:text-xl`}

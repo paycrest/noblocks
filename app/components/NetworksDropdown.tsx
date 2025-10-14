@@ -85,7 +85,7 @@ export const NetworksDropdown = ({
             toggleDropdown();
           }}
           className={classNames(
-            "flex h-9 items-center justify-center gap-1 rounded-xl bg-accent-gray p-2.5 duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900",
+            "flex h-9 items-center justify-center gap-1 rounded-xl bg-accent-gray p-2.5 duration-300 hover:bg-border-light focus:outline-hidden focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900",
             iconOnly ? "pointer-events-none" : "",
           )}
         >

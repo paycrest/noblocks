@@ -151,7 +151,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
   return (
     <div className="w-full">
       <main
-        className={`mx-auto flex w-full max-w-screen-2xl flex-col gap-11 px-5 py-14 sm:gap-10 sm:px-8 ${getBannerPadding()}`}
+        className={`mx-auto flex w-full max-w-(--breakpoint-2xl) flex-col gap-11 px-5 py-14 sm:gap-10 sm:px-8 ${getBannerPadding()}`}
       >
         {/* Hero Title & Description or Search Result */}
         <motion.div
@@ -200,7 +200,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                   onClick={() => setSelectedCategory(cat._id)}
                   className={`cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium leading-normal transition-colors ${
                     activeCategory === cat._id
-                      ? "bg-lavender-500 text-white shadow-sm dark:bg-white/10"
+                      ? "bg-lavender-500 text-white shadow-xs dark:bg-white/10"
                       : "bg-transparent text-text-body/80 hover:bg-gray-100 dark:text-white/80 dark:hover:bg-white/5"
                   }`}
                 >
@@ -238,7 +238,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
 
                 <button
                   type="button"
-                  className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30"
                   onClick={() => {
                     setIsMobileSearchActive(true);
                     setIsSearchOpen(false);
@@ -258,7 +258,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                   <input
                     ref={searchInputRef}
                     type="search"
-                    className="w-full flex-1 bg-transparent px-2.5 text-[14px] text-sm font-normal leading-[24px] text-text-body placeholder-text-secondary outline-none dark:text-white dark:placeholder-white/30"
+                    className="w-full flex-1 bg-transparent px-2.5 text-[14px] text-sm font-normal leading-[24px] text-text-body placeholder-text-secondary outline-hidden dark:text-white dark:placeholder-white/30"
                     placeholder="Search"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -273,7 +273,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                 <div className="">
                   <button
                     type="button"
-                    className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30"
+                    className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30"
                     onClick={() => {
                       setIsMobileSearchActive(false);
                       setSearch("");
@@ -287,7 +287,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
             )}
           </div>
           {/* Search Bar (Desktop) */}
-          <div className="hidden w-full min-w-[200px] max-w-[300px] flex-shrink-0 sm:flex">
+          <div className="hidden w-full min-w-[200px] max-w-[300px] shrink-0 sm:flex">
             <div
               className="flex w-full cursor-pointer items-center rounded-xl border border-gray-300 bg-white py-2 pl-2.5 transition-colors hover:border-gray-400 dark:border-white/20 dark:bg-background-neutral/0 dark:hover:border-white/30"
               onClick={() => {
@@ -299,7 +299,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
               <Search01Icon className="h-4 w-4 text-gray-400 dark:text-white/50" />
               <input
                 type="search"
-                className="w-full flex-1 cursor-pointer bg-transparent px-2.5 text-sm font-normal text-text-body placeholder-text-secondary outline-none dark:text-white dark:placeholder-white/30"
+                className="w-full flex-1 cursor-pointer bg-transparent px-2.5 text-sm font-normal text-text-body placeholder-text-secondary outline-hidden dark:text-white dark:placeholder-white/30"
                 placeholder="Search"
                 value={search}
                 readOnly

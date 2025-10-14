@@ -545,7 +545,7 @@ export function TransactionStatus({
   };
 
   return (
-    <div className="flex w-full justify-center gap-[4.5rem]">
+    <div className="flex w-full justify-center gap-18">
       <div className="hidden flex-col gap-2 sm:flex">
         <div className="flex w-fit flex-col items-end gap-2 text-neutral-900 dark:text-white/80">
           <AnimatedComponent
@@ -710,10 +710,10 @@ export function TransactionStatus({
                     <Checkbox
                       checked={addToBeneficiaries}
                       onChange={handleAddToBeneficiariesChange}
-                      className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
+                      className="group mt-1 block size-4 shrink-0 cursor-pointer rounded-sm border-2 border-gray-300 bg-transparent data-checked:border-lavender-500 data-checked:bg-lavender-500 dark:border-white/30 dark:data-checked:border-lavender-500"
                     >
                       <svg
-                        className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
+                        className="stroke-white/50 opacity-0 group-data-checked:opacity-100 dark:stroke-neutral-800"
                         viewBox="0 0 14 14"
                         fill="none"
                       >
@@ -823,7 +823,7 @@ export function TransactionStatus({
                 <p>Help spread the word</p>
 
                 <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
-                  <YellowHeart className="size-8 flex-shrink-0" />
+                  <YellowHeart className="size-8 shrink-0" />
                   <p>
                     Yay! I just swapped {token} for {currency} in{" "}
                     {calculateDuration(createdAt, completedAt)} on noblocks.xyz
@@ -837,7 +837,7 @@ export function TransactionStatus({
                     rel="noopener noreferrer"
                     target="_blank"
                     href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
-                    className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                    className={`min-h-9 rounded-full! ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                   >
                     {resolvedTheme === "dark" ? (
                       <XIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
@@ -851,7 +851,7 @@ export function TransactionStatus({
                     rel="noopener noreferrer"
                     target="_blank"
                     href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
-                    className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                    className={`min-h-9 rounded-full! ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                   >
                     {resolvedTheme === "dark" ? (
                       <FarcasterIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />

@@ -19,7 +19,7 @@ const BlogPostAuthor: React.FC<BlogPostAuthorProps> = ({ author }) => {
     : "https://picsum.photos/56/56?image=1008";
   return (
     <motion.section
-      className="mx-auto mb-8 mt-8 flex w-full max-w-2xl items-center gap-4 rounded-xl bg-[#181A20] p-4 shadow"
+      className="mx-auto mb-8 mt-8 flex w-full max-w-2xl items-center gap-4 rounded-xl bg-[#181A20] p-4 shadow-sm"
       variants={fadeBlur}
       initial="initial"
       animate="animate"

@@ -30,7 +30,7 @@ const FeaturedBlog: React.FC<FeaturedBlogProps> = ({ post }) => {
         prefetch={false}
         onMouseDown={handleFeaturedBlogClick}
       >
-        <div className="mb-4 h-72 w-full flex-shrink-0 overflow-hidden rounded-lg sm:h-80 lg:mb-0 lg:w-[607px]">
+        <div className="mb-4 h-72 w-full shrink-0 overflow-hidden rounded-lg sm:h-80 lg:mb-0 lg:w-[607px]">
           <Image
             src={post.mainImage || "https://picsum.photos/607/318?image=1001"}
             alt={post.title}

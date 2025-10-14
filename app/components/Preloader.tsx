@@ -22,9 +22,9 @@ const NavbarSkeleton = () => (
 const HeroHeaderSkeleton = () => (
   <div className="mb-12 flex flex-col items-center gap-2 text-center sm:mb-16 md:mb-20 lg:mb-24">
     {/* "Change stablecoins" line */}
-    <Skeleton className="h-8 w-80 max-w-[90vw] sm:h-10 sm:w-96 md:h-12 md:w-[28rem] lg:h-16 lg:w-[32rem]" />
+    <Skeleton className="h-8 w-80 max-w-[90vw] sm:h-10 sm:w-96 md:h-12 md:w-md lg:h-16 lg:w-lg" />
     {/* "to cash in seconds" line */}
-    <Skeleton className="h-8 w-72 max-w-[85vw] sm:h-12 sm:w-80 md:h-14 md:w-96 lg:h-[4.5rem] lg:w-[30rem]" />
+    <Skeleton className="h-8 w-72 max-w-[85vw] sm:h-12 sm:w-80 md:h-14 md:w-96 lg:h-18 lg:w-120" />
   </div>
 );
 

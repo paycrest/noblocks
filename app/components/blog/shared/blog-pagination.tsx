@@ -30,7 +30,7 @@ const BlogPagination: React.FC<BlogPaginationProps> = ({
     >
       <button
         type="button"
-        className="rounded bg-[#23262F] px-3 py-1 text-gray-200 hover:bg-blue-700 disabled:opacity-50"
+        className="rounded-sm bg-[#23262F] px-3 py-1 text-gray-200 hover:bg-blue-700 disabled:opacity-50"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
         aria-label="Previous page"
@@ -54,7 +54,7 @@ const BlogPagination: React.FC<BlogPaginationProps> = ({
       ))}
       <button
         type="button"
-        className="rounded bg-[#23262F] px-3 py-1 text-gray-200 hover:bg-blue-700 disabled:opacity-50"
+        className="rounded-sm bg-[#23262F] px-3 py-1 text-gray-200 hover:bg-blue-700 disabled:opacity-50"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
         aria-label="Next page"

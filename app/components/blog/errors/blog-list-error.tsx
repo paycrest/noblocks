@@ -40,7 +40,7 @@ const BlogListError: React.FC<{ onRetry?: () => void }> = ({ onRetry }) => (
     {onRetry && (
       <button
         type="button"
-        className="mt-4 rounded bg-red-500 px-3 py-1.5 text-sm text-white hover:bg-red-600"
+        className="mt-4 rounded-sm bg-red-500 px-3 py-1.5 text-sm text-white hover:bg-red-600"
         onClick={onRetry}
       >
         Try again

@@ -249,7 +249,7 @@ export default function BlockFestCashbackModal({
                 },
               })}
               className={classNames(
-                "w-full rounded-xl border border-border-input bg-transparent px-4 py-2.5 text-sm font-light text-neutral-900 transition-all placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:text-white/80 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900",
+                "w-full rounded-xl border border-border-input bg-transparent px-4 py-2.5 text-sm font-light text-neutral-900 transition-all placeholder:text-gray-400 focus:outline-hidden focus:ring-2 focus:ring-lavender-500 focus:ring-opacity-50 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed dark:border-white/20 dark:text-white/80 dark:placeholder:text-white/30 dark:focus-visible:ring-offset-neutral-900",
                 errors.email
                   ? "border-input-destructive focus:border-input-destructive dark:border-input-destructive"
                   : "",
@@ -266,7 +266,7 @@ export default function BlockFestCashbackModal({
           <button
             type="submit"
             className={classNames(
-              "flex min-h-11 min-w-fit items-center justify-center rounded-xl bg-lavender-500 px-4 py-2.5 text-sm font-medium leading-normal text-white transition-all hover:bg-lavender-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-white dark:hover:bg-lavender-600 dark:focus-visible:ring-offset-neutral-900 dark:disabled:bg-white/10 dark:disabled:text-white/50",
+              "flex min-h-11 min-w-fit items-center justify-center rounded-xl bg-lavender-500 px-4 py-2.5 text-sm font-medium leading-normal text-white transition-all hover:bg-lavender-600 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-white dark:hover:bg-lavender-600 dark:focus-visible:ring-offset-neutral-900 dark:disabled:bg-white/10 dark:disabled:text-white/50",
               "w-full",
               isExpired
                 ? "cursor-not-allowed opacity-50"

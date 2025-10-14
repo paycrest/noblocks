@@ -82,7 +82,7 @@ export const SavedBeneficiariesModal = ({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
         transition={{ duration: 0.2 }}
-        className="mt-2 h-[21rem] overflow-y-auto sm:h-[14rem]"
+        className="mt-2 h-84 overflow-y-auto sm:h-56"
       >
         <AnimatePresence>
           {filteredSavedRecipients.length > 0 ? (

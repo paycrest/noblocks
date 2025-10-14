@@ -63,7 +63,7 @@ function BlockFestBanner() {
       transition={{ duration: 0.5, ease: "easeOut" }}
       className="mb-4 flex justify-center"
     >
-      <div className="flex w-full max-w-[27.3125rem] flex-col gap-px">
+      <div className="flex w-full max-w-109.25 flex-col gap-px">
         {/* BlockFest Logo */}
         <div className="inline-flex w-fit flex-col items-center justify-center gap-5 rounded-bl-sm rounded-br-xl rounded-tl-xl rounded-tr-xl bg-gray-50 px-1.5 py-1 dark:bg-white/10">
           <div className="relative h-5 w-20">

@@ -219,7 +219,7 @@ const createPtComponents = (
       );
     },
     blockquote: ({ children }) => (
-      <blockquote className="my-4 rounded border-l-4 border-lavender-500 pl-4 text-sm italic text-text-secondary dark:text-white/50">
+      <blockquote className="my-4 rounded-sm border-l-4 border-lavender-500 pl-4 text-sm italic text-text-secondary dark:text-white/50">
         {children}
       </blockquote>
     ),

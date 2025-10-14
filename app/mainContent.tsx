@@ -12,7 +12,7 @@ function MainContent({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <main className={`w-full flex-grow ${getMaxWidthClass()}`}>
+    <main className={`w-full grow ${getMaxWidthClass()}`}>
       {children}
     </main>
   );

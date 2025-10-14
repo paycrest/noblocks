@@ -118,7 +118,7 @@ export const Footer = () => {
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
       <motion.footer
-        className="relative mx-auto min-h-[360px] w-full max-w-screen-2xl overflow-hidden px-5 md:items-center lg:min-h-[540px]"
+        className="relative mx-auto min-h-[360px] w-full max-w-(--breakpoint-2xl) overflow-hidden px-5 md:items-center lg:min-h-[540px]"
         role="contentinfo"
         layout
         transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -143,7 +143,7 @@ export const Footer = () => {
             </a>
           </p>
 
-          <div className="absolute z-20 flex gap-6 max-sm:items-center md:bottom-[13rem] md:left-20">
+          <div className="absolute z-20 flex gap-6 max-sm:items-center md:bottom-52 md:left-20">
             <div className="text-[#43B9FB] dark:text-white">
               <svg
                 width="18"
@@ -191,7 +191,7 @@ export const Footer = () => {
           loading="lazy"
           className="absolute -right-2 bottom-0 w-full animate-[footer-bg-float_6s_ease-in-out_infinite] md:hidden"
         />
-        <div className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] overflow-hidden md:block 2xl:rounded-b-[84px]">
+        <div className="absolute bottom-0 right-0 z-5 hidden max-h-[700px] w-[1000px] overflow-hidden md:block 2xl:rounded-b-[84px]">
           <Image
             src="/images/footer-desktop-img.svg"
             alt="Footer Desktop Image"
@@ -213,7 +213,7 @@ export const Footer = () => {
           }
           variants={rocketVariants}
           loading="lazy"
-          className="absolute bottom-7 right-8 z-10 w-full max-w-[120px] xsm:max-w-[175px] md:max-w-[250px] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[300px]"
+          className="absolute bottom-7 right-8 z-10 w-full max-w-[120px] xsm:max-w-[175px] md:max-w-[250px] lg:bottom-28 lg:right-80 lg:max-w-[300px]"
           style={{ willChange: "transform, filter" }}
         />
       </motion.footer>

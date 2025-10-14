@@ -335,7 +335,7 @@ export const AnimatedModal = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/30 backdrop-blur-xs"
         />
 
         <div className="fixed inset-0 flex w-screen items-end sm:items-center sm:justify-center sm:p-4">
@@ -380,7 +380,7 @@ export const AnimatedModal = ({
                         "h-full w-full rounded-t-[30px] sm:rounded-t-3xl",
                         backgroundImagePath
                           ? ""
-                          : "bg-gradient-to-r from-[#d4e269] via-[#b0a6e4] to-[#f9f1fe] dark:from-[#7b8c12] dark:via-[#243b81] dark:to-[#1d1324]",
+                          : "bg-linear-to-r from-[#d4e269] via-[#b0a6e4] to-[#f9f1fe] dark:from-[#7b8c12] dark:via-[#243b81] dark:to-[#1d1324]",
                       )}
                     >
                       <Cancel01Icon

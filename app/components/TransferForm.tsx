@@ -303,7 +303,7 @@ export const TransferForm: React.FC<{
               },
             })}
             className={classNames(
-              "min-h-12 w-full rounded-xl border border-border-input dark:bg-black2 py-3 pl-10 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
+              "min-h-12 w-full rounded-xl border border-border-input dark:bg-black2 py-3 pl-10 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-hidden disabled:cursor-not-allowed dark:border-white/20 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
               errors.recipientAddress
                 ? "text-red-500 dark:text-red-500"
                 : "text-neutral-900 dark:text-white/80",
@@ -340,7 +340,7 @@ export const TransferForm: React.FC<{
                 setIsNetworkDropdownOpen(!isNetworkDropdownOpen);
               }
             }}
-            className="min-h-12 w-full rounded-xl border border-border-input bg-transparent px-4 py-3 text-left text-sm transition-all focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:focus-within:border-white/40"
+            className="min-h-12 w-full rounded-xl border border-border-input bg-transparent px-4 py-3 text-left text-sm transition-all focus-within:border-gray-400 focus:outline-hidden disabled:cursor-not-allowed dark:border-white/20 dark:focus-within:border-white/40"
             aria-haspopup="listbox"
             aria-expanded={isNetworkDropdownOpen}
             aria-controls="recipient-network-listbox"
@@ -461,7 +461,7 @@ export const TransferForm: React.FC<{
                   message: "Invalid amount",
                 },
               })}
-              className={` bg-transparent w-full text-3xl font-medium outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amount
+              className={` bg-transparent w-full text-3xl font-medium outline-hidden transition-all placeholder:text-gray-400 focus:outline-hidden disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amount
                   ? "text-red-500 dark:text-red-500"
                   : "text-neutral-900 dark:text-white"
                 }`}
@@ -494,7 +494,7 @@ export const TransferForm: React.FC<{
 
       {/* Network compatibility warning */}
       {showNetworkWarning && (
-        <div className="h-[48px] w-full bg-warning-background/[8%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start justify-start gap-0.5">
+        <div className="h-[48px] w-full bg-warning-background/8 dark:bg-warning-background/8 px-3 py-2 rounded-xl mb-4 flex items-start justify-start gap-0.5">
           <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[24px] h-[24px] mr-2 -mt-0.5" />
           <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight text-wrap">
             Ensure that the withdrawal address supports {recipientNetwork}{" "}
@@ -507,7 +507,7 @@ export const TransferForm: React.FC<{
       <button
         type="submit"
         className={classNames(
-          "min-h-12 w-full rounded-xl px-4 py-3 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900",
+          "min-h-12 w-full rounded-xl px-4 py-3 text-sm font-semibold transition-all focus:outline-hidden focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 disabled:cursor-not-allowed dark:focus:ring-offset-neutral-900",
           !isValid || !isDirty || isConfirming || !token || !(amount > 0)
             ? "bg-gray-300 text-gray-500 dark:bg-white/10 dark:text-white/50"
             : "bg-lavender-500 text-white hover:bg-lavender-600 dark:hover:bg-lavender-600",

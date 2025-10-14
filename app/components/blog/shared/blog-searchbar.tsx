@@ -21,7 +21,7 @@ const BlogSearchBar: React.FC<BlogSearchBarProps> = ({
       <input
         id="blog-search"
         type="text"
-        className="w-full rounded-lg bg-[#23262F] py-2 pl-10 pr-4 text-gray-100 placeholder-gray-400 transition focus:outline-none focus:ring-2 focus:ring-blue-600"
+        className="w-full rounded-lg bg-[#23262F] py-2 pl-10 pr-4 text-gray-100 placeholder-gray-400 transition focus:outline-hidden focus:ring-2 focus:ring-blue-600"
         placeholder={placeholder || "Search"}
         value={value}
         onChange={(e) => onChange(e.target.value)}

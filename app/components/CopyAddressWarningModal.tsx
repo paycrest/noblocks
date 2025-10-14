@@ -97,7 +97,7 @@ export const CopyAddressWarningModal: React.FC<
         <Dialog
           open={isOpen}
           onClose={onClose}
-          className="relative z-[80]"
+          className="relative z-80"
           role="dialog"
           aria-labelledby="copy-address-warning-title"
           aria-describedby="copy-address-warning-description"
@@ -106,7 +106,7 @@ export const CopyAddressWarningModal: React.FC<
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/25 backdrop-blur-sm dark:bg-black/40"
+            className="fixed inset-0 bg-black/25 backdrop-blur-xs dark:bg-black/40"
           />
 
           {/* Desktop Modal */}
@@ -220,7 +220,7 @@ export const CopyAddressWarningModal: React.FC<
               </div>
 
               {/* Warning note */}
-              <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
+              <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/36 px-3 py-2 dark:bg-warning-background/8">
                 <InformationSquareIcon className="mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
                 <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
                   Only send funds to the supported networks, sending to an
@@ -231,7 +231,7 @@ export const CopyAddressWarningModal: React.FC<
               {/* Action button */}
               <button
                 onClick={handleAcknowledge}
-                className="w-full rounded-xl bg-lavender-500 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-lavender-600 focus:outline-none"
+                className="w-full rounded-xl bg-lavender-500 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-lavender-600 focus:outline-hidden"
               >
                 Got it
               </button>
@@ -347,7 +347,7 @@ export const CopyAddressWarningModal: React.FC<
                     </div>
 
                     {/* Warning note */}
-                    <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
+                    <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/36 px-3 py-2 dark:bg-warning-background/8">
                       <InformationSquareIcon className="mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
                       <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
                         Only send funds to the supported networks, sending to an
@@ -358,7 +358,7 @@ export const CopyAddressWarningModal: React.FC<
                     {/* Action button */}
                     <button
                       onClick={handleAcknowledge}
-                      className="w-full rounded-xl bg-lavender-500 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-lavender-600 focus:outline-none"
+                      className="w-full rounded-xl bg-lavender-500 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-lavender-600 focus:outline-hidden"
                     >
                       Got it
                     </button>

@@ -187,7 +187,7 @@ export const KycModal = ({
         <div>
           <h2 className="text-lg font-medium dark:text-white">
             Verify your identity in just{" "}
-            <span className="bg-gradient-to-br from-green-400 via-orange-400 to-orange-600 bg-clip-text text-transparent">
+            <span className="bg-linear-to-br from-green-400 via-orange-400 to-orange-600 bg-clip-text text-transparent">
               2 minutes
             </span>
           </h2>
@@ -203,7 +203,7 @@ export const KycModal = ({
           <div className="flex flex-col gap-4">
             <div className="flex items-start gap-2">
               <CheckIcon
-                className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer"
+                className="mx-1 mt-1 size-5 shrink-0 cursor-pointer"
                 isActive={termsAccepted}
               />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
@@ -216,7 +216,7 @@ export const KycModal = ({
 
             <div className="flex items-start gap-2">
               <CheckIcon
-                className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer"
+                className="mx-1 mt-1 size-5 shrink-0 cursor-pointer"
                 isActive={termsAccepted}
               />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
@@ -229,7 +229,7 @@ export const KycModal = ({
 
             <div className="flex items-start gap-2">
               <CheckIcon
-                className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer"
+                className="mx-1 mt-1 size-5 shrink-0 cursor-pointer"
                 isActive={termsAccepted}
               />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
@@ -242,7 +242,7 @@ export const KycModal = ({
             </div>
 
             <div className="flex items-start gap-2">
-              <div className="mx-1 mt-1 size-5 flex-shrink-0"></div>
+              <div className="mx-1 mt-1 size-5 shrink-0"></div>
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
                 <a
                   href={
@@ -273,10 +273,10 @@ export const KycModal = ({
           <Checkbox
             checked={termsAccepted}
             onChange={(checked) => setTermsAccepted(checked)}
-            className="group mr-1 mt-1 block size-5 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
+            className="group mr-1 mt-1 block size-5 shrink-0 cursor-pointer rounded-sm border-2 border-gray-300 bg-transparent data-checked:border-lavender-500 data-checked:bg-lavender-500 dark:border-white/30 dark:data-checked:border-lavender-500"
           >
             <svg
-              className="stroke-neutral-800 opacity-0 group-data-[checked]:opacity-100"
+              className="stroke-neutral-800 opacity-0 group-data-checked:opacity-100"
               viewBox="0 0 14 14"
               fill="none"
             >

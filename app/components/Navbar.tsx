@@ -100,11 +100,11 @@ export const Navbar = () => {
 
   return (
     <header
-      className="fixed left-0 top-0 z-20 w-full bg-white/95 backdrop-blur transition-all dark:bg-neutral-900/95"
+      className="fixed left-0 top-0 z-20 w-full bg-white/95 backdrop-blur-sm transition-all dark:bg-neutral-900/95"
       role="banner"
     >
       <nav
-        className="mx-auto flex max-w-screen-2xl items-center justify-between p-4 text-neutral-900 dark:text-white lg:px-8"
+        className="mx-auto flex max-w-(--breakpoint-2xl) items-center justify-between p-4 text-neutral-900 dark:text-white lg:px-8"
         aria-label="Navbar"
       >
         <div className="flex items-start gap-2 lg:flex-1">
@@ -154,7 +154,7 @@ export const Navbar = () => {
                 className={classNames(
                   "size-5 cursor-pointer text-icon-outline-secondary transition-transform duration-200 dark:text-white/50 max-sm:hidden",
                   isDropdownOpen ? "rotate-0" : "-rotate-90",
-                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[15px]", // this adjusts the arrow position for beta logo
+                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[15px]!", // this adjusts the arrow position for beta logo
                 )}
                 onClick={(e) => {
                   e.preventDefault();
@@ -241,7 +241,7 @@ export const Navbar = () => {
           </div>
         </div>
 
-        <div className="flex gap-3 text-sm font-medium *:flex-shrink-0 sm:gap-4">
+        <div className="flex gap-3 text-sm font-medium *:shrink-0 sm:gap-4">
           {(ready && authenticated) || isInjectedWallet ? (
             <>
               <div className="hidden sm:block">
@@ -285,7 +285,7 @@ export const Navbar = () => {
             !isInjectedWallet && (
               <button
                 type="button"
-                className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}
+                className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/12 dark:text-lavender-500 dark:hover:bg-lavender-500/20`}
                 onClick={() => login()}
               >
                 Sign in

@@ -331,7 +331,7 @@ export default function TransactionList({
 
       {/* Pagination controls */}
       {transactions.length > 0 && Math.ceil(total / limit) > 1 && (
-        <div className="mt-8 flex flex-grow items-end justify-center gap-2">
+        <div className="mt-8 flex grow items-end justify-center gap-2">
           <button
             type="button"
             onClick={() => setPage(Math.max(1, currentPage - 1))}

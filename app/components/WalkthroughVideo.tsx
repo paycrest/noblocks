@@ -52,7 +52,7 @@ export default function WalkthroughVideo() {
             )}
             {/* Overlay Play Button */}
             <button
-              className={`absolute inset-0 z-20 flex h-full w-full flex-col items-center justify-center transition-opacity duration-300 focus:outline-none ${isPlaying ? "pointer-events-none opacity-0" : "opacity-100"}`}
+              className={`absolute inset-0 z-20 flex h-full w-full flex-col items-center justify-center transition-opacity duration-300 focus:outline-hidden ${isPlaying ? "pointer-events-none opacity-0" : "opacity-100"}`}
               onClick={handlePlay}
               aria-label="Play walkthrough video"
               type="button"
@@ -71,7 +71,7 @@ export default function WalkthroughVideo() {
             </button>
             {/* Overlay Pause Button (optional) */}
             <button
-              className={`absolute right-4 top-4 z-20 rounded-full bg-black/60 p-2 transition-opacity duration-300 focus:outline-none ${!isPlaying ? "pointer-events-none opacity-0" : "opacity-100"}`}
+              className={`absolute right-4 top-4 z-20 rounded-full bg-black/60 p-2 transition-opacity duration-300 focus:outline-hidden ${!isPlaying ? "pointer-events-none opacity-0" : "opacity-100"}`}
               onClick={handlePause}
               aria-label="Pause walkthrough video"
               type="button"

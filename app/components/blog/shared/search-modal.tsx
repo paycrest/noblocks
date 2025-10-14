@@ -140,7 +140,7 @@ export function SearchModal({
               <input
                 ref={searchInputRef}
                 type="search"
-                className="w-full flex-1 bg-transparent px-2.5 text-sm font-normal text-text-body placeholder-text-secondary outline-none dark:text-white dark:placeholder-white/30"
+                className="w-full flex-1 bg-transparent px-2.5 text-sm font-normal text-text-body placeholder-text-secondary outline-hidden dark:text-white dark:placeholder-white/30"
                 placeholder="Search"
                 value={search}
                 onChange={(e) => {

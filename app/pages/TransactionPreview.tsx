@@ -503,7 +503,7 @@ export const TransactionPreview = ({
   );
 
   return (
-    <div className="mx-auto grid max-w-[27.3125rem] gap-6 py-10 text-sm">
+    <div className="mx-auto grid max-w-109.25 gap-6 py-10 text-sm">
       <div className="grid gap-4">
         <h2 className="text-xl font-medium text-text-body dark:text-white/80">
           Review transaction
@@ -522,7 +522,7 @@ export const TransactionPreview = ({
                 : key.charAt(0).toUpperCase() + key.slice(1)}
             </h3>
 
-            <p className="flex flex-grow items-center gap-1 font-medium text-text-body dark:text-white/80">
+            <p className="flex grow items-center gap-1 font-medium text-text-body dark:text-white/80">
               {(key === "amount" || key === "fee") && (
                 <Image
                   src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
@@ -549,7 +549,7 @@ export const TransactionPreview = ({
 
       {/* Transaction detail disclaimer */}
       <div className="flex gap-2.5 rounded-xl border border-border-light bg-background-neutral p-3 text-text-secondary dark:border-white/5 dark:bg-white/5 dark:text-white/50">
-        <InformationSquareIcon className="mt-1 size-4 flex-shrink-0" />
+        <InformationSquareIcon className="mt-1 size-4 shrink-0" />
         <p>
           Ensure the details above are correct. Failed transaction due to wrong
           details may attract a refund fee

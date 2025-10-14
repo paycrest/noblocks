@@ -289,11 +289,11 @@ export const RecipientDetailsForm = ({
                 </p>
               )}
               {isFetchingInstitutions ? (
-                <ImSpinner className="size-4 flex-shrink-0 animate-spin text-gray-400" />
+                <ImSpinner className="size-4 shrink-0 animate-spin text-gray-400" />
               ) : (
                 <ArrowDown01Icon
                   className={classNames(
-                    "size-5 flex-shrink-0 text-outline-gray transition-transform dark:text-white/50",
+                    "size-5 shrink-0 text-outline-gray transition-transform dark:text-white/50",
                     isInstitutionsDropdownOpen ? "rotate-180" : "",
                   )}
                 />
@@ -302,7 +302,7 @@ export const RecipientDetailsForm = ({
           </div>
 
           {/* Account number */}
-          <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
+          <div className="w-full flex-1 shrink-0 sm:w-1/2">
             <input
               type="number"
               placeholder="Account number"
@@ -318,7 +318,7 @@ export const RecipientDetailsForm = ({
                 onChange: () => setIsManualEntry(true),
               })}
               className={classNames(
-                "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
+                "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-hidden transition-all duration-300 placeholder:text-text-placeholder focus:outline-hidden dark:text-white/80 dark:placeholder:text-white/30",
                 errors.accountIdentifier
                   ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
                   : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",

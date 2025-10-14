@@ -62,7 +62,7 @@ const BlogCard: React.FC<BlogCardProps> = ({
           prefetch={false}
           onClick={handleCardClick}
         >
-          <div className="relative h-48 w-full flex-shrink-0 overflow-hidden rounded-lg bg-accent-gray/5 lg:h-52 lg:w-96">
+          <div className="relative h-48 w-full shrink-0 overflow-hidden rounded-lg bg-accent-gray/5 lg:h-52 lg:w-96">
             <Image
               src={mainImage}
               alt={post.title}

@@ -28,7 +28,7 @@ const NoticeBanner: React.FC<NoticeBannerProps> = ({ textLines }) => {
           />
         </div>
         {/* Desktop Illustration */}
-        <div className="z-10 hidden flex-shrink-0 sm:static sm:mr-4 sm:block">
+        <div className="z-10 hidden shrink-0 sm:static sm:mr-4 sm:block">
           <Image
             src="/images/banner-illustration.svg"
             alt="Notice Banner Illustration"
@@ -38,7 +38,7 @@ const NoticeBanner: React.FC<NoticeBannerProps> = ({ textLines }) => {
           />
         </div>
         {/* Text */}
-        <div className="relative z-10 flex flex-grow flex-col items-start justify-between gap-1 px-4 py-4 pl-6 text-left text-sm font-medium leading-tight text-white/80 sm:flex-row sm:items-center sm:px-0 sm:py-4 sm:pl-0 sm:text-left">
+        <div className="relative z-10 flex grow flex-col items-start justify-between gap-1 px-4 py-4 pl-6 text-left text-sm font-medium leading-tight text-white/80 sm:flex-row sm:items-center sm:px-0 sm:py-4 sm:pl-0 sm:text-left">
           <span className="flex-1">
             {textLines.length === 2 ? (
               <>

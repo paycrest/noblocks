@@ -17,7 +17,7 @@ const BlogPostRecentBlogs: React.FC<BlogPostRecentBlogsProps> = ({ posts }) => {
         {posts.map((post) => (
           <div
             key={post._id}
-            className="min-w-[320px] max-w-xs flex-shrink-0 snap-start"
+            className="min-w-[320px] max-w-xs shrink-0 snap-start"
           >
             <BlogCard post={post} />
           </div>

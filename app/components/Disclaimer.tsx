@@ -72,7 +72,7 @@ export const Disclaimer = () => {
             <button
               type="button"
               onClick={handleAccept}
-              className="min-h-11 w-full flex-grow rounded-xl bg-lavender-500 py-2 text-sm font-medium text-white transition-colors hover:bg-lavender-600 xsm:w-auto xsm:px-6"
+              className="min-h-11 w-full grow rounded-xl bg-lavender-500 py-2 text-sm font-medium text-white transition-colors hover:bg-lavender-600 xsm:w-auto xsm:px-6"
             >
               I understand
             </button>

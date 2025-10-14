@@ -147,7 +147,7 @@ export const SettingsDropdown = () => {
         onClick={() => {
           setIsOpen(!isOpen);
         }}
-        className="flex h-9 items-center justify-center gap-2 rounded-xl bg-accent-gray p-2 transition-colors duration-300 hover:bg-border-light focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900"
+        className="flex h-9 items-center justify-center gap-2 rounded-xl bg-accent-gray p-2 transition-colors duration-300 hover:bg-border-light focus:outline-hidden focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95 dark:bg-white/10 dark:hover:bg-white/20 dark:focus-visible:ring-offset-neutral-900"
       >
         <Setting07Icon
           className={classNames(
@@ -166,7 +166,7 @@ export const SettingsDropdown = () => {
             exit="closed"
             variants={dropdownVariants}
             aria-label="Dropdown menu"
-            className="absolute right-0 z-[60] mt-4 w-fit min-w-40 space-y-4 overflow-hidden rounded-xl border border-border-light bg-white p-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
+            className="absolute right-0 z-60 mt-4 w-fit min-w-40 space-y-4 overflow-hidden rounded-xl border border-border-light bg-white p-2 shadow-xl dark:border-white/10 dark:bg-neutral-800"
           >
             <ul
               role="menu"
@@ -232,7 +232,7 @@ export const SettingsDropdown = () => {
                       onClick={updateEmail}
                     >
                       <div className="flex items-center gap-2.5">
-                        <Mail01Icon className="size-5 flex-shrink-0 text-icon-outline-secondary dark:text-white/50" />
+                        <Mail01Icon className="size-5 shrink-0 text-icon-outline-secondary dark:text-white/50" />
                         <p className="whitespace-nowrap">Linked email</p>
                       </div>
                       <p className="max-w-32 truncate text-neutral-500 dark:text-white/40">

@@ -1,3 +1,6 @@
+-- Ensure pgcrypto is available for gen_random_uuid()
+create extension if not exists pgcrypto;
+
 -- Create table to store saved recipients for cross-device sync
 create table if not exists public.saved_recipients (
   id uuid default gen_random_uuid() primary key,

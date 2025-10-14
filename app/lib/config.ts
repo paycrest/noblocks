@@ -22,15 +22,15 @@ const config: Config = {
   appDescription: process.env.NEXT_PUBLIC_APP_DESCRIPTION || "",
   appIcon:
     process.env.NEXT_PUBLIC_APP_ICON ||
-    "https://https://noblocks.xyz/icons/favicon_.png",
+    "https://noblocks.xyz/icons/favicon_.png",
   appSplashImage:
     process.env.NEXT_PUBLIC_APP_SPLASH_IMAGE ||
-    "https://https://noblocks.xyz/screenshots/desktop-wide.png",
+    "https://noblocks.xyz/screenshots/desktop-wide.png",
   splashBackgroundColor: process.env.NEXT_PUBLIC_SPLASH_BACKGROUND_COLOR || "",
   appPrimaryCategory: process.env.NEXT_PUBLIC_APP_PRIMARY_CATEGORY || "",
   appHeroImage:
     process.env.NEXT_PUBLIC_APP_HERO_IMAGE ||
-    "https://https://noblocks.xyz/screenshots/desktop-wide.png",
+    "https://noblocks.xyz/screenshots/desktop-wide.png",
   appTagline:
     process.env.NEXT_PUBLIC_APP_TAGLINE || "Stablecoin payments made easy.",
   appOgTitle:
@@ -40,7 +40,7 @@ const config: Config = {
     "Send & receive stablecoins on Base without leaving Warpcast.",
   publicAppOGImage:
     process.env.NEXT_PUBLIC_APP_OG_IMAGE ||
-    "https://https://noblocks.xyz/images/og-image.jpg",
+    "https://noblocks.xyz/images/og-image.jpg",
   noIndex: process.env.NEXT_PUBLIC_NOINDEX || "",
   nodeEnv: process.env.NODE_ENV || "",
 };

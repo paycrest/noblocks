@@ -116,8 +116,6 @@ export const CopyAddressWarningModal: React.FC<
           onClose={onClose}
           className="fixed inset-0 z-[80] overflow-hidden"
           role="dialog"
-          aria-labelledby="copy-address-warning-title"
-          aria-describedby="copy-address-warning-description"
         >
           <div className="flex h-full items-center justify-center">
             {/* Backdrop */}
@@ -143,18 +141,16 @@ export const CopyAddressWarningModal: React.FC<
                   className="text-text-secondary dark:text-white/50"
                 />
                 <div className="flex-1">
-                  <h3
-                    id="copy-address-warning-title"
+                  <Dialog.Title
                     className="mb-2 text-lg font-semibold text-text-body dark:text-white"
                   >
                     You just copied your wallet address!
-                  </h3>
-                  <p
-                    id="copy-address-warning-description"
+                  </Dialog.Title>
+                  <Dialog.Description
                     className="max-w-[95%] text-sm font-normal text-text-body dark:text-white/70"
                   >
                     Only deposit <span className="font-semibold">supported stablecoins</span> on <span className="font-semibold">supported networks</span>. Depositing unsupported tokens or using unsupported networks may result in loss of funds.
-                  </p>
+                  </Dialog.Description>
                 </div>
               </div>
 
@@ -282,18 +278,17 @@ export const CopyAddressWarningModal: React.FC<
                         className="text-text-secondary dark:text-white/50"
                       />
                       <div className="flex-1">
-                        <h3
-                          id="copy-address-warning-title"
+                        <Dialog.Title
                           className="mb-2 text-lg font-semibold text-text-body dark:text-white"
                         >
                           You just copied your wallet address!
-                        </h3>
-                        <p
+                        </Dialog.Title>
+                        <Dialog.Description
                           id="copy-address-warning-description"
                           className="max-w-[95%] text-sm font-normal text-text-body dark:text-white/70"
                         >
                           Only deposit <span className="font-semibold">supported stablecoins</span> on <span className="font-semibold">supported networks</span>. Depositing unsupported tokens or using unsupported networks may result in loss of funds.
-                        </p>
+                        </Dialog.Description>
                       </div>
                     </div>
 

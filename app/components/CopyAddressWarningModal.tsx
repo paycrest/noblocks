@@ -288,7 +288,7 @@ export const CopyAddressWarningModal: React.FC<
 
                     {/* copied address */}
                     <div className="relative mb-2 flex h-fit min-h-[80px] w-full flex-col items-start gap-3 rounded-2xl border border-border-light bg-white px-3 py-3 dark:border-white/10 dark:bg-surface-canvas">
-                      <div className="relative mt-0 flex w-full items-start justify-between gap-4">
+                      <div className="group relative mt-0 flex w-full items-start justify-between gap-4">
                         <p className="w-[80%] text-wrap break-all text-lg font-medium text-black dark:text-white/70">
                           {address || "No address available"}
                         </p>

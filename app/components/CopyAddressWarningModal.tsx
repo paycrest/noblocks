@@ -155,11 +155,7 @@ export const CopyAddressWarningModal: React.FC<
               </div>
 
               {/* copied address */}
-              <div className="relative mb-2 flex h-fit min-h-[110px] w-full flex-col items-start gap-3 rounded-xl border border-border-light bg-white px-3 py-3 dark:border-white/10 dark:bg-surface-canvas">
-                <Wallet01Icon
-                  className="text-text-secondary dark:text-white/50"
-                  size={16}
-                />
+              <div className="relative mb-2 flex h-fit min-h-[80px] w-full flex-col items-start gap-3 rounded-2xl border border-border-light bg-white px-3 py-3 dark:border-white/10 dark:bg-surface-canvas">
                 <div className="relative mt-0 flex w-full items-start justify-between gap-4">
                   <p className="w-[80%] text-wrap break-all text-lg font-medium text-black dark:text-white/70">
                     {address || "No address available"}
@@ -181,9 +177,9 @@ export const CopyAddressWarningModal: React.FC<
               </div>
 
               {/* Supported networks list */}
-              <div className="relative mb-2 flex h-fit w-full flex-col items-start gap-2 rounded-xl border border-border-light bg-transparent px-3 py-3 dark:border-white/5">
+              <div className="relative mb-2 flex h-fit w-full flex-col items-start gap-2 rounded-2xl border border-border-light bg-transparent px-3 py-3 dark:border-white/5">
                 <h4 className="mb-1 text-xs font-light text-text-secondary dark:text-white/50">
-                  Supported StableCoins
+                  Supported stablecoins
                 </h4>
                 <div className="flex h-full w-full flex-wrap gap-2 mb-2">
                   {fundTokenOptions.map((token) => (
@@ -291,11 +287,7 @@ export const CopyAddressWarningModal: React.FC<
                     </div>
 
                     {/* copied address */}
-                    <div className="relative mb-2 flex h-fit min-h-[110px] w-full flex-col items-start gap-3 rounded-xl border border-border-light bg-white px-3 py-3 dark:border-white/10 dark:bg-surface-canvas">
-                      <Wallet01Icon
-                        className="text-text-secondary dark:text-white/50"
-                        size={16}
-                      />
+                    <div className="relative mb-2 flex h-fit min-h-[80px] w-full flex-col items-start gap-3 rounded-2xl border border-border-light bg-white px-3 py-3 dark:border-white/10 dark:bg-surface-canvas">
                       <div className="relative mt-0 flex w-full items-start justify-between gap-4">
                         <p className="w-[80%] text-wrap break-all text-lg font-medium text-black dark:text-white/70">
                           {address || "No address available"}
@@ -317,9 +309,9 @@ export const CopyAddressWarningModal: React.FC<
                     </div>
 
                     {/* Supported networks list */}
-                    <div className="relative mb-2 flex h-fit w-full flex-col items-start gap-2 rounded-xl border border-border-light bg-transparent px-3 py-3 dark:border-white/5">
+                    <div className="relative mb-2 flex h-fit w-full flex-col items-start gap-2 rounded-2xl border border-border-light bg-transparent px-3 py-3 dark:border-white/5">
                       <h4 className="mb-1 text-xs font-light text-text-secondary dark:text-white/50">
-                        Supported StableCoins
+                        Supported stablecoins
                       </h4>
                       <div className="flex h-full w-full flex-wrap gap-2 mb-2">
                         {fundTokenOptions.map((token) => (

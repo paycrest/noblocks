@@ -187,15 +187,17 @@ async function authorizationMiddleware(req: NextRequest) {
   // Step 4: Create response with proper headers
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-wallet-address", walletAddress);
+  requestHeaders.set("x-user-id", privyUserId);
   const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
   
-  // Only set x-wallet-address header for internal/authorized requests
+  // Only set x-wallet-address and x-user-id header for internal/authorized requests
   // This prevents identifier leakage to external clients
   const isInternalRequest = isInternalOrAuthorizedRequest(req);
   if (isInternalRequest) {
     response.headers.set("x-wallet-address", walletAddress);
+    response.headers.set("x-user-id", privyUserId);
   }
 
   // Track successful response for analytics
@@ -223,6 +225,7 @@ export const config = {
     "/api/v1/transactions/:path*",
     "/api/v1/account/verify",
     "/api/v1/account/:path*",
+    "/api/blockfest/cashback",
     // (optional) add other instrumented API routes:
     // '/api/v1/kyc/:path*', '/api/v1/rates', '/api/v1/rates/:path*'
   ],

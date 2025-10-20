@@ -1,7 +1,7 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -15,6 +15,10 @@ import {
   CookieConsent,
   Disclaimer,
 } from "./";
+import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
+import { useBlockFestClaim } from "../context/BlockFestClaimContext";
+import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
+import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
 import { fetchRate, fetchSupportedInstitutions } from "../api/aggregator";
 import {
   STEPS,
@@ -27,10 +31,74 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "../context/StepContext";
 import { clearFormState, getBannerPadding } from "../utils";
-import { useInjectedWallet } from "../context/InjectedWalletContext";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
+import { useBlockFestModal } from "../context/BlockFestModalContext";
+import { useInjectedWallet } from "../context";
+
+const PageLayout = ({
+  authenticated,
+  ready,
+  currentStep,
+  transactionFormComponent,
+  isRecipientFormOpen,
+  isBlockFestReferral,
+}: {
+  authenticated: boolean;
+  ready: boolean;
+  currentStep: string;
+  transactionFormComponent: React.ReactNode;
+  isRecipientFormOpen: boolean;
+  isBlockFestReferral: boolean;
+}) => {
+  const { claimed, resetClaim } = useBlockFestClaim();
+  const { user } = usePrivy();
+  const { isOpen, openModal, closeModal } = useBlockFestModal();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+
+  // Clean up claim state when user logs out
+  useEffect(() => {
+    if (!authenticated && !isInjectedWallet) {
+      resetClaim();
+    }
+  }, [authenticated, isInjectedWallet, resetClaim]);
+
+  const walletAddress = isInjectedWallet
+    ? injectedAddress
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
+        ?.address;
+
+  return (
+    <>
+      <BlockFestClaimGate
+        isReferred={isBlockFestReferral}
+        authenticated={authenticated}
+        ready={ready}
+        userAddress={walletAddress ?? ""}
+        onShowModal={openModal}
+      />
+
+      <Disclaimer />
+      <CookieConsent />
+      {!isInjectedWallet && <NetworkSelectionModal />}
+
+      <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
+
+      {currentStep === STEPS.FORM ? (
+        <HomePage
+          transactionFormComponent={transactionFormComponent}
+          isRecipientFormOpen={isRecipientFormOpen}
+          showBlockFestBanner={claimed === true}
+        />
+      ) : (
+        <div className={`px-5 py-28 ${getBannerPadding()}`}>
+          {transactionFormComponent}
+        </div>
+      )}
+    </>
+  );
+};
 
 export function MainPageContent() {
   const searchParams = useSearchParams();
@@ -38,6 +106,7 @@ export function MainPageContent() {
   const { currentStep, setCurrentStep } = useStep();
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
   const { selectedNetwork } = useNetwork();
+  const { isBlockFestReferral } = useBlockFestReferral();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
@@ -109,7 +178,7 @@ export function MainPageContent() {
 
   useEffect(
     function resetOnLogout() {
-      // Reset form if user logs out (but not for injected wallet)
+      // Reset form when user logs out (but not for injected wallets)
       if (!authenticated && !isInjectedWallet) {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
@@ -120,7 +189,7 @@ export function MainPageContent() {
   );
 
   useEffect(function ensureDefaultToken() {
-    // Default token to USDC if missing
+    // Make sure we always have USDC as default
     if (!formMethods.getValues("token")) {
       formMethods.reset({ token: "USDC" });
     }
@@ -129,7 +198,7 @@ export function MainPageContent() {
 
   useEffect(
     function resetProviderErrorOnChange() {
-      // Reset providerErrorShown on query param change
+      // Reset error flag when switching providers
       const newProvider =
         searchParams.get("provider") || searchParams.get("PROVIDER");
       if (!failedProviders.current.has(newProvider || "")) {
@@ -320,35 +389,32 @@ export function MainPageContent() {
     }
   };
 
-  const transactionFormComponent = (
-    <motion.div id="swap" layout>
-      <AnimatePresence mode="wait">
-        <AnimatedPage componentKey={currentStep}>
-          {renderTransactionStep()}
-        </AnimatedPage>
-      </AnimatePresence>
-    </motion.div>
+  const transactionFormComponent = useMemo(
+    () => (
+      <motion.div id="swap" layout>
+        <AnimatePresence mode="wait">
+          <AnimatedPage componentKey={currentStep}>
+            {renderTransactionStep()}
+          </AnimatedPage>
+        </AnimatePresence>
+      </motion.div>
+    ),
+    [currentStep, renderTransactionStep],
   );
+
   return (
     <div className="flex w-full flex-col">
       {showLoading ? (
         <Preloader isLoading={true} />
       ) : (
-        <>
-          <Disclaimer />
-          <CookieConsent />
-          {!isInjectedWallet && <NetworkSelectionModal />}{" "}
-          {currentStep === STEPS.FORM ? (
-            <HomePage
-              transactionFormComponent={transactionFormComponent}
-              isRecipientFormOpen={isRecipientFormOpen}
-            />
-          ) : (
-            <div className={`px-5 py-28 ${getBannerPadding()}`}>
-              {transactionFormComponent}
-            </div>
-          )}
-        </>
+        <PageLayout
+          authenticated={authenticated}
+          ready={ready}
+          currentStep={currentStep}
+          transactionFormComponent={transactionFormComponent}
+          isRecipientFormOpen={isRecipientFormOpen}
+          isBlockFestReferral={isBlockFestReferral}
+        />
       )}
     </div>
   );

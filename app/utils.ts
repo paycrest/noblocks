@@ -237,6 +237,13 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdc-logo.svg",
     },
     {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
       name: "cNGN",
       symbol: "cNGN",
       decimals: 6,
@@ -1078,3 +1085,30 @@ export function formatDecimalPrecision(
   const truncated = Math.floor(num * multiplier) / multiplier;
   return truncated;
 }
+
+// BlockFest utilities
+export const BLOCKFEST_END_DATE = new Date(config.blockfestEndDate);
+
+/**
+ * Check if BlockFest campaign is currently active
+ * @returns true if campaign is active, false if expired
+ */
+export const isBlockFestActive = (): boolean => {
+  return Date.now() <= BLOCKFEST_END_DATE.getTime();
+};
+
+/**
+ * Check if BlockFest campaign has expired
+ * @returns true if campaign has expired, false if still active
+ */
+export const isBlockFestExpired = (): boolean => {
+  return Date.now() > BLOCKFEST_END_DATE.getTime();
+};
+
+/**
+ * Get time remaining until BlockFest campaign ends
+ * @returns milliseconds remaining (0 if expired)
+ */
+export const getBlockFestTimeRemaining = (): number => {
+  return Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now());
+};

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useBlockFestClaim } from "@/app/context/BlockFestClaimContext";
+import { isBlockFestActive } from "../../utils";
 
 export function BlockFestClaimGate({
   isReferred,
@@ -15,6 +16,11 @@ export function BlockFestClaimGate({
   userAddress: string;
   onShowModal: () => void;
 }) {
+  // Early return if BlockFest campaign has expired
+  if (!isBlockFestActive()) {
+    return null;
+  }
+
   const { claimed, checkClaim } = useBlockFestClaim();
   const hasCheckedRef = useRef(false);
   const hasShownModalRef = useRef(false);

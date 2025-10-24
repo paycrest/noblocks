@@ -312,6 +312,14 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       address: "0xa8aea66b361a8d53e8865c62d142167af28af058",
       imageUrl: "/logos/cngn-logo.svg",
     },
+    {
+      name: "BNB",
+      symbol: "BNB",
+      decimals: 18,
+      address: "", // Native token has no contract address
+      imageUrl: "/logos/bnb-logo.svg",
+      isNative: true,
+    },
   ],
   Celo: [
     {
@@ -357,6 +365,23 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
   const now = Date.now();
   // Return cached data if still valid
   if (tokensCache[network] && now - lastTokenFetch < TOKEN_CACHE_DURATION) {
+    // Always ensure native BNB is present for BNB Smart Chain
+    if (network === "BNB Smart Chain") {
+      const nativeBNB = {
+        name: "BNB",
+        symbol: "BNB",
+        decimals: 18,
+        address: "", // Native token has no contract address
+        imageUrl: "/logos/bnb-logo.svg",
+        isNative: true,
+      };
+      const hasNativeBNB = (tokensCache[network] || []).some(
+        (token) => token.symbol === "BNB" && token.isNative
+      );
+      if (!hasNativeBNB) {
+        tokensCache[network] = [...(tokensCache[network] || []), nativeBNB];
+      }
+    }
     return tokensCache[network] || [];
   }
   try {
@@ -437,16 +462,27 @@ export async function fetchWalletBalance(
     // Fetch balances in parallel
     const balancePromises = supportedTokens.map(async (token: Token) => {
       try {
-        const balanceInWei = await client.readContract({
-          address: token.address as `0x${string}`,
-          abi: erc20Abi,
-          functionName: "balanceOf",
-          args: [address as `0x${string}`],
-        });
-        const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-        // Ensure balance is a valid number
-        balances[token.symbol] = isNaN(balance) ? 0 : balance;
-        return balances[token.symbol];
+        if (token.isNative && token.address === "") {
+          // Native BNB balance
+          console.log("Fetching native BNB balance for address:", address);
+          const balanceInWei = await client.getBalance({ address });
+          console.log("Raw native BNB balance (wei):", balanceInWei);
+          const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+          console.log("Native BNB balance (BNB):", balance);
+          balances[token.symbol] = isNaN(balance) ? 0 : balance;
+          return balances[token.symbol];
+        } else {
+          // ERC-20 balance
+          const balanceInWei = await client.readContract({
+            address: token.address as `0x${string}`,
+            abi: erc20Abi,
+            functionName: "balanceOf",
+            args: [address as `0x${string}`],
+          });
+          const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+          balances[token.symbol] = isNaN(balance) ? 0 : balance;
+          return balances[token.symbol];
+        }
       } catch (error) {
         console.error(`Error fetching balance for ${token.symbol}:`, error);
         balances[token.symbol] = 0;

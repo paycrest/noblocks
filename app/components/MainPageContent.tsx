@@ -19,7 +19,7 @@ import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
-import { fetchRate, fetchSupportedInstitutions } from "../api/aggregator";
+import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
 import {
   STEPS,
   type FormData,
@@ -102,7 +102,7 @@ const PageLayout = ({
 
 export function MainPageContent() {
   const searchParams = useSearchParams();
-  const { authenticated, ready } = usePrivy();
+  const { authenticated, ready, getAccessToken } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
   const { selectedNetwork } = useNetwork();
@@ -311,6 +311,30 @@ export function MainPageContent() {
       searchParams,
       selectedNetwork,
     ],
+  );
+
+  // Migrate localStorage recipients to Supabase on app load
+  useEffect(
+    function migrateRecipients() {
+      async function runMigration() {
+        if (!authenticated || isInjectedWallet) {
+          return;
+        }
+
+        try {
+          const accessToken = await getAccessToken();
+          if (accessToken) {
+            await migrateLocalStorageRecipients(accessToken);
+          }
+        } catch (error) {
+          console.error("Recipients migration failed:", error);
+          // Don't show error to user - migration is silent
+        }
+      }
+
+      runMigration();
+    },
+    [authenticated, isInjectedWallet, getAccessToken],
   );
 
   const handleFormSubmit = (data: FormData) => {

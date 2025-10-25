@@ -22,7 +22,7 @@ export function BlockFestClaimGate({
 
   // One-time claim check when wallet is ready
   useEffect(() => {
-    if (!isBlockFestActive() && !hasCheckedRef.current && authenticated && ready && userAddress) {
+    if (isBlockFestActive() && !hasCheckedRef.current && authenticated && ready && userAddress) {
       if (/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
         hasCheckedRef.current = true;
         checkClaim(userAddress);
@@ -42,7 +42,7 @@ export function BlockFestClaimGate({
   // Show modal only once if referred and not yet claimed
   useEffect(() => {
     if (
-      !isBlockFestActive() &&
+      isBlockFestActive() &&
       !hasShownModalRef.current &&
       isReferred &&
       authenticated &&

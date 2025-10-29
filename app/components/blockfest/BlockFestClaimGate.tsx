@@ -16,18 +16,13 @@ export function BlockFestClaimGate({
   userAddress: string;
   onShowModal: () => void;
 }) {
-  // Early return if BlockFest campaign has expired
-  if (!isBlockFestActive()) {
-    return null;
-  }
-
-  const { claimed, checkClaim } = useBlockFestClaim();
+    const { claimed, checkClaim } = useBlockFestClaim();
   const hasCheckedRef = useRef(false);
   const hasShownModalRef = useRef(false);
 
   // One-time claim check when wallet is ready
   useEffect(() => {
-    if (!hasCheckedRef.current && authenticated && ready && userAddress) {
+    if (!isBlockFestActive() && !hasCheckedRef.current && authenticated && ready && userAddress) {
       if (/^0x[a-fA-F0-9]{40}$/.test(userAddress)) {
         hasCheckedRef.current = true;
         checkClaim(userAddress);
@@ -47,6 +42,7 @@ export function BlockFestClaimGate({
   // Show modal only once if referred and not yet claimed
   useEffect(() => {
     if (
+      !isBlockFestActive() &&
       !hasShownModalRef.current &&
       isReferred &&
       authenticated &&

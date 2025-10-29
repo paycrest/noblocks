@@ -25,7 +25,6 @@ import { Token } from "../types";
 import { networks } from "../mocks";
 import { getNetworkImageUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
-import Image from "next/image";
 
 type MobileView = "wallet" | "settings" | "transfer" | "fund" | "history";
 
@@ -350,15 +349,12 @@ export const TransferForm: React.FC<{
                   ? "text-neutral-900 dark:text-white"
                   : "text-gray-400 dark:text-white/30"
                 }`}
-            >{recipientNetwork && (
-              <Image
+            >
+              <img
                 src={recipientNetworkImageUrl}
                 alt={recipientNetwork}
                 className="h-6 w-6 rounded-full"
-                width={24}
-                height={24}
               />
-            )}
               {recipientNetwork || "Select network"}
             </span>
             <ArrowDown01Icon

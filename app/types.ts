@@ -212,6 +212,7 @@ export type Token = {
   decimals: number;
   address: string;
   imageUrl?: string;
+  isNative?: boolean;
 };
 
 export type APIToken = {
@@ -255,6 +256,7 @@ export type Config = {
   googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
   brevoConversationsId: string; // Brevo chat widget ID
+  blockfestEndDate: string; // BlockFest campaign end date
 };
 
 export type Network = {

@@ -9,11 +9,9 @@ import { erc20Abi } from "viem";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { fetchOrderDetails } from "@/app/api/aggregator";
 import { getSmartWalletAddressFromPrivyUserId } from "@/app/lib/privy";
+import { BLOCKFEST_END_DATE } from "@/app/utils";
 
 // Campaign configuration
-const BLOCKFEST_END_DATE = new Date(
-  process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
-);
 const MAX_CASHBACK_PER_TRANSACTION = 100; // $100 max per transaction
 const MAX_CASHBACK_PER_WALLET = 500; // $500 total per wallet
 const MAX_CLAIMS_PER_WALLET = 10; // 10 claims max per wallet

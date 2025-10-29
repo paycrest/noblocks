@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import axios from "axios";
+import { isBlockFestActive } from "../utils";
 
 type ClaimState = {
   claimed: boolean | null;
@@ -30,6 +31,12 @@ export function BlockFestClaimProvider({
 
   const checkClaim = useCallback(async (walletAddress: string) => {
     if (!walletAddress) return;
+
+    // Early return if BlockFest campaign has expired
+    if (!isBlockFestActive()) {
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {

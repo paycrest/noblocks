@@ -42,11 +42,7 @@ import { trackEvent } from "../hooks/analytics/client";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";
-import {
-  CancelCircleIcon,
-  CheckmarkCircle01Icon,
-  InformationSquareIcon,
-} from "hugeicons-react";
+import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
@@ -54,6 +50,37 @@ import { usePrivy } from "@privy-io/react-auth";
 import { BlockFestCashbackComponent } from "../components/blockfest";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { useRocketStatus } from "../context/RocketStatusContext";
+import { isBlockFestActive } from "../utils";
+
+// Allowed tokens for BlockFest cashback
+const ALLOWED_CASHBACK_TOKENS = new Set(["USDC", "USDT"]);
+
+// Helper function to check BlockFest eligibility
+const isBlockFestEligible = (
+  transactionStatus: string,
+  claimed: boolean | null,
+  orderDetails: any,
+  orderId: string | null,
+) => {
+  const isCampaignActive = isBlockFestActive();
+  const isTransactionComplete = ["validated", "settled"].includes(
+    transactionStatus,
+  );
+  const isUserClaimed = claimed === true;
+  const isBaseNetwork = orderDetails?.network?.toLowerCase() === "base";
+  const hasValidOrder = Boolean(orderId && orderDetails?.token);
+  const isEligibleToken =
+    orderDetails?.token && ALLOWED_CASHBACK_TOKENS.has(orderDetails.token);
+
+  return (
+    isCampaignActive &&
+    isTransactionComplete &&
+    isUserClaimed &&
+    isBaseNetwork &&
+    hasValidOrder &&
+    isEligibleToken
+  );
+};
 
 // Allowed tokens for BlockFest cashback
 const ALLOWED_CASHBACK_TOKENS = new Set(["USDC", "USDT"]);
@@ -657,23 +684,23 @@ export function TransactionStatus({
           {["validated", "settled", "refunded"].includes(transactionStatus) && (
             <>
               {/* BlockFest Cashback Component - only when validated/settled and claimed and on Base network */}
-              {["validated", "settled"].includes(transactionStatus) &&
-                claimed === true &&
-                orderDetails?.network?.toLowerCase() === "base" &&
-                orderId &&
-                orderDetails?.token &&
-                ALLOWED_CASHBACK_TOKENS.has(orderDetails.token) && (
-                  <AnimatedComponent
-                    variant={slideInOut}
-                    delay={0.45}
-                    className="flex justify-center"
-                  >
-                    <BlockFestCashbackComponent
-                      transactionId={orderId}
-                      cashbackPercentage="1%"
-                    />
-                  </AnimatedComponent>
-                )}
+              {isBlockFestEligible(
+                transactionStatus,
+                claimed,
+                orderDetails,
+                orderId,
+              ) && (
+                <AnimatedComponent
+                  variant={slideInOut}
+                  delay={0.45}
+                  className="flex justify-center"
+                >
+                  <BlockFestCashbackComponent
+                    transactionId={orderId}
+                    cashbackPercentage="1%"
+                  />
+                </AnimatedComponent>
+              )}
 
               {["validated", "settled"].includes(transactionStatus) && (
                 <AnimatedComponent
@@ -806,12 +833,11 @@ export function TransactionStatus({
 
         <AnimatePresence>
           {["validated", "settled"].includes(transactionStatus) &&
-            !(
-              ["validated", "settled"].includes(transactionStatus) &&
-              claimed === true &&
-              orderDetails?.network?.toLowerCase() === "base" &&
-              orderDetails?.token &&
-              ALLOWED_CASHBACK_TOKENS.has(orderDetails.token)
+            !isBlockFestEligible(
+              transactionStatus,
+              claimed,
+              orderDetails,
+              orderId,
             ) && (
               <AnimatedComponent
                 variant={slideInOut}

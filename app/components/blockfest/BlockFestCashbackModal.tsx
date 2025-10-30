@@ -13,6 +13,7 @@ import { useBlockFestClaim } from "@/app/context/BlockFestClaimContext";
 import { usePrivy } from "@privy-io/react-auth";
 import axios from "axios";
 import { useInjectedWallet } from "../../context";
+import { isBlockFestActive, getBlockFestTimeRemaining } from "../../utils";
 
 interface BlockFestCashbackModalProps {
   isOpen: boolean;
@@ -23,19 +24,11 @@ interface FormData {
   email: string;
 }
 
-// BlockFest end date from environment variable (ISO 8601 format with timezone)
-// Example: 2025-10-11T23:59:00+01:00 (October 11th, 2025 at 11:59 PM UTC+1)
-const BLOCKFEST_END_DATE = new Date(
-  process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
-);
-
 export default function BlockFestCashbackModal({
   isOpen,
   onClose,
 }: BlockFestCashbackModalProps) {
-  const [timeLeft, setTimeLeft] = useState(
-    Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now()),
-  );
+  const [timeLeft, setTimeLeft] = useState(getBlockFestTimeRemaining());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { markClaimed } = useBlockFestClaim();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
@@ -56,7 +49,7 @@ export default function BlockFestCashbackModal({
   // Countdown timer effect
   useEffect(() => {
     const calculateTimeLeft = () => {
-      const remaining = Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now());
+      const remaining = getBlockFestTimeRemaining();
       setTimeLeft(remaining);
       return remaining;
     };
@@ -92,6 +85,15 @@ export default function BlockFestCashbackModal({
   };
 
   const onSubmit = async (data: FormData) => {
+    // Early return if BlockFest campaign has expired
+    if (!isBlockFestActive()) {
+      toast.error("Campaign expired", {
+        description:
+          "BlockFest campaign has ended. Registration is no longer available.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const walletAddress = isInjectedWallet

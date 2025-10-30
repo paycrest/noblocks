@@ -104,42 +104,6 @@ export function useSmartWalletTransfer({
         const tokenData = availableTokens.find(
           (t) => t.symbol.toUpperCase() === searchToken,
         );
-
-        // Native BNB transfer logic
-        if (tokenData?.symbol === "BNB" && tokenData?.isNative) {
-          const value = BigInt(Math.floor(amount * 1e18));
-          const hash = await client?.sendTransaction({
-            to: recipientAddress as `0x${string}`,
-            data: "0x", // No data for native transfer
-            value,
-          });
-          if (!hash) throw new Error("No transaction hash returned");
-          setTxHash(hash as string);
-          setTransferAmount(amount.toString());
-          setTransferToken(token);
-          setIsSuccess(true);
-          setIsLoading(false);
-          toast.success(`${amount.toString()} BNB successfully transferred`);
-          trackEvent("Transfer completed", {
-            Amount: amount,
-            "Send token": token,
-            "Recipient address": recipientAddress,
-            Network: selectedNetwork.chain.name,
-            "Transaction hash": hash,
-            "Transfer date": new Date().toISOString(),
-          });
-          await saveTransferTransaction({
-            txHash: hash as string,
-            recipientAddress,
-            amount,
-            token,
-          });
-          if (resetForm) resetForm();
-          if (refreshBalance) refreshBalance();
-          return;
-        }
-
-        // ERC-20 transfer logic
         const tokenAddress = tokenData?.address as `0x${string}` | undefined;
         const tokenDecimals = tokenData?.decimals;
         if (!tokenAddress || tokenDecimals === undefined) {

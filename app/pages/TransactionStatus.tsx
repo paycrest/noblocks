@@ -82,9 +82,6 @@ const isBlockFestEligible = (
   );
 };
 
-// Allowed tokens for BlockFest cashback
-const ALLOWED_CASHBACK_TOKENS = new Set(["USDC", "USDT"]);
-
 /**
  * Renders the transaction status component.
  *

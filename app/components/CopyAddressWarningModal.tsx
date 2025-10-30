@@ -60,19 +60,6 @@ export const CopyAddressWarningModal: React.FC<
     imageUrl: token.imageUrl,
   }));
 
-  // Filter networks based on wallet type (same logic as NetworksDropdown):
-  // - If isInjectedWallet is true: show all networks (including Celo)
-  // - If isInjectedWallet is false: filter out Celo (smart wallet only)
-  const supportedNetworks = networks.filter(
-    (network) => useInjectedWallet || network.chain.name !== "Celo"
-  );
-
-  const fundTokens = allTokens[selectedNetwork.chain.name] || [];
-  const fundTokenOptions = fundTokens.map((token: Token) => ({
-    name: token.symbol,
-    imageUrl: token.imageUrl,
-  }));
-
   // Track modal view when opened
   useEffect(() => {
     if (isOpen && selectedNetwork) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -147,30 +147,42 @@ export function MainPageContent() {
   const { currency, amountSent, amountReceived, token } = watch();
 
   // State props for child components
-  const stateProps: StateProps = {
-    formValues,
-    setFormValues,
+  const stateProps: StateProps = useMemo(
+    () => ({
+      formValues,
+      setFormValues,
 
-    rate,
-    setRate,
-    isFetchingRate,
-    setIsFetchingRate,
-    rateError,
-    setRateError,
+      rate,
+      setRate,
+      isFetchingRate,
+      setIsFetchingRate,
+      rateError,
+      setRateError,
 
-    institutions,
-    setInstitutions,
-    isFetchingInstitutions,
-    setIsFetchingInstitutions,
+      institutions,
+      setInstitutions,
+      isFetchingInstitutions,
+      setIsFetchingInstitutions,
 
-    selectedRecipient,
-    setSelectedRecipient,
+      selectedRecipient,
+      setSelectedRecipient,
 
-    orderId,
-    setOrderId,
-    setCreatedAt,
-    setTransactionStatus,
-  };
+      orderId,
+      setOrderId,
+      setCreatedAt,
+      setTransactionStatus,
+    }),
+    [
+      formValues,
+      rate,
+      isFetchingRate,
+      rateError,
+      institutions,
+      isFetchingInstitutions,
+      selectedRecipient,
+      orderId,
+    ],
+  );
   useEffect(function setPageLoadingState() {
     setOrderId("");
     setIsPageLoading(false);
@@ -313,12 +325,15 @@ export function MainPageContent() {
     ],
   );
 
-  const handleFormSubmit = (data: FormData) => {
-    setFormValues(data);
-    setCurrentStep(STEPS.PREVIEW);
-  };
+  const handleFormSubmit = useCallback(
+    (data: FormData) => {
+      setFormValues(data);
+      setCurrentStep(STEPS.PREVIEW);
+    },
+    [setFormValues, setCurrentStep],
+  );
 
-  const handleBackToForm = () => {
+  const handleBackToForm = useCallback(() => {
     Object.entries(formValues).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         formMethods.setValue(key as keyof FormData, value);
@@ -334,7 +349,7 @@ export function MainPageContent() {
       shouldTouch: true,
     });
     setCurrentStep(STEPS.FORM);
-  };
+  }, [formValues, formMethods, setCurrentStep]);
 
   const showLoading =
     isPageLoading ||
@@ -344,7 +359,7 @@ export function MainPageContent() {
   const isRecipientFormOpen =
     !!currency && (authenticated || isInjectedWallet) && isUserVerified;
 
-  const renderTransactionStep = () => {
+  const renderTransactionStep = useCallback(() => {
     switch (currentStep) {
       case STEPS.FORM:
         return (
@@ -387,7 +402,23 @@ export function MainPageContent() {
       default:
         return null;
     }
-  };
+  }, [
+    currentStep,
+    handleFormSubmit,
+    formMethods,
+    stateProps,
+    isUserVerified,
+    setIsUserVerified,
+    handleBackToForm,
+    createdAt,
+    transactionStatus,
+    orderId,
+    institutions,
+    setSelectedRecipient,
+    setTransactionStatus,
+    setCurrentStep,
+    setOrderId,
+  ]);
 
   const transactionFormComponent = useMemo(
     () => (

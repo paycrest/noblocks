@@ -25,6 +25,7 @@ import { Token } from "../types";
 import { networks } from "../mocks";
 import { getNetworkImageUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
+import Image from "next/image";
 
 type MobileView = "wallet" | "settings" | "transfer" | "fund" | "history";
 

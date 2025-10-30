@@ -69,24 +69,6 @@ export function TokensProvider({ children }: { children: ReactNode }) {
           newTokens["Base"].push(usdtBase);
         }
       }
-
-      // Ensure native BNB is present in BNB Smart Chain
-      if (newTokens["BNB Smart Chain"]) {
-        const nativeBNB = {
-          name: "BNB",
-          symbol: "BNB",
-          decimals: 18,
-          address: "", // Native token has no contract address
-          imageUrl: "/logos/bnb-logo.svg",
-          isNative: true,
-        };
-        const hasNativeBNB = newTokens["BNB Smart Chain"].some(
-          (token) => token.symbol === "BNB" && token.isNative
-        );
-        if (!hasNativeBNB) {
-          newTokens["BNB Smart Chain"].push(nativeBNB);
-        }
-      }
       setAllTokens(newTokens);
     } catch (err) {
       console.error("Failed to fetch tokens from API, using fallback:", err);

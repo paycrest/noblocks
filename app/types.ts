@@ -212,7 +212,6 @@ export type Token = {
   decimals: number;
   address: string;
   imageUrl?: string;
-  isNative?: boolean;
 };
 
 export type APIToken = {

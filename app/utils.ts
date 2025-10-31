@@ -147,6 +147,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://celoscan.io/tx/${txHash}`;
     case "Lisk":
       return `https://blockscout.lisk.com/tx/${txHash}`;
+    case "Hedera Mainnet":
+      return `https://hashscan.io/mainnet/transaction/${txHash}`;
     default:
       return "";
   }
@@ -167,6 +169,8 @@ export function getRpcUrl(network: string) {
       return `https://42220.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Lisk":
       return `https://1135.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+    case "Hedera Mainnet":
+      return "https://mainnet.hashio.io/api";
     default:
       return undefined;
   }
@@ -327,6 +331,15 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       decimals: 18,
       address: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
       imageUrl: "/logos/cusd-logo.svg",
+    },
+  ],
+  "Hedera Mainnet": [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0x000000000000000000000000000000000006f89a",
+      imageUrl: "/logos/usdc-logo.svg",
     },
   ],
   Lisk: [

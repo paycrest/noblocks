@@ -5,7 +5,11 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
-import { classNames, formatDecimalPrecision, shouldUseInjectedWallet } from "../utils";
+import {
+  classNames,
+  formatDecimalPrecision,
+  shouldUseInjectedWallet,
+} from "../utils";
 import { useSearchParams } from "next/navigation";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import { FormDropdown } from "./FormDropdown";
@@ -48,7 +52,6 @@ export const TransferForm: React.FC<{
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
   const networkDropdownRef = useRef<HTMLDivElement>(null);
 
-
   const formMethods = useForm<{
     amount: number;
     token: string;
@@ -74,9 +77,14 @@ export const TransferForm: React.FC<{
   const tokenBalance = Number(smartWalletBalance?.balances?.[token]) || 0;
 
   // Networks for recipient network selection
-  // Filter out Celo for non-injected wallets (smart wallets)
+  // Filter out Celo and Hedera Mainnet for non-injected wallets (smart wallets)
   const recipientNetworks = networks
-    .filter((network) => useInjectedWallet || network.chain.name !== "Celo")
+    .filter((network) => {
+      if (useInjectedWallet) return true;
+      return (
+        network.chain.name !== "Celo" && network.chain.name !== "Hedera Mainnet"
+      );
+    })
     .map((network) => ({
       name: network.chain.name,
       imageUrl: getNetworkImageUrl(network, isDark),
@@ -303,7 +311,7 @@ export const TransferForm: React.FC<{
               },
             })}
             className={classNames(
-              "min-h-12 w-full rounded-xl border border-border-input dark:bg-black2 py-3 pl-10 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
+              "min-h-12 w-full rounded-xl border border-border-input py-3 pl-10 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-black2 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
               errors.recipientAddress
                 ? "text-red-500 dark:text-red-500"
                 : "text-neutral-900 dark:text-white/80",
@@ -346,10 +354,11 @@ export const TransferForm: React.FC<{
             aria-controls="recipient-network-listbox"
           >
             <span
-              className={`flex items-center gap-3 ${recipientNetwork
+              className={`flex items-center gap-3 ${
+                recipientNetwork
                   ? "text-neutral-900 dark:text-white"
                   : "text-gray-400 dark:text-white/30"
-                }`}
+              }`}
             >
               <img
                 src={recipientNetworkImageUrl}
@@ -359,8 +368,9 @@ export const TransferForm: React.FC<{
               {recipientNetwork || "Select network"}
             </span>
             <ArrowDown01Icon
-              className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 text-outline-gray transition-transform dark:text-white/50 ${isNetworkDropdownOpen ? "rotate-180" : ""
-                }`}
+              className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 text-outline-gray transition-transform dark:text-white/50 ${
+                isNetworkDropdownOpen ? "rotate-180" : ""
+              }`}
             />
           </button>
 
@@ -390,7 +400,7 @@ export const TransferForm: React.FC<{
                       setIsNetworkDropdownOpen(false);
                     }
                   }}
-                  className="flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-gray-50 dark:hover:bg-white/5 focus:bg-gray-50 dark:focus:bg-white/5"
+                  className="flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-gray-50 focus:bg-gray-50 dark:hover:bg-white/5 dark:focus:bg-white/5"
                 >
                   <Image
                     src={network.imageUrl}
@@ -411,17 +421,20 @@ export const TransferForm: React.FC<{
 
       {/* Amount field */}
       <div className="w-full max-w-full space-y-2">
-        <div className="w-full flex flex-col gap-3 px-4 py-3 rounded-2xl border-[0.3px] border-border-input bg-transparent dark:bg-black2 dark:border-white/20 min-h-[94px] h-fit">
+        <div className="flex h-fit min-h-[94px] w-full flex-col gap-3 rounded-2xl border-[0.3px] border-border-input bg-transparent px-4 py-3 dark:border-white/20 dark:bg-black2">
           <div className="flex justify-between gap-1">
             <label
               htmlFor="amount"
-              className=" text-sm font-medium text-text-secondary dark:text-white/70"
+              className="text-sm font-medium text-text-secondary dark:text-white/70"
             >
               Amount
             </label>
             {token && (
-              <div className=" flex items-center gap-2">
-                <Wallet01Icon size={16} className=" text-icon-outline-secondary dark:text-white/50" />
+              <div className="flex items-center gap-2">
+                <Wallet01Icon
+                  size={16}
+                  className="text-icon-outline-secondary dark:text-white/50"
+                />
                 <span className="text-sm font-normal text-neutral-900 dark:text-white">
                   {isLoading || smartWalletBalance === null ? (
                     <BalanceSkeleton className="w-12" />
@@ -436,10 +449,11 @@ export const TransferForm: React.FC<{
                 >
                   Max
                 </button>
-              </div>)}
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center justify-between gap-2 ">
+          <div className="flex items-center justify-between gap-2">
             <input
               id="amount"
               type="number"
@@ -463,10 +477,11 @@ export const TransferForm: React.FC<{
                   message: "Invalid amount",
                 },
               })}
-              className={` bg-transparent w-full text-3xl font-medium outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amount
+              className={`w-full bg-transparent text-3xl font-medium outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
+                errors.amount
                   ? "text-red-500 dark:text-red-500"
                   : "text-neutral-900 dark:text-white"
-                }`}
+              }`}
               placeholder="0"
               title="Enter amount to send"
             />
@@ -487,7 +502,7 @@ export const TransferForm: React.FC<{
         {errors.amount && (
           <AnimatedComponent
             variant={slideInOut}
-            className="relative top-1 left-2 text-xs text-red-500"
+            className="relative left-2 top-1 text-xs text-red-500"
           >
             {errors.amount.message}
           </AnimatedComponent>
@@ -496,9 +511,9 @@ export const TransferForm: React.FC<{
 
       {/* Network compatibility warning */}
       {showNetworkWarning && (
-        <div className="h-[48px] w-full bg-warning-background/[8%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start justify-start gap-0.5">
-          <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[24px] h-[24px] mr-2 -mt-0.5" />
-          <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight text-wrap">
+        <div className="mb-4 flex h-[48px] w-full items-start justify-start gap-0.5 rounded-xl bg-warning-background/[8%] px-3 py-2 dark:bg-warning-background/[8%]">
+          <InformationSquareIcon className="-mt-0.5 mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
+          <p className="text-wrap text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
             Ensure that the withdrawal address supports {recipientNetwork}{" "}
             network to avoid loss of funds.
           </p>
@@ -514,7 +529,9 @@ export const TransferForm: React.FC<{
             ? "bg-gray-300 text-gray-500 dark:bg-white/10 dark:text-white/50"
             : "bg-lavender-500 text-white hover:bg-lavender-600 dark:hover:bg-lavender-600",
         )}
-        disabled={!isValid || !isDirty || isConfirming || !token || !(amount > 0)}
+        disabled={
+          !isValid || !isDirty || isConfirming || !token || !(amount > 0)
+        }
       >
         {isConfirming ? "Confirming..." : "Continue"}
       </button>

@@ -40,11 +40,12 @@ export const CopyAddressWarningModal: React.FC<
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   // Filter networks based on wallet type (same logic as NetworksDropdown):
-  // - If isInjectedWallet is true: show all networks (including Celo)
-  // - If isInjectedWallet is false: filter out Celo (smart wallet only)
-  const supportedNetworks = networks.filter(
-    (network) => useInjectedWallet || network.chain.name !== "Celo"
-  );
+  // - If isInjectedWallet is true: show all networks (including Celo and Hedera Mainnet)
+  // - If isInjectedWallet is false: filter out Celo and Hedera Mainnet (smart wallet only)
+  const supportedNetworks = networks.filter((network) => {
+    if (useInjectedWallet) return true;
+    return network.chain.name !== "Celo" && network.chain.name !== "Hedera Mainnet";
+  });
 
   // Check localStorage on mount to see if user has opted out
   useEffect(() => {

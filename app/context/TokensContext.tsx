@@ -69,6 +69,14 @@ export function TokensProvider({ children }: { children: ReactNode }) {
           newTokens["Base"].push(usdtBase);
         }
       }
+
+      // Merge fallback tokens for any networks missing from API response
+      Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
+        if (!newTokens[networkName] || newTokens[networkName].length === 0) {
+          newTokens[networkName] = FALLBACK_TOKENS[networkName];
+        }
+      });
+
       setAllTokens(newTokens);
     } catch (err) {
       console.error("Failed to fetch tokens from API, using fallback:", err);

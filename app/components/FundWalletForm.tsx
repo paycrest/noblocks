@@ -69,9 +69,12 @@ export const FundWalletForm: React.FC<{
   }));
 
   // Networks for network selection
-  // Filter out Celo for non-injected wallets (smart wallets)
+  // Filter out Celo and Hedera Mainnet for non-injected wallets (smart wallets)
   const availableNetworks = networks
-    .filter((network) => useInjectedWallet || network.chain.name !== "Celo")
+    .filter((network) => {
+      if (useInjectedWallet) return true;
+      return network.chain.name !== "Celo" && network.chain.name !== "Hedera Mainnet";
+    })
     .map((network) => ({
       name: network.chain.name,
       imageUrl: getNetworkImageUrl(network, isDark),

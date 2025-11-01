@@ -414,6 +414,12 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
             tokens["Base"].push(usdtBase);
           }
         }
+        // Merge fallback tokens for any networks missing from API response
+        Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
+          if (!tokens[networkName] || tokens[networkName].length === 0) {
+            tokens[networkName] = FALLBACK_TOKENS[networkName];
+          }
+        });
         tokensCache = tokens;
         lastTokenFetch = now;
       })();

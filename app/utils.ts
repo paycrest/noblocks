@@ -544,6 +544,20 @@ export function shortenAddress(
 }
 
 /**
+ * Normalizes network name for rate fetching API.
+ * Maps "Hedera Mainnet" to "hedera" instead of "hedera-mainnet".
+ * @param network - The network name to normalize.
+ * @returns The normalized network name for rate fetching.
+ */
+export function normalizeNetworkForRateFetch(network: string): string {
+  // Special case: Hedera Mainnet should be "hedera" not "hedera-mainnet"
+  if (network.toLowerCase() === "hedera mainnet") {
+    return "hedera";
+  }
+  return network.toLowerCase().replace(/\s+/g, "-");
+}
+
+/**
  * Retrieves the contract address for the specified network.
  * @param network - The network for which to retrieve the contract address.
  * @returns The contract address for the specified network, or undefined if the network is not found.

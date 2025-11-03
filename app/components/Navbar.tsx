@@ -54,6 +54,8 @@ export const Navbar = () => {
           email: user.email,
         });
 
+        localStorage.setItem("userId", user.wallet.address);
+
         if (isNewUser) {
           localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address}`);
 

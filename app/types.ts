@@ -384,3 +384,19 @@ export type Currency = {
   label: string;
   disabled?: boolean;
 };
+
+// Saved Recipients API Types
+export interface RecipientDetailsWithId extends RecipientDetails {
+  id: string;
+}
+
+export interface SavedRecipientsResponse {
+  success: boolean;
+  data: RecipientDetailsWithId[];
+  error?: string;
+}
+
+export interface SaveRecipientResponse {
+  success: boolean;
+  data: RecipientDetailsWithId;
+}

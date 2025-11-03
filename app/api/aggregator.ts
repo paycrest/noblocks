@@ -15,6 +15,9 @@ import type {
   UpdateTransactionDetailsPayload,
   UpdateTransactionStatusPayload,
   APIToken,
+  RecipientDetails,
+  RecipientDetailsWithId,
+  SavedRecipientsResponse,
 } from "../types";
 import {
   trackServerEvent,
@@ -192,7 +195,7 @@ export const fetchAccountName = async (
       service: "aggregator",
       institution: payload.institution,
       // account_identifier omitted
-     // account_name omitted
+      // account_name omitted
     });
 
     // Track business event
@@ -205,7 +208,7 @@ export const fetchAccountName = async (
     const responseTime = Date.now() - startTime;
 
     // Track API error
-    trackServerEvent('External API Error', {  
+    trackServerEvent("External API Error", {
       service: "aggregator",
       endpoint: "/verify-account",
       method: "POST",
@@ -265,16 +268,15 @@ export const initiateKYC = async (
 
     // Track successful response
     const responseTime = Date.now() - startTime;
-    trackApiResponse('/kyc', 'POST', 200, responseTime, {
+    trackApiResponse("/kyc", "POST", 200, responseTime, {
       service: "aggregator",
       wallet_address: payload.walletAddress,
-      // kyc_url omitted  
+      // kyc_url omitted
     });
 
     // Track business event
     trackBusinessEvent("KYC Initiated", {
       wallet_address: payload.walletAddress,
-      
     });
 
     return response.data;
@@ -505,3 +507,166 @@ export const fetchTokens = async (): Promise<APIToken[]> => {
     throw error;
   }
 };
+
+/**
+ * Fetches saved recipients for a wallet address
+ * @param {string} accessToken - The access token for authentication
+ * @returns {Promise<RecipientDetailsWithId[]>} Array of saved recipients
+ * @throws {Error} If the API request fails
+ */
+export async function fetchSavedRecipients(
+  accessToken: string,
+): Promise<RecipientDetailsWithId[]> {
+  const response = await axios.get<SavedRecipientsResponse>(
+    "/api/v1/recipients",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+
+  if (!response.data.success) {
+    throw new Error(response.data.error || "Failed to fetch recipients");
+  }
+
+  return response.data.data;
+}
+
+/**
+ * Saves a new recipient
+ * @param {RecipientDetails} recipient - The recipient data to save
+ * @param {string} accessToken - The access token for authentication
+ * @returns {Promise<boolean>} Success status
+ * @throws {Error} If the API request fails
+ */
+export async function saveRecipient(
+  recipient: RecipientDetails,
+  accessToken: string,
+): Promise<boolean> {
+  try {
+    const response = await axios.post("/api/v1/recipients", recipient, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.data.success) {
+      throw new Error(response.data.error || "Failed to save recipient");
+    }
+
+    return true;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const errorData = error.response?.data;
+      throw new Error(errorData?.error || error.message);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Deletes a saved recipient
+ * @param {string} recipientId - The ID of the recipient to delete
+ * @param {string} accessToken - The access token for authentication
+ * @returns {Promise<boolean>} Success status
+ * @throws {Error} If the API request fails
+ */
+export async function deleteSavedRecipient(
+  recipientId: string,
+  accessToken: string,
+): Promise<boolean> {
+  const response = await axios.delete(`/api/v1/recipients?id=${recipientId}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.data.success) {
+    throw new Error(response.data.error || "Failed to delete recipient");
+  }
+
+  return true;
+}
+
+/**
+ * Migrates recipients from localStorage to Supabase
+ * @param {string} accessToken - The access token for authentication
+ * @returns {Promise<void>}
+ */
+export async function migrateLocalStorageRecipients(
+  accessToken: string,
+): Promise<void> {
+  const migrationKey = `recipientsMigrated-${localStorage.getItem("userId")}`;
+
+  // Check if migration has already been done
+  if (localStorage.getItem(migrationKey)) {
+    return;
+  }
+
+  try {
+    const savedRecipients = localStorage.getItem("savedRecipients");
+    if (!savedRecipients) {
+      localStorage.setItem(migrationKey, "true");
+      return;
+    }
+
+    const recipients: RecipientDetails[] = JSON.parse(savedRecipients);
+
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+      localStorage.setItem(migrationKey, "true");
+      return;
+    }
+
+    // First, fetch existing recipients from DB to check for duplicates
+    const existingRecipients = await fetchSavedRecipients(accessToken);
+    const existingKeys = new Set(
+      existingRecipients.map(
+        (r) => `${r.institutionCode}-${r.accountIdentifier}`,
+      ),
+    );
+
+    // Filter out duplicates - only migrate recipients that don't exist in DB
+    const recipientsToMigrate = recipients.filter((recipient) => {
+      const key = `${recipient.institutionCode}-${recipient.accountIdentifier}`;
+      return !existingKeys.has(key);
+    });
+
+    if (recipientsToMigrate.length === 0) {
+      console.log("All recipients already exist in cloud storage");
+      localStorage.removeItem("savedRecipients");
+      localStorage.setItem(migrationKey, "true");
+      return;
+    }
+
+    // Migrate only new recipients to Supabase using batch processing
+    const migrationPromises = recipientsToMigrate.map(async (recipient) => {
+      try {
+        await saveRecipient(recipient, accessToken);
+        return { success: true, recipient };
+      } catch (error) {
+        console.error(`Failed to migrate recipient ${recipient.name}:`, error);
+        return { success: false, recipient, error };
+      }
+    });
+
+    // Wait for all migrations to complete
+    const results = await Promise.all(migrationPromises);
+
+    const migratedCount = results.filter((r) => r.success).length;
+    const failedCount = results.filter((r) => !r.success).length;
+
+    if (migratedCount > 0) {
+      console.log(`Migrated ${migratedCount} recipients to cloud storage`);
+    }
+    if (failedCount > 0) {
+      console.warn(`Failed to migrate ${failedCount} recipients`);
+    }
+
+    localStorage.removeItem("savedRecipients");
+    localStorage.setItem(migrationKey, "true");
+  } catch (error) {
+    console.error("Error migrating recipients:", error);
+    // Don't throw - let the app continue even if migration fails
+  }
+}

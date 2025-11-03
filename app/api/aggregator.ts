@@ -560,12 +560,6 @@ export async function saveRecipient(
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const errorData = error.response?.data;
-      if (
-        error.response?.status === 400 &&
-        errorData?.error?.includes("Maximum of 50")
-      ) {
-        throw new Error("Maximum of 50 saved recipients allowed per wallet");
-      }
       throw new Error(errorData?.error || error.message);
     }
     throw error;
@@ -604,7 +598,7 @@ export async function deleteSavedRecipient(
 export async function migrateLocalStorageRecipients(
   accessToken: string,
 ): Promise<void> {
-  const migrationKey = `recipientsMigrated-${sessionStorage.getItem("userId")}`;
+  const migrationKey = `recipientsMigrated-${localStorage.getItem("userId")}`;
 
   // Check if migration has already been done
   if (localStorage.getItem(migrationKey)) {

@@ -25,7 +25,6 @@ import {
   trackApiRequest,
   trackApiResponse,
 } from "../lib/server-analytics";
-import { randomUUID } from "node:crypto";
 
 const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
 

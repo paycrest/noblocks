@@ -25,6 +25,7 @@ import {
   trackApiRequest,
   trackApiResponse,
 } from "../lib/server-analytics";
+import { randomUUID } from "node:crypto";
 
 const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
 
@@ -603,7 +604,7 @@ export async function deleteSavedRecipient(
 export async function migrateLocalStorageRecipients(
   accessToken: string,
 ): Promise<void> {
-  const migrationKey = "recipientsMigrated";
+  const migrationKey = `recipientsMigrated-${sessionStorage.getItem("userId")}`;
 
   // Check if migration has already been done
   if (localStorage.getItem(migrationKey)) {

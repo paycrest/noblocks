@@ -328,7 +328,7 @@ export function MainPageContent() {
   useEffect(
     function migrateRecipients() {
       async function runMigration() {
-        if (!authenticated || isInjectedWallet) {
+        if (!authenticated || !ready || isInjectedWallet) {
           return;
         }
 
@@ -345,7 +345,7 @@ export function MainPageContent() {
 
       runMigration();
     },
-    [authenticated, isInjectedWallet, getAccessToken],
+    [authenticated, ready, isInjectedWallet, getAccessToken],
   );
 
   const handleFormSubmit = useCallback(

@@ -20,6 +20,7 @@ import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
 import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
+import { normalizeNetworkForRateFetch } from "../utils";
 import {
   STEPS,
   type FormData,
@@ -267,9 +268,7 @@ export function MainPageContent() {
             amount: amountSent || 100,
             currency,
             providerId,
-            network: selectedNetwork.chain.name
-              .toLowerCase()
-              .replace(/\s+/g, "-"),
+            network: normalizeNetworkForRateFetch(selectedNetwork.chain.name),
           });
           setRate(rate.data);
           setRateError(null); // Clear error on success

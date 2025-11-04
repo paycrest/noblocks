@@ -514,7 +514,7 @@ export const TransferForm: React.FC<{
         <div className="mb-4 flex h-[48px] w-full items-start justify-start gap-0.5 rounded-xl bg-warning-background/[8%] px-3 py-2 dark:bg-warning-background/[8%]">
           <InformationSquareIcon className="-mt-0.5 mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
           <p className="text-wrap text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
-            Ensure that the withdrawal address supports {recipientNetwork}{" "}
+            Ensure that the recipient wallet address supports {recipientNetwork}{" "}
             network to avoid loss of funds.
           </p>
         </div>

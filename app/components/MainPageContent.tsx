@@ -148,8 +148,7 @@ export function MainPageContent() {
   const { currency, amountSent, amountReceived, token } = watch();
 
   // State props for child components
-  const stateProps: StateProps = useMemo(
-    () => ({
+  const stateProps: StateProps = {
       formValues,
       setFormValues,
 
@@ -172,18 +171,8 @@ export function MainPageContent() {
       setOrderId,
       setCreatedAt,
       setTransactionStatus,
-    }),
-    [
-      formValues,
-      rate,
-      isFetchingRate,
-      rateError,
-      institutions,
-      isFetchingInstitutions,
-      selectedRecipient,
-      orderId,
-    ],
-  );
+    }
+    
   useEffect(function setPageLoadingState() {
     setOrderId("");
     setIsPageLoading(false);

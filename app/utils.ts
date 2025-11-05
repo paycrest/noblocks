@@ -147,6 +147,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://celoscan.io/tx/${txHash}`;
     case "Lisk":
       return `https://blockscout.lisk.com/tx/${txHash}`;
+    case "Hedera Mainnet":
+      return `https://hashscan.io/mainnet/transaction/${txHash}`;
     default:
       return "";
   }
@@ -155,8 +157,6 @@ export const getExplorerLink = (network: string, txHash: string) => {
 // write function to get rpc url for a given network
 export function getRpcUrl(network: string) {
   switch (network) {
-    case "Ethereum":
-      return `https://1.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Polygon":
       return `https://137.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "BNB Smart Chain":
@@ -169,6 +169,8 @@ export function getRpcUrl(network: string) {
       return `https://42220.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Lisk":
       return `https://1135.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+    case "Hedera Mainnet":
+      return "https://mainnet.hashio.io/api";
     default:
       return undefined;
   }
@@ -237,6 +239,13 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       decimals: 6,
       address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
       imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+      imageUrl: "/logos/usdt-logo.svg",
     },
     {
       name: "cNGN",
@@ -324,6 +333,15 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/cusd-logo.svg",
     },
   ],
+  "Hedera Mainnet": [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0x000000000000000000000000000000000006f89a",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+  ],
   Lisk: [
     {
       name: "Tether USD",
@@ -396,6 +414,12 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
             tokens["Base"].push(usdtBase);
           }
         }
+        // Merge fallback tokens for any networks missing from API response
+        Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
+          if (!tokens[networkName] || tokens[networkName].length === 0) {
+            tokens[networkName] = FALLBACK_TOKENS[networkName];
+          }
+        });
         tokensCache = tokens;
         lastTokenFetch = now;
       })();
@@ -520,6 +544,20 @@ export function shortenAddress(
 }
 
 /**
+ * Normalizes network name for rate fetching API.
+ * Maps "Hedera Mainnet" to "hedera" instead of "hedera-mainnet".
+ * @param network - The network name to normalize.
+ * @returns The normalized network name for rate fetching.
+ */
+export function normalizeNetworkForRateFetch(network: string): string {
+  // Special case: Hedera Mainnet should be "hedera" not "hedera-mainnet"
+  if (network.toLowerCase() === "hedera mainnet") {
+    return "hedera";
+  }
+  return network.toLowerCase().replace(/\s+/g, "-");
+}
+
+/**
  * Retrieves the contract address for the specified network.
  * @param network - The network for which to retrieve the contract address.
  * @returns The contract address for the specified network, or undefined if the network is not found.
@@ -534,6 +572,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
     Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
     Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
+    "Hedera Mainnet": "0x17d13B7032944af8B420Ac5bedb12a7D92270478",
   }[network];
 }
 
@@ -1080,3 +1119,30 @@ export function formatDecimalPrecision(
   const truncated = Math.floor(num * multiplier) / multiplier;
   return truncated;
 }
+
+// BlockFest utilities
+export const BLOCKFEST_END_DATE = new Date(config.blockfestEndDate);
+
+/**
+ * Check if BlockFest campaign is currently active
+ * @returns true if campaign is active, false if expired
+ */
+export const isBlockFestActive = (): boolean => {
+  return Date.now() <= BLOCKFEST_END_DATE.getTime();
+};
+
+/**
+ * Check if BlockFest campaign has expired
+ * @returns true if campaign has expired, false if still active
+ */
+export const isBlockFestExpired = (): boolean => {
+  return Date.now() > BLOCKFEST_END_DATE.getTime();
+};
+
+/**
+ * Get time remaining until BlockFest campaign ends
+ * @returns milliseconds remaining (0 if expired)
+ */
+export const getBlockFestTimeRemaining = (): number => {
+  return Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now());
+};

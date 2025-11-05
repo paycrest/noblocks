@@ -41,19 +41,7 @@ export const PausedNetworkNotice: React.FC<PausedNetworkNoticeProps> = ({
                 ? "swaps are"
                 : "swaps are"}{" "}
               currently paused due to an ongoing migration. Please try again
-              soon or{" "}
-            </span>
-            <a
-              href={config.contactSupportUrl}
-              className="font-medium text-black hover:underline dark:text-white"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              contact support
-            </a>
-            <span className="font-normal text-text-secondary dark:text-white/50">
-              {" "}
-              for more info.
+              soon or contact support for more info.
             </span>
           </div>
         </motion.div>

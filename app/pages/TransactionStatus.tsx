@@ -1,9 +1,9 @@
 "use client";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
-import { PiSpinnerBold } from "react-icons/pi";
+import { ImSpinner } from "react-icons/im";
 import { Checkbox } from "@headlessui/react";
 
 import {
@@ -12,6 +12,7 @@ import {
   secondaryBtnClasses,
   fadeInOut,
   slideInOut,
+  fadeUpAnimation,
   primaryBtnClasses,
 } from "../components";
 import {
@@ -29,9 +30,14 @@ import {
   formatNumberWithCommas,
   getExplorerLink,
   getInstitutionNameByCode,
-  getSavedRecipients,
 } from "../utils";
-import { fetchOrderDetails, updateTransactionDetails } from "../api/aggregator";
+import {
+  fetchOrderDetails,
+  updateTransactionDetails,
+  fetchSavedRecipients,
+  saveRecipient,
+  deleteSavedRecipient,
+} from "../api/aggregator";
 import {
   STEPS,
   type OrderDetailsData,
@@ -41,17 +47,45 @@ import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/client";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
-import { LOCAL_STORAGE_KEY_RECIPIENTS } from "../components/recipient/types";
-import {
-  CancelCircleIcon,
-  CheckmarkCircle01Icon,
-  InformationSquareIcon,
-} from "hugeicons-react";
+import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
+import { usePrivy } from "@privy-io/react-auth";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
-import { usePrivy } from "@privy-io/react-auth";
+import { BlockFestCashbackComponent } from "../components/blockfest";
+import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { useRocketStatus } from "../context/RocketStatusContext";
+import { isBlockFestActive } from "../utils";
+
+// Allowed tokens for BlockFest cashback
+const ALLOWED_CASHBACK_TOKENS = new Set(["USDC", "USDT"]);
+
+// Helper function to check BlockFest eligibility
+const isBlockFestEligible = (
+  transactionStatus: string,
+  claimed: boolean | null,
+  orderDetails: any,
+  orderId: string | null,
+) => {
+  const isCampaignActive = isBlockFestActive();
+  const isTransactionComplete = ["validated", "settled"].includes(
+    transactionStatus,
+  );
+  const isUserClaimed = claimed === true;
+  const isBaseNetwork = orderDetails?.network?.toLowerCase() === "base";
+  const hasValidOrder = Boolean(orderId && orderDetails?.token);
+  const isEligibleToken =
+    orderDetails?.token && ALLOWED_CASHBACK_TOKENS.has(orderDetails.token);
+
+  return (
+    isCampaignActive &&
+    isTransactionComplete &&
+    isUserClaimed &&
+    isBaseNetwork &&
+    hasValidOrder &&
+    isEligibleToken
+  );
+};
 
 /**
  * Renders the transaction status component.
@@ -77,6 +111,7 @@ export function TransactionStatus({
   supportedInstitutions,
   setOrderId,
 }: TransactionStatusProps) {
+  const { claimed } = useBlockFestClaim();
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
   const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
@@ -97,6 +132,8 @@ export function TransactionStatus({
   const [addToBeneficiaries, setAddToBeneficiaries] = useState(false);
   const [isTracked, setIsTracked] = useState(false);
   const [hasShownConfetti, setHasShownConfetti] = useState(false);
+  const [isSavingRecipient, setIsSavingRecipient] = useState(false);
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const latestRequestIdRef = useRef<number>(0);
 
   const fireConfetti = useConfetti();
@@ -110,15 +147,40 @@ export function TransactionStatus({
   const accountIdentifier = watch("accountIdentifier") || "";
   const institution = watch("institution") || "";
 
-  // Check if recipient is already in beneficiaries
-  const isRecipientInBeneficiaries = useMemo(() => {
-    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
-    return savedRecipients.some(
-      (r: { accountIdentifier: string; institutionCode: string }) =>
-        r.accountIdentifier === accountIdentifier &&
-        r.institutionCode === institution,
-    );
-  }, [accountIdentifier, institution]);
+  // Check if recipient is already saved in the database
+  const [isRecipientInBeneficiaries, setIsRecipientInBeneficiaries] =
+    useState(false);
+
+  // Check if recipient exists in saved beneficiaries
+  useEffect(() => {
+    const checkRecipientExists = async () => {
+      if (!accountIdentifier || !institution) {
+        setIsRecipientInBeneficiaries(false);
+        return;
+      }
+
+      try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          setIsRecipientInBeneficiaries(false);
+          return;
+        }
+
+        const savedRecipients = await fetchSavedRecipients(accessToken);
+        const exists = savedRecipients.some(
+          (r) =>
+            r.accountIdentifier === accountIdentifier &&
+            r.institutionCode === institution,
+        );
+        setIsRecipientInBeneficiaries(exists);
+      } catch (error) {
+        console.error("Error checking if recipient exists:", error);
+        setIsRecipientInBeneficiaries(false);
+      }
+    };
+
+    checkRecipientExists();
+  }, [accountIdentifier, institution, getAccessToken]);
 
   // Scroll to top on mount
   useEffect(() => {
@@ -361,7 +423,7 @@ export function TransactionStatus({
                   : "bg-gray-50"
           }`}
         >
-          <PiSpinnerBold className="animate-spin" />
+          <ImSpinner className="animate-spin" />
           <p>{transactionStatus}</p>
         </AnimatedComponent>
       )}
@@ -381,69 +443,116 @@ export function TransactionStatus({
     }
   };
 
-  // Add or remove the recipient from the beneficiaries list
-  const handleAddToBeneficiariesChange = (checked: boolean) => {
+  const handleAddToBeneficiariesChange = async (checked: boolean) => {
     setAddToBeneficiaries(checked);
     if (checked) {
-      addBeneficiary();
+      await addBeneficiary();
     } else {
-      removeRecipient();
+      await removeRecipient();
     }
   };
 
-  const addBeneficiary = () => {
+  const addBeneficiary = async () => {
+    setIsSavingRecipient(true);
+
     const institutionCode = formMethods.watch("institution");
-    if (!institutionCode) return;
+    if (!institutionCode) {
+      setIsSavingRecipient(false);
+      return;
+    }
+
     const institutionName = getInstitutionNameByCode(
       String(institutionCode),
       supportedInstitutions,
     );
 
+    if (!institutionName) {
+      console.error("Institution name not found");
+      setIsSavingRecipient(false);
+      return;
+    }
+
     const newRecipient = {
       name: recipientName,
       institution: institutionName,
-      institutionCode: institutionCode,
-      accountIdentifier: formMethods.watch("accountIdentifier") || "",
-      type: formMethods.watch("accountType") || "bank",
+      institutionCode: String(institutionCode),
+      accountIdentifier: String(formMethods.watch("accountIdentifier") || ""),
+      type:
+        (formMethods.watch("accountType") as "bank" | "mobile_money") || "bank",
     };
 
-    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
-    const isDuplicate = savedRecipients.some(
-      (r: {
-        accountIdentifier: string | number;
-        institutionCode: string | number;
-      }) =>
-        r.accountIdentifier === newRecipient.accountIdentifier &&
-        r.institutionCode === newRecipient.institutionCode,
-    );
+    // Save recipient via API
+    const accessToken = await getAccessToken();
+    if (accessToken) {
+      try {
+        const success = await saveRecipient(newRecipient, accessToken);
+        if (success) {
+          // Show success state
+          setIsSavingRecipient(false);
+          setShowSaveSuccess(true);
 
-    if (!isDuplicate) {
-      const updatedRecipients = [...savedRecipients, newRecipient];
-      localStorage.setItem(
-        LOCAL_STORAGE_KEY_RECIPIENTS,
-        JSON.stringify(updatedRecipients),
-      );
+          // Hide after 2 seconds with fade out animation
+          setTimeout(() => {
+            setShowSaveSuccess(false);
+            // Add a small delay to allow fade out animation to complete
+            setTimeout(() => {
+              setIsRecipientInBeneficiaries(true);
+            }, 300);
+          }, 2000);
+        } else {
+          setIsSavingRecipient(false);
+        }
+      } catch (error) {
+        console.error("Error saving recipient:", error);
+        setIsSavingRecipient(false);
+      }
+    } else {
+      setIsSavingRecipient(false);
     }
   };
 
-  const removeRecipient = () => {
+  const removeRecipient = async () => {
     const accountIdentifier = formMethods.watch("accountIdentifier");
     const institutionCode = formMethods.watch("institution");
 
-    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
+    if (!accountIdentifier || !institutionCode) {
+      console.error("Missing account identifier or institution code");
+      return;
+    }
 
-    const updatedRecipients = savedRecipients.filter(
-      (r: { accountIdentifier: string; institutionCode: string }) =>
-        !(
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        console.error("No access token available");
+        return;
+      }
+
+      // Fetch saved recipients to find the recipient ID
+      const savedRecipients = await fetchSavedRecipients(accessToken);
+      const recipientToDelete = savedRecipients.find(
+        (r) =>
           r.accountIdentifier === accountIdentifier &&
-          r.institutionCode === institutionCode
-        ),
-    );
+          r.institutionCode === institutionCode,
+      );
 
-    localStorage.setItem(
-      LOCAL_STORAGE_KEY_RECIPIENTS,
-      JSON.stringify(updatedRecipients),
-    );
+      if (!recipientToDelete) {
+        console.error("Recipient not found in saved recipients");
+        return;
+      }
+
+      // Delete the recipient using its ID
+      const success = await deleteSavedRecipient(
+        recipientToDelete.id,
+        accessToken,
+      );
+      if (success) {
+        // Update state to show the checkbox again since recipient is now removed
+        setIsRecipientInBeneficiaries(false);
+        console.log("Recipient removed successfully");
+      }
+    } catch (error) {
+      console.error("Error removing recipient:", error);
+    }
   };
 
   const getPaymentMessage = () => {
@@ -650,6 +759,25 @@ export function TransactionStatus({
         <AnimatePresence>
           {["validated", "settled", "refunded"].includes(transactionStatus) && (
             <>
+              {/* BlockFest Cashback Component - only when validated/settled and claimed and on Base network */}
+              {isBlockFestEligible(
+                transactionStatus,
+                claimed,
+                orderDetails,
+                orderId,
+              ) && (
+                <AnimatedComponent
+                  variant={slideInOut}
+                  delay={0.45}
+                  className="flex justify-center"
+                >
+                  <BlockFestCashbackComponent
+                    transactionId={orderId}
+                    cashbackPercentage="1%"
+                  />
+                </AnimatedComponent>
+              )}
+
               <AnimatedComponent
                 variant={slideInOut}
                 delay={0.5}
@@ -679,43 +807,77 @@ export function TransactionStatus({
 
               {["validated", "settled"].includes(transactionStatus) &&
                 !isRecipientInBeneficiaries && (
-                  <div className="flex gap-2">
-                    <Checkbox
-                      checked={addToBeneficiaries}
-                      onChange={handleAddToBeneficiariesChange}
-                      className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
-                    >
-                      <svg
-                        className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
-                        viewBox="0 0 14 14"
-                        fill="none"
+                  <AnimatePresence mode="wait">
+                    {isSavingRecipient ? (
+                      <AnimatedComponent
+                        key="saving"
+                        variant={fadeUpAnimation}
+                        className="flex items-center gap-2"
                       >
-                        <title>
-                          {addToBeneficiaries
-                            ? "Remove from beneficiaries"
-                            : "Add to your beneficiaries"}
-                        </title>
-                        <path
-                          d="M3 8L6 11L11 3.5"
-                          strokeWidth={2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </Checkbox>
-                    <label className="text-text-body dark:text-white/80">
-                      Add{" "}
-                      {(recipientName ?? "")
-                        .split(" ")[0]
-                        .charAt(0)
-                        .toUpperCase() +
-                        (recipientName ?? "")
-                          .toLowerCase()
-                          .split(" ")[0]
-                          .slice(1)}{" "}
-                      to beneficiaries
-                    </label>
-                  </div>
+                        <div className="mt-1 flex h-4 w-4 items-center justify-center">
+                          <ImSpinner className="h-4 w-4 animate-spin text-text-body dark:text-white/80" />
+                        </div>
+                        <span className="text-text-body dark:text-white/80">
+                          Saving to beneficiaries...
+                        </span>
+                      </AnimatedComponent>
+                    ) : showSaveSuccess ? (
+                      <AnimatedComponent
+                        key="success"
+                        variant={slideInOut}
+                        className="flex items-center gap-2"
+                      >
+                        <div className="mt-1 flex h-4 w-4 items-center justify-center">
+                          <CheckmarkCircle01Icon className="h-4 w-4 text-green-500" />
+                        </div>
+                        <span className="text-green-600 dark:text-green-400">
+                          Saved to beneficiaries!
+                        </span>
+                      </AnimatedComponent>
+                    ) : (
+                      <AnimatedComponent
+                        key="checkbox"
+                        variant={fadeUpAnimation}
+                        className="flex gap-2"
+                      >
+                        <Checkbox
+                          checked={addToBeneficiaries}
+                          onChange={handleAddToBeneficiariesChange}
+                          className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
+                        >
+                          <svg
+                            className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
+                            viewBox="0 0 14 14"
+                            fill="none"
+                          >
+                            <title>
+                              {addToBeneficiaries
+                                ? "Remove from beneficiaries"
+                                : "Add to your beneficiaries"}
+                            </title>
+                            <path
+                              d="M3 8L6 11L11 3.5"
+                              strokeWidth={2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </Checkbox>
+                        <label className="text-text-body dark:text-white/80">
+                          Add{" "}
+                          {(recipientName ?? "")
+                            .split(" ")[0]
+                            .charAt(0)
+                            .toUpperCase() +
+                            (recipientName ?? "")
+                              .toLowerCase()
+                              .split(" ")[0]
+                              .slice(1)}{" "}
+                          to beneficiaries
+                        </label>
+                      </AnimatedComponent>
+                    )}
+                  </AnimatePresence>
                 )}
             </>
           )}
@@ -778,57 +940,63 @@ export function TransactionStatus({
         </AnimatePresence>
 
         <AnimatePresence>
-          {["validated", "settled"].includes(transactionStatus) && (
-            <AnimatedComponent
-              variant={slideInOut}
-              delay={0.8}
-              className="w-full space-y-4 text-gray-500 dark:text-white/50"
-            >
-              <hr className="w-full border-dashed border-border-light dark:border-white/10" />
+          {["validated", "settled"].includes(transactionStatus) &&
+            !isBlockFestEligible(
+              transactionStatus,
+              claimed,
+              orderDetails,
+              orderId,
+            ) && (
+              <AnimatedComponent
+                variant={slideInOut}
+                delay={0.8}
+                className="w-full space-y-4 text-gray-500 dark:text-white/50"
+              >
+                <hr className="w-full border-dashed border-border-light dark:border-white/10" />
 
-              <p>Help spread the word</p>
+                <p>Help spread the word</p>
 
-              <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
-                <YellowHeart className="size-8 flex-shrink-0" />
-                <p>
-                  Yay! I just swapped {token} for {currency} in{" "}
-                  {calculateDuration(createdAt, completedAt)} on noblocks.xyz
-                </p>
-                <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
-              </div>
+                <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
+                  <YellowHeart className="size-8 flex-shrink-0" />
+                  <p>
+                    Yay! I just swapped {token} for {currency} in{" "}
+                    {calculateDuration(createdAt, completedAt)} on noblocks.xyz
+                  </p>
+                  <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
+                </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <a
-                  aria-label="Share on Twitter"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
-                  className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
-                >
-                  {resolvedTheme === "dark" ? (
-                    <XIconDarkTheme className="size-5" />
-                  ) : (
-                    <XIconLightTheme className="size-5" />
-                  )}
-                  X (Twitter)
-                </a>
-                <a
-                  aria-label="Share on Warpcast"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
-                  className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
-                >
-                  {resolvedTheme === "dark" ? (
-                    <FarcasterIconDarkTheme className="size-5" />
-                  ) : (
-                    <FarcasterIconLightTheme className="size-5" />
-                  )}
-                  Warpcast
-                </a>
-              </div>
-            </AnimatedComponent>
-          )}
+                <div className="flex flex-wrap items-center gap-3">
+                  <a
+                    aria-label="Share on Twitter"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                    href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
+                    className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                  >
+                    {resolvedTheme === "dark" ? (
+                      <XIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
+                    ) : (
+                      <XIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
+                    )}
+                    X (Twitter)
+                  </a>
+                  <a
+                    aria-label="Share on Warpcast"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                    href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
+                    className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
+                  >
+                    {resolvedTheme === "dark" ? (
+                      <FarcasterIconDarkTheme className="size-5 text-text-secondary dark:text-white/50" />
+                    ) : (
+                      <FarcasterIconLightTheme className="size-5 text-text-secondary dark:text-white/50" />
+                    )}
+                    Farcaster
+                  </a>
+                </div>
+              </AnimatedComponent>
+            )}
         </AnimatePresence>
       </div>
     </div>

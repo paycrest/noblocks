@@ -4,7 +4,6 @@ import {
   Mail01Icon,
   Logout03Icon,
   ColorsIcon,
-  CustomerService01Icon,
   Key01Icon,
   ArrowRight01Icon,
 } from "hugeicons-react";
@@ -90,20 +89,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
         </button>
       ) : null}
-      <a
-        href={config.contactSupportUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex w-full items-center justify-between"
-      >
-        <div className="flex items-center gap-3">
-          <CustomerService01Icon className="size-5 text-outline-gray dark:text-white/50" />
-          <span className="text-text-body dark:text-white/80">
-            Contact support
-          </span>
-        </div>
-        <ArrowRight01Icon className="size-4 text-outline-gray dark:text-white/50" />
-      </a>
       <div className="flex w-full items-center justify-between">
         <div className="flex items-center gap-3">
           <ColorsIcon className="size-5 text-outline-gray dark:text-white/50" />

@@ -61,7 +61,10 @@ export const NetworksDropdown = ({
   };
 
   const dropdownNetworks = networks
-    .filter((network) => useInjectedWallet || network.chain.name !== "Celo")
+    .filter((network) => {
+      if (useInjectedWallet) return true;
+      return network.chain.name !== "Celo" && network.chain.name !== "Hedera Mainnet";
+    })
     .map((network) => ({
       name: network.chain.name,
       imageUrl: getNetworkImageUrl(network, isDark),

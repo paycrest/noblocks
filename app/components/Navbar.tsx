@@ -54,6 +54,8 @@ export const Navbar = () => {
           email: user.email,
         });
 
+        localStorage.setItem("userId", user.wallet.address);
+
         if (isNewUser) {
           localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address}`);
 
@@ -129,7 +131,6 @@ export const Navbar = () => {
               <button
                 aria-label="Noblocks Logo Icon"
                 aria-haspopup="menu"
-                aria-expanded={isDropdownOpen}
                 aria-controls="navbar-dropdown"
                 type="button"
                 onClick={(e) => {

@@ -55,9 +55,18 @@ ENABLE_WALLET_CONTEXT_SYNC=false
 ### Database & Authentication
 
 ```bash
-# Transaction history database
-SUPABASE_URL=
+# Supabase Database
+# Get these from: Supabase Dashboard → Project Settings → API
+SUPABASE_URL=https://your-project.supabase.co
+
+# ⚠️ IMPORTANT: Use the SERVICE ROLE key, NOT the anon/public key
+# The service role key bypasses Row-Level Security (RLS) policies
+# Location: Supabase Dashboard → Project Settings → API → "service_role" secret
+# Format: Starts with "eyJ..." and contains "role":"service_role" when decoded
+# DO NOT use the "anon public" key here - it will cause RLS policy violations
 SUPABASE_SERVICE_ROLE_KEY=
+
+# Privy Authentication
 PRIVY_APP_SECRET=
 PRIVY_JWKS_URL=
 PRIVY_ISSUER=privy.io
@@ -66,8 +75,6 @@ PRIVY_ISSUER=privy.io
 ### External Services
 
 ```bash
-# Support chat
-NEXT_PUBLIC_CONTACT_SUPPORT_URL=
 
 # SEO
 NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE=
@@ -75,6 +82,29 @@ NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE=
 # Notice banner
 # See docs/notice-banner.md
 NEXT_PUBLIC_NOTICE_BANNER_TEXT=
+
+# Brevo Email Marketing
+BREVO_API_KEY=
+BREVO_LIST_ID=
+```
+
+### Campaign Management
+
+```bash
+# BlockFest Campaign
+# End date for BlockFest cashback offer (ISO 8601 format with timezone)
+# Format: YYYY-MM-DDTHH:mm:ss±HH:mm
+# Example: 2025-10-11T23:59:00+01:00 (October 11th, 2025 at 11:59 PM UTC+1)
+NEXT_PUBLIC_BLOCKFEST_END_DATE=2025-10-11T23:59:00+01:00
+
+# BlockFest Cashback Wallet
+# WARNING: These credentials control funds and must be kept secure:
+# - Never commit these values to version control
+# - Use secure secret management in production (e.g., AWS Secrets Manager, HashiCorp Vault)
+# - Rotate keys regularly
+# - Restrict access to authorized personnel only
+CASHBACK_WALLET_ADDRESS=
+CASHBACK_WALLET_PRIVATE_KEY=
 ```
 
 ### Content Management (Sanity)
@@ -110,6 +140,15 @@ NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS=true
 
 ## Security Notes
 
+### Supabase Keys
+- **`SUPABASE_SERVICE_ROLE_KEY`**: 
+  - **CRITICAL**: Must be the service role key, not the anon key
+  - The service role key bypasses RLS and should never be exposed to clients
+  - Verify by decoding the JWT - it should contain `"role":"service_role"`
+  - Using the anon key will cause "row violates row-level security policy" errors
+  - Get it from: Supabase Dashboard → Project Settings → API → "service_role" secret
+
+### Other Security
 - **`INTERNAL_API_KEY`**: Generate a strong random string (e.g., `openssl rand -hex 32`)
 - **`MIXPANEL_TOKEN`**: This is separate from `NEXT_PUBLIC_MIXPANEL_TOKEN` and used for server-side tracking only
 - **Privacy Mode**: Keep `MIXPANEL_PRIVACY_MODE=strict` to ensure sensitive data is hashed

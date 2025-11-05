@@ -6,11 +6,11 @@ const config: Config = {
   thirdwebClientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || "",
   mixpanelToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || "",
   hotjarSiteId: Number(process.env.NEXT_PUBLIC_HOTJAR_SITE_ID || ""),
-  contactSupportUrl: process.env.NEXT_PUBLIC_CONTACT_SUPPORT_URL || "",
   googleVerificationCode:
     process.env.NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE || "",
   noticeBannerText: process.env.NEXT_PUBLIC_NOTICE_BANNER_TEXT || "",
   brevoConversationsId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_ID || "",
+  blockfestEndDate: process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
 };
 
 export default config;

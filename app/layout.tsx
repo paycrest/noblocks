@@ -1,20 +1,11 @@
-
 import "./globals.css";
 import React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
-import config from "./lib/config";
+import { AppLayout } from "./components";
 
-import Providers from "./providers";
-import MainContent from "./mainContent";
-import {
-  Footer,
-  Navbar,
-  LayoutWrapper,
-  PWAInstall,
-  NoticeBanner,
-} from "./components";
+export const dynamic = "force-static";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -41,7 +32,6 @@ export const metadata: Metadata = {
   classification: "Financial Technology",
   referrer: "origin-when-cross-origin",
   keywords: [
-    // Stablecoin Primary Keywords
     "stablecoin payments",
     "USDC payments",
     "USDT payments",
@@ -49,8 +39,6 @@ export const metadata: Metadata = {
     "stablecoin remittance",
     "crypto remittance",
     "stablecoin transfer",
-
-    // Stablecoin to Fiat Keywords
     "USDC to bank transfer",
     "USDT to bank transfer",
     "DAI to bank transfer",
@@ -59,16 +47,12 @@ export const metadata: Metadata = {
     "stablecoin to mobile money",
     "USDC to mobile money",
     "USDT to mobile money",
-
-    // Stablecoin Benefits Keywords
     "instant stablecoin transfer",
     "low fee stablecoin transfer",
     "cheap crypto remittance",
     "fast stablecoin payment",
     "secure stablecoin transfer",
     "reliable crypto payment",
-
-    // Stablecoin Use Cases
     "send stablecoins to Africa",
     "USDC to Nigeria",
     "USDT to Kenya",
@@ -76,65 +60,47 @@ export const metadata: Metadata = {
     "stablecoin to Tanzania",
     "USDC to Uganda",
     "USDT to South Africa",
-
-    // Stablecoin Technology Keywords
     "blockchain remittance",
     "crypto payment solution",
     "digital currency transfer",
     "tokenized remittance",
     "smart contract payments",
     "on-chain payments",
-
-    // Stablecoin Comparison Keywords
     "better than traditional remittance",
     "cheaper than bank transfer",
     "faster than wire transfer",
     "more reliable than traditional payment",
     "better than fiat transfer",
-
-    // Stablecoin Security Keywords
     "secure stablecoin transfer",
     "safe crypto payment",
     "regulated stablecoin transfer",
     "compliant crypto remittance",
     "trusted stablecoin service",
-
-    // Stablecoin Education Keywords
     "how to use stablecoins",
     "stablecoin remittance guide",
     "crypto payment tutorial",
     "stablecoin transfer guide",
     "learn crypto remittance",
-
-    // Stablecoin Business Keywords
     "business stablecoin payment",
     "corporate crypto remittance",
     "B2B stablecoin transfer",
     "enterprise crypto payment",
     "business USDC transfer",
-
-    // Stablecoin Network Keywords
     "Polygon stablecoin transfer",
     "Base stablecoin payment",
     "Arbitrum stablecoin transfer",
     "BNB Chain stablecoin payment",
     "Ethereum stablecoin transfer",
-
-    // Stablecoin Features Keywords
     "24/7 stablecoin transfer",
     "borderless crypto payment",
     "global stablecoin transfer",
     "instant settlement",
     "real-time crypto payment",
-
-    // Stablecoin Problem-Solution Keywords
     "high remittance fee solution",
     "slow transfer solution",
     "expensive payment alternative",
     "complex remittance simplified",
     "difficult transfer solution",
-
-    // Stablecoin Trend Keywords
     "next-gen remittance",
     "future of payments",
     "modern money transfer",
@@ -151,9 +117,6 @@ export const metadata: Metadata = {
       "max-image-preview": "large",
       "max-snippet": -1,
     },
-  },
-  verification: {
-    google: config.googleVerificationCode,
   },
   alternates: {
     canonical: "https://noblocks.xyz",
@@ -206,7 +169,7 @@ const jsonLd = {
   sameAs: [
     "https://x.com/noblocks_xyz",
     "https://github.com/paycrest/noblocks",
-    "https://noblocks.xyz"
+    "https://noblocks.xyz",
   ],
   publisher: {
     "@type": "Organization",
@@ -214,19 +177,19 @@ const jsonLd = {
     url: "https://noblocks.xyz",
     logo: {
       "@type": "ImageObject",
-      url: "https://noblocks.xyz/icons/noblocks-logo.svg"
-    }
+      url: "https://noblocks.xyz/icons/noblocks-logo.svg",
+    },
   },
   offers: {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
     availability: "https://schema.org/InStock",
-    validFrom: "2024-01-01"
+    validFrom: "2024-01-01",
   },
   featureList: [
     "USDC payments",
-    "USDT payments", 
+    "USDT payments",
     "DAI payments",
     "Instant stablecoin transfers",
     "Low-fee crypto remittance",
@@ -236,28 +199,28 @@ const jsonLd = {
     "24/7 availability",
     "Global reach",
     "Secure transactions",
-    "Real-time processing"
+    "Real-time processing",
   ],
   supportedNetworks: [
     "Polygon",
-    "Base", 
+    "Base",
     "Arbitrum",
     "BNB Chain",
     "Ethereum",
     "Celo",
     "Lisk",
-    "Optimism"
+    "Optimism",
   ],
   supportedStablecoins: ["USDC", "USDT", "DAI", "cNGN"],
   audience: {
     "@type": "Audience",
-    audienceType: "Cryptocurrency users, Remittance senders, DeFi users"
+    audienceType: "Cryptocurrency users, Remittance senders, DeFi users",
   },
   potentialAction: {
     "@type": "UseAction",
     target: "https://noblocks.xyz",
-    name: "Send stablecoin payments"
-  }
+    name: "Send stablecoin payments",
+  },
 };
 
 export default function RootLayout({
@@ -277,37 +240,7 @@ export default function RootLayout({
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <Providers>
-          <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-            <div className="relative">
-              <Navbar />
-              {config.noticeBannerText && (
-                <NoticeBanner textLines={config.noticeBannerText.split("|")} />
-              )}
-            </div>
-            <LayoutWrapper footer={<Footer />}>
-              <MainContent>{children}</MainContent>
-            </LayoutWrapper>
-
-            <PWAInstall />
-          </div>
-        </Providers>
-
-        {/* Brevo Chat Widget */}
-        {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && (
-          <>
-            {" "}
-            <Script id="brevo-chat-config" strategy="afterInteractive">
-              {" "}
-              {`window.BrevoConversationsID=${JSON.stringify(config.brevoConversationsId)};window.BrevoConversations=window.BrevoConversations||function(){(window.BrevoConversations.q=window.BrevoConversations.q||[]).push(arguments)};`}{" "}
-            </Script>{" "}
-            <Script
-              id="brevo-chat-widget"
-              src="https://conversations-widget.brevo.com/brevo-conversations.js"
-              strategy="afterInteractive"
-            />{" "}
-          </>
-        )}
+        <AppLayout>{children}</AppLayout>
       </body>
     </html>
   );

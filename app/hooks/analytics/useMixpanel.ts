@@ -17,7 +17,7 @@ export const initMixpanel = () => {
 
   if (mixpanelToken) {
     mixpanel.init(mixpanelToken, {
-      track_pageview: true,
+      track_pageview: false,
       persistence: "localStorage",
       ignore_dnt: false,
       verbose: process.env.NODE_ENV === "development",

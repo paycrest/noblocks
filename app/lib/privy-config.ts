@@ -1,4 +1,4 @@
-import { arbitrum, base, bsc, polygon, lisk, mainnet } from "viem/chains";
+import { arbitrum, base, bsc, polygon, lisk } from "viem/chains";
 import {
   addRpcUrlOverrideToChain,
   type PrivyClientConfig,
@@ -12,20 +12,26 @@ const bscOverride = addRpcUrlOverrideToChain(
 
 const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
   embeddedWallets: {
-    createOnLogin: "all-users",
+    ethereum: {
+      createOnLogin: "all-users",
+    },
   },
   externalWallets: {
     coinbaseWallet: {
-      connectionOptions: "smartWalletOnly",
+      config: {
+        preference: {
+          options: "smartWalletOnly",
+        },
+      },
     },
   },
-  supportedChains: [mainnet, base, bscOverride, arbitrum, polygon, lisk],
+  supportedChains: [base, bscOverride, arbitrum, polygon, lisk],
 };
 
 export const lightModeConfig: PrivyClientConfig = {
   ...baseConfig,
   appearance: {
-    theme: "light",
+    theme: "#FFFFFF",
     accentColor: "#8B85F4",
     landingHeader: "Log in or sign up",
     logo: "/logos/noblocks-logo.svg",
@@ -35,7 +41,7 @@ export const lightModeConfig: PrivyClientConfig = {
 export const darkModeConfig: PrivyClientConfig = {
   ...baseConfig,
   appearance: {
-    theme: "dark",
+    theme: "#202020",
     accentColor: "#8B85F4",
     landingHeader: "Log in or sign up",
     logo: "/logos/noblocks-logo.svg",

@@ -935,6 +935,7 @@ export function mapCountryToCurrency(countryCode: string): string | null {
     AR: "ARS",
     US: "USD",
     GB: "GBP",
+    MW: "MWK",
     // add more as needed
   };
   return mapping[countryCode] || null;

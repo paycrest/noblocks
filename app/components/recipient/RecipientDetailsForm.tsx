@@ -232,7 +232,7 @@ const shouldShowAlert =
       // Reset viewed state when alert is no longer visible
       setAlertViewed(false);
     }
-  }, [isRecipientNameEditable, recipientName, recipientNameError, alertViewed, currency, selectedInstitution?.name]);
+  }, [isRecipientNameEditable, recipientName, recipientNameError, alertViewed, currency, selectedInstitution?.name, errors.recipientName]);
 
   useEffect(() => {
     let isCancelled = false;

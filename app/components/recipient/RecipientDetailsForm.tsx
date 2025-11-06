@@ -58,6 +58,7 @@ export const RecipientDetailsForm = ({
 
   const [isFetchingRecipientName, setIsFetchingRecipientName] = useState(false);
   const [recipientNameError, setRecipientNameError] = useState("");
+  const [isRecipientNameEditable, setIsRecipientNameEditable] = useState(false);
 
   const [savedRecipients, setSavedRecipients] = useState<
     RecipientDetailsWithId[]
@@ -124,6 +125,7 @@ export const RecipientDetailsForm = ({
     recipient.name = recipient.name.replace(/\s+/g, " ").trim();
     setValue("recipientName", recipient.name, { shouldDirty: true });
     setIsManualEntry(false);
+    setIsRecipientNameEditable(false);
     setIsModalOpen(false);
   };
 
@@ -238,6 +240,7 @@ export const RecipientDetailsForm = ({
         setValue("recipientName", "");
         setValue("accountIdentifier", "");
         setRecipientNameError("");
+        setIsRecipientNameEditable(false);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -265,10 +268,20 @@ export const RecipientDetailsForm = ({
           institution: institution.toString(),
           accountIdentifier: accountIdentifier.toString(),
         });
-        setValue("recipientName", accountName);
+        
+        // Check if the response is "Ok" which means verification failed but not an error
+        if (accountName.toLowerCase() === "ok") {
+          setIsRecipientNameEditable(true);
+          setValue("recipientName", "");
+          setRecipientNameError("");
+        } else {
+          setIsRecipientNameEditable(false);
+          setValue("recipientName", accountName);
+        }
         setIsFetchingRecipientName(false);
       } catch (error) {
         setRecipientNameError("No recipient account found.");
+        setIsRecipientNameEditable(false);
         setIsFetchingRecipientName(false);
       }
     };
@@ -316,6 +329,7 @@ export const RecipientDetailsForm = ({
     setValue("accountIdentifier", "");
     setRecipientNameError("");
     setIsManualEntry(true);
+    setIsRecipientNameEditable(false);
   };
 
   // Only clear when currency actually changes (not on mount or preview return)
@@ -417,7 +431,33 @@ export const RecipientDetailsForm = ({
             </div>
           ) : (
             <>
-              {recipientName ? (
+              {isRecipientNameEditable ? (
+                <AnimatedFeedbackItem className="flex-col items-start gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter recipient name"
+                    {...register("recipientName", {
+                      required: {
+                        value: true,
+                        message: "Recipient name is required",
+                      },
+                      minLength: {
+                        value: 2,
+                        message: "Recipient name must be at least 2 characters",
+                      },
+                    })}
+                    className={classNames(
+                      "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
+                      errors.recipientName
+                        ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
+                        : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
+                    )}
+                  />
+                  {errors.recipientName && (
+                    <InputError message={errors.recipientName.message || "Recipient name is required"} />
+                  )}
+                </AnimatedFeedbackItem>
+              ) : recipientName ? (
                 <AnimatedFeedbackItem className="justify-between text-gray-400 dark:text-white/50">
                   <motion.div
                     className="relative overflow-hidden rounded-lg p-0.5"
@@ -453,10 +493,10 @@ export const RecipientDetailsForm = ({
 
       <AnimatedFeedbackItem>
         {recipientName && (
-        <div className="h-[48px] w-full bg-warning-bg px-3 py-2 rounded-xl flex items-start gap-4">
-          <InformationSquareIcon className="text-warning-text w-[24px] h-[24px] mr-2" />
-          <p className="text-xs font-light text-warning-text leading-tight">
-              Make sure the recipient's account number is accurate before proceeding with your swap. <a href="#" className="text-lavender-700 text-semibold">Learn more.</a>
+        <div className="min-h-[48px] h-fit w-full dark:bg-warning-background/10 bg-warning-background/35 px-3 py-2 rounded-xl flex items-start gap-2">
+          <InformationSquareIcon className="dark:text-warning-text text-warning-foreground w-[36px] h-[36px] md:w-[24px] md:h-[24px]" />
+          <p className="text-xs font-light dark:text-warning-text text-warning-foreground leading-tight">
+              Unable to verify details. Ensure the recipient&apos;s account number is accurate before proceeding with swap. <a href="#" className="text-lavender-500 text-semibold">Learn more.</a>
           </p>
         </div>
         )}

@@ -11,6 +11,7 @@ import { fetchAccountName } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
 import { classNames } from "@/app/utils";
+import { trackEvent } from "@/app/hooks/analytics/useMixpanel";
 import {
   RecipientDetails,
   RecipientDetailsFormProps,
@@ -69,6 +70,8 @@ export const RecipientDetailsForm = ({
   const [recipientToDelete, setRecipientToDelete] =
     useState<RecipientDetails | null>(null);
 
+  const [alertViewed, setAlertViewed] = useState(false);
+
   const institutionsDropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({
     ref: institutionsDropdownRef,
@@ -79,6 +82,29 @@ export const RecipientDetailsForm = ({
   const [isReturningFromPreview, setIsReturningFromPreview] = useState(false);
 
   const prevCurrencyRef = useRef(currency);
+
+  // Alert component to avoid duplication and handle analytics
+  const RecipientAlert = ({ isEditable, message }: { isEditable: boolean; message: string }) => {
+    const handleLearnMoreClick = (e: React.MouseEvent) => {
+      e.preventDefault();
+      trackEvent("recipient_alert_learn_more_clicked", {
+        alert_type: isEditable ? 'verification_failed' : 'verification_success',
+        message: message.substring(0, 100), // Truncate for analytics
+        currency: currency,
+        institution: selectedInstitution?.name || '',
+      });
+      // Allow navigation to continue (could add actual link here)
+    };
+
+    return (
+      <div className="min-h-[48px] h-fit w-full dark:bg-warning-background/10 bg-warning-background/35 px-3 py-2 rounded-xl flex items-start gap-2">
+        <InformationSquareIcon className="dark:text-warning-text text-warning-foreground w-[36px] h-[36px] md:w-[24px] md:h-[24px]" />
+        <p className="text-xs font-light dark:text-warning-text text-warning-foreground leading-tight">
+          {message} <a href="#" onClick={handleLearnMoreClick} className="text-lavender-500 text-semibold">Learn more.</a>
+        </p>
+      </div>
+    );
+  };
 
   /**
    * Array of institutions filtered and sorted alphabetically based on the bank search term.
@@ -186,6 +212,25 @@ export const RecipientDetailsForm = ({
   };
 
   // * USE EFFECTS
+
+  // Track alert visibility
+  useEffect(() => {
+    const shouldShowAlert = (isRecipientNameEditable || (!isRecipientNameEditable && recipientName)) && !recipientNameError;
+    
+    if (shouldShowAlert && !alertViewed) {
+      trackEvent("recipient_alert_viewed", {
+        alert_type: isRecipientNameEditable ? 'verification_failed' : 'verification_success',
+        has_recipient_name: !!recipientName,
+        is_editable: isRecipientNameEditable,
+        currency: currency,
+        institution: selectedInstitution?.name || '',
+      });
+      setAlertViewed(true);
+    } else if (!shouldShowAlert && alertViewed) {
+      // Reset viewed state when alert is no longer visible
+      setAlertViewed(false);
+    }
+  }, [isRecipientNameEditable, recipientName, recipientNameError, alertViewed, currency, selectedInstitution?.name]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -493,20 +538,16 @@ export const RecipientDetailsForm = ({
 
       <AnimatedFeedbackItem>
         {isRecipientNameEditable && recipientName && !errors.recipientName && !recipientNameError && (
-        <div className="min-h-[48px] h-fit w-full dark:bg-warning-background/10 bg-warning-background/35 px-3 py-2 rounded-xl flex items-start gap-2">
-          <InformationSquareIcon className="dark:text-warning-text text-warning-foreground w-[36px] h-[36px] md:w-[24px] md:h-[24px]" />
-          <p className="text-xs font-light dark:text-warning-text text-warning-foreground leading-tight">
-              Unable to verify details. Ensure the recipient&apos;s account number is accurate before proceeding with swap. <a href="#" className="text-lavender-500 text-semibold">Learn more.</a>
-          </p>
-        </div>
+          <RecipientAlert 
+            isEditable={true} 
+            message="Unable to verify details. Ensure the recipient's account number is accurate before proceeding with swap." 
+          />
         )}
         {!isRecipientNameEditable && recipientName && !recipientNameError && (
-          <div className="min-h-[48px] h-fit w-full dark:bg-warning-background/10 bg-warning-background/35 px-3 py-2 rounded-xl flex items-start gap-2">
-          <InformationSquareIcon className="dark:text-warning-text text-warning-foreground w-[36px] h-[36px] md:w-[24px] md:h-[24px]" />
-          <p className="text-xs font-light dark:text-warning-text text-warning-foreground leading-tight">
-            Make sure the recipient&apos;s account number is accurate before proceeding with swap. <a href="#" className="text-lavender-500 text-semibold">Learn more.</a>
-          </p>
-        </div>
+          <RecipientAlert 
+            isEditable={false} 
+            message="Make sure the recipient's account number is accurate before proceeding with swap." 
+          />
         )}
       </AnimatedFeedbackItem>
       <SelectBankModal

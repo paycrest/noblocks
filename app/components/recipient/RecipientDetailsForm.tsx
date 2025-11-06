@@ -492,14 +492,15 @@ export const RecipientDetailsForm = ({
       </div>
 
       <AnimatedFeedbackItem>
-        {isRecipientNameEditable && recipientName ? (
+        {isRecipientNameEditable && recipientName && (
         <div className="min-h-[48px] h-fit w-full dark:bg-warning-background/10 bg-warning-background/35 px-3 py-2 rounded-xl flex items-start gap-2">
           <InformationSquareIcon className="dark:text-warning-text text-warning-foreground w-[36px] h-[36px] md:w-[24px] md:h-[24px]" />
           <p className="text-xs font-light dark:text-warning-text text-warning-foreground leading-tight">
               Unable to verify details. Ensure the recipient&apos;s account number is accurate before proceeding with swap. <a href="#" className="text-lavender-500 text-semibold">Learn more.</a>
           </p>
         </div>
-        ) : (
+        )}
+        {!isRecipientNameEditable && recipientName && (
           <div className="min-h-[48px] h-fit w-full dark:bg-warning-background/10 bg-warning-background/35 px-3 py-2 rounded-xl flex items-start gap-2">
           <InformationSquareIcon className="dark:text-warning-text text-warning-foreground w-[36px] h-[36px] md:w-[24px] md:h-[24px]" />
           <p className="text-xs font-light dark:text-warning-text text-warning-foreground leading-tight">

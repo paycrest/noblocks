@@ -215,7 +215,9 @@ export const RecipientDetailsForm = ({
 
   // Track alert visibility
   useEffect(() => {
-    const shouldShowAlert = (isRecipientNameEditable || (!isRecipientNameEditable && recipientName)) && !recipientNameError;
+const shouldShowAlert = 
+  (isRecipientNameEditable && recipientName && !errors.recipientName && !recipientNameError) ||
+  (!isRecipientNameEditable && recipientName && !recipientNameError);
     
     if (shouldShowAlert && !alertViewed) {
       trackEvent("recipient_alert_viewed", {

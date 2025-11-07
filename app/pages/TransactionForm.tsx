@@ -371,8 +371,8 @@ export const TransactionForm = ({
         } else {
           // Reset currencies to their default state from mocks
           currencies.forEach((currency) => {
-            // Only GHS, BRL and ARS are disabled by default
-            currency.disabled = ["GHS", "BRL", "ARS"].includes(currency.name);
+            // Only GHS, BRL, ARS, and MWK are disabled by default
+            currency.disabled = ["GHS", "BRL", "ARS", "MWK"].includes(currency.name);
           });
         }
 

@@ -1,15 +1,18 @@
 name: Create Release
+
 on:
   pull_request:
     types: [closed]
     branches:
       - stable
   workflow_dispatch:
+
 # Add permissions block
 permissions:
   contents: write # Required for creating releases
   packages: write # Required if you're also publishing packages
   pull-requests: read # Added to read PR information
+
 jobs:
   create-release:
     # Only run if PR is merged (not just closed) OR if manually triggered
@@ -20,6 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Get latest tag
         id: get_latest_tag
         run: |
@@ -29,68 +33,47 @@ jobs:
             latest_tag="v0.0.0"
           fi
           echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
+
       - name: Get PRs and commits since last release
         id: get_changes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           latest_tag="${{ steps.get_latest_tag.outputs.latest_tag }}"
+
           # Get all PRs since last tag
           if [ "$latest_tag" = "v0.0.0" ]; then
-            # For first release, get all PRs - use JSON and parse with jq to handle newlines
-            gh pr list --state merged --json number,title,body,labels > /tmp/prs.json 2>/dev/null || echo "[]" > /tmp/prs.json
-            jq -r '.[] | "\(.number)|\(.title)|\(.body // "" | gsub("\n"; "\\n"))|\(.labels | map(.name) | join(","))"' /tmp/prs.json > prs.txt 2>/dev/null || touch prs.txt
+            # For first release, get all PRs
+            gh pr list --state merged --json number,title,body,labels --jq '.[] | "\(.number)|\(.title)|\(.body)|\(.labels[].name)"' > prs.txt
             # Get all commits for first release - only first line (subject) for pattern matching
-            git log --pretty=format:"%s" > commits.txt 2>/dev/null || touch commits.txt
+            git log --pretty=format:"%s" > commits.txt
           else
-            # Get the date of the latest tag - ensure it's a clean integer
-            tag_date=$(git log -1 --format=%at "$latest_tag" 2>/dev/null | tr -d '\n\r ' || echo "0")
-            # Ensure tag_date is numeric and not empty
-            case "$tag_date" in
-              ''|*[!0-9]*) tag_date=0 ;;
-            esac
-            # Get PRs merged since last tag - use JSON and parse with jq to handle newlines
-            gh pr list --state merged --json number,title,body,labels,mergedAt > /tmp/prs.json 2>/dev/null || echo "[]" > /tmp/prs.json
-            jq -r --arg tag_date "$tag_date" '.[] | select(.mergedAt != null and ((.mergedAt | fromdateiso8601) > ($tag_date | tonumber))) | "\(.number)|\(.title)|\(.body // "" | gsub("\n"; "\\n"))|\(.labels | map(.name) | join(","))"' /tmp/prs.json > prs.txt 2>/dev/null || touch prs.txt
+            # Get the date of the latest tag
+            tag_date=$(git log -1 --format=%at $latest_tag)
+            
+            # Get PRs merged since last tag - FIXED: filter by merge date
+            gh pr list --state merged --json number,title,body,labels,mergedAt --jq ".[] | select(.mergedAt != null and (.mergedAt | fromdateiso8601) > $tag_date) | \"\(.number)|\(.title)|\(.body)|\(.labels[].name)\"" > prs.txt
             # Get commits since last tag - only first line (subject) for pattern matching
-            git log "$latest_tag"..HEAD --pretty=format:"%s" > commits.txt 2>/dev/null || touch commits.txt
+            git log $latest_tag..HEAD --pretty=format:"%s" > commits.txt
           fi
-          rm -f /tmp/prs.json
-          # Count PRs with different labels - only check the labels field (4th column)
-          major_count=0
-          minor_count=0
-          if [ -s prs.txt ]; then
-            while IFS='|' read -r number title body labels; do
-              [ -z "$labels" ] && continue
-              # Check labels field only (case-insensitive)
-              if echo "$labels" | grep -qiE "major|breaking"; then
-                major_count=$((major_count + 1))
-              elif echo "$labels" | grep -qiE "minor|feature"; then
-                minor_count=$((minor_count + 1))
-              fi
-            done < prs.txt
-          fi
-          # Count commits with different types - ensure numeric values (strip newlines)
-          # Breaking changes (major) - handle BREAKING CHANGE separately due to space
-          commit_major_count=$(grep -E "^feat\\!" commits.txt 2>/dev/null | wc -l | tr -d '\n\r ' || echo "0")
-          commit_major_count=${commit_major_count:-0}
-          case "$commit_major_count" in ''|*[!0-9]*) commit_major_count=0 ;; esac
-          commit_breaking_count=$(grep -E "BREAKING CHANGE" commits.txt 2>/dev/null | wc -l | tr -d '\n\r ' || echo "0")
-          commit_breaking_count=${commit_breaking_count:-0}
-          case "$commit_breaking_count" in ''|*[!0-9]*) commit_breaking_count=0 ;; esac
-          commit_major_count=$((commit_major_count + commit_breaking_count))
+
+          # Count PRs with different labels
+          major_count=$(grep -c "major\|breaking" prs.txt || echo "0")
+          minor_count=$(grep -c "minor\|feature" prs.txt || echo "0")
+
+          # Count commits with different types
+          # Breaking changes (major)
+          commit_major_count=$(grep -c "^(feat!|BREAKING CHANGE)" commits.txt || echo "0")
+
           # Features (minor)
-          commit_minor_count=$(grep -E "^(feat|\[minor\])" commits.txt 2>/dev/null | wc -l | tr -d '\n\r ' || echo "0")
-          commit_minor_count=${commit_minor_count:-0}
-          case "$commit_minor_count" in ''|*[!0-9]*) commit_minor_count=0 ;; esac
+          commit_minor_count=$(grep -c "^(feat|\[minor\])" commits.txt || echo "0")
+
           # Fixes (patch)
-          commit_fix_count=$(grep -E "^(fix)" commits.txt 2>/dev/null | wc -l | tr -d '\n\r ' || echo "0")
-          commit_fix_count=${commit_fix_count:-0}
-          case "$commit_fix_count" in ''|*[!0-9]*) commit_fix_count=0 ;; esac
+          commit_fix_count=$(grep -c "^(fix)" commits.txt || echo "0")
+
           # Other conventional commits (patch)
-          commit_other_count=$(grep -E "^(chore|docs|style|refactor|perf|test|ci|build|revert)" commits.txt 2>/dev/null | wc -l | tr -d '\n\r ' || echo "0")
-          commit_other_count=${commit_other_count:-0}
-          case "$commit_other_count" in ''|*[!0-9]*) commit_other_count=0 ;; esac
+          commit_other_count=$(grep -c "^(chore|docs|style|refactor|perf|test|ci|build|revert)" commits.txt || echo "0")
+
           # Use the higher count between PR labels and commit messages
           if [ "$major_count" -gt 0 ] || [ "$commit_major_count" -gt 0 ]; then
             echo "version_type=major" >> $GITHUB_OUTPUT
@@ -104,20 +87,54 @@ jobs:
               echo "version_type=patch" >> $GITHUB_OUTPUT
             fi
           fi
-          # Format all commits - only show subject lines (no body, no categorization)
-          {
-            echo "formatted_commits<<COMMITS_DELIMITER"
-            if [ "$latest_tag" = "v0.0.0" ]; then
-              git log --no-merges --pretty=format:"- %s" | head -100
-            else
-              git log "$latest_tag"..HEAD --no-merges --pretty=format:"- %s" | head -100
-            fi
-            echo "COMMITS_DELIMITER"
-          } >> $GITHUB_OUTPUT
+
+          # Format PRs for release notes
+          echo "formatted_prs<<EOF" >> $GITHUB_OUTPUT
+          while IFS='|' read -r number title body labels; do
+            echo "### PR #$number: $title"
+            echo "Labels: $labels"
+            echo ""
+            echo "$body"
+            echo ""
+          done < prs.txt
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Format commits by type - use full commit messages for display
+          echo "formatted_commits<<EOF" >> $GITHUB_OUTPUT
+          echo "### Breaking Changes"
+          if [ "$latest_tag" = "v0.0.0" ]; then
+            git log --pretty=format:"%B" | grep -E "^(feat!|BREAKING CHANGE)" || echo "None"
+          else
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(feat!|BREAKING CHANGE)" || echo "None"
+          fi
+          echo ""
+          echo "### Features"
+          if [ "$latest_tag" = "v0.0.0" ]; then
+            git log --pretty=format:"%B" | grep -E "^(feat|\[minor\])" || echo "None"
+          else
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(feat|\[minor\])" || echo "None"
+          fi
+          echo ""
+          echo "### Fixes"
+          if [ "$latest_tag" = "v0.0.0" ]; then
+            git log --pretty=format:"%B" | grep -E "^(fix)" || echo "None"
+          else
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(fix)" || echo "None"
+          fi
+          echo ""
+          echo "### Other Changes"
+          if [ "$latest_tag" = "v0.0.0" ]; then
+            git log --pretty=format:"%B" | grep -E "^(chore|docs|style|refactor|perf|test|ci|build|revert)" || echo "None"
+          else
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(chore|docs|style|refactor|perf|test|ci|build|revert)" || echo "None"
+          fi
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Generate new version
         id: new_version
         run: |
           latest_tag="${{ steps.get_latest_tag.outputs.latest_tag }}"
+
           # For first release, start with v1.0.0
           if [ "$latest_tag" = "v0.0.0" ]; then
             new_version="v1.0.0"
@@ -125,11 +142,14 @@ jobs:
             echo "version_type=major" >> $GITHUB_OUTPUT
             exit 0
           fi
+
           # Remove 'v' prefix and split into major.minor.patch
           version=${latest_tag#v}
           IFS='.' read -r major minor patch <<< "$version"
+
           # Get version type from previous step
           version_type="${{ steps.get_changes.outputs.version_type }}"
+
           if [ "$version_type" = "major" ]; then
             major=$((major + 1))
             minor=0
@@ -140,8 +160,10 @@ jobs:
           else
             patch=$((patch + 1))
           fi
+
           new_version="v$major.$minor.$patch"
           echo "new_version=$new_version" >> $GITHUB_OUTPUT
+
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
@@ -150,10 +172,15 @@ jobs:
           name: noblocks ${{ steps.new_version.outputs.new_version }}
           body: |
             # Release ${{ steps.new_version.outputs.new_version }}
+
             ## Version Information
             - **Type**: ${{ steps.get_changes.outputs.version_type }} version bump
             - **Branch**: ${{ github.ref_name }}
             - **Previous Version**: ${{ steps.get_latest_tag.outputs.latest_tag }}
+
+            ## Pull Requests
+            ${{ steps.get_changes.outputs.formatted_prs }}
+
             ## Changes
             ${{ steps.get_changes.outputs.formatted_commits }}
           draft: false

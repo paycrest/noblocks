@@ -12,6 +12,7 @@ import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
+import { feeRecipientAddress } from "./lib/config";
 
 /**
  * Concatenates and returns a string of class names.
@@ -1147,3 +1148,51 @@ export const isBlockFestExpired = (): boolean => {
 export const getBlockFestTimeRemaining = (): number => {
   return Math.max(0, BLOCKFEST_END_DATE.getTime() - Date.now());
 };
+
+/**
+ * Calculates the sender fee and returns the fee amount and recipient address
+ * @param amount - The transaction amount in human-readable token units
+ * @param rate - The exchange rate (e.g., 1.0 for local transfers, other values for FX)
+ * @param tokenDecimals - The number of decimals for the token (default: 18)
+ * @returns An object containing:
+ *   - feeAmount: The fee amount in human-readable format (for display)
+ *   - feeAmountInBaseUnits: The fee amount in token base units (for contract calls)
+ *   - feeRecipient: The fee recipient address
+ */
+export function calculateSenderFee(
+  amount: number,
+  rate: number,
+  tokenDecimals: number = 18,
+): { feeAmount: number; feeAmountInBaseUnits: bigint; feeRecipient: string } {
+  const calculatedRate = Math.round(rate * 100);
+  const isLocalTransfer = calculatedRate === 100;
+  const defaultFeePercent = 0.1; // 0.1% default fee for local transfers
+  const maxFeeCapInBaseUnits = BigInt(10000); // 10k in token base units
+  const decimalsMultiplier = BigInt(10 ** tokenDecimals);
+
+  // Calculate fee in human-readable format
+  const calculatedFee = isLocalTransfer
+    ? (amount * defaultFeePercent) / 100
+    : 0;
+
+  // Convert to base units
+  const calculatedFeeInBaseUnits = BigInt(
+    Math.floor(calculatedFee * Number(decimalsMultiplier)),
+  );
+
+  // Apply cap in base units
+  const feeAmountInBaseUnits = isLocalTransfer
+    ? calculatedFeeInBaseUnits > maxFeeCapInBaseUnits
+      ? maxFeeCapInBaseUnits
+      : calculatedFeeInBaseUnits
+    : BigInt(0);
+
+  // Convert back to human-readable format for display
+  const feeAmount = Number(feeAmountInBaseUnits) / Number(decimalsMultiplier);
+
+  const feeRecipient = isLocalTransfer
+    ? feeRecipientAddress
+    : "0x0000000000000000000000000000000000000000";
+
+  return { feeAmount, feeAmountInBaseUnits, feeRecipient };
+}

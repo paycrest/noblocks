@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 
 import {
   calculateDuration,
+  calculateSenderFee,
   classNames,
   formatCurrency,
   formatNumberWithCommas,
@@ -15,7 +16,6 @@ import {
   getRpcUrl,
   publicKeyEncrypt,
 } from "../utils";
-import { feeRecipientAddress } from "../lib/config";
 import { useNetwork, useTokens } from "../context";
 import type {
   Token,
@@ -106,20 +106,6 @@ export const TransactionPreview = ({
       account.type === "wallet" && account.connectorType === "embedded",
   ) as { address: string } | undefined;
 
-  // Rendered tsx info
-  const renderedInfo = {
-    amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
-    totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
-    recipient: recipientName
-      .toLowerCase()
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" "),
-    account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
-    ...(memo && { description: memo }),
-    network: selectedNetwork.chain.name,
-  };
-
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
   const tokenAddress = fetchedTokens.find(
@@ -144,6 +130,30 @@ export const TransactionPreview = ({
     ? injectedWalletBalance?.balances[token] || 0
     : smartWalletBalance?.balances[token] || 0;
 
+  // Calculate sender fee for display and balance check
+  const {
+    feeAmount: senderFeeAmount,
+    feeAmountInBaseUnits: senderFeeInTokenUnits,
+    feeRecipient: senderFeeRecipientAddress,
+  } = calculateSenderFee(amountSent, rate, tokenDecimals ?? 18);
+
+  // Rendered tsx info
+  const renderedInfo = {
+    amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
+    totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
+    recipient: recipientName
+      .toLowerCase()
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" "),
+    account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
+    ...(memo && { description: memo }),
+    ...(senderFeeAmount > 0 && {
+      fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
+    }),
+    network: selectedNetwork.chain.name,
+  };
+
   const prepareCreateOrderParams = async () => {
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
@@ -162,45 +172,15 @@ export const TransactionPreview = ({
     const publicKey = await fetchAggregatorPublicKey();
     const encryptedRecipient = publicKeyEncrypt(recipient, publicKey.data);
 
-    // Calculate senderFee based on transfer type
-    // For local transfers (rate == 100), contract requires senderFee > 0
-    // For FX transfers (rate != 100), senderFee can be 0
-    const calculatedRate = Math.round(rate * 100);
-    const isLocalTransfer = calculatedRate === 100;
-
-    // Calculate senderFee: 0.1% of amount for local transfers, 0 for FX transfers
-    const defaultFeePercent = 0.1; // 0.1% default fee for local transfers
-    const senderFeeAmount = isLocalTransfer
-      ? (amountSent * defaultFeePercent) / 100
-      : 0;
-
-    // Convert senderFee to token units (with decimals)
-    const senderFeeInTokenUnits = parseUnits(
-      senderFeeAmount.toString(),
-      tokenDecimals ?? 18,
-    );
-
-    // Cap the fee to 10k (1000000) in token base units for local transfers
-    const maxFeeCap = BigInt(1000000);
-    const cappedSenderFee =
-      isLocalTransfer && senderFeeInTokenUnits > maxFeeCap
-        ? maxFeeCap
-        : senderFeeInTokenUnits;
-
-    // Set senderFeeRecipient
-    // Fee recipient is required from environment variable for local transfers
-    // For FX transfers, use zero address when fee is 0
-    const senderFeeRecipient = isLocalTransfer
-      ? feeRecipientAddress
-      : "0x0000000000000000000000000000000000000000";
+    // Use the fee values calculated earlier (already in base units and capped)
 
     // Prepare transaction parameters
     const params = {
       token: tokenAddress,
       amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-      rate: BigInt(calculatedRate),
-      senderFeeRecipient: getAddress(senderFeeRecipient),
-      senderFee: cappedSenderFee,
+      rate: BigInt(Math.round(rate * 100)),
+      senderFeeRecipient: getAddress(senderFeeRecipientAddress),
+      senderFee: senderFeeInTokenUnits,
       refundAddress: activeWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
@@ -381,9 +361,11 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
-    if (amountSent > balance) {
+    // Check balance including sender fee
+    const totalRequired = amountSent + senderFeeAmount;
+    if (totalRequired > balance) {
       toast.warning("Low balance. Fund your wallet.", {
-        description: "Insufficient funds. Please add money to continue.",
+        description: `Insufficient funds. You need ${formatNumberWithCommas(totalRequired)} ${token} (${formatNumberWithCommas(amountSent)} ${token} + ${formatNumberWithCommas(senderFeeAmount)} ${token} fee).`,
       });
       return;
     }

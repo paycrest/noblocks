@@ -10,10 +10,20 @@ const config: Config = {
     process.env.NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE || "",
   noticeBannerText: process.env.NEXT_PUBLIC_NOTICE_BANNER_TEXT || "",
   brevoConversationsId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_ID || "",
-  blockfestEndDate: process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
+  blockfestEndDate:
+    process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
 };
 
 export default config;
+
+// Fee recipient address for sender fees (required)
+const feeRecipientAddressEnv = process.env.NEXT_PUBLIC_FEE_RECIPIENT_ADDRESS;
+if (!feeRecipientAddressEnv) {
+  throw new Error(
+    "Missing required environment variable: NEXT_PUBLIC_FEE_RECIPIENT_ADDRESS",
+  );
+}
+export const feeRecipientAddress: string = feeRecipientAddressEnv;
 
 export const DEFAULT_PRIVY_CONFIG: JWTProviderConfig = {
   provider: "privy",

@@ -15,6 +15,7 @@ import {
   getRpcUrl,
   publicKeyEncrypt,
 } from "../utils";
+import { feeRecipientAddress } from "../lib/config";
 import { useNetwork, useTokens } from "../context";
 import type {
   Token,
@@ -161,15 +162,45 @@ export const TransactionPreview = ({
     const publicKey = await fetchAggregatorPublicKey();
     const encryptedRecipient = publicKeyEncrypt(recipient, publicKey.data);
 
+    // Calculate senderFee based on transfer type
+    // For local transfers (rate == 100), contract requires senderFee > 0
+    // For FX transfers (rate != 100), senderFee can be 0
+    const calculatedRate = Math.round(rate * 100);
+    const isLocalTransfer = calculatedRate === 100;
+
+    // Calculate senderFee: 0.1% of amount for local transfers, 0 for FX transfers
+    const defaultFeePercent = 0.1; // 0.1% default fee for local transfers
+    const senderFeeAmount = isLocalTransfer
+      ? (amountSent * defaultFeePercent) / 100
+      : 0;
+
+    // Convert senderFee to token units (with decimals)
+    const senderFeeInTokenUnits = parseUnits(
+      senderFeeAmount.toString(),
+      tokenDecimals ?? 18,
+    );
+
+    // Cap the fee to 10k (1000000) in token base units for local transfers
+    const maxFeeCap = BigInt(1000000);
+    const cappedSenderFee =
+      isLocalTransfer && senderFeeInTokenUnits > maxFeeCap
+        ? maxFeeCap
+        : senderFeeInTokenUnits;
+
+    // Set senderFeeRecipient
+    // Fee recipient is required from environment variable for local transfers
+    // For FX transfers, use zero address when fee is 0
+    const senderFeeRecipient = isLocalTransfer
+      ? feeRecipientAddress
+      : "0x0000000000000000000000000000000000000000";
+
     // Prepare transaction parameters
     const params = {
       token: tokenAddress,
       amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-      rate: BigInt(Math.round(rate * 100)),
-      senderFeeRecipient: getAddress(
-        "0x0000000000000000000000000000000000000000",
-      ),
-      senderFee: BigInt(0),
+      rate: BigInt(calculatedRate),
+      senderFeeRecipient: getAddress(senderFeeRecipient),
+      senderFee: cappedSenderFee,
       refundAddress: activeWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
@@ -188,6 +219,10 @@ export const TransactionPreview = ({
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
+        // Calculate total amount to approve (amount + senderFee)
+        // The contract transfers amount + senderFee from the user
+        const totalAmountToApprove = params.amount + params.senderFee;
+
         // Send approval transaction
         const approvalTx = await injectedProvider.request({
           method: "eth_sendTransaction",
@@ -202,7 +237,7 @@ export const TransactionPreview = ({
                   getGatewayContractAddress(
                     selectedNetwork.chain.name,
                   ) as `0x${string}`,
-                  parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+                  totalAmountToApprove,
                 ],
               }),
             },
@@ -270,6 +305,9 @@ export const TransactionPreview = ({
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
+        // Calculate total amount to approve (amount + senderFee)
+        const totalAmountToApprove = params.amount + params.senderFee;
+
         await client.sendTransaction({
           calls: [
             // Approve gateway contract to spend token
@@ -282,7 +320,7 @@ export const TransactionPreview = ({
                   getGatewayContractAddress(
                     selectedNetwork.chain.name,
                   ) as `0x${string}`,
-                  parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+                  totalAmountToApprove,
                 ],
               }),
             },

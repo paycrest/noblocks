@@ -166,7 +166,7 @@ export const Navbar = () => {
             </div>
 
             {/* Home Link */}
-            {pathname != "/" && (
+            {pathname !== "/" && (
               <div className="hidden items-center sm:flex">
                 <Link
                   href="/"

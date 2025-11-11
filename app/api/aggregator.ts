@@ -669,4 +669,56 @@ export async function migrateLocalStorageRecipients(
     console.error("Error migrating recipients:", error);
     // Don't throw - let the app continue even if migration fails
   }
-}
+};
+
+/**
+ * Submits Smile ID captured data for KYC verification
+ * @param {object} payload - The Smile ID data payload
+ * @returns {Promise<InitiateKYCResponse>} The submission response
+ * @throws {Error} If the API request fails
+ */
+export const submitSmileIDData = async (
+  payload: any,
+): Promise<InitiateKYCResponse> => {
+  const startTime = Date.now();
+
+  try {
+    // Track external API request
+    trackServerEvent("External API Request", {
+      service: "next-api",
+      endpoint: "/api/kyc/smile-id",
+      method: "POST",
+    });
+
+    console.log("Submitting Smile ID data payload:", payload);
+
+    // Call Next.js API route instead of backend directly
+    const response = await axios.post(`/api/kyc/smile-id`, payload);
+
+    // Track successful response
+    const responseTime = Date.now() - startTime;
+    trackApiResponse("/api/kyc/smile-id", "POST", 200, responseTime, {
+      service: "next-api",
+    });
+
+    // Track business event
+    trackBusinessEvent("Smile ID Data Submitted", {
+      jobId: response.data.data?.jobId,
+    });
+
+    return response.data;
+  } catch (error) {
+    const responseTime = Date.now() - startTime;
+
+    // Track API error
+    trackServerEvent("External API Error", {
+      service: "next-api",
+      endpoint: "/api/kyc/smile-id",
+      method: "POST",
+      error_message: error instanceof Error ? error.message : "Unknown error",
+      response_time_ms: responseTime,
+    });
+
+    throw error;
+  }
+};

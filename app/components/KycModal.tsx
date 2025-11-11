@@ -5,18 +5,31 @@ import { QRCode } from "react-qrcode-logo";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { FiExternalLink } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import "@smileid/web-components/smart-camera-web";
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      "smart-camera-web": any;
+    }
+  }
+}
+
 
 import {
   CheckIcon,
-  QrCodeIcon,
   SadFaceIcon,
   UserDetailsIcon,
   VerificationPendingIcon,
 } from "./ImageAssets";
 import { fadeInOut } from "./AnimatedComponents";
 import { generateTimeBasedNonce } from "../utils";
-import { fetchKYCStatus, initiateKYC } from "../api/aggregator";
+import {
+  fetchKYCStatus,
+  initiateKYC,
+  submitSmileIDData,
+} from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics/client";
 import { Cancel01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
@@ -24,6 +37,7 @@ import { useInjectedWallet } from "../context";
 
 export const STEPS = {
   TERMS: "terms",
+  CAPTURE: "capture",
   STATUS: {
     PENDING: "pending",
     SUCCESS: "success",
@@ -36,6 +50,7 @@ export const STEPS = {
 
 type Step =
   | typeof STEPS.TERMS
+  | typeof STEPS.CAPTURE
   | typeof STEPS.LOADING
   | typeof STEPS.REFRESH
   | (typeof STEPS.STATUS)[keyof typeof STEPS.STATUS];
@@ -65,6 +80,10 @@ export const KycModal = ({
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [kycSignature, setKycSignature] = useState<string>("");
+  const [kycNonce, setKycNonce] = useState<string>("");
+  const [cameraElement, setCameraElement] = useState<HTMLElement | null>(null);
 
   const handleSignAndContinue = async () => {
     setIsSigning(true);
@@ -114,25 +133,11 @@ export const KycModal = ({
           ? signature.slice(2)
           : signature;
 
-        const response = await initiateKYC({
-          signature: sigWithoutPrefix,
-          walletAddress: walletAddress || "",
-          nonce,
-        });
+        setKycSignature(sigWithoutPrefix);
+        setKycNonce(nonce);
 
-        if (response.status === "success") {
-          trackEvent("Account verification", {
-            "Verification status": "Pending",
-          });
-          setKycUrl(response.data.url);
-          setShowQRCode(true);
-          setStep(STEPS.STATUS.PENDING);
-        } else {
-          setStep(STEPS.STATUS.FAILED);
-          trackEvent("Account verification", {
-            "Verification status": "Failed",
-          });
-        }
+        // Skip old KYC initiation since we're using Smile ID
+        setStep(STEPS.CAPTURE);
       }
     } catch (error: unknown) {
       console.log("error", error);
@@ -155,30 +160,6 @@ export const KycModal = ({
     }
   };
 
-  const QRCodeComponent = useCallback(
-    () => (
-      <div className="w-full">
-        <QRCode
-          value={kycUrl}
-          qrStyle="dots"
-          eyeRadius={20}
-          logoImage="/images/user-qr-logo.png"
-          bgColor="#F9FAFB"
-          style={{
-            borderRadius: "32px",
-            margin: "0 auto",
-            width: "100%",
-            maxWidth: "360px",
-            objectFit: "contain",
-            height: "auto",
-          }}
-          quietZone={16}
-          size={256}
-        />
-      </div>
-    ),
-    [kycUrl],
-  );
 
   const renderTerms = () => (
     <motion.div key="terms" {...fadeInOut} className="space-y-4">
@@ -316,45 +297,48 @@ export const KycModal = ({
     </motion.div>
   );
 
-  const renderQRCode = () => (
-    <motion.div key="qr_code" {...fadeInOut} className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div></div>
-        <h2 className="text-lg font-medium dark:text-white">
-          Verify with your phone or URL
-        </h2>
-        <button
-          type="button"
-          onClick={() => setIsKycModalOpen(false)}
-          className="rounded-full p-1 text-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/80"
-          title="Close"
-        >
-          <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
-        </button>
+  const renderCapture = () => (
+    <motion.div key="capture" {...fadeInOut} className="space-y-4">
+      <div className="space-y-3">
+        <UserDetailsIcon />
+        <div>
+          <h2 className="text-lg font-medium dark:text-white">
+            Capture your documents
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-white/50">
+            Please take a selfie and capture your ID document for verification.
+          </p>
+        </div>
       </div>
 
-      <p className="mx-auto text-center text-gray-500 dark:text-white/50">
-        Scan with your phone to have the best verification experience. You can
-        also open the URL below
-      </p>
-
-      <QRCodeComponent />
-
-      <div className="flex w-full items-center justify-center gap-3">
-        <hr className="h-px w-full bg-gray-100 opacity-10 dark:bg-white/5" />
-        <p className="text-xs text-gray-500 dark:text-white/50">Or</p>
-        <hr className="h-px w-full bg-gray-100 opacity-10 dark:bg-white/5" />
+      <div className="flex justify-center">
+        {/* @ts-ignore */}
+        <smart-camera-web
+          ref={(el: HTMLElement | null) => {
+          console.log("🔗 Ref callback called with:", el);
+          setCameraElement(el);
+        }}
+          theme-color="#8B85F4"
+          capture-id
+        ></smart-camera-web>
       </div>
+
+      {isCapturing && (
+      <div className="text-center text-sm text-gray-500">
+        Processing your verification...
+      </div>
+    )}
 
       <button
         type="button"
-        className={`${secondaryBtnClasses} flex w-full items-center justify-center gap-2`}
-        onClick={() => window.open(kycUrl, "_blank")}
+        onClick={() => setStep(STEPS.TERMS)}
+        className={secondaryBtnClasses}
       >
-        Open URL <FiExternalLink className="text-lg" />
+        Back
       </button>
     </motion.div>
   );
+
 
   const renderPendingStatus = () => (
     <motion.div key="pending" {...fadeInOut} className="space-y-6 pt-4">
@@ -372,14 +356,6 @@ export const KycModal = ({
       </div>
 
       <div className="flex w-full items-center gap-2">
-        <button
-          type="button"
-          title="View QR Code"
-          className={`${secondaryBtnClasses}`}
-          onClick={() => setShowQRCode(true)}
-        >
-          <QrCodeIcon className="size-6 p-0.5 text-gray-300" />
-        </button>
         <button
           type="button"
           className={`${primaryBtnClasses} w-full`}
@@ -510,7 +486,11 @@ export const KycModal = ({
           "Verification status": "Success",
         });
       }
-      if (newStatus === STEPS.STATUS.PENDING) setKycUrl(response.data.url);
+      if (newStatus === STEPS.STATUS.PENDING) {
+        // setKycUrl(response.data.url);
+        // setIsKycModalOpen(true);
+        return;
+      }
       if (newStatus === STEPS.STATUS.FAILED) {
         trackEvent("Account verification", {
           "Verification status": "Failed",
@@ -580,19 +560,125 @@ export const KycModal = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletAddress]);
 
+// Handle Smile ID publish event
+useEffect(() => {
+  console.log("🔄 useEffect triggered - step:", step);
+  console.log("📷 cameraElement:", cameraElement);
+  
+  if (step !== STEPS.CAPTURE) {
+    console.log("⏭️ Skipping listener setup - not on CAPTURE step");
+    return;
+  }
+  
+  if (!cameraElement) {
+    console.log("⏳ Camera element not ready yet");
+    return;
+  }
+
+  console.log("✅ Setting up SmileID listeners");
+
+  console.log("✅ Setting up SmileID listeners");
+
+  const handlePublish = async (event: any) => {
+    console.log("✅✅✅ PUBLISH EVENT FIRED! ✅✅✅");
+    console.log("📦 Full event:", event);
+    console.log("📦 Event detail:", event.detail);
+    console.log("🖼️ Images:", event.detail?.images);
+    
+    setIsCapturing(true);
+    
+    try {
+      const { images, partner_params } = event.detail;
+      
+      // Validate data structure
+      if (!images || !Array.isArray(images) || images.length === 0) {
+        console.error("❌ Invalid images:", images);
+        throw new Error("Invalid image data received");
+      }
+
+      console.log(`✅ Valid images received: ${images.length} images`);
+
+      // Send the captured data to backend
+      const payload = {
+        images,
+        partner_params: {
+          ...partner_params,
+          user_id: `user-${walletAddress}`,
+          job_type: 1,
+        },
+        walletAddress,
+        signature: kycSignature,
+        nonce: kycNonce,
+      };
+      
+      console.log("📤 Submitting payload to backend:", payload);
+      const response = await submitSmileIDData(payload);
+      console.log("✅ Backend response:", response);
+      
+      if (response.status === "success") {
+        console.log("🎉 Verification submitted successfully!");
+        setStep(STEPS.STATUS.PENDING);
+        trackEvent("Account verification", {
+          "Verification status": "Submitted",
+        });
+      } else {
+        console.error("❌ Verification failed - status:", response.status);
+        setStep(STEPS.STATUS.FAILED);
+      }
+    } catch (error) {
+      console.error("❌❌❌ Error submitting KYC data:", error);
+      if (error instanceof Error) {
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
+      toast.error("Failed to submit verification data");
+      setStep(STEPS.STATUS.FAILED);
+    } finally {
+      setIsCapturing(false);
+    }
+  };
+
+  const handleCancel = (event: any) => {
+    console.log("🚫 CANCEL EVENT FIRED");
+    console.log("Cancel detail:", event.detail);
+    toast.info("Verification cancelled");
+    setStep(STEPS.TERMS);
+  };
+
+  const handleBack = (event: any) => {
+    console.log("⬅️ BACK EVENT FIRED");
+    console.log("Back detail:", event.detail);
+  };
+
+  cameraElement.addEventListener("smart-camera-web.publish", handlePublish);
+  cameraElement.addEventListener("smart-camera-web.cancelled", handleCancel);
+  cameraElement.addEventListener("smart-camera-web.back", handleBack);
+  console.log("✅ Listeners added successfully");
+
+  return () => {
+    console.log("🧹 Cleaning up listeners");
+    cameraElement.removeEventListener("smart-camera-web.publish", handlePublish);
+    cameraElement.removeEventListener("smart-camera-web.cancelled", handleCancel);
+    cameraElement.removeEventListener("smart-camera-web.back", handleBack);
+    console.log("✅ Listeners removed");
+  };
+}, [step, cameraElement, walletAddress, kycSignature, kycNonce]);
+
+
   return (
     <>
       <AnimatePresence mode="wait">
-        {showQRCode
-          ? renderQRCode()
-          : {
-              [STEPS.TERMS]: renderTerms(),
-              [STEPS.STATUS.PENDING]: renderPendingStatus(),
-              [STEPS.STATUS.SUCCESS]: renderSuccessStatus(),
-              [STEPS.STATUS.FAILED]: renderFailedStatus(),
-              [STEPS.LOADING]: renderLoadingStatus(),
-              [STEPS.REFRESH]: renderRefresh(),
-            }[step]}
+        {
+          {
+            [STEPS.TERMS]: renderTerms(),
+            [STEPS.CAPTURE]: renderCapture(),
+            [STEPS.STATUS.PENDING]: renderPendingStatus(),
+            [STEPS.STATUS.SUCCESS]: renderSuccessStatus(),
+            [STEPS.STATUS.FAILED]: renderFailedStatus(),
+            [STEPS.LOADING]: renderLoadingStatus(),
+            [STEPS.REFRESH]: renderRefresh(),
+          }[step]
+        }
       </AnimatePresence>
     </>
   );

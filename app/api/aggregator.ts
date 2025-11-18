@@ -18,6 +18,7 @@ import type {
   RecipientDetails,
   RecipientDetailsWithId,
   SavedRecipientsResponse,
+  ReferralData,
 } from "../types";
 import {
   trackServerEvent,
@@ -507,6 +508,73 @@ export const fetchTokens = async (): Promise<APIToken[]> => {
     throw error;
   }
 };
+
+/**
+ * Submit a referral code for a new user
+ */
+export async function submitReferralCode(
+  code: string,
+  accessToken?: string,
+): Promise<any> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  const response = await axios.post(`/api/referral/submit`, { referral_code: code }, { headers });
+
+  if (!response.data?.success) {
+    throw new Error(response.data?.error || response.data?.message || "Failed to submit referral code");
+  }
+
+  return response.data;
+}
+
+/**
+ * Get user's referral data (code, earnings, referral list)
+ */
+export async function getReferralData(
+  accessToken?: string,
+  walletAddress?: string,
+): Promise<ReferralData> {
+  const headers: Record<string, string> = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  const url = walletAddress
+    ? `/api/referral/data?wallet_address=${encodeURIComponent(walletAddress)}`
+    : `/api/referral/data`;
+
+  const response = await axios.get(url, { headers });
+
+  if (!response.data?.success) {
+    throw new Error(response.data?.error || "Failed to fetch referral data");
+  }
+
+  return response.data.data as ReferralData;
+}
+
+/**
+ * Generate or get user's referral code
+ */
+export async function generateReferralCode(
+  accessToken?: string,
+): Promise<string> {
+  const headers: Record<string, string> = {};
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  const response = await axios.get(`/api/referral/generate-referral-code`, { headers });
+
+  if (!response.data?.success) {
+    throw new Error(response.data?.error || "Failed to generate referral code");
+  }
+
+  // normalize the payload shapes we might get back
+  const payload = response.data;
+  return payload.data?.referral_code || payload.data?.referralCode || payload.code || "";
+}
 
 /**
  * Fetches saved recipients for a wallet address

@@ -17,7 +17,14 @@ import {
 import { useSearchParams } from "next/navigation";
 import { useActualTheme } from "../hooks/useActualTheme";
 
-export const NetworkSelectionModal = () => {
+interface NetworkSelectionModalProps {
+  onNetworkSelected?: () => void;
+}
+
+// export const NetworkSelectionModal = () => {
+export const NetworkSelectionModal = ({
+  onNetworkSelected,
+}: NetworkSelectionModalProps = {}) => {
   const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -39,12 +46,28 @@ export const NetworkSelectionModal = () => {
     }
   }, [hasCheckedStorage, authenticated, user?.wallet?.address]);
 
+  // const handleClose = () => {
+  //   if (user?.wallet?.address) {
+  //     const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
+  //     localStorage.setItem(storageKey, "true");
+  //   }
+  //   setIsOpen(false);
+  // };
+
   const handleClose = () => {
     if (user?.wallet?.address) {
       const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
       localStorage.setItem(storageKey, "true");
     }
     setIsOpen(false);
+
+    // Trigger callback when modal closes after network selection
+    if (onNetworkSelected) {
+      // Small delay to ensure smooth transition
+      setTimeout(() => {
+        onNetworkSelected();
+      }, 300);
+    }
   };
 
   const handleNetworkSelect = async (networkName: string) => {

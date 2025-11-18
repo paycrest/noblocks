@@ -12,6 +12,7 @@ import {
 } from "hugeicons-react";
 import { BalanceCardSkeleton } from "../BalanceSkeleton";
 import { classNames, getNetworkImageUrl } from "../../utils";
+import { ReferralCTA } from "../ReferralCTA";
 
 // Types for props
 interface WalletViewProps {
@@ -259,7 +260,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
               {networks
                 .filter(
                   (network) =>
-                    isInjectedWallet || 
+                    isInjectedWallet ||
                     (network.chain.name !== "Celo" && network.chain.name !== "Hedera Mainnet"),
                 )
                 .map((network) => (
@@ -293,6 +294,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
           )}
         </AnimatePresence>
       </div>
+      {!isInjectedWallet && <ReferralCTA />}
     </div>
   );
 };

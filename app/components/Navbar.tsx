@@ -284,7 +284,6 @@ export const Navbar = () => {
                   onViewReferrals={() => setIsReferralOpen(true)}
                 />
               </AnimatePresence>
-              {/* Referral dashboard (mobile flow opens this after the mobile dropdown closes) */}
               <ReferralDashboard
                 isOpen={isReferralOpen}
                 onClose={() => setIsReferralOpen(false)}

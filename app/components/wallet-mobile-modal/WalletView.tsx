@@ -298,10 +298,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
       </div>
       {!isInjectedWallet && (
         <ReferralCTA
-          onViewReferrals={() => {
-            onClose();
-            if (onViewReferrals) setTimeout(() => onViewReferrals(), 260);
-          }}
+          onViewReferrals={onViewReferrals ?? (() => { })}
         />
       )}
     </div>

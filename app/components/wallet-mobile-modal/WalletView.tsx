@@ -36,6 +36,7 @@ interface WalletViewProps {
   onHistory: () => void;
   setSelectedNetwork: (network: any) => void;
   onRefreshBalance: () => void;
+  onViewReferrals?: () => void;
 }
 
 export const WalletView: React.FC<WalletViewProps> = ({
@@ -58,6 +59,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onClose,
   onHistory,
   onRefreshBalance,
+  onViewReferrals,
 }) => {
   return (
     <div className="space-y-4">
@@ -294,7 +296,14 @@ export const WalletView: React.FC<WalletViewProps> = ({
           )}
         </AnimatePresence>
       </div>
-      {!isInjectedWallet && <ReferralCTA />}
+      {!isInjectedWallet && (
+        <ReferralCTA
+          onViewReferrals={() => {
+            onClose();
+            if (onViewReferrals) setTimeout(() => onViewReferrals(), 260);
+          }}
+        />
+      )}
     </div>
   );
 };

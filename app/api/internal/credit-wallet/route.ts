@@ -2,20 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import * as ethers from "ethers";
 
-/**
- * Minimal, idempotent internal credit endpoint (stubbed).
- * Protect with x-internal-auth = process.env.INTERNAL_API_KEY
- * Expected body:
- * {
- *   idempotency_key: string,
- *   wallet_address: string,
- *   amount: number, // integer, micro-units (USDC = 6dp)
- *   currency: string,
- *   referral_id?: string | number,
- *   reason?: string,
- *   metadata?: Record<string, any>
- * }
- */
 export const POST = async (request: NextRequest) => {
     const internalAuth = process.env.INTERNAL_API_KEY;
     const headerAuth = request.headers.get("x-internal-auth");
@@ -55,6 +41,12 @@ export const POST = async (request: NextRequest) => {
             .single();
 
         if (existing) {
+            if (existing.status === "failed") {
+                return NextResponse.json(
+                    { success: false, error: "Existing credit is in failed state" },
+                    { status: 500 }
+                );
+            }
             return NextResponse.json({ success: true, data: existing });
         }
 

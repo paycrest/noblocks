@@ -75,27 +75,33 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         }
 
         // Generate a new unique code
-        let code: string;
+        let code: string | null = null;
         let attempts = 0;
         const maxAttempts = 10;
 
-        do {
-            code = generateReferralCode();
+        while (!code && attempts < maxAttempts) {
+            const candidate = generateReferralCode();
             attempts++;
 
-            // Check if code already exists
-            const { data: existing } = await supabaseAdmin
+            const { data: existing, error: existingError } = await supabaseAdmin
                 .from("users")
                 .select("wallet_address")
-                .eq("referral_code", code)
+                .eq("referral_code", candidate)
                 .single();
 
-            if (!existing) break;
-
-            if (attempts >= maxAttempts) {
-                throw new Error("Failed to generate unique referral code");
+            // Treat "no row" as available; any other error should bubble up
+            if (existingError && existingError.code !== "PGRST116") {
+                throw existingError;
             }
-        } while (true);
+
+            if (!existing) {
+                code = candidate;
+            }
+        }
+
+        if (!code) {
+            throw new Error("Failed to generate unique referral code");
+        }
 
         // Update or insert user with new code
         const { data: userData, error: upsertError } = await supabaseAdmin

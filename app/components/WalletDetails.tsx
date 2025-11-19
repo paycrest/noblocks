@@ -278,7 +278,12 @@ export const WalletDetails = () => {
                       )}
                     </div>
                     <div className="mt-8">
-                      <ReferralCTA onViewReferrals={() => { setIsSidebarOpen(false); setIsReferralOpen(true); }} />
+                      <ReferralCTA
+                        onViewReferrals={() => {
+                          handleSidebarClose();
+                          setTimeout(() => setIsReferralOpen(true), 260);
+                        }}
+                      />
                     </div>
 
                     {/* Tab navigation */}

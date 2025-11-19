@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
-export const ReferralCTA = ({ onViewReferrals }: { onViewReferrals?: () => void }) => {
+export const ReferralCTA = ({ onViewReferrals }: { onViewReferrals: () => void }) => {
     const router = useRouter();
 
     const handleViewReferrals = () => {
@@ -34,7 +34,7 @@ export const ReferralCTA = ({ onViewReferrals }: { onViewReferrals?: () => void 
                         Invite. Earn. Repeat.
                     </h3>
                     <p className="font-light text-text-secondary dark:text-white/50">
-                        Refer your friends and earn USDT
+                        Refer your friends and earn USDC
                     </p>
                 </div>
             </div>

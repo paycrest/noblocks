@@ -38,9 +38,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             wallet_address: walletAddress,
         });
 
-        // Do not trust client-provided flags. Claim will perform authoritative server-side
-        // verification of KYC and qualifying transaction below.
-
         // Find pending referral for this user
         const { data: referral, error: referralError } = await supabaseAdmin
             .from("referrals")
@@ -153,11 +150,15 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         // If crediting fails, roll back referral status to pending to keep consistency.
         const internalAuth = process.env.INTERNAL_API_KEY;
         const internalBase = process.env.INTERNAL_API_BASE_URL || new URL(request.url).origin;
+        const isProd = process.env.NODE_ENV === "production";
 
         async function creditWallet(wallet: string, amountMicro: number, referralId: any) {
             if (!internalAuth) {
+                if (isProd) {
+                    throw new Error("Internal wallet service not configured");
+                }
                 // Wallet service not configured; skip actual crediting.
-                console.warn("Internal wallet service not configured, skipping credit for", wallet);
+                console.error("Internal wallet service not configured, skipping credit for", wallet);
                 return { ok: false, skipped: true };
             }
 

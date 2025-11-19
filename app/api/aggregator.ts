@@ -19,6 +19,8 @@ import type {
   RecipientDetailsWithId,
   SavedRecipientsResponse,
   ReferralData,
+  ApiResponse,
+  SubmitReferralResult,
 } from "../types";
 import {
   trackServerEvent,
@@ -515,7 +517,7 @@ export const fetchTokens = async (): Promise<APIToken[]> => {
 export async function submitReferralCode(
   code: string,
   accessToken?: string,
-): Promise<any> {
+): Promise<ApiResponse<SubmitReferralResult>> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -524,14 +526,23 @@ export async function submitReferralCode(
     headers.Authorization = `Bearer ${accessToken}`;
   }
 
-  const response = await axios.post(`/api/referral/submit`, { referral_code: code }, { headers });
+  try {
+    const response = await axios.post(`/api/referral/submit`, { referral_code: code }, { headers });
 
-  if (!response.data?.success) {
-    throw new Error(response.data?.error || response.data?.message || "Failed to submit referral code");
+    if (!response.data?.success) {
+      return { success: false, error: response.data?.error || response.data?.message || "Failed to submit referral code", status: response.status };
+    }
+
+    return { success: true, data: response.data?.data || response.data } as ApiResponse<SubmitReferralResult>;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message = error.response?.data?.message || error.message || "Failed to submit referral code";
+      return { success: false, error: message, status: error.response?.status };
+    }
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
-
-  return response.data;
 }
+
 
 /**
  * Get user's referral data (code, earnings, referral list)
@@ -539,7 +550,7 @@ export async function submitReferralCode(
 export async function getReferralData(
   accessToken?: string,
   walletAddress?: string,
-): Promise<ReferralData> {
+): Promise<ApiResponse<ReferralData>> {
   const headers: Record<string, string> = {};
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
@@ -547,13 +558,21 @@ export async function getReferralData(
     ? `/api/referral/data?wallet_address=${encodeURIComponent(walletAddress)}`
     : `/api/referral/data`;
 
-  const response = await axios.get(url, { headers });
+  try {
+    const response = await axios.get(url, { headers });
 
-  if (!response.data?.success) {
-    throw new Error(response.data?.error || "Failed to fetch referral data");
+    if (!response.data?.success) {
+      return { success: false, error: response.data?.error || "Failed to fetch referral data", status: response.status };
+    }
+
+    return { success: true, data: response.data.data as ReferralData };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message = error.response?.data?.message || error.message || "Failed to fetch referral data";
+      return { success: false, error: message, status: error.response?.status };
+    }
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
-
-  return response.data.data as ReferralData;
 }
 
 /**
@@ -561,19 +580,26 @@ export async function getReferralData(
  */
 export async function generateReferralCode(
   accessToken?: string,
-): Promise<string> {
+): Promise<ApiResponse<{ referral_code?: string; referralCode?: string; code?: string }>> {
   const headers: Record<string, string> = {};
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  const response = await axios.get(`/api/referral/generate-referral-code`, { headers });
+  try {
+    const response = await axios.get(`/api/referral/generate-referral-code`, { headers });
 
-  if (!response.data?.success) {
-    throw new Error(response.data?.error || "Failed to generate referral code");
+    if (!response.data?.success) {
+      return { success: false, error: response.data?.error || "Failed to generate referral code", status: response.status };
+    }
+
+    const payload = response.data;
+    return { success: true, data: payload.data || payload };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message = error.response?.data?.message || error.message || "Failed to generate referral code";
+      return { success: false, error: message, status: error.response?.status };
+    }
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
-
-  // normalize the payload shapes we might get back
-  const payload = response.data;
-  return payload.data?.referral_code || payload.data?.referralCode || payload.code || "";
 }
 
 /**

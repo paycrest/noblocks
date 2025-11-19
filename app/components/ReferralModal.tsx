@@ -46,11 +46,19 @@ export const ReferralInputModal = ({
             const token = await getAccessToken();
 
             try {
-                const payload = await submitReferralCode(code, token ?? undefined);
-                toast.success(payload?.data?.message || "Referral code applied! Complete KYC and your first transaction to earn rewards.");
-                onSubmitSuccess();
-                onClose();
+                const res = await submitReferralCode(code, token ?? undefined);
+
+                if (res && res.success) {
+                    toast.success(res.data?.message || "Referral code applied! Complete KYC and your first transaction to earn rewards.");
+                    onSubmitSuccess();
+                    onClose();
+                } else {
+                    // API returned a well-formed error response
+                    const message = res && !res.success ? res.error : "Failed to submit referral code. Please try again.";
+                    toast.error(message);
+                }
             } catch (err) {
+                // Unexpected errors (should be rare since submitReferralCode returns ApiResponse)
                 const message = err instanceof Error ? err.message : "Failed to submit referral code. Please try again.";
                 toast.error(message);
             }
@@ -115,7 +123,7 @@ export const ReferralInputModal = ({
                         type="button"
                         onClick={handleSubmit}
                         disabled={isSubmitting || !referralCode.trim()}
-                        className="min-h-11 w-full rounded-xl bg-lavender-500 py-2 text-sm font-medium text-white transition-colors hover:bg-lavender-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="min-h-11 w-full rounded-xl bg-lavender-500 py-2 text-sm font-medium text-white disabled:text-white/30 transition-colors hover:bg-lavender-600 disabled:cursor-not-allowed disabled:dark:bg-white/5"
                     >
                         {isSubmitting ? "Submitting..." : "Submit"}
                     </button>

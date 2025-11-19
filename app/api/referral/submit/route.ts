@@ -90,7 +90,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             .eq("referral_code", normalizedCode)
             .single();
 
-        if (referrerError || !referrer) {
+        if (referrerError && referrerError.code !== "PGRST116") {
+            throw referrerError;
+        }
+
+        if (!referrer) {
             trackBusinessEvent("Invalid Referral Code Used", {
                 wallet_address: walletAddress,
                 referral_code: normalizedCode,

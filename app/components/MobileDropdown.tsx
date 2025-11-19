@@ -26,9 +26,11 @@ import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 export const MobileDropdown = ({
   isOpen,
   onClose,
+  onViewReferrals,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  onViewReferrals?: () => void;
 }) => {
   const [currentView, setCurrentView] = useState<
     "wallet" | "settings" | "transfer" | "fund" | "history"
@@ -140,14 +142,14 @@ export const MobileDropdown = ({
       body: JSON.stringify(payload),
       signal: controller.signal
     })
-    .catch(error => {
-      if (error.name !== 'AbortError') {
-        console.warn('Logout tracking failed:', error);
-      }
-    })
-    .finally(() => {
-      clearTimeout(timeoutId);
-    });
+      .catch(error => {
+        if (error.name !== 'AbortError') {
+          console.warn('Logout tracking failed:', error);
+        }
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
+      });
   };
 
   const handleLogout = async () => {
@@ -232,6 +234,7 @@ export const MobileDropdown = ({
                               }
                               onSettings={() => setCurrentView("settings")}
                               onClose={onClose}
+                              onViewReferrals={onViewReferrals}
                               onHistory={() => setCurrentView("history")}
                               setSelectedNetwork={setSelectedNetwork}
                               onRefreshBalance={refreshBalance}
@@ -289,7 +292,7 @@ export const MobileDropdown = ({
         )}
       </AnimatePresence>
 
-      <CopyAddressWarningModal 
+      <CopyAddressWarningModal
         isOpen={isWarningModalOpen}
         onClose={() => setIsWarningModalOpen(false)}
         address={smartWallet?.address ?? ""}

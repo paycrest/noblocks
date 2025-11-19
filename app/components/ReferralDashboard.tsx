@@ -263,7 +263,7 @@ export const ReferralDashboard = ({
                                             Earned
                                         </p>
                                         <p className="text-2xl font-semibold text-text-body dark:text-white">
-                                            {referralData?.total_earned.toFixed(1) || "0.0"} USDC
+                                            {referralData?.total_earned?.toFixed(1) ?? "0.0"} USDC
                                         </p>
                                     </div>
                                     <div className="bg-transparent p-4">
@@ -271,7 +271,7 @@ export const ReferralDashboard = ({
                                             Pending
                                         </p>
                                         <p className="text-2xl font-semibold text-text-body dark:text-white">
-                                            {referralData?.total_pending.toFixed(0) || "0"} USDC
+                                            {referralData?.total_pending?.toFixed(0) ?? "0"} USDC
                                         </p>
                                     </div>
                                 </div>

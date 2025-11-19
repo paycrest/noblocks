@@ -418,3 +418,9 @@ export interface ReferralData {
     completed_at?: string | null;
   }>;
 }
+
+export type ApiResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error: string; status?: number };
+
+export type SubmitReferralResult = { message?: string };

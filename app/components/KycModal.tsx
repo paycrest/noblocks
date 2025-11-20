@@ -6,7 +6,6 @@ import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { FiExternalLink } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useCallback, useEffect, useRef } from "react";
-import "@smileid/web-components/smart-camera-web";
 
 declare global {
   namespace JSX {
@@ -32,7 +31,7 @@ import {
 } from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics/client";
-import { Cancel01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
+import { Cancel01Icon, CheckmarkCircle01Icon, Clock05Icon } from "hugeicons-react";
 import { useInjectedWallet } from "../context";
 
 export const STEPS = {
@@ -84,6 +83,21 @@ export const KycModal = ({
   const [kycSignature, setKycSignature] = useState<string>("");
   const [kycNonce, setKycNonce] = useState<string>("");
   const [cameraElement, setCameraElement] = useState<HTMLElement | null>(null);
+    const [smileIdLoaded, setSmileIdLoaded] = useState(false);
+
+    useEffect(() => {
+    if (typeof window !== 'undefined' && !smileIdLoaded) {
+      import("@smileid/web-components/smart-camera-web")
+        .then(() => {
+          console.log("SmileID web components loaded");
+          setSmileIdLoaded(true);
+        })
+        .catch((error) => {
+          console.error("Failed to load SmileID components:", error);
+          toast.error("Failed to load verification component");
+        });
+    }
+  }, [smileIdLoaded]);
 
   const handleSignAndContinue = async () => {
     setIsSigning(true);
@@ -184,7 +198,7 @@ export const KycModal = ({
           <div className="flex flex-col gap-4">
             <div className="flex items-start gap-2">
               <CheckIcon
-                className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer"
+                className="mx-1 mt-1 size-7 flex-shrink-0 cursor-pointer"
                 isActive={termsAccepted}
               />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
@@ -197,7 +211,7 @@ export const KycModal = ({
 
             <div className="flex items-start gap-2">
               <CheckIcon
-                className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer"
+                className="mx-1 mt-1 size-7 flex-shrink-0 cursor-pointer"
                 isActive={termsAccepted}
               />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
@@ -210,7 +224,7 @@ export const KycModal = ({
 
             <div className="flex items-start gap-2">
               <CheckIcon
-                className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer"
+                className="mx-1 mt-1 size-7 flex-shrink-0 cursor-pointer"
                 isActive={termsAccepted}
               />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
@@ -223,7 +237,7 @@ export const KycModal = ({
             </div>
 
             <div className="flex items-start gap-2">
-              <div className="mx-1 mt-1 size-5 flex-shrink-0"></div>
+              <div className="mx-1 mt-1 size-7 flex-shrink-0"></div>
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
                 <a
                   href={
@@ -320,7 +334,7 @@ export const KycModal = ({
         }}
           theme-color="#8B85F4"
           capture-id
-        ></smart-camera-web>
+        />
       </div>
 
       {isCapturing && (
@@ -341,17 +355,16 @@ export const KycModal = ({
 
 
   const renderPendingStatus = () => (
-    <motion.div key="pending" {...fadeInOut} className="space-y-6 pt-4">
-      <VerificationPendingIcon className="mx-auto" />
+    <motion.div key="pending" {...fadeInOut} className="space-y-4 pt-4">
+      <Clock05Icon className="mx-auto dark:text-yellow-primary" size={40} />
 
-      <div className="space-y-3 pb-5 text-center">
+      <div className="space-y-3 pb-2 px-6 text-center">
         <DialogTitle className="text-lg font-semibold">
-          Verification in progress
+          Tier 2 Upgrade in progress
         </DialogTitle>
 
         <p className="text-gray-500 dark:text-white/50">
-          We are verifying your identity. This will only take a few minutes.
-          Kindly check back soon
+          We are currently verifying your identity. You will get feedback within 24 hours. Kindly check back soon
         </p>
       </div>
 
@@ -368,10 +381,10 @@ export const KycModal = ({
   );
 
   const renderSuccessStatus = () => (
-    <motion.div key="success" {...fadeInOut} className="space-y-6 pt-4">
-      <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
+    <motion.div key="success" {...fadeInOut} className="space-y-4 pt-4">
+      <CheckmarkCircle01Icon className="mx-auto size-12" color="#39C65D"/>
 
-      <div className="space-y-3 pb-5 text-center">
+      <div className="space-y-3 pb-2 px-6 text-center">
         <DialogTitle className="text-lg font-semibold">
           Verification successful
         </DialogTitle>
@@ -396,10 +409,10 @@ export const KycModal = ({
   );
 
   const renderFailedStatus = () => (
-    <motion.div key="failed" {...fadeInOut} className="space-y-6 pt-4">
+    <motion.div key="failed" {...fadeInOut} className="space-y-4 pt-4">
       <SadFaceIcon className="mx-auto" />
 
-      <div className="space-y-3 pb-5 text-center">
+      <div className="space-y-3 pb-2 px-6 text-center">
         <DialogTitle className="text-lg font-semibold">
           Verification failed
         </DialogTitle>
@@ -431,10 +444,10 @@ export const KycModal = ({
   );
 
   const renderRefresh = () => (
-    <motion.div key="refresh" {...fadeInOut} className="space-y-6 pt-4">
+    <motion.div key="refresh" {...fadeInOut} className="space-y-4 pt-4">
       <VerificationPendingIcon className="mx-auto" />
 
-      <div className="space-y-3 pb-5 text-center">
+      <div className="space-y-3 pb-2 px-6 text-center">
         <DialogTitle className="text-lg font-semibold">
           Refresh to Update KYC
         </DialogTitle>
@@ -562,41 +575,25 @@ export const KycModal = ({
 
 // Handle Smile ID publish event
 useEffect(() => {
-  console.log("🔄 useEffect triggered - step:", step);
-  console.log("📷 cameraElement:", cameraElement);
-  
   if (step !== STEPS.CAPTURE) {
-    console.log("⏭️ Skipping listener setup - not on CAPTURE step");
     return;
   }
   
   if (!cameraElement) {
-    console.log("⏳ Camera element not ready yet");
     return;
   }
 
-  console.log("✅ Setting up SmileID listeners");
-
-  console.log("✅ Setting up SmileID listeners");
-
   const handlePublish = async (event: any) => {
-    console.log("✅✅✅ PUBLISH EVENT FIRED! ✅✅✅");
-    console.log("📦 Full event:", event);
-    console.log("📦 Event detail:", event.detail);
-    console.log("🖼️ Images:", event.detail?.images);
-    
-    setIsCapturing(true);
-    
+    // Show loading screen while submitting
+    setStep(STEPS.LOADING);
+
     try {
       const { images, partner_params } = event.detail;
-      
+
       // Validate data structure
       if (!images || !Array.isArray(images) || images.length === 0) {
-        console.error("❌ Invalid images:", images);
         throw new Error("Invalid image data received");
       }
-
-      console.log(`✅ Valid images received: ${images.length} images`);
 
       // Send the captured data to backend
       const payload = {
@@ -604,63 +601,51 @@ useEffect(() => {
         partner_params: {
           ...partner_params,
           user_id: `user-${walletAddress}`,
-          job_type: 1,
+          job_type: 4, // 4 for selfie enrollment (no country/ID required)
         },
         walletAddress,
         signature: kycSignature,
         nonce: kycNonce,
       };
-      
-      console.log("📤 Submitting payload to backend:", payload);
+
       const response = await submitSmileIDData(payload);
-      console.log("✅ Backend response:", response);
-      
+
       if (response.status === "success") {
-        console.log("🎉 Verification submitted successfully!");
         setStep(STEPS.STATUS.PENDING);
         trackEvent("Account verification", {
           "Verification status": "Submitted",
         });
       } else {
-        console.error("❌ Verification failed - status:", response.status);
         setStep(STEPS.STATUS.FAILED);
       }
     } catch (error) {
-      console.error("❌❌❌ Error submitting KYC data:", error);
       if (error instanceof Error) {
         console.error("Error message:", error.message);
         console.error("Error stack:", error.stack);
       }
       toast.error("Failed to submit verification data");
       setStep(STEPS.STATUS.FAILED);
-    } finally {
-      setIsCapturing(false);
     }
   };
 
   const handleCancel = (event: any) => {
-    console.log("🚫 CANCEL EVENT FIRED");
-    console.log("Cancel detail:", event.detail);
     toast.info("Verification cancelled");
     setStep(STEPS.TERMS);
   };
 
   const handleBack = (event: any) => {
-    console.log("⬅️ BACK EVENT FIRED");
     console.log("Back detail:", event.detail);
   };
 
   cameraElement.addEventListener("smart-camera-web.publish", handlePublish);
   cameraElement.addEventListener("smart-camera-web.cancelled", handleCancel);
   cameraElement.addEventListener("smart-camera-web.back", handleBack);
-  console.log("✅ Listeners added successfully");
 
   return () => {
     console.log("🧹 Cleaning up listeners");
     cameraElement.removeEventListener("smart-camera-web.publish", handlePublish);
     cameraElement.removeEventListener("smart-camera-web.cancelled", handleCancel);
     cameraElement.removeEventListener("smart-camera-web.back", handleBack);
-    console.log("✅ Listeners removed");
   };
 }, [step, cameraElement, walletAddress, kycSignature, kycNonce]);
 

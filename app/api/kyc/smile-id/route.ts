@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import SIDCore from "smile-identity-core";
-
-const SIDSignature = SIDCore.Signature;
-const SIDWebAPI = SIDCore.WebApi;
+import { supabaseAdmin } from '@/app/lib/supabase';
+import { submitSmileIDJob } from '@/app/lib/smileID';
 
 export async function POST(request: NextRequest) {
+
   try {
     const body = await request.json();
     const { images, partner_params, walletAddress, signature, nonce } = body;
@@ -24,107 +23,79 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Initialize SmileID Web API
-    const connection = new SIDWebAPI(
-      process.env.SMILE_ID_PARTNER_ID!,
-      process.env.SMILE_ID_CALLBACK_URL || "", // Optional callback URL
-      process.env.SMILE_ID_API_KEY!,
-      process.env.SMILE_ID_SERVER!, // e.g., "https://3eydmgh10d.execute-api.us-west-2.amazonaws.com/test"
-    );
 
-    // Generate unique IDs
-    const timestamp = Date.now();
-    const job_id = `job-${timestamp}-${walletAddress.slice(0, 8)}`;
-    const user_id = `user-${walletAddress}`;
-
-    // Prepare partner params for SmileID
-    const smileIdPartnerParams = {
-      user_id,
-      job_id,
-      job_type: 1, // 1 for biometric KYC with ID verification
-      ...partner_params,
+    // Use server utility to submit SmileID job
+    type SmileIdResultType = {
+      job_complete: boolean;
+      id_info?: any;
+      [key: string]: any;
     };
 
-    console.log("Submitting to SmileID:", {
-      user_id,
-      job_id,
-      images_count: images.length,
-    });
+    let smileIdResult: SmileIdResultType = { job_complete: false }, job_id: string, user_id: string;
+    try {
+      const result = await submitSmileIDJob({ images, partner_params, walletAddress, signature, nonce });
+      smileIdResult = { job_complete: false, ...result.smileIdResult };
+      job_id = result.job_id;
+      user_id = result.user_id;
+    } catch (err) {
+      console.error('SmileID job submission error:', err);
+      return NextResponse.json({
+        status: 'error',
+        message: err instanceof Error ? err.message : 'SmileID job failed',
+      }, { status: 500 });
+    }
 
-    // Submit to SmileID
-    const options = {
-      return_job_status: true,
-    };
-
-    const smileIdResult = await connection.submit_job(
-      smileIdPartnerParams,
-      images,
-      {}, // id_info (optional)
-      options,
-    );
-
-    console.log("SmileID response:", smileIdResult);
-
-    // Check if submission was successful
+    // Check if SmileID job completed AND succeeded
     if (!smileIdResult || !smileIdResult.job_complete) {
-      return NextResponse.json(
-        {
-          status: "error",
-          message: "SmileID submission incomplete",
-          data: smileIdResult,
-        },
-        { status: 500 }
-      );
+      console.error('SmileID job incomplete:', { job_complete: smileIdResult?.job_complete, smileIdResult });
+      return NextResponse.json({
+        status: 'error',
+        message: 'SmileID submission incomplete',
+        data: smileIdResult,
+      }, { status: 500 });
     }
 
-    // Now send the reference to your backend
-    const backendPayload = {
-      walletAddress,
-      signature,
-      nonce,
-      smileIdJobId: job_id,
-      smileIdUserId: user_id,
-      timestamp,
-    };
-
-    console.log("Sending reference to backend:", backendPayload);
-
-    // Send to your aggregator backend
-    const backendResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_AGGREGATOR_URL}/kyc/verify`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(backendPayload),
-      }
-    );
-
-    if (!backendResponse.ok) {
-      const errorData = await backendResponse.json();
-      console.error("Backend error:", errorData);
-      return NextResponse.json(
-        {
-          status: "error",
-          message: "Failed to store KYC reference",
-          data: errorData,
-        },
-        { status: 500 }
-      );
+    if (!smileIdResult.job_success) {
+      const errorMessage = smileIdResult.result?.ResultText || 'SmileID verification failed';
+      return NextResponse.json({
+        status: 'error',
+        message: errorMessage,
+        data: smileIdResult,
+      }, { status: 400 });
     }
 
-    const backendData = await backendResponse.json();
+    // Update existing KYC profile with SmileID data
+    // Note: Phone verification should have already created the row
+    const { error: supabaseError } = await supabaseAdmin
+      .from('user_kyc_profiles')
+      .update({
+        wallet_signature: signature,
+        smile_job_id: job_id,
+        id_info: smileIdResult?.id_info || null,
+        image_links: JSON.stringify(images),
+        verified: true,
+        verified_at: new Date().toISOString(),
+        tier: 2,
+      })
+      .eq('wallet_address', walletAddress.toLowerCase());
+
+    if (supabaseError) {
+      console.error('Supabase upsert error:', supabaseError);
+      return NextResponse.json({
+        status: 'error',
+        message: 'Failed to save KYC data to Supabase',
+        data: supabaseError,
+      }, { status: 500 });
+    }
 
     // Return success response
     return NextResponse.json({
       status: "success",
-      message: "KYC verification submitted successfully",
+      message: "KYC verification submitted and saved successfully",
       data: {
         jobId: job_id,
         userId: user_id,
         smileIdResponse: smileIdResult,
-        backendResponse: backendData,
       },
     });
   } catch (error) {

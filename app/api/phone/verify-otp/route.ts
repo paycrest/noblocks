@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/app/lib/supabase';
 import { trackApiRequest, trackApiResponse, trackApiError } from '../../../lib/server-analytics';
+import { validatePhoneNumber } from '@/app/lib/phone-verification';
 
 const MAX_ATTEMPTS = 3;
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
-  
+
   try {
     trackApiRequest(request, '/api/phone/verify-otp', 'POST');
 
@@ -21,12 +22,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get verification record
+    // Normalize phone number to E.164 format for consistent querying
+    const validation = validatePhoneNumber(phoneNumber);
+    if (!validation.isValid || !validation.e164Format) {
+      trackApiError(request, '/api/phone/verify-otp', 'POST', new Error('Invalid phone format'), 400);
+      return NextResponse.json(
+        { success: false, error: 'Invalid phone number format' },
+        { status: 400 }
+      );
+    }
+
+    // Get verification record using normalized E.164 format
     const { data: verification, error: fetchError } = await supabaseAdmin
       .from('user_kyc_profiles')
       .select('*')
       .eq('wallet_address', walletAddress.toLowerCase())
-      .eq('phone_number', phoneNumber)
+      .eq('phone_number', validation.e164Format)
       .single();
 
     if (fetchError || !verification) {

@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
     // Validate phone number
     const validation = validatePhoneNumber(phoneNumber);
     if (!validation.isValid) {
+      trackApiError(request, '/api/phone/send-otp', 'POST', new Error('Invalid phone number format'), 400);
       return NextResponse.json(
         { success: false, error: 'Invalid phone number format' },
         { status: 400 }
@@ -39,12 +40,13 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
     // Store OTP in database
+    // Use e164Format for storage (consistent, normalized format)
     const { error: dbError } = await supabaseAdmin
       .from('user_kyc_profiles')
       .upsert({
         wallet_address: walletAddress.toLowerCase(),
         name: name || null,
-        phone_number: validation.internationalFormat,
+        phone_number: validation.e164Format, // Store in E.164 format (no spaces)
         otp_code: otp,
         expires_at: expiresAt.toISOString(),
         verified: false,
@@ -64,11 +66,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Send OTP via appropriate provider
+    // Use digitsOnly for Termii, e164Format for Twilio
     let result;
     if (validation.isAfrican) {
-      result = await sendTermiiOTP(validation.internationalFormat!, otp);
+      result = await sendTermiiOTP(validation.digitsOnly!, otp);
     } else {
-      result = await sendTwilioOTP(validation.internationalFormat!, otp);
+      result = await sendTwilioOTP(validation.e164Format!, otp);
     }
 
     const responseTime = Date.now() - startTime;

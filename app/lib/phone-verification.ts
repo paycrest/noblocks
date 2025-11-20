@@ -27,17 +27,23 @@ export interface PhoneValidation {
   isValid: boolean;
   country?: CountryCode;
   internationalFormat?: string;
+  e164Format?: string; // E.164 format without spaces (e.g., +12025550123)
+  digitsOnly?: string; // Digits only format for Termii (e.g., 2025550123)
   isAfrican: boolean;
   provider: 'termii' | 'twilio';
 }
 
 /**
  * Validates and parses a phone number
+ * Returns multiple formats for different use cases:
+ * - internationalFormat: Display format with spaces (e.g., +1 202 555 0123)
+ * - e164Format: Twilio-compatible format without spaces (e.g., +12025550123)
+ * - digitsOnly: Termii-compatible format (e.g., 12025550123)
  */
 export function validatePhoneNumber(phoneNumber: string): PhoneValidation {
   try {
     const parsed = parsePhoneNumber(phoneNumber);
-    
+
     if (!parsed || !parsed.isValid()) {
       return {
         isValid: false,
@@ -48,11 +54,13 @@ export function validatePhoneNumber(phoneNumber: string): PhoneValidation {
 
     const country = parsed.country as CountryCode;
     const isAfrican = AFRICAN_COUNTRIES.includes(country);
-    
+
     return {
       isValid: true,
       country,
-      internationalFormat: parsed.formatInternational(),
+      internationalFormat: parsed.formatInternational(), // With spaces for display
+      e164Format: parsed.format('E.164'), // Without spaces for Twilio
+      digitsOnly: parsed.number.toString().replace(/\D/g, ''), // Digits only for Termii
       isAfrican,
       provider: isAfrican ? 'termii' : 'twilio'
     };

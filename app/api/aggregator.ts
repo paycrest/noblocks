@@ -7,6 +7,7 @@ import type {
   VerifyAccountPayload,
   InitiateKYCPayload,
   InitiateKYCResponse,
+  SmileIDSubmissionResponse,
   KYCStatusResponse,
   OrderDetailsResponse,
   TransactionResponse,
@@ -674,23 +675,22 @@ export async function migrateLocalStorageRecipients(
 /**
  * Submits Smile ID captured data for KYC verification
  * @param {object} payload - The Smile ID data payload
- * @returns {Promise<InitiateKYCResponse>} The submission response
+ * @returns {Promise<SmileIDSubmissionResponse>} The submission response
  * @throws {Error} If the API request fails
  */
 export const submitSmileIDData = async (
   payload: any,
-): Promise<InitiateKYCResponse> => {
+): Promise<SmileIDSubmissionResponse> => {
   const startTime = Date.now();
 
   try {
-    // Track external API request
+    // Track external API request (log metadata only, no PII)
     trackServerEvent("External API Request", {
       service: "next-api",
       endpoint: "/api/kyc/smile-id",
       method: "POST",
+      wallet_address: payload.walletAddress, // Non-sensitive identifier
     });
-
-    console.log("Submitting Smile ID data payload:", payload);
 
     // Call Next.js API route instead of backend directly
     const response = await axios.post(`/api/kyc/smile-id`, payload);

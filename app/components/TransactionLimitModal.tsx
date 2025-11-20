@@ -65,12 +65,7 @@ export default function TransactionLimitModal({
     const transactionCheck = canTransact(transactionAmount);
 
     const handlePhoneVerified = async (phoneNumber: string) => {
-        await Promise.all([
-            refreshStatus(),
-            refreshPhoneStatus()
-        ]);
         setIsPhoneModalOpen(false);
-        // Close the transaction limit modal after successful verification
         onClose();
     };
 

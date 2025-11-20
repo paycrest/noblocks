@@ -66,15 +66,24 @@ export async function POST(request: NextRequest) {
 
     // Verify OTP
     if (verification.otp_code !== otpCode) {
-      // Increment attempts
-      await supabaseAdmin
+      // Increment attempts with error handling
+      const { error: attemptsError } = await supabaseAdmin
         .from('user_kyc_profiles')
         .update({ attempts: verification.attempts + 1 })
         .eq('wallet_address', walletAddress.toLowerCase());
 
+      if (attemptsError) {
+        console.error('Failed to increment OTP attempts:', attemptsError);
+        trackApiError(request, '/api/phone/verify-otp', 'POST', attemptsError, 500);
+        return NextResponse.json(
+          { success: false, error: 'Failed to process verification attempt' },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           error: 'Invalid OTP code',
           attemptsRemaining: MAX_ATTEMPTS - (verification.attempts + 1)
         },

@@ -50,17 +50,3 @@ CREATE POLICY "Users can manage their own KYC profile" ON user_kyc_profiles
 -- Policy: Service role can access all records (for API operations)
 CREATE POLICY "Service role can access all user KYC profiles" ON user_kyc_profiles
   FOR ALL TO service_role USING (true);
-
--- Automatically update updated_at on row change
-create or replace function update_user_kyc_profiles_updated_at()
-returns trigger as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$ language 'plpgsql';
-
-create trigger trigger_update_user_kyc_profiles_updated_at
-before update on user_kyc_profiles
-for each row
-execute procedure update_user_kyc_profiles_updated_at();

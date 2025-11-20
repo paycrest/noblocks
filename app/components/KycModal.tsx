@@ -83,9 +83,9 @@ export const KycModal = ({
   const [kycSignature, setKycSignature] = useState<string>("");
   const [kycNonce, setKycNonce] = useState<string>("");
   const [cameraElement, setCameraElement] = useState<HTMLElement | null>(null);
-    const [smileIdLoaded, setSmileIdLoaded] = useState(false);
+  const [smileIdLoaded, setSmileIdLoaded] = useState(false);
 
-    useEffect(() => {
+  useEffect(() => {
     if (typeof window !== 'undefined' && !smileIdLoaded) {
       import("@smileid/web-components/smart-camera-web")
         .then(() => {
@@ -326,22 +326,21 @@ export const KycModal = ({
       </div>
 
       <div className="flex justify-center">
-        {/* @ts-ignore */}
+        {/* @ts-expect-error - SmileID web component, types handled by global declaration */}
         <smart-camera-web
           ref={(el: HTMLElement | null) => {
-          console.log("🔗 Ref callback called with:", el);
-          setCameraElement(el);
-        }}
+            setCameraElement(el);
+          }}
           theme-color="#8B85F4"
           capture-id
         />
       </div>
 
       {isCapturing && (
-      <div className="text-center text-sm text-gray-500">
-        Processing your verification...
-      </div>
-    )}
+        <div className="text-center text-sm text-gray-500">
+          Processing your verification...
+        </div>
+      )}
 
       <button
         type="button"
@@ -382,7 +381,7 @@ export const KycModal = ({
 
   const renderSuccessStatus = () => (
     <motion.div key="success" {...fadeInOut} className="space-y-4 pt-4">
-      <CheckmarkCircle01Icon className="mx-auto size-12" color="#39C65D"/>
+      <CheckmarkCircle01Icon className="mx-auto size-12" color="#39C65D" />
 
       <div className="space-y-3 pb-2 px-6 text-center">
         <DialogTitle className="text-lg font-semibold">
@@ -573,81 +572,85 @@ export const KycModal = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletAddress]);
 
-// Handle Smile ID publish event
-useEffect(() => {
-  if (step !== STEPS.CAPTURE) {
-    return;
-  }
-  
-  if (!cameraElement) {
-    return;
-  }
+  // Handle Smile ID publish event
+  useEffect(() => {
+    if (step !== STEPS.CAPTURE) {
+      return;
+    }
 
-  const handlePublish = async (event: any) => {
-    // Show loading screen while submitting
-    setStep(STEPS.LOADING);
+    if (!cameraElement) {
+      return;
+    }
 
-    try {
-      const { images, partner_params } = event.detail;
+    const handlePublish = async (event: any) => {
+      // Show loading screen while submitting
+      setStep(STEPS.LOADING);
 
-      // Validate data structure
-      if (!images || !Array.isArray(images) || images.length === 0) {
-        throw new Error("Invalid image data received");
-      }
+      try {
+        const { images, partner_params } = event.detail;
 
-      // Send the captured data to backend
-      const payload = {
-        images,
-        partner_params: {
-          ...partner_params,
-          user_id: `user-${walletAddress}`,
-          job_type: 4, // 4 for selfie enrollment (no country/ID required)
-        },
-        walletAddress,
-        signature: kycSignature,
-        nonce: kycNonce,
-      };
+        // Validate data structure
+        if (!images || !Array.isArray(images) || images.length === 0) {
+          throw new Error("Invalid image data received");
+        }
 
-      const response = await submitSmileIDData(payload);
+        if (!walletAddress || !kycSignature || !kycNonce) {
+          throw new Error("Missing required authentication data");
+        }
 
-      if (response.status === "success") {
-        setStep(STEPS.STATUS.PENDING);
-        trackEvent("Account verification", {
-          "Verification status": "Submitted",
-        });
-      } else {
+
+        // Send the captured data to backend
+        const payload = {
+          images,
+          partner_params: {
+            ...partner_params,
+            user_id: `user-${walletAddress}`,
+            job_type: 4, // 4 for selfie enrollment (no country/ID required)
+          },
+          walletAddress,
+          signature: kycSignature,
+          nonce: kycNonce,
+        };
+
+        const response = await submitSmileIDData(payload);
+
+        if (response.status === "success") {
+          setStep(STEPS.STATUS.PENDING);
+          trackEvent("Account verification", {
+            "Verification status": "Submitted",
+          });
+        } else {
+          setStep(STEPS.STATUS.FAILED);
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error("Error message:", error.message);
+          console.error("Error stack:", error.stack);
+        }
+        toast.error("Failed to submit verification data");
         setStep(STEPS.STATUS.FAILED);
       }
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error("Error message:", error.message);
-        console.error("Error stack:", error.stack);
-      }
-      toast.error("Failed to submit verification data");
-      setStep(STEPS.STATUS.FAILED);
-    }
-  };
+    };
 
-  const handleCancel = (event: any) => {
-    toast.info("Verification cancelled");
-    setStep(STEPS.TERMS);
-  };
+    const handleCancel = (event: any) => {
+      toast.info("Verification cancelled");
+      setStep(STEPS.TERMS);
+    };
 
-  const handleBack = (event: any) => {
-    console.log("Back detail:", event.detail);
-  };
+    const handleBack = (event: any) => {
+      console.log("Back detail:", event.detail);
+    };
 
-  cameraElement.addEventListener("smart-camera-web.publish", handlePublish);
-  cameraElement.addEventListener("smart-camera-web.cancelled", handleCancel);
-  cameraElement.addEventListener("smart-camera-web.back", handleBack);
+    cameraElement.addEventListener("smart-camera-web.publish", handlePublish);
+    cameraElement.addEventListener("smart-camera-web.cancelled", handleCancel);
+    cameraElement.addEventListener("smart-camera-web.back", handleBack);
 
-  return () => {
-    console.log("🧹 Cleaning up listeners");
-    cameraElement.removeEventListener("smart-camera-web.publish", handlePublish);
-    cameraElement.removeEventListener("smart-camera-web.cancelled", handleCancel);
-    cameraElement.removeEventListener("smart-camera-web.back", handleBack);
-  };
-}, [step, cameraElement, walletAddress, kycSignature, kycNonce]);
+    return () => {
+      cameraElement.removeEventListener("smart-camera-web.publish", handlePublish);
+      cameraElement.removeEventListener("smart-camera-web.cancelled", handleCancel);
+      cameraElement.removeEventListener("smart-camera-web.back", handleBack);
+    };
+  }, [step, cameraElement, walletAddress, kycSignature, kycNonce]);
 
 
   return (

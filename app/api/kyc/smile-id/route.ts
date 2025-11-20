@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     // Update existing KYC profile with SmileID data
     // Note: Phone verification should have already created the row
-    const { error: supabaseError } = await supabaseAdmin
+    const { data: updatedProfile, error: supabaseError } = await supabaseAdmin
       .from('user_kyc_profiles')
       .update({
         wallet_signature: signature,
@@ -77,15 +77,25 @@ export async function POST(request: NextRequest) {
         verified_at: new Date().toISOString(),
         tier: 2,
       })
-      .eq('wallet_address', walletAddress.toLowerCase());
+      .eq('wallet_address', walletAddress.toLowerCase())
+      .select('wallet_address');
 
     if (supabaseError) {
-      console.error('Supabase upsert error:', supabaseError);
+      console.error('Supabase update error:', supabaseError);
       return NextResponse.json({
         status: 'error',
         message: 'Failed to save KYC data to Supabase',
         data: supabaseError,
       }, { status: 500 });
+    }
+
+    // Verify that a row was actually updated
+    if (!updatedProfile || updatedProfile.length === 0) {
+      console.error('No KYC profile found to update for wallet:', walletAddress);
+      return NextResponse.json({
+        status: 'error',
+        message: 'No KYC profile exists. Please complete phone verification first.',
+      }, { status: 404 });
     }
 
     // Return success response

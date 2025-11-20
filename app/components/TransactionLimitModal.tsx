@@ -120,7 +120,15 @@ export default function TransactionLimitModal({
                         <div className="w-full bg-gray-400 dark:bg-white/20 rounded-full h-2 mb-4 flex items-center">
                             <div
                                 className="bg-gradient-to-r from-white to-white h-2.5 rounded-full transition-all duration-500"
-                                style={{ width: `${(transactionSummary.monthlySpent / currentLimits.monthly) * 100}%` }}
+                                style={{ 
+                                    width:
+                                        currentLimits.monthly > 0
+                                            ? `${Math.min(
+                                                  (transactionSummary.monthlySpent / currentLimits.monthly) * 100,
+                                                  100,
+                                              )}%`
+                                            : "0%",
+                                }}
                             />
                         </div>
                     </div>

@@ -77,11 +77,14 @@ export async function POST(request: NextRequest) {
 
     // Verify OTP
     if (verification.otp_code !== otpCode) {
-      // Increment attempts with error handling
-      const { error: attemptsError } = await supabaseAdmin
+      // Atomic increment with boundary check to prevent race conditions
+      const { data: updated, error: attemptsError } = await supabaseAdmin
         .from('user_kyc_profiles')
         .update({ attempts: verification.attempts + 1 })
-        .eq('wallet_address', walletAddress.toLowerCase());
+        .eq('wallet_address', walletAddress.toLowerCase())
+        .lt('attempts', MAX_ATTEMPTS)
+        .select('attempts')
+        .single();
 
       if (attemptsError) {
         console.error('Failed to increment OTP attempts:', attemptsError);
@@ -92,11 +95,19 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // If no rows updated, attempts limit was hit mid-flight (race condition)
+      if (!updated) {
+        return NextResponse.json(
+          { success: false, error: 'Maximum verification attempts exceeded. Please request a new OTP.' },
+          { status: 429 }
+        );
+      }
+
       return NextResponse.json(
         {
           success: false,
           error: 'Invalid OTP code',
-          attemptsRemaining: MAX_ATTEMPTS - (verification.attempts + 1)
+          attemptsRemaining: MAX_ATTEMPTS - updated.attempts
         },
         { status: 400 }
       );

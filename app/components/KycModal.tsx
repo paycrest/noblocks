@@ -1,11 +1,10 @@
 "use client";
 import { Checkbox, DialogTitle, Field, Label } from "@headlessui/react";
 import { toast } from "sonner";
-import { QRCode } from "react-qrcode-logo";
+
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { FiExternalLink } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 declare global {
   namespace JSX {
@@ -26,12 +25,11 @@ import { fadeInOut } from "./AnimatedComponents";
 import { generateTimeBasedNonce } from "../utils";
 import {
   fetchKYCStatus,
-  initiateKYC,
   submitSmileIDData,
 } from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics/client";
-import { Cancel01Icon, CheckmarkCircle01Icon, Clock05Icon } from "hugeicons-react";
+import { CheckmarkCircle01Icon, Clock05Icon } from "hugeicons-react";
 import { useInjectedWallet } from "../context";
 
 export const STEPS = {
@@ -74,12 +72,9 @@ export const KycModal = ({
     : embeddedWallet?.address;
 
   const [step, setStep] = useState<Step>(STEPS.LOADING);
-  const [showQRCode, setShowQRCode] = useState(false);
-  const [kycUrl, setKycUrl] = useState("");
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
-  const [isCapturing, setIsCapturing] = useState(false);
   const [kycSignature, setKycSignature] = useState<string>("");
   const [kycNonce, setKycNonce] = useState<string>("");
   const [cameraElement, setCameraElement] = useState<HTMLElement | null>(null);
@@ -336,12 +331,6 @@ export const KycModal = ({
         />
       </div>
 
-      {isCapturing && (
-        <div className="text-center text-sm text-gray-500">
-          Processing your verification...
-        </div>
-      )}
-
       <button
         type="button"
         onClick={() => setStep(STEPS.TERMS)}
@@ -493,7 +482,6 @@ export const KycModal = ({
       setStep(newStatus);
 
       if (newStatus === STEPS.STATUS.SUCCESS) {
-        setShowQRCode(false);
         trackEvent("Account verification", {
           "Verification status": "Success",
         });

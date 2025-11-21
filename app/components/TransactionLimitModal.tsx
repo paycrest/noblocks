@@ -8,7 +8,6 @@ import {
     InformationCircleIcon
 } from 'hugeicons-react';
 import { useKYCStatus, KYC_TIERS } from '../hooks/useKYCStatus';
-import { usePhoneVerification } from '../hooks/usePhoneVerification';
 import PhoneVerificationModal from './PhoneVerificationModal';
 import { primaryBtnClasses, secondaryBtnClasses } from './Styles';
 import { AnimatedModal, fadeInOut } from './AnimatedComponents';
@@ -29,16 +28,11 @@ export default function TransactionLimitModal({
 }: TransactionLimitModalProps) {
     const {
         tier,
-        isPhoneVerified,
-        isFullyVerified,
         getCurrentLimits,
-        getRemainingLimits,
-        canTransact,
         refreshStatus,
         transactionSummary
     } = useKYCStatus();
 
-    const { refreshStatus: refreshPhoneStatus } = usePhoneVerification();
     const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
     const [isKycModalOpen, setIsKycModalOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -59,10 +53,8 @@ export default function TransactionLimitModal({
     }, [isOpen, isLoading, tier]);
 
     const currentLimits = getCurrentLimits();
-    const remaining = getRemainingLimits();
     const currentTier = KYC_TIERS[tier];
     const nextTier = KYC_TIERS[tier + 1];
-    const transactionCheck = canTransact(transactionAmount);
 
     const handlePhoneVerified = async (phoneNumber: string) => {
         setIsPhoneModalOpen(false);

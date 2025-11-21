@@ -30,6 +30,7 @@ import {
   formatNumberWithCommas,
   getExplorerLink,
   getInstitutionNameByCode,
+  normalizeNetworkForRateFetch,
 } from "../utils";
 import {
   fetchOrderDetails,
@@ -37,6 +38,7 @@ import {
   fetchSavedRecipients,
   saveRecipient,
   deleteSavedRecipient,
+  reindexTransaction,
 } from "../api/aggregator";
 import {
   STEPS,
@@ -134,6 +136,9 @@ export function TransactionStatus({
   const [hasShownConfetti, setHasShownConfetti] = useState(false);
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [hasReindexed, setHasReindexed] = useState(false);
+  const reindexRetryCountRef = useRef<number>(0);
+  const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
 
   const fireConfetti = useConfetti();
@@ -393,6 +398,147 @@ export function TransactionStatus({
       }
     },
     [transactionStatus, fireConfetti, hasShownConfetti],
+  );
+
+  /**
+   * Reindexes transaction if it has been pending for more than 30 seconds
+   * Only calls reindex once per transaction
+   */
+  useEffect(
+    function reindexPendingTransaction() {
+      // Only proceed if:
+      // 1. Transaction status is "pending"
+      // 2. We haven't already reindexed
+      // 3. We have order details with network
+      // 4. Transaction has been pending for more than 30 seconds
+      if (
+        transactionStatus !== "pending" ||
+        hasReindexed ||
+        !orderDetails ||
+        !orderDetails.network
+      ) {
+        return;
+      }
+
+      // Get txHash from orderDetails.txHash or from txReceipts
+      let txHash = orderDetails.txHash;
+      if (
+        !txHash &&
+        orderDetails.txReceipts &&
+        orderDetails.txReceipts.length > 0
+      ) {
+        // Try to find a pending receipt first, otherwise use the first one
+        const pendingReceipt = orderDetails.txReceipts.find(
+          (receipt) => receipt.status === "pending",
+        );
+        txHash = pendingReceipt?.txHash || orderDetails.txReceipts[0]?.txHash;
+      }
+
+      // If we still don't have a txHash, we can't reindex
+      if (!txHash) {
+        return;
+      }
+
+      // Calculate time elapsed since transaction creation
+      const createdAtTime = new Date(createdAt).getTime();
+      const currentTime = Date.now();
+      const timeElapsed = currentTime - createdAtTime;
+      const thirtySecondsInMs = 30 * 1000;
+
+      // Only reindex if transaction has been pending for more than 30 seconds
+      if (timeElapsed <= thirtySecondsInMs) {
+        return;
+      }
+
+      // Convert network name to API format
+      const apiNetwork = normalizeNetworkForRateFetch(orderDetails.network);
+
+      // Supported networks for reindex endpoint
+      const supportedNetworks = [
+        "base",
+        "bnb-smart-chain",
+        "lisk",
+        "tron",
+        "celo",
+        "arbitrum-one",
+        "polygon",
+      ];
+
+      // Only call reindex if network is supported
+      if (!supportedNetworks.includes(apiNetwork)) {
+        console.warn(
+          `Reindex not supported for network: ${orderDetails.network} (${apiNetwork})`,
+        );
+        return;
+      }
+
+      // Helper function for exponential backoff delay
+      const getExponentialDelay = (attempt: number): number => {
+        return Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+      };
+
+      // Call reindex API with retry logic
+      const callReindex = async (retryAttempt: number = 0): Promise<void> => {
+        const maxRetries = 3;
+
+        try {
+          const response = await reindexTransaction(apiNetwork, txHash);
+
+          // Check if OrderCreated event exists and is greater than 0
+          const orderCreated = response?.data?.events?.OrderCreated;
+          const hasValidOrderCreated =
+            orderCreated !== undefined && orderCreated > 0;
+
+          if (!hasValidOrderCreated && retryAttempt < maxRetries) {
+            // OrderCreated is 0 or not present, retry with exponential backoff
+            const delay = getExponentialDelay(retryAttempt);
+            console.log(
+              `Reindex successful but OrderCreated is ${orderCreated || 0}, retrying in ${delay}ms (attempt ${retryAttempt + 1}/${maxRetries})`,
+            );
+
+            // Clear any existing timeout
+            if (reindexTimeoutRef.current) {
+              clearTimeout(reindexTimeoutRef.current);
+            }
+
+            // Schedule retry
+            reindexTimeoutRef.current = setTimeout(() => {
+              callReindex(retryAttempt + 1);
+            }, delay);
+            return;
+          }
+
+          // Success - either OrderCreated > 0 or we've exhausted retries
+          setHasReindexed(true);
+          reindexRetryCountRef.current = 0;
+          console.log(
+            `Transaction reindexed: ${txHash} on ${apiNetwork}, OrderCreated: ${orderCreated || 0}`,
+          );
+        } catch (error) {
+          // Error handling is done in reindexTransaction with exponential retry
+          // If it still fails after all retries, fail silently
+          if (retryAttempt >= maxRetries) {
+            console.error(
+              `Error reindexing transaction after ${maxRetries} retries:`,
+              error,
+            );
+            // Still mark as reindexed to prevent infinite retries
+            setHasReindexed(true);
+          }
+        }
+      };
+
+      callReindex();
+
+      // Cleanup function to clear timeout on unmount or dependency change
+      return () => {
+        if (reindexTimeoutRef.current) {
+          clearTimeout(reindexTimeoutRef.current);
+          reindexTimeoutRef.current = null;
+        }
+      };
+    },
+    [transactionStatus, hasReindexed, orderDetails, createdAt],
   );
 
   /**

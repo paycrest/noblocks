@@ -19,6 +19,7 @@ import {
   Invoice01Icon,
 } from "hugeicons-react";
 import { fadeInOut } from "../AnimatedComponents";
+import { useReindexPendingTransactions } from "../../hooks/useReindexPendingTransactions";
 
 interface TransactionListProps {
   onSelectTransaction?: (transaction: TransactionHistory) => void;
@@ -144,6 +145,9 @@ export default function TransactionList({
       });
     }
   }, [walletAddress, currentPage, fetchTransactions, getAccessToken]);
+
+  // Reindex pending transactions when transactions are loaded
+  useReindexPendingTransactions(transactions, !isLoading);
 
   // Group transactions by date
   const groupedTransactions = useMemo(() => {

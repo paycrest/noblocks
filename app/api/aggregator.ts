@@ -491,6 +491,114 @@ export async function updateTransactionDetails({
 }
 
 /**
+ * Sleeps for a given number of milliseconds
+ * @param {number} ms - Milliseconds to sleep
+ * @returns {Promise<void>}
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Reindexes a transaction on the Paycrest API with exponential retry
+ * @param {string} network - The network identifier (e.g., "base", "bnb-smart-chain", "polygon")
+ * @param {string} txHash - The transaction hash to reindex
+ * @param {number} retryCount - Current retry attempt (internal use)
+ * @param {number} maxRetries - Maximum number of retries (default: 3)
+ * @returns {Promise<any>} The reindex response
+ * @throws {Error} If the API request fails after all retries
+ */
+export async function reindexTransaction(
+  network: string,
+  txHash: string,
+  retryCount: number = 0,
+  maxRetries: number = 3,
+): Promise<any> {
+  const startTime = Date.now();
+
+  try {
+    // Track external API request
+    trackServerEvent("External API Request", {
+      service: "aggregator",
+      endpoint: `/reindex/${network}/${txHash}`,
+      method: "GET",
+      network,
+      tx_hash: txHash,
+      retry_attempt: retryCount,
+    });
+
+    const endpoint = `${AGGREGATOR_URL}/reindex/${network}/${txHash}`;
+    const response = await axios.get(endpoint);
+
+    // Track successful response (2xx status)
+    const responseTime = Date.now() - startTime;
+    const status = response.status;
+
+    trackApiResponse(
+      `/reindex/${network}/${txHash}`,
+      "GET",
+      status,
+      responseTime,
+      {
+        service: "aggregator",
+        network,
+        tx_hash: txHash,
+        retry_attempt: retryCount,
+      },
+    );
+
+    // Track business event
+    trackBusinessEvent("Transaction Reindexed", {
+      network,
+      tx_hash: txHash,
+      retry_attempt: retryCount,
+    });
+
+    return response.data;
+  } catch (error: any) {
+    const responseTime = Date.now() - startTime;
+    const status = error.response?.status;
+
+    // Check if we should retry:
+    // 1. Network errors (no response) - retry
+    // 2. 4xx+ status codes (client/server errors) - retry
+    // Note: axios throws errors for status >= 400, so 2xx responses won't reach here
+    const isNetworkError = !error.response;
+    const is4xxOrAbove = status !== undefined && status >= 400;
+    const shouldRetry =
+      (isNetworkError || is4xxOrAbove) && retryCount < maxRetries;
+
+    if (shouldRetry) {
+      const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
+      const errorType = isNetworkError ? "network error" : `status ${status}`;
+      console.log(
+        `Reindex failed with ${errorType}, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`,
+      );
+      await sleep(delay);
+      return reindexTransaction(network, txHash, retryCount + 1, maxRetries);
+    }
+
+    // Track API error
+    trackApiResponse(
+      `/reindex/${network}/${txHash}`,
+      "GET",
+      status,
+      responseTime,
+      {
+        service: "aggregator",
+        network,
+        tx_hash: txHash,
+        error: error.message,
+        retry_attempt: retryCount,
+      },
+    );
+
+    // Re-throw error for caller to handle
+    throw error;
+  }
+}
+
+/**
  * Fetches the list of supported tokens from the aggregator API
  * @returns {Promise<APIToken[]>} Array of supported tokens from the API
  * @throws {Error} If the API request fails

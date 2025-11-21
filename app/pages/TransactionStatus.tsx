@@ -410,7 +410,6 @@ export function TransactionStatus({
       // 1. Transaction status is "pending"
       // 2. We haven't already reindexed
       // 3. We have order details with network
-      // 4. Transaction has been pending for more than 30 seconds
       if (
         transactionStatus !== "pending" ||
         hasReindexed ||
@@ -436,17 +435,6 @@ export function TransactionStatus({
 
       // If we still don't have a txHash, we can't reindex
       if (!txHash) {
-        return;
-      }
-
-      // Calculate time elapsed since transaction creation
-      const createdAtTime = new Date(createdAt).getTime();
-      const currentTime = Date.now();
-      const timeElapsed = currentTime - createdAtTime;
-      const thirtySecondsInMs = 30 * 1000;
-
-      // Only reindex if transaction has been pending for more than 30 seconds
-      if (timeElapsed <= thirtySecondsInMs) {
         return;
       }
 
@@ -511,6 +499,22 @@ export function TransactionStatus({
         }
       };
 
+      // Calculate time elapsed since transaction creation
+      const createdAtTime = new Date(createdAt).getTime();
+      const currentTime = Date.now();
+      const timeElapsed = currentTime - createdAtTime;
+      const thirtySecondsInMs = 30 * 1000;
+
+      // If 30 seconds haven't elapsed yet, schedule a check for when they will
+      if (timeElapsed <= thirtySecondsInMs) {
+        const remainingTime = thirtySecondsInMs - timeElapsed;
+        reindexTimeoutRef.current = setTimeout(() => {
+          callReindex();
+        }, remainingTime);
+        return;
+      }
+
+      // 30 seconds have elapsed, call reindex immediately
       callReindex();
 
       // Cleanup function to clear timeout on unmount or dependency change

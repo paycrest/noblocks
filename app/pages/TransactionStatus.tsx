@@ -32,6 +32,7 @@ import {
   getInstitutionNameByCode,
   normalizeNetworkForRateFetch,
 } from "../utils";
+import { networks } from "../mocks";
 import {
   fetchOrderDetails,
   updateTransactionDetails,
@@ -452,18 +453,10 @@ export function TransactionStatus({
       // Convert network name to API format
       const apiNetwork = normalizeNetworkForRateFetch(orderDetails.network);
 
-      // Supported networks for reindex endpoint
-      const supportedNetworks = [
-        "base",
-        "bnb-smart-chain",
-        "lisk",
-        "tron",
-        "celo",
-        "arbitrum-one",
-        "polygon",
-      ];
-
       // Only call reindex if network is supported
+      const supportedNetworks = networks.map((network) =>
+        normalizeNetworkForRateFetch(network.chain.name),
+      );
       if (!supportedNetworks.includes(apiNetwork)) {
         console.warn(
           `Reindex not supported for network: ${orderDetails.network} (${apiNetwork})`,

@@ -1,20 +1,8 @@
 import { useEffect, useRef } from "react";
 import { reindexTransaction } from "../api/aggregator";
 import { normalizeNetworkForRateFetch } from "../utils";
+import { networks } from "../mocks";
 import type { TransactionHistory } from "../types";
-
-/**
- * Supported networks for reindex endpoint
- */
-const SUPPORTED_NETWORKS = [
-  "base",
-  "bnb-smart-chain",
-  "lisk",
-  "tron",
-  "celo",
-  "arbitrum-one",
-  "polygon",
-];
 
 /**
  * Helper function for exponential backoff delay
@@ -40,7 +28,10 @@ const reindexSingleTransaction = async (
   const apiNetwork = normalizeNetworkForRateFetch(transaction.network);
 
   // Only reindex if network is supported
-  if (!SUPPORTED_NETWORKS.includes(apiNetwork)) {
+  const supportedNetworks = networks.map((network) =>
+    normalizeNetworkForRateFetch(network.chain.name),
+  );
+  if (!supportedNetworks.includes(apiNetwork)) {
     console.warn(
       `Reindex not supported for network: ${transaction.network} (${apiNetwork})`,
     );

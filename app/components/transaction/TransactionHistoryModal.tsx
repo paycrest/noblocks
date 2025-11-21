@@ -7,7 +7,6 @@ import { TransactionDetails } from "./TransactionDetails";
 import type { TransactionHistory } from "../../types";
 import TransactionList from "./TransactionList";
 import { useTransactions } from "../../context/TransactionsContext";
-import { useReindexPendingTransactions } from "../../hooks/useReindexPendingTransactions";
 
 interface TransactionHistoryModalProps {
   isOpen: boolean;
@@ -39,7 +38,7 @@ export const TransactionHistoryModal = ({
 }: TransactionHistoryModalProps) => {
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionHistory | null>(null);
-  const { clearTransactions, transactions } = useTransactions();
+  const { clearTransactions } = useTransactions();
 
   const handleClose = () => {
     setSelectedTransaction(null);
@@ -52,9 +51,6 @@ export const TransactionHistoryModal = ({
       clearTransactions();
     }
   }, [isOpen, clearTransactions]);
-
-  // Reindex pending transactions when modal opens
-  useReindexPendingTransactions(transactions, isOpen);
 
   return (
     <AnimatedModal isOpen={isOpen} onClose={handleClose}>

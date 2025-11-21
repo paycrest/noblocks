@@ -137,7 +137,6 @@ export function TransactionStatus({
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [hasReindexed, setHasReindexed] = useState(false);
-  const reindexRetryCountRef = useRef<number>(0);
   const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
 
@@ -484,16 +483,15 @@ export function TransactionStatus({
         try {
           const response = await reindexTransaction(apiNetwork, txHash);
 
-          // Check if OrderCreated event exists and is greater than 0
-          const orderCreated = response?.data?.events?.OrderCreated;
-          const hasValidOrderCreated =
-            orderCreated !== undefined && orderCreated > 0;
+          // Extract OrderCreated event count from response
+          const orderCreated = Number(response?.events?.OrderCreated ?? 0);
+          const hasValidOrderCreated = orderCreated > 0;
 
           if (!hasValidOrderCreated && retryAttempt < maxRetries) {
             // OrderCreated is 0 or not present, retry with exponential backoff
             const delay = getExponentialDelay(retryAttempt);
             console.log(
-              `Reindex successful but OrderCreated is ${orderCreated || 0}, retrying in ${delay}ms (attempt ${retryAttempt + 1}/${maxRetries})`,
+              `Reindex successful but OrderCreated is ${orderCreated}, retrying in ${delay}ms (attempt ${retryAttempt + 1}/${maxRetries})`,
             );
 
             // Clear any existing timeout
@@ -510,21 +508,13 @@ export function TransactionStatus({
 
           // Success - either OrderCreated > 0 or we've exhausted retries
           setHasReindexed(true);
-          reindexRetryCountRef.current = 0;
           console.log(
-            `Transaction reindexed: ${txHash} on ${apiNetwork}, OrderCreated: ${orderCreated || 0}`,
+            `Transaction reindexed: ${txHash} on ${apiNetwork}, OrderCreated: ${orderCreated}`,
           );
         } catch (error) {
-          // Error handling is done in reindexTransaction with exponential retry
-          // If it still fails after all retries, fail silently
-          if (retryAttempt >= maxRetries) {
-            console.error(
-              `Error reindexing transaction after ${maxRetries} retries:`,
-              error,
-            );
-            // Still mark as reindexed to prevent infinite retries
-            setHasReindexed(true);
-          }
+          console.error("Error reindexing transaction:", error);
+          // Mark as reindexed to prevent retry loops
+          setHasReindexed(true);
         }
       };
 

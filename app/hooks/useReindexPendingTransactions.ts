@@ -28,7 +28,6 @@ const getExponentialDelay = (attempt: number): number => {
  */
 const reindexSingleTransaction = async (
   transaction: TransactionHistory,
-  retryAttempt: number = 0,
 ): Promise<void> => {
   const maxRetries = 3;
 
@@ -48,39 +47,52 @@ const reindexSingleTransaction = async (
     return;
   }
 
-  try {
-    const response = await reindexTransaction(apiNetwork, transaction.tx_hash);
-
-    // Check if OrderCreated event exists and is greater than 0
-    const orderCreated = response?.data?.events?.OrderCreated;
-    const hasValidOrderCreated = orderCreated !== undefined && orderCreated > 0;
-
-    if (!hasValidOrderCreated && retryAttempt < maxRetries) {
-      // OrderCreated is 0 or not present, retry with exponential backoff
-      const delay = getExponentialDelay(retryAttempt);
-      console.log(
-        `Reindex successful but OrderCreated is ${orderCreated || 0} for tx ${transaction.tx_hash}, retrying in ${delay}ms (attempt ${retryAttempt + 1}/${maxRetries})`,
+  // Retry loop for OrderCreated validation
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await reindexTransaction(
+        apiNetwork,
+        transaction.tx_hash,
       );
 
-      // Schedule retry
-      setTimeout(() => {
-        reindexSingleTransaction(transaction, retryAttempt + 1);
-      }, delay);
-      return;
+      // Extract OrderCreated event count from response
+      const orderCreated = Number(response?.events?.OrderCreated ?? 0);
+      const hasValidOrderCreated = orderCreated > 0;
+
+      if (hasValidOrderCreated) {
+        console.log(
+          `Transaction reindexed: ${transaction.tx_hash} on ${apiNetwork}, OrderCreated: ${orderCreated}`,
+        );
+        return;
+      }
+
+      if (attempt === maxRetries) {
+        console.warn(
+          `Reindex completed but OrderCreated is ${orderCreated} for tx ${transaction.tx_hash} on ${apiNetwork} after ${maxRetries + 1} attempts`,
+        );
+        return;
+      }
+    } catch (error) {
+      if (attempt === maxRetries) {
+        console.error(
+          `Error reindexing transaction ${transaction.tx_hash} on ${apiNetwork} after ${
+            maxRetries + 1
+          } attempts:`,
+          error,
+        );
+        // Re-throw error so caller can handle cleanup
+        throw error;
+      }
+      // fall through to schedule next attempt
     }
 
+    const delay = getExponentialDelay(attempt);
     console.log(
-      `Transaction reindexed: ${transaction.tx_hash} on ${apiNetwork}, OrderCreated: ${orderCreated || 0}`,
+      `OrderCreated not found for tx ${transaction.tx_hash} on ${apiNetwork}, retrying in ${delay}ms (attempt ${
+        attempt + 1
+      }/${maxRetries})`,
     );
-  } catch (error) {
-    // Error handling is done in reindexTransaction with exponential retry
-    // If it still fails after all retries, fail silently
-    if (retryAttempt >= maxRetries) {
-      console.error(
-        `Error reindexing transaction ${transaction.tx_hash} after ${maxRetries} retries:`,
-        error,
-      );
-    }
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
 };
 

@@ -40,8 +40,17 @@ export async function POST(request: NextRequest) {
       .eq('phone_number', validation.e164Format)
       .single();
 
-    if (fetchError || !verification) {
-      trackApiError(request, '/api/phone/verify-otp', 'POST', fetchError || new Error('Verification not found'), 404);
+    if (fetchError) {
+      console.error('Database error fetching verification record:', fetchError);
+      trackApiError(request, '/api/phone/verify-otp', 'POST', fetchError, 500);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch verification record' },
+        { status: 500 }
+      );
+    }
+
+    if (!verification) {
+      trackApiError(request, '/api/phone/verify-otp', 'POST', new Error('Verification not found'), 404);
       return NextResponse.json(
         { success: false, error: 'Verification record not found' },
         { status: 404 }

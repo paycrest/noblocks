@@ -4,18 +4,18 @@ import { trackApiRequest, trackApiResponse, trackApiError } from '@/app/lib/serv
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
-  
+
   try {
     trackApiRequest(request, '/api/kyc/status', 'GET');
 
-    const { searchParams } = new URL(request.url);
-    const walletAddress = searchParams.get('walletAddress');
+    // Get the wallet address from the header set by the middleware
+    const walletAddress = request.headers.get("x-wallet-address")?.toLowerCase();
 
     if (!walletAddress) {
-      trackApiError(request, '/api/kyc/status', 'GET', new Error('Missing wallet address'), 400);
+      trackApiError(request, '/api/kyc/status', 'GET', new Error('Unauthorized'), 401);
       return NextResponse.json(
-        { success: false, error: 'Wallet address is required' },
-        { status: 400 }
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 

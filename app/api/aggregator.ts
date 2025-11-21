@@ -675,11 +675,13 @@ export async function migrateLocalStorageRecipients(
 /**
  * Submits Smile ID captured data for KYC verification
  * @param {object} payload - The Smile ID data payload
+ * @param {string} accessToken - The access token for authentication
  * @returns {Promise<SmileIDSubmissionResponse>} The submission response
  * @throws {Error} If the API request fails
  */
 export const submitSmileIDData = async (
   payload: any,
+  accessToken: string,
 ): Promise<SmileIDSubmissionResponse> => {
   const startTime = Date.now();
 
@@ -689,11 +691,14 @@ export const submitSmileIDData = async (
       service: "next-api",
       endpoint: "/api/kyc/smile-id",
       method: "POST",
-      wallet_address: payload.walletAddress, // Non-sensitive identifier
     });
 
-    // Call Next.js API route instead of backend directly
-    const response = await axios.post(`/api/kyc/smile-id`, payload);
+    // Call Next.js API route with JWT authentication
+    const response = await axios.post(`/api/kyc/smile-id`, payload, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
 
     // Track successful response
     const responseTime = Date.now() - startTime;

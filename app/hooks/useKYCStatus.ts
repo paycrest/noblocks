@@ -5,7 +5,7 @@ declare global {
   }
 }
 import { useState, useEffect, useCallback } from 'react';
-import { useWallets } from '@privy-io/react-auth';
+import { useWallets, usePrivy } from '@privy-io/react-auth';
 
 export interface TransactionLimits {
   monthly: number;
@@ -66,6 +66,7 @@ interface KYCStatus {
 export function useKYCStatus(): KYCStatus {
 
   const { wallets } = useWallets();
+  const { getAccessToken } = usePrivy();
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
   );
@@ -144,7 +145,18 @@ export function useKYCStatus(): KYCStatus {
     if (fetchGuards[`${guardKey}_kyc`] === 'fetching') return;
     fetchGuards[`${guardKey}_kyc`] = 'fetching';
     try {
-      const response = await fetch(`/api/kyc/status?walletAddress=${encodeURIComponent(walletAddress)}`);
+      // Get access token for JWT authentication
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        console.error('Failed to get access token for KYC status');
+        return;
+      }
+
+      const response = await fetch(`/api/kyc/status`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
       const data = await response.json();
       if (data.success) {
         setTier(data.tier);
@@ -159,7 +171,7 @@ export function useKYCStatus(): KYCStatus {
     } finally {
       fetchGuards[`${guardKey}_kyc`] = 'done';
     }
-  }, [walletAddress]);
+  }, [walletAddress, getAccessToken]);
 
   const refreshStatus = useCallback(async () => {
     await Promise.all([

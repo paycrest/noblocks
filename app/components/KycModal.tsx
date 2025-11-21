@@ -59,7 +59,7 @@ export const KycModal = ({
   setIsUserVerified: (value: boolean) => void;
   setIsKycModalOpen: (value: boolean) => void;
 }) => {
-  const { signMessage } = usePrivy();
+  const { signMessage, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const { isInjectedWallet, injectedAddress, injectedProvider } =
     useInjectedWallet();
@@ -586,6 +586,11 @@ export const KycModal = ({
           throw new Error("Missing required authentication data");
         }
 
+        // Get access token for JWT authentication
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          throw new Error("No access token available");
+        }
 
         // Send the captured data to backend
         const payload = {
@@ -595,12 +600,11 @@ export const KycModal = ({
             user_id: `user-${walletAddress}`,
             job_type: 4, // 4 for selfie enrollment (no country/ID required)
           },
-          walletAddress,
           signature: kycSignature,
           nonce: kycNonce,
         };
 
-        const response = await submitSmileIDData(payload);
+        const response = await submitSmileIDData(payload, accessToken);
 
         if (response.status === "success") {
           setStep(STEPS.STATUS.PENDING);
@@ -625,8 +629,8 @@ export const KycModal = ({
       setStep(STEPS.TERMS);
     };
 
-    const handleBack = (event: any) => {
-      console.log("Back detail:", event.detail);
+    const handleBack = () => {
+      // Handle back navigation if needed
     };
 
     cameraElement.addEventListener("smart-camera-web.publish", handlePublish);

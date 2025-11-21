@@ -3,10 +3,19 @@ import { supabaseAdmin } from '@/app/lib/supabase';
 import { submitSmileIDJob } from '@/app/lib/smileID';
 
 export async function POST(request: NextRequest) {
+  // Get the wallet address from the header set by the middleware
+  const walletAddress = request.headers.get("x-wallet-address")?.toLowerCase();
+
+  if (!walletAddress) {
+    return NextResponse.json(
+      { status: "error", message: "Unauthorized" },
+      { status: 401 }
+    );
+  }
 
   try {
     const body = await request.json();
-    const { images, partner_params, walletAddress, signature, nonce } = body;
+    const { images, partner_params, signature, nonce } = body;
 
     // Validate required fields
     if (!images || !Array.isArray(images) || images.length === 0) {
@@ -16,9 +25,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!walletAddress || !signature || !nonce) {
+    if (!signature || !nonce) {
       return NextResponse.json(
-        { status: "error", message: "Missing wallet credentials" },
+        { status: "error", message: "Missing signature or nonce" },
         { status: 400 }
       );
     }

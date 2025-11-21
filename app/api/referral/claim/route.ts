@@ -8,278 +8,143 @@ import {
     trackBusinessEvent,
 } from "@/app/lib/server-analytics";
 import { fetchKYCStatus } from "@/app/api/aggregator";
+import { ethers } from "ethers"; // npm i ethers
 
-// This should be called after a user completes KYC + first transaction
+// Minimal USDC ABI (for balanceOf and transfer)
+const USDC_ABI = [
+    "function balanceOf(address account) view returns (uint256)",
+    "function transfer(address to, uint256 amount) public returns (bool)",
+];
+
+// Env vars (add to .env.local; use secrets in prod)
+const FUNDING_ADDRESS = process.env.FUNDING_WALLET_ADDRESS!; // Hardcoded AA address, e.g., "0x..."
+const FUNDING_PK = process.env.FUNDING_WALLET_PRIVATE_KEY; // PK for signing
+const USDC_ADDR = process.env.USDC_CONTRACT_ADDRESS || "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"; // Mainnet USDC
+const RPC_URL = process.env.RPC_URL || "https://mainnet.infura.io/v3/YOUR_KEY";
+const DECIMALS = 6;
+
+// Credit function (with balance check)
+async function creditWallet(to: string, usd: number, refId: string): Promise<{ ok: boolean; txHash?: string; error?: string }> {
+    if (!FUNDING_ADDRESS || !FUNDING_PK) return { ok: false, error: "Funding not configured (dev)" };
+
+    try {
+        const provider = new ethers.JsonRpcProvider(RPC_URL);
+        const wallet = new ethers.Wallet(FUNDING_PK, provider);
+        const contract = new ethers.Contract(USDC_ADDR, USDC_ABI, wallet);
+
+        // Check balance first
+        const required = ethers.parseUnits(usd.toFixed(DECIMALS), DECIMALS);
+        const balance = await contract.balanceOf(FUNDING_ADDRESS);
+        if (balance < required) {
+            return { ok: false, error: `Insufficient funding balance: ${ethers.formatUnits(balance, DECIMALS)} USDC < $${usd}` };
+        }
+
+        // Transfer
+        const tx = await contract.transfer(to, required, { gasLimit: 100_000 });
+        const receipt = await tx.wait();
+
+        console.log(`Credited $${usd} USDC from ${FUNDING_ADDRESS} to ${to} (ref ${refId}): ${receipt.hash}`);
+        return { ok: true, txHash: receipt.hash };
+    } catch (err) {
+        console.error(`Credit failed for ${to}:`, err);
+        return { ok: false, error: (err as Error).message };
+    }
+}
+
+// POST handler (auto-credits on requirements)
 export const POST = withRateLimit(async (request: NextRequest) => {
     const startTime = Date.now();
 
     try {
-        // Get wallet address from middleware
-        const walletAddress = request.headers
-            .get("x-wallet-address")
-            ?.toLowerCase();
-
+        const walletAddress = request.headers.get("x-wallet-address")?.toLowerCase();
         if (!walletAddress) {
-            trackApiError(
-                request,
-                "/api/referral/claim",
-                "POST",
-                new Error("Unauthorized"),
-                401
-            );
-            return NextResponse.json(
-                { success: false, error: "Unauthorized" },
-                { status: 401 }
-            );
+            trackApiError(request, "/api/referral/claim", "POST", new Error("Unauthorized"), 401);
+            return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
         }
 
-        // Track API request
-        trackApiRequest(request, "/api/referral/claim", "POST", {
-            wallet_address: walletAddress,
-        });
+        trackApiRequest(request, "/api/referral/claim", "POST", { wallet_address: walletAddress });
 
-        // Find pending referral for this user
-        const { data: referral, error: referralError } = await supabaseAdmin
+        // Find pending referral
+        const { data: referral, error: refErr } = await supabaseAdmin
             .from("referrals")
             .select("*")
             .eq("referred_wallet_address", walletAddress)
             .eq("status", "pending")
             .single();
 
-        if (referralError && referralError.code !== "PGRST116") {
-            throw referralError;
-        }
-
+        if (refErr && refErr.code !== "PGRST116") throw refErr;
         if (!referral) {
-            return NextResponse.json(
-                {
-                    success: false,
-                    error: "No pending referral found",
-                },
-                { status: 404 }
-            );
+            return NextResponse.json({ success: false, error: "No pending referral" }, { status: 404 });
         }
 
-        // Verify KYC for both referrer and referred using authoritative aggregator
-        try {
-            const [referrerKyc, referredKyc] = await Promise.all([
-                fetchKYCStatus(referral.referrer_wallet_address),
-                fetchKYCStatus(walletAddress),
-            ]);
+        // KYC check (both parties)
+        const [refKyc, refdKyc] = await Promise.all([
+            fetchKYCStatus(referral.referrer_wallet_address),
+            fetchKYCStatus(walletAddress),
+        ]);
 
-            const referrerVerified = referrerKyc?.data?.status === "verified";
-            const referredVerified = referredKyc?.data?.status === "verified";
-
-            if (!referrerVerified || !referredVerified) {
-                const missing = [] as string[];
-                if (!referrerVerified) missing.push("referrer");
-                if (!referredVerified) missing.push("referred user");
-
-                return NextResponse.json(
-                    {
-                        success: false,
-                        error: `KYC verification required for: ${missing.join(", ")}`,
-                    },
-                    { status: 400 }
-                );
-            }
-        } catch (kycErr) {
-            console.error("Error checking KYC status:", kycErr);
-            const responseTime = Date.now() - startTime;
-            trackApiError(
-                request,
-                "/api/referral/claim",
-                "POST",
-                kycErr as Error,
-                500,
-                { response_time_ms: responseTime }
-            );
-
-            return NextResponse.json({ success: false, error: "Failed to verify KYC status" }, { status: 500 });
+        if (refKyc?.data?.status !== "verified" || refdKyc?.data?.status !== "verified") {
+            return NextResponse.json({ success: false, error: "KYC required for referrer/referred" }, { status: 400 });
         }
 
-        // SERVER-SIDE: verify referred user's qualifying transaction
-        try {
-            const { data: txs, error: txErr } = await supabaseAdmin
-                .from("transactions")
-                .select("*")
-                .eq("wallet_address", walletAddress)
-                .eq("status", "completed")
-                .order("created_at", { ascending: true })
-                .limit(1);
+        // Tx volume check ($100 total)
+        const { data: txs, error: txErr } = await supabaseAdmin
+            .from("transactions")
+            .select("amount_usd, amount_received, status, created_at")
+            .eq("wallet_address", walletAddress)
+            .eq("status", "completed")
+            .order("created_at");
 
-            if (txErr) {
-                throw txErr;
-            }
-
-            if (!txs || txs.length === 0) {
-                return NextResponse.json({ success: false, error: "No qualifying completed transaction found for referred user" }, { status: 400 });
-            }
-
-            const tx = txs[0];
-            const amountUsd = tx.amount_usd ?? tx.amount_received ?? 0;
-            if (Number(amountUsd) < 20) {
-                return NextResponse.json({ success: false, error: "Referred user's first completed transaction does not meet the minimum amount requirement" }, { status: 400 });
-            }
-        } catch (txCheckErr) {
-            console.error("Error checking transactions:", txCheckErr);
-            const responseTime = Date.now() - startTime;
-            trackApiError(request, "/api/referral/claim", "POST", txCheckErr as Error, 500, { response_time_ms: responseTime });
-            return NextResponse.json({ success: false, error: "Failed to verify transactions" }, { status: 500 });
+        if (txErr) throw txErr;
+        if (!txs?.length) {
+            return NextResponse.json({ success: false, error: "No completed txs" }, { status: 400 });
         }
 
-        // SAFE STATUS TRANSITION: pending -> processing
-        const { data: processingRows, error: processingErr } = await supabaseAdmin
+        const totalUsd = txs.reduce((sum, t) => sum + Number(t.amount_usd || t.amount_received || 0), 0);
+        if (totalUsd < 100) {
+            return NextResponse.json({ success: false, error: `Total tx volume $${totalUsd.toFixed(2)} < $100` }, { status: 400 });
+        }
+
+        // Lock: pending -> processing
+        const { data: proc, error: procErr } = await supabaseAdmin
             .from("referrals")
             .update({ status: "processing" })
             .eq("id", referral.id)
             .eq("status", "pending")
             .select();
 
-        if (processingErr) {
-            throw processingErr;
+        if (procErr) throw procErr;
+        if (!proc?.length) return NextResponse.json({ success: false, error: "Already processing" }, { status: 409 });
+
+        // Auto-credit $1 each (with balance check)
+        const reward = referral.reward_amount || 1.0;
+        const [refCredit, refdCredit] = await Promise.all([
+            creditWallet(referral.referrer_wallet_address, reward, referral.id),
+            creditWallet(walletAddress, reward, referral.id),
+        ]);
+
+        if (!refCredit.ok || !refdCredit.ok) {
+            // Rollback
+            await supabaseAdmin.from("referrals").update({ status: "pending" }).eq("id", referral.id);
+            return NextResponse.json({ success: false, error: "Credit failed—try later" }, { status: 500 });
         }
 
-        if (!processingRows || processingRows.length === 0) {
-            // Already being processed or completed by another worker
-            return NextResponse.json({ success: false, error: "Referral is already being processed or has been completed" }, { status: 409 });
-        }
+        // Finalize: earned
+        await supabaseAdmin.from("referrals").update({ status: "earned", completed_at: new Date().toISOString() }).eq("id", referral.id);
 
-        // Credit rewards to both users
-        // Best-effort: call internal wallet crediting endpoint when configured.
-        // If crediting fails, roll back referral status to pending to keep consistency.
-        const internalAuth = process.env.INTERNAL_API_KEY;
-        const internalBase = process.env.INTERNAL_API_BASE_URL || new URL(request.url).origin;
-        const isProd = process.env.NODE_ENV === "production";
-
-        async function creditWallet(wallet: string, amountMicro: number, referralId: any) {
-            if (!internalAuth) {
-                if (isProd) {
-                    throw new Error("Internal wallet service not configured");
-                }
-                // Wallet service not configured; skip actual crediting.
-                console.error("Internal wallet service not configured, skipping credit for", wallet);
-                return { ok: false, skipped: true };
-            }
-
-            const resp = await fetch(`${internalBase}/api/internal/credit-wallet`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "x-internal-auth": internalAuth,
-                },
-                body: JSON.stringify({
-                    wallet_address: wallet,
-                    amount: amountMicro,
-                    currency: "USDC",
-                    reason: "referral_reward",
-                    referral_id: referralId,
-                    idempotency_key: `referral:${referral.id}:${wallet}`,
-                }),
-            });
-
-            if (!resp.ok) {
-                const text = await resp.text().catch(() => "");
-                throw new Error(`Wallet credit failed: ${resp.status} ${text}`);
-            }
-
-            return { ok: true };
-        }
-
-        try {
-            // credit referrer
-            const amountMicro = Math.round((referral.reward_amount || 1.0) * 1_000_000);
-            await creditWallet(referral.referrer_wallet_address, amountMicro, referral.id);
-            // credit referred user
-            await creditWallet(walletAddress, amountMicro, referral.id);
-        } catch (walletError) {
-            console.error("Wallet crediting failed, attempting rollback:", walletError);
-            // Roll back referral status to pending
-            try {
-                await supabaseAdmin.from("referrals").update({ status: "pending", completed_at: null }).eq("id", referral.id);
-            } catch (rbErr) {
-                console.error("Failed to roll back referral status:", rbErr);
-            }
-
-            const responseTime = Date.now() - startTime;
-            trackApiError(request, "/api/referral/claim", "POST", walletError as Error, 500, { response_time_ms: responseTime });
-
-            return NextResponse.json({ success: false, error: "Failed to credit referral rewards" }, { status: 500 });
-        }
-
-        // Mark referral as earned and set completed_at
-        try {
-            const { error: earnErr } = await supabaseAdmin
-                .from("referrals")
-                .update({ status: "earned", completed_at: new Date().toISOString() })
-                .eq("id", referral.id);
-            if (earnErr) throw earnErr;
-        } catch (earnErr) {
-            console.error("Failed to finalize referral status as earned:", earnErr);
-            // Note: credits may already have been sent; log and continue
-        }
-
-        const responseTime = Date.now() - startTime;
-        trackApiResponse(
-            "/api/referral/claim",
-            "POST",
-            200,
-            responseTime,
-            {
-                wallet_address: walletAddress,
-                referrer_wallet_address: referral.referrer_wallet_address,
-                referral_id: referral.id,
-                reward_amount: referral.reward_amount,
-            }
-        );
-
-        // Track business events
-        trackBusinessEvent("Referral Completed", {
-            referred_wallet_address: walletAddress,
-            referrer_wallet_address: referral.referrer_wallet_address,
-            referral_id: referral.id,
-            reward_amount: referral.reward_amount,
-        });
-
-        trackBusinessEvent("Referral Reward Earned", {
-            wallet_address: referral.referrer_wallet_address,
-            referred_wallet_address: walletAddress,
-            reward_amount: referral.reward_amount,
-        });
-
-        trackBusinessEvent("Referral Bonus Received", {
-            wallet_address: walletAddress,
-            referrer_wallet_address: referral.referrer_wallet_address,
-            reward_amount: referral.reward_amount,
-        });
+        trackApiResponse("/api/referral/claim", "POST", 200, Date.now() - startTime, { wallet_address: walletAddress });
+        trackBusinessEvent("Referral Claimed", { referral_id: referral.id, reward });
 
         return NextResponse.json({
             success: true,
             data: {
-                referral_id: referral.id,
-                referrer_wallet_address: referral.referrer_wallet_address,
-                reward_amount: referral.reward_amount,
-                message: "Referral rewards have been credited!",
-            },
+                message: "Rewards credited!",
+                txHashes: { referrer: refCredit.txHash, referred: refdCredit.txHash }
+            }
         });
     } catch (error) {
-        console.error("Error completing referral:", error);
-
-        const responseTime = Date.now() - startTime;
-        trackApiError(
-            request,
-            "/api/referral/claim",
-            "POST",
-            error as Error,
-            500,
-            {
-                response_time_ms: responseTime,
-            }
-        );
-
-        return NextResponse.json(
-            { success: false, error: "Failed to claim referral" },
-            { status: 500 }
-        );
+        console.error("Referral claim error:", error);
+        trackApiError(request, "/api/referral/claim", "POST", error as Error, 500);
+        return NextResponse.json({ success: false, error: "Claim failed" }, { status: 500 });
     }
 });

@@ -192,10 +192,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
       {/* Network List Container */}
       <div
         className={classNames(
-          "space-y-3 rounded-[20px] py-3",
-          isNetworkListOpen
-            ? "border border-border-light px-4 dark:border-white/10"
-            : "",
+          "space-y-3 rounded-[16px] py-3 border border-border-light px-4 dark:border-white/10",
         )}
       >
         <div

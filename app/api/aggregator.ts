@@ -548,30 +548,53 @@ export async function submitReferralCode(
  * Get user's referral data (code, earnings, referral list)
  */
 export async function getReferralData(
-  accessToken?: string,
+  accessToken: string,
   walletAddress?: string,
 ): Promise<ApiResponse<ReferralData>> {
-  const headers: Record<string, string> = {};
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if (!accessToken) {
+    return {
+      success: false,
+      error: "Authentication token is required",
+    };
+  }
 
   const url = walletAddress
-    ? `/api/referral/data?wallet_address=${encodeURIComponent(walletAddress)}`
-    : `/api/referral/data`;
+    ? `/api/referral/referral-data?wallet_address=${encodeURIComponent(walletAddress)}`
+    : `/api/referral/referral-data`;
 
   try {
-    const response = await axios.get(url, { headers });
+    const response = await axios.get<ApiResponse<ReferralData>>(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
 
     if (!response.data?.success) {
-      return { success: false, error: response.data?.error || "Failed to fetch referral data", status: response.status };
+      return {
+        success: false,
+        error: response.data?.error || "Failed to fetch referral data",
+        status: response.status,
+      };
     }
 
-    return { success: true, data: response.data.data as ReferralData };
+    // The endpoint auto-generates code if missing, so data.referral_code should always exist
+    return { success: true, data: response.data.data };
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message || "Failed to fetch referral data";
-      return { success: false, error: message, status: error.response?.status };
+      const message =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to fetch referral data";
+      return {
+        success: false,
+        error: message,
+        status: error.response?.status,
+      };
     }
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
   }
 }
 

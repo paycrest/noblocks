@@ -8,6 +8,7 @@ import { PiCheck } from "react-icons/pi";
 import { getReferralData } from "../../api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { slideUpAnimation } from "../AnimatedComponents";
+import { ReferralDashboardViewSkeleton } from "../ReferralDashboardViewSkeleton";
 // Mock data for presentation
 const MOCK_DATA = {
     referral_code: "NB738K",
@@ -129,31 +130,43 @@ export const ReferralDashboardView = ({
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<"pending" | "earned">("pending");
     const [showCopiedMessage, setShowCopiedMessage] = useState(false);
+
     useEffect(() => {
         if (!isOpen) return;
+
         let mounted = true;
+
         async function fetchData() {
             try {
                 setIsLoading(true);
-                if (mounted) setReferralData(MOCK_DATA);
-                /* Production code (commented for demo):
                 const token = await getAccessToken();
                 if (!token) return;
-                const data = await getReferralData(token);
-                if (mounted) setReferralData(data);
-                */
+                const response = await getReferralData(token);
+                if (mounted && response.success) {
+                    setReferralData(response.data);
+                } else if (mounted) {
+                    // toast.error(response.error || "Failed to load referral data");
+                    setReferralData(null);
+                }
             } catch (error) {
                 console.error("Failed to fetch referral data:", error);
-                toast.error("Failed to load referral data");
+                if (mounted) {
+                    toast.error("Failed to load referral data");
+                    setReferralData(null);
+                }
             } finally {
                 if (mounted) setIsLoading(false);
             }
         }
+
         fetchData();
+
         return () => {
             mounted = false;
         };
     }, [getAccessToken, isOpen]);
+
+
     const handleCopyCode = () => {
         if (referralData?.referral_code) {
             navigator.clipboard.writeText(referralData.referral_code);
@@ -168,7 +181,7 @@ export const ReferralDashboardView = ({
             toast.success("Referral link copied!");
         }
     };
-    
+
     const filteredReferrals: any[] = (referralData?.referrals || []).filter(
         (r: any) => r.status === activeTab
     );
@@ -185,6 +198,7 @@ export const ReferralDashboardView = ({
         const index = parseInt(address.slice(2, 4), 16) % colors.length;
         return colors[index];
     };
+    
     return (
         <AnimatePresence>
             {isOpen && (
@@ -205,182 +219,182 @@ export const ReferralDashboardView = ({
                             <motion.div {...slideUpAnimation} className="w-full">
                                 <DialogPanel className="scrollbar-hide relative max-h-full w-full overflow-visible rounded-t-[30px] border border-border-light bg-white px-5 pt-6 shadow-xl *:text-sm dark:border-white/5 dark:bg-[#141414]">
                                     <AnimatePresence mode="wait">
-                                        <motion.div
-                                            key="referral-dashboard"
-                                            initial={{ opacity: 0, height: 0 }}
-                                            animate={{ opacity: 1, height: "auto" }}
-                                            exit={{ opacity: 0, height: 0 }}
-                                            transition={{
-                                                height: { duration: 0.35 },
-                                                opacity: { duration: 0.2 },
-                                            }}
-                                            style={{ overflow: "hidden" }}
-                                        >
-                                            <div className="scrollbar-hide max-h-[90vh] overflow-y-scroll pb-12">
-                                                {/* Header */}
-                                                <div className="mb-6 flex items-center gap-4">
-                                                    <button
-                                                        type="button"
-                                                        aria-label="Close referrals"
-                                                        onClick={onClose}
-                                                        className="rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-white/10"
-                                                    >
-                                                        <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
-                                                    </button>
-                                                    <h1 className="text-xl font-semibold text-text-body dark:text-white">
-                                                        Referrals
-                                                    </h1>
-                                                </div>
-                                                {/* Earnings Summary */}
-                                                <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border-light dark:border-white/10 dark:bg-transparent">
-                                                <div className="border-r border-border-light bg-transparent p-4 dark:border-white/10">
-                                                        <p className="mb-1 text-sm text-text-secondary dark:text-white/60">
-                                                            Earned
-                                                        </p>
-                                                        <p className="text-2xl font-semibold text-text-body dark:text-white">
-                                                            {referralData?.total_earned?.toFixed(1) ?? "0.0"} USDC
-                                                        </p>
-                                                    </div>
-                                                    <div className="bg-transparent p-4">
-                                                        <p className="mb-1 text-sm text-text-secondary dark:text-white/60">
-                                                            Pending
-                                                        </p>
-                                                        <p className="text-2xl font-semibold text-text-body dark:text-white">
-                                                            {referralData?.total_pending?.toFixed(0) ?? "0"} USDC
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                {/* Referral Code Card */}
-                                                <div className="mb-4 space-y-3 rounded-2xl border border-border-light bg-transparent p-4 dark:border-white/10">
-                                                    <p className="text-sm text-text-secondary dark:text-white/60">
-                                                        Your invite code
-                                                    </p>
-                                                    <div className="flex items-center justify-between">
-                                                        <p className="text-2xl font-bold tracking-wider text-text-body dark:text-white">
-                                                            {referralData?.referral_code || "LOADING"}
-                                                        </p>
+                                        {isLoading ? (
+                                            <motion.div
+                                                key="referral-loading"
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: "auto" }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                transition={{
+                                                    height: { duration: 0.35 },
+                                                    opacity: { duration: 0.2 },
+                                                }}
+                                                style={{ overflow: "hidden" }}
+                                            >
+                                                <ReferralDashboardViewSkeleton />
+                                            </motion.div>
+                                        ) : (
+                                            <motion.div
+                                                key="referral-dashboard"
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: "auto" }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                transition={{
+                                                    height: { duration: 0.35 },
+                                                    opacity: { duration: 0.2 },
+                                                }}
+                                                style={{ overflow: "hidden" }}
+                                            >
+                                                <div className="scrollbar-hide max-h-[95vh] overflow-y-scroll pb-12">
+                                                    {/* Header */}
+                                                    <div className="mb-6 items-center gap-4">
                                                         <button
-                                                            onClick={handleCopyCode}
-                                                            aria-pressed={showCopiedMessage}
-                                                            className="flex items-center gap-1.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10"
+                                                            type="button"
+                                                            aria-label="Close referrals"
+                                                            onClick={onClose}
+                                                            className="rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-white/10 pb-4"
                                                         >
-                                                            {showCopiedMessage ? (
-                                                                <>
-                                                                    <PiCheck className="size-4 text-emerald-500" />
-                                                                    <span className="text-sm font-medium text-emerald-500">
-                                                                        Copied
-                                                                    </span>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <Copy01Icon className="size-4 text-lavender-500" />
-                                                                    <span className="text-sm font-medium text-lavender-500">
-                                                                        Copy
-                                                                    </span>
-                                                                </>
-                                                            )}
+                                                            <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
                                                         </button>
+                                                        <h1 className="text-lg font-semibold text-text-body dark:text-white">
+                                                            Referrals
+                                                        </h1>
                                                     </div>
-                                                </div>
-                                                <div className="mb-4">
-                                                    <button
-                                                        onClick={handleCopyLink}
-                                                        className="min-h-11 w-full rounded-xl bg-lavender-500 py-3 text-sm font-medium text-white transition-colors hover:bg-lavender-600"
-                                                    >
-                                                        Copy Invite Link
-                                                    </button>
-                                                </div>
-                                                <p className="mb-6 text-sm leading-relaxed text-text-secondary dark:text-white/60">
-                                                    Earn when you refer your friends. You both get $1 when they
-                                                    complete their first $20 transaction.
-                                                </p>
-                                                {/* Tabs */}
-                                                <div className="mb-4 flex gap-6 ">
-                                                    <button
-                                                        onClick={() => setActiveTab("pending")}
-                                                        className={`relative pb-3 text-base font-medium transition-colors ${activeTab === "pending"
-                                                            ? "text-text-body dark:text-white"
-                                                            : "text-text-secondary dark:text-white/50"
-                                                            }`}
-                                                    >
-                                                        Pending
-                                                        {activeTab === "pending" && (
-                                                            <motion.div
-                                                                layoutId="activeTab"
-                                                                className="absolute bottom-0 left-0 right-0 h-0.5 bg-text-body dark:bg-white"
-                                                            />
-                                                        )}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setActiveTab("earned")}
-                                                        className={`relative pb-3 text-base font-medium transition-colors ${activeTab === "earned"
-                                                            ? "text-text-body dark:text-white"
-                                                            : "text-text-secondary dark:text-white/50"
-                                                            }`}
-                                                    >
-                                                        Earned
-                                                        {activeTab === "earned" && (
-                                                            <motion.div
-                                                                layoutId="activeTab"
-                                                                className="absolute bottom-0 left-0 right-0 h-0.5 bg-text-body dark:bg-white"
-                                                            />
-                                                        )}
-                                                    </button>
-                                                </div>
-                                                {/* Referral List */}
-                                                <div className="space-y-3">
-                                                    {filteredReferrals.length === 0 ? (
-                                                        <div className="rounded-2xl border border-border-light bg-transparent p-8 text-center dark:border-white/10">
-                                                            <p className="text-sm text-text-secondary dark:text-white/60">
-                                                                {activeTab === "pending"
-                                                                    ? "No pending referrals yet"
-                                                                    : "No earned referrals yet"}
+                                                    {/* Earnings Summary */}
+                                                    <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border-light bg-border-light dark:border-white/10 dark:bg-transparent">
+                                                        <div className="border-r border-border-light bg-transparent p-4 dark:border-white/10">
+                                                            <p className="mb-1 text-sm text-text-secondary dark:text-white/60">
+                                                                Earned
+                                                            </p>
+                                                            <p className="text-lg font-semibold text-text-body dark:text-white">
+                                                                {referralData?.total_earned?.toFixed(1) ?? "0.0"} USDC
                                                             </p>
                                                         </div>
-                                                    ) : (
-                                                        filteredReferrals.map((referral) => (
-                                                            <div
-                                                                key={referral.id}
-                                                                className="flex items-center justify-between py-1"
+                                                        <div className="bg-transparent p-4">
+                                                            <p className="mb-1 text-sm text-text-secondary dark:text-white/60">
+                                                                Pending
+                                                            </p>
+                                                            <p className="text-lg font-semibold text-text-body dark:text-white">
+                                                                {referralData?.total_pending?.toFixed(0) ?? "0"} USDC
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="mb-4 space-y-3 rounded-2xl border border-border-light bg-transparent p-4 dark:border-white/10">
+                                                        <p className="text-sm text-text-secondary dark:text-white/60">
+                                                            Your invite code
+                                                        </p>
+
+                                                        <div className="flex items-center justify-between">
+                                                            <p className="text-2xl font-bold tracking-wider text-text-body dark:text-white">
+                                                                {referralData?.referral_code ?? "No code yet"}
+                                                            </p>
+                                                            <button
+                                                                onClick={handleCopyCode}
+                                                                aria-pressed={showCopiedMessage}
+                                                                className="flex items-center gap-1.5 rounded-lg px-3 py-2 hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-50"
+                                                                disabled={!referralData?.referral_code}
                                                             >
-                                                                <div className="flex items-center gap-3">
-                                                                    {/* Avatar */}
-                                                                    <div
-                                                                        className={`flex size-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${getAvatarColor(referral.wallet_address)}`}
-                                                                    >
-                                                                        <span className="text-sm font-semibold text-white">
-                                                                            {referral.wallet_address_short
-                                                                                .slice(2, 4)
-                                                                                .toUpperCase()}
+                                                                {showCopiedMessage ? (
+                                                                    <>
+                                                                        <PiCheck className="size-4 text-lavender-500" />
+                                                                        <span className="text-sm font-medium text-lavender-500">
+                                                                            Copied
                                                                         </span>
-                                                                    </div>
-                                                                    {/* Info */}
-                                                                    <div>
-                                                                        <p className="text-sm font-medium text-text-body dark:text-white">
-                                                                            {referral.wallet_address_short}
-                                                                        </p>
-                                                                        {/* <p className="text-xs text-text-secondary dark:text-white/60">
-                                                                            {new Date(referral.created_at).toLocaleDateString(
-                                                                                "en-US",
-                                                                                {
-                                                                                    day: "2-digit",
-                                                                                    month: "short",
-                                                                                    year: "numeric",
-                                                                                }
-                                                                            )}
-                                                                        </p> */}
-                                                                    </div>
-                                                                </div>
-                                                                {/* Amount */}
-                                                                <p className="text-sm font-medium text-text-secondary dark:text-white/60">
-                                                                    {referral.amount.toFixed(1)} USDC
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Copy01Icon className="size-4 text-lavender-500" />
+                                                                        <span className="text-sm font-medium text-lavender-500">
+                                                                            Copy
+                                                                        </span>
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="mb-4">
+                                                        <button
+                                                            onClick={handleCopyLink}
+                                                            className="min-h-11 w-full rounded-xl bg-lavender-500 py-3 text-base font-medium text-white transition-colors hover:bg-lavender-600 disabled:opacity-50"
+                                                            disabled={!referralData?.referral_code}
+                                                        >
+                                                            Copy Invite Link
+                                                        </button>
+                                                    </div>
+
+                                                    <p className="mb-6 text-sm leading-relaxed text-text-secondary dark:text-white/60">
+                                                        Earn when you refer your friends. You both get $1 when they
+                                                        complete their first $20 transaction.
+                                                    </p>
+                                                    {/* Tabs */}
+                                                    <div className="mb-4 flex gap-6 ">
+                                                        <button
+                                                            onClick={() => setActiveTab("pending")}
+                                                            className={`text-base font-medium transition-colors ${activeTab === "pending"
+                                                                ? "text-text-body dark:text-white"
+                                                                : "text-text-secondary dark:text-white/50"
+                                                                }`}
+                                                        >
+                                                            Pending
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => setActiveTab("earned")}
+                                                            className={`text-base font-medium transition-colors ${activeTab === "earned"
+                                                                ? "text-text-body dark:text-white"
+                                                                : "text-text-secondary dark:text-white/50"
+                                                                }`}
+                                                        >
+                                                            Earned
+                                                        </button>
+                                                    </div>
+                                                    {/* Referral List */}
+                                                    <div className="space-y-3">
+                                                        {filteredReferrals.length === 0 ? (
+                                                            <div className="rounded-2xl border border-border-light bg-transparent p-8 text-center dark:border-white/10">
+                                                                <p className="text-sm text-text-secondary dark:text-white/60">
+                                                                    {activeTab === "pending"
+                                                                        ? "No pending referrals yet"
+                                                                        : "No earned referrals yet"}
                                                                 </p>
                                                             </div>
-                                                        ))
-                                                    )}
+                                                        ) : (
+                                                            filteredReferrals.map((referral) => (
+                                                                <div
+                                                                    key={referral.id}
+                                                                    className="flex items-center justify-between py-1"
+                                                                >
+                                                                    <div className="flex items-center gap-3">
+                                                                        {/* Avatar */}
+                                                                        <div
+                                                                            className={`flex size-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${getAvatarColor(referral.wallet_address)}`}
+                                                                        >
+                                                                            <span className="text-sm font-semibold text-white">
+                                                                                {referral.wallet_address_short
+                                                                                    .slice(2, 4)
+                                                                                    .toUpperCase()}
+                                                                            </span>
+                                                                        </div>
+                                                                        {/* Info */}
+                                                                        <div>
+                                                                            <p className="text-sm font-medium text-text-body dark:text-white">
+                                                                                {referral.wallet_address_short}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    {/* Amount */}
+                                                                    <p className="text-sm font-medium text-text-secondary dark:text-white/60">
+                                                                        {referral.amount.toFixed(1)} USDC
+                                                                    </p>
+                                                                </div>
+                                                            ))
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </motion.div>
+                                            </motion.div>
+                                        )}
                                     </AnimatePresence>
                                 </DialogPanel>
                             </motion.div>

@@ -5,7 +5,18 @@ import {
     trackApiRequest,
     trackApiResponse,
     trackApiError,
+    trackBusinessEvent,
 } from "@/app/lib/server-analytics";
+
+// Generate a unique 6-character referral code (NB + 4 alphanumeric)
+function generateReferralCode(): string {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let code = "NB";
+    for (let i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+}
 
 export const GET = withRateLimit(async (request: NextRequest) => {
     const startTime = Date.now();
@@ -36,24 +47,74 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         });
 
         // Get user's referral code
-        const { data: userData, error: userError } = await supabaseAdmin
+        let { data: userData, error: userError } = await supabaseAdmin
             .from("users")
             .select("referral_code")
             .eq("wallet_address", walletAddress)
             .single();
 
-        if (userError) {
+        if (userError && userError.code !== "PGRST116") {
             throw userError;
         }
 
-        if (!userData?.referral_code) {
-            return NextResponse.json(
-                {
-                    success: false,
-                    error: "No referral code found. Please generate one first.",
-                },
-                { status: 404 }
-            );
+        // Auto-generate if no valid code (null/empty/missing user)
+        let referralCode = userData?.referral_code;
+        let isNewlyGenerated = false;
+        if (!referralCode || referralCode.trim() === "") {
+            // Generate unique code
+            let code: string | null = null;
+            let attempts = 0;
+            const maxAttempts = 10;
+
+            while (!code && attempts < maxAttempts) {
+                const candidate = generateReferralCode();
+                attempts++;
+
+                const { data: existing, error: existingError } = await supabaseAdmin
+                    .from("users")
+                    .select("wallet_address")
+                    .eq("referral_code", candidate)
+                    .single();
+
+                if (existingError && existingError.code !== "PGRST116") {
+                    throw existingError;
+                }
+
+                if (!existing) {
+                    code = candidate;
+                }
+            }
+
+            if (!code) {
+                throw new Error("Failed to generate unique referral code");
+            }
+
+            // Upsert user with code
+            const { data: upsertData, error: upsertError } = await supabaseAdmin
+                .from("users")
+                .upsert(
+                    {
+                        wallet_address: walletAddress,
+                        referral_code: code,
+                        updated_at: new Date().toISOString(),
+                    },
+                    { onConflict: "wallet_address" }
+                )
+                .select("referral_code")
+                .single();
+
+            if (upsertError) {
+                throw upsertError;
+            }
+
+            referralCode = upsertData.referral_code;
+            isNewlyGenerated = true;
+
+            // Track generation
+            trackBusinessEvent("Referral Code Auto-Generated", {
+                wallet_address: walletAddress,
+                referral_code: referralCode,
+            });
         }
 
         // Get all referrals made by this user
@@ -103,13 +164,14 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         const response = {
             success: true,
             data: {
-                referral_code: userData.referral_code,
+                referral_code: referralCode,
                 total_earned: totalEarned,
                 total_pending: totalPending,
                 total_referrals: referrals.length,
                 earned_count: earnedReferrals.length,
                 pending_count: pendingReferrals.length,
                 referrals: referralList,
+                newly_generated: isNewlyGenerated, // Optional: For UI toast
             },
         };
 
@@ -120,6 +182,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             total_earned: totalEarned,
             total_pending: totalPending,
             total_referrals: referrals.length,
+            newly_generated: isNewlyGenerated,
         });
 
         return NextResponse.json(response);

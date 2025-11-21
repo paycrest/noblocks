@@ -57,8 +57,8 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             throw fetchError;
         }
 
-        // If user has a code, return it
-        if (existingUser?.referral_code) {
+        // If user has a referral code (not null/empty), return it
+        if (existingUser?.referral_code && existingUser.referral_code.trim() !== "") {
             const responseTime = Date.now() - startTime;
             trackApiResponse("/api/referral/generate-referral-code", "GET", 200, responseTime, {
                 wallet_address: walletAddress,

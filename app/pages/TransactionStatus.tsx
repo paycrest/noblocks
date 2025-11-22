@@ -30,17 +30,15 @@ import {
   formatNumberWithCommas,
   getExplorerLink,
   getInstitutionNameByCode,
-  normalizeNetworkForRateFetch,
 } from "../utils";
-import { networks } from "../mocks";
 import {
   fetchOrderDetails,
   updateTransactionDetails,
   fetchSavedRecipients,
   saveRecipient,
   deleteSavedRecipient,
-  reindexTransaction,
 } from "../api/aggregator";
+import { reindexSingleTransaction } from "../lib/reindex";
 import {
   STEPS,
   type OrderDetailsData,
@@ -438,63 +436,14 @@ export function TransactionStatus({
         return;
       }
 
-      // Convert network name to API format
-      const apiNetwork = normalizeNetworkForRateFetch(orderDetails.network);
-
-      // Only call reindex if network is supported
-      const supportedNetworks = networks.map((network) =>
-        normalizeNetworkForRateFetch(network.chain.name),
-      );
-      if (!supportedNetworks.includes(apiNetwork)) {
-        console.warn(
-          `Reindex not supported for network: ${orderDetails.network} (${apiNetwork})`,
-        );
-        return;
-      }
-
-      // Helper function for exponential backoff delay
-      const getExponentialDelay = (attempt: number): number => {
-        return Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-      };
-
-      // Call reindex API with retry logic
-      const callReindex = async (retryAttempt: number = 0): Promise<void> => {
-        const maxRetries = 3;
-
+      // Reindex transaction to sync with blockchain state
+      const callReindex = async (): Promise<void> => {
         try {
-          const response = await reindexTransaction(apiNetwork, txHash);
-
-          // Extract OrderCreated event count from response
-          const orderCreated = Number(response?.events?.OrderCreated ?? 0);
-          const hasValidOrderCreated = orderCreated > 0;
-
-          if (!hasValidOrderCreated && retryAttempt < maxRetries) {
-            // OrderCreated is 0 or not present, retry with exponential backoff
-            const delay = getExponentialDelay(retryAttempt);
-            console.log(
-              `Reindex successful but OrderCreated is ${orderCreated}, retrying in ${delay}ms (attempt ${retryAttempt + 1}/${maxRetries})`,
-            );
-
-            // Clear any existing timeout
-            if (reindexTimeoutRef.current) {
-              clearTimeout(reindexTimeoutRef.current);
-            }
-
-            // Schedule retry
-            reindexTimeoutRef.current = setTimeout(() => {
-              callReindex(retryAttempt + 1);
-            }, delay);
-            return;
-          }
-
-          // Success - either OrderCreated > 0 or we've exhausted retries
+          await reindexSingleTransaction(txHash, orderDetails.network);
           setHasReindexed(true);
-          console.log(
-            `Transaction reindexed: ${txHash} on ${apiNetwork}, OrderCreated: ${orderCreated}`,
-          );
         } catch (error) {
           console.error("Error reindexing transaction:", error);
-          // Mark as reindexed to prevent retry loops
+          // Prevent infinite retry loops on persistent errors
           setHasReindexed(true);
         }
       };

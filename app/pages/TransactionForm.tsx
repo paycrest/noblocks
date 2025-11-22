@@ -15,6 +15,7 @@ import {
   KycModal,
   FundWalletForm,
   AnimatedModal,
+  TransactionLimitModal,
 } from "../components";
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
@@ -38,6 +39,7 @@ import {
   useNetwork,
   useTokens,
 } from "../context";
+import { useKYCStatus } from "../hooks/useKYCStatus";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -67,6 +69,7 @@ export const TransactionForm = ({
   const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
+  const { canTransact, tier, isPhoneVerified, refreshStatus } = useKYCStatus();
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -79,6 +82,8 @@ export const TransactionForm = ({
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
   const isFirstRender = useRef(true);
   const [rateError, setRateError] = useState<string | null>(null);
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
+  const [blockedTransactionAmount, setBlockedTransactionAmount] = useState(0);
 
   const currencies = useMemo(
     () =>
@@ -99,6 +104,7 @@ export const TransactionForm = ({
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors, isValid, isDirty },
   } = formMethods;
   const { amountSent, amountReceived, token, currency } = watch();
@@ -274,9 +280,10 @@ export const TransactionForm = ({
         try {
           const response = await fetchKYCStatus(walletAddressToCheck);
           if (response.data.status === "pending") {
-            setIsKycModalOpen(true);
+            setIsLimitModalOpen(true);
           } else if (response.data.status === "success") {
             setIsUserVerified(true);
+            await refreshStatus(); // Refresh KYC tier status
           }
         } catch (error) {
           if (
@@ -452,6 +459,21 @@ export const TransactionForm = ({
 
   const handleSwap = () => {
     setOrderId("");
+    
+    // Calculate the USD amount for transaction limit checking
+    const formData = getValues();
+    const usdAmount = formData.amountReceived || 0;
+    
+    // Check transaction limits based on KYC tier
+    const limitCheck = canTransact(usdAmount);
+    
+    if (!limitCheck.allowed) {
+      setBlockedTransactionAmount(usdAmount);
+      setIsLimitModalOpen(true);
+      return;
+    }
+    
+    // If limits are okay, proceed with transaction
     handleSubmit(onSubmit)();
   };
 
@@ -828,6 +850,12 @@ export const TransactionForm = ({
           )}
         </AnimatePresence>
 
+        <TransactionLimitModal
+          isOpen={isLimitModalOpen}
+          onClose={() => setIsLimitModalOpen(false)}
+          transactionAmount={blockedTransactionAmount}
+        />
+
         {/* Loading and Submit buttons */}
         {!ready && (
           <button
@@ -856,7 +884,7 @@ export const TransactionForm = ({
                     (fetchedTokens.find((t) => t.symbol === token)
                       ?.address as `0x${string}`) ?? "",
                   ),
-                () => setIsKycModalOpen(true),
+                () => setIsLimitModalOpen(true),
                 isUserVerified,
               )}
             >

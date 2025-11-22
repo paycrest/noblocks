@@ -237,6 +237,16 @@ export type InitiateKYCResponse = {
   };
 };
 
+export type SmileIDSubmissionResponse = {
+  status: string;
+  message: string;
+  data: {
+    jobId: string;
+    userId: string;
+    smileIdResponse: any;
+  };
+};
+
 export type KYCStatusResponse = {
   status: string;
   message: string;

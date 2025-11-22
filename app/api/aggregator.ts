@@ -572,7 +572,7 @@ export async function reindexTransaction(
     if (shouldRetry) {
       const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
       const errorType = isNetworkError ? "network error" : `status ${status}`;
-      console.log(
+      console.debug(
         `Reindex failed with ${errorType}, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`,
       );
       await sleep(delay);

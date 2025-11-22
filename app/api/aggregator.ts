@@ -491,15 +491,6 @@ export async function updateTransactionDetails({
 }
 
 /**
- * Sleeps for a given number of milliseconds
- * @param {number} ms - Milliseconds to sleep
- * @returns {Promise<void>}
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
  * Reindexes a transaction on the Paycrest API with exponential retry
  * @param {string} network - The network identifier (e.g., "base", "bnb-smart-chain", "polygon")
  * @param {string} txHash - The transaction hash to reindex
@@ -576,7 +567,7 @@ export async function reindexTransaction(
       console.debug(
         `Reindex failed with ${errorType}, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`,
       );
-      await sleep(delay);
+      await new Promise((resolve) => setTimeout(resolve, delay)); // sleep for delay
       return reindexTransaction(network, txHash, retryCount + 1, maxRetries);
     }
 

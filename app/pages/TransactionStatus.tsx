@@ -38,6 +38,7 @@ import {
   saveRecipient,
   deleteSavedRecipient,
 } from "../api/aggregator";
+import { reindexSingleTransaction } from "../lib/reindex";
 import {
   STEPS,
   type OrderDetailsData,
@@ -134,6 +135,8 @@ export function TransactionStatus({
   const [hasShownConfetti, setHasShownConfetti] = useState(false);
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [hasReindexed, setHasReindexed] = useState(false);
+  const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
 
   const fireConfetti = useConfetti();
@@ -393,6 +396,84 @@ export function TransactionStatus({
       }
     },
     [transactionStatus, fireConfetti, hasShownConfetti],
+  );
+
+  /**
+   * Reindexes transaction if it has been pending for more than 30 seconds
+   * Only calls reindex once per transaction
+   */
+  useEffect(
+    function reindexPendingTransaction() {
+      // Only proceed if:
+      // 1. Transaction status is "pending"
+      // 2. We haven't already reindexed
+      // 3. We have order details with network
+      if (
+        transactionStatus !== "pending" ||
+        hasReindexed ||
+        !orderDetails ||
+        !orderDetails.network
+      ) {
+        return;
+      }
+
+      // Get txHash from orderDetails.txHash or from txReceipts
+      let txHash = orderDetails.txHash;
+      if (
+        !txHash &&
+        orderDetails.txReceipts &&
+        orderDetails.txReceipts.length > 0
+      ) {
+        // Try to find a pending receipt first, otherwise use the first one
+        const pendingReceipt = orderDetails.txReceipts.find(
+          (receipt) => receipt.status === "pending",
+        );
+        txHash = pendingReceipt?.txHash || orderDetails.txReceipts[0]?.txHash;
+      }
+
+      // If we still don't have a txHash, we can't reindex
+      if (!txHash) {
+        return;
+      }
+
+      // Reindex transaction to sync with blockchain state
+      const callReindex = async (): Promise<void> => {
+        try {
+          await reindexSingleTransaction(txHash, orderDetails.network);
+          setHasReindexed(true);
+        } catch (error) {
+          console.error("Error reindexing transaction:", error);
+          // Prevent infinite retry loops on persistent errors
+          setHasReindexed(true);
+        }
+      };
+
+      // Calculate time elapsed since transaction creation
+      const createdAtTime = new Date(createdAt).getTime();
+      const currentTime = Date.now();
+      const timeElapsed = currentTime - createdAtTime;
+      const thirtySecondsInMs = 30 * 1000;
+
+      // If 30 seconds haven't elapsed yet, schedule a check for when they will
+      if (timeElapsed <= thirtySecondsInMs) {
+        const remainingTime = thirtySecondsInMs - timeElapsed;
+        reindexTimeoutRef.current = setTimeout(() => {
+          callReindex();
+        }, remainingTime);
+      } else {
+        // 30 seconds have elapsed, call reindex immediately
+        callReindex();
+      }
+
+      // Cleanup function to clear timeout on unmount or dependency change
+      return () => {
+        if (reindexTimeoutRef.current) {
+          clearTimeout(reindexTimeoutRef.current);
+          reindexTimeoutRef.current = null;
+        }
+      };
+    },
+    [transactionStatus, hasReindexed, orderDetails, createdAt],
   );
 
   /**

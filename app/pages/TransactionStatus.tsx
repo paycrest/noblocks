@@ -460,11 +460,10 @@ export function TransactionStatus({
         reindexTimeoutRef.current = setTimeout(() => {
           callReindex();
         }, remainingTime);
-        return;
+      } else {
+        // 30 seconds have elapsed, call reindex immediately
+        callReindex();
       }
-
-      // 30 seconds have elapsed, call reindex immediately
-      callReindex();
 
       // Cleanup function to clear timeout on unmount or dependency change
       return () => {

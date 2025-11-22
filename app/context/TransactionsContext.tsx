@@ -16,6 +16,9 @@ import { useNetwork } from "./NetworksContext";
 import { usePrivy } from "@privy-io/react-auth";
 import { reindexSingleTransaction } from "../lib/reindex";
 
+// Polling interval and reindex threshold (30 seconds)
+const POLLING_INTERVAL_MS = 30 * 1000;
+
 interface TransactionsContextType {
   transactions: TransactionHistory[];
   total: number;
@@ -107,9 +110,8 @@ export function TransactionsProvider({
             ) {
               const timeElapsed =
                 Date.now() - new Date(tx.created_at).getTime();
-              const thirtySecondsInMs = 30 * 1000;
 
-              if (timeElapsed > thirtySecondsInMs) {
+              if (timeElapsed > POLLING_INTERVAL_MS) {
                 const txHash = tx.tx_hash;
                 const network = tx.network;
 
@@ -316,7 +318,7 @@ export function TransactionsProvider({
       } finally {
         pollingInFlightRef.current = false;
       }
-    }, 30000);
+    }, POLLING_INTERVAL_MS);
 
     return () => {
       clearInterval(intervalId);

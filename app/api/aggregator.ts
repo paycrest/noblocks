@@ -560,13 +560,14 @@ export async function reindexTransaction(
     const status = error.response?.status;
 
     // Check if we should retry:
-    // 1. Network errors (no response) - retry
-    // 2. 4xx+ status codes (client/server errors) - retry
+    // 1. Network errors (no response) - retry (transient)
+    // 2. 5xx server errors - retry (transient)
+    // 3. 4xx client errors - do NOT retry (bad request, fail fast)
     // Note: axios throws errors for status >= 400, so 2xx responses won't reach here
     const isNetworkError = !error.response;
-    const is4xxOrAbove = status !== undefined && status >= 400;
+    const is5xxError = status !== undefined && status >= 500;
     const shouldRetry =
-      (isNetworkError || is4xxOrAbove) && retryCount < maxRetries;
+      (isNetworkError || is5xxError) && retryCount < maxRetries;
 
     if (shouldRetry) {
       const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s

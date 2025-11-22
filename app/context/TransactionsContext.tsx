@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import type { TransactionHistory, TransactionStatus } from "../types";
 import {
   fetchTransactions,
@@ -6,6 +13,8 @@ import {
   updateTransactionDetails,
 } from "../api/aggregator";
 import { useNetwork } from "./NetworksContext";
+import { usePrivy } from "@privy-io/react-auth";
+import { reindexSingleTransaction } from "../lib/reindex";
 
 interface TransactionsContextType {
   transactions: TransactionHistory[];
@@ -44,6 +53,14 @@ export function TransactionsProvider({
     >
   >({});
   const { selectedNetwork } = useNetwork();
+  const { user, getAccessToken } = usePrivy();
+  const reindexedTxHashesRef = useRef<Set<string>>(new Set());
+  const transactionsRef = useRef<TransactionHistory[]>([]);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    transactionsRef.current = transactions;
+  }, [transactions]);
 
   // Background reconciliation logic
   const reconcileTransactionStatuses = useCallback(
@@ -78,6 +95,36 @@ export function TransactionsProvider({
                 (r: { status: string }) => r.status === "pending",
               );
               newTxHash = relevantReceipt?.txHash;
+            }
+
+            // Reindex pending transactions older than 30 seconds to sync with blockchain state
+            if (
+              orderData.status === "pending" &&
+              tx.tx_hash &&
+              tx.network &&
+              !reindexedTxHashesRef.current.has(tx.tx_hash)
+            ) {
+              const timeElapsed =
+                Date.now() - new Date(tx.created_at).getTime();
+              const thirtySecondsInMs = 30 * 1000;
+
+              if (timeElapsed > thirtySecondsInMs) {
+                const txHash = tx.tx_hash;
+                const network = tx.network;
+
+                // Track reindexed transactions to prevent duplicate API calls
+                reindexedTxHashesRef.current.add(txHash);
+
+                // Reindex in background without blocking reconciliation
+                reindexSingleTransaction(txHash, network).catch((error) => {
+                  console.error(
+                    `Failed to reindex transaction ${txHash}:`,
+                    error,
+                  );
+                  // Allow retry in next polling cycle
+                  reindexedTxHashesRef.current.delete(txHash);
+                });
+              }
             }
 
             // update transaction status or txHash if changed
@@ -204,7 +251,68 @@ export function TransactionsProvider({
     setError(null);
     setCurrentPage(1);
     setCache({});
+    reindexedTxHashesRef.current.clear();
   }, []);
+
+  // Polling mechanism for incomplete transactions
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    // Get incomplete transactions (pending, processing, fulfilled)
+    const incompleteTransactions = transactions.filter(
+      (tx) =>
+        tx.status !== "completed" && tx.status !== "refunded" && tx.order_id,
+    );
+
+    if (incompleteTransactions.length === 0) {
+      return;
+    }
+
+    // Get wallet address from user
+    const embeddedWallet = user.linkedAccounts.find(
+      (account) =>
+        account.type === "wallet" && account.connectorType === "embedded",
+    ) as { address: string } | undefined;
+
+    const walletAddress = embeddedWallet?.address;
+    if (!walletAddress) {
+      return;
+    }
+
+    // Set up polling interval (30 seconds)
+    const intervalId = setInterval(async () => {
+      try {
+        // Get current incomplete transactions from ref
+        const currentIncomplete = transactionsRef.current.filter(
+          (tx) =>
+            tx.status !== "completed" &&
+            tx.status !== "refunded" &&
+            tx.order_id,
+        );
+
+        if (currentIncomplete.length === 0) {
+          return;
+        }
+
+        const accessToken = await getAccessToken();
+        if (accessToken) {
+          await reconcileTransactionStatuses(
+            currentIncomplete,
+            walletAddress,
+            accessToken,
+          );
+        }
+      } catch (error) {
+        console.error("Error during polling reconciliation:", error);
+      }
+    }, 30000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [transactions, user, getAccessToken, reconcileTransactionStatuses]);
 
   return (
     <TransactionsContext.Provider

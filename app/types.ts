@@ -261,11 +261,11 @@ export type Config = {
 export type Network = {
   chain: any;
   imageUrl:
-    | string
-    | {
-        light: string;
-        dark: string;
-      };
+  | string
+  | {
+    light: string;
+    dark: string;
+  };
 };
 
 export interface TransactionResponse {
@@ -400,3 +400,27 @@ export interface SaveRecipientResponse {
   success: boolean;
   data: RecipientDetailsWithId;
 }
+
+export interface ReferralData {
+  referral_code: string;
+  total_earned: number;
+  total_pending: number;
+  total_referrals?: number;
+  earned_count?: number;
+  pending_count?: number;
+  referrals: Array<{
+    id: string;
+    wallet_address: string;
+    wallet_address_short: string;
+    status: string;
+    amount: number;
+    created_at: string;
+    completed_at?: string | null;
+  }>;
+}
+
+export type ApiResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error: string; status?: number };
+
+export type SubmitReferralResult = { message?: string };

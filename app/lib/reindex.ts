@@ -50,7 +50,7 @@ export async function reindexSingleTransaction(
       const hasValidOrderCreated = orderCreated > 0;
 
       if (hasValidOrderCreated) {
-        console.log(
+        console.debug(
           `Transaction reindexed: ${txHash} on ${apiNetwork}, OrderCreated: ${orderCreated}`,
         );
         return;
@@ -82,7 +82,7 @@ export async function reindexSingleTransaction(
     }
 
     const delay = getExponentialDelay(attempt);
-    console.log(
+    console.debug(
       `OrderCreated not found for tx ${txHash} on ${apiNetwork}, retrying in ${delay}ms (attempt ${
         attempt + 1
       }/${maxRetries})`,

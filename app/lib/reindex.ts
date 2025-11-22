@@ -49,8 +49,9 @@ export async function reindexSingleTransaction(
     try {
       const response = await reindexTransaction(apiNetwork, txHash);
 
-      // Extract OrderCreated event count from response
-      const orderCreated = Number(response?.events?.OrderCreated ?? 0);
+      // Extract OrderCreated event count from response (support both shapes)
+      const events = response?.events ?? response?.data?.events;
+      const orderCreated = Number(events?.OrderCreated ?? 0);
       const hasValidOrderCreated = orderCreated > 0;
 
       if (hasValidOrderCreated) {

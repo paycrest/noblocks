@@ -566,8 +566,9 @@ export async function reindexTransaction(
     // Note: axios throws errors for status >= 400, so 2xx responses won't reach here
     const isNetworkError = !error.response;
     const is5xxError = status !== undefined && status >= 500;
+    // retryCount + 1 represents the next attempt number; ensure it doesn't exceed maxRetries
     const shouldRetry =
-      (isNetworkError || is5xxError) && retryCount < maxRetries;
+      (isNetworkError || is5xxError) && retryCount + 1 < maxRetries;
 
     if (shouldRetry) {
       const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s

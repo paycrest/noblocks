@@ -10,6 +10,13 @@ const getExponentialDelay = (attempt: number): number => {
 };
 
 /**
+ * Supported networks for reindexing, computed once at module scope
+ */
+const SUPPORTED_REINDEX_NETWORKS = networks.map((network) =>
+  normalizeNetworkForRateFetch(network.chain.name),
+);
+
+/**
  * Reindexes a single transaction with retry logic
  * @param txHash - The transaction hash to reindex
  * @param network - The network name (will be normalized to API format)
@@ -19,7 +26,7 @@ export async function reindexSingleTransaction(
   txHash: string,
   network: string,
 ): Promise<void> {
-  const maxRetries = 3;
+  const maxRetries = 3; // Total attempts: 0, 1, 2
 
   // Validate required fields
   if (!txHash || !network) {
@@ -30,10 +37,7 @@ export async function reindexSingleTransaction(
   const apiNetwork = normalizeNetworkForRateFetch(network);
 
   // Only reindex if network is supported
-  const supportedNetworks = networks.map((network) =>
-    normalizeNetworkForRateFetch(network.chain.name),
-  );
-  if (!supportedNetworks.includes(apiNetwork)) {
+  if (!SUPPORTED_REINDEX_NETWORKS.includes(apiNetwork)) {
     console.warn(
       `Reindex not supported for network: ${network} (${apiNetwork})`,
     );
@@ -41,7 +45,7 @@ export async function reindexSingleTransaction(
   }
 
   // Retry loop for OrderCreated validation
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const response = await reindexTransaction(apiNetwork, txHash);
 
@@ -56,9 +60,9 @@ export async function reindexSingleTransaction(
         return;
       }
 
-      if (attempt === maxRetries) {
+      if (attempt === maxRetries - 1) {
         console.warn(
-          `Reindex completed but OrderCreated is ${orderCreated} for tx ${txHash} on ${apiNetwork} after ${maxRetries + 1} attempts`,
+          `Reindex completed but OrderCreated is ${orderCreated} for tx ${txHash} on ${apiNetwork} after ${maxRetries} attempts`,
         );
         return;
       }
@@ -67,8 +71,8 @@ export async function reindexSingleTransaction(
       // These are permanent errors, not transient
       const status = error?.response?.status;
       const is4xxError = status !== undefined && status >= 400 && status < 500;
-      
-      if (is4xxError || attempt === maxRetries) {
+
+      if (is4xxError || attempt === maxRetries - 1) {
         console.error(
           `Error reindexing transaction ${txHash} on ${apiNetwork} after ${
             attempt + 1

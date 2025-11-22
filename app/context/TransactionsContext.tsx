@@ -56,6 +56,7 @@ export function TransactionsProvider({
   const { user, getAccessToken } = usePrivy();
   const reindexedTxHashesRef = useRef<Set<string>>(new Set());
   const transactionsRef = useRef<TransactionHistory[]>([]);
+  const pollingInFlightRef = useRef(false);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -283,6 +284,12 @@ export function TransactionsProvider({
 
     // Set up polling interval (30 seconds)
     const intervalId = setInterval(async () => {
+      // Prevent overlapping reconciliation runs
+      if (pollingInFlightRef.current) {
+        return;
+      }
+      pollingInFlightRef.current = true;
+
       try {
         // Get current incomplete transactions from ref
         const currentIncomplete = transactionsRef.current.filter(
@@ -306,6 +313,8 @@ export function TransactionsProvider({
         }
       } catch (error) {
         console.error("Error during polling reconciliation:", error);
+      } finally {
+        pollingInFlightRef.current = false;
       }
     }, 30000);
 

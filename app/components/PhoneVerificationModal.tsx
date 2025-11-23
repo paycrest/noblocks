@@ -445,7 +445,9 @@ export default function PhoneVerificationModal({
             variant={slideInOut}
             className="text-start text-xs text-red-500"
           >
-            {attemptsRemaining} attempts remaining
+            {attemptsRemaining === 0
+              ? "0 attempts remaining, please request a new OTP"
+              : `${attemptsRemaining} attempts remaining`}
           </AnimatedComponent>
         )}
 

@@ -1,17 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/app/lib/supabase';
-import { 
-  validatePhoneNumber, 
-  sendTermiiOTP, 
-  sendTwilioOTP, 
-  generateOTP 
+import {
+  validatePhoneNumber,
+  sendTermiiOTP,
+  sendTwilioOTP,
+  generateOTP
 } from '../../../lib/phone-verification';
 import { trackApiRequest, trackApiResponse, trackApiError } from '../../../lib/server-analytics';
+import { rateLimit } from '@/app/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
-  
+
   try {
+    // Rate limit check
+    const rateLimitResult = await rateLimit(request);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { success: false, error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     trackApiRequest(request, '/api/phone/send-otp', 'POST');
 
     const body = await request.json();
@@ -40,12 +50,11 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
     // Store OTP in database
-    // Use e164Format for storage (consistent, normalized format)
     const { error: dbError } = await supabaseAdmin
       .from('user_kyc_profiles')
       .upsert({
         wallet_address: walletAddress.toLowerCase(),
-        name: name || null,
+        full_name: name || null,
         phone_number: validation.e164Format, // Store in E.164 format (no spaces)
         otp_code: otp,
         expires_at: expiresAt.toISOString(),
@@ -65,7 +74,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send OTP via appropriate provider
     // Use digitsOnly for Termii, e164Format for Twilio
     let result;
     if (validation.isAfrican) {

@@ -21,8 +21,10 @@ import {
   UserDetailsIcon,
   VerificationPendingIcon,
 } from "./ImageAssets";
+import { FlexibleDropdown } from "./FlexibleDropdown";
+import { ArrowDown01Icon } from "hugeicons-react";
+import { classNames } from "../utils";
 import { fadeInOut } from "./AnimatedComponents";
-import { generateTimeBasedNonce } from "../utils";
 import {
   fetchKYCStatus,
   submitSmileIDData,
@@ -32,8 +34,11 @@ import { trackEvent } from "../hooks/analytics/client";
 import { CheckmarkCircle01Icon, Clock05Icon } from "hugeicons-react";
 import { useInjectedWallet } from "../context";
 
+import idTypesData from "../api/kyc/smile-id/id_types.json";
+
 export const STEPS = {
   TERMS: "terms",
+  ID_INFO: "id_info",
   CAPTURE: "capture",
   STATUS: {
     PENDING: "pending",
@@ -47,10 +52,35 @@ export const STEPS = {
 
 type Step =
   | typeof STEPS.TERMS
+  | typeof STEPS.ID_INFO
   | typeof STEPS.CAPTURE
   | typeof STEPS.LOADING
   | typeof STEPS.REFRESH
   | (typeof STEPS.STATUS)[keyof typeof STEPS.STATUS];
+
+// Types for ID types JSON
+type IdType = {
+  type: string;
+  verification_method: string;
+};
+
+type Country = {
+  name: string;
+  code: string;
+  id_types: IdType[];
+};
+
+const getAllCountries = (): Country[] => {
+  return idTypesData.continents
+    .flatMap((continent) => continent.countries)
+    .sort((a, b) => a.name.localeCompare(b.name));
+};
+
+const requiresDocumentCapture = (country: Country | null, idType: string): boolean => {
+  if (!country || !idType) return true;
+  const selectedIdType = country.id_types.find((t) => t.type === idType);
+  return selectedIdType?.verification_method === "doc_verification";
+};
 
 export const KycModal = ({
   setIsUserVerified,
@@ -59,10 +89,9 @@ export const KycModal = ({
   setIsUserVerified: (value: boolean) => void;
   setIsKycModalOpen: (value: boolean) => void;
 }) => {
-  const { signMessage, getAccessToken } = usePrivy();
+  const { getAccessToken, user } = usePrivy();
   const { wallets } = useWallets();
-  const { isInjectedWallet, injectedAddress, injectedProvider } =
-    useInjectedWallet();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -74,11 +103,17 @@ export const KycModal = ({
   const [step, setStep] = useState<Step>(STEPS.LOADING);
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isSigning, setIsSigning] = useState(false);
-  const [kycSignature, setKycSignature] = useState<string>("");
-  const [kycNonce, setKycNonce] = useState<string>("");
   const [cameraElement, setCameraElement] = useState<HTMLElement | null>(null);
   const [smileIdLoaded, setSmileIdLoaded] = useState(false);
+
+  // ID info state for Job Type 1
+  const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
+  const [selectedIdType, setSelectedIdType] = useState<string>("");
+  const [idNumber, setIdNumber] = useState<string>("");
+  const countries = getAllCountries();
+
+  // Check if current selection requires document capture or just ID number
+  const needsDocCapture = requiresDocumentCapture(selectedCountry, selectedIdType);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && !smileIdLoaded) {
@@ -94,79 +129,9 @@ export const KycModal = ({
     }
   }, [smileIdLoaded]);
 
-  const handleSignAndContinue = async () => {
-    setIsSigning(true);
-    const nonce = generateTimeBasedNonce({ length: 16 });
-    const message = `I accept the KYC Policy and hereby request an identity verification check for ${walletAddress} with nonce ${nonce}`;
-
-    try {
-      let signature: string;
-
-      if (isInjectedWallet && injectedProvider) {
-        try {
-          const accounts = await injectedProvider.request({
-            method: "eth_requestAccounts",
-          });
-
-          const signResult = await injectedProvider.request({
-            method: "personal_sign",
-            params: [`0x${Buffer.from(message).toString("hex")}`, accounts[0]],
-          });
-
-          signature = signResult;
-        } catch (error) {
-          console.error("Injected wallet signature error:", error);
-          toast.error("Failed to sign message with injected wallet");
-          setIsSigning(false);
-          return;
-        }
-      } else {
-        const signResult = await signMessage(
-          { message },
-          { uiOptions: { buttonText: "Sign" } },
-        );
-
-        if (!signResult) {
-          setIsSigning(false);
-          return;
-        }
-
-        signature = signResult.signature;
-      }
-
-      if (signature) {
-        setIsKycModalOpen(true);
-        setStep(STEPS.LOADING);
-
-        const sigWithoutPrefix = signature.startsWith("0x")
-          ? signature.slice(2)
-          : signature;
-
-        setKycSignature(sigWithoutPrefix);
-        setKycNonce(nonce);
-
-        // Skip old KYC initiation since we're using Smile ID
-        setStep(STEPS.CAPTURE);
-      }
-    } catch (error: unknown) {
-      console.log("error", error);
-      if (
-        error instanceof Error &&
-        (error as any).response &&
-        (error as any).response.data
-      ) {
-        // backend error response
-        const { status, message, data } = (error as any).response.data;
-        toast.error(`${message}: ${data}`);
-      } else {
-        // unexpected errors
-        toast.error(error instanceof Error ? error.message : String(error));
-      }
-      setIsKycModalOpen(false);
-      setStep(STEPS.TERMS);
-    } finally {
-      setIsSigning(false);
-    }
+  const handleAcceptTerms = () => {
+    setIsKycModalOpen(true);
+    setStep(STEPS.ID_INFO);
   };
 
 
@@ -279,7 +244,7 @@ export const KycModal = ({
             </svg>
           </Checkbox>
           <p className="text-xs text-gray-500 dark:text-white/50">
-            By clicking &ldquo;Accept and sign&rdquo; below, you are agreeing to
+            By clicking &ldquo;Accept and continue&rdquo; below, you are agreeing to
             the KYC Policy and hereby request an identity verification check for
             your wallet address.
           </p>
@@ -297,10 +262,142 @@ export const KycModal = ({
         <button
           type="button"
           className={`${primaryBtnClasses} w-full`}
-          disabled={!termsAccepted || isSigning}
-          onClick={handleSignAndContinue}
+          disabled={!termsAccepted}
+          onClick={handleAcceptTerms}
         >
-          {isSigning ? "Signing..." : "Accept and sign"}
+          Accept and continue
+        </button>
+      </div>
+    </motion.div>
+  );
+
+  const renderIdInfo = () => (
+    <motion.div key="id_info" {...fadeInOut} className="space-y-4">
+      <div className="space-y-3">
+        <UserDetailsIcon />
+        <div>
+          <h2 className="text-lg font-medium dark:text-white">
+            Select your ID document
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-white/50">
+            Choose your country and the type of ID you&apos;ll use for verification.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {/* Country Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-white/70 mb-2">
+            Country
+          </label>
+          <FlexibleDropdown
+            data={countries.map((c) => ({ name: c.code, label: c.name }))}
+            selectedItem={selectedCountry?.code}
+            onSelect={(code) => {
+              const country = countries.find((c) => c.code === code);
+              setSelectedCountry(country || null);
+              setSelectedIdType("");
+              setIdNumber("");
+            }}
+            mobileTitle="Select Country"
+            dropdownWidth={350}
+          >
+            {({ selectedItem, isOpen, toggleDropdown }) => (
+              <button
+                type="button"
+                onClick={toggleDropdown}
+                className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white focus:outline-none focus:ring-2 focus:ring-lavender-500"
+              >
+                <span className={selectedItem ? "" : "text-gray-400"}>
+                  {selectedItem?.label || "Select a country"}
+                </span>
+                <ArrowDown01Icon
+                  className={classNames(
+                    "size-5 text-gray-400 transition-transform",
+                    isOpen ? "rotate-180" : ""
+                  )}
+                />
+              </button>
+            )}
+          </FlexibleDropdown>
+        </div>
+
+        {/* ID Type Selection */}
+        {selectedCountry && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-white/70 mb-2">
+              ID Type
+            </label>
+            <FlexibleDropdown
+              data={selectedCountry.id_types.map((t) => ({
+                name: t.type,
+                label: t.type.replace(/_/g, " "),
+              }))}
+              selectedItem={selectedIdType}
+              onSelect={(type) => {
+                setSelectedIdType(type);
+                setIdNumber("");
+              }}
+              mobileTitle="Select ID Type"
+              dropdownWidth={350}
+            >
+              {({ selectedItem, isOpen, toggleDropdown }) => (
+                <button
+                  type="button"
+                  onClick={toggleDropdown}
+                  className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white focus:outline-none focus:ring-2 focus:ring-lavender-500"
+                >
+                  <span className={selectedItem ? "" : "text-gray-400"}>
+                    {selectedItem?.label || "Select ID type"}
+                  </span>
+                  <ArrowDown01Icon
+                    className={classNames(
+                      "size-5 text-gray-400 transition-transform",
+                      isOpen ? "rotate-180" : ""
+                    )}
+                  />
+                </button>
+              )}
+            </FlexibleDropdown>
+          </div>
+        )}
+
+        {/* ID Number Input - only for biometric_kyc verification (BVN, NIN, etc.) */}
+        {selectedIdType && !needsDocCapture && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-white/70 mb-2">
+              {selectedIdType.replace(/_/g, " ")} Number
+            </label>
+            <input
+              type="text"
+              value={idNumber}
+              onChange={(e) => setIdNumber(e.target.value)}
+              placeholder={`Enter your ${selectedIdType.replace(/_/g, " ")} number`}
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white focus:outline-none focus:ring-2 focus:ring-lavender-500 placeholder:text-gray-400"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-white/50">
+              Your ID will be verified against the government database
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-4">
+        <button
+          type="button"
+          onClick={() => setStep(STEPS.TERMS)}
+          className={secondaryBtnClasses}
+        >
+          Back
+        </button>
+        <button
+          type="button"
+          className={`${primaryBtnClasses} w-full`}
+          disabled={!selectedCountry || !selectedIdType || (!needsDocCapture && !idNumber)}
+          onClick={() => setStep(STEPS.CAPTURE)}
+        >
+          Continue
         </button>
       </div>
     </motion.div>
@@ -312,28 +409,36 @@ export const KycModal = ({
         <UserDetailsIcon />
         <div>
           <h2 className="text-lg font-medium dark:text-white">
-            Capture your documents
+            {needsDocCapture ? "Capture your documents" : "Take a selfie"}
           </h2>
           <p className="text-sm text-gray-500 dark:text-white/50">
-            Please take a selfie and capture your ID document for verification.
+            {needsDocCapture
+              ? "Please take a selfie and capture your ID document for verification."
+              : "Please take a selfie to verify your identity against your ID."}
           </p>
         </div>
       </div>
 
       <div className="flex justify-center">
-        {/* @ts-expect-error - SmileID web component, types handled by global declaration */}
-        <smart-camera-web
-          ref={(el: HTMLElement | null) => {
-            setCameraElement(el);
-          }}
-          theme-color="#8B85F4"
-          capture-id
-        />
+        {needsDocCapture ? (
+          /* @ts-expect-error - SmileID web component */
+          <smart-camera-web
+            ref={(el: HTMLElement | null) => setCameraElement(el)}
+            theme-color="#8B85F4"
+            capture-id
+          />
+        ) : (
+          /* @ts-expect-error - SmileID web component */
+          <smart-camera-web
+            ref={(el: HTMLElement | null) => setCameraElement(el)}
+            theme-color="#8B85F4"
+          />
+        )}
       </div>
 
       <button
         type="button"
-        onClick={() => setStep(STEPS.TERMS)}
+        onClick={() => setStep(STEPS.ID_INFO)}
         className={secondaryBtnClasses}
       >
         Back
@@ -582,8 +687,8 @@ export const KycModal = ({
           throw new Error("Invalid image data received");
         }
 
-        if (!walletAddress || !kycSignature || !kycNonce) {
-          throw new Error("Missing required authentication data");
+        if (!walletAddress) {
+          throw new Error("Missing wallet address");
         }
 
         // Get access token for JWT authentication
@@ -592,16 +697,28 @@ export const KycModal = ({
           throw new Error("No access token available");
         }
 
-        // Send the captured data to backend
+        // Validate ID info is selected
+        if (!selectedCountry || !selectedIdType) {
+          throw new Error("Please select country and ID type");
+        }
+
+        // For biometric_kyc (BVN, NIN, etc.), ID number is required
+        if (!needsDocCapture && !idNumber) {
+          throw new Error("Please enter your ID number");
+        }
+
         const payload = {
           images,
           partner_params: {
             ...partner_params,
             user_id: `user-${walletAddress}`,
-            job_type: 4, // 4 for selfie enrollment (no country/ID required)
           },
-          signature: kycSignature,
-          nonce: kycNonce,
+          id_info: {
+            country: selectedCountry.code,
+            id_type: selectedIdType,
+            ...(idNumber && { id_number: idNumber }),
+          },
+          email: user?.email?.address,
         };
 
         const response = await submitSmileIDData(payload, accessToken);
@@ -624,7 +741,7 @@ export const KycModal = ({
       }
     };
 
-    const handleCancel = (event: any) => {
+    const handleCancel = () => {
       toast.info("Verification cancelled");
       setStep(STEPS.TERMS);
     };
@@ -642,7 +759,7 @@ export const KycModal = ({
       cameraElement.removeEventListener("smart-camera-web.cancelled", handleCancel);
       cameraElement.removeEventListener("smart-camera-web.back", handleBack);
     };
-  }, [step, cameraElement, walletAddress, kycSignature, kycNonce]);
+  }, [step, cameraElement, walletAddress, selectedCountry, selectedIdType, idNumber, needsDocCapture, getAccessToken, user]);
 
 
   return (
@@ -651,6 +768,7 @@ export const KycModal = ({
         {
           {
             [STEPS.TERMS]: renderTerms(),
+            [STEPS.ID_INFO]: renderIdInfo(),
             [STEPS.CAPTURE]: renderCapture(),
             [STEPS.STATUS.PENDING]: renderPendingStatus(),
             [STEPS.STATUS.SUCCESS]: renderSuccessStatus(),

@@ -22,27 +22,16 @@ export async function GET(request: NextRequest) {
     // Check KYC profile for phone and SmileID verification status
     const { data: kycProfile } = await supabaseAdmin
       .from('user_kyc_profiles')
-      .select('verified, phone_number, smile_job_id, tier')
+      .select('verified, phone_number, tier')
       .eq('wallet_address', walletAddress.toLowerCase())
       .single();
 
-    const phoneVerified = kycProfile?.verified || false;
+    const tier: 0 | 1 | 2 = (kycProfile?.tier as 0 | 1 | 2) || 0;
     const phoneNumber = kycProfile?.phone_number || null;
+    const phoneVerified = kycProfile?.verified || false;
 
-    // Check if SmileID verification is complete
-    const fullKYCVerified = !!(kycProfile?.smile_job_id);
-
-    // Determine tier (use database tier if available, otherwise calculate)
-    let tier: 0 | 1 | 2 = kycProfile?.tier || 0;
-
-    // Fallback calculation if tier is not set in database
-    if (!kycProfile?.tier) {
-      if (fullKYCVerified) {
-        tier = 2;
-      } else if (phoneVerified) {
-        tier = 1;
-      }
-    }
+    // Full KYC (SmileID) is verified if tier is 2
+    const fullKYCVerified = tier >= 2;
 
     const responseTime = Date.now() - startTime;
     trackApiResponse( '/api/kyc/status', 'GET', 200, responseTime);

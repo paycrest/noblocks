@@ -59,6 +59,7 @@ export const TransferForm: React.FC<{
     balances: Record<string, number>;
   } | null>(null);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
 
   const formMethods = useForm<{
     amount: number;
@@ -145,18 +146,31 @@ export const TransferForm: React.FC<{
         (account) => account.type === "smart_wallet",
       );
 
-      if (!smartWalletAccount?.address || !transferNetwork) return;
+      // No smart wallet account - set empty balance state (not loading, not error)
+      if (!smartWalletAccount?.address) {
+        setTransferNetworkBalance({ total: 0, balances: {} });
+        setIsBalanceLoading(false);
+        setBalanceError(null);
+        return;
+      }
+
+      if (!transferNetwork) return;
 
       setIsBalanceLoading(true);
+      setBalanceError(null);
       try {
         const balance = await fetchBalanceForNetwork(
           transferNetwork,
           smartWalletAccount.address,
         );
         setTransferNetworkBalance(balance);
+        setBalanceError(null);
       } catch (error) {
         console.error("Error fetching transfer network balance:", error);
-        setTransferNetworkBalance(null);
+        // Set empty balance on error so UI doesn't show perpetual skeleton
+        setTransferNetworkBalance({ total: 0, balances: {} });
+        setBalanceError("Failed to fetch balance");
+        toast.error("Failed to fetch balance for selected network");
       } finally {
         setIsBalanceLoading(false);
       }

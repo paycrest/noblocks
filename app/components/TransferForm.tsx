@@ -247,8 +247,8 @@ export const TransferForm: React.FC<{
           type="button"
           className={`${primaryBtnClasses} w-full`}
           onClick={() => {
-            handleFormClose();
             refreshBalance();
+            handleFormClose();
           }}
         >
           Close

@@ -559,6 +559,14 @@ export const TransferForm: React.FC<{
             {errors.amount.message}
           </AnimatedComponent>
         )}
+        {balanceError && (
+          <AnimatedComponent
+            variant={slideInOut}
+            className="relative left-2 top-1 text-xs text-red-500"
+          >
+            {balanceError}
+          </AnimatedComponent>
+        )}
       </div>
 
       {/* Network compatibility warning */}

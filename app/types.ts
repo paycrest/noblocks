@@ -259,17 +259,17 @@ export type Config = {
   glitchtipDsn: string;
   glitchtipRelease: string;
   glitchtipEnvironment: string;
-  
+  glitchtipURL: string;
 };
 
 export type Network = {
   chain: any;
   imageUrl:
-    | string
-    | {
-        light: string;
-        dark: string;
-      };
+  | string
+  | {
+    light: string;
+    dark: string;
+  };
 };
 
 export interface TransactionResponse {

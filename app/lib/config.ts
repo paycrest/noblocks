@@ -15,6 +15,7 @@ const config: Config = {
   glitchtipDsn: process.env.NEXT_PUBLIC_GLITCHTIP_DSN || "",
   glitchtipRelease: process.env.GLITCHTIP_RELEASE || "2.0.0",
   glitchtipEnvironment: process.env.NODE_ENV || "",
+  glitchtipURL: process.env.NEXT_PUBLIC_GLITCHTIP_URL || "",
 };
 
 export default config;

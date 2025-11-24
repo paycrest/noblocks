@@ -17,17 +17,36 @@ Sentry.init({
 
   replaysOnErrorSampleRate: 1.0,
 
-  sendDefaultPii: true,
+  sendDefaultPii: false,
 
-  // Add custom context (e.g., user session from Privy)
   beforeSend(event) {
-    if (typeof window !== 'undefined') {
-      const sessionId = localStorage.getItem('privy:session') || 'anonymous';
-      event.user = { id: sessionId };
-      event.extra = { ...event.extra, timestamp: Date.now() };
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem("privy:session");
+        let sessionId = "anonymous";
+
+        if (raw) {
+          try {
+            const payload = JSON.parse(atob(raw.split('.')[1]));
+            sessionId = payload?.sub ?? payload?.sessionId ?? sessionId;
+          } catch {
+            console.warn('Failed to parse Privy session for GlitchTip');
+            sessionId = raw.substring(0, 8) + '...';  // Truncate if raw
+          }
+        }
+
+        event.user = { ...(event.user ?? {}), id: sessionId };
+        event.extra = { ...(event.extra ?? {}), timestamp: Date.now() };
+      } catch (storageErr) {
+        console.warn('GlitchTip beforeSend storage error:', storageErr);
+      }
     }
     return event;
   },
 });
 
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+// Defensive export: Fallback if API missing (e.g., SDK version mismatch)
+export const onRouterTransitionStart =
+  (Sentry as any).captureRouterTransitionStart ??
+  (() => {
+  });

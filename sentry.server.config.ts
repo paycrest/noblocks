@@ -9,5 +9,5 @@ Sentry.init({
   tracesSampleRate: config.glitchtipEnvironment === 'production' ? 0.1 : 1.0,
 
   enableLogs: true,
-  sendDefaultPii: true,
+  sendDefaultPii: false,
 });

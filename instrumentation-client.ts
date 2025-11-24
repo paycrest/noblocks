@@ -31,7 +31,7 @@ Sentry.init({
             sessionId = payload?.sub ?? payload?.sessionId ?? sessionId;
           } catch {
             console.warn('Failed to parse Privy session for GlitchTip');
-            sessionId = raw.substring(0, 8) + '...';  // Truncate if raw
+            sessionId = "anonymous";
           }
         }
 

@@ -256,6 +256,10 @@ export type Config = {
   noticeBannerText?: string; // Optional, for dynamic notice banner text
   brevoConversationsId: string; // Brevo chat widget ID
   blockfestEndDate: string; // BlockFest campaign end date
+  glitchtipDsn: string;
+  glitchtipRelease: string;
+  glitchtipEnvironment: string;
+  
 };
 
 export type Network = {

@@ -133,6 +133,8 @@ export default withSentryConfig(nextConfig, {
   project: "noblocks",
   sentryUrl: config.glitchtipURL,
 
+  release: config.glitchtipRelease,
+
   silent: !process.env.CI,
 
   widenClientFileUpload: true,

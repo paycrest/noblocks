@@ -27,10 +27,20 @@ Sentry.init({
 
         if (raw) {
           try {
-            const payload = JSON.parse(atob(raw.split('.')[1]));
-            sessionId = payload?.sub ?? payload?.sessionId ?? sessionId;
+            const parts = raw.split(".");
+            const payloadPart = parts[1];
+
+            if (payloadPart) {
+              const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+              const padded = base64.padEnd(
+                base64.length + ((4 - (base64.length % 4)) % 4),
+                "=",
+              );
+              const payload = JSON.parse(atob(padded));
+              sessionId = payload?.sub ?? payload?.sessionId ?? sessionId;
+            }
           } catch {
-            console.warn('Failed to parse Privy session for GlitchTip');
+            console.warn("Failed to parse Privy session for GlitchTip");
             sessionId = "anonymous";
           }
         }

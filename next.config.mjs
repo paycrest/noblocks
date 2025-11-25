@@ -1,4 +1,5 @@
 import {withSentryConfig} from "@sentry/nextjs";
+import config from "./app/lib/config";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   headers: async () => [
@@ -130,7 +131,7 @@ export default withSentryConfig(nextConfig, {
   org: "paycrest_engineer",
 
   project: "noblocks",
-  sentryUrl: "https://glitchtip.pycrst.xyz",
+  sentryUrl: config.glitchtipURL,
 
   silent: !process.env.CI,
 

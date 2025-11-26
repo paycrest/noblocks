@@ -1196,3 +1196,50 @@ export function calculateSenderFee(
 
   return { feeAmount, feeAmountInBaseUnits, feeRecipient };
 }
+
+
+/**
+ * Get avatar image path based on wallet address
+ * Loops through 8 avatars (Avatar.png, Avatar1.png through Avatar7.png)
+ * @param address - Wallet address string
+ * @returns Path to the avatar image
+ */
+export const getAvatarImage = (address: string): string => {
+  const avatarCount = 8;
+  const index = parseInt(address.slice(2, 4), 16) % avatarCount;
+
+  if (index === 0) {
+    return "/images/avatar/Avatar.png";
+  }
+  return `/images/avatar/Avatar${index}.png`;
+};
+
+/**
+ * Copy referral code to clipboard
+ * @param referralCode - The referral code to copy
+ * @param onCopied - Callback function to handle copied state (optional)
+ */
+export const handleCopyCode = (
+  referralCode: string | undefined,
+  onCopied?: (value: boolean) => void
+): void => {
+  if (referralCode) {
+    navigator.clipboard.writeText(referralCode);
+    if (onCopied) {
+      onCopied(true);
+      setTimeout(() => onCopied(false), 2000);
+    }
+  }
+};
+
+/**
+ * Copy referral invite link to clipboard
+ * @param referralCode - The referral code to use in the link
+ */
+export const handleCopyLink = (referralCode: string | undefined): void => {
+  if (referralCode) {
+    const link = `${window.location.origin}?ref=${referralCode}`;
+    navigator.clipboard.writeText(link);
+    toast.success("Referral link copied!");
+  }
+};

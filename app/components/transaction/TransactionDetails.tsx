@@ -50,9 +50,10 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
   const isDark = useActualTheme();
   if (!transaction) return null;
 
+  // Use the transaction's stored network, not the globally selected network
   const explorerUrl =
-    transaction.tx_hash && selectedNetwork?.chain?.name
-      ? getExplorerLink(selectedNetwork.chain.name, transaction.tx_hash)
+    transaction.tx_hash && transaction.network
+      ? getExplorerLink(transaction.network, transaction.tx_hash)
       : undefined;
 
   const handleGetReceipt = async () => {
@@ -62,7 +63,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         orderId: transaction.order_id || "",
         amount: transaction.amount_sent.toString(),
         token: transaction.from_currency,
-        network: selectedNetwork?.chain?.name || "",
+        network: transaction.network || "",
         settlePercent: "100",
         status: transaction.status,
         txHash: transaction.tx_hash || "",

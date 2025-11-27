@@ -12,6 +12,10 @@ const config: Config = {
   brevoConversationsId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_ID || "",
   blockfestEndDate:
     process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
+  glitchtipDsn: process.env.NEXT_PUBLIC_GLITCHTIP_DSN || "",
+  glitchtipRelease: process.env.GLITCHTIP_RELEASE || "2.0.0",
+  glitchtipEnvironment: process.env.NODE_ENV || "",
+  glitchtipURL: process.env.NEXT_PUBLIC_GLITCHTIP_URL || "",
 };
 
 export default config;

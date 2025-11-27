@@ -1,3 +1,5 @@
+import {withSentryConfig} from "@sentry/nextjs";
+import config from "./app/lib/config";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   headers: async () => [
@@ -124,4 +126,22 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+
+  org: "paycrest_engineer",
+
+  project: "noblocks",
+  sentryUrl: config.glitchtipURL,
+
+  release: config.glitchtipRelease,
+
+  silent: !process.env.CI,
+
+  widenClientFileUpload: true,
+
+  tunnelRoute: "/monitoring",
+
+  disableLogger: true,
+
+  automaticVercelMonitors: true,
+});

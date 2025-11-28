@@ -15,6 +15,10 @@ import { NetworksDropdown } from "./NetworksDropdown";
 import { SettingsDropdown } from "./SettingsDropdown";
 import { identifyUser, trackEvent } from "../hooks/analytics/client";
 import {
+  identifyServerUser,
+  trackServerEvent,
+} from "../hooks/analytics/useServerTracking";
+import {
   shortenAddress,
   IS_MAIN_PRODUCTION_DOMAIN,
   classNames,
@@ -47,6 +51,7 @@ export const Navbar = () => {
   const { login } = useLogin({
     onComplete: async ({ user, isNewUser, loginMethod }) => {
       if (user.wallet?.address) {
+        // Client-side tracking (existing - keep for backward compatibility)
         identifyUser(user.wallet.address, {
           login_method: loginMethod,
           isNewUser,
@@ -56,9 +61,20 @@ export const Navbar = () => {
 
         localStorage.setItem("userId", user.wallet.address);
 
+        // Server-side tracking (new - additive, non-breaking, fire-and-forget)
+        if (user.wallet?.address) {
+          identifyServerUser(user.wallet.address, {
+            login_method: loginMethod,
+            isNewUser,
+            createdAt: user.createdAt,
+            email: user.email,
+          });
+        }
+
         if (isNewUser) {
           localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address}`);
 
+          // Client-side tracking (existing - keep for backward compatibility)
           trackEvent("Sign up completed", {
             "Login method": loginMethod,
             user_id: user.wallet.address,
@@ -66,8 +82,23 @@ export const Navbar = () => {
             "Sign up date": user.createdAt.toISOString(),
             "Noblocks balance": 0, // a new user should always have 0 balance
           });
+
+          // Server-side tracking (new - additive, non-breaking, fire-and-forget)
+          trackServerEvent("User Signup", {
+            "Login method": loginMethod,
+            user_id: user.wallet.address,
+            "Email address": user.email,
+            "Sign up date": user.createdAt.toISOString(),
+            "Noblocks balance": 0,
+          }, user.wallet.address);
         } else {
+          // Client-side tracking (existing - keep for backward compatibility)
           trackEvent("Login completed", { "Login method": loginMethod });
+
+          // Server-side tracking (new - additive, non-breaking, fire-and-forget)
+          trackServerEvent("User Login", {
+            "Login method": loginMethod,
+          }, user.wallet.address);
         }
       }
     },
@@ -223,9 +254,8 @@ export const Navbar = () => {
               <div className="hidden items-center sm:flex">
                 <Link
                   href="/"
-                  className={`${
-                    IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"
-                  } text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
+                  className={`${IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"
+                    } text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
                 >
                   Swap
                 </Link>

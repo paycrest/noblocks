@@ -46,6 +46,7 @@ import {
 } from "../types";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/client";
+import { trackServerEvent } from "../hooks/analytics/useServerTracking";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
@@ -267,11 +268,11 @@ export function TransactionStatus({
             if (transactionStatus !== status) {
               setTransactionStatus(
                 status as
-                  | "processing"
-                  | "fulfilled"
-                  | "validated"
-                  | "settled"
-                  | "refunded",
+                | "processing"
+                | "fulfilled"
+                | "validated"
+                | "settled"
+                | "refunded",
               );
             }
 
@@ -360,15 +361,39 @@ export function TransactionStatus({
           "Wallet type": isInjectedWallet ? "Injected" : "Smart wallet",
         };
 
+        // Get wallet address for server-side tracking
+        const walletAddress = isInjectedWallet
+          ? injectedAddress
+          : embeddedWallet?.address;
+
         if (["validated", "settled"].includes(transactionStatus)) {
+          // Client-side tracking (existing - keep for backward compatibility)
           trackEvent("Swap completed", eventData);
           setIsTracked(true);
+
+          // Server-side tracking (new - additive, non-breaking, fire-and-forget)
+          if (walletAddress) {
+            trackServerEvent("Transaction Completed", {
+              ...eventData,
+              transaction_status: transactionStatus,
+            }, walletAddress);
+          }
         } else if (transactionStatus === "refunded") {
+          // Client-side tracking (existing - keep for backward compatibility)
           trackEvent("Swap failed", {
             ...eventData,
             "Reason for failure": "Transaction failed and refunded",
           });
           setIsTracked(true);
+
+          // Server-side tracking (new - additive, non-breaking, fire-and-forget)
+          if (walletAddress) {
+            trackServerEvent("Transaction Failed", {
+              ...eventData,
+              transaction_status: transactionStatus,
+              "Reason for failure": "Transaction failed and refunded",
+            }, walletAddress);
+          }
         }
       }
     },
@@ -489,15 +514,14 @@ export function TransactionStatus({
         <AnimatedComponent
           variant={fadeInOut}
           key="pending"
-          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${
-            transactionStatus === "pending"
-              ? "bg-orange-50 text-orange-400"
-              : transactionStatus === "processing"
-                ? "bg-yellow-50 text-yellow-400"
-                : transactionStatus === "fulfilled"
-                  ? "bg-green-50 text-green-400"
-                  : "bg-gray-50"
-          }`}
+          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${transactionStatus === "pending"
+            ? "bg-orange-50 text-orange-400"
+            : transactionStatus === "processing"
+              ? "bg-yellow-50 text-yellow-400"
+              : transactionStatus === "fulfilled"
+                ? "bg-green-50 text-green-400"
+                : "bg-gray-50"
+            }`}
         >
           <ImSpinner className="animate-spin" />
           <p>{transactionStatus}</p>
@@ -634,10 +658,10 @@ export function TransactionStatus({
   const getPaymentMessage = () => {
     const formattedRecipientName = recipientName
       ? recipientName
-          .toLowerCase()
-          .split(" ")
-          .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
-          .join(" ")
+        .toLowerCase()
+        .split(" ")
+        .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+        .join(" ")
       : "";
 
     if (transactionStatus === "refunded") {
@@ -842,17 +866,17 @@ export function TransactionStatus({
                 orderDetails,
                 orderId,
               ) && (
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.45}
-                  className="flex justify-center"
-                >
-                  <BlockFestCashbackComponent
-                    transactionId={orderId}
-                    cashbackPercentage="1%"
-                  />
-                </AnimatedComponent>
-              )}
+                  <AnimatedComponent
+                    variant={slideInOut}
+                    delay={0.45}
+                    className="flex justify-center"
+                  >
+                    <BlockFestCashbackComponent
+                      transactionId={orderId}
+                      cashbackPercentage="1%"
+                    />
+                  </AnimatedComponent>
+                )}
 
               <AnimatedComponent
                 variant={slideInOut}

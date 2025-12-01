@@ -137,22 +137,29 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 const ip =
                     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
                     request.headers.get("x-real-ip") ||
-                    null;
-                const userAgent = request.headers.get("user-agent") || null;
+                    undefined;
+                const userAgent = request.headers.get("user-agent") || undefined;
 
                 // Track API request
-                trackApiRequest(request, "/api/v1/analytics/identify", "POST", {});
+                const requestProperties: Record<string, any> = {};
+                if (ip) requestProperties.ip_address = ip;
+                if (userAgent) requestProperties.user_agent = userAgent;
+                trackApiRequest(request, "/api/v1/analytics/identify", "POST", requestProperties);
+
                 // Identify user server-side (IP and User-Agent passed for geo-location/device info)
-                identifyServerUser(walletAddress, {
-                    ...userProperties,
-                    ...(ip && { ip_address: ip }),
-                    ...(userAgent && { user_agent: userAgent }),
-                });
+                const identifyProperties: Record<string, any> = { ...userProperties };
+                if (ip) identifyProperties.ip_address = ip;
+                if (userAgent) identifyProperties.user_agent = userAgent;
+                identifyServerUser(walletAddress, identifyProperties);
+
                 // Track successful API response
-                trackApiResponse("/api/v1/analytics/identify", "POST", 200, responseTime, {
+                const responseProperties: Record<string, any> = {
                     wallet_address: walletAddress,
                     is_new_user: properties.isNewUser,
-                });
+                };
+                if (ip) responseProperties.ip_address = ip;
+                if (userAgent) responseProperties.user_agent = userAgent;
+                trackApiResponse("/api/v1/analytics/identify", "POST", 200, responseTime, responseProperties);
             } catch (e) {
                 // Silently fail - tracking is fire-and-forget and should not break user flow
             }

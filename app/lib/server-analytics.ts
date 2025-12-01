@@ -445,33 +445,3 @@ export const trackSystemEvent = (
     log_level: level,
   });
 };
-
-/**
- * Helper function that combines user identification and event tracking
- * Useful for events that should both identify the user and track an action
- * @param distinctId - User's wallet address
- * @param eventName - Name of the event to track
- * @param eventProperties - Event properties
- * @param userProperties - User properties for identification
- */
-export const trackUserEvent = (
-  distinctId: string,
-  eventName: string,
-  eventProperties: ServerEventProperties = {},
-  userProperties: UserProperties = {},
-) => {
-  // Identify user with properties
-  if (Object.keys(userProperties).length > 0) {
-    identifyServerUser(distinctId, userProperties);
-  }
-
-  // Track the event
-  trackServerEvent(
-    eventName,
-    {
-      ...eventProperties,
-      wallet_address: distinctId,
-    },
-    distinctId,
-  );
-};

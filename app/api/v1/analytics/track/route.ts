@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import {
     trackTransactionEvent,
@@ -40,7 +40,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 { status: 400 },
             );
             // Track error asynchronously
-            Promise.resolve().then(() => {
+            after(() => {
                 try {
                     trackApiError(
                         request,
@@ -50,7 +50,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                         400,
                     );
                 } catch (e) { }
-            }).catch(() => { });
+            });
             return response;
         }
 
@@ -68,7 +68,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 { status: 400 },
             );
             // Track error asynchronously
-            Promise.resolve().then(() => {
+            after(() => {
                 try {
                     trackApiError(
                         request,
@@ -78,7 +78,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                         400,
                     );
                 } catch (e) { }
-            }).catch(() => { });
+            });
             return response;
         }
 
@@ -89,7 +89,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 { status: 400 },
             );
             // Track error asynchronously
-            Promise.resolve().then(() => {
+            after(() => {
                 try {
                     trackApiError(
                         request,
@@ -99,7 +99,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                         400,
                     );
                 } catch (e) { }
-            }).catch(() => { });
+            });
             return response;
         }
 
@@ -112,7 +112,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         });
 
         // Execute tracking asynchronously after response (fire-and-forget)
-        Promise.resolve().then(() => {
+        after(() => {
             try {
                 // Extract IP and User-Agent for geo-location and OS/Browser detection (once for all events)
                 const ip =
@@ -180,8 +180,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             } catch (e) {
                 // Silently fail - tracking is fire-and-forget and should not break user flow
             }
-        }).catch(() => {
-            // Silently ignore any Promise rejection
         });
 
         return response;
@@ -197,7 +195,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         );
 
         // Track API error asynchronously (non-blocking)
-        Promise.resolve().then(() => {
+        after(() => {
             try {
                 trackApiError(
                     request,
@@ -212,7 +210,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             } catch (e) {
                 // Ignore tracking errors
             }
-        }).catch(() => { });
+        });
 
         return response;
     }

@@ -3,26 +3,16 @@ import { withRateLimit } from "@/app/lib/rate-limit";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { fetchKYCStatus } from "@/app/api/aggregator";
 import { getSmartWalletAddressFromPrivyUserId } from "@/app/lib/privy";
-import { createWalletClient, createPublicClient, http, parseUnits } from "viem";
+import { getRpcUrl, FALLBACK_TOKENS } from "@/app/utils";
+import { createWalletClient, createPublicClient, http, parseUnits, formatUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { erc20Abi } from "viem";
-import {
-    trackApiRequest,
-    trackApiResponse,
-    trackApiError,
-    trackBusinessEvent,
-} from "@/app/lib/server-analytics";
+import { cashbackConfig } from "@/app/lib/server-config";
 
-// Referral configuration
-const REWARD_AMOUNT_USD = 1.0;
+// Referral program configuration
+const REWARD_AMOUNT_USD = 1;
 const MIN_TX_VOLUME_USD = 100;
-const DECIMALS = 6;
-
-// Env vars (add to .env.local; use secrets in prod)
-const CASHBACK_WALLET_PRIVATE_KEY = process.env.CASHBACK_WALLET_PRIVATE_KEY!; // Funding PK
-const USDC_CONTRACT_ADDRESS = process.env.USDC_CONTRACT_ADDRESS || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // Base USDC
-const RPC_URL = process.env.RPC_URL || "https://base-mainnet.g.alchemy.com/v2/YOUR_KEY"; // Base RPC
 
 export const POST = withRateLimit(async (request: NextRequest) => {
     const start = Date.now();
@@ -59,15 +49,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 { status: 400 },
             );
         }
-        // Validate request body
-        const contentType = request.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-            const body = await request.json().catch(() => null);
-            if (body && typeof body.transactionId === "string") {
-            }
-        }
-        if (!CASHBACK_WALLET_PRIVATE_KEY) {
-            console.error("Referral funding wallet not configured");
+        if (!cashbackConfig.walletPrivateKey) {
+            console.error("Referral funding wallet not configured: CASHBACK_WALLET_PRIVATE_KEY is missing");
             return NextResponse.json(
                 {
                     success: false,
@@ -177,8 +160,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                         success: false,
                         error: "Insufficient transaction volume",
                         code: "VOLUME_NOT_MET",
-                        message: `Total transaction volume $${totalUsd.toFixed(2)} < $100 required. Complete more transactions to claim.`,
-                        details: { currentVolume: totalUsd.toFixed(2), required: 100 },
+                        message: `Total transaction volume $${totalUsd.toFixed(2)} < $${MIN_TX_VOLUME_USD} required. Complete more transactions to claim.`,
+                        details: {
+                            currentVolume: totalUsd.toFixed(2),
+                            required: MIN_TX_VOLUME_USD,
+                        },
                         response_time_ms: Date.now() - start,
                     },
                     { status: 400 },
@@ -242,48 +228,117 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         // Execute reward transfer
         try {
             // Validate private key format
+            const privateKey = cashbackConfig.walletPrivateKey;
             if (
-                !CASHBACK_WALLET_PRIVATE_KEY ||
-                !CASHBACK_WALLET_PRIVATE_KEY.startsWith("0x") ||
-                CASHBACK_WALLET_PRIVATE_KEY.length !== 66
+                !privateKey ||
+                !privateKey.startsWith("0x") ||
+                privateKey.length !== 66
             ) {
                 throw new Error("Invalid private key format in configuration");
             }
             // Create wallet account from private key
-            const account = privateKeyToAccount(CASHBACK_WALLET_PRIVATE_KEY as `0x${string}`);
-            // Create wallet client
+            const account = privateKeyToAccount(privateKey as `0x${string}`);
+            const sendingWalletAddress = account.address;
+
+            if (cashbackConfig.walletAddress &&
+                cashbackConfig.walletAddress.toLowerCase() !== sendingWalletAddress.toLowerCase()) {
+                return NextResponse.json(
+                    {
+                        success: false,
+                        error: "Wallet address mismatch",
+                        code: "WALLET_ADDRESS_MISMATCH",
+                        message: "Configured wallet address does not match the private key. Please check your CASHBACK_WALLET_ADDRESS configuration.",
+                        response_time_ms: Date.now() - start,
+                    },
+                    { status: 500 },
+                );
+            }
+
+            // Get RPC URL
+            const rpcUrl = getRpcUrl("Base");
+            if (!rpcUrl) {
+                throw new Error("Base RPC not configured");
+            }
+
+            // Get USDC token from FALLBACK_TOKENS
+            const baseTokens = FALLBACK_TOKENS["Base"];
+            const usdcToken = baseTokens.find((t) => t.symbol === "USDC");
+
+            if (!usdcToken) {
+                throw new Error("USDC token not found on Base");
+            }
+
+            const publicClient = createPublicClient({
+                chain: base,
+                transport: http(rpcUrl),
+            });
+
             const walletClient = createWalletClient({
                 account,
                 chain: base,
-                transport: http(RPC_URL),
+                transport: http(rpcUrl),
             });
-            // Parse amount with proper decimals
-            const amountInWei = parseUnits(REWARD_AMOUNT_USD.toString(), DECIMALS);
-            // Execute transfer to referrer
+
+            const amountInWei = parseUnits(
+                REWARD_AMOUNT_USD.toString(),
+                usdcToken.decimals,
+            );
+
+            // Check if wallet has sufficient USDC balance
+            // Need 2x reward amount (one for referrer, one for referred)
+            const requiredAmount = amountInWei * BigInt(2);
+            const currentBalance = await publicClient.readContract({
+                address: usdcToken.address as `0x${string}`,
+                abi: erc20Abi,
+                functionName: "balanceOf",
+                args: [sendingWalletAddress as `0x${string}`],
+            });
+
+            if (currentBalance < requiredAmount) {
+                const currentBalanceUsd = parseFloat(
+                    formatUnits(currentBalance, usdcToken.decimals)
+                );
+                const requiredAmountUsd = REWARD_AMOUNT_USD * 2;
+                return NextResponse.json(
+                    {
+                        success: false,
+                        error: "Insufficient funds",
+                        code: "INSUFFICIENT_BALANCE",
+                        message: `Insufficient USDC balance in cashback wallet. Required: $${requiredAmountUsd.toFixed(2)}, Available: $${currentBalanceUsd.toFixed(2)}`,
+                        details: {
+                            required: requiredAmountUsd,
+                            available: currentBalanceUsd,
+                            walletAddress: sendingWalletAddress,
+                        },
+                        response_time_ms: Date.now() - start,
+                    },
+                    { status: 503 },
+                );
+            }
+
             const referrerTxHash = await walletClient.writeContract({
-                address: USDC_CONTRACT_ADDRESS as `0x${string}`,
+                address: usdcToken.address as `0x${string}`,
                 abi: erc20Abi,
                 functionName: "transfer",
                 args: [referral.referrer_wallet_address as `0x${string}`, amountInWei],
             });
             // Execute transfer to referred
             const referredTxHash = await walletClient.writeContract({
-                address: USDC_CONTRACT_ADDRESS as `0x${string}`,
+                address: usdcToken.address as `0x${string}`,
                 abi: erc20Abi,
                 functionName: "transfer",
                 args: [walletAddress as `0x${string}`, amountInWei],
             });
-            // Update claim status to completed
+
             const { error: updateError } = await supabaseAdmin
                 .from("referral_claims")
                 .update({
                     status: "completed",
-                    tx_hash: referrerTxHash, // Or array if separate
+                    tx_hash: referrerTxHash,
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", pendingClaim.id);
             if (updateError) {
-                console.error("Failed to update claim status:", updateError);
                 console.error(
                     `MANUAL REVIEW NEEDED: Claim ${pendingClaim.id} transferred but status update failed`,
                 );
@@ -298,7 +353,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 response_time_ms: Date.now() - start,
             });
         } catch (transferError) {
-            console.error("Reward transfer failed:", transferError);
             await supabaseAdmin
                 .from("referral_claims")
                 .update({
@@ -340,7 +394,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             );
         }
     } catch (err) {
-        console.error("Referral claim API error:", err);
         return NextResponse.json(
             {
                 success: false,

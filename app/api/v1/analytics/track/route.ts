@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import {
-    trackServerEvent,
     trackTransactionEvent,
     trackFundingEvent,
     trackAuthEvent,

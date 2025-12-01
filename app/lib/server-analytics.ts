@@ -164,7 +164,16 @@ export const trackServerEvent = (
 
     // Add raw IP for Mixpanel geo-inference (as 'ip' property)
     // Mixpanel's Node.js SDK uses 'ip' property to automatically infer city, country, etc.
-    if (rawIp && typeof rawIp === "string" && rawIp !== "unknown" && rawIp !== "::1" && !rawIp.startsWith("127.")) {
+    // Only include IP if privacy mode is not strict and IP inclusion is enabled
+    if (
+      !PRIVACY_MODE &&
+      INCLUDE_IP &&
+      rawIp &&
+      typeof rawIp === "string" &&
+      rawIp !== "unknown" &&
+      rawIp !== "::1" &&
+      !rawIp.startsWith("127.")
+    ) {
       eventData.ip = rawIp;
     }
 
@@ -231,7 +240,16 @@ export const identifyServerUser = (
     // Add raw IP for Mixpanel geo-inference in user profile updates
     // Mixpanel uses 'ip' property to automatically infer city, country, etc.
     // Skip localhost IPs as they can't be geolocated
-    if (rawIp && typeof rawIp === "string" && rawIp !== "unknown" && rawIp !== "::1" && !rawIp.startsWith("127.")) {
+    // Only include IP if privacy mode is not strict and IP inclusion is enabled
+    if (
+      !PRIVACY_MODE &&
+      INCLUDE_IP &&
+      rawIp &&
+      typeof rawIp === "string" &&
+      rawIp !== "unknown" &&
+      rawIp !== "::1" &&
+      !rawIp.startsWith("127.")
+    ) {
       userData.ip = rawIp;
     }
 

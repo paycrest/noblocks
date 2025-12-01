@@ -82,7 +82,7 @@ export const useFundWalletHandler = (entryPoint: string) => {
     });
 
     // Server-side tracking (new - additive, non-breaking, fire-and-forget)
-    trackServerEvent("Funding Started", {
+    trackServerEvent("Funding started", {
       "Entry point": entryPoint,
       Amount: amount,
       Network: selectedNetwork.chain.name,

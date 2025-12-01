@@ -202,7 +202,7 @@ export const ReferralDashboardView = ({
 
                                                         <p className="mb-6 text-sm leading-relaxed text-text-secondary dark:text-white/60">
                                                             Earn when you refer your friends. You both get $1 when they
-                                                            complete their first $20 transaction.
+                                                            complete their first $100 transaction.
                                                         </p>
                                                     </div>
 

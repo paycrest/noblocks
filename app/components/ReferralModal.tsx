@@ -99,7 +99,7 @@ export const ReferralInputModal = ({
                 </div>
 
                 <p className="text-sm text-text-secondary dark:text-white/50">
-                    Enter your referral code below and get $1 on your first $20 transaction on {sponsorChain}
+                    Enter your referral code below and get $1 on your first $100 transaction on {sponsorChain}
                 </p>
 
                 <div className="space-y-3">

@@ -599,33 +599,6 @@ export async function getReferralData(
 }
 
 /**
- * Generate or get user's referral code
- */
-export async function generateReferralCode(
-  accessToken?: string,
-): Promise<ApiResponse<{ referral_code?: string; referralCode?: string; code?: string }>> {
-  const headers: Record<string, string> = {};
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-
-  try {
-    const response = await axios.get(`/api/referral/generate-referral-code`, { headers });
-
-    if (!response.data?.success) {
-      return { success: false, error: response.data?.error || "Failed to generate referral code", status: response.status };
-    }
-
-    const payload = response.data;
-    return { success: true, data: payload.data || payload };
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message || "Failed to generate referral code";
-      return { success: false, error: message, status: error.response?.status };
-    }
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
-  }
-}
-
-/**
  * Fetches saved recipients for a wallet address
  * @param {string} accessToken - The access token for authentication
  * @returns {Promise<RecipientDetailsWithId[]>} Array of saved recipients

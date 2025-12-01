@@ -7,39 +7,30 @@ import {
     trackApiError,
     trackBusinessEvent,
 } from "@/app/lib/server-analytics";
-
-// Generate a unique 6-character referral code (NB + 4 alphanumeric)
-function generateReferralCode(): string {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let code = "NB";
-    for (let i = 0; i < 4; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
-}
+import { getSmartWalletAddressFromPrivyUserId } from "@/app/lib/privy";
+import { generateReferralCode } from "@/app/utils";
 
 export const GET = withRateLimit(async (request: NextRequest) => {
     const startTime = Date.now();
 
     try {
-        // Get wallet address from middleware
-        const walletAddress = request.headers
-            .get("x-wallet-address")
-            ?.toLowerCase();
+        // Get user ID from middleware
+        const userId = request.headers.get("x-user-id");
 
-        if (!walletAddress) {
-            trackApiError(
-                request,
-                "/api/referral/data",
-                "GET",
-                new Error("Unauthorized"),
-                401
-            );
+        if (!userId) {
             return NextResponse.json(
-                { success: false, error: "Unauthorized" },
-                { status: 401 }
+                {
+                    success: false,
+                    error: "Unauthorized",
+                    code: "AUTH_REQUIRED",
+                    message: "Authentication required. Please sign in to view your referral data.",
+                    response_time_ms: Date.now() - startTime,
+                },
+                { status: 401 },
             );
         }
+
+        const walletAddress = await getSmartWalletAddressFromPrivyUserId(userId);
 
         // Track API request
         trackApiRequest(request, "/api/referral/data", "GET", {
@@ -117,12 +108,13 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             });
         }
 
-        // Get all referrals made by this user
-        const { data: referrals, error: referralsError } = await supabaseAdmin
+        // Get referrals where user is the referrer (people they referred)
+        const { data: referralsAsReferrer, error: referrerError } = await supabaseAdmin
             .from("referrals")
             .select(
                 `
         id,
+        referrer_wallet_address,
         referred_wallet_address,
         status,
         reward_amount,
@@ -133,33 +125,72 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             .eq("referrer_wallet_address", walletAddress)
             .order("created_at", { ascending: false });
 
-        if (referralsError) {
-            throw referralsError;
+        if (referrerError) {
+            throw referrerError;
         }
 
-        // Calculate earnings
-        const earnedReferrals = referrals.filter((r) => r.status === "earned");
-        const pendingReferrals = referrals.filter((r) => r.status === "pending");
+        // Get referrals where user is the referred (who referred them)
+        const { data: referralsAsReferred, error: referredError } = await supabaseAdmin
+            .from("referrals")
+            .select(
+                `
+        id,
+        referrer_wallet_address,
+        referred_wallet_address,
+        status,
+        reward_amount,
+        created_at,
+        completed_at
+      `
+            )
+            .eq("referred_wallet_address", walletAddress)
+            .order("created_at", { ascending: false });
+
+        if (referredError) {
+            throw referredError;
+        }
+
+        // Combine both lists and format
+        const allReferrals = [
+            // When user is referrer: show who they referred
+            ...(referralsAsReferrer || []).map((r) => ({
+                id: r.id,
+                wallet_address: r.referred_wallet_address.toLowerCase(),
+                wallet_address_short: `${r.referred_wallet_address.slice(0, 6)}...${r.referred_wallet_address.slice(-4)}`,
+                status: r.status,
+                amount: r.reward_amount || 1.0,
+                created_at: r.created_at,
+                completed_at: r.completed_at,
+            })),
+            // When user is referred: show who referred them
+            ...(referralsAsReferred || []).map((r) => ({
+                id: r.id,
+                wallet_address: r.referrer_wallet_address.toLowerCase(),
+                wallet_address_short: `${r.referrer_wallet_address.slice(0, 6)}...${r.referrer_wallet_address.slice(-4)}`,
+                status: r.status,
+                amount: r.reward_amount || 1.0,
+                created_at: r.created_at,
+                completed_at: r.completed_at,
+            })),
+        ];
+
+        // Calculate earnings from both perspectives
+        const earnedReferrals = allReferrals.filter((r) => r.status === "earned");
+        const pendingReferrals = allReferrals.filter((r) => r.status === "pending");
 
         const totalEarned = earnedReferrals.reduce(
-            (sum, r) => sum + (r.reward_amount || 0),
+            (sum, r) => sum + (r.amount || 0),
             0
         );
         const totalPending = pendingReferrals.reduce(
-            (sum, r) => sum + (r.reward_amount || 0),
+            (sum, r) => sum + (r.amount || 0),
             0
         );
 
-        // Format referral list with truncated addresses
-        const referralList = referrals.map((r) => ({
-            id: r.id,
-            wallet_address: r.referred_wallet_address,
-            wallet_address_short: `${r.referred_wallet_address.slice(0, 6)}...${r.referred_wallet_address.slice(-4)}`,
-            status: r.status,
-            amount: r.reward_amount || 1.0,
-            created_at: r.created_at,
-            completed_at: r.completed_at,
-        }));
+        // Format referral list (sorted by created_at descending)
+        const referralList = allReferrals.sort((a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
 
         const response = {
             success: true,
@@ -167,7 +198,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
                 referral_code: referralCode,
                 total_earned: totalEarned,
                 total_pending: totalPending,
-                total_referrals: referrals.length,
+                total_referrals: referralList.length,
                 earned_count: earnedReferrals.length,
                 pending_count: pendingReferrals.length,
                 referrals: referralList,
@@ -181,7 +212,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             wallet_address: walletAddress,
             total_earned: totalEarned,
             total_pending: totalPending,
-            total_referrals: referrals.length,
+            total_referrals: referralList.length,
             newly_generated: isNewlyGenerated,
         });
 

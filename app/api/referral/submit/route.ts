@@ -8,17 +8,16 @@ import {
     trackBusinessEvent,
     trackAuthEvent,
 } from "@/app/lib/server-analytics";
+import { getSmartWalletAddressFromPrivyUserId } from "@/app/lib/privy";
 
 export const POST = withRateLimit(async (request: NextRequest) => {
     const startTime = Date.now();
 
     try {
-        // Get wallet address from middleware
-        const walletAddress = request.headers
-            .get("x-wallet-address")
-            ?.toLowerCase();
+        // Get user ID from middleware
+        const userId = request.headers.get("x-user-id");
 
-        if (!walletAddress) {
+        if (!userId) {
             trackApiError(
                 request,
                 "/api/referral/submit",
@@ -31,6 +30,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 { status: 401 }
             );
         }
+
+        const walletAddress = await getSmartWalletAddressFromPrivyUserId(userId);
 
         // Track API request
         trackApiRequest(request, "/api/referral/submit", "POST", {

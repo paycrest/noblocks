@@ -1243,3 +1243,17 @@ export const handleCopyLink = (referralCode: string | undefined): void => {
     toast.success("Referral link copied!");
   }
 };
+
+/**
+ * Generate a unique 6-character referral code (NB + 4 alphanumeric)
+ * Format: NB[A-Z0-9]{4}
+ */
+export function generateReferralCode(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let code = "NB";
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+

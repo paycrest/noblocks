@@ -22,8 +22,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     try {
         const body = await request.json().catch(() => null);
         if (!body || typeof body !== "object") {
-            // Don't track errors for invalid JSON bodies - likely bots or malformed requests
-            // Just return 400 without logging to Mixpanel to reduce noise
             return NextResponse.json(
                 { success: false, error: "Invalid JSON body" },
                 { status: 400 },
@@ -117,29 +115,41 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         // Execute tracking asynchronously after response (fire-and-forget)
         Promise.resolve().then(() => {
             try {
+                // Extract IP and User-Agent for geo-location and OS/Browser detection (once for all events)
+                const ip =
+                    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+                    request.headers.get("x-real-ip") ||
+                    undefined;
+                const userAgent = request.headers.get("user-agent") || undefined;
+
                 // Track API request
-                trackApiRequest(request, "/api/v1/analytics/track", "POST", {});
+                trackApiRequest(request, "/api/v1/analytics/track", "POST", {
+                    ip_address: ip,
+                    user_agent: userAgent,
+                });
 
                 // Route to appropriate tracking function based on event type
                 const eventNameLower = eventName.toLowerCase();
+
+                // Common properties for all events (IP and User-Agent for geo-location)
+                const commonProperties: Record<string, any> = {
+                    ...properties,
+                    tracking_source: "api_endpoint",
+                };
+                if (ip) commonProperties.ip_address = ip;
+                if (userAgent) commonProperties.user_agent = userAgent;
 
                 if (
                     eventNameLower.includes("transaction") ||
                     eventNameLower.includes("swap") ||
                     eventNameLower.includes("order")
                 ) {
-                    trackTransactionEvent(eventName, walletAddress, {
-                        ...properties,
-                        tracking_source: "api_endpoint",
-                    });
+                    trackTransactionEvent(eventName, walletAddress, commonProperties);
                 } else if (
                     eventNameLower.includes("funding") ||
                     eventNameLower.includes("fund")
                 ) {
-                    trackFundingEvent(eventName, walletAddress, {
-                        ...properties,
-                        tracking_source: "api_endpoint",
-                    });
+                    trackFundingEvent(eventName, walletAddress, commonProperties);
                 } else if (
                     eventNameLower.includes("login") ||
                     eventNameLower.includes("signup") ||
@@ -147,26 +157,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                     eventNameLower.includes("auth") ||
                     eventNameLower.includes("logout")
                 ) {
-                    // Extract IP and User-Agent for geo-location and OS/Browser detection
-                    const ip =
-                        request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-                        request.headers.get("x-real-ip") ||
-                        null;
-                    const userAgent = request.headers.get("user-agent") || null;
-
-                    trackAuthEvent(eventName, walletAddress, {
-                        ...properties,
-                        tracking_source: "api_endpoint",
-                        ...(ip && { ip_address: ip }),
-                        ...(userAgent && { user_agent: userAgent }),
-                    });
+                    trackAuthEvent(eventName, walletAddress, commonProperties);
                 } else {
                     // Generic business event
                     trackBusinessEvent(
                         eventName,
                         {
-                            ...properties,
-                            tracking_source: "api_endpoint",
+                            ...commonProperties,
                             wallet_address: walletAddress,
                         },
                         walletAddress,
@@ -174,10 +171,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 }
 
                 // Track successful API response
-                trackApiResponse("/api/v1/analytics/track", "POST", 200, responseTime, {
+                const responseProperties: Record<string, any> = {
                     wallet_address: walletAddress,
                     event_name: eventName,
-                });
+                };
+                if (ip) responseProperties.ip_address = ip;
+                if (userAgent) responseProperties.user_agent = userAgent;
+                trackApiResponse("/api/v1/analytics/track", "POST", 200, responseTime, responseProperties);
             } catch (e) {
                 // Silently fail - tracking is fire-and-forget and should not break user flow
             }

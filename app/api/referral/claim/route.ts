@@ -184,19 +184,43 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             );
         }
         //Check for existing claim (idempotency)
-        const { data: existingClaim } = await supabaseAdmin
+        const { data: existingClaim, error: existingClaimError } = await supabaseAdmin
             .from("referral_claims")
             .select("*")
             .eq("referral_id", referral.id)
             .single();
+
+        if (existingClaimError && existingClaimError.code !== "PGRST116") {
+            console.error("Failed to fetch existing referral claim:", existingClaimError);
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: "Failed to fetch referral claim",
+                    code: "CLAIM_LOOKUP_FAILED",
+                    message: "Unable to verify existing referral claim. Please try again.",
+                    response_time_ms: Date.now() - start,
+                },
+                { status: 500 },
+            );
+        }
+
         if (existingClaim) {
+            let txHashes;
+            try {
+                txHashes = typeof existingClaim.tx_hash === "string"
+                    ? JSON.parse(existingClaim.tx_hash)
+                    : existingClaim.tx_hash;
+            } catch {
+                txHashes = existingClaim.tx_hash;
+            }
+
             return NextResponse.json({
                 success: existingClaim.status === "completed",
                 message: `Referral reward already ${existingClaim.status}`,
                 claim: {
                     amount: existingClaim.reward_amount,
                     status: existingClaim.status,
-                    txHash: existingClaim.tx_hash,
+                    txHashes: txHashes || existingClaim.tx_hash,
                 },
                 response_time_ms: Date.now() - start,
             });
@@ -206,7 +230,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             .from("referral_claims")
             .insert({
                 referral_id: referral.id,
-                walletAddress,
+                wallet_address: walletAddress,
                 reward_amount: REWARD_AMOUNT_USD,
                 status: "pending",
             })
@@ -334,13 +358,27 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 .from("referral_claims")
                 .update({
                     status: "completed",
-                    tx_hash: referrerTxHash,
+                    tx_hash: JSON.stringify({ referrer: referrerTxHash, referred: referredTxHash }),
                     updated_at: new Date().toISOString(),
                 })
                 .eq("id", pendingClaim.id);
             if (updateError) {
                 console.error(
                     `MANUAL REVIEW NEEDED: Claim ${pendingClaim.id} transferred but status update failed`,
+                );
+            }
+
+            const { error: referralStatusError } = await supabaseAdmin
+                .from("referrals")
+                .update({
+                    status: "earned",
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", referral.id);
+            if (referralStatusError) {
+                console.error("Failed to update referral status:", referralStatusError);
+                console.error(
+                    `MANUAL REVIEW NEEDED: Referral ${referral.id} was paid out but status update failed`,
                 );
             }
             return NextResponse.json({

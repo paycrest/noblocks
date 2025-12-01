@@ -268,7 +268,7 @@ export const ReferralDashboard = ({
                                                 </div>
                                                 {/* Amount */}
                                                 <p className="text-sm font-medium text-text-secondary dark:text-white/60">
-                                                    {referral.amount.toFixed(1)} USDC
+                                                    {(referral.amount ?? 0).toFixed(1)} USDC
                                                 </p>
                                             </div>
                                         ))

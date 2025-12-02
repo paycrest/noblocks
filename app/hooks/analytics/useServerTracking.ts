@@ -16,14 +16,13 @@
 const makeTrackingRequest = async (
     endpoint: string,
     payload: Record<string, any>,
-    operationName: string,
 ): Promise<void> => {
     const controller = new AbortController();
     // Increased timeout to 3s to handle potential Next.js compilation delays
     const timeoutId = setTimeout(() => controller.abort(), 3000);
 
     try {
-        const response = await fetch(endpoint, {
+        await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
@@ -32,7 +31,7 @@ const makeTrackingRequest = async (
 
         // Silently handle errors - tracking failures should not affect user experience
         // Response errors are ignored to prevent breaking user flow
-    } catch (error: any) {
+    } catch {
         // Silently handle all errors - tracking failures should not affect user experience
         // This includes network errors, timeouts, and other exceptions
     } finally {
@@ -58,7 +57,6 @@ export const trackServerEvent = async (
             properties,
             ...(walletAddress && { walletAddress }),
         },
-        `Server-side tracking for event "${eventName}"`,
     );
 };
 
@@ -82,6 +80,5 @@ export const identifyServerUser = async (
             walletAddress,
             properties,
         },
-        "Server-side user identification",
     );
 };

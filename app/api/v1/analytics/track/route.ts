@@ -60,30 +60,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             request.headers.get("x-wallet-address")?.toLowerCase() ||
             (typeof bodyWalletAddress === "string"
                 ? bodyWalletAddress.toLowerCase()
-                : null);
+                : undefined);
 
-        if (!walletAddress) {
-            const response = NextResponse.json(
-                { success: false, error: "Missing wallet address" },
-                { status: 400 },
-            );
-            // Track error asynchronously
-            Promise.resolve().then(() => {
-                try {
-                    trackApiError(
-                        request,
-                        "/api/v1/analytics/track",
-                        "POST",
-                        new Error("Missing wallet address"),
-                        400,
-                    );
-                } catch (e) { }
-            }).catch(() => { });
-            return response;
-        }
-
-        // Validate wallet address format
-        if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+        // Validate wallet address format only if present
+        if (walletAddress && !/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
             const response = NextResponse.json(
                 { success: false, error: "Invalid wallet address format" },
                 { status: 400 },
@@ -138,32 +118,81 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 if (ip) commonProperties.ip_address = ip;
                 if (userAgent) commonProperties.user_agent = userAgent;
 
+                // Transaction/Swap events (require wallet address)
                 if (
                     eventNameLower.includes("transaction") ||
                     eventNameLower.includes("swap") ||
-                    eventNameLower.includes("order")
+                    (eventNameLower.includes("order") && !eventNameLower.includes("order created") && !eventNameLower.includes("order updated"))
                 ) {
-                    trackTransactionEvent(eventName, walletAddress, commonProperties);
-                } else if (
+                    if (walletAddress) {
+                        trackTransactionEvent(eventName, walletAddress, commonProperties);
+                    } else {
+                        // Track as generic event if no wallet address for transaction events
+                        trackBusinessEvent(
+                            eventName,
+                            commonProperties,
+                            walletAddress,
+                        );
+                    }
+                }
+                // Funding events (require wallet address)
+                else if (
                     eventNameLower.includes("funding") ||
                     eventNameLower.includes("fund")
                 ) {
-                    trackFundingEvent(eventName, walletAddress, commonProperties);
-                } else if (
+                    if (walletAddress) {
+                        trackFundingEvent(eventName, walletAddress, commonProperties);
+                    } else {
+                        trackBusinessEvent(
+                            eventName,
+                            commonProperties,
+                            walletAddress,
+                        );
+                    }
+                }
+                // Auth events (require wallet address)
+                else if (
                     eventNameLower.includes("login") ||
                     eventNameLower.includes("signup") ||
                     eventNameLower.includes("sign up") ||
+                    eventNameLower.includes("user register") ||
+                    eventNameLower.includes("user login") ||
+                    eventNameLower.includes("user logout") ||
+                    eventNameLower.includes("user identified") ||
                     eventNameLower.includes("auth") ||
                     eventNameLower.includes("logout")
                 ) {
-                    trackAuthEvent(eventName, walletAddress, commonProperties);
-                } else {
-                    // Generic business event
+                    if (walletAddress) {
+                        trackAuthEvent(eventName, walletAddress, commonProperties);
+                    } else {
+                        trackBusinessEvent(
+                            eventName,
+                            commonProperties,
+                            walletAddress,
+                        );
+                    }
+                }
+                // Order Created/Updated (can be tracked without explicit wallet address if needed, but usually associated)
+                else if (
+                    eventNameLower.includes("order created") ||
+                    eventNameLower.includes("order updated")
+                ) {
                     trackBusinessEvent(
                         eventName,
                         {
                             ...commonProperties,
-                            wallet_address: walletAddress,
+                            ...(walletAddress && { wallet_address: walletAddress }),
+                        },
+                        walletAddress,
+                    );
+                }
+                // Generic business event (for all other events like Page Viewed, Button Clicked, etc.)
+                else {
+                    trackBusinessEvent(
+                        eventName,
+                        {
+                            ...commonProperties,
+                            ...(walletAddress && { wallet_address: walletAddress }),
                         },
                         walletAddress,
                     );
@@ -171,7 +200,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
                 // Track successful API response
                 const responseProperties: Record<string, any> = {
-                    wallet_address: walletAddress,
+                    ...(walletAddress && { wallet_address: walletAddress }),
                     event_name: eventName,
                 };
                 if (ip) responseProperties.ip_address = ip;

@@ -46,7 +46,6 @@ import {
 } from "../types";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/client";
-import { trackServerEvent } from "../hooks/analytics/useServerTracking";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
@@ -367,33 +366,17 @@ export function TransactionStatus({
           : embeddedWallet?.address;
 
         if (["validated", "settled"].includes(transactionStatus)) {
-          // Client-side tracking (existing - keep for backward compatibility)
-          trackEvent("Swap completed", eventData);
+          trackEvent("Swap completed", {
+            ...eventData,
+            transaction_status: transactionStatus,
+          });
           setIsTracked(true);
-
-          // Server-side tracking (new - additive, non-breaking, fire-and-forget)
-          if (walletAddress) {
-            trackServerEvent("Transaction Completed", {
-              ...eventData,
-              transaction_status: transactionStatus,
-            }, walletAddress);
-          }
         } else if (transactionStatus === "refunded") {
-          // Client-side tracking (existing - keep for backward compatibility)
           trackEvent("Swap failed", {
             ...eventData,
             "Reason for failure": "Transaction failed and refunded",
           });
           setIsTracked(true);
-
-          // Server-side tracking (new - additive, non-breaking, fire-and-forget)
-          if (walletAddress) {
-            trackServerEvent("Transaction Failed", {
-              ...eventData,
-              transaction_status: transactionStatus,
-              "Reason for failure": "Transaction failed and refunded",
-            }, walletAddress);
-          }
         }
       }
     },

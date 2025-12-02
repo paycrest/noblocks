@@ -752,6 +752,14 @@ export const TransactionForm = ({
                 type="text"
                 inputMode="decimal"
                 onChange={handleReceivedAmountChange}
+                onFocus={() => {
+                  if (
+                    formattedReceivedAmount === "0" ||
+                    formattedReceivedAmount === "0.00"
+                  ) {
+                    setFormattedReceivedAmount("");
+                  }
+                }}
                 onKeyDown={(e) => {
                   // Special handling for the decimal point key
                   if (e.key === "." && !formattedReceivedAmount.includes(".")) {

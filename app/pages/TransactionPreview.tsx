@@ -40,7 +40,6 @@ import { useBalance, useInjectedWallet, useStep } from "../context";
 
 import { fetchAggregatorPublicKey, saveTransaction } from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics/client";
-import { trackServerEvent } from "../hooks/analytics/useServerTracking";
 import { ImSpinner } from "react-icons/im";
 import { InformationSquareIcon } from "hugeicons-react";
 import { PiCheckCircleFill } from "react-icons/pi";
@@ -269,22 +268,13 @@ export const TransactionPreview = ({
         toast.success("Order created successfully");
         setIsOrderCreated(true);
 
-        // Client-side tracking (existing - keep for backward compatibility)
         trackEvent("Swap started", {
           "Entry point": "Transaction preview",
           "Wallet type": "Injected wallet",
+          network: selectedNetwork.chain.name,
+          token: token,
+          amount: amountSent,
         });
-
-        // Server-side tracking (new - additive, non-breaking, fire-and-forget)
-        if (activeWallet?.address) {
-          trackServerEvent("Transaction Started", {
-            "Entry point": "Transaction preview",
-            "Wallet type": "Injected wallet",
-            network: selectedNetwork.chain.name,
-            token: token,
-            amount: amountSent,
-          }, activeWallet.address);
-        }
       } else {
         // Smart wallet
         if (!client) {
@@ -346,22 +336,13 @@ export const TransactionPreview = ({
 
       refreshBalance();
 
-      // Client-side tracking (existing - keep for backward compatibility)
       trackEvent("Swap started", {
         "Entry point": "Transaction preview",
         "Wallet type": "Smart wallet",
+        network: selectedNetwork.chain.name,
+        token: token,
+        amount: amountSent,
       });
-
-      // Server-side tracking (new - additive, non-breaking, fire-and-forget)
-      if (activeWallet?.address) {
-        trackServerEvent("Transaction Started", {
-          "Entry point": "Transaction preview",
-          "Wallet type": "Smart wallet",
-          network: selectedNetwork.chain.name,
-          token: token,
-          amount: amountSent,
-        }, activeWallet.address);
-      }
     } catch (e) {
       const error = e as BaseError;
       setErrorMessage(error.shortMessage || error.message);

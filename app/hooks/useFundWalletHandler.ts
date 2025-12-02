@@ -3,7 +3,6 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBalance } from "../context/BalanceContext";
 import { useTokens } from "../context/TokensContext";
 import { trackEvent } from "./analytics/useMixpanel";
-import { trackServerEvent } from "./analytics/useServerTracking";
 import { Token } from "../types";
 
 export const useFundWalletHandler = (entryPoint: string) => {
@@ -72,7 +71,7 @@ export const useFundWalletHandler = (entryPoint: string) => {
       (t: Token) => t.address === tokenAddress,
     );
 
-    // Client-side tracking (existing - keep for backward compatibility)
+    // Server side tracking
     trackEvent("Funding started", {
       "Entry point": entryPoint,
       Amount: amount,
@@ -80,15 +79,6 @@ export const useFundWalletHandler = (entryPoint: string) => {
       Token: selectedToken?.symbol || "Unknown",
       "Funding date": new Date().toISOString(),
     });
-
-    // Server-side tracking (new - additive, non-breaking, fire-and-forget)
-    trackServerEvent("Funding started", {
-      "Entry point": entryPoint,
-      Amount: amount,
-      Network: selectedNetwork.chain.name,
-      Token: selectedToken?.symbol || "Unknown",
-      "Funding date": new Date().toISOString(),
-    }, walletAddress);
 
     localStorage.setItem(
       "lastFundingAttempt",

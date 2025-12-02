@@ -1,55 +1,31 @@
 import { useEffect } from "react";
-import config from "@/app/lib/config";
-import mixpanel, { type Dict } from "mixpanel-browser";
-import Cookies from "js-cookie";
+import { trackServerEvent, identifyServerUser } from "./useServerTracking";
 
-const { mixpanelToken } = config;
+// Type for event properties (replacing Dict from mixpanel-browser)
+export type Dict = Record<string, any>;
 
-let initialized = false;
+// Get wallet address from localStorage if available
+const getWalletAddress = (): string | undefined => {
+  if (typeof window === "undefined") return undefined;
+  return localStorage.getItem("userId") || undefined;
+};
 
+// No-op initialization (server-side tracking doesn't need client-side init)
 export const initMixpanel = () => {
-  if (initialized) return;
-
-  const consent = Cookies.get("cookieConsent");
-  if (!consent || !JSON.parse(consent).analytics) {
-    return;
-  }
-
-  if (mixpanelToken) {
-    mixpanel.init(mixpanelToken, {
-      track_pageview: false,
-      persistence: "localStorage",
-      ignore_dnt: false,
-      verbose: process.env.NODE_ENV === "development",
-    });
-
-    initialized = true;
-  } else {
-    console.warn("Mixpanel token is not defined");
-  }
+  // Server-side tracking - no client-side initialization needed
 };
 
 export const useMixpanel = () => {
+  // Server-side tracking - no client-side initialization needed
   useEffect(() => {
-    const handleConsentChange = () => {
-      const consent = Cookies.get("cookieConsent");
-      if (consent && JSON.parse(consent).analytics) {
-        initMixpanel();
-      }
-    };
-
-    window.addEventListener("cookieConsentChange", handleConsentChange);
-    window.addEventListener("cookieConsent", handleConsentChange);
-    handleConsentChange();
-
-    return () => {
-      window.removeEventListener("cookieConsentChange", handleConsentChange);
-      window.removeEventListener("cookieConsent", handleConsentChange);
-    };
+    // Empty effect - kept for backward compatibility
   }, []);
 };
 
-export const identifyUser = (
+/**
+ * Identify a user server-side
+ */
+export const identifyUser = async (
   address: string,
   properties: {
     login_method: string | null;
@@ -58,55 +34,22 @@ export const identifyUser = (
     email?: { address: string } | null;
   },
 ) => {
-  try {
-    if (!initialized) {
-      console.warn("Mixpanel not initialized");
-      return;
-    }
-
-    const consent = Cookies.get("cookieConsent");
-    if (!consent || !JSON.parse(consent).analytics) {
-      return;
-    }
-
-    mixpanel.identify(address);
-    const peopleProps: Record<string, unknown> = {
-      login_method: properties.login_method || "unknown",
-      $last_login: new Date(),
-      $signup_date: properties.createdAt,
-      isNewUser: properties.isNewUser,
-    };
-    if (
-      process.env.NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS === "true" &&
-      properties.email?.address
-    ) {
-      (peopleProps as any).$email = properties.email.address;
-    }
-    mixpanel.people.set(peopleProps);
-  } catch (error) {
-    console.error("Mixpanel user identification error:", error);
-  }
+  await identifyServerUser(address, properties);
 };
 
-export const trackEvent = (
+/**
+ * Track an event server-side
+ */
+export const trackEvent = async (
   eventName: string,
   properties?: Dict | undefined,
 ) => {
-  try {
-    if (!initialized) {
-      console.warn("Mixpanel not initialized");
-      return;
-    }
-
-    const consent = Cookies.get("cookieConsent");
-    if (!consent || !JSON.parse(consent).analytics) {
-      return;
-    }
-
-    mixpanel.track(eventName, { ...properties, app: "Noblocks" });
-  } catch (error) {
-    console.error("Mixpanel tracking error:", error);
-  }
+  const walletAddress = getWalletAddress();
+  await trackServerEvent(
+    eventName,
+    { ...properties, app: "Noblocks" },
+    walletAddress,
+  );
 };
 
 // Blog-specific tracking functions

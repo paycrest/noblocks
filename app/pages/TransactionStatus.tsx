@@ -360,10 +360,6 @@ export function TransactionStatus({
           "Wallet type": isInjectedWallet ? "Injected" : "Smart wallet",
         };
 
-        // Get wallet address for server-side tracking
-        const walletAddress = isInjectedWallet
-          ? injectedAddress
-          : embeddedWallet?.address;
 
         if (["validated", "settled"].includes(transactionStatus)) {
           trackEvent("Swap completed", {

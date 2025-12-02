@@ -30,6 +30,7 @@ export default function TransactionLimitModal({
         tier,
         getCurrentLimits,
         refreshStatus,
+        phoneNumber,
         transactionSummary
     } = useKYCStatus();
 
@@ -47,7 +48,7 @@ export default function TransactionLimitModal({
 
     // Auto-open phone verification modal if tier is less than 1 (unverified)
     useEffect(() => {
-        if (isOpen && !isLoading && (tier < 1 || tier === undefined)) {
+        if (isOpen && !isLoading && (tier < 1 || tier === undefined || !phoneNumber)) {
             setIsPhoneModalOpen(true);
         }
     }, [isOpen, isLoading, tier]);

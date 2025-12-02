@@ -49,16 +49,29 @@ export async function POST(request: NextRequest) {
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
+    // Get existing profile to preserve important fields
+    const { data: existingProfile } = await supabaseAdmin
+      .from('user_kyc_profiles')
+      .select('tier, verified, verified_at, id_country, id_type, platform, full_name')
+      .eq('wallet_address', walletAddress.toLowerCase())
+      .single();
+
     // Store OTP in database
     const { error: dbError } = await supabaseAdmin
       .from('user_kyc_profiles')
       .upsert({
         wallet_address: walletAddress.toLowerCase(),
-        full_name: name || null,
+        full_name: name || existingProfile?.full_name || null,
         phone_number: validation.e164Format, // Store in E.164 format (no spaces)
         otp_code: otp,
         expires_at: expiresAt.toISOString(),
-        verified: false,
+        verified: existingProfile?.verified || false,
+        verified_at: existingProfile?.verified_at || null,
+        tier: existingProfile?.tier || 0,
+        // Preserve existing ID verification data
+        id_country: existingProfile?.id_country || null,
+        id_type: existingProfile?.id_type || null,
+        platform: existingProfile?.platform || null,
         attempts: 0,
         provider: validation.provider,
       }, {

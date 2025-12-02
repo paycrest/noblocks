@@ -122,14 +122,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Mark as verified
+    // Mark as verified - preserve existing tier if higher than 1
+    const updateData: any = { 
+      verified: true, 
+      verified_at: new Date().toISOString()
+    };
+    
+    // Only set tier to 1 if current tier is 0 (unverified)
+    if (verification.tier === 0) {
+      updateData.tier = 1;
+    }
+    
     const { error: updateError } = await supabaseAdmin
       .from('user_kyc_profiles')
-      .update({ 
-        verified: true, 
-        verified_at: new Date().toISOString() ,
-        tier: 1
-      })
+      .update(updateData)
       .eq('wallet_address', walletAddress.toLowerCase());
 
     if (updateError) {

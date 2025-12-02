@@ -29,6 +29,8 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
     const { user } = usePrivy();
     const {
         tier,
+        phoneNumber,
+        isFullyVerified,
         transactionSummary,
         getCurrentLimits,
         refreshStatus
@@ -297,9 +299,58 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                                             </div>
                                         </div>
 
+  {tier >= 1 && tier !== undefined && !phoneNumber && (
+                                            <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
+                                            {/* Current Tier Badge */}
+
+                                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#39C65D] dark:bg-[#39C65D] w-[137px]">
+                                                <StarIcon className=" text-white dark:text-black" size={16} />
+                                                <span className="text-xs font-medium text-white dark:text-black">
+                                                    Current: {KYC_TIERS[tier]?.name || 'Tier 0'}
+                                                </span>
+                                            </div>
+
+                                            {/* Monthly Limit Progress */}
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-light text-text-secondary dark:text-white/70">
+                                                        Monthly limit
+                                                    </span>
+                                                    <InformationCircleIcon className="size-4 text-outline-gray dark:text-white/50" />
+                                                </div>
+
+                                                <div className="text-2xl font-light text-text-body dark:text-white">
+                                                    ${formatNumberWithCommas(transactionSummary.monthlySpent)} / ${formatNumberWithCommas(currentLimits.monthly)}
+                                                </div>
+
+                                                {/* Progress Bar */}
+                                                <div className="w-full bg-accent-gray dark:bg-white/10 rounded-full h-2 flex items-center">
+                                                    <div
+                                                        className="bg-gradient-to-r from-white to-white h-2.5 rounded-full transition-all duration-500"
+                                                        style={{ width: `${Math.min(monthlyProgress, 100)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Upgrade Button */}
+                                            {tier <= 2 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setIsLimitModalOpen(true);
+                                                    }}
+                                                    title={`Upgrade to ${KYC_TIERS[tier + 1]?.name}`}
+                                                    className="min-h-11 w-full rounded-xl text-center bg-lavender-600 py-2 text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600 px-4"
+                                                >
+                                                    Verify your phone
+                                                </button>
+                                            )}
+                                        </div>
+  )}
+
 
                                         {/* Current Tier Status */}
-                                        {tier >= 1 && tier !== undefined && (
+                                        {tier >= 1 && tier !== undefined && phoneNumber && (
                                         <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
                                             {/* Current Tier Badge */}
 
@@ -333,7 +384,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                                             </div>
 
                                             {/* Upgrade Button */}
-                                            {tier < 2 && (
+                                            {tier <= 2 && isFullyVerified  && (
                                                 <button
                                                     type="button"
                                                     onClick={() => {

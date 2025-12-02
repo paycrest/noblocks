@@ -19,14 +19,6 @@ export interface KYCTier {
 }
 
 export const KYC_TIERS: Record<number, KYCTier> = {
-//   0: {
-//     level: 0,
-//     name: 'Tier 0',
-//     limits: {
-//       monthly: 0,
-//     },
-//     requirements: ['Wallet connection only']
-//   },
   1: {
     level: 1,
     name: 'Tier 1',

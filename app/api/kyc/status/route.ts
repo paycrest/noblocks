@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     const tier: 0 | 1 | 2 = (kycProfile?.tier as 0 | 1 | 2) || 0;
     const phoneNumber = kycProfile?.phone_number || null;
-    const phoneVerified = kycProfile?.verified || false;
+    const phoneVerified = kycProfile?.verified && phoneNumber ? true : false;
 
     // Full KYC (SmileID) is verified if tier is 2
     const fullKYCVerified = tier >= 2;

@@ -105,7 +105,7 @@ export function useKYCStatus(): KYCStatus {
     }
 
     return { allowed: true };
-  }, [getCurrentLimits, getRemainingLimits, tier]);
+  }, [getRemainingLimits]);
 
 
   const fetchTransactionSummary = useCallback(async () => {
@@ -129,7 +129,7 @@ export function useKYCStatus(): KYCStatus {
     } finally {
       fetchGuards[`${guardKey}_tx`] = 'done';
     }
-  }, [walletAddress]);
+  }, [walletAddress, fetchGuards, guardKey]);
 
 
   const fetchKYCStatus = useCallback(async () => {
@@ -163,7 +163,7 @@ export function useKYCStatus(): KYCStatus {
     } finally {
       fetchGuards[`${guardKey}_kyc`] = 'done';
     }
-  }, [walletAddress, getAccessToken]);
+  }, [walletAddress, getAccessToken, fetchGuards, guardKey]);
 
   const refreshStatus = useCallback(async () => {
     await Promise.all([

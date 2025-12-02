@@ -29,7 +29,6 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
     const { user } = usePrivy();
     const {
         tier,
-        phoneNumber,
         isFullyVerified,
         transactionSummary,
         getCurrentLimits,
@@ -253,158 +252,109 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
 
                                     <div className="scrollbar-hide mt-6 flex-1 space-y-4 overflow-y-auto pb-4">
                                         {isLoading ? renderSkeletonLoader() : (
-                                        <>
-                                        {/* Account info card */}
-                                        <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
-                                            <h3 className="text-sm font-light text-text-secondary dark:text-white/70">Account</h3>
+                                            <>
+                                                {/* Account info card */}
+                                                <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
+                                                    <h3 className="text-sm font-light text-text-secondary dark:text-white/70">Account</h3>
 
-                                            {/* Email Connection */}
-                                            <div className="flex items-center gap-4">
-                                                <img src='/icons/placeholder.png' className='w-[44px] h-[44px] rounded-full object-fit' />
-                                                <div className="flex flex-col items-start w-full">
-                                                    {user?.email ? (
-                                                        <div>
-                                                            <p className="text-xs text-text-body dark:text-white/90">
-                                                                {user.email.address}
-                                                            </p>
-                                                        </div>
-                                                    ) : (
-                                                        <button
-                                                            onClick={linkEmail}
-                                                            className="text-sm text-lavender-600 dark:text-lavender-400 hover:underline"
-                                                        >
-                                                            Connect my email
-                                                        </button>
-                                                    )}
-
-                                                    {/* Wallet Address */}
-                                                    <div className="flex items-center justify-between w-full">
-                                                        <p className="text-sm font-light text-text-body dark:text-white/70">
-                                                            {shortenAddress(walletAddress ?? "", 10)}
-                                                        </p>
-                                                        <button
-                                                            type="button"
-                                                            onClick={handleCopyAddress}
-                                                            title="Copy wallet address"
-                                                            className="rounded-lg p-2 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
-                                                        >
-                                                            {isAddressCopied ? (
-                                                                <PiCheck className="size-4 text-green-500" />
+                                                    {/* Email Connection */}
+                                                    <div className="flex items-center gap-4">
+                                                        <img src='/icons/placeholder.png' className='w-[44px] h-[44px] rounded-full object-fit' />
+                                                        <div className="flex flex-col items-start w-full">
+                                                            {user?.email ? (
+                                                                <div>
+                                                                    <p className="text-xs text-text-body dark:text-white/90">
+                                                                        {user.email.address}
+                                                                    </p>
+                                                                </div>
                                                             ) : (
-                                                                <Copy01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                                                                <button
+                                                                    onClick={linkEmail}
+                                                                    className="text-sm text-lavender-600 dark:text-lavender-400 hover:underline"
+                                                                >
+                                                                    Connect my email
+                                                                </button>
                                                             )}
-                                                        </button>
+
+                                                            {/* Wallet Address */}
+                                                            <div className="flex items-center justify-between w-full">
+                                                                <p className="text-sm font-light text-text-body dark:text-white/70">
+                                                                    {shortenAddress(walletAddress ?? "", 10)}
+                                                                </p>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={handleCopyAddress}
+                                                                    title="Copy wallet address"
+                                                                    className="rounded-lg p-2 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
+                                                                >
+                                                                    {isAddressCopied ? (
+                                                                        <PiCheck className="size-4 text-green-500" />
+                                                                    ) : (
+                                                                        <Copy01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                                                                    )}
+                                                                </button>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </div>
-
-  {tier >= 1 && tier !== undefined && !phoneNumber && (
-                                            <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
-                                            {/* Current Tier Badge */}
-
-                                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#39C65D] dark:bg-[#39C65D] w-[137px]">
-                                                <StarIcon className=" text-white dark:text-black" size={16} />
-                                                <span className="text-xs font-medium text-white dark:text-black">
-                                                    Current: {KYC_TIERS[tier]?.name || 'Tier 0'}
-                                                </span>
-                                            </div>
-
-                                            {/* Monthly Limit Progress */}
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-light text-text-secondary dark:text-white/70">
-                                                        Monthly limit
-                                                    </span>
-                                                    <InformationCircleIcon className="size-4 text-outline-gray dark:text-white/50" />
-                                                </div>
-
-                                                <div className="text-2xl font-light text-text-body dark:text-white">
-                                                    ${formatNumberWithCommas(transactionSummary.monthlySpent)} / ${formatNumberWithCommas(currentLimits.monthly)}
-                                                </div>
-
-                                                {/* Progress Bar */}
-                                                <div className="w-full bg-accent-gray dark:bg-white/10 rounded-full h-2 flex items-center">
-                                                    <div
-                                                        className="bg-gradient-to-r from-white to-white h-2.5 rounded-full transition-all duration-500"
-                                                        style={{ width: `${Math.min(monthlyProgress, 100)}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Upgrade Button */}
-                                            {tier <= 2 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setIsLimitModalOpen(true);
-                                                    }}
-                                                    title={`Upgrade to ${KYC_TIERS[tier + 1]?.name}`}
-                                                    className="min-h-11 w-full rounded-xl text-center bg-lavender-600 py-2 text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600 px-4"
-                                                >
-                                                    Verify your phone
-                                                </button>
-                                            )}
-                                        </div>
-  )}
 
 
-                                        {/* Current Tier Status */}
-                                        {tier >= 1 && tier !== undefined && phoneNumber && (
-                                        <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
-                                            {/* Current Tier Badge */}
+                                                {/* Current Tier Status */}
+                                                {tier >= 1 && tier !== undefined && (
+                                                    <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
+                                                        {/* Current Tier Badge */}
 
-                                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#39C65D] dark:bg-[#39C65D] w-[137px]">
-                                                <StarIcon className=" text-white dark:text-black" size={16} />
-                                                <span className="text-xs font-medium text-white dark:text-black">
-                                                    Current: {KYC_TIERS[tier]?.name || 'Tier 0'}
-                                                </span>
-                                            </div>
+                                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#39C65D] dark:bg-[#39C65D] w-[137px]">
+                                                            <StarIcon className=" text-white dark:text-black" size={16} />
+                                                            <span className="text-xs font-medium text-white dark:text-black">
+                                                                Current: {KYC_TIERS[tier]?.name || 'Tier 0'}
+                                                            </span>
+                                                        </div>
 
-                                            {/* Monthly Limit Progress */}
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-light text-text-secondary dark:text-white/70">
-                                                        Monthly limit
-                                                    </span>
-                                                    <InformationCircleIcon className="size-4 text-outline-gray dark:text-white/50" />
-                                                </div>
+                                                        {/* Monthly Limit Progress */}
+                                                        <div className="space-y-3">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-light text-text-secondary dark:text-white/70">
+                                                                    Monthly limit
+                                                                </span>
+                                                                <InformationCircleIcon className="size-4 text-outline-gray dark:text-white/50" />
+                                                            </div>
 
-                                                <div className="text-2xl font-light text-text-body dark:text-white">
-                                                    ${formatNumberWithCommas(transactionSummary.monthlySpent)} / ${formatNumberWithCommas(currentLimits.monthly)}
-                                                </div>
+                                                            <div className="text-2xl font-light text-text-body dark:text-white">
+                                                                ${formatNumberWithCommas(transactionSummary.monthlySpent)} / ${formatNumberWithCommas(currentLimits.monthly)}
+                                                            </div>
 
-                                                {/* Progress Bar */}
-                                                <div className="w-full bg-accent-gray dark:bg-white/10 rounded-full h-2 flex items-center">
-                                                    <div
-                                                        className="bg-gradient-to-r from-white to-white h-2.5 rounded-full transition-all duration-500"
-                                                        style={{ width: `${Math.min(monthlyProgress, 100)}%` }}
-                                                    />
-                                                </div>
-                                            </div>
+                                                            {/* Progress Bar */}
+                                                            <div className="w-full bg-accent-gray dark:bg-white/10 rounded-full h-2 flex items-center">
+                                                                <div
+                                                                    className="bg-gradient-to-r from-white to-white h-2.5 rounded-full transition-all duration-500"
+                                                                    style={{ width: `${Math.min(monthlyProgress, 100)}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
 
-                                            {/* Upgrade Button */}
-                                            {tier < 2 && !isFullyVerified && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setIsLimitModalOpen(true);
-                                                    }}
-                                                    title={`Upgrade to ${KYC_TIERS[tier + 1]?.name}`}
-                                                    className="min-h-11 w-full rounded-xl text-center bg-lavender-600 py-2 text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600 px-4"
-                                                >
-                                                    Increase limit → {KYC_TIERS[tier + 1]?.name}
-                                                </button>
-                                            )}
-                                        </div>
-                                    )} 
+                                                        {/* Upgrade Button */}
+                                                        {tier < 2 && !isFullyVerified && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setIsLimitModalOpen(true);
+                                                                }}
+                                                                title={`Upgrade to ${KYC_TIERS[tier + 1]?.name}`}
+                                                                className="min-h-11 w-full rounded-xl text-center bg-lavender-600 py-2 text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600 px-4"
+                                                            >
+                                                                Increase limit → {KYC_TIERS[tier + 1]?.name}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                )}
 
-                                        {/* Tier Information */}
+                                                {/* Tier Information */}
 
-                                        {Object.values(KYC_TIERS)
-                                            .filter(tierData => tierData.level > tier) // Only show tiers above current
-                                            .map(tierData => <div key={tierData.level} className="rounded-[20px] border border-border-light bg-transparent dark:border-white/5">{renderTierSection(tierData.level)}</div>)}
-                                        </>
+                                                {Object.values(KYC_TIERS)
+                                                    .filter(tierData => tierData.level > tier) // Only show tiers above current
+                                                    .map(tierData => <div key={tierData.level} className="rounded-[20px] border border-border-light bg-transparent dark:border-white/5">{renderTierSection(tierData.level)}</div>)}
+                                            </>
                                         )}
                                     </div>
                                 </div>

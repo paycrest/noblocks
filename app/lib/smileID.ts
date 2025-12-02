@@ -1,6 +1,13 @@
-import SIDCore from "smile-identity-core";
+let SIDWebAPI: any = null;
 
-const SIDWebAPI = SIDCore.WebApi;
+// Dynamically import SmileID only when needed to avoid build-time issues
+async function getSIDWebAPI() {
+  if (!SIDWebAPI) {
+    const SIDCore = await import("smile-identity-core");
+    SIDWebAPI = SIDCore.default.WebApi;
+  }
+  return SIDWebAPI;
+}
 
 export type SmileIDIdInfo = {
   country: string; 
@@ -43,7 +50,8 @@ export async function submitSmileIDJob({ images, partner_params, walletAddress, 
   const jobType = getJobTypeForIdType(id_info.id_type);
 
   // Initialize SmileID Web API
-  const connection = new SIDWebAPI(
+  const WebApiClass = await getSIDWebAPI();
+  const connection = new WebApiClass(
     partnerId,
     callbackUrl,
     apiKey,

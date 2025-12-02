@@ -48,7 +48,7 @@ export default function TransactionLimitModal({
 
     // Auto-open phone verification modal if tier is less than 1 (unverified)
     useEffect(() => {
-        if (isOpen && !isLoading && (tier < 1 || tier === undefined || !phoneNumber)) {
+        if (isOpen && !isLoading && ((tier < 1 && !phoneNumber) || tier === undefined)) {
             setIsPhoneModalOpen(true);
         }
     }, [isOpen, isLoading, tier]);
@@ -136,7 +136,7 @@ export default function TransactionLimitModal({
                     {tier < 1 ? (
                         <>Tier 0 gives you ${formatNumberWithCommas(currentLimits.monthly)}/month. Verify your ID to unlock ${nextTier ? formatNumberWithCommas(nextTier.limits.monthly) : '1,000'}/month and beyond. <span className="text-lavender-600 dark:text-lavender-600 cursor-pointer">Learn more.</span></>
                     ) : (
-                        <>You're currently at {currentTier?.name} with ${formatNumberWithCommas(currentLimits.monthly)}/month. {nextTier ? `Upgrade to ${nextTier.name} for ${formatNumberWithCommas(nextTier.limits.monthly)}/month` : 'You have the highest tier available'}. <span className="text-lavender-600 dark:text-lavender-400 underline cursor-pointer">Learn more.</span></>
+                        <>You&apos;re currently at {currentTier?.name} with ${formatNumberWithCommas(currentLimits.monthly)}/month. {nextTier ? `Upgrade to ${nextTier.name} for ${formatNumberWithCommas(nextTier.limits.monthly)}/month` : 'You have the highest tier available'}. <span className="text-lavender-600 dark:text-lavender-400 underline cursor-pointer">Learn more.</span></>
                     )}
                 </p>
             </div>

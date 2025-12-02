@@ -30,7 +30,6 @@ import {
 } from "../utils";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
-import { fetchKYCStatus } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import {
@@ -69,7 +68,7 @@ export const TransactionForm = ({
   const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
-  const { canTransact, tier, isPhoneVerified, refreshStatus } = useKYCStatus();
+  const { canTransact, refreshStatus, isFullyVerified } = useKYCStatus();
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -270,34 +269,13 @@ export const TransactionForm = ({
   );
 
   useEffect(
-    function checkKycStatus() {
+    function refreshKycStatus() {
       const walletAddressToCheck = isInjectedWallet
         ? injectedAddress
         : embeddedWalletAddress;
       if (!walletAddressToCheck) return;
 
-      const fetchStatus = async () => {
-        try {
-          const response = await fetchKYCStatus(walletAddressToCheck);
-          if (response.data.status === "pending") {
-            setIsLimitModalOpen(true);
-          } else if (response.data.status === "success") {
-            setIsUserVerified(true);
-            await refreshStatus(); // Refresh KYC tier status
-          }
-        } catch (error) {
-          if (
-            error instanceof Error &&
-            (error as any).response?.status === 404
-          ) {
-            // silently fail if user is not found/verified
-          } else {
-            console.log("error", error);
-          }
-        }
-      };
-
-      fetchStatus();
+      refreshStatus();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [embeddedWalletAddress, injectedAddress, isInjectedWallet],
@@ -452,7 +430,7 @@ export const TransactionForm = ({
     balance,
     isDirty,
     isValid,
-    isUserVerified,
+    isUserVerified: isFullyVerified,
     rate,
     tokenDecimals,
   });
@@ -810,7 +788,7 @@ export const TransactionForm = ({
         <AnimatePresence>
           {currency &&
             (authenticated || isInjectedWallet) &&
-            isUserVerified && (
+            isFullyVerified && (
               <AnimatedComponent
                 variant={slideInOut}
                 className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-white/5"
@@ -896,7 +874,7 @@ export const TransactionForm = ({
                       ?.address as `0x${string}`) ?? "",
                   ),
                 () => setIsLimitModalOpen(true),
-                isUserVerified,
+                isFullyVerified,
               )}
             >
               {buttonText}

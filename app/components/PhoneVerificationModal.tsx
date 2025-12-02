@@ -198,7 +198,7 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [otpCode, formattedPhone, walletAddress, onVerified, onClose]);
+  }, [otpCode, formattedPhone, walletAddress]);
 
   const handleResendOtp = useCallback(async () => {
     setIsLoading(true);
@@ -452,7 +452,7 @@ export default function PhoneVerificationModal({
         )}
 
              <div className="text-start text-sm text-text-secondary dark:text-white/50">
-        Didn't receive a code?{' '}
+        Didn&apos;t receive a code?{' '}
         <button
           type="button"
           onClick={handleResendOtp}
@@ -514,7 +514,7 @@ export default function PhoneVerificationModal({
         }}
         className={`${primaryBtnClasses} w-full`}
       >
-        Let's go!
+        Let&apos;s go!
       </button>
     </motion.div>
   );

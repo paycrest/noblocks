@@ -860,7 +860,10 @@ export const TransactionForm = ({
 
         <TransactionLimitModal
           isOpen={isLimitModalOpen}
-          onClose={() => setIsLimitModalOpen(false)}
+           onClose={async () => {
+            setIsLimitModalOpen(false);
+            await refreshStatus();
+          }}
           transactionAmount={blockedTransactionAmount}
         />
 

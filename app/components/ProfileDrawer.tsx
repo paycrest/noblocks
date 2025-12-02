@@ -384,7 +384,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                                             </div>
 
                                             {/* Upgrade Button */}
-                                            {tier <= 2 && isFullyVerified  && (
+                                            {tier < 2 && !isFullyVerified && (
                                                 <button
                                                     type="button"
                                                     onClick={() => {

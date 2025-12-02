@@ -1,52 +1,49 @@
-
 -- Create user_kyc_profiles table for managing user KYC and verification
-CREATE TABLE user_kyc_profiles (
-  wallet_address TEXT PRIMARY KEY,
-  wallet_signature TEXT,
-  phone_number TEXT NOT NULL,
-  name TEXT,
-  otp_code TEXT,
-  expires_at TIMESTAMP WITH TIME ZONE,
-  verified BOOLEAN DEFAULT FALSE,
-  verified_at TIMESTAMP WITH TIME ZONE,
-  smile_job_id TEXT,
-  id_info JSONB,
-  image_links JSONB,
-  tier INTEGER DEFAULT 0 CHECK (tier IN (0, 1, 2)),
-  provider TEXT CHECK (provider IN ('termii', 'twilio')),
-  attempts INTEGER DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+
+create table public.user_kyc_profiles (
+  wallet_address text not null,
+  user_id text null,
+  phone_number text null,
+  email_address text null,
+  full_name text null,
+  date_of_birth date null,
+  id_type text null,
+  id_number text null,
+  id_country text null,
+  address_street text null,
+  address_city text null,
+  address_state text null,
+  address_country text null,
+  address_postal_code text null,
+  business_name text null,
+  platform jsonb null default '[]'::jsonb,
+  otp_code text null,
+  expires_at timestamp with time zone null,
+  provider text null,
+  attempts integer null default 0,
+  tier integer null default 0,
+  verified boolean null default false,
+  verified_at timestamp with time zone null,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  constraint user_kyc_profiles_pkey primary key (wallet_address),
+  constraint user_kyc_profiles_provider_check check (
+    (
+      provider = any (array['termii'::text, 'twilio'::text])
+    )
+  ),
+  constraint user_kyc_profiles_tier_check check ((tier = any (array[0, 1, 2, 3, 4])))
+) TABLESPACE pg_default;
 
 -- Create indexes for faster lookups
-CREATE INDEX idx_user_kyc_profiles_phone ON user_kyc_profiles(phone_number);
-CREATE INDEX idx_user_kyc_profiles_verified ON user_kyc_profiles(verified);
-CREATE INDEX idx_user_kyc_profiles_tier ON user_kyc_profiles(tier);
+create index IF not exists idx_user_kyc_profiles_tier on public.user_kyc_profiles using btree (tier) TABLESPACE pg_default;
+create index IF not exists idx_user_kyc_profiles_id_number on public.user_kyc_profiles using btree (id_number) TABLESPACE pg_default;
+create index IF not exists idx_user_kyc_profiles_platform on public.user_kyc_profiles using gin (platform) TABLESPACE pg_default;
+create index IF not exists idx_user_kyc_profiles_user_id on public.user_kyc_profiles using btree (user_id) TABLESPACE pg_default;
+create index IF not exists idx_user_kyc_profiles_phone on public.user_kyc_profiles using btree (phone_number) TABLESPACE pg_default;
+create index IF not exists idx_user_kyc_profiles_email on public.user_kyc_profiles using btree (email_address) TABLESPACE pg_default;
+create index IF not exists idx_user_kyc_profiles_verified on public.user_kyc_profiles using btree (verified) TABLESPACE pg_default;
 
--- Create function to update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_user_kyc_profiles_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ language 'plpgsql';
-
--- Create trigger to automatically update updated_at
-CREATE TRIGGER update_user_kyc_profiles_updated_at
-  BEFORE UPDATE ON user_kyc_profiles
-  FOR EACH ROW
-  EXECUTE FUNCTION update_user_kyc_profiles_updated_at();
-
--- Add RLS (Row Level Security) policies
-ALTER TABLE user_kyc_profiles ENABLE ROW LEVEL SECURITY;
-
--- Policy: Users can only access their own KYC profile (based on wallet address)
--- Note: This assumes wallet_address is available in the JWT token or session
-CREATE POLICY "Users can manage their own KYC profile" ON user_kyc_profiles
-  FOR ALL USING (wallet_address = current_setting('app.wallet_address', true));
-
--- Policy: Service role can access all records (for API operations)
-CREATE POLICY "Service role can access all user KYC profiles" ON user_kyc_profiles
-  FOR ALL TO service_role USING (true);
+create trigger update_user_kyc_profiles_updated_at BEFORE
+update on user_kyc_profiles for EACH row
+execute FUNCTION update_user_kyc_profiles_updated_at ();

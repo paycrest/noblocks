@@ -150,6 +150,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://blockscout.lisk.com/tx/${txHash}`;
     case "Hedera Mainnet":
       return `https://hashscan.io/mainnet/transaction/${txHash}`;
+    case "Ethereum":
+      return `https://etherscan.io/tx/${txHash}`;
     default:
       return "";
   }
@@ -172,6 +174,8 @@ export function getRpcUrl(network: string) {
       return `https://1135.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Hedera Mainnet":
       return "https://mainnet.hashio.io/api";
+    case "Ethereum":
+      return `https://1.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     default:
       return undefined;
   }
@@ -352,6 +356,29 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
   ],
+  Ethereum: [
+  {
+    name: "USD Coin",
+    symbol: "USDC",
+    decimals: 6,
+    address: "0xa0b86991c431714b098c5c730b9e1c5e8b5b8e8b5", // USDC on Ethereum
+    imageUrl: "/logos/usdc-logo.svg",
+  },
+  {
+    name: "Tether USD", 
+    symbol: "USDT",
+    decimals: 6,
+    address: "0xdac17f958d2ee523a2206206994597c13d831ec7", // USDT on Ethereum
+    imageUrl: "/logos/usdt-logo.svg",
+  },
+      {
+      name: "cNGN",
+      symbol: "cNGN",
+      decimals: 6,
+      address: "0xd076ceCB8af5D92F7f6F32bDf24Da708859593d3", // cNGN on Ethereum
+      imageUrl: "/logos/cngn-logo.svg",
+    },
+],
 };
 
 /**
@@ -601,6 +628,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
     Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
     "Hedera Mainnet": "0x17d13B7032944af8B420Ac5bedb12a7D92270478",
+    Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5"
   }[network];
 }
 

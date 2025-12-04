@@ -266,6 +266,7 @@ export type Config = {
   farcasterPayload: string;
   farcasterSignature: string;
   supabaseUrl: string;
+  supabaseRoleKey: string;
   appUrl: string;
   aggregatorUrl: string;
   privyAppId: string;
@@ -277,7 +278,6 @@ export type Config = {
   cdpApiKey?: string;
   brevoConversationsId: string; // Brevo chat widget ID
   blockfestEndDate: string; // BlockFest campaign end date
-  cdpApiKey?: string;
 };
 
 export type Network = {

@@ -70,7 +70,6 @@
     "sonner": "^1.7.4",
     "styled-components": "^6.1.19",
     "thirdweb": "^5.102.6",
-    "wagmi": "^2.16.9"
     "tls": "^0.0.1",
     "viem": "^2.31.0",
     "wagmi": "^2.16.9"

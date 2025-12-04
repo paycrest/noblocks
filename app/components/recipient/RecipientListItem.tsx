@@ -2,6 +2,7 @@ import { Button } from "@headlessui/react";
 import { RecipientListItemProps } from "@/app/components/recipient/types";
 import { classNames, getRandomColor } from "@/app/utils";
 import { Delete01Icon } from "hugeicons-react";
+import { ImSpinner } from "react-icons/im";
 
 export const RecipientListItem = ({
   recipient,
@@ -52,12 +53,21 @@ export const RecipientListItem = ({
         e.stopPropagation();
         onDelete(recipient);
       }}
-      className="group/btn scale-0 transform rounded-lg p-2 opacity-0 transition-all duration-200 hover:bg-red-100 group-hover:scale-100 group-hover:opacity-100 dark:hover:bg-red-100/10"
+      className={`group/btn transform rounded-lg p-2 transition-all duration-200 hover:bg-red-100 dark:hover:bg-red-100/10 ${
+        isBeingDeleted
+          ? "scale-100 opacity-100"
+          : "scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100"
+      }`}
+      disabled={isBeingDeleted}
     >
-      <Delete01Icon
-        className="size-4 text-icon-outline-secondary transition-colors group-hover/btn:text-red-500 dark:text-white/50 dark:group-hover/btn:text-red-400"
-        strokeWidth={2}
-      />
+      {isBeingDeleted ? (
+        <ImSpinner className="size-4 animate-spin text-icon-outline-secondary dark:text-white/50" />
+      ) : (
+        <Delete01Icon
+          className="size-4 text-icon-outline-secondary transition-colors group-hover/btn:text-red-500 dark:text-white/50 dark:group-hover/btn:text-red-400"
+          strokeWidth={2}
+        />
+      )}
     </Button>
   </div>
 );

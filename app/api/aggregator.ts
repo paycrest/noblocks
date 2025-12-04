@@ -15,7 +15,16 @@ import type {
   UpdateTransactionDetailsPayload,
   UpdateTransactionStatusPayload,
   APIToken,
+  RecipientDetails,
+  RecipientDetailsWithId,
+  SavedRecipientsResponse,
 } from "../types";
+import {
+  trackServerEvent,
+  trackBusinessEvent,
+  trackApiRequest,
+  trackApiResponse,
+} from "../lib/server-analytics";
 
 const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
 
@@ -37,7 +46,21 @@ export const fetchRate = async ({
   providerId,
   network,
 }: RatePayload): Promise<RateResponse> => {
+  const startTime = Date.now();
+
   try {
+    // Track external API request
+    trackServerEvent("External API Request", {
+      service: "aggregator",
+      endpoint: "/rates",
+      method: "GET",
+      token,
+      amount,
+      currency,
+      provider_id: providerId,
+      network,
+    });
+
     const endpoint = `${AGGREGATOR_URL}/rates/${token}/${amount}/${currency}`;
     const params: Record<string, string> = {};
 
@@ -51,6 +74,28 @@ export const fetchRate = async ({
     const response = await axios.get(endpoint, { params });
     const { data } = response;
 
+    // Track successful response
+    const responseTime = Date.now() - startTime;
+    trackApiResponse("/rates", "GET", 200, responseTime, {
+      service: "aggregator",
+      token,
+      amount,
+      currency,
+      provider_id: providerId,
+      network,
+      rate: data.data,
+    });
+
+    // Track business event
+    trackBusinessEvent("Rate Fetched", {
+      token,
+      amount,
+      currency,
+      provider_id: providerId,
+      network,
+      rate: data.data,
+    });
+
     // Check the API response status first
     if (data.status === "error") {
       throw new Error(data.message || "Provider not found");
@@ -58,6 +103,22 @@ export const fetchRate = async ({
 
     return data;
   } catch (error) {
+    const responseTime = Date.now() - startTime;
+
+    // Track API error
+    trackServerEvent("External API Error", {
+      service: "aggregator",
+      endpoint: "/rates",
+      method: "GET",
+      token,
+      amount,
+      currency,
+      provider_id: providerId,
+      network,
+      error_message: error instanceof Error ? error.message : "Unknown error",
+      response_time_ms: responseTime,
+    });
+
     if (axios.isAxiosError(error)) {
       const message = error.response?.data?.message || error.message;
       throw new Error(message);
@@ -111,14 +172,53 @@ export const fetchAggregatorPublicKey = async (): Promise<PubkeyResponse> => {
 export const fetchAccountName = async (
   payload: VerifyAccountPayload,
 ): Promise<string> => {
+  const startTime = Date.now();
+
   try {
+    // Track external API request
+    trackServerEvent("External API Request", {
+      service: "aggregator",
+      endpoint: "/verify-account",
+      method: "POST",
+      institution: payload.institution,
+      // account_identifier omitted to avoid PII in analytics
+    });
+
     const response = await axios.post(
       `${AGGREGATOR_URL}/verify-account`,
       payload,
     );
+
+    // Track successful response
+    const responseTime = Date.now() - startTime;
+    trackApiResponse("/verify-account", "POST", 200, responseTime, {
+      service: "aggregator",
+      institution: payload.institution,
+      // account_identifier omitted
+      // account_name omitted
+    });
+
+    // Track business event
+    trackBusinessEvent("Account Verification", {
+      institution: payload.institution,
+    });
+
     return response.data.data;
   } catch (error) {
-    console.error("Error fetching supported institutions:", error);
+    const responseTime = Date.now() - startTime;
+
+    // Track API error
+    trackServerEvent("External API Error", {
+      service: "aggregator",
+      endpoint: "/verify-account",
+      method: "POST",
+      institution: payload.institution,
+      // account_identifier omitted
+      error_message: error instanceof Error ? error.message : "Unknown error",
+      response_time_ms: responseTime,
+    });
+
+    console.error("Error fetching account name:", error);
     throw error;
   }
 };
@@ -153,10 +253,46 @@ export const fetchOrderDetails = async (
 export const initiateKYC = async (
   payload: InitiateKYCPayload,
 ): Promise<InitiateKYCResponse> => {
+  const startTime = Date.now();
+
   try {
+    // Track external API request
+    trackServerEvent("External API Request", {
+      service: "aggregator",
+      endpoint: "/kyc",
+      method: "POST",
+      wallet_address: payload.walletAddress,
+    });
+
     const response = await axios.post(`${AGGREGATOR_URL}/kyc`, payload);
+
+    // Track successful response
+    const responseTime = Date.now() - startTime;
+    trackApiResponse("/kyc", "POST", 200, responseTime, {
+      service: "aggregator",
+      wallet_address: payload.walletAddress,
+      // kyc_url omitted
+    });
+
+    // Track business event
+    trackBusinessEvent("KYC Initiated", {
+      wallet_address: payload.walletAddress,
+    });
+
     return response.data;
   } catch (error) {
+    const responseTime = Date.now() - startTime;
+
+    // Track API error
+    trackServerEvent("External API Error", {
+      service: "aggregator",
+      endpoint: "/kyc",
+      method: "POST",
+      wallet_address: payload.walletAddress,
+      error_message: error instanceof Error ? error.message : "Unknown error",
+      response_time_ms: responseTime,
+    });
+
     throw error;
   }
 };
@@ -170,10 +306,47 @@ export const initiateKYC = async (
 export const fetchKYCStatus = async (
   walletAddress: string,
 ): Promise<KYCStatusResponse> => {
+  const startTime = Date.now();
+
   try {
+    // Track external API request
+    trackServerEvent("External API Request", {
+      service: "aggregator",
+      endpoint: "/kyc/status",
+      method: "GET",
+      wallet_address: walletAddress,
+    });
+
     const response = await axios.get(`${AGGREGATOR_URL}/kyc/${walletAddress}`);
+
+    // Track successful response
+    const responseTime = Date.now() - startTime;
+    trackApiResponse("/kyc/status", "GET", 200, responseTime, {
+      service: "aggregator",
+      wallet_address: walletAddress,
+      kyc_status: response.data.data?.status,
+    });
+
+    // Track business event
+    trackBusinessEvent("KYC Status Checked", {
+      wallet_address: walletAddress,
+      kyc_status: response.data.data?.status,
+    });
+
     return response.data;
   } catch (error) {
+    const responseTime = Date.now() - startTime;
+
+    // Track API error
+    trackServerEvent("External API Error", {
+      service: "aggregator",
+      endpoint: "/kyc/status",
+      method: "GET",
+      wallet_address: walletAddress,
+      error_message: error instanceof Error ? error.message : "Unknown error",
+      response_time_ms: responseTime,
+    });
+
     throw error;
   }
 };
@@ -318,6 +491,107 @@ export async function updateTransactionDetails({
 }
 
 /**
+ * Reindexes a transaction on the Paycrest API with exponential retry
+ * @param {string} network - The network identifier (e.g., "base", "bnb-smart-chain", "polygon")
+ * @param {string} txHash - The transaction hash to reindex
+ * @param {number} retryCount - Current retry attempt (internal use)
+ * @param {number} maxRetries - Maximum number of retries (default: 3)
+ * @returns {Promise<any>} The reindex response
+ * @throws {Error} If the API request fails after all retries
+ */
+export async function reindexTransaction(
+  network: string,
+  txHash: string,
+  retryCount: number = 0,
+  maxRetries: number = 3,
+): Promise<any> {
+  const startTime = Date.now();
+
+  try {
+    // Track external API request
+    trackServerEvent("External API Request", {
+      service: "aggregator",
+      endpoint: `/reindex/${network}/${txHash}`,
+      method: "GET",
+      network,
+      tx_hash: txHash,
+      retry_attempt: retryCount,
+    });
+
+    const endpoint = `${AGGREGATOR_URL}/reindex/${network}/${txHash}`;
+    const response = await axios.get(endpoint);
+
+    // Track successful response (2xx status)
+    const responseTime = Date.now() - startTime;
+    const status = response.status;
+
+    trackApiResponse(
+      `/reindex/${network}/${txHash}`,
+      "GET",
+      status,
+      responseTime,
+      {
+        service: "aggregator",
+        network,
+        tx_hash: txHash,
+        retry_attempt: retryCount,
+      },
+    );
+
+    // Track business event
+    trackBusinessEvent("Transaction Reindexed", {
+      network,
+      tx_hash: txHash,
+      retry_attempt: retryCount,
+    });
+
+    return response.data;
+  } catch (error: any) {
+    const responseTime = Date.now() - startTime;
+    const status = error.response?.status;
+
+    // Check if we should retry:
+    // 1. Network errors (no response) - retry (transient)
+    // 2. 5xx server errors - retry (transient)
+    // 3. 4xx client errors - do NOT retry (bad request, fail fast)
+    // Note: axios throws errors for status >= 400, so 2xx responses won't reach here
+    const isNetworkError = !error.response;
+    const is5xxError = status !== undefined && status >= 500;
+    // retryCount + 1 represents the next attempt number; ensure it doesn't exceed maxRetries
+    const shouldRetry =
+      (isNetworkError || is5xxError) && retryCount + 1 < maxRetries;
+
+    if (shouldRetry) {
+      const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
+      const errorType = isNetworkError ? "network error" : `status ${status}`;
+      console.debug(
+        `Reindex failed with ${errorType}, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay)); // sleep for delay
+      return reindexTransaction(network, txHash, retryCount + 1, maxRetries);
+    }
+
+    // Track API error
+    trackApiResponse(
+      `/reindex/${network}/${txHash}`,
+      "GET",
+      status,
+      responseTime,
+      {
+        service: "aggregator",
+        network,
+        tx_hash: txHash,
+        error: error.message,
+        retry_attempt: retryCount,
+      },
+    );
+
+    // Re-throw error for caller to handle
+    throw error;
+  }
+}
+
+/**
  * Fetches the list of supported tokens from the aggregator API
  * @returns {Promise<APIToken[]>} Array of supported tokens from the API
  * @throws {Error} If the API request fails
@@ -334,3 +608,166 @@ export const fetchTokens = async (): Promise<APIToken[]> => {
     throw error;
   }
 };
+
+/**
+ * Fetches saved recipients for a wallet address
+ * @param {string} accessToken - The access token for authentication
+ * @returns {Promise<RecipientDetailsWithId[]>} Array of saved recipients
+ * @throws {Error} If the API request fails
+ */
+export async function fetchSavedRecipients(
+  accessToken: string,
+): Promise<RecipientDetailsWithId[]> {
+  const response = await axios.get<SavedRecipientsResponse>(
+    "/api/v1/recipients",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+
+  if (!response.data.success) {
+    throw new Error(response.data.error || "Failed to fetch recipients");
+  }
+
+  return response.data.data;
+}
+
+/**
+ * Saves a new recipient
+ * @param {RecipientDetails} recipient - The recipient data to save
+ * @param {string} accessToken - The access token for authentication
+ * @returns {Promise<boolean>} Success status
+ * @throws {Error} If the API request fails
+ */
+export async function saveRecipient(
+  recipient: RecipientDetails,
+  accessToken: string,
+): Promise<boolean> {
+  try {
+    const response = await axios.post("/api/v1/recipients", recipient, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.data.success) {
+      throw new Error(response.data.error || "Failed to save recipient");
+    }
+
+    return true;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const errorData = error.response?.data;
+      throw new Error(errorData?.error || error.message);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Deletes a saved recipient
+ * @param {string} recipientId - The ID of the recipient to delete
+ * @param {string} accessToken - The access token for authentication
+ * @returns {Promise<boolean>} Success status
+ * @throws {Error} If the API request fails
+ */
+export async function deleteSavedRecipient(
+  recipientId: string,
+  accessToken: string,
+): Promise<boolean> {
+  const response = await axios.delete(`/api/v1/recipients?id=${recipientId}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.data.success) {
+    throw new Error(response.data.error || "Failed to delete recipient");
+  }
+
+  return true;
+}
+
+/**
+ * Migrates recipients from localStorage to Supabase
+ * @param {string} accessToken - The access token for authentication
+ * @returns {Promise<void>}
+ */
+export async function migrateLocalStorageRecipients(
+  accessToken: string,
+): Promise<void> {
+  const migrationKey = `recipientsMigrated-${localStorage.getItem("userId")}`;
+
+  // Check if migration has already been done
+  if (localStorage.getItem(migrationKey)) {
+    return;
+  }
+
+  try {
+    const savedRecipients = localStorage.getItem("savedRecipients");
+    if (!savedRecipients) {
+      localStorage.setItem(migrationKey, "true");
+      return;
+    }
+
+    const recipients: RecipientDetails[] = JSON.parse(savedRecipients);
+
+    if (!Array.isArray(recipients) || recipients.length === 0) {
+      localStorage.setItem(migrationKey, "true");
+      return;
+    }
+
+    // First, fetch existing recipients from DB to check for duplicates
+    const existingRecipients = await fetchSavedRecipients(accessToken);
+    const existingKeys = new Set(
+      existingRecipients.map(
+        (r) => `${r.institutionCode}-${r.accountIdentifier}`,
+      ),
+    );
+
+    // Filter out duplicates - only migrate recipients that don't exist in DB
+    const recipientsToMigrate = recipients.filter((recipient) => {
+      const key = `${recipient.institutionCode}-${recipient.accountIdentifier}`;
+      return !existingKeys.has(key);
+    });
+
+    if (recipientsToMigrate.length === 0) {
+      console.log("All recipients already exist in cloud storage");
+      localStorage.removeItem("savedRecipients");
+      localStorage.setItem(migrationKey, "true");
+      return;
+    }
+
+    // Migrate only new recipients to Supabase using batch processing
+    const migrationPromises = recipientsToMigrate.map(async (recipient) => {
+      try {
+        await saveRecipient(recipient, accessToken);
+        return { success: true, recipient };
+      } catch (error) {
+        console.error(`Failed to migrate recipient ${recipient.name}:`, error);
+        return { success: false, recipient, error };
+      }
+    });
+
+    // Wait for all migrations to complete
+    const results = await Promise.all(migrationPromises);
+
+    const migratedCount = results.filter((r) => r.success).length;
+    const failedCount = results.filter((r) => !r.success).length;
+
+    if (migratedCount > 0) {
+      console.log(`Migrated ${migratedCount} recipients to cloud storage`);
+    }
+    if (failedCount > 0) {
+      console.warn(`Failed to migrate ${failedCount} recipients`);
+    }
+
+    localStorage.removeItem("savedRecipients");
+    localStorage.setItem(migrationKey, "true");
+  } catch (error) {
+    console.error("Error migrating recipients:", error);
+    // Don't throw - let the app continue even if migration fails
+  }
+}

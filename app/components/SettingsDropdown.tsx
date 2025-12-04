@@ -13,9 +13,7 @@ import { useOutsideClick } from "../hooks";
 import { classNames, shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 import {
-  AccessIcon,
   Copy01Icon,
-  CustomerService01Icon,
   Logout03Icon,
   Mail01Icon,
   Setting07Icon,
@@ -23,20 +21,19 @@ import {
   Key01Icon,
 } from "hugeicons-react";
 import { toast } from "sonner";
-import config from "@/app/lib/config";
 import { useInjectedWallet } from "../context";
-import { createWalletClient, custom } from "viem";
-import { trackEvent } from "../hooks/analytics";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
+import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 
 export const SettingsDropdown = () => {
-  const { user, exportWallet, updateEmail } = usePrivy();
+  const { user, updateEmail } = usePrivy();
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({
@@ -53,6 +50,7 @@ export const SettingsDropdown = () => {
     navigator.clipboard.writeText(walletAddress ?? "");
     setIsAddressCopied(true);
     setTimeout(() => setIsAddressCopied(false), 2000);
+    setIsWarningModalOpen(true);
   };
 
   const { logout } = useLogout({
@@ -74,9 +72,61 @@ export const SettingsDropdown = () => {
 
   const { disconnectWallet } = useWalletDisconnect();
 
+  // Helper function for fallback fetch with timeout
+  const trackLogoutWithFetch = (payload: {
+    walletAddress: string;
+    logoutMethod: string;
+  }) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+
+    fetch("/api/track-logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    })
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          console.warn("Logout tracking failed:", error);
+        }
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
+      });
+  };
+
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
+      // Track server-side logout before client-side logout (non-blocking)
+      if (walletAddress) {
+        const trackingPayload = {
+          walletAddress,
+          logoutMethod: "settings_dropdown",
+        };
+
+        // Use navigator.sendBeacon when available for better reliability
+        if (navigator.sendBeacon) {
+          try {
+            navigator.sendBeacon(
+              "/api/track-logout",
+              JSON.stringify(trackingPayload),
+            );
+          } catch (beaconError) {
+            console.warn(
+              "sendBeacon failed, falling back to fetch:",
+              beaconError,
+            );
+            // Fallback to fetch with timeout
+            trackLogoutWithFetch(trackingPayload);
+          }
+        } else {
+          // Fallback to fetch with timeout
+          trackLogoutWithFetch(trackingPayload);
+        }
+      }
+
       await logout();
       if (window.ethereum) {
         await disconnectWallet();
@@ -217,20 +267,6 @@ export const SettingsDropdown = () => {
                   <p>Export wallet</p>
                 </li>
               )} */}
-              <li
-                role="menuitem"
-                className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
-              >
-                <a
-                  href={config.contactSupportUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2.5"
-                >
-                  <CustomerService01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-                  <p>Contact support</p>
-                </a>
-              </li>
               {!isInjectedWallet && (
                 <li
                   role="menuitem"
@@ -249,6 +285,12 @@ export const SettingsDropdown = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <CopyAddressWarningModal
+        isOpen={isWarningModalOpen}
+        onClose={() => setIsWarningModalOpen(false)}
+        address={walletAddress ?? ""}
+      />
     </div>
   );
 };

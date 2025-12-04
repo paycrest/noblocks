@@ -13,7 +13,7 @@ import { baseBtnClasses } from "./Styles";
 import { WalletDetails } from "./WalletDetails";
 import { NetworksDropdown } from "./NetworksDropdown";
 import { SettingsDropdown } from "./SettingsDropdown";
-import { identifyUser, trackEvent } from "../hooks/analytics";
+import { identifyUser, trackEvent } from "../hooks/analytics/client";
 import {
   shortenAddress,
   IS_MAIN_PRODUCTION_DOMAIN,
@@ -55,6 +55,8 @@ export const Navbar = () => {
           createdAt: user.createdAt,
           email: user.email,
         });
+
+        localStorage.setItem("userId", user.wallet.address);
 
         if (isNewUser) {
           localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address}`);
@@ -172,15 +174,29 @@ export const Navbar = () => {
 
             {/* Blog Link - Desktop Only - Hidden in mini mode */}
             {!pathname.startsWith("/blog") && !isMiniMode && (
+            {/* Home Link */}
+            {pathname !== "/" && (
               <div className="hidden items-center sm:flex">
-                <Link
-                  href="/blog"
-                  className={` ${IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"} text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
-                >
-                  Blog
-                </Link>
-              </div>
-            )}
+    <Link
+      href="/"
+      className={` ${IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"} text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
+    >
+      Home
+    </Link>
+  </div>
+)}
+
+{/* Blog Link - Desktop Only - Hidden in mini mode */}
+{!pathname.startsWith("/blog") && !isMiniMode && (
+  <div className="hidden items-center sm:flex">
+    <Link
+      href="/blog"
+      className={` ${IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"} text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
+    >
+      Blog
+    </Link>
+  </div>
+)}
 
             {/* Swap Link - Show on /blog and nested blog routes - Hidden in mini mode */}
             {pathname.startsWith("/blog") && !isMiniMode && (

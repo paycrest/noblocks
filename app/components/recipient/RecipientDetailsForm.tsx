@@ -8,13 +8,18 @@ import { AnimatedFeedbackItem } from "../AnimatedComponents";
 import { InstitutionProps } from "@/app/types";
 import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
+import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames, getSavedRecipients } from "@/app/utils";
+import { classNames } from "@/app/utils";
 import {
-  LOCAL_STORAGE_KEY_RECIPIENTS,
   RecipientDetails,
   RecipientDetailsFormProps,
 } from "@/app/components/recipient/types";
+import type { RecipientDetailsWithId } from "@/app/types";
+import {
+  fetchSavedRecipients,
+  deleteSavedRecipient,
+} from "@/app/api/aggregator";
 import { SavedBeneficiariesModal } from "@/app/components/recipient/SavedBeneficiariesModal";
 import { SelectBankModal } from "@/app/components/recipient/SelectBankModal";
 
@@ -34,6 +39,8 @@ export const RecipientDetailsForm = ({
     formState: { errors },
   } = formMethods;
 
+  const { getAccessToken, ready, authenticated, user } = usePrivy();
+
   const { currency } = watch();
   const institution = watch("institution");
   const accountIdentifier = watch("accountIdentifier");
@@ -52,9 +59,11 @@ export const RecipientDetailsForm = ({
   const [isFetchingRecipientName, setIsFetchingRecipientName] = useState(false);
   const [recipientNameError, setRecipientNameError] = useState("");
 
-  const [savedRecipients, setSavedRecipients] = useState<RecipientDetails[]>(
-    [],
-  );
+  const [savedRecipients, setSavedRecipients] = useState<
+    RecipientDetailsWithId[]
+  >([]);
+  const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
+  const [recipientsError, setRecipientsError] = useState<string | null>(null);
 
   const [recipientToDelete, setRecipientToDelete] =
     useState<RecipientDetails | null>(null);
@@ -118,38 +127,108 @@ export const RecipientDetailsForm = ({
     setIsModalOpen(false);
   };
 
-  const deleteRecipient = (recipientToDelete: RecipientDetails) => {
-    setRecipientToDelete(recipientToDelete);
-    setTimeout(() => {
-      const updatedRecipients = savedRecipients.filter(
+  const deleteRecipient = async (recipientToDeleteParam: RecipientDetails) => {
+    setRecipientToDelete(recipientToDeleteParam);
+
+    try {
+      // Find the recipient with ID from the saved recipients
+      const recipientWithId = savedRecipients.find(
         (r) =>
-          r.accountIdentifier !== recipientToDelete.accountIdentifier ||
-          r.institution !== recipientToDelete.institution,
+          r.accountIdentifier === recipientToDeleteParam.accountIdentifier &&
+          r.institutionCode === recipientToDeleteParam.institutionCode,
       );
 
-      setSavedRecipients(updatedRecipients);
-
-      localStorage.setItem(
-        LOCAL_STORAGE_KEY_RECIPIENTS,
-        JSON.stringify(updatedRecipients),
-      );
-
-      if (
-        selectedRecipient?.accountIdentifier ===
-        recipientToDelete.accountIdentifier
-      ) {
-        setSelectedRecipient(null);
+      if (!recipientWithId) {
+        console.error("Recipient not found for deletion");
+        return;
       }
+
+      // Delete from API
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        console.error("No access token available");
+        return;
+      }
+
+      const success = await deleteSavedRecipient(
+        recipientWithId.id,
+        accessToken,
+      );
+
+      if (success) {
+        // Update local state after successful API deletion
+        const updatedRecipients = savedRecipients.filter(
+          (r) => r.id !== recipientWithId.id,
+        );
+
+        setSavedRecipients(updatedRecipients);
+
+        if (
+          selectedRecipient?.accountIdentifier ===
+            recipientToDeleteParam.accountIdentifier &&
+          selectedRecipient?.institutionCode ===
+            recipientToDeleteParam.institutionCode
+        ) {
+          setSelectedRecipient(null);
+        }
+      } else {
+        setRecipientsError("Failed to delete recipient");
+      }
+    } catch (error) {
+      console.error("Error deleting recipient:", error);
+      setRecipientsError("Failed to delete recipient");
+    } finally {
+      // Always clear deletion loading state
       setRecipientToDelete(null);
-    }, 300); // delay deletion to allow for animation
+    }
   };
 
   // * USE EFFECTS
 
   useEffect(() => {
-    const savedRecipients = getSavedRecipients(LOCAL_STORAGE_KEY_RECIPIENTS);
-    setSavedRecipients(savedRecipients);
-  }, []);
+    let isCancelled = false;
+
+    const loadRecipients = async () => {
+      // Wait until Privy is ready to avoid false auth errors
+      if (!ready) return;
+
+      // If unauthenticated, clear state and exit
+      if (!authenticated) {
+        if (!isCancelled) {
+          setSavedRecipients([]);
+          setRecipientsError(null);
+          setIsLoadingRecipients(false);
+        }
+        return;
+      }
+
+      if (!isCancelled) {
+        setIsLoadingRecipients(true);
+        setRecipientsError(null);
+      }
+
+      try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          if (!isCancelled) setRecipientsError("Authentication required");
+          return;
+        }
+
+        const recipients = await fetchSavedRecipients(accessToken);
+        if (!isCancelled) setSavedRecipients(recipients);
+      } catch (error) {
+        console.error("Error loading recipients:", error);
+        if (!isCancelled) setRecipientsError("Failed to load saved recipients");
+      } finally {
+        if (!isCancelled) setIsLoadingRecipients(false);
+      }
+    };
+
+    loadRecipients();
+    return () => {
+      isCancelled = true;
+    };
+  }, [ready, authenticated, user?.id, getAccessToken]);
 
   useEffect(() => {
     if (selectedInstitution) {
@@ -394,6 +473,8 @@ export const RecipientDetailsForm = ({
         recipientToDelete={recipientToDelete}
         currency={currency}
         institutions={institutions}
+        isLoading={isLoadingRecipients}
+        error={recipientsError}
       />
     </>
   );

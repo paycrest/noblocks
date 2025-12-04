@@ -6,6 +6,7 @@ import { ImSpinner } from "react-icons/im";
 import { toast } from "sonner";
 import { pdf } from "@react-pdf/renderer";
 import { PDFReceipt } from "../PDFReceipt";
+import { CopyAddressWarningModal } from "../CopyAddressWarningModal";
 import type { TransactionHistory, Network } from "../../types";
 import {
   getExplorerLink,
@@ -44,13 +45,15 @@ const getNetworkFromName = (networkName: string): Network | null => {
 
 export function TransactionDetails({ transaction }: TransactionDetailsProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const { selectedNetwork } = useNetwork();
   const isDark = useActualTheme();
   if (!transaction) return null;
 
+  // Use the transaction's stored network, not the globally selected network
   const explorerUrl =
-    transaction.tx_hash && selectedNetwork?.chain?.name
-      ? getExplorerLink(selectedNetwork.chain.name, transaction.tx_hash)
+    transaction.tx_hash && transaction.network
+      ? getExplorerLink(transaction.network, transaction.tx_hash)
       : undefined;
 
   const handleGetReceipt = async () => {
@@ -60,7 +63,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         orderId: transaction.order_id || "",
         amount: transaction.amount_sent.toString(),
         token: transaction.from_currency,
-        network: selectedNetwork?.chain?.name || "",
+        network: transaction.network || "",
         settlePercent: "100",
         status: transaction.status,
         txHash: transaction.tx_hash || "",
@@ -240,6 +243,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                       transaction.recipient.account_identifier,
                     );
                     toast.success("Address copied");
+                    setIsWarningModalOpen(true);
                   }}
                 >
                   <Copy01Icon
@@ -421,6 +425,12 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
           )}
         </button>
       )}
+
+      <CopyAddressWarningModal 
+            isOpen={isWarningModalOpen}
+            onClose={() => setIsWarningModalOpen(false)}
+            address={transaction.recipient.account_identifier ?? ""}
+        />
     </motion.div>
   );
 }

@@ -11,11 +11,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const posts = await getCachedPosts();
   const latest = posts[0];
   return {
-    title: "Noblocks Blog - Decentralized Payments News",
-    description: "Noblocks Blog - Decentralized payments, news, and updates.",
+    title: "Noblocks Blog - Decentralized Payments News & Insights",
+    description: "Discover the latest in decentralized payments, stablecoin news, crypto remittance guides, and Web3 finance insights. Learn about USDC, USDT, DAI transfers, cross-border payments, and blockchain technology innovations.",
+    keywords: "Noblocks blog, decentralized payments, stablecoin news, crypto remittance, web3 finance, blockchain payments, USDC news, USDT updates, DAI insights, cross-border payments, fintech blog",
+    alternates: {
+      canonical: "https://noblocks.xyz/blog",
+    },
     openGraph: {
-      title: "Noblocks Blog - Decentralized Payments News",
-      description: "Noblocks Blog - Decentralized payments, news, and updates.",
+      title: "Noblocks Blog - Decentralized Payments News & Insights",
+      description: "Discover the latest in decentralized payments, stablecoin news, crypto remittance guides, and Web3 finance insights.",
       images:
         latest && latest.mainImage
           ? [
@@ -31,9 +35,11 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: "Noblocks Blog - Decentralized Payments News",
-      description: "Noblocks Blog - Decentralized payments, news, and updates.",
-      images: latest && latest.mainImage ? [latest.mainImage] : [],
+      title: "Noblocks Blog - Decentralized Payments News & Insights",
+      description: "Discover the latest in decentralized payments, stablecoin news, crypto remittance guides, and Web3 finance insights.",
+      creator: "@noblocks_xyz",
+      site: "@noblocks_xyz",
+      images: latest && latest.mainImage ? [latest.mainImage] : ["https://noblocks.xyz/images/og-image.jpg"],
     },
   };
 }

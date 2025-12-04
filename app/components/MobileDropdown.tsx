@@ -21,6 +21,7 @@ import { Network, Token, TransactionHistory } from "../types";
 import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm, TransferForm } from "./index";
+import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 
 export const MobileDropdown = ({
   isOpen,
@@ -34,6 +35,7 @@ export const MobileDropdown = ({
   >("wallet");
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, linkEmail, updateEmail } = usePrivy();
@@ -45,6 +47,10 @@ export const MobileDropdown = ({
     },
   });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+
+  const activeWallet = isInjectedWallet
+    ? { address: injectedAddress, type: "injected_wallet" }
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
@@ -61,6 +67,7 @@ export const MobileDropdown = ({
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(smartWallet?.address ?? "");
     toast.success("Address copied to clipboard");
+    setIsWarningModalOpen(true);
   };
 
   const tokens: { name: string; imageUrl: string | undefined }[] = [];
@@ -120,6 +127,27 @@ export const MobileDropdown = ({
     );
 
     setIsNetworkListOpen(false);
+  };
+
+  // Helper function for fallback fetch with timeout
+  const trackLogoutWithFetch = (payload: { walletAddress: string; logoutMethod: string }) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+
+    fetch('/api/track-logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    })
+    .catch(error => {
+      if (error.name !== 'AbortError') {
+        console.warn('Logout tracking failed:', error);
+      }
+    })
+    .finally(() => {
+      clearTimeout(timeoutId);
+    });
   };
 
   const handleLogout = async () => {
@@ -260,6 +288,12 @@ export const MobileDropdown = ({
           </Dialog>
         )}
       </AnimatePresence>
+
+      <CopyAddressWarningModal 
+        isOpen={isWarningModalOpen}
+        onClose={() => setIsWarningModalOpen(false)}
+        address={smartWallet?.address ?? ""}
+      />
     </>
   );
 };

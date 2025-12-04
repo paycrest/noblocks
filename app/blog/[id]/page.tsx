@@ -34,41 +34,75 @@ export async function generateMetadata({
   const post = await getPost(id);
   if (!post) return {};
 
+  const description = post.excerpt ||
+    (post.body
+      ? extractPlainTextFromPortableText(post.body).slice(0, 155) + "..."
+      : "Read the latest insights on decentralized payments, stablecoin news, and crypto remittance on Noblocks Blog.");
+
   return {
     title: post.title,
-    description:
-      post.excerpt ||
-      (post.body
-        ? extractPlainTextFromPortableText(post.body).slice(0, 120) + "..."
-        : ""),
+    description,
+    keywords: [
+      post.title,
+      "Noblocks blog",
+      "decentralized payments",
+      "stablecoin news",
+      "crypto remittance",
+      "web3 finance",
+      "blockchain payments",
+      ...(post.category ? [post.category.title] : []),
+    ].join(", "),
+    alternates: {
+      canonical: `https://noblocks.xyz/blog/${post.slug.current}`,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-video-preview": -1,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
+    },
+    publisher: "Paycrest",
+    authors: post.author ? [{ name: post.author.name }] : [{ name: "Noblocks Team" }],
     openGraph: {
       title: post.title,
-      description:
-        post.excerpt ||
-        (post.body
-          ? extractPlainTextFromPortableText(post.body).slice(0, 120) + "..."
-          : ""),
+      description,
+      url: `https://noblocks.xyz/blog/${post.slug.current}`,
+      siteName: "Noblocks Blog",
       images: post.mainImage
         ? [
             {
               url: post.mainImage,
-              width: 800,
-              height: 400,
+              width: 1200,
+              height: 630,
               alt: post.title,
             },
           ]
-        : [],
+        : [
+            {
+              url: "https://noblocks.xyz/images/og-image.jpg",
+              width: 1200,
+              height: 630,
+              alt: "Noblocks Blog",
+            },
+          ],
       type: "article",
+      publishedTime: post.publishedAt,
+      authors: post.author ? [post.author.name] : ["Noblocks Team"],
+      section: post.category?.title || "Decentralized Payments",
+      tags: post.category ? [post.category.title] : [],
     },
     twitter: {
       card: "summary_large_image",
       title: post.title,
-      description:
-        post.excerpt ||
-        (post.body
-          ? extractPlainTextFromPortableText(post.body).slice(0, 120) + "..."
-          : ""),
-      images: post.mainImage ? [post.mainImage] : [],
+      description,
+      creator: "@noblocks_xyz",
+      site: "@noblocks_xyz",
+      images: post.mainImage ? [post.mainImage] : ["https://noblocks.xyz/images/og-image.jpg"],
     },
   };
 }

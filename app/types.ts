@@ -272,10 +272,11 @@ export type Config = {
   thirdwebClientId: string;
   mixpanelToken: string;
   hotjarSiteId: number;
-  contactSupportUrl: string;
   googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
   cdpApiKey?: string;
+  brevoConversationsId: string; // Brevo chat widget ID
+  blockfestEndDate: string; // BlockFest campaign end date
 };
 
 export type Network = {
@@ -404,3 +405,19 @@ export type Currency = {
   label: string;
   disabled?: boolean;
 };
+
+// Saved Recipients API Types
+export interface RecipientDetailsWithId extends RecipientDetails {
+  id: string;
+}
+
+export interface SavedRecipientsResponse {
+  success: boolean;
+  data: RecipientDetailsWithId[];
+  error?: string;
+}
+
+export interface SaveRecipientResponse {
+  success: boolean;
+  data: RecipientDetailsWithId;
+}

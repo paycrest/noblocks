@@ -17,8 +17,11 @@ import {
   StepProvider,
   TokensProvider,
   TransactionsProvider,
+  BlockFestModalProvider,
 } from "./context";
 import { useActualTheme } from "./hooks/useActualTheme";
+import { useMixpanel } from "./hooks/analytics/client";
+import { BlockFestClaimProvider } from "./context/BlockFestClaimContext";
 
 function Providers({ children }: { children: ReactNode }) {
   const { privyAppId } = config;
@@ -80,6 +83,8 @@ function PrivyConfigWrapper({
 }
 
 function ContextProviders({ children }: { children: ReactNode }) {
+  useMixpanel(); // Initialize Mixpanel analytics
+
   return (
     <NetworkProvider>
       <InjectedWalletProvider>
@@ -87,7 +92,11 @@ function ContextProviders({ children }: { children: ReactNode }) {
           <StepProvider>
             <BalanceProvider>
               <TransactionsProvider>
-                <RocketStatusProvider>{children}</RocketStatusProvider>
+                <BlockFestClaimProvider>
+                  <BlockFestModalProvider>
+                    <RocketStatusProvider>{children}</RocketStatusProvider>
+                  </BlockFestModalProvider>
+                </BlockFestClaimProvider>
               </TransactionsProvider>
             </BalanceProvider>
           </StepProvider>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -15,7 +15,12 @@ import {
   CookieConsent,
   Disclaimer,
 } from "./";
-import { fetchRate, fetchSupportedInstitutions } from "../api/aggregator";
+import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
+import { useBlockFestClaim } from "../context/BlockFestClaimContext";
+import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
+import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
+import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
+import { normalizeNetworkForRateFetch } from "../utils";
 import {
   STEPS,
   type FormData,
@@ -27,19 +32,85 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "../context/StepContext";
 import { clearFormState, getBannerPadding } from "../utils";
-import { useInjectedWallet } from "../context/InjectedWalletContext";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 import { useMiniMode } from "../hooks/useMiniMode";
+import { useBlockFestModal } from "../context/BlockFestModalContext";
+import { useInjectedWallet } from "../context";
+
+const PageLayout = ({
+  authenticated,
+  ready,
+  currentStep,
+  transactionFormComponent,
+  isRecipientFormOpen,
+  isBlockFestReferral,
+  isMiniMode,
+}: {
+  authenticated: boolean;
+  ready: boolean;
+  currentStep: string;
+  transactionFormComponent: React.ReactNode;
+  isRecipientFormOpen: boolean;
+  isBlockFestReferral: boolean;
+}) => {
+  const { claimed, resetClaim } = useBlockFestClaim();
+  const { user } = usePrivy();
+  const { isOpen, openModal, closeModal } = useBlockFestModal();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+
+  // Clean up claim state when user logs out
+  useEffect(() => {
+    if (!authenticated && !isInjectedWallet) {
+      resetClaim();
+    }
+  }, [authenticated, isInjectedWallet, resetClaim]);
+
+  const walletAddress = isInjectedWallet
+    ? injectedAddress
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
+        ?.address;
+
+  return (
+    <>
+      <BlockFestClaimGate
+        isReferred={isBlockFestReferral}
+        authenticated={authenticated}
+        ready={ready}
+        userAddress={walletAddress ?? ""}
+        onShowModal={openModal}
+      />
+
+      <Disclaimer />
+      <CookieConsent />
+      {!isInjectedWallet && <NetworkSelectionModal />}
+
+      <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
+
+      {currentStep === STEPS.FORM ? (
+        <HomePage
+          transactionFormComponent={transactionFormComponent}
+          isRecipientFormOpen={isRecipientFormOpen}
+          showBlockFestBanner={claimed === true}
+        />
+      ) : (
+        <div className={`px-5 py-28 ${getBannerPadding()}`}>
+          {transactionFormComponent}
+        </div>
+      )}
+    </>
+  );
+};
 
 export function MainPageContent() {
   const searchParams = useSearchParams();
-  const { authenticated, ready } = usePrivy();
+  const { authenticated, ready, getAccessToken } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
   const { selectedNetwork } = useNetwork();
   const isMiniMode = useMiniMode();
+  const { isBlockFestReferral } = useBlockFestReferral();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
@@ -77,33 +148,34 @@ export function MainPageContent() {
     },
   });
   const { watch } = formMethods;
-  const { currency, amountSent, token } = watch();
+  const { currency, amountSent, amountReceived, token } = watch();
 
   // State props for child components
   const stateProps: StateProps = {
-    formValues,
-    setFormValues,
+      formValues,
+      setFormValues,
 
-    rate,
-    setRate,
-    isFetchingRate,
-    setIsFetchingRate,
-    rateError,
-    setRateError,
+      rate,
+      setRate,
+      isFetchingRate,
+      setIsFetchingRate,
+      rateError,
+      setRateError,
 
-    institutions,
-    setInstitutions,
-    isFetchingInstitutions,
-    setIsFetchingInstitutions,
+      institutions,
+      setInstitutions,
+      isFetchingInstitutions,
+      setIsFetchingInstitutions,
 
-    selectedRecipient,
-    setSelectedRecipient,
+      selectedRecipient,
+      setSelectedRecipient,
 
-    orderId,
-    setOrderId,
-    setCreatedAt,
-    setTransactionStatus,
-  };
+      orderId,
+      setOrderId,
+      setCreatedAt,
+      setTransactionStatus,
+    }
+    
   useEffect(function setPageLoadingState() {
     setOrderId("");
     setIsPageLoading(false);
@@ -111,7 +183,7 @@ export function MainPageContent() {
 
   useEffect(
     function resetOnLogout() {
-      // Reset form if user logs out (but not for injected wallet)
+      // Reset form when user logs out (but not for injected wallets)
       if (!authenticated && !isInjectedWallet) {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
@@ -122,7 +194,7 @@ export function MainPageContent() {
   );
 
   useEffect(function ensureDefaultToken() {
-    // Default token to USDC if missing
+    // Make sure we always have USDC as default
     if (!formMethods.getValues("token")) {
       formMethods.reset({ token: "USDC" });
     }
@@ -131,7 +203,7 @@ export function MainPageContent() {
 
   useEffect(
     function resetProviderErrorOnChange() {
-      // Reset providerErrorShown on query param change
+      // Reset error flag when switching providers
       const newProvider =
         searchParams.get("provider") || searchParams.get("PROVIDER");
       if (!failedProviders.current.has(newProvider || "")) {
@@ -166,6 +238,9 @@ export function MainPageContent() {
 
       if (!currency) return;
 
+      // Only fetch rate if at least one amount is greater than 0
+      if (!amountSent && !amountReceived) return;
+
       const getRate = async (shouldUseProvider = true) => {
         setIsFetchingRate(true);
         try {
@@ -182,12 +257,10 @@ export function MainPageContent() {
 
           const rate = await fetchRate({
             token,
-            amount: amountSent || 1,
+            amount: amountSent || 100,
             currency,
             providerId,
-            network: selectedNetwork.chain.name
-              .toLowerCase()
-              .replace(/\s+/g, "-"),
+            network: normalizeNetworkForRateFetch(selectedNetwork.chain.name),
           });
           setRate(rate.data);
           setRateError(null); // Clear error on success
@@ -233,15 +306,49 @@ export function MainPageContent() {
         clearTimeout(timeoutId);
       };
     },
-    [amountSent, currency, token, searchParams, selectedNetwork],
+    [
+      amountSent,
+      amountReceived,
+      currency,
+      token,
+      searchParams,
+      selectedNetwork,
+    ],
   );
 
-  const handleFormSubmit = (data: FormData) => {
-    setFormValues(data);
-    setCurrentStep(STEPS.PREVIEW);
-  };
+  // Migrate localStorage recipients to Supabase on app load
+  useEffect(
+    function migrateRecipients() {
+      async function runMigration() {
+        if (!authenticated || !ready || isInjectedWallet) {
+          return;
+        }
 
-  const handleBackToForm = () => {
+        try {
+          const accessToken = await getAccessToken();
+          if (accessToken) {
+            await migrateLocalStorageRecipients(accessToken);
+          }
+        } catch (error) {
+          console.error("Recipients migration failed:", error);
+          // Don't show error to user - migration is silent
+        }
+      }
+
+      runMigration();
+    },
+    [authenticated, ready, isInjectedWallet, getAccessToken],
+  );
+
+  const handleFormSubmit = useCallback(
+    (data: FormData) => {
+      setFormValues(data);
+      setCurrentStep(STEPS.PREVIEW);
+    },
+    [setFormValues, setCurrentStep],
+  );
+
+  const handleBackToForm = useCallback(() => {
     Object.entries(formValues).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         formMethods.setValue(key as keyof FormData, value);
@@ -257,7 +364,7 @@ export function MainPageContent() {
       shouldTouch: true,
     });
     setCurrentStep(STEPS.FORM);
-  };
+  }, [formValues, formMethods, setCurrentStep]);
 
   const showLoading =
     isPageLoading ||
@@ -267,7 +374,7 @@ export function MainPageContent() {
   const isRecipientFormOpen =
     !!currency && (authenticated || isInjectedWallet) && isUserVerified;
 
-  const renderTransactionStep = () => {
+  const renderTransactionStep = useCallback(() => {
     switch (currentStep) {
       case STEPS.FORM:
         return (
@@ -310,44 +417,51 @@ export function MainPageContent() {
       default:
         return null;
     }
-  };
+  }, [
+    currentStep,
+    handleFormSubmit,
+    formMethods,
+    stateProps,
+    isUserVerified,
+    setIsUserVerified,
+    handleBackToForm,
+    createdAt,
+    transactionStatus,
+    orderId,
+    institutions,
+    setSelectedRecipient,
+    setTransactionStatus,
+    setCurrentStep,
+    setOrderId,
+  ]);
 
-  const transactionFormComponent = (
-    <motion.div id="swap" layout>
-      <AnimatePresence mode="wait">
-        <AnimatedPage componentKey={currentStep}>
-          {renderTransactionStep()}
-        </AnimatedPage>
-      </AnimatePresence>
-    </motion.div>
+  const transactionFormComponent = useMemo(
+    () => (
+      <motion.div id="swap" layout>
+        <AnimatePresence mode="wait">
+          <AnimatedPage componentKey={currentStep}>
+            {renderTransactionStep()}
+          </AnimatedPage>
+        </AnimatePresence>
+      </motion.div>
+    ),
+    [currentStep, renderTransactionStep],
   );
+
   return (
     <div className="flex w-full flex-col">
       {showLoading ? (
         <Preloader isLoading={true} />
       ) : (
-        <>
-          <Disclaimer />
-          <CookieConsent />
-          {!isInjectedWallet && <NetworkSelectionModal />}{" "}
-          {isMiniMode ? (
-            // Mini mode: Show only transaction components
-            <div className={`px-5 py-28 ${getBannerPadding()}`}>
-              {transactionFormComponent}
-            </div>
-          ) : currentStep === STEPS.FORM ? (
-            // Normal mode: Show full homepage with marketing content
-            <HomePage
-              transactionFormComponent={transactionFormComponent}
-              isRecipientFormOpen={isRecipientFormOpen}
-            />
-          ) : (
-            // Normal mode: Show transaction components with padding
-            <div className={`px-5 py-28 ${getBannerPadding()}`}>
-              {transactionFormComponent}
-            </div>
-          )}
-        </>
+        <PageLayout
+          authenticated={authenticated}
+          ready={ready}
+          currentStep={currentStep}
+          transactionFormComponent={transactionFormComponent}
+          isRecipientFormOpen={isRecipientFormOpen}
+          isBlockFestReferral={isBlockFestReferral}
+          isMiniMode={isMiniMode}
+        />
       )}
     </div>
   );

@@ -161,9 +161,6 @@ export function SearchModal({
                 autoFocus={inputAutoFocus}
                 role="combobox"
                 aria-controls={suggestionsId}
-                aria-expanded={
-                  showSuggestions && filteredSuggestions.length > 0
-                }
                 aria-haspopup="listbox"
                 aria-autocomplete="list"
                 aria-activedescendant={
@@ -171,6 +168,7 @@ export function SearchModal({
                     ? `${suggestionsId}-option-${activeIndex}`
                     : undefined
                 }
+                aria-expanded="false"
               />
             </div>
             {/* Suggestions Dropdown */}

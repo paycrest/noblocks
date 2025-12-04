@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { fetchRate } from "../api/aggregator";
-import { getPreferredRateToken } from "../utils";
+import { getPreferredRateToken, normalizeNetworkForRateFetch } from "../utils";
 
 interface UseCNGNRateOptions {
   network: string;
@@ -50,9 +50,9 @@ export function useCNGNRate({
 
       const rateResponse = await fetchRate({
         token: preferredToken,
-        amount: 1,
+        amount: 100,
         currency: "NGN",
-        network: network.toLowerCase().replace(/\s+/g, "-"),
+        network: normalizeNetworkForRateFetch(network),
       });
 
       if (rateResponse?.data && typeof rateResponse.data === "string") {
@@ -80,6 +80,7 @@ export function useCNGNRate({
     if (autoFetch) {
       fetchCNGNRate();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoFetch, fetchCNGNRate, ...dependencies]);
 
   return {
@@ -107,9 +108,9 @@ export async function getCNGNRateForNetwork(
 
     const rateResponse = await fetchRate({
       token: preferredToken,
-      amount: 1,
+      amount: 100,
       currency: "NGN",
-      network: network.toLowerCase().replace(/\s+/g, "-"),
+      network: normalizeNetworkForRateFetch(network),
     });
 
     if (rateResponse?.data && typeof rateResponse.data === "string") {

@@ -14,7 +14,7 @@
   },
   "description": "Crypto-to-fiat payments in a zap.",
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbo",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -30,7 +30,7 @@
     "@hotjar/browser": "^1.0.9",
     "@portabletext/react": "^3.2.1",
     "@portabletext/types": "^2.0.13",
-    "@privy-io/react-auth": "^2.14.1",
+    "@privy-io/react-auth": "^3.1.0",
     "@privy-io/server-auth": "^1.27.0",
     "@react-pdf/renderer": "^4.3.0",
     "@sanity/client": "^7.8.1",
@@ -53,7 +53,9 @@
     "jsencrypt": "^3.3.2",
     "jsonwebtoken": "^9.0.2",
     "lru-cache": "^11.1.0",
+    "mixpanel": "^0.18.1",
     "mixpanel-browser": "^2.65.0",
+    "net": "^1.0.2",
     "next": "^15.3.3",
     "next-sanity": "^10.0.4",
     "next-themes": "^0.4.6",
@@ -68,8 +70,9 @@
     "sonner": "^1.7.4",
     "styled-components": "^6.1.19",
     "thirdweb": "^5.102.6",
-    "viem": "^2.31.0",
     "wagmi": "^2.16.9"
+    "tls": "^0.0.1",
+    "viem": "^2.31.0"
   },
   "devDependencies": {
     "@sanity/cli": "^3.99.0",
@@ -97,5 +100,20 @@
       "@types/react": "19.0.8",
       "@types/react-dom": "19.0.3"
     }
+  },
+  "browser": {
+    "net": false,
+    "tls": false,
+    "fs": false,
+    "crypto": false,
+    "stream": false,
+    "util": false,
+    "url": false,
+    "assert": false,
+    "http": false,
+    "https": false,
+    "zlib": false,
+    "path": false,
+    "os": false
   }
 }

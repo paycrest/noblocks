@@ -11,6 +11,7 @@ const config: Config = {
       colors: {
         secondary: "#43B9FB",
         black: "#121217",
+        black2: "#141414",
         outline: {
           gray: "#8A8AA3",
         },
@@ -25,6 +26,15 @@ const config: Config = {
           700: "#6C67BD",
           800: "#58549A",
           900: "#3E3B6D",
+        },
+        yellow: {
+          primary: "#F2C71C",
+          secondary: "#ffecc2",
+        },
+        warning: {
+          background: '#FFECC2',
+          text: '#F2C71C',
+          foreground: '#61500B'
         },
         surface: {
           overlay: "#202020",

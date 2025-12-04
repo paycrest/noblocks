@@ -17,11 +17,15 @@ export const initMixpanel = () => {
 
   if (mixpanelToken) {
     mixpanel.init(mixpanelToken, {
+      track_pageview: false,
       persistence: "localStorage",
-      ignore_dnt: true,
+      ignore_dnt: false,
+      verbose: process.env.NODE_ENV === "development",
     });
 
     initialized = true;
+  } else {
+    console.warn("Mixpanel token is not defined");
   }
 };
 
@@ -34,10 +38,12 @@ export const useMixpanel = () => {
       }
     };
 
+    window.addEventListener("cookieConsentChange", handleConsentChange);
     window.addEventListener("cookieConsent", handleConsentChange);
     handleConsentChange();
 
     return () => {
+      window.removeEventListener("cookieConsentChange", handleConsentChange);
       window.removeEventListener("cookieConsent", handleConsentChange);
     };
   }, []);
@@ -52,33 +58,55 @@ export const identifyUser = (
     email?: { address: string } | null;
   },
 ) => {
-  if (!initialized) {
-    return;
-  }
+  try {
+    if (!initialized) {
+      console.warn("Mixpanel not initialized");
+      return;
+    }
 
-  const consent = Cookies.get("cookieConsent");
-  if (!consent || !JSON.parse(consent).analytics) {
-    return;
-  }
+    const consent = Cookies.get("cookieConsent");
+    if (!consent || !JSON.parse(consent).analytics) {
+      return;
+    }
 
-  mixpanel.identify(address);
-  mixpanel.people.set({
-    login_method: properties.login_method || "unknown",
-    $last_login: new Date(),
-    $signup_date: properties.createdAt,
-    $email: properties.email?.address,
-    isNewUser: properties.isNewUser,
-  });
+    mixpanel.identify(address);
+    const peopleProps: Record<string, unknown> = {
+      login_method: properties.login_method || "unknown",
+      $last_login: new Date(),
+      $signup_date: properties.createdAt,
+      isNewUser: properties.isNewUser,
+    };
+    if (
+      process.env.NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS === "true" &&
+      properties.email?.address
+    ) {
+      (peopleProps as any).$email = properties.email.address;
+    }
+    mixpanel.people.set(peopleProps);
+  } catch (error) {
+    console.error("Mixpanel user identification error:", error);
+  }
 };
 
 export const trackEvent = (
   eventName: string,
   properties?: Dict | undefined,
 ) => {
-  if (!initialized) {
-    return;
+  try {
+    if (!initialized) {
+      console.warn("Mixpanel not initialized");
+      return;
+    }
+
+    const consent = Cookies.get("cookieConsent");
+    if (!consent || !JSON.parse(consent).analytics) {
+      return;
+    }
+
+    mixpanel.track(eventName, { ...properties, app: "Noblocks" });
+  } catch (error) {
+    console.error("Mixpanel tracking error:", error);
   }
-  mixpanel.track(eventName, { ...properties, app: "Noblocks" });
 };
 
 // Blog-specific tracking functions

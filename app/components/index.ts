@@ -8,6 +8,7 @@ export { default as PWAInstall } from "./PWAInstallManager";
 export { ThemeSwitch } from "./ThemeSwitch";
 export { WalletDetails } from "./WalletDetails";
 export { SettingsDropdown } from "./SettingsDropdown";
+export { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 
 export {
   AnimatedPage,
@@ -18,6 +19,7 @@ export {
   slideInOut,
   scaleInOut,
   fadeInOut,
+  fadeUpAnimation,
   dropdownVariants,
 } from "./AnimatedComponents";
 
@@ -52,3 +54,4 @@ export { FundWalletForm } from "./FundWalletForm";
 export { TransferForm } from "./TransferForm";
 
 export { default as NoticeBanner } from "./NoticeBanner";
+export { default as AppLayout } from "./AppLayout";

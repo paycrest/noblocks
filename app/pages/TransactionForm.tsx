@@ -20,8 +20,10 @@ import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
 import { acceptedCurrencies } from "../mocks";
 import {
+  calculateSenderFee,
   classNames,
   formatNumberWithCommas,
+  formatDecimalPrecision,
   currencyToCountryCode,
   reorderCurrenciesByLocation,
 } from "../utils";
@@ -118,6 +120,21 @@ export const TransactionForm = ({
 
   const balance = activeBalance?.balances[token] ?? 0;
 
+  const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
+
+  // Get token decimals for fee calculation
+  const currentToken = fetchedTokens.find((t) => t.symbol === token);
+  const tokenDecimals = currentToken?.decimals ?? 18;
+
+  // Calculate sender fee to include in balance check
+  const { feeAmount: senderFeeAmount } = calculateSenderFee(
+    Number(amountSent) || 0,
+    rate || 0,
+    tokenDecimals,
+  );
+
+  const totalRequired = (Number(amountSent) || 0) + senderFeeAmount;
+
   const { handleFundWallet } = useFundWalletHandler("Transaction form");
 
   const handleFundWalletClick = async (
@@ -133,8 +150,6 @@ export const TransactionForm = ({
     );
   };
 
-  const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
-
   const tokens = fetchedTokens.map((token) => ({
     name: token.symbol,
     imageUrl: token.imageUrl,
@@ -142,8 +157,18 @@ export const TransactionForm = ({
 
   const handleBalanceMaxClick = () => {
     if (balance > 0) {
-      const maxAmount = balance.toFixed(4);
-      setValue("amountSent", parseFloat(maxAmount), {
+      // Calculate max amount accounting for fee
+      // For local transfers, we need to account for the fee
+      const { feeAmount: maxFeeAmount } = calculateSenderFee(
+        balance,
+        rate || 0,
+        tokenDecimals,
+      );
+      const maxAmount = formatDecimalPrecision(
+        Math.max(0, balance - maxFeeAmount),
+        2,
+      );
+      setValue("amountSent", maxAmount, {
         shouldValidate: true,
         shouldDirty: true,
       });
@@ -317,7 +342,7 @@ export const TransactionForm = ({
         if (normalizedToken === "CNGN") {
           if (cngnRate && cngnRate > 0) {
             // Valid rate available - calculate limits and clear errors
-            maxAmountSentValue = 10000 * cngnRate;
+            maxAmountSentValue = 50000000;
             minAmountSentValue = 0.5 * cngnRate;
             setRateError(null);
           } else {
@@ -370,8 +395,10 @@ export const TransactionForm = ({
         } else {
           // Reset currencies to their default state from mocks
           currencies.forEach((currency) => {
-            // Only GHS, BRL and ARS are disabled by default
-            currency.disabled = ["GHS", "BRL", "ARS"].includes(currency.name);
+            // Only GHS, BRL, ARS, and MWK are disabled by default
+            currency.disabled = ["GHS", "BRL", "ARS", "MWK"].includes(
+              currency.name,
+            );
           });
         }
 
@@ -420,6 +447,7 @@ export const TransactionForm = ({
     isValid,
     isUserVerified,
     rate,
+    tokenDecimals,
   });
 
   const handleSwap = () => {
@@ -586,7 +614,10 @@ export const TransactionForm = ({
                         <span
                           className={amountSent > balance ? "text-red-500" : ""}
                         >
-                          {formatNumberWithCommasForDisplay(balance)} {token}
+                          {formatNumberWithCommas(
+                            formatDecimalPrecision(balance, 2),
+                          )}{" "}
+                          {token}
                         </span>
                         {balance > 0 && (
                           <button
@@ -613,6 +644,14 @@ export const TransactionForm = ({
                 type="text"
                 inputMode="decimal"
                 onChange={handleSentAmountChange}
+                onFocus={() => {
+                  if (
+                    formattedSentAmount === "0" ||
+                    formattedSentAmount === "0.00"
+                  ) {
+                    setFormattedSentAmount("");
+                  }
+                }}
                 onKeyDown={(e) => {
                   // Special handling for the decimal point key
                   if (e.key === "." && !formattedSentAmount.includes(".")) {
@@ -643,6 +682,7 @@ export const TransactionForm = ({
                 defaultTitle="Select token"
                 data={tokens}
                 defaultSelectedItem={token}
+                isCTA={false}
                 onSelect={(selectedToken) =>
                   setValue("token", selectedToken, { shouldDirty: true })
                 }
@@ -650,14 +690,15 @@ export const TransactionForm = ({
                 dropdownWidth={160}
               />
             </div>
-            {(errors.amountSent || (authenticated && amountSent > balance)) && (
+            {(errors.amountSent ||
+              (authenticated && totalRequired > balance)) && (
               <AnimatedComponent
                 variant={slideInOut}
                 className="!mt-0 text-xs text-red-500"
               >
                 {errors.amountSent?.message ||
-                  (authenticated && amountSent > balance
-                    ? `Insufficient balance`
+                  (authenticated && totalRequired > balance
+                    ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
                     : null)}
               </AnimatedComponent>
             )}
@@ -689,6 +730,14 @@ export const TransactionForm = ({
                 type="text"
                 inputMode="decimal"
                 onChange={handleReceivedAmountChange}
+                onFocus={() => {
+                  if (
+                    formattedReceivedAmount === "0" ||
+                    formattedReceivedAmount === "0.00"
+                  ) {
+                    setFormattedReceivedAmount("");
+                  }
+                }}
                 onKeyDown={(e) => {
                   // Special handling for the decimal point key
                   if (e.key === "." && !formattedReceivedAmount.includes(".")) {
@@ -726,7 +775,8 @@ export const TransactionForm = ({
                 className="min-w-80"
                 isCTA={
                   !currency &&
-                  (!authenticated || (authenticated && !(amountSent > balance)))
+                  (!authenticated ||
+                    (authenticated && !(totalRequired > balance)))
                 }
                 dropdownWidth={320}
               />

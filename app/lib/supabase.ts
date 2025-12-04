@@ -1,20 +1,20 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
+import config from "./config";
+import { serverConfig } from "./config";
 
-if (!process.env.SUPABASE_URL) {
-    throw new Error('Missing env.SUPABASE_URL');
-}
-if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error('Missing env.SUPABASE_SERVICE_ROLE_KEY');
+const { supabaseUrl } = config;
+const { supabaseRoleKey } = serverConfig;
+
+// Initialize Supabase client with service role key only when envs are available.
+// Avoid throwing at module import time to keep Next.js build workable.
+let client: any = null;
+if (supabaseUrl && supabaseRoleKey) {
+  client = createClient(supabaseUrl, supabaseRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 }
 
-// Initialize Supabase client with service role key
-export const supabaseAdmin = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-        },
-    }
-);
+export const supabaseAdmin: any = client;

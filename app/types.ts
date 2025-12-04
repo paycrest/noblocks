@@ -247,6 +247,27 @@ export type KYCStatusResponse = {
 };
 
 export type Config = {
+  nodeEnv: string;
+  noIndex: string;
+  onchainKitProjectName: string;
+  appSubtitle: string;
+  appDescription: string;
+  appIcon: string;
+  appSplashImage: string;
+  splashBackgroundColor: string;
+  appPrimaryCategory: string;
+  appHeroImage: string;
+  appTagline: string;
+  appOgTitle: string;
+  appOgDescription: string;
+  publicAppOGImage: string;
+  publicUrl: string;
+  farcasterHeader: string;
+  farcasterPayload: string;
+  farcasterSignature: string;
+  supabaseUrl: string;
+  supabaseRoleKey: string;
+  appUrl: string;
   aggregatorUrl: string;
   privyAppId: string;
   thirdwebClientId: string;
@@ -254,6 +275,7 @@ export type Config = {
   hotjarSiteId: number;
   googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
+  cdpApiKey?: string;
   brevoConversationsId: string; // Brevo chat widget ID
   blockfestEndDate: string; // BlockFest campaign end date
 };
@@ -261,11 +283,11 @@ export type Config = {
 export type Network = {
   chain: any;
   imageUrl:
-    | string
-    | {
-        light: string;
-        dark: string;
-      };
+  | string
+  | {
+    light: string;
+    dark: string;
+  };
 };
 
 export interface TransactionResponse {

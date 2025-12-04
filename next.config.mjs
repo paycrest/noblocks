@@ -18,7 +18,12 @@ const nextConfig = {
         },
         {
           key: "X-Frame-Options",
-          value: "DENY",
+          value: "ALLOWALL",
+        },
+        {
+          key: "Content-Security-Policy",
+          value:
+            "frame-ancestors 'self' https://warpcast.com https://*.warpcast.com https://*.farcaster.xyz https://farcaster.xyz https://auth.privy.io https://client.warpcast.com;",
         },
         {
           key: "X-XSS-Protection",
@@ -41,13 +46,10 @@ const nextConfig = {
           key: "Cache-Control",
           value: "no-cache, no-store, must-revalidate",
         },
-        {
-          key: "Content-Security-Policy",
-          value: "default-src 'self'; script-src 'self'",
-        },
       ],
     },
   ],
+
   experimental: {
     optimizeCss: true,
     optimizePackageImports: ["@headlessui/react", "framer-motion"],
@@ -85,6 +87,7 @@ const nextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",
   },
+
   images: {
     remotePatterns: [
       {
@@ -95,7 +98,6 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "cdn.sanity.io",
-        // Sanity image assets are served under /images/...
         pathname: "/images/**",
       },
       {

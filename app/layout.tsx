@@ -3,9 +3,30 @@ import React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
-import { AppLayout } from "./components";
+import Providers from "./providers";
+import MainContent from "./mainContent";
+import {
+  Footer,
+  Navbar,
+  LayoutWrapper,
+  PWAInstall,
+  NoticeBanner,
+} from "./components";
+import { EarlyReady } from "./early-ready";
+import { MiniKitContextProvider } from "@/providers/MiniKitProvider";
+import config from "./lib/config";
 
-export const dynamic = "force-static";
+import Providers from "./providers";
+import MainContent from "./mainContent";
+import {
+  Footer,
+  Navbar,
+  LayoutWrapper,
+  PWAInstall,
+  NoticeBanner,
+} from "./components";
+import { EarlyReady } from "./early-ready";
+import { MiniKitContextProvider } from "@/providers/MiniKitProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -26,6 +47,12 @@ export const metadata: Metadata = {
     "mobile-web-app-capable": "yes",
     "msapplication-TileColor": "#317EFB",
     "msapplication-tap-highlight": "no",
+
+    "fc:frame": "vNext",
+    "fc:frame:image": `${config.publicUrl ?? "https://noblocks.xyz"}/images/og-image.jpg`,
+    "fc:frame:button:1": "Open App",
+    "fc:frame:button:1:action": "link",
+    "fc:frame:button:1:target": `${config.publicUrl ?? "https://noblocks.xyz"}`,
   },
   applicationName: "Noblocks",
   category: "Finance",
@@ -239,8 +266,27 @@ export default function RootLayout({
           type="application/ld+json"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-        <AppLayout>{children}</AppLayout>
+        ></Script>
+        <EarlyReady />
+        <MiniKitContextProvider>
+          <Providers>
+            <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
+              <div className="relative">
+                <Navbar />
+                {config.noticeBannerText && (
+                  <NoticeBanner
+                    textLines={config.noticeBannerText.split("|")}
+                  />
+                )}
+              </div>
+              <LayoutWrapper footer={<Footer />}>
+                <MainContent>{children}</MainContent>
+              </LayoutWrapper>
+
+              <PWAInstall />
+            </div>
+          </Providers>
+        </MiniKitContextProvider>
       </body>
     </html>
   );

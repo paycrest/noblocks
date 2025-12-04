@@ -132,14 +132,9 @@ export const Navbar = () => {
             >
               <button
                 aria-label="Noblocks Logo Icon"
-<<<<<<< HEAD
-                aria-haspopup="menu"
-                aria-controls="navbar-dropdown"
-=======
                 aria-haspopup={isMiniMode ? "false" : "menu"}
                 aria-expanded={isMiniMode ? false : isDropdownOpen}
                 aria-controls={isMiniMode ? undefined : "navbar-dropdown"}
->>>>>>> 3f9e619 (Refactor Navbar component to conditionally handle dropdown interactions and visibility based on mini mode. Updated aria attributes for accessibility and improved rendering logic for wallet and network details.)
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
@@ -177,6 +172,17 @@ export const Navbar = () => {
               )}
             </div>
 
+            {/* Blog Link - Desktop Only - Hidden in mini mode */}
+            {!pathname.startsWith("/blog") && !isMiniMode && (
+              <div className="hidden items-center sm:flex">
+                <Link
+                  href="/blog"
+                  className={` ${IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"} text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
+                >
+                  Blog
+                </Link>
+              </div>
+            )}
             {/* Home Link */}
             {pathname !== "/" && (
               <div className="hidden items-center sm:flex">
@@ -188,6 +194,7 @@ export const Navbar = () => {
                 </Link>
               </div>
             )}
+
             {/* Blog Link - Desktop Only - Hidden in mini mode */}
             {!pathname.startsWith("/blog") && !isMiniMode && (
               <div className="hidden items-center sm:flex">
@@ -264,7 +271,6 @@ export const Navbar = () => {
             </AnimatePresence>
           </div>
         </div>
-
         <div className="flex gap-3 text-sm font-medium *:flex-shrink-0 sm:gap-4">
           {(ready && authenticated) || isInjectedWallet ? (
             <>

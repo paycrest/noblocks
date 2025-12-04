@@ -35,6 +35,7 @@ import { clearFormState, getBannerPadding } from "../utils";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
+import { useMiniMode } from "../hooks/useMiniMode";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
 import { useInjectedWallet } from "../context";
 import { useMiniMode } from "../hooks/useMiniMode";
@@ -115,6 +116,7 @@ export function MainPageContent() {
   const { currentStep, setCurrentStep } = useStep();
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
   const { selectedNetwork } = useNetwork();
+  const isMiniMode = useMiniMode();
   const { isBlockFestReferral } = useBlockFestReferral();
   const isMiniMode = useMiniMode();
   const [isPageLoading, setIsPageLoading] = useState(true);

@@ -274,6 +274,7 @@ export type Config = {
   hotjarSiteId: number;
   googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
+  cdpApiKey?: string;
   brevoConversationsId: string; // Brevo chat widget ID
   blockfestEndDate: string; // BlockFest campaign end date
   cdpApiKey?: string;

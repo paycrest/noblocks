@@ -16,17 +16,7 @@ import { EarlyReady } from "./early-ready";
 import { MiniKitContextProvider } from "@/providers/MiniKitProvider";
 import config from "./lib/config";
 
-import Providers from "./providers";
-import MainContent from "./mainContent";
-import {
-  Footer,
-  Navbar,
-  LayoutWrapper,
-  PWAInstall,
-  NoticeBanner,
-} from "./components";
-import { EarlyReady } from "./early-ready";
-import { MiniKitContextProvider } from "@/providers/MiniKitProvider";
+export const dynamic = "force-static";
 
 const inter = Inter({ subsets: ["latin"] });
 

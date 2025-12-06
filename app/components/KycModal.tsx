@@ -1,29 +1,45 @@
 "use client";
 import { Checkbox, DialogTitle, Field, Label } from "@headlessui/react";
 import { toast } from "sonner";
-import { QRCode } from "react-qrcode-logo";
+
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { FiExternalLink } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
+
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      "smart-camera-web": any;
+    }
+  }
+}
+
 
 import {
   CheckIcon,
-  QrCodeIcon,
   SadFaceIcon,
   UserDetailsIcon,
   VerificationPendingIcon,
 } from "./ImageAssets";
+import { FlexibleDropdown } from "./FlexibleDropdown";
+import { ArrowDown01Icon } from "hugeicons-react";
+import { classNames } from "../utils";
 import { fadeInOut } from "./AnimatedComponents";
-import { generateTimeBasedNonce } from "../utils";
-import { fetchKYCStatus, initiateKYC } from "../api/aggregator";
+import {
+  fetchKYCStatus,
+  submitSmileIDData,
+} from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics/client";
-import { Cancel01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
+import { CheckmarkCircle01Icon, Clock05Icon } from "hugeicons-react";
 import { useInjectedWallet } from "../context";
+
+import idTypesData from "../api/kyc/smile-id/id_types.json";
 
 export const STEPS = {
   TERMS: "terms",
+  ID_INFO: "id_info",
+  CAPTURE: "capture",
   STATUS: {
     PENDING: "pending",
     SUCCESS: "success",
@@ -36,9 +52,35 @@ export const STEPS = {
 
 type Step =
   | typeof STEPS.TERMS
+  | typeof STEPS.ID_INFO
+  | typeof STEPS.CAPTURE
   | typeof STEPS.LOADING
   | typeof STEPS.REFRESH
   | (typeof STEPS.STATUS)[keyof typeof STEPS.STATUS];
+
+// Types for ID types JSON
+type IdType = {
+  type: string;
+  verification_method: string;
+};
+
+type Country = {
+  name: string;
+  code: string;
+  id_types: IdType[];
+};
+
+const getAllCountries = (): Country[] => {
+  return idTypesData.continents
+    .flatMap((continent) => continent.countries)
+    .sort((a, b) => a.name.localeCompare(b.name));
+};
+
+const requiresDocumentCapture = (country: Country | null, idType: string): boolean => {
+  if (!country || !idType) return true;
+  const selectedIdType = country.id_types.find((t) => t.type === idType);
+  return selectedIdType?.verification_method === "doc_verification";
+};
 
 export const KycModal = ({
   setIsUserVerified,
@@ -47,10 +89,9 @@ export const KycModal = ({
   setIsUserVerified: (value: boolean) => void;
   setIsKycModalOpen: (value: boolean) => void;
 }) => {
-  const { signMessage } = usePrivy();
+  const { getAccessToken, user } = usePrivy();
   const { wallets } = useWallets();
-  const { isInjectedWallet, injectedAddress, injectedProvider } =
-    useInjectedWallet();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -60,125 +101,39 @@ export const KycModal = ({
     : embeddedWallet?.address;
 
   const [step, setStep] = useState<Step>(STEPS.LOADING);
-  const [showQRCode, setShowQRCode] = useState(false);
-  const [kycUrl, setKycUrl] = useState("");
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isSigning, setIsSigning] = useState(false);
+  const [cameraElement, setCameraElement] = useState<HTMLElement | null>(null);
+  const [smileIdLoaded, setSmileIdLoaded] = useState(false);
 
-  const handleSignAndContinue = async () => {
-    setIsSigning(true);
-    const nonce = generateTimeBasedNonce({ length: 16 });
-    const message = `I accept the KYC Policy and hereby request an identity verification check for ${walletAddress} with nonce ${nonce}`;
+  // ID info state for Job Type 1
+  const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
+  const [selectedIdType, setSelectedIdType] = useState<string>("");
+  const [idNumber, setIdNumber] = useState<string>("");
+  const countries = getAllCountries();
 
-    try {
-      let signature: string;
+  // Check if current selection requires document capture or just ID number
+  const needsDocCapture = requiresDocumentCapture(selectedCountry, selectedIdType);
 
-      if (isInjectedWallet && injectedProvider) {
-        try {
-          const accounts = await injectedProvider.request({
-            method: "eth_requestAccounts",
-          });
-
-          const signResult = await injectedProvider.request({
-            method: "personal_sign",
-            params: [`0x${Buffer.from(message).toString("hex")}`, accounts[0]],
-          });
-
-          signature = signResult;
-        } catch (error) {
-          console.error("Injected wallet signature error:", error);
-          toast.error("Failed to sign message with injected wallet");
-          setIsSigning(false);
-          return;
-        }
-      } else {
-        const signResult = await signMessage(
-          { message },
-          { uiOptions: { buttonText: "Sign" } },
-        );
-
-        if (!signResult) {
-          setIsSigning(false);
-          return;
-        }
-
-        signature = signResult.signature;
-      }
-
-      if (signature) {
-        setIsKycModalOpen(true);
-        setStep(STEPS.LOADING);
-
-        const sigWithoutPrefix = signature.startsWith("0x")
-          ? signature.slice(2)
-          : signature;
-
-        const response = await initiateKYC({
-          signature: sigWithoutPrefix,
-          walletAddress: walletAddress || "",
-          nonce,
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !smileIdLoaded) {
+      import("@smileid/web-components/smart-camera-web")
+        .then(() => {
+          console.log("SmileID web components loaded");
+          setSmileIdLoaded(true);
+        })
+        .catch((error) => {
+          console.error("Failed to load SmileID components:", error);
+          toast.error("Failed to load verification component");
         });
-
-        if (response.status === "success") {
-          trackEvent("Account verification", {
-            "Verification status": "Pending",
-          });
-          setKycUrl(response.data.url);
-          setShowQRCode(true);
-          setStep(STEPS.STATUS.PENDING);
-        } else {
-          setStep(STEPS.STATUS.FAILED);
-          trackEvent("Account verification", {
-            "Verification status": "Failed",
-          });
-        }
-      }
-    } catch (error: unknown) {
-      console.log("error", error);
-      if (
-        error instanceof Error &&
-        (error as any).response &&
-        (error as any).response.data
-      ) {
-        // backend error response
-        const { status, message, data } = (error as any).response.data;
-        toast.error(`${message}: ${data}`);
-      } else {
-        // unexpected errors
-        toast.error(error instanceof Error ? error.message : String(error));
-      }
-      setIsKycModalOpen(false);
-      setStep(STEPS.TERMS);
-    } finally {
-      setIsSigning(false);
     }
+  }, [smileIdLoaded]);
+
+  const handleAcceptTerms = () => {
+    setIsKycModalOpen(true);
+    setStep(STEPS.ID_INFO);
   };
 
-  const QRCodeComponent = useCallback(
-    () => (
-      <div className="w-full">
-        <QRCode
-          value={kycUrl}
-          qrStyle="dots"
-          eyeRadius={20}
-          logoImage="/images/user-qr-logo.png"
-          bgColor="#F9FAFB"
-          style={{
-            borderRadius: "32px",
-            margin: "0 auto",
-            width: "100%",
-            maxWidth: "360px",
-            objectFit: "contain",
-            height: "auto",
-          }}
-          quietZone={16}
-          size={256}
-        />
-      </div>
-    ),
-    [kycUrl],
-  );
 
   const renderTerms = () => (
     <motion.div key="terms" {...fadeInOut} className="space-y-4">
@@ -203,7 +158,7 @@ export const KycModal = ({
           <div className="flex flex-col gap-4">
             <div className="flex items-start gap-2">
               <CheckIcon
-                className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer"
+                className="mx-1 mt-1 size-7 flex-shrink-0 cursor-pointer"
                 isActive={termsAccepted}
               />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
@@ -216,7 +171,7 @@ export const KycModal = ({
 
             <div className="flex items-start gap-2">
               <CheckIcon
-                className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer"
+                className="mx-1 mt-1 size-7 flex-shrink-0 cursor-pointer"
                 isActive={termsAccepted}
               />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
@@ -229,7 +184,7 @@ export const KycModal = ({
 
             <div className="flex items-start gap-2">
               <CheckIcon
-                className="mx-1 mt-1 size-5 flex-shrink-0 cursor-pointer"
+                className="mx-1 mt-1 size-7 flex-shrink-0 cursor-pointer"
                 isActive={termsAccepted}
               />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
@@ -242,7 +197,7 @@ export const KycModal = ({
             </div>
 
             <div className="flex items-start gap-2">
-              <div className="mx-1 mt-1 size-5 flex-shrink-0"></div>
+              <div className="mx-1 mt-1 size-7 flex-shrink-0"></div>
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
                 <a
                   href={
@@ -289,7 +244,7 @@ export const KycModal = ({
             </svg>
           </Checkbox>
           <p className="text-xs text-gray-500 dark:text-white/50">
-            By clicking &ldquo;Accept and sign&rdquo; below, you are agreeing to
+            By clicking &ldquo;Accept and continue&rdquo; below, you are agreeing to
             the KYC Policy and hereby request an identity verification check for
             your wallet address.
           </p>
@@ -307,79 +262,206 @@ export const KycModal = ({
         <button
           type="button"
           className={`${primaryBtnClasses} w-full`}
-          disabled={!termsAccepted || isSigning}
-          onClick={handleSignAndContinue}
+          disabled={!termsAccepted}
+          onClick={handleAcceptTerms}
         >
-          {isSigning ? "Signing..." : "Accept and sign"}
+          Accept and continue
         </button>
       </div>
     </motion.div>
   );
 
-  const renderQRCode = () => (
-    <motion.div key="qr_code" {...fadeInOut} className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div></div>
-        <h2 className="text-lg font-medium dark:text-white">
-          Verify with your phone or URL
-        </h2>
-        <button
-          type="button"
-          onClick={() => setIsKycModalOpen(false)}
-          className="rounded-full p-1 text-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white/80"
-          title="Close"
-        >
-          <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
-        </button>
+  const renderIdInfo = () => (
+    <motion.div key="id_info" {...fadeInOut} className="space-y-4">
+      <div className="space-y-3">
+        <UserDetailsIcon />
+        <div>
+          <h2 className="text-lg font-medium dark:text-white">
+            Select your ID document
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-white/50">
+            Choose your country and the type of ID you&apos;ll use for verification.
+          </p>
+        </div>
       </div>
 
-      <p className="mx-auto text-center text-gray-500 dark:text-white/50">
-        Scan with your phone to have the best verification experience. You can
-        also open the URL below
-      </p>
+      <div className="space-y-4">
+        {/* Country Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-white/70 mb-2">
+            Country
+          </label>
+          <FlexibleDropdown
+            data={countries.map((c) => ({ name: c.code, label: c.name }))}
+            selectedItem={selectedCountry?.code}
+            onSelect={(code) => {
+              const country = countries.find((c) => c.code === code);
+              setSelectedCountry(country || null);
+              setSelectedIdType("");
+              setIdNumber("");
+            }}
+            mobileTitle="Select Country"
+            dropdownWidth={350}
+          >
+            {({ selectedItem, isOpen, toggleDropdown }) => (
+              <button
+                type="button"
+                onClick={toggleDropdown}
+                className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white focus:outline-none focus:ring-2 focus:ring-lavender-500"
+              >
+                <span className={selectedItem ? "" : "text-gray-400"}>
+                  {selectedItem?.label || "Select a country"}
+                </span>
+                <ArrowDown01Icon
+                  className={classNames(
+                    "size-5 text-gray-400 transition-transform",
+                    isOpen ? "rotate-180" : ""
+                  )}
+                />
+              </button>
+            )}
+          </FlexibleDropdown>
+        </div>
 
-      <QRCodeComponent />
+        {/* ID Type Selection */}
+        {selectedCountry && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-white/70 mb-2">
+              ID Type
+            </label>
+            <FlexibleDropdown
+              data={selectedCountry.id_types.map((t) => ({
+                name: t.type,
+                label: t.type.replace(/_/g, " "),
+              }))}
+              selectedItem={selectedIdType}
+              onSelect={(type) => {
+                setSelectedIdType(type);
+                setIdNumber("");
+              }}
+              mobileTitle="Select ID Type"
+              dropdownWidth={350}
+            >
+              {({ selectedItem, isOpen, toggleDropdown }) => (
+                <button
+                  type="button"
+                  onClick={toggleDropdown}
+                  className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white focus:outline-none focus:ring-2 focus:ring-lavender-500"
+                >
+                  <span className={selectedItem ? "" : "text-gray-400"}>
+                    {selectedItem?.label || "Select ID type"}
+                  </span>
+                  <ArrowDown01Icon
+                    className={classNames(
+                      "size-5 text-gray-400 transition-transform",
+                      isOpen ? "rotate-180" : ""
+                    )}
+                  />
+                </button>
+              )}
+            </FlexibleDropdown>
+          </div>
+        )}
 
-      <div className="flex w-full items-center justify-center gap-3">
-        <hr className="h-px w-full bg-gray-100 opacity-10 dark:bg-white/5" />
-        <p className="text-xs text-gray-500 dark:text-white/50">Or</p>
-        <hr className="h-px w-full bg-gray-100 opacity-10 dark:bg-white/5" />
+        {/* ID Number Input - only for biometric_kyc verification (BVN, NIN, etc.) */}
+        {selectedIdType && !needsDocCapture && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-white/70 mb-2">
+              {selectedIdType.replace(/_/g, " ")} Number
+            </label>
+            <input
+              type="text"
+              value={idNumber}
+              onChange={(e) => setIdNumber(e.target.value)}
+              placeholder={`Enter your ${selectedIdType.replace(/_/g, " ")} number`}
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white focus:outline-none focus:ring-2 focus:ring-lavender-500 placeholder:text-gray-400"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-white/50">
+              Your ID will be verified against the government database
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-4">
+        <button
+          type="button"
+          onClick={() => setStep(STEPS.TERMS)}
+          className={secondaryBtnClasses}
+        >
+          Back
+        </button>
+        <button
+          type="button"
+          className={`${primaryBtnClasses} w-full`}
+          disabled={!selectedCountry || !selectedIdType || (!needsDocCapture && !idNumber)}
+          onClick={() => setStep(STEPS.CAPTURE)}
+        >
+          Continue
+        </button>
+      </div>
+    </motion.div>
+  );
+
+  const renderCapture = () => (
+    <motion.div key="capture" {...fadeInOut} className="space-y-4">
+      <div className="space-y-3">
+        <UserDetailsIcon />
+        <div>
+          <h2 className="text-lg font-medium dark:text-white">
+            {needsDocCapture ? "Capture your documents" : "Take a selfie"}
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-white/50">
+            {needsDocCapture
+              ? "Please take a selfie and capture your ID document for verification."
+              : "Please take a selfie to verify your identity against your ID."}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex justify-center">
+        {needsDocCapture ? (
+          /* @ts-expect-error - SmileID web component */
+          <smart-camera-web
+            ref={(el: HTMLElement | null) => setCameraElement(el)}
+            theme-color="#8B85F4"
+            capture-id
+          />
+        ) : (
+          /* @ts-expect-error - SmileID web component */
+          <smart-camera-web
+            ref={(el: HTMLElement | null) => setCameraElement(el)}
+            theme-color="#8B85F4"
+          />
+        )}
       </div>
 
       <button
         type="button"
-        className={`${secondaryBtnClasses} flex w-full items-center justify-center gap-2`}
-        onClick={() => window.open(kycUrl, "_blank")}
+        onClick={() => setStep(STEPS.ID_INFO)}
+        className={secondaryBtnClasses}
       >
-        Open URL <FiExternalLink className="text-lg" />
+        Back
       </button>
     </motion.div>
   );
 
-  const renderPendingStatus = () => (
-    <motion.div key="pending" {...fadeInOut} className="space-y-6 pt-4">
-      <VerificationPendingIcon className="mx-auto" />
 
-      <div className="space-y-3 pb-5 text-center">
+  const renderPendingStatus = () => (
+    <motion.div key="pending" {...fadeInOut} className="space-y-4 pt-4">
+      <Clock05Icon className="mx-auto dark:text-yellow-primary" size={40} />
+
+      <div className="space-y-3 pb-2 px-6 text-center">
         <DialogTitle className="text-lg font-semibold">
-          Verification in progress
+          Tier 2 Upgrade in progress
         </DialogTitle>
 
         <p className="text-gray-500 dark:text-white/50">
-          We are verifying your identity. This will only take a few minutes.
-          Kindly check back soon
+          We are currently verifying your identity. You will get feedback within 24 hours. Kindly check back soon
         </p>
       </div>
 
       <div className="flex w-full items-center gap-2">
-        <button
-          type="button"
-          title="View QR Code"
-          className={`${secondaryBtnClasses}`}
-          onClick={() => setShowQRCode(true)}
-        >
-          <QrCodeIcon className="size-6 p-0.5 text-gray-300" />
-        </button>
         <button
           type="button"
           className={`${primaryBtnClasses} w-full`}
@@ -392,10 +474,10 @@ export const KycModal = ({
   );
 
   const renderSuccessStatus = () => (
-    <motion.div key="success" {...fadeInOut} className="space-y-6 pt-4">
-      <CheckmarkCircle01Icon className="mx-auto size-10" color="#39C65D" />
+    <motion.div key="success" {...fadeInOut} className="space-y-4 pt-4">
+      <CheckmarkCircle01Icon className="mx-auto size-12" color="#39C65D" />
 
-      <div className="space-y-3 pb-5 text-center">
+      <div className="space-y-3 pb-2 px-6 text-center">
         <DialogTitle className="text-lg font-semibold">
           Verification successful
         </DialogTitle>
@@ -420,10 +502,10 @@ export const KycModal = ({
   );
 
   const renderFailedStatus = () => (
-    <motion.div key="failed" {...fadeInOut} className="space-y-6 pt-4">
+    <motion.div key="failed" {...fadeInOut} className="space-y-4 pt-4">
       <SadFaceIcon className="mx-auto" />
 
-      <div className="space-y-3 pb-5 text-center">
+      <div className="space-y-3 pb-2 px-6 text-center">
         <DialogTitle className="text-lg font-semibold">
           Verification failed
         </DialogTitle>
@@ -455,10 +537,10 @@ export const KycModal = ({
   );
 
   const renderRefresh = () => (
-    <motion.div key="refresh" {...fadeInOut} className="space-y-6 pt-4">
+    <motion.div key="refresh" {...fadeInOut} className="space-y-4 pt-4">
       <VerificationPendingIcon className="mx-auto" />
 
-      <div className="space-y-3 pb-5 text-center">
+      <div className="space-y-3 pb-2 px-6 text-center">
         <DialogTitle className="text-lg font-semibold">
           Refresh to Update KYC
         </DialogTitle>
@@ -505,12 +587,15 @@ export const KycModal = ({
       setStep(newStatus);
 
       if (newStatus === STEPS.STATUS.SUCCESS) {
-        setShowQRCode(false);
         trackEvent("Account verification", {
           "Verification status": "Success",
         });
       }
-      if (newStatus === STEPS.STATUS.PENDING) setKycUrl(response.data.url);
+      if (newStatus === STEPS.STATUS.PENDING) {
+        // setKycUrl(response.data.url);
+        // setIsKycModalOpen(true);
+        return;
+      }
       if (newStatus === STEPS.STATUS.FAILED) {
         trackEvent("Account verification", {
           "Verification status": "Failed",
@@ -580,19 +665,118 @@ export const KycModal = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletAddress]);
 
+  // Handle Smile ID publish event
+  useEffect(() => {
+    if (step !== STEPS.CAPTURE) {
+      return;
+    }
+
+    if (!cameraElement) {
+      return;
+    }
+
+    const handlePublish = async (event: any) => {
+      // Show loading screen while submitting
+      setStep(STEPS.LOADING);
+
+      try {
+        const { images, partner_params } = event.detail;
+
+        // Validate data structure
+        if (!images || !Array.isArray(images) || images.length === 0) {
+          throw new Error("Invalid image data received");
+        }
+
+        if (!walletAddress) {
+          throw new Error("Missing wallet address");
+        }
+
+        // Get access token for JWT authentication
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          throw new Error("No access token available");
+        }
+
+        // Validate ID info is selected
+        if (!selectedCountry || !selectedIdType) {
+          throw new Error("Please select country and ID type");
+        }
+
+        // For biometric_kyc (BVN, NIN, etc.), ID number is required
+        if (!needsDocCapture && !idNumber) {
+          throw new Error("Please enter your ID number");
+        }
+
+        const payload = {
+          images,
+          partner_params: {
+            ...partner_params,
+            user_id: `user-${walletAddress}`,
+          },
+          id_info: {
+            country: selectedCountry.code,
+            id_type: selectedIdType,
+            ...(idNumber && { id_number: idNumber }),
+          },
+          email: user?.email?.address,
+        };
+
+        const response = await submitSmileIDData(payload, accessToken);
+
+        if (response.status === "success") {
+          setStep(STEPS.STATUS.PENDING);
+          trackEvent("Account verification", {
+            "Verification status": "Submitted",
+          });
+        } else {
+          setStep(STEPS.STATUS.FAILED);
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          console.error("Error message:", error.message);
+          console.error("Error stack:", error.stack);
+        }
+        toast.error("Failed to submit verification data");
+        setStep(STEPS.STATUS.FAILED);
+      }
+    };
+
+    const handleCancel = () => {
+      toast.info("Verification cancelled");
+      setStep(STEPS.TERMS);
+    };
+
+    const handleBack = () => {
+      // Handle back navigation if needed
+    };
+
+    cameraElement.addEventListener("smart-camera-web.publish", handlePublish);
+    cameraElement.addEventListener("smart-camera-web.cancelled", handleCancel);
+    cameraElement.addEventListener("smart-camera-web.back", handleBack);
+
+    return () => {
+      cameraElement.removeEventListener("smart-camera-web.publish", handlePublish);
+      cameraElement.removeEventListener("smart-camera-web.cancelled", handleCancel);
+      cameraElement.removeEventListener("smart-camera-web.back", handleBack);
+    };
+  }, [step, cameraElement, walletAddress, selectedCountry, selectedIdType, idNumber, needsDocCapture, getAccessToken, user]);
+
+
   return (
     <>
       <AnimatePresence mode="wait">
-        {showQRCode
-          ? renderQRCode()
-          : {
-              [STEPS.TERMS]: renderTerms(),
-              [STEPS.STATUS.PENDING]: renderPendingStatus(),
-              [STEPS.STATUS.SUCCESS]: renderSuccessStatus(),
-              [STEPS.STATUS.FAILED]: renderFailedStatus(),
-              [STEPS.LOADING]: renderLoadingStatus(),
-              [STEPS.REFRESH]: renderRefresh(),
-            }[step]}
+        {
+          {
+            [STEPS.TERMS]: renderTerms(),
+            [STEPS.ID_INFO]: renderIdInfo(),
+            [STEPS.CAPTURE]: renderCapture(),
+            [STEPS.STATUS.PENDING]: renderPendingStatus(),
+            [STEPS.STATUS.SUCCESS]: renderSuccessStatus(),
+            [STEPS.STATUS.FAILED]: renderFailedStatus(),
+            [STEPS.LOADING]: renderLoadingStatus(),
+            [STEPS.REFRESH]: renderRefresh(),
+          }[step]
+        }
       </AnimatePresence>
     </>
   );

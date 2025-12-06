@@ -15,6 +15,7 @@ import {
   KycModal,
   FundWalletForm,
   AnimatedModal,
+  TransactionLimitModal,
 } from "../components";
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
@@ -29,7 +30,6 @@ import {
 } from "../utils";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
-import { fetchKYCStatus } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import {
@@ -38,6 +38,7 @@ import {
   useNetwork,
   useTokens,
 } from "../context";
+import { useKYCStatus } from "../hooks/useKYCStatus";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -67,6 +68,7 @@ export const TransactionForm = ({
   const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
+  const { canTransact, refreshStatus, isFullyVerified } = useKYCStatus();
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -79,6 +81,8 @@ export const TransactionForm = ({
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
   const isFirstRender = useRef(true);
   const [rateError, setRateError] = useState<string | null>(null);
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
+  const [blockedTransactionAmount, setBlockedTransactionAmount] = useState(0);
 
   const currencies = useMemo(
     () =>
@@ -99,6 +103,7 @@ export const TransactionForm = ({
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors, isValid, isDirty },
   } = formMethods;
   const { amountSent, amountReceived, token, currency } = watch();
@@ -264,33 +269,13 @@ export const TransactionForm = ({
   );
 
   useEffect(
-    function checkKycStatus() {
+    function refreshKycStatus() {
       const walletAddressToCheck = isInjectedWallet
         ? injectedAddress
         : embeddedWalletAddress;
       if (!walletAddressToCheck) return;
 
-      const fetchStatus = async () => {
-        try {
-          const response = await fetchKYCStatus(walletAddressToCheck);
-          if (response.data.status === "pending") {
-            setIsKycModalOpen(true);
-          } else if (response.data.status === "success") {
-            setIsUserVerified(true);
-          }
-        } catch (error) {
-          if (
-            error instanceof Error &&
-            (error as any).response?.status === 404
-          ) {
-            // silently fail if user is not found/verified
-          } else {
-            console.log("error", error);
-          }
-        }
-      };
-
-      fetchStatus();
+      refreshStatus();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [embeddedWalletAddress, injectedAddress, isInjectedWallet],
@@ -445,13 +430,28 @@ export const TransactionForm = ({
     balance,
     isDirty,
     isValid,
-    isUserVerified,
+    isUserVerified: isFullyVerified,
     rate,
     tokenDecimals,
   });
 
   const handleSwap = () => {
     setOrderId("");
+    
+    // Calculate the USD amount for transaction limit checking
+    const formData = getValues();
+    const usdAmount = formData.amountReceived || 0;
+    
+    // Check transaction limits based on KYC tier
+    const limitCheck = canTransact(usdAmount);
+    
+    if (!limitCheck.allowed) {
+      setBlockedTransactionAmount(usdAmount);
+      setIsLimitModalOpen(true);
+      return;
+    }
+    
+    // If limits are okay, proceed with transaction
     handleSubmit(onSubmit)();
   };
 
@@ -788,7 +788,7 @@ export const TransactionForm = ({
         <AnimatePresence>
           {currency &&
             (authenticated || isInjectedWallet) &&
-            isUserVerified && (
+            isFullyVerified && (
               <AnimatedComponent
                 variant={slideInOut}
                 className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-white/5"
@@ -836,6 +836,15 @@ export const TransactionForm = ({
           )}
         </AnimatePresence>
 
+        <TransactionLimitModal
+          isOpen={isLimitModalOpen}
+           onClose={async () => {
+            setIsLimitModalOpen(false);
+            await refreshStatus();
+          }}
+          transactionAmount={blockedTransactionAmount}
+        />
+
         {/* Loading and Submit buttons */}
         {!ready && (
           <button
@@ -864,8 +873,8 @@ export const TransactionForm = ({
                     (fetchedTokens.find((t) => t.symbol === token)
                       ?.address as `0x${string}`) ?? "",
                   ),
-                () => setIsKycModalOpen(true),
-                isUserVerified,
+                () => setIsLimitModalOpen(true),
+                isFullyVerified,
               )}
             >
               {buttonText}

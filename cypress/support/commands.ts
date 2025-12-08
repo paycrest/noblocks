@@ -28,7 +28,7 @@ Cypress.Commands.add('mockAuth', (userId: string) => {
   
   // Intercept API calls that require authentication
   cy.intercept('GET', '/api/v1/transactions*', {
-    fixture: 'transactions.json'
+    fixture: ''
   }).as('getTransactions')
   
   // Mock JWT in localStorage
@@ -54,7 +54,7 @@ Cypress.Commands.add('mockTransactionAPI', () => {
   
   // Mock transaction history
   cy.intercept('GET', '/api/v1/transactions*', {
-    fixture: 'transactions.json'
+    fixture: ''
   }).as('getTransactions')
   
   // Mock KYC endpoints
@@ -82,6 +82,6 @@ Cypress.Commands.add('setupTestEnvironment', () => {
   })
   
   // Mock external services
-  cy.intercept('GET', 'https://api.paycrest.io/**', { fixture: 'api-response.json' })
+  cy.intercept('GET', 'https://api.paycrest.io/**', { fixture: '' })
   cy.intercept('POST', 'https://api.paycrest.io/**', { statusCode: 200, body: { success: true } })
 })

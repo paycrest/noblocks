@@ -9,7 +9,7 @@ describe('Homepage Security', () => {
     cy.contains('noblocks').should('be.visible')
     
     // Check for basic security headers
-    cy.request('/', (response: any) => {
+    cy.request('/').then((response: any) => {
       expect(response.headers).to.have.property('x-content-type-options')
     })
   })

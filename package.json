@@ -23,7 +23,7 @@
     "test:coverage": "jest --coverage",
     "test:security": "jest __tests__/security",
     "test:integration": "jest __tests__/integration",
-    "test:e2e": "playwright test",
+    "test:e2e": "cypress run",
     "sanity:dev": "sanity dev --studio studio",
     "sanity:build": "sanity build --studio studio",
     "sanity:deploy": "sanity deploy",

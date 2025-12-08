@@ -374,7 +374,7 @@ export default function PhoneVerificationModal({
       <div className="flex items-start gap-2 rounded-xl bg-background-neutral p-3 dark:bg-white/5">
         <InformationSquareIcon className="h-4 w-4 text-gray-400 dark:text-white/40 mt-0.5 flex-shrink-0" />
         <p className="text-sm font-light text-text-secondary dark:text-white/50 leading-[20px]">
-          With just your phone number, you can swap up to $100/month. Verify your ID later to unlock even higher limits.
+By clicking "Verify and start", you consent to recieving transactional text messages for notifications and alerts from Noblocks. Reply STOP to opt out. you agree to our <a href="https://paycrest.io/privacy-policy" className='text-lavender-600'>Privacy Policy and terms & conditions.</a>.
         </p>
       </div>
 

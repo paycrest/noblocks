@@ -2,15 +2,15 @@ import * as Sentry from "@sentry/nextjs";
 import config from './app/lib/config';
 
 Sentry.init({
-  dsn: config.glitchtipDsn,
-  environment: config.glitchtipEnvironment,
-  release: config.glitchtipRelease,
+  dsn: config.sentryDsn,
+  environment: config.nodeEnv,
+  release: "2.0.0",
 
   integrations: [
     Sentry.replayIntegration(),
   ],
 
-  tracesSampleRate: config.glitchtipEnvironment === 'production' ? 0.1 : 1.0,
+  tracesSampleRate: config.nodeEnv === 'production' ? 0.1 : 1.0,
 
   enableLogs: true,
   replaysSessionSampleRate: 0.1,
@@ -19,7 +19,7 @@ Sentry.init({
 
   sendDefaultPii: false,
 
-  beforeSend(event) {
+  beforeSend(event: any) {
     if (typeof window !== "undefined") {
       try {
         const raw = window.localStorage.getItem("privy:session");

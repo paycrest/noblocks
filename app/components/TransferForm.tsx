@@ -89,12 +89,12 @@ export const TransferForm: React.FC<{
   const tokenBalance = Number(transferNetworkBalance?.balances?.[token]) || 0;
 
   // Networks for recipient network selection
-  // Filter out Celo and Hedera Mainnet for non-injected wallets (smart wallets)
+  // Filter out Celo for non-injected wallets (smart wallets)
   const recipientNetworks = networks
     .filter((network) => {
       if (useInjectedWallet) return true;
       return (
-        network.chain.name !== "Celo" && network.chain.name !== "Hedera Mainnet"
+        network.chain.name !== "Celo"
       );
     })
     .map((network) => ({

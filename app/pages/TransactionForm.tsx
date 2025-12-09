@@ -27,7 +27,7 @@ import {
   currencyToCountryCode,
   reorderCurrenciesByLocation,
 } from "../utils";
-import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
+import { NoteEditIcon, Wallet01Icon, ArrowUpDownIcon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
@@ -79,6 +79,7 @@ export const TransactionForm = ({
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
   const isFirstRender = useRef(true);
   const [rateError, setRateError] = useState<string | null>(null);
+  const [isSwapped, setIsSwapped] = useState(false); // Track if swap mode is active (onramp)
 
   const currencies = useMemo(
     () =>
@@ -256,7 +257,10 @@ export const TransactionForm = ({
         !fetchedTokens.find((t) => t.symbol === token) &&
         fetchedTokens.length > 0
       ) {
-        setValue("token", fetchedTokens[0].symbol, { shouldDirty: true });
+        // Prefer USDC if available, otherwise use first token
+        const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
+        const defaultToken = usdcToken?.symbol || fetchedTokens[0].symbol;
+        setValue("token", defaultToken, { shouldDirty: true });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -315,19 +319,49 @@ export const TransactionForm = ({
   useEffect(
     function calculateReceiveAmount() {
       if (rate && (amountSent || amountReceived)) {
+        // Rate format: currency per token (e.g., 1400 NGN per 1 USDC)
+        // When NOT swapped (offramp): Send = Token, Receive = Currency
+        //   Formula: Receive = Send * Rate (1 USDC * 1400 = 1400 NGN)
+        // When swapped (onramp): Send = Currency, Receive = Token
+        //   Formula: Receive = Send / Rate (463,284 NGN / 1400 = 330.917 USDC)
+
         if (isReceiveInputActive) {
-          const calculatedAmount = Number(
-            (Number(amountReceived) / rate).toFixed(4),
-          );
-          setValue("amountSent", calculatedAmount, { shouldDirty: true });
+          // User is typing in Receive field
+          if (isSwapped) {
+            // Swapped: Receive = Token, so calculate Send (Currency)
+            // Send = Receive * Rate (20.4 USDC * 1400 = 28,560 NGN)
+            const calculatedAmount = Number(
+              (Number(amountReceived) * rate).toFixed(2),
+            );
+            setValue("amountSent", calculatedAmount, { shouldDirty: true });
+          } else {
+            // Not swapped: Receive = Currency, so calculate Send (Token)
+            // Send = Receive / Rate (1400 NGN / 1400 = 1 USDC)
+            const calculatedAmount = Number(
+              (Number(amountReceived) / rate).toFixed(4),
+            );
+            setValue("amountSent", calculatedAmount, { shouldDirty: true });
+          }
         } else {
-          const calculatedAmount = Number((rate * amountSent).toFixed(2));
-          setValue("amountReceived", calculatedAmount, { shouldDirty: true });
+          // User is typing in Send field
+          if (isSwapped) {
+            // Swapped: Send = Currency, so calculate Receive (Token)
+            // Receive = Send / Rate (463,284 NGN / 1400 = 330.917 USDC)
+            const calculatedAmount = Number(
+              (Number(amountSent) / rate).toFixed(4),
+            );
+            setValue("amountReceived", calculatedAmount, { shouldDirty: true });
+          } else {
+            // Not swapped: Send = Token, so calculate Receive (Currency)
+            // Receive = Send * Rate (1 USDC * 1400 = 1400 NGN)
+            const calculatedAmount = Number((rate * amountSent).toFixed(2));
+            setValue("amountReceived", calculatedAmount, { shouldDirty: true });
+          }
         }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [amountSent, amountReceived, rate],
+    [amountSent, amountReceived, rate, isSwapped],
   );
 
   // Register form fields
@@ -453,6 +487,55 @@ export const TransactionForm = ({
   const handleSwap = () => {
     setOrderId("");
     handleSubmit(onSubmit)();
+  };
+
+  // Handle swap button click to switch between token/currency dropdowns
+  const handleSwapFields = () => {
+    const currentAmountSent = amountSent;
+    const currentAmountReceived = amountReceived;
+    const willBeSwapped = !isSwapped;
+
+    // Swap amounts
+    setValue("amountSent", currentAmountReceived || 0, { shouldDirty: true });
+    setValue("amountReceived", currentAmountSent || 0, { shouldDirty: true });
+
+    // Swap formatted amounts
+    setFormattedSentAmount(formattedReceivedAmount);
+    setFormattedReceivedAmount(formattedSentAmount);
+
+    // Set defaults only if not already selected (preserve existing selections)
+    if (willBeSwapped) {
+      // Switching to onramp mode: Set NGN as default currency if not already set
+      if (!currency) {
+        setValue("currency", "NGN", { shouldDirty: true });
+      }
+      // Preserve token selection - don't clear it
+      // Only set default token if not already selected
+      if (!token && fetchedTokens.length > 0) {
+        // Prefer USDC if available, otherwise use first token
+        const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
+        const defaultToken = usdcToken?.symbol || fetchedTokens[0]?.symbol;
+        if (defaultToken) {
+          setValue("token", defaultToken, { shouldDirty: true });
+        }
+      }
+    } else {
+      // Switching back to offramp mode: Set USDC as default token if not already set
+      if (!token && fetchedTokens.length > 0) {
+        // Prefer USDC if available, otherwise use first token
+        const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
+        const defaultToken = usdcToken?.symbol || fetchedTokens[0]?.symbol;
+        if (defaultToken) {
+          setValue("token", defaultToken, { shouldDirty: true });
+        }
+      }
+    }
+
+    // Toggle swap mode (this controls which dropdown shows where)
+    setIsSwapped(willBeSwapped);
+
+    // Reset rate to trigger recalculation
+    stateProps.setRate(0);
   };
 
   // Handle sent amount input changes
@@ -670,49 +753,66 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedSentAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                  authenticated && (amountSent > balance || errors.amountSent)
-                    ? "text-red-500 dark:text-red-500"
-                    : "text-neutral-900 dark:text-white/80"
-                }`}
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${authenticated && (amountSent > balance || errors.amountSent)
+                  ? "text-red-500 dark:text-red-500"
+                  : "text-neutral-900 dark:text-white/80"
+                  }`}
                 placeholder="0"
                 title="Enter amount to send"
               />
-              <FormDropdown
-                defaultTitle="Select token"
-                data={tokens}
-                defaultSelectedItem={token}
-                isCTA={false}
-                onSelect={(selectedToken) =>
-                  setValue("token", selectedToken, { shouldDirty: true })
-                }
-                className="min-w-32"
-                dropdownWidth={160}
-              />
+              {isSwapped ? (
+                <FormDropdown
+                  defaultTitle="Select currency"
+                  data={orderedCurrencies}
+                  defaultSelectedItem={currency}
+                  onSelect={(selectedCurrency) =>
+                    setValue("currency", selectedCurrency, { shouldDirty: true })
+                  }
+                  className="min-w-80"
+                  dropdownWidth={320}
+                  isCTA={!currency}
+                />
+              ) : (
+                <FormDropdown
+                  defaultTitle="Select token"
+                  data={tokens}
+                  defaultSelectedItem={token}
+                  isCTA={false}
+                  onSelect={(selectedToken) =>
+                    setValue("token", selectedToken, { shouldDirty: true })
+                  }
+                  className="min-w-32"
+                  dropdownWidth={160}
+                />
+              )}
             </div>
             {(errors.amountSent ||
               (authenticated && totalRequired > balance)) && (
-              <AnimatedComponent
-                variant={slideInOut}
-                className="!mt-0 text-xs text-red-500"
-              >
-                {errors.amountSent?.message ||
-                  (authenticated && totalRequired > balance
-                    ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
-                    : null)}
-              </AnimatedComponent>
-            )}
+                <AnimatedComponent
+                  variant={slideInOut}
+                  className="!mt-0 text-xs text-red-500"
+                >
+                  {errors.amountSent?.message ||
+                    (authenticated && totalRequired > balance
+                      ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
+                      : null)}
+                </AnimatedComponent>
+              )}
 
             {/* Arrow showing swap direction */}
-            <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas">
-              <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
+            <button
+              type="button"
+              onClick={handleSwapFields}
+              className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 cursor-pointer transition-transform hover:scale-105 active:scale-95"
+            >
+              <div className="rounded-xl bg-gray-50 p-1.5 dark:bg-neutral-800">
                 {isFetchingRate ? (
                   <ImSpinner3 className="animate-spin text-xl text-outline-gray dark:text-white/50" />
                 ) : (
-                  <ArrowDown02Icon className="text-xl text-outline-gray dark:text-white/80" />
+                  <ArrowUpDownIcon className="text-xl text-outline-gray dark:text-white/50" />
                 )}
               </div>
-            </div>
+            </button>
           </motion.div>
 
           {/* Amount to receive & currency */}
@@ -756,30 +856,47 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedReceivedAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                  errors.amountReceived
-                    ? "text-red-500 dark:text-red-500"
-                    : "text-neutral-900 dark:text-white/80"
-                }`}
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amountReceived
+                  ? "text-red-500 dark:text-red-500"
+                  : "text-neutral-900 dark:text-white/80"
+                  }`}
                 placeholder="0"
                 title="Enter amount to receive"
               />
 
-              <FormDropdown
-                defaultTitle="Select currency"
-                data={orderedCurrencies}
-                defaultSelectedItem={currency}
-                onSelect={(selectedCurrency) =>
-                  setValue("currency", selectedCurrency, { shouldDirty: true })
-                }
-                className="min-w-80"
-                isCTA={
-                  !currency &&
-                  (!authenticated ||
-                    (authenticated && !(totalRequired > balance)))
-                }
-                dropdownWidth={320}
-              />
+              {isSwapped ? (
+                <FormDropdown
+                  defaultTitle="Select token"
+                  data={tokens}
+                  defaultSelectedItem={token || undefined}
+                  isCTA={
+                    !token &&
+                    (!authenticated ||
+                      (authenticated && !(totalRequired > balance)))
+                  }
+                  onSelect={(selectedToken) =>
+                    setValue("token", selectedToken, { shouldDirty: true })
+                  }
+                  className="min-w-32"
+                  dropdownWidth={160}
+                />
+              ) : (
+                <FormDropdown
+                  defaultTitle="Select currency"
+                  data={orderedCurrencies}
+                  defaultSelectedItem={currency}
+                  onSelect={(selectedCurrency) =>
+                    setValue("currency", selectedCurrency, { shouldDirty: true })
+                  }
+                  className="min-w-80"
+                  isCTA={
+                    !currency &&
+                    (!authenticated ||
+                      (authenticated && !(totalRequired > balance)))
+                  }
+                  dropdownWidth={320}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -809,11 +926,10 @@ export const TransactionForm = ({
                       formMethods.setValue("memo", e.target.value);
                     }}
                     value={formMethods.watch("memo")}
-                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
-                      errors.memo
-                        ? "text-red-500 dark:text-red-500"
-                        : "text-text-body dark:text-white/80"
-                    }`}
+                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${errors.memo
+                      ? "text-red-500 dark:text-red-500"
+                      : "text-text-body dark:text-white/80"
+                      }`}
                     placeholder="Add description (optional)"
                     maxLength={25}
                   />
@@ -884,11 +1000,25 @@ export const TransactionForm = ({
                   <>No available quote</>
                 ) : rate > 0 ? (
                   <>
-                    1 {token} ~{" "}
-                    {isFetchingRate
-                      ? "..."
-                      : formatNumberWithCommasForDisplay(rate)}{" "}
-                    {currency}
+                    {isSwapped ? (
+                      <>
+                        1 {currency} ~{" "}
+                        {isFetchingRate
+                          ? "..."
+                          : formatNumberWithCommasForDisplay(
+                            Number((1 / rate).toFixed(4)),
+                          )}{" "}
+                        {token}
+                      </>
+                    ) : (
+                      <>
+                        1 {token} ~{" "}
+                        {isFetchingRate
+                          ? "..."
+                          : formatNumberWithCommasForDisplay(rate)}{" "}
+                        {currency}
+                      </>
+                    )}
                   </>
                 ) : null}
               </div>

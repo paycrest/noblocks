@@ -49,7 +49,7 @@ import { trackEvent } from "../hooks/analytics/client";
 import { PDFReceipt } from "../components/PDFReceipt";
 import { pdf } from "@react-pdf/renderer";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
-import { useBalance, useInjectedWallet, useNetwork } from "../context";
+import { useBalance, useInjectedWallet, useNetwork, useBaseApp } from "../context";
 import { usePrivy } from "@privy-io/react-auth";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
@@ -118,6 +118,7 @@ export function TransactionStatus({
   const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
     useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isBaseApp, isFarcaster, baseAppWallet } = useBaseApp();
   const { user, getAccessToken } = usePrivy();
   const { setRocketStatus } = useRocketStatus();
 
@@ -272,11 +273,11 @@ export function TransactionStatus({
             if (transactionStatus !== status) {
               setTransactionStatus(
                 status as
-                  | "processing"
-                  | "fulfilled"
-                  | "validated"
-                  | "settled"
-                  | "refunded",
+                | "processing"
+                | "fulfilled"
+                | "validated"
+                | "settled"
+                | "refunded",
               );
             }
 
@@ -350,9 +351,18 @@ export function TransactionStatus({
           supportedInstitutions,
         );
 
-        const balance = isInjectedWallet
-          ? smartWalletBalance?.balances[token] || 0
-          : injectedWalletBalance?.balances[token] || 0;
+        // Balance priority: Base App uses injected balance (since it uses injected provider), then smart wallet
+        const balance = (isBaseApp || isFarcaster || isInjectedWallet)
+          ? injectedWalletBalance?.balances[token] || 0
+          : smartWalletBalance?.balances[token] || 0;
+
+        const walletType = isBaseApp
+          ? "Base App wallet"
+          : isFarcaster
+            ? "Farcaster wallet"
+            : isInjectedWallet
+              ? "Injected"
+              : "Smart wallet";
 
         const eventData = {
           Amount: amount,
@@ -362,7 +372,7 @@ export function TransactionStatus({
           "Wallet balance": balance,
           "Swap date": createdAt,
           "Transaction duration": calculateDuration(createdAt, completedAt),
-          "Wallet type": isInjectedWallet ? "Injected" : "Smart wallet",
+          "Wallet type": walletType,
         };
 
         if (["validated", "settled"].includes(transactionStatus)) {
@@ -494,15 +504,14 @@ export function TransactionStatus({
         <AnimatedComponent
           variant={fadeInOut}
           key="pending"
-          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${
-            transactionStatus === "pending"
-              ? "bg-orange-50 text-orange-400"
-              : transactionStatus === "processing"
-                ? "bg-yellow-50 text-yellow-400"
-                : transactionStatus === "fulfilled"
-                  ? "bg-green-50 text-green-400"
-                  : "bg-gray-50"
-          }`}
+          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${transactionStatus === "pending"
+            ? "bg-orange-50 text-orange-400"
+            : transactionStatus === "processing"
+              ? "bg-yellow-50 text-yellow-400"
+              : transactionStatus === "fulfilled"
+                ? "bg-green-50 text-green-400"
+                : "bg-gray-50"
+            }`}
         >
           <ImSpinner className="animate-spin" />
           <p>{transactionStatus}</p>
@@ -639,10 +648,10 @@ export function TransactionStatus({
   const getPaymentMessage = () => {
     const formattedRecipientName = recipientName
       ? recipientName
-          .toLowerCase()
-          .split(" ")
-          .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
-          .join(" ")
+        .toLowerCase()
+        .split(" ")
+        .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+        .join(" ")
       : "";
 
     if (transactionStatus === "refunded") {
@@ -847,17 +856,17 @@ export function TransactionStatus({
                 orderDetails,
                 orderId,
               ) && (
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.45}
-                  className="flex justify-center"
-                >
-                  <BlockFestCashbackComponent
-                    transactionId={orderId}
-                    cashbackPercentage="1%"
-                  />
-                </AnimatedComponent>
-              )}
+                  <AnimatedComponent
+                    variant={slideInOut}
+                    delay={0.45}
+                    className="flex justify-center"
+                  >
+                    <BlockFestCashbackComponent
+                      transactionId={orderId}
+                      cashbackPercentage="1%"
+                    />
+                  </AnimatedComponent>
+                )}
 
               <AnimatedComponent
                 variant={slideInOut}

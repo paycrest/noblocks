@@ -41,30 +41,24 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
 
       setIsInjectedWallet(shouldUse);
 
-      if (shouldUse) {
+      if (shouldUse && window.ethereum) {
         try {
           let ethereumProvider = window.ethereum;
-          let client;
 
-          // Try to use Farcaster SDK's Ethereum provider first
+          // Try to use Farcaster SDK's Ethereum provider if we're in a mini app
           try {
-            const farcasterProvider = await sdk.wallet.getEthereumProvider();
-            if (farcasterProvider) {
-              ethereumProvider = farcasterProvider;
-              console.log("Using Farcaster SDK Ethereum provider");
+            const isInMiniApp = await sdk.isInMiniApp();
+            if (isInMiniApp) {
+              const farcasterProvider = await sdk.wallet.getEthereumProvider();
+              if (farcasterProvider && typeof farcasterProvider.request === "function") {
+                ethereumProvider = farcasterProvider;
+              }
             }
-          } catch (farcasterError) {
-            console.warn(
-              "Farcaster SDK provider not available, falling back to window.ethereum:",
-              farcasterError,
-            );
+          } catch {
+            // Not in mini app or Farcaster SDK provider not available, use window.ethereum
           }
 
-          if (!ethereumProvider) {
-            throw new Error("No Ethereum provider available");
-          }
-
-          client = createWalletClient({
+          const client = createWalletClient({
             transport: custom(ethereumProvider as any),
           });
 
@@ -117,7 +111,6 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
         }
       }
     };
-
     // Add a small delay to ensure the page is fully loaded
 
     let cancelled = false;

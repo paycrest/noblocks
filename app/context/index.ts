@@ -12,3 +12,4 @@ export {
   BlockFestModalProvider,
   useBlockFestModal,
 } from "./BlockFestModalContext";
+export { BaseAppProvider, useBaseApp } from "./BaseAppContext";

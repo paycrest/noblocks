@@ -18,6 +18,7 @@ import {
   TokensProvider,
   TransactionsProvider,
   BlockFestModalProvider,
+  BaseAppProvider,
 } from "./context";
 import { useActualTheme } from "./hooks/useActualTheme";
 import { useMixpanel } from "./hooks/analytics/client";
@@ -86,6 +87,7 @@ function ContextProviders({ children }: { children: ReactNode }) {
   useMixpanel(); // Initialize Mixpanel analytics
 
   return (
+    <BaseAppProvider>
     <NetworkProvider>
       <InjectedWalletProvider>
         <TokensProvider>
@@ -103,6 +105,7 @@ function ContextProviders({ children }: { children: ReactNode }) {
         </TokensProvider>
       </InjectedWalletProvider>
     </NetworkProvider>
+    </BaseAppProvider>
   );
 }
 

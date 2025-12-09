@@ -36,7 +36,7 @@ import {
   createPublicClient,
   http,
 } from "viem";
-import { useBalance, useInjectedWallet, useStep } from "../context";
+import { useBalance, useInjectedWallet, useStep, useBaseApp } from "../context";
 
 import { fetchAggregatorPublicKey, saveTransaction } from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics/client";
@@ -62,6 +62,7 @@ export const TransactionPreview = ({
   const { client } = useSmartWallets();
   const { isInjectedWallet, injectedAddress, injectedProvider, injectedReady } =
     useInjectedWallet();
+  const { isBaseApp, isFarcaster, baseAppWallet } = useBaseApp();
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();
@@ -116,17 +117,23 @@ export const TransactionPreview = ({
     (t) => t.symbol.toUpperCase() === token.toUpperCase(),
   )?.decimals;
 
+  // Prioritize wallet: Base App/Farcaster > Injected > Smart Wallet
+  const baseAppWalletObj = (isBaseApp || isFarcaster) && baseAppWallet
+    ? { address: baseAppWallet, type: "base_app_wallet" }
+    : null;
+
   const injectedWallet = isInjectedWallet
     ? { address: injectedAddress, type: "injected_wallet" }
     : null;
 
-  const smartWallet = isInjectedWallet
+  const smartWallet = (isBaseApp || isFarcaster) || isInjectedWallet
     ? null
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
-  const activeWallet = injectedWallet || smartWallet;
+  const activeWallet = baseAppWalletObj || injectedWallet || smartWallet;
 
-  const balance = injectedWallet
+  // Balance priority: Base App uses injected balance (since it uses injected provider), then smart wallet
+  const balance = (baseAppWalletObj || injectedWallet)
     ? injectedWalletBalance?.balances[token] || 0
     : smartWalletBalance?.balances[token] || 0;
 
@@ -190,10 +197,11 @@ export const TransactionPreview = ({
 
   const createOrder = async () => {
     try {
-      if (isInjectedWallet && injectedProvider) {
-        // Injected wallet
+
+      if ((isBaseApp || isFarcaster || isInjectedWallet) && injectedProvider) {
+        // Base App/Farcaster/Injected wallet
         if (!injectedReady) {
-          throw new Error("Injected wallet not ready");
+          throw new Error("Wallet not ready");
         }
 
         const params = await prepareCreateOrderParams();
@@ -270,7 +278,7 @@ export const TransactionPreview = ({
 
         trackEvent("Swap started", {
           "Entry point": "Transaction preview",
-          "Wallet type": "Injected wallet",
+          "Wallet type": isBaseApp ? "Base App wallet" : isFarcaster ? "Farcaster wallet" : "Injected wallet",
         });
       } else {
         // Smart wallet
@@ -610,9 +618,8 @@ export const TransactionPreview = ({
                   <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
                 ) : (
                   <TbCircleDashed
-                    className={`text-lg ${
-                      isGatewayApproved ? "animate-spin" : ""
-                    }`}
+                    className={`text-lg ${isGatewayApproved ? "animate-spin" : ""
+                      }`}
                   />
                 )}
                 <p className="pr-1">Create Order</p>

@@ -4,17 +4,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import Providers from "./providers";
-import MainContent from "./mainContent";
-import {
-  Footer,
-  Navbar,
-  LayoutWrapper,
-  PWAInstall,
-  NoticeBanner,
-} from "./components";
+import { AppLayout } from "./components";
 import { EarlyReady } from "./early-ready";
-import { MiniKitContextProvider } from "@/providers/MiniKitProvider";
-import config from "./lib/config";
 
 export const dynamic = "force-static";
 
@@ -34,15 +25,23 @@ export const metadata: Metadata = {
     title: "Noblocks",
   },
   other: {
+    'fc:miniapp': JSON.stringify({
+      version: 'next',
+      imageUrl: 'https://noblocks.xyz/icons/android-chrome-192x192.png',
+      button: {
+        title: `Launch Noblocks`,
+        action: {
+          type: 'launch_frame',
+          name: 'Noblocks',
+          url: 'https://noblocks.xyz',
+          splashImageUrl: 'https://noblocks.xyz/images/noblocks-bg-image.png',
+          splashBackgroundColor: '#8B85F4',
+        },
+      },
+    }),
     "mobile-web-app-capable": "yes",
     "msapplication-TileColor": "#317EFB",
     "msapplication-tap-highlight": "no",
-
-    "fc:frame": "vNext",
-    "fc:frame:image": `${config.publicUrl ?? "https://noblocks.xyz"}/images/og-image.jpg`,
-    "fc:frame:button:1": "Open App",
-    "fc:frame:button:1:action": "link",
-    "fc:frame:button:1:target": `${config.publicUrl ?? "https://noblocks.xyz"}`,
   },
   applicationName: "Noblocks",
   category: "Finance",
@@ -251,32 +250,16 @@ export default function RootLayout({
         className={`${inter.className} overflow-x-hidden`}
         suppressHydrationWarning
       >
+        <EarlyReady />
         <Script
           id="noblocks-ld-json"
           type="application/ld+json"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        ></Script>
-        <EarlyReady />
-        <MiniKitContextProvider>
-          <Providers>
-            <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-              <div className="relative">
-                <Navbar />
-                {config.noticeBannerText && (
-                  <NoticeBanner
-                    textLines={config.noticeBannerText.split("|")}
-                  />
-                )}
-              </div>
-              <LayoutWrapper footer={<Footer />}>
-                <MainContent>{children}</MainContent>
-              </LayoutWrapper>
-
-              <PWAInstall />
-            </div>
-          </Providers>
-        </MiniKitContextProvider>
+        />
+        <Providers>
+          <AppLayout>{children}</AppLayout>
+        </Providers>
       </body>
     </html>
   );

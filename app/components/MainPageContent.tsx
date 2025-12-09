@@ -37,7 +37,6 @@ import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
 import { useInjectedWallet } from "../context";
-import { useMiniMode } from "../hooks/useMiniMode";
 
 const PageLayout = ({
   authenticated,
@@ -46,7 +45,6 @@ const PageLayout = ({
   transactionFormComponent,
   isRecipientFormOpen,
   isBlockFestReferral,
-  isMiniMode,
 }: {
   authenticated: boolean;
   ready: boolean;
@@ -54,7 +52,6 @@ const PageLayout = ({
   transactionFormComponent: React.ReactNode;
   isRecipientFormOpen: boolean;
   isBlockFestReferral: boolean;
-  isMiniMode: boolean;
 }) => {
   const { claimed, resetClaim } = useBlockFestClaim();
   const { user } = usePrivy();
@@ -89,12 +86,7 @@ const PageLayout = ({
 
       <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
 
-      {isMiniMode ? (
-        // Mini mode: Show only transaction components
-        <div className={`px-5 py-28 ${getBannerPadding()}`}>
-          {transactionFormComponent}
-        </div>
-      ) : currentStep === STEPS.FORM ? (
+      {currentStep === STEPS.FORM ? (
         <HomePage
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
@@ -116,7 +108,6 @@ export function MainPageContent() {
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
   const { selectedNetwork } = useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
-  const isMiniMode = useMiniMode();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
@@ -466,7 +457,6 @@ export function MainPageContent() {
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
           isBlockFestReferral={isBlockFestReferral}
-          isMiniMode={isMiniMode}
         />
       )}
     </div>

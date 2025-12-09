@@ -17,13 +17,14 @@ const nextConfig = {
           value: "nosniff",
         },
         {
-          key: "X-Frame-Options",
-          value: "ALLOWALL",
+          "key": "X-Frame-Options",
+          "value": ""
         },
+
         {
           key: "Content-Security-Policy",
-          value:
-            "frame-ancestors 'self' https://warpcast.com https://*.warpcast.com https://*.farcaster.xyz https://farcaster.xyz https://auth.privy.io https://client.warpcast.com;",
+          value: "frame-ancestors 'self' https://*.base.org https://*.base.build https://*.base.dev https://base.org https://base.build https://base.dev https://warpcast.com https://*.warpcast.com https://*.farcaster.xyz https://farcaster.xyz https://client.warpcast.com https://browser-intake-datadoghq.com",
+          // value: "frame- ancestors 'self' https://*.base.org https://*.base.build https://*.base.dev https://base.org https://base.build https://base.dev https://warpcast.com https://*.warpcast.com https://*.farcaster.xyz https://farcaster.xyz https://client.warpcast.com",
         },
         {
           key: "X-XSS-Protection",
@@ -46,10 +47,13 @@ const nextConfig = {
           key: "Cache-Control",
           value: "no-cache, no-store, must-revalidate",
         },
+        {
+          key: "Content-Security-Policy",
+          value: "default-src 'self'; script-src 'self'",
+        },
       ],
     },
   ],
-
   experimental: {
     optimizeCss: true,
     optimizePackageImports: ["@headlessui/react", "framer-motion"],
@@ -73,7 +77,7 @@ const nextConfig = {
       path: false,
       os: false,
     };
-    
+
     // Handle Mixpanel on server-side only
     if (isServer) {
       config.externals = config.externals || [];
@@ -81,13 +85,12 @@ const nextConfig = {
         'mixpanel': 'commonjs mixpanel'
       });
     }
-    
+
     return config;
   },
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",
   },
-
   images: {
     remotePatterns: [
       {
@@ -98,6 +101,7 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "cdn.sanity.io",
+        // Sanity image assets are served under /images/...
         pathname: "/images/**",
       },
       {
@@ -107,12 +111,12 @@ const nextConfig = {
       },
       ...(process.env.NODE_ENV !== "production"
         ? [
-            {
-              protocol: "https",
-              hostname: "picsum.photos",
-              pathname: "/**",
-            },
-          ]
+          {
+            protocol: "https",
+            hostname: "picsum.photos",
+            pathname: "/**",
+          },
+        ]
         : []),
     ],
   },

@@ -27,7 +27,6 @@ import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
-import { useMiniMode } from "../hooks/useMiniMode";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -38,7 +37,6 @@ export const Navbar = () => {
   const { selectedNetwork } = useNetwork();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const isDark = useActualTheme();
-  const isMiniMode = useMiniMode();
 
   const { ready, authenticated, user } = usePrivy();
 
@@ -118,7 +116,7 @@ export const Navbar = () => {
           >
             <div
               className="flex cursor-pointer items-center gap-1"
-              onMouseEnter={() => !isMiniMode && setIsDropdownOpen(true)}
+              onMouseEnter={() => setIsDropdownOpen(true)}
               onMouseLeave={(e) => {
                 // Only close if we're not moving to the dropdown menu
                 const relatedTarget = e.relatedTarget as Node;
@@ -132,15 +130,12 @@ export const Navbar = () => {
             >
               <button
                 aria-label="Noblocks Logo Icon"
-                aria-haspopup={isMiniMode ? "false" : "menu"}
-                aria-expanded={isMiniMode ? false : isDropdownOpen}
-                aria-controls={isMiniMode ? undefined : "navbar-dropdown"}
+                aria-haspopup="menu"
+                aria-controls="navbar-dropdown"
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
-                  if (!isMiniMode) {
-                    setIsDropdownOpen(!isDropdownOpen);
-                  }
+                  setIsDropdownOpen(!isDropdownOpen);
                 }}
                 className="flex items-center gap-1 max-sm:min-h-9 max-sm:rounded-lg max-sm:bg-accent-gray max-sm:p-2 dark:max-sm:bg-white/10"
               >
@@ -157,32 +152,19 @@ export const Navbar = () => {
                 )}
               </button>
 
-              {!isMiniMode && (
-                <ArrowDown01Icon
-                  className={classNames(
-                    "size-5 cursor-pointer text-icon-outline-secondary transition-transform duration-200 dark:text-white/50 max-sm:hidden",
-                    isDropdownOpen ? "rotate-0" : "-rotate-90",
-                    IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[15px]", // this adjusts the arrow position for beta logo
-                  )}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setIsDropdownOpen(!isDropdownOpen);
-                  }}
-                />
-              )}
+              <ArrowDown01Icon
+                className={classNames(
+                  "size-5 cursor-pointer text-icon-outline-secondary transition-transform duration-200 dark:text-white/50 max-sm:hidden",
+                  isDropdownOpen ? "rotate-0" : "-rotate-90",
+                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[15px]", // this adjusts the arrow position for beta logo
+                )}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setIsDropdownOpen(!isDropdownOpen);
+                }}
+              />
             </div>
 
-            {/* Blog Link - Desktop Only - Hidden in mini mode */}
-            {!pathname.startsWith("/blog") && !isMiniMode && (
-              <div className="hidden items-center sm:flex">
-                <Link
-                  href="/blog"
-                  className={` ${IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"} text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
-                >
-                  Blog
-                </Link>
-              </div>
-            )}
             {/* Home Link */}
             {pathname !== "/" && (
               <div className="hidden items-center sm:flex">
@@ -194,9 +176,8 @@ export const Navbar = () => {
                 </Link>
               </div>
             )}
-
-            {/* Blog Link - Desktop Only - Hidden in mini mode */}
-            {!pathname.startsWith("/blog") && !isMiniMode && (
+            {/* Blog Link - Desktop Only */}
+            {!pathname.startsWith("/blog") && (
               <div className="hidden items-center sm:flex">
                 <Link
                   href="/blog"
@@ -207,8 +188,8 @@ export const Navbar = () => {
               </div>
             )}
 
-            {/* Swap Link - Show on /blog and nested blog routes - Hidden in mini mode */}
-            {pathname.startsWith("/blog") && !isMiniMode && (
+            {/* Swap Link - Show on /blog and nested blog routes */}
+            {pathname.startsWith("/blog") && (
               <div className="hidden items-center sm:flex">
                 <Link
                   href="/"
@@ -220,7 +201,7 @@ export const Navbar = () => {
               </div>
             )}
             <AnimatePresence>
-              {isDropdownOpen && !isMiniMode && (
+              {isDropdownOpen && (
                 <>
                   {/* Invisible bridge to prevent dropdown from closing when moving cursor */}
                   <div className="absolute left-0 top-[calc(100%-0.5rem)] z-40 h-6 w-full" />
@@ -242,7 +223,7 @@ export const Navbar = () => {
                         Home
                       </Link>
                     )}
-                    {!pathname.startsWith("/blog") && !isMiniMode && (
+                    {!pathname.startsWith("/blog") && (
                       <Link
                         href="/blog"
                         className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5 sm:hidden"
@@ -271,49 +252,46 @@ export const Navbar = () => {
             </AnimatePresence>
           </div>
         </div>
+
         <div className="flex gap-3 text-sm font-medium *:flex-shrink-0 sm:gap-4">
           {(ready && authenticated) || isInjectedWallet ? (
             <>
-              {!isMiniMode && (
-                <>
-                  <div className="hidden sm:block">
-                    <WalletDetails />
-                  </div>
+              <div className="hidden sm:block">
+                <WalletDetails />
+              </div>
 
-                  <div className="hidden sm:block">
-                    <NetworksDropdown />
-                  </div>
+              <div className="hidden sm:block">
+                <NetworksDropdown />
+              </div>
 
-                  <div className="hidden sm:block">
-                    <SettingsDropdown />
-                  </div>
+              <div className="hidden sm:block">
+                <SettingsDropdown />
+              </div>
 
-                  <button
-                    type="button"
-                    className="flex min-h-9 items-center gap-2 rounded-xl bg-gray-50 p-2 dark:bg-white/10 sm:hidden"
-                    onClick={() => setIsMobileDropdownOpen(true)}
-                  >
-                    <Image
-                      src={getNetworkImageUrl(selectedNetwork, isDark)}
-                      alt={selectedNetwork.chain.name}
-                      width={20}
-                      height={20}
-                      className="size-5 rounded-full"
-                    />
-                    <span className="font-medium dark:text-white">
-                      {shortenAddress(activeWallet?.address ?? "", 6)}
-                    </span>
-                    <ArrowDown01Icon className="size-4 dark:text-white/50" />
-                  </button>
+              <button
+                type="button"
+                className="flex min-h-9 items-center gap-2 rounded-xl bg-gray-50 p-2 dark:bg-white/10 sm:hidden"
+                onClick={() => setIsMobileDropdownOpen(true)}
+              >
+                <Image
+                  src={getNetworkImageUrl(selectedNetwork, isDark)}
+                  alt={selectedNetwork.chain.name}
+                  width={20}
+                  height={20}
+                  className="size-5 rounded-full"
+                />
+                <span className="font-medium dark:text-white">
+                  {shortenAddress(activeWallet?.address ?? "", 6)}
+                </span>
+                <ArrowDown01Icon className="size-4 dark:text-white/50" />
+              </button>
 
-                  <AnimatePresence>
-                    <MobileDropdown
-                      isOpen={isMobileDropdownOpen}
-                      onClose={() => setIsMobileDropdownOpen(false)}
-                    />
-                  </AnimatePresence>
-                </>
-              )}
+              <AnimatePresence>
+                <MobileDropdown
+                  isOpen={isMobileDropdownOpen}
+                  onClose={() => setIsMobileDropdownOpen(false)}
+                />
+              </AnimatePresence>
             </>
           ) : (
             !isInjectedWallet && (

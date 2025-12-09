@@ -268,6 +268,10 @@ export type Config = {
   supabaseUrl: string;
   supabaseRoleKey: string;
   appUrl: string;
+  baseBuilderOwnerAddress: string;
+  baseAppHeader: string;
+  baseAppPayload: string;
+  baseAppSignature: string;
   aggregatorUrl: string;
   privyAppId: string;
   thirdwebClientId: string;

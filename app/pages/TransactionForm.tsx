@@ -37,6 +37,7 @@ import {
   useInjectedWallet,
   useNetwork,
   useTokens,
+  useBaseApp,
 } from "../context";
 
 /**
@@ -66,6 +67,7 @@ export const TransactionForm = ({
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isBaseApp, isFarcaster, baseAppWallet } = useBaseApp();
   const { allTokens } = useTokens();
 
   const embeddedWalletAddress = wallets.find(
@@ -110,11 +112,23 @@ export const TransactionForm = ({
     dependencies: [selectedNetwork],
   });
 
-  const activeWallet = isInjectedWallet
+  // Prioritize wallet: Base App/Farcaster > Injected > Smart Wallet
+  const baseAppWalletObj = (isBaseApp || isFarcaster) && baseAppWallet
+    ? { address: baseAppWallet }
+    : null;
+
+  const injectedWalletObj = isInjectedWallet
     ? { address: injectedAddress }
+    : null;
+
+  const smartWalletObj = (isBaseApp || isFarcaster) || isInjectedWallet
+    ? null
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
-  const activeBalance = isInjectedWallet
+  const activeWallet = baseAppWalletObj || injectedWalletObj || smartWalletObj;
+
+  // Balance priority: Base App uses injected balance (since it uses injected provider), then smart wallet
+  const activeBalance = (baseAppWalletObj || injectedWalletObj)
     ? injectedWalletBalance
     : smartWalletBalance;
 
@@ -670,11 +684,10 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedSentAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                  authenticated && (amountSent > balance || errors.amountSent)
-                    ? "text-red-500 dark:text-red-500"
-                    : "text-neutral-900 dark:text-white/80"
-                }`}
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${authenticated && (amountSent > balance || errors.amountSent)
+                  ? "text-red-500 dark:text-red-500"
+                  : "text-neutral-900 dark:text-white/80"
+                  }`}
                 placeholder="0"
                 title="Enter amount to send"
               />
@@ -692,16 +705,16 @@ export const TransactionForm = ({
             </div>
             {(errors.amountSent ||
               (authenticated && totalRequired > balance)) && (
-              <AnimatedComponent
-                variant={slideInOut}
-                className="!mt-0 text-xs text-red-500"
-              >
-                {errors.amountSent?.message ||
-                  (authenticated && totalRequired > balance
-                    ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
-                    : null)}
-              </AnimatedComponent>
-            )}
+                <AnimatedComponent
+                  variant={slideInOut}
+                  className="!mt-0 text-xs text-red-500"
+                >
+                  {errors.amountSent?.message ||
+                    (authenticated && totalRequired > balance
+                      ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
+                      : null)}
+                </AnimatedComponent>
+              )}
 
             {/* Arrow showing swap direction */}
             <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas">
@@ -756,11 +769,10 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedReceivedAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                  errors.amountReceived
-                    ? "text-red-500 dark:text-red-500"
-                    : "text-neutral-900 dark:text-white/80"
-                }`}
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amountReceived
+                  ? "text-red-500 dark:text-red-500"
+                  : "text-neutral-900 dark:text-white/80"
+                  }`}
                 placeholder="0"
                 title="Enter amount to receive"
               />
@@ -809,11 +821,10 @@ export const TransactionForm = ({
                       formMethods.setValue("memo", e.target.value);
                     }}
                     value={formMethods.watch("memo")}
-                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
-                      errors.memo
-                        ? "text-red-500 dark:text-red-500"
-                        : "text-text-body dark:text-white/80"
-                    }`}
+                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${errors.memo
+                      ? "text-red-500 dark:text-red-500"
+                      : "text-text-body dark:text-white/80"
+                      }`}
                     placeholder="Add description (optional)"
                     maxLength={25}
                   />

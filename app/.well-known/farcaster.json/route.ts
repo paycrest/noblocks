@@ -1,71 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
 import config from "../../lib/config";
 
-export async function GET(request: NextRequest) {
-    // If hosted manifest URL is set, redirect to it
-    const hostedManifestUrl = process.env.NEXT_PUBLIC_FC_HOSTED_MANIFEST_URL;
-    if (hostedManifestUrl) {
-        return new Response(null, {
-            status: 307,
-            headers: {
-                Location: hostedManifestUrl,
-                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=86400",
-            },
-        });
-    }
+export async function GET() {
+    const assetBaseUrl = "https://noblocks.xyz";
 
-    // Get the current request URL to use as base URL (works with ngrok)
-    const requestUrl = new URL(request.url);
-    const baseUrl = requestUrl.origin || "https://noblocks.xyz";
-    const webhookUrl = `${baseUrl}/api/webhooks/farcaster`;
-
-    // Build manifest matching the existing format (flat structure)
-    // This format is compatible with Farcaster Mini Apps
     const manifest: any = {
-        name: "Noblocks",
-        description: "A crypto-enabled mini app for sending and receiving stablecoins on Base using Farcaster.",
-        app: {
-            url: baseUrl,
-            window: {
-                height: 600,
-                width: 400,
-            },
+        accountAssociation: {
+            header: config.baseAppHeader,
+            payload: config.baseAppPayload,
+            signature: config.baseAppSignature,
         },
-        icon: {
-            light: `${baseUrl}/icons/favicon_.png`,
-            dark: `${baseUrl}/icons/favicon.png`,
+        baseBuilder: {
+            ownerAddress: config.baseBuilderOwnerAddress,
         },
-        splash_screen: {
-            light: `${baseUrl}/android-chrome-192x192.png`,
-            dark: `${baseUrl}/android-chrome-192x192.png`,
+        miniapp: {
+            version: "1",
+            name: "Noblocks",
+            homeUrl: assetBaseUrl,
+            iconUrl: `${assetBaseUrl}/icons/android-chrome-192x192.png`,
+            imageUrl: `${assetBaseUrl}/images/og-image.jpg`,
+            splashImageUrl: `${assetBaseUrl}/images/noblocks-bg-image.png`,
+            splashBackgroundColor: "#8B85F4",
+            subtitle: "Decentralized Payments",
+            description:
+                "Send crypto payments to any bank or mobile wallet via distributed liquidity network.",
+            screenshotUrls: [
+                `${assetBaseUrl}/screenshots/mobile-narrow.png`,
+                `${assetBaseUrl}/screenshots/desktop-wide.png`,
+            ],
+            primaryCategory: "finance",
+            tags: ["payments", "crypto", "remittance", "defi"],
+            heroImageUrl: `${assetBaseUrl}/images/noblocks-bg-image.png`,
+            tagline: "Crypto-to-fiat payments",
+            ogTitle: "Noblocks",
+            ogDescription: "Decentralized payments to any bank or mobile wallet via distributed liquidity network.",
+            ogImageUrl: `${assetBaseUrl}/images/og-image.jpg`,
+            noindex: false,
         },
-        navigation_bar: {
-            visible: true,
-            title: "Noblocks",
-        },
-        version: "1.0.0",
-        primaryCategory: "finance",
-        tags: ["web3", "stablecoin", "payments", "crypto"],
-        developer: {
-            name: "Paycrest",
-            website: "https://paycrest.io",
-            contact: "mailto:engineering@paycrest.io",
-        },
-        // Account association for verification (required for verified apps)
-        ...(config.farcasterHeader && config.farcasterPayload && config.farcasterSignature ? {
-            accountAssociation: {
-                header: config.farcasterHeader,
-                payload: config.farcasterPayload,
-                signature: config.farcasterSignature,
-            },
-        } : {}),
-        webhookUrl: webhookUrl,
     };
 
     return NextResponse.json(manifest, {
         headers: {
             "Content-Type": "application/json",
-            "Cache-Control": "public, s-maxage=300, stale-while-revalidate=86400",
+            // Disable caching completely during testing
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            // Explicitly allow framing
+            "X-Frame-Options": "",
         },
     });
 }

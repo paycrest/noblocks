@@ -1,8 +1,8 @@
-import React from "react";
+"use client";
+import React, { useEffect, useState } from "react";
 import Script from "next/script";
 import config from "../lib/config";
 
-import Providers from "../providers";
 import MainContent from "../mainContent";
 import {
   Footer,
@@ -11,22 +11,36 @@ import {
   PWAInstall,
   NoticeBanner,
 } from "./index";
+import { useBaseApp } from "../context";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const { isBaseApp, isFarcaster } = useBaseApp();
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Only check mini app status after mount to prevent hydration mismatch
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Always render full UI on server, then conditionally hide on client after mount
+  const isMiniApp = isMounted && (isBaseApp || isFarcaster);
+
   return (
-    <Providers>
+    <>
       <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-        <div className="relative">
-          <Navbar />
-          {config.noticeBannerText && (
-            <NoticeBanner textLines={config.noticeBannerText.split("|")} />
-          )}
-        </div>
-        <LayoutWrapper footer={<Footer />}>
+        {!isMiniApp && (
+          <div className="relative">
+            <Navbar />
+            {config.noticeBannerText && (
+              <NoticeBanner textLines={config.noticeBannerText.split("|")} />
+            )}
+          </div>
+        )}
+        <LayoutWrapper footer={!isMiniApp ? <Footer /> : undefined}>
           <MainContent>{children}</MainContent>
         </LayoutWrapper>
 
-        <PWAInstall />
+        {!isMiniApp && <PWAInstall />}
       </div>
 
       {/* Brevo Chat Widget */}
@@ -44,6 +58,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           />{" "}
         </>
       )}
-    </Providers>
+    </>
   );
 }

@@ -46,6 +46,10 @@ const config: Config = {
   blockfestEndDate:
     process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
   supabaseRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  baseBuilderOwnerAddress: process.env.BASE_BUILDER_OWNER_ADDRESS || "",
+  baseAppHeader: process.env.BASE_APP_HEADER || "",
+  baseAppPayload: process.env.BASE_APP_PAYLOAD || "",
+  baseAppSignature: process.env.BASE_APP_SIGNATURE || "",
 };
 
 export default config;

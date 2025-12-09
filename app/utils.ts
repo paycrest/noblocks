@@ -581,8 +581,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Scroll: "0x663c5bfe7d44ba946c2dd4b2d1cf9580319f9338",
     Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
     Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
-    Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
-    "Hedera Mainnet": "0x17d13B7032944af8B420Ac5bedb12a7D92270478",
+    Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",    
   }[network];
 }
 

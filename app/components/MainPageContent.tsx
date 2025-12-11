@@ -10,6 +10,7 @@ import {
   Preloader,
   TransactionForm,
   TransactionPreview,
+  MakePayment,
   TransactionStatus,
   NetworkSelectionModal,
   CookieConsent,
@@ -389,6 +390,13 @@ export function MainPageContent() {
             handleBackButtonClick={handleBackToForm}
             stateProps={stateProps}
             createdAt={createdAt}
+          />
+        );
+      case STEPS.MAKE_PAYMENT:
+        return (
+          <MakePayment
+            handleBackButtonClick={handleBackToForm}
+            stateProps={stateProps}
           />
         );
       case STEPS.STATUS:

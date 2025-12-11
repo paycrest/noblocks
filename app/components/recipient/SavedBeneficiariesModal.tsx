@@ -21,14 +21,43 @@ export const SavedBeneficiariesModal = ({
   institutions,
   isLoading = false,
   error = null,
+  isSwapped = false,
+  networkName,
 }: SavedBeneficiariesModalProps) => {
   const [beneficiarySearchTerm, setBeneficiarySearchTerm] = useState("");
 
   const filteredSavedRecipients = useMemo(() => {
-    if (!currency) return [];
+    if (!currency && !isSwapped) return [];
     const allRecipients = [...savedRecipients];
 
-    const uniqueRecipients = allRecipients.filter(
+    if (isSwapped) {
+      const walletRecipients = allRecipients.filter((r) => r.type === "wallet");
+
+      const uniqueRecipients = walletRecipients.filter(
+        (recipient, index, self) =>
+          index ===
+          self.findIndex(
+            (r) => r.type === "wallet" && recipient.type === "wallet" && r.walletAddress === recipient.walletAddress,
+          ),
+      );
+
+      return uniqueRecipients.filter(
+        (recipient) => {
+          if (recipient.type === "wallet") {
+            const walletAddress = recipient.walletAddress.toLowerCase();
+            const searchTerm = beneficiarySearchTerm.toLowerCase();
+            return walletAddress.includes(searchTerm);
+          }
+          return false;
+        }
+      );
+    }
+
+    const bankRecipientsOnly = allRecipients.filter(
+      (recipient) => recipient.type !== "wallet"
+    );
+
+    const uniqueRecipients = bankRecipientsOnly.filter(
       (recipient, index, self) =>
         index ===
         self.findIndex(
@@ -52,13 +81,13 @@ export const SavedBeneficiariesModal = ({
       .filter((recipient) =>
         currentBankCodes.includes(recipient.institutionCode),
       );
-  }, [savedRecipients, beneficiarySearchTerm, currency, institutions]);
+  }, [savedRecipients, beneficiarySearchTerm, currency, institutions, isSwapped]);
 
   return (
     <AnimatedModal isOpen={isOpen} onClose={onClose} maxWidth="28.5rem">
       <div className="flex items-center justify-between">
         <DialogTitle className="text-lg font-semibold dark:text-white sm:text-base">
-          Saved beneficiaries
+          Saved beneficiaries{networkName ? ` (${networkName})` : ""}
         </DialogTitle>
         <button
           type="button"
@@ -74,7 +103,7 @@ export const SavedBeneficiariesModal = ({
         <SearchInput
           value={beneficiarySearchTerm}
           onChange={setBeneficiarySearchTerm}
-          placeholder="Search by name or account number"
+          placeholder={isSwapped ? "Search beneficiaries" : "Search by name or account number"}
           autoFocus={isOpen}
         />
       </div>
@@ -84,7 +113,7 @@ export const SavedBeneficiariesModal = ({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
         transition={{ duration: 0.2 }}
-        className="mt-2 h-[21rem] overflow-y-auto sm:h-[14rem]"
+        className="mt-2 max-h-[21rem] overflow-y-auto sm:max-h-[14rem] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
       >
         <AnimatePresence>
           {isLoading ? (
@@ -115,7 +144,7 @@ export const SavedBeneficiariesModal = ({
           ) : filteredSavedRecipients.length > 0 ? (
             filteredSavedRecipients.map((recipient, index) => (
               <motion.div
-                key={`${recipient.accountIdentifier}-${index}`}
+                key={recipient.type === "wallet" ? `${recipient.walletAddress}-${index}` : `${recipient.accountIdentifier}-${index}`}
                 initial={{ opacity: 1, height: "auto" }}
                 exit={{
                   opacity: 0,
@@ -129,6 +158,7 @@ export const SavedBeneficiariesModal = ({
                   onSelect={onSelectRecipient}
                   onDelete={onDeleteRecipient}
                   isBeingDeleted={recipientToDelete === recipient}
+                  index={index}
                 />
               </motion.div>
             ))

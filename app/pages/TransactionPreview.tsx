@@ -15,6 +15,7 @@ import {
   getNetworkImageUrl,
   getRpcUrl,
   publicKeyEncrypt,
+  shortenAddress,
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
 import type {
@@ -88,7 +89,11 @@ export const TransactionPreview = ({
     recipientName,
     accountIdentifier,
     memo,
+    walletAddress,
   } = formValues;
+
+  // Detect onramp mode: if walletAddress exists, it's an onramp transaction
+  const isOnramp = !!walletAddress;
 
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0); // Used to trigger toast
@@ -137,36 +142,59 @@ export const TransactionPreview = ({
     feeRecipient: senderFeeRecipientAddress,
   } = calculateSenderFee(amountSent, rate, tokenDecimals ?? 18);
 
-  // Rendered tsx info
-  const renderedInfo = {
-    amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
-    totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
-    recipient: recipientName
-      .toLowerCase()
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" "),
-    account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
-    ...(memo && { description: memo }),
-    ...(senderFeeAmount > 0 && {
-      fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
-    }),
-    network: selectedNetwork.chain.name,
-  };
+  // Rendered tsx info - different for onramp vs offramp
+  const renderedInfo = isOnramp
+    ? {
+      // For onramp: You send fiat currency, receive token
+      amount: `${currency} ${formatNumberWithCommas(amountSent ?? 0)}`,
+      totalValue: `${formatNumberWithCommas(amountReceived ?? 0)} ${token}`,
+      rate: `${formatNumberWithCommas(rate)} ${currency} ~ 1 ${token}`,
+      network: selectedNetwork.chain.name,
+      recipient: walletAddress ? shortenAddress(walletAddress, 6, 4) : "",
+      ...(senderFeeAmount > 0 && {
+        fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
+      }),
+    }
+    : {
+      // For offramp: You send token, receive fiat currency
+      amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
+      totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
+      recipient: recipientName
+        .toLowerCase()
+        .split(" ")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+      account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
+      ...(memo && { description: memo }),
+      ...(senderFeeAmount > 0 && {
+        fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
+      }),
+      network: selectedNetwork.chain.name,
+    };
 
   const prepareCreateOrderParams = async () => {
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
 
-    // Prepare recipient data
-    const recipient = {
-      accountIdentifier: formValues.accountIdentifier,
-      accountName: recipientName,
-      institution: formValues.institution,
-      memo: formValues.memo,
-      ...(providerId && { providerId }),
-      nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
-    };
+    // Prepare recipient data - different for onramp vs offramp
+    const recipient = isOnramp
+      ? {
+        // For onramp: wallet address is the recipient
+        accountIdentifier: walletAddress || "",
+        accountName: recipientName || walletAddress || "",
+        institution: "Wallet",
+        ...(providerId && { providerId }),
+        nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+      }
+      : {
+        // For offramp: bank/mobile money details
+        accountIdentifier: formValues.accountIdentifier,
+        accountName: recipientName,
+        institution: formValues.institution,
+        memo: formValues.memo,
+        ...(providerId && { providerId }),
+        nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+      };
 
     // Fetch aggregator public key
     const publicKey = await fetchAggregatorPublicKey();
@@ -361,6 +389,12 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
+    // For onramp, navigate to Make Payment screen instead of creating order immediately
+    if (isOnramp) {
+      setCurrentStep("make_payment");
+      return;
+    }
+
     // Check balance including sender fee
     const totalRequired = amountSent + senderFeeAmount;
     if (totalRequired > balance) {
@@ -399,21 +433,27 @@ export const TransactionPreview = ({
 
       const transaction: TransactionCreateInput = {
         walletAddress: embeddedWallet.address,
-        transactionType: "swap",
-        fromCurrency: token,
-        toCurrency: currency,
+        transactionType: isOnramp ? "onramp" : "swap",
+        fromCurrency: isOnramp ? currency : token,
+        toCurrency: isOnramp ? token : currency,
         amountSent: Number(amountSent),
         amountReceived: Number(amountReceived),
         fee: Number(rate),
-        recipient: {
-          account_name: recipientName,
-          institution: getInstitutionNameByCode(
-            institution,
-            supportedInstitutions,
-          ) as string,
-          account_identifier: accountIdentifier,
-          ...(memo && { memo }),
-        },
+        recipient: isOnramp
+          ? {
+            account_name: recipientName || walletAddress || "",
+            institution: "Wallet",
+            account_identifier: walletAddress || "",
+          }
+          : {
+            account_name: recipientName,
+            institution: getInstitutionNameByCode(
+              institution,
+              supportedInstitutions,
+            ) as string,
+            account_identifier: accountIdentifier,
+            ...(memo && { memo }),
+          },
         status: "pending",
         network: selectedNetwork.chain.name,
         orderId: orderId,
@@ -534,45 +574,72 @@ export const TransactionPreview = ({
       </div>
 
       <div className="grid gap-4">
-        {Object.entries(renderedInfo).map(([key, value]) => (
-          <div key={key} className="flex items-start justify-between gap-2">
-            <h3 className="w-full max-w-28 text-text-secondary dark:text-white/50 sm:max-w-40">
-              {key === "totalValue"
-                ? "Total value"
-                : key.charAt(0).toUpperCase() + key.slice(1)}
-            </h3>
+        {Object.entries(renderedInfo).map(([key, value]) => {
+          // For onramp, show token logo next to totalValue (which is the token amount)
+          const showTokenLogo =
+            (isOnramp && key === "totalValue") ||
+            (!isOnramp && (key === "amount" || key === "fee"));
 
-            <p className="flex flex-grow items-center gap-1 font-medium text-text-body dark:text-white/80">
-              {(key === "amount" || key === "fee") && (
-                <Image
-                  src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
-                  alt={`${token} logo`}
-                  width={14}
-                  height={14}
-                />
-              )}
+          return (
+            <div key={key} className="flex items-start justify-between gap-2">
+              <h3 className="flex items-center gap-1.5 w-full max-w-28 text-text-secondary dark:text-white/50 sm:max-w-40">
+                {key === "totalValue"
+                  ? isOnramp
+                    ? "Receive amount"
+                    : "Total value"
+                  : key === "amount"
+                    ? "You send"
+                    : key.charAt(0).toUpperCase() + key.slice(1)}
+                {key === "rate" && (
+                  <div className="group relative inline-flex items-center">
+                    <InformationSquareIcon className="size-3.5 text-icon-outline-secondary dark:text-white/50 cursor-help hover:text-icon-outline-primary dark:hover:text-white/70 transition-colors" />
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                      <div className="bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
+                        Rate changes dynamically after 5 minutes
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
+                          <div className="border-4 border-transparent border-t-gray-900 dark:border-t-gray-800"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </h3>
 
-              {key === "network" && (
-                <Image
-                  src={getNetworkImageUrl(selectedNetwork, isDark)}
-                  alt={selectedNetwork.chain.name}
-                  width={14}
-                  height={14}
-                />
-              )}
+              <div className="flex flex-grow flex-col items-start gap-1">
+                <p className="flex items-center gap-1 font-medium text-text-body dark:text-white/80">
+                  {showTokenLogo && (
+                    <Image
+                      src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
+                      alt={`${token} logo`}
+                      width={14}
+                      height={14}
+                    />
+                  )}
 
-              {value}
-            </p>
-          </div>
-        ))}
+                  {key === "network" && (
+                    <Image
+                      src={getNetworkImageUrl(selectedNetwork, isDark)}
+                      alt={selectedNetwork.chain.name}
+                      width={14}
+                      height={14}
+                    />
+                  )}
+
+                  {value}
+                </p>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Transaction detail disclaimer */}
       <div className="flex gap-2.5 rounded-xl border border-border-light bg-background-neutral p-3 text-text-secondary dark:border-white/5 dark:bg-white/5 dark:text-white/50">
         <InformationSquareIcon className="mt-1 size-4 flex-shrink-0" />
         <p>
-          Ensure the details above are correct. Failed transaction due to wrong
-          details may attract a refund fee
+          {isOnramp
+            ? "Ensure the details above is correct. Lost funds due to incorrect wallet details cannot be recovered."
+            : "Ensure the details above are correct. Failed transaction due to wrong details may attract a refund fee"}
         </p>
       </div>
 
@@ -610,9 +677,8 @@ export const TransactionPreview = ({
                   <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
                 ) : (
                   <TbCircleDashed
-                    className={`text-lg ${
-                      isGatewayApproved ? "animate-spin" : ""
-                    }`}
+                    className={`text-lg ${isGatewayApproved ? "animate-spin" : ""
+                      }`}
                   />
                 )}
                 <p className="pr-1">Create Order</p>

@@ -26,8 +26,10 @@ import {
   formatDecimalPrecision,
   currencyToCountryCode,
   reorderCurrenciesByLocation,
+  fetchUserCountryCode,
+  mapCountryToCurrency,
 } from "../utils";
-import { NoteEditIcon, Wallet01Icon, ArrowUpDownIcon } from "hugeicons-react";
+import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
@@ -78,6 +80,7 @@ export const TransactionForm = ({
   const [formattedSentAmount, setFormattedSentAmount] = useState("");
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
   const isFirstRender = useRef(true);
+  const hasRestoredStateRef = useRef(false);
   const [rateError, setRateError] = useState<string | null>(null);
   const [isSwapped, setIsSwapped] = useState(false); // Track if swap mode is active (onramp)
 
@@ -102,7 +105,7 @@ export const TransactionForm = ({
     setValue,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { amountSent, amountReceived, token, currency } = watch();
+  const { amountSent, amountReceived, token, currency, walletAddress } = watch();
 
   // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
   const { rate: cngnRate, error: cngnRateError } = useCNGNRate({
@@ -257,10 +260,7 @@ export const TransactionForm = ({
         !fetchedTokens.find((t) => t.symbol === token) &&
         fetchedTokens.length > 0
       ) {
-        // Prefer USDC if available, otherwise use first token
-        const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
-        const defaultToken = usdcToken?.symbol || fetchedTokens[0].symbol;
-        setValue("token", defaultToken, { shouldDirty: true });
+        setValue("token", fetchedTokens[0].symbol, { shouldDirty: true });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -474,6 +474,8 @@ export const TransactionForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currencies]);
 
+
+
   const { isEnabled, buttonText, buttonAction } = useSwapButton({
     watch,
     balance,
@@ -482,6 +484,7 @@ export const TransactionForm = ({
     isUserVerified,
     rate,
     tokenDecimals,
+    isSwapped,
   });
 
   const handleSwap = () => {
@@ -489,11 +492,28 @@ export const TransactionForm = ({
     handleSubmit(onSubmit)();
   };
 
+  useEffect(() => {
+    // Only run once to restore state
+    if (hasRestoredStateRef.current) {
+      return;
+    }
+
+    const shouldBeSwapped = Boolean(walletAddress);
+    if (shouldBeSwapped !== isSwapped) {
+      setIsSwapped(shouldBeSwapped);
+      hasRestoredStateRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Handle swap button click to switch between token/currency dropdowns
-  const handleSwapFields = () => {
+  const handleSwapFields = async () => {
     const currentAmountSent = amountSent;
     const currentAmountReceived = amountReceived;
     const willBeSwapped = !isSwapped;
+
+    // Toggle swap mode FIRST
+    setIsSwapped(willBeSwapped);
 
     // Swap amounts
     setValue("amountSent", currentAmountReceived || 0, { shouldDirty: true });
@@ -503,36 +523,52 @@ export const TransactionForm = ({
     setFormattedSentAmount(formattedReceivedAmount);
     setFormattedReceivedAmount(formattedSentAmount);
 
-    // Set defaults only if not already selected (preserve existing selections)
+    // Set defaults only if not already selected
     if (willBeSwapped) {
-      // Switching to onramp mode: Set NGN as default currency if not already set
+      // Switching to onramp mode: Set currency based on user location
       if (!currency) {
-        setValue("currency", "NGN", { shouldDirty: true });
+        try {
+          const countryCode = await fetchUserCountryCode();
+          const locationCurrency = countryCode
+            ? mapCountryToCurrency(countryCode)
+            : null;
+
+          // Use location-based currency if available and supported, otherwise default to NGN
+          const defaultCurrency = locationCurrency &&
+            currencies.find(c => c.name === locationCurrency && !c.disabled)
+            ? locationCurrency
+            : "NGN";
+
+          setValue("currency", defaultCurrency, { shouldDirty: true });
+        } catch {
+          // Fallback to NGN if location detection fails
+          setValue("currency", "NGN", { shouldDirty: true });
+        }
       }
-      // Preserve token selection - don't clear it
       // Only set default token if not already selected
       if (!token && fetchedTokens.length > 0) {
-        // Prefer USDC if available, otherwise use first token
         const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
         const defaultToken = usdcToken?.symbol || fetchedTokens[0]?.symbol;
         if (defaultToken) {
           setValue("token", defaultToken, { shouldDirty: true });
         }
+      }
+      // Clear any existing walletAddress to start fresh
+      if (!walletAddress) {
+        setValue("walletAddress", "", { shouldDirty: true });
       }
     } else {
-      // Switching back to offramp mode: Set USDC as default token if not already set
+      // Switching back to offramp mode
       if (!token && fetchedTokens.length > 0) {
-        // Prefer USDC if available, otherwise use first token
         const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
         const defaultToken = usdcToken?.symbol || fetchedTokens[0]?.symbol;
         if (defaultToken) {
           setValue("token", defaultToken, { shouldDirty: true });
         }
       }
+      // Clear walletAddress when switching to offramp mode
+      setValue("walletAddress", "", { shouldDirty: true });
     }
-
-    // Toggle swap mode (this controls which dropdown shows where)
-    setIsSwapped(willBeSwapped);
 
     // Reset rate to trigger recalculation
     stateProps.setRate(0);
@@ -665,6 +701,7 @@ export const TransactionForm = ({
     <div className="mx-auto max-w-[27.3125rem]">
       <motion.form
         layout
+        transition={{ duration: 0.2, ease: "easeInOut" }}
         onSubmit={handleSubmit(onSubmit)}
         className="grid gap-4 pb-20 text-sm text-text-body transition-all dark:text-white sm:gap-2"
         noValidate
@@ -674,6 +711,7 @@ export const TransactionForm = ({
 
           <motion.div
             layout
+            transition={{ duration: 0.2, ease: "easeInOut" }}
             className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-surface-canvas"
           >
             <div className="flex items-center justify-between">
@@ -684,7 +722,7 @@ export const TransactionForm = ({
                 Send
               </label>
               <AnimatePresence>
-                {token && activeBalance && (
+                {token && activeBalance && !isSwapped && (
                   <AnimatedComponent
                     variant={slideInOut}
                     className="flex items-center gap-2"
@@ -753,7 +791,7 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedSentAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${authenticated && (amountSent > balance || errors.amountSent)
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${authenticated && !isSwapped && (amountSent > balance || errors.amountSent)
                   ? "text-red-500 dark:text-red-500"
                   : "text-neutral-900 dark:text-white/80"
                   }`}
@@ -787,13 +825,13 @@ export const TransactionForm = ({
               )}
             </div>
             {(errors.amountSent ||
-              (authenticated && totalRequired > balance)) && (
+              (authenticated && !isSwapped && totalRequired > balance)) && (
                 <AnimatedComponent
                   variant={slideInOut}
                   className="!mt-0 text-xs text-red-500"
                 >
                   {errors.amountSent?.message ||
-                    (authenticated && totalRequired > balance
+                    (authenticated && !isSwapped && totalRequired > balance
                       ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
                       : null)}
                 </AnimatedComponent>
@@ -803,13 +841,13 @@ export const TransactionForm = ({
             <button
               type="button"
               onClick={handleSwapFields}
-              className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 cursor-pointer transition-transform hover:scale-105 active:scale-95"
+              className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas"
             >
-              <div className="rounded-xl bg-gray-50 p-1.5 dark:bg-neutral-800">
+              <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
                 {isFetchingRate ? (
                   <ImSpinner3 className="animate-spin text-xl text-outline-gray dark:text-white/50" />
                 ) : (
-                  <ArrowUpDownIcon className="text-xl text-outline-gray dark:text-white/50" />
+                  <ArrowUpDownIcon className="text-xl text-outline-gray dark:text-white/40" />
                 )}
               </div>
             </button>
@@ -830,14 +868,6 @@ export const TransactionForm = ({
                 type="text"
                 inputMode="decimal"
                 onChange={handleReceivedAmountChange}
-                onFocus={() => {
-                  if (
-                    formattedReceivedAmount === "0" ||
-                    formattedReceivedAmount === "0.00"
-                  ) {
-                    setFormattedReceivedAmount("");
-                  }
-                }}
                 onKeyDown={(e) => {
                   // Special handling for the decimal point key
                   if (e.key === "." && !formattedReceivedAmount.includes(".")) {
@@ -914,26 +944,31 @@ export const TransactionForm = ({
                 <RecipientDetailsForm
                   formMethods={formMethods}
                   stateProps={stateProps}
+                  isSwapped={isSwapped}
+                  token={token}
+                  networkName={selectedNetwork.chain.name}
                 />
 
-                {/* Memo */}
-                <div className="relative">
-                  <NoteEditIcon className="absolute left-3 top-3.5 size-4 text-icon-outline-secondary dark:text-white/50" />
-                  <input
-                    type="text"
-                    id="memo"
-                    onChange={(e) => {
-                      formMethods.setValue("memo", e.target.value);
-                    }}
-                    value={formMethods.watch("memo")}
-                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${errors.memo
-                      ? "text-red-500 dark:text-red-500"
-                      : "text-text-body dark:text-white/80"
-                      }`}
-                    placeholder="Add description (optional)"
-                    maxLength={25}
-                  />
-                </div>
+                {/* Memo - Only show for offramp (not swapped) */}
+                {!isSwapped && (
+                  <div className="relative">
+                    <NoteEditIcon className="absolute left-3 top-3.5 size-4 text-icon-outline-secondary dark:text-white/50" />
+                    <input
+                      type="text"
+                      id="memo"
+                      onChange={(e) => {
+                        formMethods.setValue("memo", e.target.value);
+                      }}
+                      value={formMethods.watch("memo")}
+                      className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${errors.memo
+                        ? "text-red-500 dark:text-red-500"
+                        : "text-text-body dark:text-white/80"
+                        }`}
+                      placeholder="Add description (optional)"
+                      maxLength={25}
+                    />
+                  </div>
+                )}
               </AnimatedComponent>
             )}
         </AnimatePresence>
@@ -1002,13 +1037,10 @@ export const TransactionForm = ({
                   <>
                     {isSwapped ? (
                       <>
-                        1 {currency} ~{" "}
                         {isFetchingRate
                           ? "..."
-                          : formatNumberWithCommasForDisplay(
-                            Number((1 / rate).toFixed(4)),
-                          )}{" "}
-                        {token}
+                          : formatNumberWithCommasForDisplay(rate)}{" "}
+                        {currency} ~ 1 {token}
                       </>
                     ) : (
                       <>

@@ -43,6 +43,7 @@ import {
   STEPS,
   type OrderDetailsData,
   type TransactionStatusProps,
+  type RecipientDetails,
 } from "../types";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/client";
@@ -149,6 +150,10 @@ export function TransactionStatus({
   const recipientName = String(watch("recipientName")) || "";
   const accountIdentifier = watch("accountIdentifier") || "";
   const institution = watch("institution") || "";
+  const walletAddress = watch("walletAddress") || "";
+
+  // Detect if this is an onramp transaction
+  const isOnramp = !!walletAddress;
 
   // Check if recipient is already saved in the database
   const [isRecipientInBeneficiaries, setIsRecipientInBeneficiaries] =
@@ -157,11 +162,6 @@ export function TransactionStatus({
   // Check if recipient exists in saved beneficiaries
   useEffect(() => {
     const checkRecipientExists = async () => {
-      if (!accountIdentifier || !institution) {
-        setIsRecipientInBeneficiaries(false);
-        return;
-      }
-
       try {
         const accessToken = await getAccessToken();
         if (!accessToken) {
@@ -170,12 +170,8 @@ export function TransactionStatus({
         }
 
         const savedRecipients = await fetchSavedRecipients(accessToken);
-        const exists = savedRecipients.some(
-          (r) =>
-            r.accountIdentifier === accountIdentifier &&
-            r.institutionCode === institution,
-        );
-        setIsRecipientInBeneficiaries(exists);
+        const recipient = findRecipientInSaved(savedRecipients);
+        setIsRecipientInBeneficiaries(!!recipient);
       } catch (error) {
         console.error("Error checking if recipient exists:", error);
         setIsRecipientInBeneficiaries(false);
@@ -183,7 +179,7 @@ export function TransactionStatus({
     };
 
     checkRecipientExists();
-  }, [accountIdentifier, institution, getAccessToken]);
+  }, [accountIdentifier, institution, walletAddress, isOnramp, getAccessToken]);
 
   // Scroll to top on mount
   useEffect(() => {
@@ -272,11 +268,11 @@ export function TransactionStatus({
             if (transactionStatus !== status) {
               setTransactionStatus(
                 status as
-                  | "processing"
-                  | "fulfilled"
-                  | "validated"
-                  | "settled"
-                  | "refunded",
+                | "processing"
+                | "fulfilled"
+                | "validated"
+                | "settled"
+                | "refunded",
               );
             }
 
@@ -494,15 +490,14 @@ export function TransactionStatus({
         <AnimatedComponent
           variant={fadeInOut}
           key="pending"
-          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${
-            transactionStatus === "pending"
-              ? "bg-orange-50 text-orange-400"
-              : transactionStatus === "processing"
-                ? "bg-yellow-50 text-yellow-400"
-                : transactionStatus === "fulfilled"
-                  ? "bg-green-50 text-green-400"
-                  : "bg-gray-50"
-          }`}
+          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${transactionStatus === "pending"
+            ? "bg-orange-50 text-orange-400"
+            : transactionStatus === "processing"
+              ? "bg-yellow-50 text-yellow-400"
+              : transactionStatus === "fulfilled"
+                ? "bg-green-50 text-green-400"
+                : "bg-gray-50"
+            }`}
         >
           <ImSpinner className="animate-spin" />
           <p>{transactionStatus}</p>
@@ -524,6 +519,88 @@ export function TransactionStatus({
     }
   };
 
+  // Helper function to build recipient object based on transaction type
+  const buildRecipient = (): RecipientDetails | null => {
+    if (isOnramp) {
+      if (!walletAddress) {
+        return null;
+      }
+      return {
+        type: "wallet",
+        walletAddress: walletAddress as string,
+      };
+    }
+
+    // Handle bank/mobile_money recipients (offramp)
+    const institutionCode = formMethods.watch("institution");
+    if (!institutionCode) {
+      return null;
+    }
+
+    const institutionName = getInstitutionNameByCode(
+      String(institutionCode),
+      supportedInstitutions,
+    );
+
+    if (!institutionName) {
+      console.error("Institution name not found");
+      return null;
+    }
+
+    return {
+      name: recipientName,
+      institution: institutionName,
+      institutionCode: String(institutionCode),
+      accountIdentifier: String(formMethods.watch("accountIdentifier") || ""),
+      type:
+        (formMethods.watch("accountType") as "bank" | "mobile_money") || "bank",
+    };
+  };
+
+  // Helper function to find recipient in saved recipients list
+  const findRecipientInSaved = (
+    savedRecipients: Array<RecipientDetails & { id: string }>,
+  ): (RecipientDetails & { id: string }) | undefined => {
+    if (isOnramp) {
+      if (!walletAddress) {
+        return undefined;
+      }
+      return savedRecipients.find(
+        (r) => r.type === "wallet" && r.walletAddress === walletAddress,
+      );
+    }
+
+    // Handle bank/mobile_money recipients (offramp)
+    const accountIdentifier = formMethods.watch("accountIdentifier");
+    const institutionCode = formMethods.watch("institution");
+
+    if (!accountIdentifier || !institutionCode) {
+      return undefined;
+    }
+
+    return savedRecipients.find(
+      (r) =>
+        r.type !== "wallet" &&
+        r.accountIdentifier === accountIdentifier &&
+        r.institutionCode === institutionCode,
+    );
+  };
+
+  // Helper function to handle save success state
+  const handleSaveSuccess = () => {
+    setIsSavingRecipient(false);
+    setShowSaveSuccess(true);
+
+    // Hide after 2 seconds with fade out animation
+    setTimeout(() => {
+      setShowSaveSuccess(false);
+      // Add a small delay to allow fade out animation to complete
+      setTimeout(() => {
+        setIsRecipientInBeneficiaries(true);
+      }, 300);
+    }, 2000);
+  };
+
   const handleAddToBeneficiariesChange = async (checked: boolean) => {
     setAddToBeneficiaries(checked);
     if (checked) {
@@ -536,71 +613,33 @@ export function TransactionStatus({
   const addBeneficiary = async () => {
     setIsSavingRecipient(true);
 
-    const institutionCode = formMethods.watch("institution");
-    if (!institutionCode) {
+    const newRecipient = buildRecipient();
+    if (!newRecipient) {
       setIsSavingRecipient(false);
       return;
     }
-
-    const institutionName = getInstitutionNameByCode(
-      String(institutionCode),
-      supportedInstitutions,
-    );
-
-    if (!institutionName) {
-      console.error("Institution name not found");
-      setIsSavingRecipient(false);
-      return;
-    }
-
-    const newRecipient = {
-      name: recipientName,
-      institution: institutionName,
-      institutionCode: String(institutionCode),
-      accountIdentifier: String(formMethods.watch("accountIdentifier") || ""),
-      type:
-        (formMethods.watch("accountType") as "bank" | "mobile_money") || "bank",
-    };
 
     // Save recipient via API
     const accessToken = await getAccessToken();
-    if (accessToken) {
-      try {
-        const success = await saveRecipient(newRecipient, accessToken);
-        if (success) {
-          // Show success state
-          setIsSavingRecipient(false);
-          setShowSaveSuccess(true);
+    if (!accessToken) {
+      setIsSavingRecipient(false);
+      return;
+    }
 
-          // Hide after 2 seconds with fade out animation
-          setTimeout(() => {
-            setShowSaveSuccess(false);
-            // Add a small delay to allow fade out animation to complete
-            setTimeout(() => {
-              setIsRecipientInBeneficiaries(true);
-            }, 300);
-          }, 2000);
-        } else {
-          setIsSavingRecipient(false);
-        }
-      } catch (error) {
-        console.error("Error saving recipient:", error);
+    try {
+      const success = await saveRecipient(newRecipient, accessToken);
+      if (success) {
+        handleSaveSuccess();
+      } else {
         setIsSavingRecipient(false);
       }
-    } else {
+    } catch (error) {
+      console.error("Error saving recipient:", error);
       setIsSavingRecipient(false);
     }
   };
 
   const removeRecipient = async () => {
-    const accountIdentifier = formMethods.watch("accountIdentifier");
-    const institutionCode = formMethods.watch("institution");
-
-    if (!accountIdentifier || !institutionCode) {
-      console.error("Missing account identifier or institution code");
-      return;
-    }
-
     try {
       const accessToken = await getAccessToken();
       if (!accessToken) {
@@ -610,11 +649,7 @@ export function TransactionStatus({
 
       // Fetch saved recipients to find the recipient ID
       const savedRecipients = await fetchSavedRecipients(accessToken);
-      const recipientToDelete = savedRecipients.find(
-        (r) =>
-          r.accountIdentifier === accountIdentifier &&
-          r.institutionCode === institutionCode,
-      );
+      const recipientToDelete = findRecipientInSaved(savedRecipients);
 
       if (!recipientToDelete) {
         console.error("Recipient not found in saved recipients");
@@ -639,10 +674,10 @@ export function TransactionStatus({
   const getPaymentMessage = () => {
     const formattedRecipientName = recipientName
       ? recipientName
-          .toLowerCase()
-          .split(" ")
-          .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
-          .join(" ")
+        .toLowerCase()
+        .split(" ")
+        .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+        .join(" ")
       : "";
 
     if (transactionStatus === "refunded") {
@@ -847,17 +882,17 @@ export function TransactionStatus({
                 orderDetails,
                 orderId,
               ) && (
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.45}
-                  className="flex justify-center"
-                >
-                  <BlockFestCashbackComponent
-                    transactionId={orderId}
-                    cashbackPercentage="1%"
-                  />
-                </AnimatedComponent>
-              )}
+                  <AnimatedComponent
+                    variant={slideInOut}
+                    delay={0.45}
+                    className="flex justify-center"
+                  >
+                    <BlockFestCashbackComponent
+                      transactionId={orderId}
+                      cashbackPercentage="1%"
+                    />
+                  </AnimatedComponent>
+                )}
 
               <AnimatedComponent
                 variant={slideInOut}

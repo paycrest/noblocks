@@ -21,6 +21,7 @@ export type FormData = {
   accountIdentifier: string;
   recipientName: string;
   accountType: "bank" | "mobile_money";
+  walletAddress?: string; // For onramp: stablecoin wallet address
   memo: string;
   amountSent: number;
   amountReceived: number;
@@ -29,6 +30,7 @@ export type FormData = {
 export const STEPS = {
   FORM: "form",
   PREVIEW: "preview",
+  MAKE_PAYMENT: "make_payment",
   STATUS: "status",
 } as const;
 
@@ -49,15 +51,24 @@ export type TransactionPreviewProps = {
 export type RecipientDetailsFormProps = {
   formMethods: UseFormReturn<FormData, any, undefined>;
   stateProps: StateProps;
+  isSwapped?: boolean; // For onramp mode detection
+  token?: string; // Token symbol for onramp
+  networkName?: string; // Network name for display
 };
 
-export type RecipientDetails = {
-  name: string;
-  institution: string;
-  institutionCode: string;
-  accountIdentifier: string;
-  type: "bank" | "mobile_money";
-};
+export type RecipientDetails =
+  | {
+    type: "wallet";
+    walletAddress: string;
+  }
+  | {
+    type: "bank" | "mobile_money";
+    name: string;
+    institution: string;
+    institutionCode: string;
+    accountIdentifier: string;
+    walletAddress?: never;
+  };
 
 export type FormMethods = {
   handleSubmit: UseFormHandleSubmit<FormData, undefined>;
@@ -261,11 +272,11 @@ export type Config = {
 export type Network = {
   chain: any;
   imageUrl:
-    | string
-    | {
-        light: string;
-        dark: string;
-      };
+  | string
+  | {
+    light: string;
+    dark: string;
+  };
 };
 
 export interface TransactionResponse {
@@ -290,7 +301,7 @@ export type TransactionStatus =
   | "processing"
   | "fulfilled"
   | "refunded";
-export type TransactionHistoryType = "swap" | "transfer";
+export type TransactionHistoryType = "swap" | "transfer" | "onramp";
 
 export interface Recipient {
   account_name: string;
@@ -386,7 +397,7 @@ export type Currency = {
 };
 
 // Saved Recipients API Types
-export interface RecipientDetailsWithId extends RecipientDetails {
+export type RecipientDetailsWithId = RecipientDetails & {
   id: string;
 }
 

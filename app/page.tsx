@@ -1,8 +1,14 @@
+"use client";
+
 import { Suspense } from "react";
 import { Preloader } from "./components";
-import { MainPageContent } from "./components/MainPageContent";
+import dynamic from "next/dynamic";
 
-export const dynamic = "force-static";
+// Use dynamic import to avoid SSR issues
+const MainPageContent = dynamic(() => import("./components/MainPageContent").then(mod => ({ default: mod.MainPageContent })), {
+  ssr: false,
+  loading: () => <Preloader isLoading={true} />
+});
 
 export default function Page() {
   return (

@@ -527,6 +527,33 @@ export function calculateCorrectedTotalBalance(
 }
 
 /**
+ * Fetches wallet balance for a specific network.
+ * Creates the appropriate publicClient internally based on the network chain.
+ *
+ * @param network - The Network object containing chain info
+ * @param walletAddress - The wallet address to fetch balance for
+ * @returns Promise with total balance and individual token balances
+ */
+export async function fetchBalanceForNetwork(
+  network: { chain: any },
+  walletAddress: string,
+): Promise<{ total: number; balances: Record<string, number> }> {
+  const { createPublicClient, http } = await import("viem");
+  const { bsc } = await import("viem/chains");
+
+  const publicClient = createPublicClient({
+    chain: network.chain,
+    transport: http(
+      network.chain.id === bsc.id
+        ? "https://bsc-dataseed.bnbchain.org/"
+        : undefined,
+    ),
+  });
+
+  return fetchWalletBalance(publicClient, walletAddress);
+}
+
+/**
  * Shortens the given address by replacing the middle characters with ellipsis.
  * @param address - The address to be shortened.
  * @param startChars - The number of characters to keep at the beginning of the address. Default is 4.

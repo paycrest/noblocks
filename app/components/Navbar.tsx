@@ -141,12 +141,28 @@ export const Navbar = () => {
               >
                 {IS_MAIN_PRODUCTION_DOMAIN ? (
                   <>
-                    <NoblocksLogo className="max-sm:hidden" />
+                    {/* <NoblocksLogo className="max-sm:hidden" /> */}
+
+                    <Image
+                      src="/logos/noblocks-xmas.svg"
+                      alt="Noblocks Logo"
+                      className="max-sm:hidden"
+                      width={120}
+                      height={28}
+                    />
                     <NoblocksLogoIcon className="size-[18px] sm:hidden" />
                   </>
                 ) : (
                   <>
-                    <NoblocksBetaLogo className="max-sm:hidden" />
+                    {/* <NoblocksBetaLogo className="max-sm:hidden" />*/}
+
+                    <Image
+                      src="/logos/noblocks-xmas.svg"
+                      alt="Noblocks Logo"
+                      className="max-sm:hidden"
+                      width={120}
+                      height={28}
+                    />
                     <NoblocksLogoIcon className="size-[18px] sm:hidden" />
                   </>
                 )}

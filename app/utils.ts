@@ -1196,9 +1196,7 @@ export function calculateSenderFee(
   const defaultFeePercent = 0.1; // 0.1% default fee for local transfers
   const maxFeeCapInHumanReadable = 10000; // 10k CNGN cap in human-readable units
   const decimalsMultiplier = BigInt(10 ** tokenDecimals);
-  const maxFeeCapInBaseUnits = BigInt(
-    maxFeeCapInHumanReadable * Number(decimalsMultiplier),
-  ); // 10k CNGN in base units
+  const maxFeeCapInBaseUnits = BigInt(maxFeeCapInHumanReadable) * decimalsMultiplier; // 10k CNGN in base units
 
   // Calculate fee in human-readable format
   const calculatedFee = isLocalTransfer

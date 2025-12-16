@@ -38,6 +38,7 @@ const config: Config = {
         },
         surface: {
           overlay: "#202020",
+          "over-overlay": "#2C2C2C",
           canvas: "#141414",
         },
         accent: {

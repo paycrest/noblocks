@@ -255,7 +255,7 @@ export type Config = {
   googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
   brevoConversationsId: string; // Brevo chat widget ID
-  brevoConversationsGroupID?: string; // Brevo chat widget group ID for routing
+  brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
 };
 

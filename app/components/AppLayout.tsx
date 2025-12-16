@@ -28,31 +28,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <PWAInstall />
       </div>
-
       {/* Brevo Chat Widget */}
-      {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) &&
-        config.brevoConversationsGroupID &&
-        config.brevoConversationsGroupID.trim() !== '' && (
-          <>
-            <Script
-              id="brevo-chat-setup"
-              strategy="beforeInteractive"
-              dangerouslySetInnerHTML={{
-                __html: `
-                window.BrevoConversationsSetup = {
-                  groupId: ${JSON.stringify(config.brevoConversationsGroupID)}
-                };
-                window.BrevoConversationsID = ${JSON.stringify(config.brevoConversationsId)};
-              `,
-              }}
-            />
-            <Script
-              id="brevo-chat-widget"
-              src="https://conversations-widget.brevo.com/brevo-conversations.js"
-              strategy="afterInteractive"
-            />
-          </>
-        )}
+      {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && (
+        <>
+          <Script id="brevo-chat-config" strategy="afterInteractive">
+            {`window.BrevoConversationsID=${JSON.stringify(config.brevoConversationsId)};
+            window.BrevoConversations=window.BrevoConversations||function(){
+            (window.BrevoConversations.q=window.BrevoConversations.q||[]).push(arguments)};
+            window.BrevoConversationsSetup={
+            groupId:${JSON.stringify(config.brevoConversationsGroupId)}};
+            `}
+          </Script>
+          <Script
+            id="brevo-chat-widget"
+            src="https://conversations-widget.brevo.com/brevo-conversations.js"
+            strategy="afterInteractive"
+          />
+        </>
+      )}
     </Providers>
   );
 }

@@ -111,7 +111,7 @@ export const Navbar = () => {
       >
         <div className="flex items-start gap-2 lg:flex-1">
           <div
-            className={`relative flex ${IS_MAIN_PRODUCTION_DOMAIN ? "items-center" : "items-start"} gap-5`}
+            className={`relative flex ${IS_MAIN_PRODUCTION_DOMAIN ? "items-end" : "items-end"} gap-5`}
             ref={dropdownRef}
           >
             <div
@@ -150,7 +150,14 @@ export const Navbar = () => {
                       width={120}
                       height={28}
                     />
-                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                    {/* <NoblocksLogoIcon className="size-[18px] sm:hidden" /> */}
+                    <Image
+                      src="/logos/noblocks-xmas-mobile.svg"
+                      alt="Noblocks Logo"
+                      className="size-[28px] sm:hidden"
+                      width={120}
+                      height={28}
+                    />
                   </>
                 ) : (
                   <>
@@ -163,7 +170,14 @@ export const Navbar = () => {
                       width={120}
                       height={28}
                     />
-                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                    {/* <NoblocksLogoIcon className="size-[18px] sm:hidden" /> */}
+                    <Image
+                      src="/logos/noblocks-xmas-mobile.svg"
+                      alt="Noblocks Logo"
+                      className="size-[28px] sm:hidden"
+                      width={120}
+                      height={28}
+                    />
                   </>
                 )}
               </button>
@@ -172,7 +186,7 @@ export const Navbar = () => {
                 className={classNames(
                   "size-5 cursor-pointer text-icon-outline-secondary transition-transform duration-200 dark:text-white/50 max-sm:hidden",
                   isDropdownOpen ? "rotate-0" : "-rotate-90",
-                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[15px]", // this adjusts the arrow position for beta logo
+                  IS_MAIN_PRODUCTION_DOMAIN ? "mt-[10px]" : "mt-[10px]", // this adjusts the arrow position for beta logo
                 )}
                 onClick={(e) => {
                   e.preventDefault();

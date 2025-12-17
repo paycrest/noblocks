@@ -1,5 +1,4 @@
 import { withSentryConfig } from "@sentry/nextjs";
-import config from "./app/lib/config";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   headers: async () => [
@@ -54,7 +53,7 @@ const nextConfig = {
     optimizeCss: true,
     optimizePackageImports: ["@headlessui/react", "framer-motion"],
   },
-  serverExternalPackages: ['mixpanel', 'https-proxy-agent'],
+  serverExternalPackages: ["mixpanel", "https-proxy-agent"],
   webpack: (config, { isServer }) => {
     // Handle both client and server-side fallbacks
     config.resolve.fallback = {
@@ -78,7 +77,7 @@ const nextConfig = {
     if (isServer) {
       config.externals = config.externals || [];
       config.externals.push({
-        'mixpanel': 'commonjs mixpanel'
+        mixpanel: "commonjs mixpanel",
       });
     }
 
@@ -107,12 +106,12 @@ const nextConfig = {
       },
       ...(process.env.NODE_ENV !== "production"
         ? [
-          {
-            protocol: "https",
-            hostname: "picsum.photos",
-            pathname: "/**",
-          },
-        ]
+            {
+              protocol: "https",
+              hostname: "picsum.photos",
+              pathname: "/**",
+            },
+          ]
         : []),
     ],
   },
@@ -120,21 +119,20 @@ const nextConfig = {
     rules: {
       "*.svg": {
         loaders: ["@svgr/webpack"],
-        as: "*.js"
-      }
-    }
+        as: "*.js",
+      },
+    },
   },
 };
 
 export default withSentryConfig(nextConfig, {
-
   org: "Paycrest",
 
   project: "noblocks",
 
-  sentryUrl: config.sentryUrl,
+  sentryUrl: process.env.SENTRY_URL,
 
-  authToken: config.sentryAuthToken,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
 
   release: "2.0.0",
 

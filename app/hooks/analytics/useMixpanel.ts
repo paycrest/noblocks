@@ -40,10 +40,7 @@ export const identifyUser = async (
 /**
  * Track an event server-side
  */
-export const trackEvent = async (
-  eventName: string,
-  properties?: Dict | undefined,
-) => {
+export const trackEvent = async (eventName: string, properties: Dict = {}) => {
   const walletAddress = getWalletAddress();
   await trackServerEvent(
     eventName,
@@ -53,7 +50,7 @@ export const trackEvent = async (
 };
 
 // Blog-specific tracking functions
-export const trackPageView = (pageName: string, properties?: Dict) => {
+export const trackPageView = (pageName: string, properties: Dict = {}) => {
   trackEvent("Page Viewed", {
     ...properties,
     page_name: pageName,
@@ -65,7 +62,7 @@ export const trackBlogCardClick = (
   postId: string,
   postTitle: string,
   source: string,
-  properties?: Dict,
+  properties: Dict = {},
 ) => {
   trackEvent("Blog Card Clicked", {
     ...properties,
@@ -78,7 +75,7 @@ export const trackBlogCardClick = (
 export const trackBlogReadingStarted = (
   postId: string,
   postTitle: string,
-  properties?: Dict,
+  properties: Dict = {},
 ) => {
   trackEvent("Blog Reading Started", {
     ...properties,
@@ -91,7 +88,7 @@ export const trackBlogReadingCompleted = (
   postId: string,
   postTitle: string,
   timeSpent?: number,
-  properties?: Dict,
+  properties: Dict = {},
 ) => {
   trackEvent("Blog Reading Completed", {
     ...properties,
@@ -104,7 +101,7 @@ export const trackBlogReadingCompleted = (
 export const trackCopyLink = (
   postId: string,
   postTitle: string,
-  properties?: Dict,
+  properties: Dict = {},
 ) => {
   trackEvent("Copy Link Clicked", {
     ...properties,
@@ -113,7 +110,7 @@ export const trackCopyLink = (
   });
 };
 
-export const trackGetStartedClick = (source: string, properties?: Dict) => {
+export const trackGetStartedClick = (source: string, properties: Dict = {}) => {
   trackEvent("Get Started Clicked", {
     ...properties,
     source,
@@ -124,7 +121,7 @@ export const trackRecentBlogClick = (
   postId: string,
   postTitle: string,
   sourcePostId: string,
-  properties?: Dict,
+  properties: Dict = {},
 ) => {
   trackEvent("Recent Blog Clicked", {
     ...properties,
@@ -137,7 +134,7 @@ export const trackRecentBlogClick = (
 export const trackSearch = (
   searchTerm: string,
   resultsCount: number,
-  properties?: Dict,
+  properties: Dict = {},
 ) => {
   trackEvent("Search Performed", {
     ...properties,
@@ -149,7 +146,7 @@ export const trackSearch = (
 export const trackFooterLinkClick = (
   linkText: string,
   linkUrl: string,
-  properties?: Dict,
+  properties: Dict = {},
 ) => {
   trackEvent("Footer Link Clicked", {
     ...properties,
@@ -162,7 +159,7 @@ export const trackSocialShare = (
   platform: string,
   postId: string,
   postTitle: string,
-  properties?: Dict,
+  properties: Dict = {},
 ) => {
   trackEvent("Social Share Clicked", {
     ...properties,

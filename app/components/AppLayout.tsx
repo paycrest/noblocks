@@ -35,8 +35,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {`window.BrevoConversationsID=${JSON.stringify(config.brevoConversationsId)};
             window.BrevoConversations=window.BrevoConversations||function(){
             (window.BrevoConversations.q=window.BrevoConversations.q||[]).push(arguments)};
-            window.BrevoConversationsSetup={
-            groupId:${JSON.stringify(config.brevoConversationsGroupId)}};
+            window.BrevoConversationsSetup=${
+              config.brevoConversationsGroupId 
+                ? `{groupId:${JSON.stringify(config.brevoConversationsGroupId)}}` 
+                : '{}'
+            };
             `}
           </Script>
           <Script

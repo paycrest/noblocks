@@ -1,5 +1,5 @@
 "use client"
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { Step, STEPS } from "../types";
 
 interface StepContextType {
@@ -12,6 +12,11 @@ const StepContext = createContext<StepContextType | undefined>(undefined);
 
 export function StepProvider({ children }: { children: React.ReactNode }) {
   const [currentStep, setCurrentStep] = useState<Step>(STEPS.FORM);
+
+  // Scroll to top whenever the step changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentStep]);
 
   const value = {
     currentStep,

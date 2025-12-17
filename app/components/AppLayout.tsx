@@ -29,7 +29,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <PWAInstall />
       </div>
       {/* Brevo Chat Widget */}
-      {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && (
+      {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && config.brevoConversationsGroupId && (
         <>
           <Script id="brevo-chat-config" strategy="afterInteractive">
             {`window.BrevoConversationsID=${JSON.stringify(config.brevoConversationsId)};

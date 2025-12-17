@@ -42,11 +42,16 @@ export const identifyUser = async (
  */
 export const trackEvent = async (eventName: string, properties: Dict = {}) => {
   const walletAddress = getWalletAddress();
-  await trackServerEvent(
-    eventName,
-    { ...properties, app: "Noblocks" },
-    walletAddress,
-  );
+  try {
+    await trackServerEvent(
+      eventName,
+      { ...properties, app: "Noblocks" },
+      walletAddress,
+    );
+  } catch (error) {
+    // Silently fail - analytics should not impact user flows
+    console.error("Analytics tracking failed:", error);
+  }
 };
 
 // Blog-specific tracking functions

@@ -47,21 +47,21 @@ export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
   },
 };
 
-// Sanitize Sanity projectId to only contain valid characters (a-z, 0-9, dashes)
+// Sanitize Sanity projectId: Sanity IDs are exactly 8 lowercase alphanumeric characters (a-z, 0-9, no dashes)
 function sanitizeProjectId(projectId: string): string {
   if (!projectId) return "";
-  // Convert to lowercase, replace underscores and other invalid chars with dashes
-  // Remove any characters that aren't lowercase letters, numbers, or dashes
-  return projectId
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "-")
-    .replace(/-+/g, "-") // Replace multiple dashes with single dash
-    .replace(/^-|-$/g, ""); // Remove leading/trailing dashes
+  // Convert to lowercase and remove any characters that aren't lowercase letters or numbers
+  return projectId.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-// Check if projectId is a placeholder or invalid
+// Check if projectId is valid: must be exactly 8 lowercase alphanumeric characters and not a placeholder
 function isValidProjectId(projectId: string): boolean {
   if (!projectId) return false;
+
+  // Sanity project IDs must be exactly 8 lowercase alphanumeric characters
+  const sanityIdPattern = /^[a-z0-9]{8}$/;
+  if (!sanityIdPattern.test(projectId)) return false;
+
   // Check for common placeholder patterns
   const placeholderPatterns = [
     /^your-project-id/i,

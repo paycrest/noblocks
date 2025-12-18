@@ -125,29 +125,23 @@ const nextConfig = {
   },
 };
 
+// Disable Sentry to save memory during builds - comment out this line and uncomment block below to re-enable
+export default nextConfig;
+
+/*
 export default withSentryConfig(nextConfig, {
   org: "Paycrest",
-
   project: "noblocks",
-
   sentryUrl: process.env.SENTRY_URL,
-
   authToken: process.env.SENTRY_AUTH_TOKEN,
-
   release: "2.0.0",
-
   silent: !process.env.CI,
-
-  // Disable source map upload in low-memory environments
   sourcemaps: {
     disable: process.env.LOW_MEMORY_BUILD === "true",
   },
-
   widenClientFileUpload: true,
-
   tunnelRoute: "/monitoring",
-
   disableLogger: true,
-
   automaticVercelMonitors: true,
 });
+*/

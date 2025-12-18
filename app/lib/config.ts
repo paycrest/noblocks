@@ -10,8 +10,13 @@ const config: Config = {
     process.env.NEXT_PUBLIC_GOOGLE_VERIFICATION_CODE || "",
   noticeBannerText: process.env.NEXT_PUBLIC_NOTICE_BANNER_TEXT || "",
   brevoConversationsId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_ID || "",
+  brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
   blockfestEndDate:
     process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
+  sentryDsn: process.env.SENTRY_DSN || "",
+  nodeEnv: process.env.NODE_ENV || "",
+  sentryUrl: process.env.SENTRY_URL || "",
+  sentryAuthToken: process.env.SENTRY_AUTH_TOKEN || "",
 };
 
 export default config;

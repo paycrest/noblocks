@@ -38,6 +38,7 @@ import {
   saveRecipient,
   deleteSavedRecipient,
 } from "../api/aggregator";
+import { reindexSingleTransaction } from "../lib/reindex";
 import {
   STEPS,
   type OrderDetailsData,
@@ -134,6 +135,8 @@ export function TransactionStatus({
   const [hasShownConfetti, setHasShownConfetti] = useState(false);
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [hasReindexed, setHasReindexed] = useState(false);
+  const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
 
   const fireConfetti = useConfetti();
@@ -181,11 +184,6 @@ export function TransactionStatus({
 
     checkRecipientExists();
   }, [accountIdentifier, institution, getAccessToken]);
-
-  // Scroll to top on mount
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
 
   /**
    * Updates transaction status in the backend
@@ -269,11 +267,11 @@ export function TransactionStatus({
             if (transactionStatus !== status) {
               setTransactionStatus(
                 status as
-                  | "processing"
-                  | "fulfilled"
-                  | "validated"
-                  | "settled"
-                  | "refunded",
+                | "processing"
+                | "fulfilled"
+                | "validated"
+                | "settled"
+                | "refunded",
               );
             }
 
@@ -362,8 +360,12 @@ export function TransactionStatus({
           "Wallet type": isInjectedWallet ? "Injected" : "Smart wallet",
         };
 
+
         if (["validated", "settled"].includes(transactionStatus)) {
-          trackEvent("Swap completed", eventData);
+          trackEvent("Swap completed", {
+            ...eventData,
+            transaction_status: transactionStatus,
+          });
           setIsTracked(true);
         } else if (transactionStatus === "refunded") {
           trackEvent("Swap failed", {
@@ -396,6 +398,84 @@ export function TransactionStatus({
   );
 
   /**
+   * Reindexes transaction if it has been pending for more than 30 seconds
+   * Only calls reindex once per transaction
+   */
+  useEffect(
+    function reindexPendingTransaction() {
+      // Only proceed if:
+      // 1. Transaction status is "pending"
+      // 2. We haven't already reindexed
+      // 3. We have order details with network
+      if (
+        transactionStatus !== "pending" ||
+        hasReindexed ||
+        !orderDetails ||
+        !orderDetails.network
+      ) {
+        return;
+      }
+
+      // Get txHash from orderDetails.txHash or from txReceipts
+      let txHash = orderDetails.txHash;
+      if (
+        !txHash &&
+        orderDetails.txReceipts &&
+        orderDetails.txReceipts.length > 0
+      ) {
+        // Try to find a pending receipt first, otherwise use the first one
+        const pendingReceipt = orderDetails.txReceipts.find(
+          (receipt) => receipt.status === "pending",
+        );
+        txHash = pendingReceipt?.txHash || orderDetails.txReceipts[0]?.txHash;
+      }
+
+      // If we still don't have a txHash, we can't reindex
+      if (!txHash) {
+        return;
+      }
+
+      // Reindex transaction to sync with blockchain state
+      const callReindex = async (): Promise<void> => {
+        try {
+          await reindexSingleTransaction(txHash, orderDetails.network);
+          setHasReindexed(true);
+        } catch (error) {
+          console.error("Error reindexing transaction:", error);
+          // Prevent infinite retry loops on persistent errors
+          setHasReindexed(true);
+        }
+      };
+
+      // Calculate time elapsed since transaction creation
+      const createdAtTime = new Date(createdAt).getTime();
+      const currentTime = Date.now();
+      const timeElapsed = currentTime - createdAtTime;
+      const thirtySecondsInMs = 30 * 1000;
+
+      // If 30 seconds haven't elapsed yet, schedule a check for when they will
+      if (timeElapsed <= thirtySecondsInMs) {
+        const remainingTime = thirtySecondsInMs - timeElapsed;
+        reindexTimeoutRef.current = setTimeout(() => {
+          callReindex();
+        }, remainingTime);
+      } else {
+        // 30 seconds have elapsed, call reindex immediately
+        callReindex();
+      }
+
+      // Cleanup function to clear timeout on unmount or dependency change
+      return () => {
+        if (reindexTimeoutRef.current) {
+          clearTimeout(reindexTimeoutRef.current);
+          reindexTimeoutRef.current = null;
+        }
+      };
+    },
+    [transactionStatus, hasReindexed, orderDetails, createdAt],
+  );
+
+  /**
    * Renders the appropriate status indicator based on transaction status
    * Shows checkmark for success, X for failure, or spinner for pending states
    */
@@ -413,15 +493,14 @@ export function TransactionStatus({
         <AnimatedComponent
           variant={fadeInOut}
           key="pending"
-          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${
-            transactionStatus === "pending"
-              ? "bg-orange-50 text-orange-400"
-              : transactionStatus === "processing"
-                ? "bg-yellow-50 text-yellow-400"
-                : transactionStatus === "fulfilled"
-                  ? "bg-green-50 text-green-400"
-                  : "bg-gray-50"
-          }`}
+          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${transactionStatus === "pending"
+            ? "bg-orange-50 text-orange-400"
+            : transactionStatus === "processing"
+              ? "bg-yellow-50 text-yellow-400"
+              : transactionStatus === "fulfilled"
+                ? "bg-green-50 text-green-400"
+                : "bg-gray-50"
+            }`}
         >
           <ImSpinner className="animate-spin" />
           <p>{transactionStatus}</p>
@@ -558,10 +637,10 @@ export function TransactionStatus({
   const getPaymentMessage = () => {
     const formattedRecipientName = recipientName
       ? recipientName
-          .toLowerCase()
-          .split(" ")
-          .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
-          .join(" ")
+        .toLowerCase()
+        .split(" ")
+        .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+        .join(" ")
       : "";
 
     if (transactionStatus === "refunded") {
@@ -766,17 +845,17 @@ export function TransactionStatus({
                 orderDetails,
                 orderId,
               ) && (
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.45}
-                  className="flex justify-center"
-                >
-                  <BlockFestCashbackComponent
-                    transactionId={orderId}
-                    cashbackPercentage="1%"
-                  />
-                </AnimatedComponent>
-              )}
+                  <AnimatedComponent
+                    variant={slideInOut}
+                    delay={0.45}
+                    className="flex justify-center"
+                  >
+                    <BlockFestCashbackComponent
+                      transactionId={orderId}
+                      cashbackPercentage="1%"
+                    />
+                  </AnimatedComponent>
+                )}
 
               <AnimatedComponent
                 variant={slideInOut}

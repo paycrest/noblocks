@@ -255,7 +255,12 @@ export type Config = {
   googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
   brevoConversationsId: string; // Brevo chat widget ID
+  brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
+  sentryDsn: string;
+  nodeEnv: string;
+  sentryUrl: string;
+  sentryAuthToken: string;
 };
 
 export type Network = {
@@ -424,3 +429,11 @@ export type ApiResponse<T> =
   | { success: false; error: string; status?: number };
 
 export type SubmitReferralResult = { message?: string };
+declare global {
+  interface Window {
+    BrevoConversationsID?: string;
+    BrevoConversationsSetup?: {
+      groupId: string;
+    };
+  }
+}

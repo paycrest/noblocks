@@ -128,7 +128,7 @@ export const NetworkSelectionModal = ({
                 {networks
                   .filter((network) => {
                     if (useInjectedWallet) return true;
-                    return network.chain.name !== "Celo" && network.chain.name !== "Hedera Mainnet";
+                    return network.chain.name !== "Celo";
                   })
                   .map((network) => (
                     <button

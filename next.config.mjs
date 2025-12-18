@@ -1,4 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   headers: async () => [
@@ -53,8 +57,10 @@ const nextConfig = {
     optimizeCss: true,
     optimizePackageImports: ["@headlessui/react", "framer-motion"],
   },
-  serverExternalPackages: ["mixpanel", "https-proxy-agent"],
+  serverExternalPackages: ["mixpanel", "https-proxy-agent", "rate-limiter-flexible"],
   webpack: (config, { isServer }) => {
+    const webpack = require("webpack");
+
     // Handle both client and server-side fallbacks
     config.resolve.fallback = {
       ...config.resolve.fallback,
@@ -73,12 +79,29 @@ const nextConfig = {
       os: false,
     };
 
+    // Exclude TypeScript definition files from being processed
+    if (!config.plugins) {
+      config.plugins = [];
+    }
+    config.plugins.push(
+      new webpack.IgnorePlugin({
+        resourceRegExp: /\.d\.ts$/,
+      })
+    );
+
     // Handle Mixpanel on server-side only
     if (isServer) {
       config.externals = config.externals || [];
       config.externals.push({
         mixpanel: "commonjs mixpanel",
       });
+    } else {
+      // CLIENT-SIDE: Exclude problematic packages
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        '@solana-program/token': false,
+        '@solana-program/system': false,
+      };
     }
 
     return config;
@@ -96,7 +119,6 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "cdn.sanity.io",
-        // Sanity image assets are served under /images/...
         pathname: "/images/**",
       },
       {
@@ -106,12 +128,12 @@ const nextConfig = {
       },
       ...(process.env.NODE_ENV !== "production"
         ? [
-            {
-              protocol: "https",
-              hostname: "picsum.photos",
-              pathname: "/**",
-            },
-          ]
+          {
+            protocol: "https",
+            hostname: "picsum.photos",
+            pathname: "/**",
+          },
+        ]
         : []),
     ],
   },
@@ -147,6 +169,7 @@ export default withSentryConfig(nextConfig, {
 
   tunnelRoute: "/monitoring",
 
+  // Note: These are deprecated but still work. The warnings can be ignored for now.
   disableLogger: true,
 
   automaticVercelMonitors: true,

@@ -47,9 +47,37 @@ export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
   },
 };
 
+// Sanitize Sanity projectId to only contain valid characters (a-z, 0-9, dashes)
+function sanitizeProjectId(projectId: string): string {
+  if (!projectId) return "";
+  // Convert to lowercase, replace underscores and other invalid chars with dashes
+  // Remove any characters that aren't lowercase letters, numbers, or dashes
+  return projectId
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-") // Replace multiple dashes with single dash
+    .replace(/^-|-$/g, ""); // Remove leading/trailing dashes
+}
+
+// Check if projectId is a placeholder or invalid
+function isValidProjectId(projectId: string): boolean {
+  if (!projectId) return false;
+  // Check for common placeholder patterns
+  const placeholderPatterns = [
+    /^your-project-id/i,
+    /^placeholder/i,
+    /^example/i,
+    /^test-project/i,
+    /^change-me/i,
+    /^replace/i,
+  ];
+  return !placeholderPatterns.some((pattern) => pattern.test(projectId));
+}
+
 // Sanity-specific configuration for client-side (Next.js app)
+const rawProjectId = sanitizeProjectId(process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "");
 export const clientConfig = {
-  projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "",
+  projectId: isValidProjectId(rawProjectId) ? rawProjectId : "",
   dataset: process.env.NEXT_PUBLIC_SANITY_DATASET || "",
   apiVersion: "2024-01-01", // Pin to a stable date
   useCdn: process.env.NODE_ENV === "production", // Use CDN in production for better performance
@@ -57,7 +85,7 @@ export const clientConfig = {
 
 // Sanity-specific configuration for server-side (Sanity Studio)
 export const serverConfig = {
-  projectId: process.env.SANITY_STUDIO_PROJECT_ID || "",
+  projectId: sanitizeProjectId(process.env.SANITY_STUDIO_PROJECT_ID || ""),
   dataset: process.env.SANITY_STUDIO_DATASET || "",
   apiVersion: "2024-01-01", // Pin to a stable date
   useCdn: false, // Set to false for fresh data

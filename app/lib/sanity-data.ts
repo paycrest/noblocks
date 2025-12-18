@@ -8,25 +8,25 @@ import {
 } from "./sanity-queries";
 import type { SanityPost, SanityCategory } from "@/app/blog/types";
 
-// Ensure Sanity is configured
-function ensureSanityConfigured() {
-  if (!client) {
-    throw new Error(
-      "Sanity client is not configured. Check your environment variables.",
-    );
-  }
-}
-
-// Fetch all posts
+// Fetch all posts (returns empty array if Sanity is not configured)
 export async function getPosts(): Promise<SanityPost[]> {
-  ensureSanityConfigured();
-  return await client!.fetch(
-    postsQuery,
-    {},
-    {
-      next: { revalidate: 300 },
-    },
-  );
+  if (!client) {
+    // Return empty array instead of throwing to allow builds without Sanity
+    return [];
+  }
+  try {
+    return await client.fetch(
+      postsQuery,
+      {},
+      {
+        next: { revalidate: 300 },
+      },
+    );
+  } catch (error) {
+    // If Sanity fetch fails (e.g., invalid project ID), return empty array
+    console.warn("Failed to fetch Sanity posts:", error);
+    return [];
+  }
 }
 
 // Cached variant to avoid duplicate fetches within a single render
@@ -38,14 +38,19 @@ export const getCachedPosts = unstable_cache(
 
 // Fetch a single post by slug
 export async function getPost(slug: string): Promise<SanityPost | null> {
-  ensureSanityConfigured();
-  return await client!.fetch(
-    postQuery,
-    { slug },
-    {
-      next: { revalidate: 300 },
-    },
-  );
+  if (!client) return null;
+  try {
+    return await client.fetch(
+      postQuery,
+      { slug },
+      {
+        next: { revalidate: 300 },
+      },
+    );
+  } catch (error) {
+    console.warn("Failed to fetch Sanity post:", error);
+    return null;
+  }
 }
 
 // Fetch recent posts (excluding current and optionally featured)
@@ -53,27 +58,37 @@ export async function getRecentPosts(
   currentSlug: string,
   featuredSlug?: string,
 ): Promise<SanityPost[]> {
-  ensureSanityConfigured();
-  return await client!.fetch(
-    recentPostsQuery,
-    {
-      currentSlug,
-      featuredSlug: featuredSlug || null,
-    },
-    {
-      next: { revalidate: 300 },
-    },
-  );
+  if (!client) return [];
+  try {
+    return await client.fetch(
+      recentPostsQuery,
+      {
+        currentSlug,
+        featuredSlug: featuredSlug || null,
+      },
+      {
+        next: { revalidate: 300 },
+      },
+    );
+  } catch (error) {
+    console.warn("Failed to fetch recent Sanity posts:", error);
+    return [];
+  }
 }
 
 // Fetch all categories
 export async function getCategories(): Promise<SanityCategory[]> {
-  ensureSanityConfigured();
-  return await client!.fetch(
-    categoriesQuery,
-    {},
-    {
-      next: { revalidate: 300 },
-    },
-  );
+  if (!client) return [];
+  try {
+    return await client.fetch(
+      categoriesQuery,
+      {},
+      {
+        next: { revalidate: 300 },
+      },
+    );
+  } catch (error) {
+    console.warn("Failed to fetch Sanity categories:", error);
+    return [];
+  }
 }

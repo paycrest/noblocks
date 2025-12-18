@@ -53,7 +53,7 @@ const nextConfig = {
     optimizeCss: true,
     optimizePackageImports: ["@headlessui/react", "framer-motion"],
   },
-  serverExternalPackages: ["mixpanel", "https-proxy-agent"],
+  serverExternalPackages: ["mixpanel", "https-proxy-agent", "rate-limiter-flexible"],
   webpack: (config, { isServer }) => {
     // Handle both client and server-side fallbacks
     config.resolve.fallback = {

@@ -84,8 +84,9 @@ export const clientConfig = {
 };
 
 // Sanity-specific configuration for server-side (Sanity Studio)
+const rawServerProjectId = sanitizeProjectId(process.env.SANITY_STUDIO_PROJECT_ID || "");
 export const serverConfig = {
-  projectId: sanitizeProjectId(process.env.SANITY_STUDIO_PROJECT_ID || ""),
+  projectId: isValidProjectId(rawServerProjectId) ? rawServerProjectId : "",
   dataset: process.env.SANITY_STUDIO_DATASET || "",
   apiVersion: "2024-01-01", // Pin to a stable date
   useCdn: false, // Set to false for fresh data

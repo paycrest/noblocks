@@ -148,8 +148,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://celoscan.io/tx/${txHash}`;
     case "Lisk":
       return `https://blockscout.lisk.com/tx/${txHash}`;
-    case "Hedera Mainnet":
-      return `https://hashscan.io/mainnet/transaction/${txHash}`;
+    case "Ethereum":
+      return `https://etherscan.io/tx/${txHash}`;
     default:
       return "";
   }
@@ -170,8 +170,8 @@ export function getRpcUrl(network: string) {
       return `https://42220.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Lisk":
       return `https://1135.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
-    case "Hedera Mainnet":
-      return "https://mainnet.hashio.io/api";
+    case "Ethereum":
+      return `https://1.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     default:
       return undefined;
   }
@@ -334,15 +334,6 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/cusd-logo.svg",
     },
   ],
-  "Hedera Mainnet": [
-    {
-      name: "USD Coin",
-      symbol: "USDC",
-      decimals: 6,
-      address: "0x000000000000000000000000000000000006f89a",
-      imageUrl: "/logos/usdc-logo.svg",
-    },
-  ],
   Lisk: [
     {
       name: "Tether USD",
@@ -352,6 +343,29 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
   ],
+  Ethereum: [
+  {
+    name: "USD Coin",
+    symbol: "USDC",
+    decimals: 6,
+    address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    imageUrl: "/logos/usdc-logo.svg",
+  },
+  {
+    name: "Tether USD", 
+    symbol: "USDT",
+    decimals: 6,
+    address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    imageUrl: "/logos/usdt-logo.svg",
+  },
+      {
+      name: "cNGN",
+      symbol: "cNGN",
+      decimals: 6,
+      address: "0x17CDB2a01e7a34CbB3DD4b83260B05d0274C8dab",
+      imageUrl: "/logos/cngn-logo.svg",
+    },
+],
 };
 
 /**
@@ -573,15 +587,10 @@ export function shortenAddress(
 
 /**
  * Normalizes network name for rate fetching API.
- * Maps "Hedera Mainnet" to "hedera" instead of "hedera-mainnet".
  * @param network - The network name to normalize.
  * @returns The normalized network name for rate fetching.
  */
 export function normalizeNetworkForRateFetch(network: string): string {
-  // Special case: Hedera Mainnet should be "hedera" not "hedera-mainnet"
-  if (network.toLowerCase() === "hedera mainnet") {
-    return "hedera";
-  }
   return network.toLowerCase().replace(/\s+/g, "-");
 }
 
@@ -600,7 +609,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
     Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
     Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
-    "Hedera Mainnet": "0x17d13B7032944af8B420Ac5bedb12a7D92270478",
+    Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5"
   }[network];
 }
 
@@ -1194,8 +1203,9 @@ export function calculateSenderFee(
   const calculatedRate = Math.round(rate * 100);
   const isLocalTransfer = calculatedRate === 100;
   const defaultFeePercent = 0.1; // 0.1% default fee for local transfers
-  const maxFeeCapInBaseUnits = BigInt(10000); // 10k in token base units
+  const maxFeeCapInHumanReadable = 10000; // 10k CNGN cap in human-readable units
   const decimalsMultiplier = BigInt(10 ** tokenDecimals);
+  const maxFeeCapInBaseUnits = BigInt(maxFeeCapInHumanReadable) * decimalsMultiplier; // 10k CNGN in base units
 
   // Calculate fee in human-readable format
   const calculatedFee = isLocalTransfer

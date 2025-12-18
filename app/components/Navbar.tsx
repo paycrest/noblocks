@@ -67,7 +67,9 @@ export const Navbar = () => {
             "Noblocks balance": 0, // a new user should always have 0 balance
           });
         } else {
-          trackEvent("Login completed", { "Login method": loginMethod });
+          trackEvent("Login completed", {
+            "Login method": loginMethod,
+          });
         }
       }
     },
@@ -111,7 +113,7 @@ export const Navbar = () => {
       >
         <div className="flex items-start gap-2 lg:flex-1">
           <div
-            className={`relative flex ${IS_MAIN_PRODUCTION_DOMAIN ? "items-center" : "items-start"} gap-5`}
+            className={`relative flex ${IS_MAIN_PRODUCTION_DOMAIN ? "items-end" : "items-end"} gap-5`}
             ref={dropdownRef}
           >
             <div
@@ -141,13 +143,43 @@ export const Navbar = () => {
               >
                 {IS_MAIN_PRODUCTION_DOMAIN ? (
                   <>
-                    <NoblocksLogo className="max-sm:hidden" />
-                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                    {/* <NoblocksLogo className="max-sm:hidden" /> */}
+
+                    <Image
+                      src="/logos/noblocks-xmas.svg"
+                      alt="Noblocks Logo"
+                      className="max-sm:hidden"
+                      width={120}
+                      height={28}
+                    />
+                    {/* <NoblocksLogoIcon className="size-[18px] sm:hidden" /> */}
+                    <Image
+                      src="/logos/noblocks-xmas-mobile.svg"
+                      alt="Noblocks Logo"
+                      className="size-[28px] sm:hidden"
+                      width={120}
+                      height={28}
+                    />
                   </>
                 ) : (
                   <>
-                    <NoblocksBetaLogo className="max-sm:hidden" />
-                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                    {/* <NoblocksBetaLogo className="max-sm:hidden" />*/}
+
+                    <Image
+                      src="/logos/noblocks-xmas.svg"
+                      alt="Noblocks Logo"
+                      className="max-sm:hidden"
+                      width={120}
+                      height={28}
+                    />
+                    {/* <NoblocksLogoIcon className="size-[18px] sm:hidden" /> */}
+                    <Image
+                      src="/logos/noblocks-xmas-mobile.svg"
+                      alt="Noblocks Logo"
+                      className="size-[28px] sm:hidden"
+                      width={120}
+                      height={28}
+                    />
                   </>
                 )}
               </button>
@@ -156,7 +188,7 @@ export const Navbar = () => {
                 className={classNames(
                   "size-5 cursor-pointer text-icon-outline-secondary transition-transform duration-200 dark:text-white/50 max-sm:hidden",
                   isDropdownOpen ? "rotate-0" : "-rotate-90",
-                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[15px]", // this adjusts the arrow position for beta logo
+                  IS_MAIN_PRODUCTION_DOMAIN ? "mt-[10px]" : "mt-[10px]", // this adjusts the arrow position for beta logo
                 )}
                 onClick={(e) => {
                   e.preventDefault();
@@ -193,9 +225,8 @@ export const Navbar = () => {
               <div className="hidden items-center sm:flex">
                 <Link
                   href="/"
-                  className={`${
-                    IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"
-                  } text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
+                  className={`${IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"
+                    } text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
                 >
                   Swap
                 </Link>

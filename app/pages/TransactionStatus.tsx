@@ -185,11 +185,6 @@ export function TransactionStatus({
     checkRecipientExists();
   }, [accountIdentifier, institution, getAccessToken]);
 
-  // Scroll to top on mount
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
-
   /**
    * Updates transaction status in the backend
    * Uses a request ID system to handle race conditions when multiple updates are triggered
@@ -272,11 +267,11 @@ export function TransactionStatus({
             if (transactionStatus !== status) {
               setTransactionStatus(
                 status as
-                  | "processing"
-                  | "fulfilled"
-                  | "validated"
-                  | "settled"
-                  | "refunded",
+                | "processing"
+                | "fulfilled"
+                | "validated"
+                | "settled"
+                | "refunded",
               );
             }
 
@@ -365,8 +360,12 @@ export function TransactionStatus({
           "Wallet type": isInjectedWallet ? "Injected" : "Smart wallet",
         };
 
+
         if (["validated", "settled"].includes(transactionStatus)) {
-          trackEvent("Swap completed", eventData);
+          trackEvent("Swap completed", {
+            ...eventData,
+            transaction_status: transactionStatus,
+          });
           setIsTracked(true);
         } else if (transactionStatus === "refunded") {
           trackEvent("Swap failed", {
@@ -494,15 +493,14 @@ export function TransactionStatus({
         <AnimatedComponent
           variant={fadeInOut}
           key="pending"
-          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${
-            transactionStatus === "pending"
-              ? "bg-orange-50 text-orange-400"
-              : transactionStatus === "processing"
-                ? "bg-yellow-50 text-yellow-400"
-                : transactionStatus === "fulfilled"
-                  ? "bg-green-50 text-green-400"
-                  : "bg-gray-50"
-          }`}
+          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${transactionStatus === "pending"
+            ? "bg-orange-50 text-orange-400"
+            : transactionStatus === "processing"
+              ? "bg-yellow-50 text-yellow-400"
+              : transactionStatus === "fulfilled"
+                ? "bg-green-50 text-green-400"
+                : "bg-gray-50"
+            }`}
         >
           <ImSpinner className="animate-spin" />
           <p>{transactionStatus}</p>
@@ -639,10 +637,10 @@ export function TransactionStatus({
   const getPaymentMessage = () => {
     const formattedRecipientName = recipientName
       ? recipientName
-          .toLowerCase()
-          .split(" ")
-          .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
-          .join(" ")
+        .toLowerCase()
+        .split(" ")
+        .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+        .join(" ")
       : "";
 
     if (transactionStatus === "refunded") {
@@ -847,17 +845,17 @@ export function TransactionStatus({
                 orderDetails,
                 orderId,
               ) && (
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.45}
-                  className="flex justify-center"
-                >
-                  <BlockFestCashbackComponent
-                    transactionId={orderId}
-                    cashbackPercentage="1%"
-                  />
-                </AnimatedComponent>
-              )}
+                  <AnimatedComponent
+                    variant={slideInOut}
+                    delay={0.45}
+                    className="flex justify-center"
+                  >
+                    <BlockFestCashbackComponent
+                      transactionId={orderId}
+                      cashbackPercentage="1%"
+                    />
+                  </AnimatedComponent>
+                )}
 
               <AnimatedComponent
                 variant={slideInOut}

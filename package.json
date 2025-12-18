@@ -16,7 +16,6 @@
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",
-    "build:low-memory": "NODE_OPTIONS='--max-old-space-size=768' LOW_MEMORY_BUILD=true next build",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
@@ -53,6 +52,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^11.18.2",
     "hugeicons-react": "^0.3.0",
+    "import-in-the-middle": "^2.0.0",
     "jose": "^6.0.11",
     "js-cookie": "^3.0.5",
     "jsencrypt": "^3.3.2",
@@ -67,6 +67,7 @@
     "permissionless": "^0.2.47",
     "rate-limiter-flexible": "^7.1.1",
     "react": "^19.0.1",
+    "require-in-the-middle": "^8.0.1",
     "react-dom": "^19.0.1",
     "react-hook-form": "^7.57.0",
     "react-icons": "^5.5.0",

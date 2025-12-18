@@ -81,6 +81,9 @@ importers:
       hugeicons-react:
         specifier: ^0.3.0
         version: 0.3.0(react@19.2.3)
+      import-in-the-middle:
+        specifier: ^2.0.0
+        version: 2.0.0
       jose:
         specifier: ^6.0.11
         version: 6.1.3
@@ -135,6 +138,9 @@ importers:
       react-qrcode-logo:
         specifier: ^3.0.0
         version: 3.0.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      require-in-the-middle:
+        specifier: ^8.0.1
+        version: 8.0.1
       sanity:
         specifier: ^4.4.1
         version: 4.21.1(@emotion/is-prop-valid@1.4.0)(@portabletext/sanity-bridge@1.2.14(@types/react@19.2.7))(@types/node@22.19.2)(@types/react-dom@19.2.3(@types/react@19.2.7))(@types/react@19.2.7)(bufferutil@4.0.9)(jiti@2.6.1)(postcss@8.5.6)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(styled-components@6.1.19(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(terser@5.44.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(yaml@2.8.2)

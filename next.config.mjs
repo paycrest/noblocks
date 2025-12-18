@@ -138,6 +138,11 @@ export default withSentryConfig(nextConfig, {
 
   silent: !process.env.CI,
 
+  // Disable source map upload in low-memory environments
+  sourcemaps: {
+    disable: process.env.LOW_MEMORY_BUILD === "true",
+  },
+
   widenClientFileUpload: true,
 
   tunnelRoute: "/monitoring",

@@ -16,6 +16,7 @@
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",
+    "build:low-memory": "NODE_OPTIONS='--max-old-space-size=768' LOW_MEMORY_BUILD=true next build",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",

@@ -16,7 +16,6 @@
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",
-    "build:low-memory": "NODE_OPTIONS='--max-old-space-size=768' LOW_MEMORY_BUILD=true next build",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
@@ -40,8 +39,6 @@
     "@react-pdf/renderer": "^4.3.0",
     "@sanity/client": "^7.8.1",
     "@sanity/image-url": "^1.1.0",
-    "@sentry/nextjs": "^10.29.0",
-    "@solana-program/token": "0.6.0",
     "@supabase/supabase-js": "^2.50.0",
     "@tanstack/react-query": "^5.80.7",
     "@thirdweb-dev/auth": "^4.1.97",
@@ -54,7 +51,6 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^11.18.2",
     "hugeicons-react": "^0.3.0",
-    "import-in-the-middle": "^2.0.0",
     "jose": "^6.0.11",
     "js-cookie": "^3.0.5",
     "jsencrypt": "^3.3.2",
@@ -73,7 +69,6 @@
     "react-hook-form": "^7.57.0",
     "react-icons": "^5.5.0",
     "react-qrcode-logo": "^3.0.0",
-    "require-in-the-middle": "^8.0.1",
     "sanity": "^4.4.1",
     "sonner": "^1.7.4",
     "styled-components": "^6.1.19",
@@ -114,8 +109,7 @@
       "@types/react": "^19.0.8",
       "@types/react-dom": "^19.0.3",
       "react": "^19.0.1",
-      "react-dom": "^19.0.1",
-      "@solana/kit": "^3.0.3"
+      "react-dom": "^19.0.1"
     }
   },
   "browser": {

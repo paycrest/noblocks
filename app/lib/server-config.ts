@@ -56,7 +56,7 @@ export function getServerMixpanelToken(): string {
 
   return validateConfig(
     "MIXPANEL_SERVER_TOKEN",
-    process.env.MIXPANEL_SERVER_TOKEN || process.env.MIXPANEL_TOKEN || "",
+    process.env.MIXPANEL_SERVER_TOKEN || "",
     false, // Optional - analytics can fail gracefully
   );
 }

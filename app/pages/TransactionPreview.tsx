@@ -271,9 +271,6 @@ export const TransactionPreview = ({
         trackEvent("Swap started", {
           "Entry point": "Transaction preview",
           "Wallet type": "Injected wallet",
-          network: selectedNetwork.chain.name,
-          token: token,
-          amount: amountSent,
         });
       } else {
         // Smart wallet
@@ -339,9 +336,6 @@ export const TransactionPreview = ({
       trackEvent("Swap started", {
         "Entry point": "Transaction preview",
         "Wallet type": "Smart wallet",
-        network: selectedNetwork.chain.name,
-        token: token,
-        amount: amountSent,
       });
     } catch (e) {
       const error = e as BaseError;
@@ -616,8 +610,9 @@ export const TransactionPreview = ({
                   <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
                 ) : (
                   <TbCircleDashed
-                    className={`text-lg ${isGatewayApproved ? "animate-spin" : ""
-                      }`}
+                    className={`text-lg ${
+                      isGatewayApproved ? "animate-spin" : ""
+                    }`}
                   />
                 )}
                 <p className="pr-1">Create Order</p>

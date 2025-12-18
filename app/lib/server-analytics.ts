@@ -148,39 +148,12 @@ export const trackServerEvent = (
       return;
     }
 
-    // Extract IP and user-agent BEFORE sanitization (needed for Mixpanel geo-inference)
-    const rawIp = properties.ip_address;
-    const userAgent = properties.user_agent;
-
-    // Sanitize properties (this will hash/remove ip_address and other sensitive fields)
-    const sanitizedProps = sanitizeProperties(properties);
-
-    const eventData: Record<string, any> = {
-      ...sanitizedProps,
+    const eventData = {
+      ...sanitizeProperties(properties),
       app: "Noblocks",
       server_side: true,
       timestamp: new Date().toISOString(),
     };
-
-    // Add raw IP for Mixpanel geo-inference (as 'ip' property)
-    // Mixpanel's Node.js SDK uses 'ip' property to automatically infer city, country, etc.
-    // Only include IP if privacy mode is not strict and IP inclusion is enabled
-    if (
-      !PRIVACY_MODE &&
-      INCLUDE_IP &&
-      rawIp &&
-      typeof rawIp === "string" &&
-      rawIp !== "unknown" &&
-      rawIp !== "::1" &&
-      !rawIp.startsWith("127.")
-    ) {
-      eventData.ip = rawIp;
-    }
-
-    // Add User-Agent for OS/Browser detection (Mixpanel parses this automatically)
-    if (userAgent && typeof userAgent === "string" && userAgent !== "unknown") {
-      eventData.$user_agent = userAgent;
-    }
 
     // Add distinct_id to event data if provided
     const finalEventData = distinctId
@@ -221,42 +194,12 @@ export const identifyServerUser = (
       return;
     }
 
-    // Extract IP and user-agent BEFORE sanitization (needed for Mixpanel geo-inference)
-    const rawIp = properties.ip_address;
-    const userAgent = properties.user_agent;
-
-    const userData: Record<string, any> = {
+    const userData = {
       ...properties,
       $last_seen: new Date().toISOString(),
       app: "Noblocks",
       server_side: true,
     };
-
-    // Remove our internal ip_address and user_agent properties before setting user properties
-    // We'll pass them separately to Mixpanel for geo-inference
-    delete userData.ip_address;
-    delete userData.user_agent;
-
-    // Add raw IP for Mixpanel geo-inference in user profile updates
-    // Mixpanel uses 'ip' property to automatically infer city, country, etc.
-    // Skip localhost IPs as they can't be geolocated
-    // Only include IP if privacy mode is not strict and IP inclusion is enabled
-    if (
-      !PRIVACY_MODE &&
-      INCLUDE_IP &&
-      rawIp &&
-      typeof rawIp === "string" &&
-      rawIp !== "unknown" &&
-      rawIp !== "::1" &&
-      !rawIp.startsWith("127.")
-    ) {
-      userData.ip = rawIp;
-    }
-
-    // Add User-Agent for OS/Browser detection
-    if (userAgent && typeof userAgent === "string" && userAgent !== "unknown") {
-      userData.$user_agent = userAgent;
-    }
 
     mixpanelInstance.people.set(distinctId, userData);
   } catch (error) {

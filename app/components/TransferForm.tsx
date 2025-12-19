@@ -412,7 +412,9 @@ export const TransferForm: React.FC<{
                   : "text-gray-400 dark:text-white/30"
               }`}
             >
-              <img
+              <Image
+                width={500}
+                height={500}
                 src={recipientNetworkImageUrl}
                 alt={recipientNetwork}
                 className="h-6 w-6 rounded-full"

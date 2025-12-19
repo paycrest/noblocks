@@ -6,16 +6,9 @@ Sentry.init({
   environment: config.nodeEnv,
   release: "2.0.0",
 
-  integrations: [
-    Sentry.replayIntegration(),
-  ],
-
   tracesSampleRate: config.nodeEnv === 'production' ? 0.1 : 1.0,
 
   enableLogs: true,
-  replaysSessionSampleRate: 0.1,
-
-  replaysOnErrorSampleRate: 1.0,
 
   sendDefaultPii: false,
 

@@ -2,7 +2,11 @@
 import { ImSpinner } from "react-icons/im";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown01Icon, InformationSquareIcon, Tick02Icon } from "hugeicons-react";
+import {
+  ArrowDown01Icon,
+  InformationSquareIcon,
+  Tick02Icon,
+} from "hugeicons-react";
 
 import { AnimatedFeedbackItem } from "../AnimatedComponents";
 import { InstitutionProps } from "@/app/types";
@@ -84,23 +88,39 @@ export const RecipientDetailsForm = ({
   const prevCurrencyRef = useRef(currency);
 
   // Alert component to avoid duplication and handle analytics
-  const RecipientAlert = ({ isEditable, message }: { isEditable: boolean; message: string }) => {
+  const RecipientAlert = ({
+    isEditable,
+    message,
+  }: {
+    isEditable: boolean;
+    message: string;
+  }) => {
     const handleLearnMoreClick = (e: React.MouseEvent) => {
       e.preventDefault();
       trackEvent("recipient_alert_learn_more_clicked", {
-        alert_type: isEditable ? 'verification_failed' : 'verification_success',
+        alert_type: isEditable ? "verification_failed" : "verification_success",
         message: message.substring(0, 100), // Truncate for analytics
         currency: currency,
-        institution: selectedInstitution?.name || '',
+        institution: selectedInstitution?.name || "",
       });
-      // Allow navigation to continue (could add actual link here)
+      // Open relevant help article in new tab
+      const helpUrl =
+        "https://noblocks.xyz/blog/understanding-account-name-verification-on-noblocks";
+      window.open(helpUrl, "_blank");
     };
 
     return (
-      <div className="min-h-[48px] h-fit w-full dark:bg-warning-background/10 bg-warning-background/35 px-3 py-2 rounded-xl flex items-start gap-2">
-        <InformationSquareIcon className="dark:text-warning-text text-warning-foreground w-[36px] h-[36px] md:w-[24px] md:h-[24px]" />
-        <p className="text-xs font-light dark:text-warning-text text-warning-foreground leading-tight">
-          {message} <a href="#" onClick={handleLearnMoreClick} className="text-lavender-500 font-semibold">Learn more.</a>
+      <div className="flex h-fit min-h-[48px] w-full items-start gap-2 rounded-xl bg-warning-background/35 px-3 py-2 dark:bg-warning-background/10">
+        <InformationSquareIcon className="h-[36px] w-[36px] text-warning-foreground dark:text-warning-text md:h-[24px] md:w-[24px]" />
+        <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
+          {message}{" "}
+          <a
+            href="#"
+            onClick={handleLearnMoreClick}
+            className="font-semibold text-lavender-500"
+          >
+            Learn more.
+          </a>
         </p>
       </div>
     );
@@ -215,24 +235,37 @@ export const RecipientDetailsForm = ({
 
   // Track alert visibility
   useEffect(() => {
-const shouldShowAlert = 
-  (isRecipientNameEditable && recipientName && !errors.recipientName && !recipientNameError) ||
-  (!isRecipientNameEditable && recipientName && !recipientNameError);
-    
+    const shouldShowAlert =
+      (isRecipientNameEditable &&
+        recipientName &&
+        !errors.recipientName &&
+        !recipientNameError) ||
+      (!isRecipientNameEditable && recipientName && !recipientNameError);
+
     if (shouldShowAlert && !alertViewed) {
       trackEvent("recipient_alert_viewed", {
-        alert_type: isRecipientNameEditable ? 'verification_failed' : 'verification_success',
+        alert_type: isRecipientNameEditable
+          ? "verification_failed"
+          : "verification_success",
         has_recipient_name: !!recipientName,
         is_editable: isRecipientNameEditable,
         currency: currency,
-        institution: selectedInstitution?.name || '',
+        institution: selectedInstitution?.name || "",
       });
       setAlertViewed(true);
     } else if (!shouldShowAlert && alertViewed) {
       // Reset viewed state when alert is no longer visible
       setAlertViewed(false);
     }
-  }, [isRecipientNameEditable, recipientName, recipientNameError, alertViewed, currency, selectedInstitution?.name, errors.recipientName]);
+  }, [
+    isRecipientNameEditable,
+    recipientName,
+    recipientNameError,
+    alertViewed,
+    currency,
+    selectedInstitution?.name,
+    errors.recipientName,
+  ]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -315,7 +348,7 @@ const shouldShowAlert =
           institution: institution.toString(),
           accountIdentifier: accountIdentifier.toString(),
         });
-        
+
         // Check if the response is "Ok" which means verification failed but not an error
         if (accountName.toLowerCase() === "ok") {
           setIsRecipientNameEditable(true);
@@ -501,7 +534,12 @@ const shouldShowAlert =
                     )}
                   />
                   {errors.recipientName && (
-                    <InputError message={errors.recipientName.message || "Recipient name is required"} />
+                    <InputError
+                      message={
+                        errors.recipientName.message ||
+                        "Recipient name is required"
+                      }
+                    />
                   )}
                 </AnimatedFeedbackItem>
               ) : recipientName ? (
@@ -529,7 +567,6 @@ const shouldShowAlert =
 
                   <Tick02Icon className="text-lg text-green-700 dark:text-green-500 max-sm:hidden" />
                 </AnimatedFeedbackItem>
-                
               ) : recipientNameError ? (
                 <InputError message={recipientNameError} />
               ) : null}
@@ -539,16 +576,19 @@ const shouldShowAlert =
       </div>
 
       <AnimatedFeedbackItem>
-        {isRecipientNameEditable && recipientName && !errors.recipientName && !recipientNameError && (
-          <RecipientAlert 
-            isEditable={true} 
-            message="Unable to verify details. Ensure the recipient's account number is accurate before proceeding with swap." 
-          />
-        )}
+        {isRecipientNameEditable &&
+          recipientName &&
+          !errors.recipientName &&
+          !recipientNameError && (
+            <RecipientAlert
+              isEditable={true}
+              message="Unable to verify details. Ensure the recipient's account number is accurate before proceeding with swap."
+            />
+          )}
         {!isRecipientNameEditable && recipientName && !recipientNameError && (
-          <RecipientAlert 
-            isEditable={false} 
-            message="Make sure the recipient's account number is accurate before proceeding with swap." 
+          <RecipientAlert
+            isEditable={false}
+            message="Make sure the recipient's account number is accurate before proceeding with swap."
           />
         )}
       </AnimatedFeedbackItem>

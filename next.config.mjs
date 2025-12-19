@@ -95,14 +95,7 @@ const nextConfig = {
       config.externals.push({
         mixpanel: "commonjs mixpanel",
       });
-      // SERVER-SIDE: Also exclude Solana packages
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        '@solana-program/token': false,
-        '@solana-program/system': false,
-      };
     } else {
-      // CLIENT-SIDE: Exclude problematic packages
       config.resolve.alias = {
         ...config.resolve.alias,
         '@solana-program/token': false,

@@ -125,6 +125,7 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "cdn.sanity.io",
+        // Sanity image assets are served under /images/...
         pathname: "/images/**",
       },
       {
@@ -175,7 +176,6 @@ export default withSentryConfig(nextConfig, {
 
   tunnelRoute: "/monitoring",
 
-  // Note: These are deprecated but still work. The warnings can be ignored for now.
   disableLogger: true,
 
   automaticVercelMonitors: true,

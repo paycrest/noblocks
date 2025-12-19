@@ -47,46 +47,17 @@ export const DEFAULT_THIRDWEB_CONFIG: JWTProviderConfig = {
   },
 };
 
-// Sanitize Sanity projectId: Sanity IDs are exactly 8 lowercase alphanumeric characters (a-z, 0-9, no dashes)
-function sanitizeProjectId(projectId: string): string {
-  if (!projectId) return "";
-  // Convert to lowercase and remove any characters that aren't lowercase letters or numbers
-  return projectId.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-// Check if projectId is valid: must be exactly 8 lowercase alphanumeric characters and not a placeholder
-function isValidProjectId(projectId: string): boolean {
-  if (!projectId) return false;
-
-  // Sanity project IDs must be exactly 8 lowercase alphanumeric characters
-  const sanityIdPattern = /^[a-z0-9]{8}$/;
-  if (!sanityIdPattern.test(projectId)) return false;
-
-  // Check for common placeholder patterns
-  const placeholderPatterns = [
-    /^your-project-id/i,
-    /^placeholder/i,
-    /^example/i,
-    /^test-project/i,
-    /^change-me/i,
-    /^replace/i,
-  ];
-  return !placeholderPatterns.some((pattern) => pattern.test(projectId));
-}
-
 // Sanity-specific configuration for client-side (Next.js app)
-const rawProjectId = sanitizeProjectId(process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "");
 export const clientConfig = {
-  projectId: isValidProjectId(rawProjectId) ? rawProjectId : "",
+  projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || "",
   dataset: process.env.NEXT_PUBLIC_SANITY_DATASET || "",
   apiVersion: "2024-01-01", // Pin to a stable date
   useCdn: process.env.NODE_ENV === "production", // Use CDN in production for better performance
 };
 
 // Sanity-specific configuration for server-side (Sanity Studio)
-const rawServerProjectId = sanitizeProjectId(process.env.SANITY_STUDIO_PROJECT_ID || "");
 export const serverConfig = {
-  projectId: isValidProjectId(rawServerProjectId) ? rawServerProjectId : "",
+  projectId: process.env.SANITY_STUDIO_PROJECT_ID || "",
   dataset: process.env.SANITY_STUDIO_DATASET || "",
   apiVersion: "2024-01-01", // Pin to a stable date
   useCdn: false, // Set to false for fresh data

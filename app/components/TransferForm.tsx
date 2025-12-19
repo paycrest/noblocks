@@ -112,7 +112,7 @@ export const TransferForm: React.FC<{
     error,
   } = useSmartWalletTransfer({
     client: client ?? null,
-    selectedNetwork: transferNetwork,  // Use the recipient's network, not global
+    selectedNetwork: transferNetwork, // Use the recipient's network, not global
     user,
     supportedTokens: fetchedTokens,
     getAccessToken,

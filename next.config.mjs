@@ -1,7 +1,4 @@
 import { withSentryConfig } from "@sentry/nextjs";
-import { createRequire } from "module";
-
-const require = createRequire(import.meta.url);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -57,10 +54,8 @@ const nextConfig = {
     optimizeCss: true,
     optimizePackageImports: ["@headlessui/react", "framer-motion"],
   },
-  serverExternalPackages: ["mixpanel", "https-proxy-agent", "rate-limiter-flexible"],
-  webpack: (config, { isServer }) => {
-    const webpack = require("webpack");
-
+  serverExternalPackages: ["mixpanel", "https-proxy-agent"],
+  webpack: (config, { webpack, isServer }) => {
     // Handle both client and server-side fallbacks
     config.resolve.fallback = {
       ...config.resolve.fallback,

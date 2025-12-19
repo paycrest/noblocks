@@ -79,8 +79,7 @@ export const TransferForm: React.FC<{
   const { token, amount, recipientNetwork, recipientNetworkImageUrl } = watch();
 
   // Get the Network object for the selected recipient network
-  const transferNetwork =
-    networks.find((n) => n.chain.name === recipientNetwork) || selectedNetwork;
+  const transferNetwork = networks.find(n => n.chain.name === recipientNetwork) || selectedNetwork;
 
   const fetchedTokens: Token[] = allTokens[transferNetwork.chain.name] || [];
   const tokens = fetchedTokens.map((token) => ({
@@ -94,7 +93,9 @@ export const TransferForm: React.FC<{
   const recipientNetworks = networks
     .filter((network) => {
       if (useInjectedWallet) return true;
-      return network.chain.name !== "Celo";
+      return (
+        network.chain.name !== "Celo"
+      );
     })
     .map((network) => ({
       name: network.chain.name,

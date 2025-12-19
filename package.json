@@ -115,7 +115,7 @@
       "@types/react-dom": "^19.0.3",
       "react": "^19.0.1",
       "react-dom": "^19.0.1",
-      "@solana/kit": "^3.0.3"
+      "@solana/kit": "^5.0.0"
     }
   },
   "browser": {

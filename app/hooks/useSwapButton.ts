@@ -1,6 +1,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { UseFormWatch } from "react-hook-form";
 import { useInjectedWallet } from "../context";
+import { calculateSenderFee } from "../utils";
 
 interface UseSwapButtonProps {
   watch: UseFormWatch<any>;
@@ -9,6 +10,7 @@ interface UseSwapButtonProps {
   isValid: boolean;
   isUserVerified: boolean;
   rate?: number | null;
+  tokenDecimals?: number;
 }
 
 export function useSwapButton({
@@ -18,6 +20,7 @@ export function useSwapButton({
   isValid,
   isUserVerified,
   rate,
+  tokenDecimals = 18,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
@@ -26,7 +29,15 @@ export function useSwapButton({
   const isAmountValid = Number(amountSent) >= 0.5;
   const isCurrencySelected = Boolean(currency);
 
-  const hasInsufficientBalance = amountSent > balance;
+  // Calculate sender fee and include in balance check
+  const { feeAmount: senderFeeAmount } = calculateSenderFee(
+    Number(amountSent) || 0,
+    rate || 0,
+    tokenDecimals,
+  );
+  const totalRequired = (Number(amountSent) || 0) + senderFeeAmount;
+
+  const hasInsufficientBalance = totalRequired > balance;
 
   const isEnabled = (() => {
     if (!rate) return false;

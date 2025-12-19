@@ -1,4 +1,5 @@
-import { arbitrum, base, bsc, polygon, lisk, celo, hedera } from "viem/chains";
+import { arbitrum, base, bsc, polygon, lisk, celo, mainnet } from "viem/chains";
+
 
 export const acceptedCurrencies = [
   {
@@ -16,6 +17,11 @@ export const acceptedCurrencies = [
   {
     name: "TZS",
     label: "Tanzanian Shilling (TZS)",
+  },
+    {
+    name: "MWK",
+    label: "Malawian Kwacha (MWK)",
+    disabled: true,
   },
   {
     name: "GHS",
@@ -53,6 +59,10 @@ export const networks = [
     imageUrl: "/logos/celo-logo.svg",
   },
   {
+    chain: mainnet,
+    imageUrl: "/logos/ethereum-logo.svg",
+  },
+  {
     chain: lisk,
     imageUrl: {
       light: "/logos/lisk-logo-light.svg",
@@ -63,10 +73,10 @@ export const networks = [
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
   },
-  {
-    chain: hedera,
-    imageUrl: "/logos/hedera-logo.svg",
-  },
+//   {
+//     chain: hedera,
+//     imageUrl: "/logos/hedera-logo.svg",
+//   },
   // {
   //   chain: scroll,
   //   imageUrl: "/logos/scroll-logo.svg",

@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 
 import {
   calculateDuration,
+  calculateSenderFee,
   classNames,
   formatCurrency,
   formatNumberWithCommas,
@@ -105,20 +106,6 @@ export const TransactionPreview = ({
       account.type === "wallet" && account.connectorType === "embedded",
   ) as { address: string } | undefined;
 
-  // Rendered tsx info
-  const renderedInfo = {
-    amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
-    totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
-    recipient: recipientName
-      .toLowerCase()
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" "),
-    account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
-    ...(memo && { description: memo }),
-    network: selectedNetwork.chain.name,
-  };
-
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
   const tokenAddress = fetchedTokens.find(
@@ -143,6 +130,30 @@ export const TransactionPreview = ({
     ? injectedWalletBalance?.balances[token] || 0
     : smartWalletBalance?.balances[token] || 0;
 
+  // Calculate sender fee for display and balance check
+  const {
+    feeAmount: senderFeeAmount,
+    feeAmountInBaseUnits: senderFeeInTokenUnits,
+    feeRecipient: senderFeeRecipientAddress,
+  } = calculateSenderFee(amountSent, rate, tokenDecimals ?? 18);
+
+  // Rendered tsx info
+  const renderedInfo = {
+    amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
+    totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
+    recipient: recipientName
+      .toLowerCase()
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" "),
+    account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
+    ...(memo && { description: memo }),
+    ...(senderFeeAmount > 0 && {
+      fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
+    }),
+    network: selectedNetwork.chain.name,
+  };
+
   const prepareCreateOrderParams = async () => {
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
@@ -161,15 +172,15 @@ export const TransactionPreview = ({
     const publicKey = await fetchAggregatorPublicKey();
     const encryptedRecipient = publicKeyEncrypt(recipient, publicKey.data);
 
+    // Use the fee values calculated earlier (already in base units and capped)
+
     // Prepare transaction parameters
     const params = {
       token: tokenAddress,
       amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
       rate: BigInt(Math.round(rate * 100)),
-      senderFeeRecipient: getAddress(
-        "0x0000000000000000000000000000000000000000",
-      ),
-      senderFee: BigInt(0),
+      senderFeeRecipient: getAddress(senderFeeRecipientAddress),
+      senderFee: senderFeeInTokenUnits,
       refundAddress: activeWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
@@ -188,6 +199,10 @@ export const TransactionPreview = ({
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
+        // Calculate total amount to approve (amount + senderFee)
+        // The contract transfers amount + senderFee from the user
+        const totalAmountToApprove = params.amount + params.senderFee;
+
         // Send approval transaction
         const approvalTx = await injectedProvider.request({
           method: "eth_sendTransaction",
@@ -202,7 +217,7 @@ export const TransactionPreview = ({
                   getGatewayContractAddress(
                     selectedNetwork.chain.name,
                   ) as `0x${string}`,
-                  parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+                  totalAmountToApprove,
                 ],
               }),
             },
@@ -256,6 +271,9 @@ export const TransactionPreview = ({
         trackEvent("Swap started", {
           "Entry point": "Transaction preview",
           "Wallet type": "Injected wallet",
+          network: selectedNetwork.chain.name,
+          token: token,
+          amount: amountSent,
         });
       } else {
         // Smart wallet
@@ -270,6 +288,9 @@ export const TransactionPreview = ({
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
+        // Calculate total amount to approve (amount + senderFee)
+        const totalAmountToApprove = params.amount + params.senderFee;
+
         await client.sendTransaction({
           calls: [
             // Approve gateway contract to spend token
@@ -282,7 +303,7 @@ export const TransactionPreview = ({
                   getGatewayContractAddress(
                     selectedNetwork.chain.name,
                   ) as `0x${string}`,
-                  parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+                  totalAmountToApprove,
                 ],
               }),
             },
@@ -318,6 +339,9 @@ export const TransactionPreview = ({
       trackEvent("Swap started", {
         "Entry point": "Transaction preview",
         "Wallet type": "Smart wallet",
+        network: selectedNetwork.chain.name,
+        token: token,
+        amount: amountSent,
       });
     } catch (e) {
       const error = e as BaseError;
@@ -343,9 +367,11 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
-    if (amountSent > balance) {
+    // Check balance including sender fee
+    const totalRequired = amountSent + senderFeeAmount;
+    if (totalRequired > balance) {
       toast.warning("Low balance. Fund your wallet.", {
-        description: "Insufficient funds. Please add money to continue.",
+        description: `Insufficient funds. You need ${formatNumberWithCommas(totalRequired)} ${token} (${formatNumberWithCommas(amountSent)} ${token} + ${formatNumberWithCommas(senderFeeAmount)} ${token} fee).`,
       });
       return;
     }
@@ -590,9 +616,8 @@ export const TransactionPreview = ({
                   <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
                 ) : (
                   <TbCircleDashed
-                    className={`text-lg ${
-                      isGatewayApproved ? "animate-spin" : ""
-                    }`}
+                    className={`text-lg ${isGatewayApproved ? "animate-spin" : ""
+                      }`}
                   />
                 )}
                 <p className="pr-1">Create Order</p>

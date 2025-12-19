@@ -9,6 +9,7 @@ import {
   classNames,
   formatDecimalPrecision,
   shouldUseInjectedWallet,
+  fetchBalanceForNetwork,
 } from "../utils";
 import { useSearchParams } from "next/navigation";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
@@ -43,7 +44,7 @@ export const TransferForm: React.FC<{
   const { selectedNetwork } = useNetwork();
   const { client } = useSmartWallets();
   const { user, getAccessToken } = usePrivy();
-  const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
+  const { refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
@@ -51,6 +52,14 @@ export const TransferForm: React.FC<{
   // State for network dropdown
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
   const networkDropdownRef = useRef<HTMLDivElement>(null);
+
+  // State for transfer network balance (fetched based on selected recipient network)
+  const [transferNetworkBalance, setTransferNetworkBalance] = useState<{
+    total: number;
+    balances: Record<string, number>;
+  } | null>(null);
+  const [isBalanceLoading, setIsBalanceLoading] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
 
   const formMethods = useForm<{
     amount: number;
@@ -69,21 +78,23 @@ export const TransferForm: React.FC<{
   } = formMethods;
   const { token, amount, recipientNetwork, recipientNetworkImageUrl } = watch();
 
-  const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
+  // Get the Network object for the selected recipient network
+  const transferNetwork =
+    networks.find((n) => n.chain.name === recipientNetwork) || selectedNetwork;
+
+  const fetchedTokens: Token[] = allTokens[transferNetwork.chain.name] || [];
   const tokens = fetchedTokens.map((token) => ({
     name: token.symbol,
     imageUrl: token.imageUrl,
   }));
-  const tokenBalance = Number(smartWalletBalance?.balances?.[token]) || 0;
+  const tokenBalance = Number(transferNetworkBalance?.balances?.[token]) || 0;
 
   // Networks for recipient network selection
-  // Filter out Celo and Hedera Mainnet for non-injected wallets (smart wallets)
+  // Filter out Celo for non-injected wallets (smart wallets)
   const recipientNetworks = networks
     .filter((network) => {
       if (useInjectedWallet) return true;
-      return (
-        network.chain.name !== "Celo" && network.chain.name !== "Hedera Mainnet"
-      );
+      return network.chain.name !== "Celo";
     })
     .map((network) => ({
       name: network.chain.name,
@@ -100,7 +111,7 @@ export const TransferForm: React.FC<{
     error,
   } = useSmartWalletTransfer({
     client: client ?? null,
-    selectedNetwork,
+    selectedNetwork: transferNetwork, // Use the recipient's network, not global
     user,
     supportedTokens: fetchedTokens,
     getAccessToken,
@@ -126,6 +137,46 @@ export const TransferForm: React.FC<{
       onSuccess();
     }
   }, [isTransferSuccess, onSuccess]);
+
+  // Fetch balance for the selected transfer network
+  useEffect(() => {
+    const fetchBalance = async () => {
+      const smartWalletAccount = user?.linkedAccounts.find(
+        (account) => account.type === "smart_wallet",
+      );
+
+      // No smart wallet account - set empty balance state (not loading, not error)
+      if (!smartWalletAccount?.address) {
+        setTransferNetworkBalance({ total: 0, balances: {} });
+        setIsBalanceLoading(false);
+        setBalanceError(null);
+        return;
+      }
+
+      if (!transferNetwork) return;
+
+      setIsBalanceLoading(true);
+      setBalanceError(null);
+      try {
+        const balance = await fetchBalanceForNetwork(
+          transferNetwork,
+          smartWalletAccount.address,
+        );
+        setTransferNetworkBalance(balance);
+        setBalanceError(null);
+      } catch (error) {
+        console.error("Error fetching transfer network balance:", error);
+        // Set empty balance on error so UI doesn't show perpetual skeleton
+        setTransferNetworkBalance({ total: 0, balances: {} });
+        setBalanceError("Failed to fetch balance");
+        toast.error("Failed to fetch balance for selected network");
+      } finally {
+        setIsBalanceLoading(false);
+      }
+    };
+
+    fetchBalance();
+  }, [transferNetwork, user?.linkedAccounts]);
 
   // Close dropdown when clicking outside or pressing Escape
   useEffect(() => {
@@ -195,8 +246,8 @@ export const TransferForm: React.FC<{
           type="button"
           className={`${primaryBtnClasses} w-full`}
           onClick={() => {
-            handleFormClose();
             refreshBalance();
+            handleFormClose();
           }}
         >
           Close
@@ -209,7 +260,7 @@ export const TransferForm: React.FC<{
     <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">
       <p className="text-text-secondary dark:text-white/50">Balance</p>
       <div className="flex items-center gap-3">
-        {isLoading || smartWalletBalance === null ? (
+        {isBalanceLoading || transferNetworkBalance === null ? (
           <BalanceSkeleton className="w-24" />
         ) : Number(amount) >= tokenBalance ? (
           <p className="dark:text-white/50">Maxed out</p>
@@ -224,7 +275,7 @@ export const TransferForm: React.FC<{
         )}
         <p className="text-[10px] text-gray-300 dark:text-white/10">|</p>
         <p className="font-medium text-neutral-900 dark:text-white/80">
-          {isLoading || smartWalletBalance === null ? (
+          {isBalanceLoading || transferNetworkBalance === null ? (
             <BalanceSkeleton className="w-12" />
           ) : (
             `${tokenBalance} ${token}`
@@ -360,7 +411,9 @@ export const TransferForm: React.FC<{
                   : "text-gray-400 dark:text-white/30"
               }`}
             >
-              <img
+              <Image
+                width={500}
+                height={500}
                 src={recipientNetworkImageUrl}
                 alt={recipientNetwork}
                 className="h-6 w-6 rounded-full"
@@ -436,7 +489,7 @@ export const TransferForm: React.FC<{
                   className="text-icon-outline-secondary dark:text-white/50"
                 />
                 <span className="text-sm font-normal text-neutral-900 dark:text-white">
-                  {isLoading || smartWalletBalance === null ? (
+                  {isBalanceLoading || transferNetworkBalance === null ? (
                     <BalanceSkeleton className="w-12" />
                   ) : (
                     `${tokenBalance} ${token}`
@@ -507,6 +560,14 @@ export const TransferForm: React.FC<{
             {errors.amount.message}
           </AnimatedComponent>
         )}
+        {balanceError && (
+          <AnimatedComponent
+            variant={slideInOut}
+            className="relative left-2 top-1 text-xs text-red-500"
+          >
+            {balanceError}
+          </AnimatedComponent>
+        )}
       </div>
 
       {/* Network compatibility warning */}
@@ -514,7 +575,7 @@ export const TransferForm: React.FC<{
         <div className="mb-4 flex h-[48px] w-full items-start justify-start gap-0.5 rounded-xl bg-warning-background/[8%] px-3 py-2 dark:bg-warning-background/[8%]">
           <InformationSquareIcon className="-mt-0.5 mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
           <p className="text-wrap text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
-            Ensure that the withdrawal address supports {recipientNetwork}{" "}
+            Ensure that the recipient wallet address supports {recipientNetwork}{" "}
             network to avoid loss of funds.
           </p>
         </div>

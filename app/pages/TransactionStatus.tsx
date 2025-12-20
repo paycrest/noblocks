@@ -185,11 +185,6 @@ export function TransactionStatus({
     checkRecipientExists();
   }, [accountIdentifier, institution, getAccessToken]);
 
-  // Scroll to top on mount
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
-
   /**
    * Updates transaction status in the backend
    * Uses a request ID system to handle race conditions when multiple updates are triggered

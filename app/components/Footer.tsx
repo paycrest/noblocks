@@ -203,8 +203,8 @@ export const Footer = () => {
         </div>
         <motion.img
           key={rocketStatus}
-          src="/images/footer-rocket-illustration.svg"
-          alt="Footer Rocket Image"
+          src="/images/footer-santa-illustration.svg"
+          alt="Footer Santa Image"
           height={100}
           width={100}
           initial="pending"

@@ -91,19 +91,20 @@ export const Footer = () => {
     },
     fulfilled: {
       y: [0, -5, 5, 0],
-      rotate: [-20, -15, -25, -20],
+      rotate: [20, 15, 25, 20],
       scale: 1.15,
       filter: "drop-shadow(0 4px 0 #FFD700)",
       transition: {
         repeat: Infinity,
         duration: 0.1,
-        ease: "linear",
+        ease: "easeInOut",
         filter: { duration: 0.5 },
       },
     },
     settled: {
       x: "-175vw",
-      y: "-45vw",
+      y: "-95vw",
+      rotate: [20, 15, 25, 20],
       filter: "drop-shadow(0 8px 32px #FFD700)",
       transition: {
         x: { duration: 1.2, ease: "easeIn" },

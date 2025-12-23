@@ -11,12 +11,10 @@ import {
   LayoutWrapper,
   PWAInstall,
   NoticeBanner,
-  WalletMigrationBanner,
 } from "./index";
-// import { WalletMigrationGate } from "./WalletMigrationGate";
+import { MigrationBannerWrapper } from "../context";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-
 
   return (
     <Providers>
@@ -26,7 +24,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {config.noticeBannerText && (
             <NoticeBanner textLines={config.noticeBannerText.split("|")} />
           )}
-          <WalletMigrationBanner />
+          <MigrationBannerWrapper />
         </div>
         <LayoutWrapper footer={<Footer />}>
           <MainContent>{children}</MainContent>

@@ -31,6 +31,7 @@
     "sanity:undeploy": "sanity undeploy"
   },
   "dependencies": {
+    "@biconomy/abstractjs": "1.1.19",
     "@headlessui/react": "^2.2.4",
     "@hotjar/browser": "^1.0.9",
     "@portabletext/react": "^3.2.1",

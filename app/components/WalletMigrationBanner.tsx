@@ -4,12 +4,7 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import WalletMigrationModal from "./WalletMigrationModal";
 
-interface WalletMigrationBannerProps {
-    //     the start Migration Button
-    // will popup this modal
-}
-
-const WalletMigrationBanner: React.FC<WalletMigrationBannerProps> = ({ }) => {
+export const WalletMigrationBanner = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const handleStartMigration = () => {
@@ -17,12 +12,6 @@ const WalletMigrationBanner: React.FC<WalletMigrationBannerProps> = ({ }) => {
     };
 
     const handleCloseModal = () => {
-        setIsModalOpen(false);
-    };
-
-    const handleApproveMigration = () => {
-        // TODO: Implement migration approval logic
-        console.log("Migration approved");
         setIsModalOpen(false);
     };
 
@@ -109,10 +98,7 @@ const WalletMigrationBanner: React.FC<WalletMigrationBannerProps> = ({ }) => {
             <WalletMigrationModal
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
-                onApprove={handleApproveMigration}
-            />
+            />  
         </>
     );
 };
-
-export default WalletMigrationBanner;

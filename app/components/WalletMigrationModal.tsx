@@ -9,19 +9,16 @@ import WalletTransferApprovalModal from "./WalletTransferApprovalModal";
 interface WalletMigrationModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onApprove: () => void;
 }
 
 const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
     isOpen,
     onClose,
-    onApprove,
 }) => {
     const [showTransferModal, setShowTransferModal] = useState(false);
 
     const handleApproveMigration = () => {
-        onClose(); // Close first modal
-        // Small delay to allow first modal to close before opening second
+        onClose(); 
         setTimeout(() => {
             setShowTransferModal(true);
         }, 300);
@@ -29,11 +26,6 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
 
     const handleCloseTransferModal = () => {
         setShowTransferModal(false);
-    };
-
-    const handleApproveTransfer = () => {
-        setShowTransferModal(false);
-        onApprove();
     };
 
     return (
@@ -103,12 +95,10 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
                                             >
                                                 A short letter from us to you!
                                             </h2>
-
                                       
                                             <div className="mb-3 text-sm font-medium text-text-secondary dark:text-white/50">
                                                 Chibie
                                             </div>
-
                                      
                                             <div className="mb-6 flex items-start gap-3 ">
                                                 <div className="flex-shrink-0">
@@ -214,11 +204,9 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
                 )}
             </AnimatePresence>
 
-            {/* Wallet Transfer Approval Modal - Outside AnimatePresence since it has its own */}
             <WalletTransferApprovalModal
                 isOpen={showTransferModal}
                 onClose={handleCloseTransferModal}
-                onApprove={handleApproveTransfer}
             />
         </>
     );

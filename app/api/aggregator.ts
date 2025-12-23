@@ -25,6 +25,16 @@ import {
   trackApiRequest,
   trackApiResponse,
 } from "../lib/server-analytics";
+import {
+  Account,
+  type Address,
+  Hex,
+  type WalletClient,
+  createPublicClient,
+  encodeFunctionData,
+  http,
+  parseAbi,
+} from "viem";
 
 const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
 
@@ -771,3 +781,166 @@ export async function migrateLocalStorageRecipients(
     // Don't throw - let the app continue even if migration fails
   }
 }
+
+// ################################################
+// ############ WALLET MIGRATION #################
+// ################################################
+
+export interface TokenBalance {
+  address: Address;
+  symbol: string;
+  balance: bigint;
+  decimals: number;
+  usdValue: number;
+}
+
+export interface MigrationParams {
+  fromAddress: Address;
+  toAddress: Address;
+  tokens: TokenBalance[];
+  userId: string;
+  accessToken: string;
+
+  // Privy EIP-7702 signing function
+  signAuthorization: (opts: {
+    contractAddress: string;
+    chainId: number;
+    nonce?: number;
+  }) => Promise<any>;
+
+  // Biconomy MEE supertransaction executor
+  executeSuperTx: (opts: {
+    authorization: any;
+    instructions: { to: string; value: bigint; data: Hex }[];
+  }) => Promise<{ hash: `0x${string}` }>;
+
+  // Context
+  chainId: number;
+  nexusImplementationAddress: string;
+}
+
+export interface MigrationResult {
+  success: boolean;
+  txHash?: `0x${string}`;
+  error?: string;
+  migratedTokens?: number;
+}
+
+export const executeMigration = async (
+  params: MigrationParams
+): Promise<MigrationResult> => {
+  const startTime = Date.now();
+
+  const {
+    fromAddress,
+    toAddress,
+    tokens,
+    userId,
+    accessToken,
+    signAuthorization,
+    executeSuperTx,
+    chainId,
+    nexusImplementationAddress,
+  } = params;
+
+  try {
+    trackServerEvent("Starting Wallet Migration", {
+      user_id: userId,
+      from_address: fromAddress,
+      to_address: toAddress,
+      token_count: tokens.length,
+    });
+
+    if (tokens.length === 0) {
+      return { success: false, error: "No tokens to migrate" };
+    }
+
+    const erc20Abi = parseAbi([
+      "function transfer(address to, uint256 amount) returns (bool)",
+    ]);
+
+    const instructions = tokens
+      .filter((t) => t.balance > BigInt(0))
+      .map((token) => ({
+        to: token.address,
+        value: BigInt(0),
+        data: encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "transfer",
+          args: [toAddress, token.balance],
+        }),
+      }));
+
+    if (instructions.length === 0) {
+      return { success: false, error: "No valid tokens to migrate" };
+    }
+
+    // Sign EIP-7702 authorization
+    const authorization = await signAuthorization({
+      contractAddress: nexusImplementationAddress,
+      chainId,
+      nonce: 0,
+    });
+
+    console.log("Signed EIP-7702 authorization:", authorization);
+
+    // Execute batched migration via Biconomy MEE
+    const { hash: txHash } = await executeSuperTx({
+      authorization,
+      instructions,
+    });
+
+    console.log("Migration supertransaction sent:", txHash);
+
+    // Mark old wallet as deprecated
+    await axios.post(
+      "/api/v1/wallets/deprecate",
+      {
+        oldAddress: fromAddress,
+        newAddress: toAddress,
+        txHash,
+        userId,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "x-wallet-address": toAddress,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const duration = Date.now() - startTime;
+
+    trackBusinessEvent("Wallet Migration Executed", {
+      user_id: userId,
+      from_address: fromAddress,
+      to_address: toAddress,
+      tx_hash: txHash,
+      tokens_migrated: tokens.length,
+      total_time_ms: duration,
+    });
+
+    return {
+      success: true,
+      txHash,
+      migratedTokens: tokens.length,
+    };
+  } catch (err) {
+    const duration = Date.now() - startTime;
+    console.error("Migration failed:", err);
+
+    trackServerEvent("Wallet Migration Failed", {
+      user_id: userId,
+      from_address: fromAddress,
+      to_address: toAddress,
+      error_message: err instanceof Error ? err.message : "Unknown error",
+      total_time_ms: duration,
+    });
+
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Migration failed",
+    };
+  }
+};

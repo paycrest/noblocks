@@ -1,4 +1,4 @@
-import { arbitrum, base, bsc, polygon, lisk, celo, mainnet } from "viem/chains";
+import { arbitrum, base, bsc, polygon, lisk, celo, mainnet, baseSepolia } from "viem/chains";
 
 
 export const acceptedCurrencies = [
@@ -49,6 +49,10 @@ export const networks = [
   {
     chain: base,
     imageUrl: "/logos/base-logo.svg",
+  },
+  {
+    chain: baseSepolia,
+    imageUrl: "/logos/noblocks-xmas-mobile.svg",
   },
   {
     chain: bsc,

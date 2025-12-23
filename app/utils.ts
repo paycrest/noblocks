@@ -233,6 +233,22 @@ export function transformToken(apiToken: APIToken): Token {
 
 // Fallback token data when API is unavailable
 export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
+  "Base Sepolia": [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0x2d82C4b9ff582d02CC89675f2D086Cb7953A555a",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+  ],
   Base: [
     {
       name: "USD Coin",
@@ -375,7 +391,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
  * The TokensContext handles bulk fetching for all networks.
  *
  * @param network - The network name (e.g., "Base", "Arbitrum One")
- * @returns Array of supported tokens for the specified network
+ * @returns Array of supported tokens for the specified networkeeeeeeeeeeeeeeeeeeeeeeeeeee
  */
 
 // Track ongoing fetch to prevent race conditions

@@ -1,6 +1,5 @@
 "use client";
 import React from "react";
-import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { Cancel01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
@@ -8,14 +7,17 @@ import { Cancel01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
 interface WalletMigrationSuccessModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onContinue: () => void;
 }
 
 const WalletMigrationSuccessModal: React.FC<WalletMigrationSuccessModalProps> = ({
     isOpen,
     onClose,
-    onContinue,
 }) => {
+
+    const handleContinue = () => {
+        onClose();
+    };
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -79,7 +81,7 @@ const WalletMigrationSuccessModal: React.FC<WalletMigrationSuccessModalProps> = 
                                             You can now continue converting your crypto to <br /> fiats at zero fees on noblocks
                                         </p>
                                         <button
-                                            onClick={onContinue}
+                                            onClick={handleContinue}
                                             className="w-full rounded-xl bg-lavender-500 px-6 py-3.5 text-sm font-medium text-white transition-all hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-white active:opacity-80 dark:focus:ring-offset-neutral-900"
                                         >
                                             Let's go!

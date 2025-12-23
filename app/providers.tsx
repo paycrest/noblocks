@@ -18,6 +18,7 @@ import {
   TokensProvider,
   TransactionsProvider,
   BlockFestModalProvider,
+  StarknetProvider,
 } from "./context";
 import { useActualTheme } from "./hooks/useActualTheme";
 import { useMixpanel } from "./hooks/analytics/client";
@@ -88,19 +89,21 @@ function ContextProviders({ children }: { children: ReactNode }) {
   return (
     <NetworkProvider>
       <InjectedWalletProvider>
-        <TokensProvider>
-          <StepProvider>
-            <BalanceProvider>
-              <TransactionsProvider>
-                <BlockFestClaimProvider>
-                  <BlockFestModalProvider>
-                    <RocketStatusProvider>{children}</RocketStatusProvider>
-                  </BlockFestModalProvider>
-                </BlockFestClaimProvider>
-              </TransactionsProvider>
-            </BalanceProvider>
-          </StepProvider>
-        </TokensProvider>
+        <StarknetProvider>
+          <TokensProvider>
+            <StepProvider>
+              <BalanceProvider>
+                <TransactionsProvider>
+                  <BlockFestClaimProvider>
+                    <BlockFestModalProvider>
+                      <RocketStatusProvider>{children}</RocketStatusProvider>
+                    </BlockFestModalProvider>
+                  </BlockFestClaimProvider>
+                </TransactionsProvider>
+              </BalanceProvider>
+            </StepProvider>
+          </TokensProvider>
+        </StarknetProvider>
       </InjectedWalletProvider>
     </NetworkProvider>
   );

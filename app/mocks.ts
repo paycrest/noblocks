@@ -1,5 +1,28 @@
 import { arbitrum, base, bsc, polygon, lisk, celo, mainnet } from "viem/chains";
 
+// Define Starknet Sepolia chain (not in viem by default)
+export const starknetSepolia = {
+  id: 11155111, // Starknet Sepolia chain ID (using unique identifier)
+  name: "Starknet Sepolia",
+  network: "starknet-sepolia",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Ether",
+    symbol: "ETH",
+  },
+  rpcUrls: {
+    default: {
+      http: [process.env.NEXT_PUBLIC_STARKNET_RPC_URL || "https://starknet-sepolia.public.blastapi.io"],
+    },
+    public: {
+      http: [process.env.NEXT_PUBLIC_STARKNET_RPC_URL || "https://starknet-sepolia.public.blastapi.io"],
+    },
+  },
+  blockExplorers: {
+    default: { name: "Voyager", url: "https://sepolia.voyager.online" },
+  },
+  testnet: true,
+};
 
 export const acceptedCurrencies = [
   {
@@ -72,6 +95,10 @@ export const networks = [
   {
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
+  },
+  {
+    chain: starknetSepolia,
+    imageUrl: "/logos/strk-logo.svg",
   },
 //   {
 //     chain: hedera,

@@ -20,6 +20,7 @@ import {
 import Image from "next/image";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { toast } from "sonner";
 import { Dialog } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -56,6 +57,7 @@ export const WalletDetails = () => {
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user } = usePrivy();
   const isDark = useActualTheme();
+  const walletAddress = useWalletAddress();
 
   // Custom hook for handling wallet funding
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
@@ -71,14 +73,14 @@ export const WalletDetails = () => {
   });
 
   // Determine active wallet based on wallet type
-  const activeWallet = isInjectedWallet
-    ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+  const activeWallet = { address: walletAddress };
 
   // Get appropriate balance based on wallet type
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
-    : allBalances.smartWallet;
+    : selectedNetwork.chain.name === "Starknet Sepolia"
+      ? allBalances.starknetWallet
+      : allBalances.smartWallet;
 
   // Handler for funding wallet with specified amount and token
   const handleFundWalletClick = async (
@@ -228,11 +230,15 @@ export const WalletDetails = () => {
 
                       <div className="flex items-center justify-between">
                         <div className="text-2xl font-medium text-text-body dark:text-white">
-                          {formatCurrency(
-                            activeBalance?.total ?? 0,
-                            "USD",
-                            "en-US",
-                          )}
+                          {selectedNetwork.chain.name === "Starknet Sepolia"
+                            ? // For Starknet testnet, show token amount directly
+                              `$${(activeBalance?.total ?? 0).toFixed(2)}`
+                            : // For mainnet chains, show USD value
+                              formatCurrency(
+                                activeBalance?.total ?? 0,
+                                "USD",
+                                "en-US",
+                              )}
                         </div>
                         <button
                           type="button"
@@ -365,6 +371,16 @@ export const WalletDetails = () => {
                                             $
                                             {(
                                               (balance || 0) / (rate || 1)
+                                            ).toFixed(2)}
+                                          </span>
+                                        ) : token.toUpperCase() === "STRK" ||
+                                          token.toUpperCase() === "ETH" ? (
+                                          <span>
+                                            $
+                                            {(
+                                              activeBalance?.balancesUsd?.[
+                                                token
+                                              ] ?? 0
                                             ).toFixed(2)}
                                           </span>
                                         ) : (

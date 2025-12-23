@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance, useTokens } from "../context";
+import { useBalance, useTokens, useStarknet } from "../context";
 import { handleNetworkSwitch, detectWalletProvider } from "../utils";
 import { useLogout } from "@privy-io/react-auth";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useTransactions } from "../context/TransactionsContext";
 import { networks } from "../mocks";
@@ -41,22 +42,23 @@ export const MobileDropdown = ({
   const { user, linkEmail, updateEmail } = usePrivy();
   const { allBalances, isLoading, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
+  const { ensureWalletExists } = useStarknet();
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
     },
   });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const walletAddress = useWalletAddress();
 
-  const activeWallet = isInjectedWallet
-    ? { address: injectedAddress, type: "injected_wallet" }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+  const activeWallet = {
+    address: walletAddress,
+    type: isInjectedWallet ? "injected_wallet" : "smart_wallet",
+  };
 
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
-  const smartWallet = isInjectedWallet
-    ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+  const smartWallet = { address: walletAddress };
 
   const { currentStep } = useStep();
 
@@ -124,30 +126,34 @@ export const MobileDropdown = ({
           description: error.message,
         });
       },
+      ensureWalletExists, // Pass the Starknet wallet creation function
     );
 
     setIsNetworkListOpen(false);
   };
 
   // Helper function for fallback fetch with timeout
-  const trackLogoutWithFetch = (payload: { walletAddress: string; logoutMethod: string }) => {
+  const trackLogoutWithFetch = (payload: {
+    walletAddress: string;
+    logoutMethod: string;
+  }) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
 
-    fetch('/api/track-logout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch("/api/track-logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      signal: controller.signal
+      signal: controller.signal,
     })
-    .catch(error => {
-      if (error.name !== 'AbortError') {
-        console.warn('Logout tracking failed:', error);
-      }
-    })
-    .finally(() => {
-      clearTimeout(timeoutId);
-    });
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          console.warn("Logout tracking failed:", error);
+        }
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
+      });
   };
 
   const handleLogout = async () => {
@@ -289,7 +295,7 @@ export const MobileDropdown = ({
         )}
       </AnimatePresence>
 
-      <CopyAddressWarningModal 
+      <CopyAddressWarningModal
         isOpen={isWarningModalOpen}
         onClose={() => setIsWarningModalOpen(false)}
         address={smartWallet?.address ?? ""}

@@ -70,8 +70,16 @@ export function TokensProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Always inject Starknet Sepolia tokens (API doesn't provide testnet tokens)
+      if (FALLBACK_TOKENS["Starknet Sepolia"]) {
+        newTokens["Starknet Sepolia"] = FALLBACK_TOKENS["Starknet Sepolia"];
+      }
+
       // Merge fallback tokens for any networks missing from API response
       Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
+        // Skip Starknet Sepolia since we already handled it above
+        if (networkName === "Starknet Sepolia") return;
+
         if (!newTokens[networkName] || newTokens[networkName].length === 0) {
           newTokens[networkName] = FALLBACK_TOKENS[networkName];
         }

@@ -365,7 +365,30 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       address: "0x17CDB2a01e7a34CbB3DD4b83260B05d0274C8dab",
       imageUrl: "/logos/cngn-logo.svg",
     },
-],
+  ],
+  "Starknet Sepolia": [
+    {
+      name: "Starknet",
+      symbol: "STRK",
+      decimals: 18,
+      address: "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+      imageUrl: "/logos/strk-logo.svg",
+    },
+    {
+      name: "Ethereum",
+      symbol: "ETH",
+      decimals: 18,
+      address: "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7",
+      imageUrl: "/logos/ethereum-logo.svg",
+    },
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0x02613a46ec7f06ae803a16bce8ede8a72f5bf3daf883c530d3a6e7719d31a7a7",
+      imageUrl: "/logos/usdc-logo.svg",
+    }
+  ]
 };
 
 /**
@@ -429,8 +452,17 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
             tokens["Base"].push(usdtBase);
           }
         }
+        
+        // Always inject Starknet Sepolia tokens (API doesn't provide testnet tokens)
+        if (FALLBACK_TOKENS["Starknet Sepolia"]) {
+          tokens["Starknet Sepolia"] = FALLBACK_TOKENS["Starknet Sepolia"];
+        }
+        
         // Merge fallback tokens for any networks missing from API response
         Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
+          // Skip Starknet Sepolia since we already handled it above
+          if (networkName === "Starknet Sepolia") return;
+          
           if (!tokens[networkName] || tokens[networkName].length === 0) {
             tokens[networkName] = FALLBACK_TOKENS[networkName];
           }
@@ -447,6 +479,127 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
     ongoingFetch = null;
     // Return fallback tokens if API fails
     return FALLBACK_TOKENS[network];
+  }
+}
+
+/**
+ * Fetches token price in USD from CoinGecko
+ * @param tokenSymbol - The token symbol (e.g., "STRK", "ETH", "USDC")
+ * @returns The token price in USD, or null if fetch fails
+ */
+async function fetchTokenPrice(tokenSymbol: string): Promise<number | null> {
+  try {
+    // Map token symbols to CoinGecko IDs
+    const coinGeckoIds: Record<string, string> = {
+      STRK: "starknet",
+      ETH: "ethereum",
+      WETH: "ethereum",
+      USDC: "usd-coin",
+      USDT: "tether",
+      DAI: "dai",
+      WBTC: "wrapped-bitcoin",
+    };
+
+    const coinId = coinGeckoIds[tokenSymbol.toUpperCase()];
+    if (!coinId) {
+      console.warn(`No CoinGecko ID mapping for token: ${tokenSymbol}`);
+      return null;
+    }
+
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`
+    );
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data[coinId]?.usd || null;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`Error fetching ${tokenSymbol} price:`, error);
+    return null;
+  }
+}
+
+/**
+ * Fetches Starknet wallet balance for the specified address
+ * @param address - The Starknet wallet address
+ * @param tokens - Array of tokens to check balances for
+ * @returns An object containing the total balance in USD, individual token balances, and USD values per token
+ */
+export async function fetchStarknetBalance(
+  address: string,
+  tokens: Token[],
+): Promise<{ total: number; balances: Record<string, number>; balancesUsd: Record<string, number> }> {
+  if (!address || !tokens || tokens.length === 0) {
+    return { total: 0, balances: {}, balancesUsd: {} };
+  }
+
+  try {
+    const { RpcProvider } = await import("starknet");
+    const rpcUrl =
+      process.env.NEXT_PUBLIC_STARKNET_RPC_URL ||
+      "https://starknet-sepolia.public.blastapi.io";
+    const provider = new RpcProvider({ nodeUrl: rpcUrl });
+
+    let totalBalance = 0;
+    const balances: Record<string, number> = {};
+    const balancesUsd: Record<string, number> = {};
+
+    // Fetch balances in parallel
+    const balancePromises = tokens.map(async (token: Token) => {
+      try {
+        const result = await provider.callContract({
+          contractAddress: token.address,
+          entrypoint: "balanceOf",
+          calldata: [address],
+        });
+
+        // Starknet returns Uint256 as array [low, high]
+        let balanceInWei: bigint;
+        if (Array.isArray(result) && result.length >= 2) {
+          // Combine low and high parts: balance = low + (high << 128)
+          const low = BigInt(result[0]);
+          const high = BigInt(result[1]);
+          balanceInWei = low + (high << BigInt(128));
+        } else if (Array.isArray(result) && result.length === 1) {
+          balanceInWei = BigInt(result[0]);
+        } else {
+          balanceInWei = BigInt(0);
+        }
+
+        const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+        const tokenPrice = await fetchTokenPrice(token.symbol);
+        
+        balances[token.symbol] = isNaN(balance) ? 0 : balance;
+        
+        // Convert token amount to USD using its specific price
+        const usdValue = tokenPrice ? balance * tokenPrice : 0;
+        balancesUsd[token.symbol] = isNaN(usdValue) ? 0 : usdValue;
+        
+        return usdValue;
+      } catch (error) {
+        balances[token.symbol] = 0;
+        balancesUsd[token.symbol] = 0;
+        return 0;
+      }
+    });
+
+    // Wait for all promises to resolve
+    const tokenBalancesInUsd = await Promise.all(balancePromises);
+    totalBalance = tokenBalancesInUsd.reduce(
+      (acc: number, curr: number) => (acc || 0) + (curr || 0),
+      0,
+    );
+
+    return {
+      total: isNaN(totalBalance) ? 0 : totalBalance,
+      balances,
+      balancesUsd,
+    };
+  } catch (error) {
+    return { total: 0, balances: {}, balancesUsd: {} };
   }
 }
 
@@ -769,6 +922,7 @@ function getAddChainParameters(network: Network) {
  * @param setSelectedNetwork - Function to update the selected network state.
  * @param onSuccess - Callback function to execute on successful network switch.
  * @param onError - Callback function to execute on network switch failure.
+ * @param ensureWalletExists - Optional function to ensure Starknet wallet exists (for Starknet).
  */
 export const handleNetworkSwitch = async (
   network: Network,
@@ -776,7 +930,18 @@ export const handleNetworkSwitch = async (
   setSelectedNetwork: (network: Network) => void,
   onSuccess: () => void,
   onError: (error: Error) => void,
+  ensureWalletExists?: () => Promise<void>,
 ) => {
+  // If switching to Starknet Sepolia, ensure wallet exists first
+  if (network.chain.name === "Starknet Sepolia" && ensureWalletExists) {
+    try {
+      await ensureWalletExists();
+    } catch (error) {
+      console.error("Failed to ensure Starknet wallet exists:", error);
+      // Continue with network switch even if wallet creation fails
+    }
+  }
+
   if (useInjectedWallet && window.ethereum) {
     if (!network.chain?.id) {
       throw new Error(`Missing chainId for network: ${network.chain?.name}`);

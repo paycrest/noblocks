@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { useWallets } from "@privy-io/react-auth";
@@ -39,6 +40,7 @@ export const SettingsDropdown = () => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const shouldUseEOA = useShouldUseEOA();
+  const hookWalletAddress = useWalletAddress();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -50,7 +52,6 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
-  // Get embedded wallet (EOA) and smart wallet (SCW)
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
   );
@@ -58,14 +59,13 @@ export const SettingsDropdown = () => {
     (account) => account.type === "smart_wallet",
   );
 
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
-  // Before migration: show SCW (old wallet)
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : shouldUseEOA
-      ? embeddedWallet?.address
-      : smartWallet?.address;
+  const walletAddress =
+    hookWalletAddress ??
+    (isInjectedWallet
+      ? injectedAddress
+      : shouldUseEOA
+        ? embeddedWallet?.address
+        : smartWallet?.address);
 
   const handleCopyAddress = async () => {
     const ok = await copyToClipboard(walletAddress ?? "", "Address");

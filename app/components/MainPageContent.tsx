@@ -20,7 +20,11 @@ import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
-import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
+import {
+  fetchRate,
+  fetchSupportedInstitutions,
+  migrateLocalStorageRecipients,
+} from "../api/aggregator";
 import { normalizeNetworkForRateFetch } from "../utils";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
@@ -42,6 +46,7 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
 import { useBalance, useInjectedWallet } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 const PageLayout = ({
   authenticated,
   ready,
@@ -62,19 +67,14 @@ const PageLayout = ({
   const { claimed, resetClaim } = useBlockFestClaim();
   const { user } = usePrivy();
   const { isOpen, openModal, closeModal } = useBlockFestModal();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isInjectedWallet } = useInjectedWallet();
+  const walletAddress = useWalletAddress();
 
-  // Clean up claim state when user logs out
   useEffect(() => {
     if (!authenticated && !isInjectedWallet) {
       resetClaim();
     }
   }, [authenticated, isInjectedWallet, resetClaim]);
-
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-      ?.address;
 
   return (
     <>

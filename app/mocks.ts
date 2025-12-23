@@ -9,6 +9,36 @@ import {
   mainnet,
 } from "viem/chains";
 
+// Define Starknet Sepolia chain (not in viem by default)
+export const starknetSepolia = {
+  id: 11155111, // Starknet Sepolia chain ID (using unique identifier)
+  name: "Starknet Sepolia",
+  network: "starknet-sepolia",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Ether",
+    symbol: "ETH",
+  },
+  rpcUrls: {
+    default: {
+      http: [
+        process.env.NEXT_PUBLIC_STARKNET_RPC_URL ||
+          "https://starknet-sepolia.public.blastapi.io",
+      ],
+    },
+    public: {
+      http: [
+        process.env.NEXT_PUBLIC_STARKNET_RPC_URL ||
+          "https://starknet-sepolia.public.blastapi.io",
+      ],
+    },
+  },
+  blockExplorers: {
+    default: { name: "Voyager", url: "https://sepolia.voyager.online" },
+  },
+  testnet: true,
+};
+
 export const acceptedCurrencies = [
   {
     name: "NGN",
@@ -84,6 +114,10 @@ export const networks = [
     chain: scroll,
     imageUrl: "/logos/scroll-logo.svg",
   },
+  {
+    chain: starknetSepolia,
+    imageUrl: "/logos/strk-logo.svg",
+  },
   //   {
   //     chain: hedera,
   //     imageUrl: "/logos/hedera-logo.svg",
@@ -95,7 +129,11 @@ export const networks = [
 ];
 
 /** Chain IDs excluded from wallet migration (popup math + transfer modal). */
-export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number>([celo.id, scroll.id]);
+export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number>([
+  celo.id,
+  scroll.id,
+  starknetSepolia.id,
+]);
 
 /** Networks scanned and shown in the wallet migration modal (excludes Celo and Scroll). */
 export const migrationChecklistNetworks = networks.filter(

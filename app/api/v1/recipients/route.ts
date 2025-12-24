@@ -7,6 +7,7 @@ import {
   trackApiError,
   trackBusinessEvent,
 } from "@/app/lib/server-analytics";
+import { isValidEvmAddressCaseInsensitive } from "@/app/lib/validation";
 import type {
   RecipientDetailsWithId,
   SavedRecipientsResponse,
@@ -169,6 +170,24 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           {
             success: false,
             error: "Missing required field: walletAddress",
+          },
+          { status: 400 },
+        );
+      }
+
+      // Validate wallet address format
+      if (!isValidEvmAddressCaseInsensitive(walletAddressFromBody.trim())) {
+        trackApiError(
+          request,
+          "/api/v1/recipients",
+          "POST",
+          new Error("Invalid wallet address format"),
+          400,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Invalid wallet address format",
           },
           { status: 400 },
         );
@@ -463,12 +482,18 @@ export const DELETE = withRateLimit(async (request: NextRequest) => {
     });
 
     // Check which table the recipient is in by trying to find it first
-    const { data: walletRecipient } = await supabaseAdmin
+    const { data: walletRecipient, error: walletQueryError } = await supabaseAdmin
       .from("saved_wallet_recipients")
       .select("id")
       .eq("id", recipientId)
       .eq("normalized_wallet_address", walletAddress)
-      .single();
+      .maybeSingle();
+
+    // Handle query errors (except "no rows found" which is expected)
+    if (walletQueryError && walletQueryError.code !== "PGRST116") {
+      console.error("Error querying wallet recipient:", walletQueryError);
+      throw walletQueryError;
+    }
 
     if (walletRecipient) {
       // Delete from saved_wallet_recipients

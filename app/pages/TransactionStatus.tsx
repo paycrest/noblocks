@@ -179,7 +179,7 @@ export function TransactionStatus({
         : "Processing";
   const shareDuration = calculateDuration(createdAt, completedAt);
   const shareMessage = isOnramp
-    ? `Yay! I just sent crypto to a bank account in ${shareDuration} on noblocks.xyz`
+    ? `Yay! I just swapped ${currency} for ${token} in ${shareDuration} on noblocks.xyz`
     : `Yay! I just swapped ${token} for ${currency} in ${shareDuration} on noblocks.xyz`;
 
   // Check if recipient is already saved in the database

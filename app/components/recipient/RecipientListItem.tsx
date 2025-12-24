@@ -2,7 +2,7 @@
 
 import { Button } from "@headlessui/react";
 import { RecipientListItemProps } from "@/app/components/recipient/types";
-import { classNames, getRandomColor, shortenAddress, resolveEnsNameOrShorten, getAvatarImage } from "@/app/utils";
+import { classNames, getRandomColor, shortenAddress, resolveEnsNameOrShorten, getAvatarImage, isWalletRecipient } from "@/app/utils";
 import { Delete01Icon } from "hugeicons-react";
 import { ImSpinner } from "react-icons/im";
 import Image from "next/image";
@@ -15,16 +15,19 @@ export const RecipientListItem = ({
   isBeingDeleted,
   index = 0,
 }: RecipientListItemProps) => {
-  const isWalletRecipient = recipient.type === "wallet";
-  const avatarSrc = isWalletRecipient ? getAvatarImage(index) : null;
   const [displayName, setDisplayName] = useState<string>("");
   const [isResolvingEns, setIsResolvingEns] = useState(false);
 
-  const walletAddress = recipient.walletAddress || "";
+  // Use type predicate for better type narrowing
+  const walletRecipient = isWalletRecipient(recipient);
+  const avatarSrc = walletRecipient ? getAvatarImage(index) : null;
+
+  // Type guard: safely access walletAddress only for wallet recipients
+  const walletAddress = walletRecipient ? recipient.walletAddress : "";
 
   // Resolve ENS name for wallet recipients (onramp)
   useEffect(() => {
-    if (isWalletRecipient && walletAddress) {
+    if (walletRecipient && walletAddress) {
       setIsResolvingEns(true);
       resolveEnsNameOrShorten(walletAddress)
         .then((name) => {
@@ -37,7 +40,7 @@ export const RecipientListItem = ({
           setIsResolvingEns(false);
         });
     }
-  }, [isWalletRecipient, walletAddress]);
+  }, [recipient, walletAddress]);
 
   return (
     <div
@@ -53,7 +56,7 @@ export const RecipientListItem = ({
       }}
     >
       <div className="flex items-center gap-3">
-        {!isWalletRecipient ? (
+        {!walletRecipient ? (
           <>
             <div
               className={classNames(

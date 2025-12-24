@@ -80,7 +80,7 @@ export function AddBeneficiaryModal({
                         onChange={(e) => setRecipientName(e.target.value)}
                         placeholder="Enter name"
                         autoFocus={isOpen}
-                        className="w-full rounded-lg border-0 bg-transparent px-4 py-3 text-center text-sm text-white placeholder-neutral-500 outline-none"
+                        className="w-full rounded-lg border-0 bg-transparent px-4 py-3 text-center text-sm text-neutral-900 placeholder-neutral-500 outline-none dark:text-white dark:placeholder-white/40"
                         onKeyDown={(e) => {
                             if (e.key === "Enter" && recipientName.trim() && !isSaving) {
                                 handleSave();
@@ -97,7 +97,7 @@ export function AddBeneficiaryModal({
                 <button
                     type="button"
                     onClick={handleClose}
-                    className="rounded-lg bg-neutral-800 px-4 py-3 text-sm font-medium text-white transition hover:bg-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700"
+                    className="rounded-lg bg-gray-50 px-4 py-3 text-sm font-medium text-neutral-900 transition hover:bg-gray-100 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
                     style={{ width: "35%" }}
                 >
                     Cancel
@@ -107,7 +107,7 @@ export function AddBeneficiaryModal({
                     disabled={isSaving || !recipientName.trim()}
                     onClick={handleSave}
                     className={`rounded-lg px-4 py-3 text-sm font-medium transition ${isSaving || !recipientName.trim()
-                        ? "cursor-not-allowed bg-neutral-700 text-neutral-500"
+                        ? "cursor-not-allowed bg-gray-300 text-white dark:bg-white/10 dark:text-white/50"
                         : "bg-lavender-500 text-white hover:bg-lavender-600"
                         }`}
                     style={{ width: "65%" }}

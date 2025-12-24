@@ -724,8 +724,16 @@ export async function migrateLocalStorageRecipients(
     const existingKeys = new Set(
       existingRecipients.map((r) => {
         if (r.type === "wallet") {
+          if (!r.walletAddress) {
+            console.warn("Wallet recipient missing walletAddress", r);
+            return `wallet-invalid-${r.id}`;
+          }
           return `wallet-${r.walletAddress}`;
         } else {
+          if (!r.institutionCode || !r.accountIdentifier) {
+            console.warn("Bank/mobile_money recipient missing required fields", r);
+            return `${r.type}-invalid-${r.id}`;
+          }
           return `${r.institutionCode}-${r.accountIdentifier}`;
         }
       }),

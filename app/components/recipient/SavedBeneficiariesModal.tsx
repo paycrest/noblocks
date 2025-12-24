@@ -9,6 +9,7 @@ import { AnimatedModal } from "../AnimatedComponents";
 import { RecipientListItem } from "./RecipientListItem";
 import { SearchInput } from "./SearchInput";
 import { SavedBeneficiariesModalProps } from "./types";
+import { isBankOrMobileMoneyRecipient } from "@/app/utils";
 
 export const SavedBeneficiariesModal = ({
   isOpen,
@@ -54,7 +55,7 @@ export const SavedBeneficiariesModal = ({
     }
 
     const bankRecipientsOnly = allRecipients.filter(
-      (recipient) => recipient.type !== "wallet"
+      isBankOrMobileMoneyRecipient
     );
 
     const uniqueRecipients = bankRecipientsOnly.filter(

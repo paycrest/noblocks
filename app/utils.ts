@@ -5,6 +5,7 @@ import type {
   Token,
   Currency,
   APIToken,
+  RecipientDetails,
 } from "./types";
 import type { SanityPost, SanityCategory } from "./blog/types";
 import { erc20Abi, createPublicClient, http } from "viem";
@@ -16,6 +17,32 @@ import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
 import { feeRecipientAddress } from "./lib/config";
+
+/**
+ * Type predicate to narrow RecipientDetails to bank/mobile_money types.
+ * Used for type-safe filtering and property access.
+ *
+ * @param recipient - The recipient to check.
+ * @returns True if recipient is bank or mobile_money type.
+ */
+export function isBankOrMobileMoneyRecipient(
+  recipient: RecipientDetails,
+): recipient is Extract<RecipientDetails, { type: "bank" | "mobile_money" }> {
+  return recipient.type !== "wallet";
+}
+
+/**
+ * Type predicate to narrow RecipientDetails to wallet type.
+ * Used for type-safe filtering and property access.
+ *
+ * @param recipient - The recipient to check.
+ * @returns True if recipient is wallet type.
+ */
+export function isWalletRecipient(
+  recipient: RecipientDetails,
+): recipient is Extract<RecipientDetails, { type: "wallet" }> {
+  return recipient.type === "wallet";
+}
 
 /**
  * Concatenates and returns a string of class names.

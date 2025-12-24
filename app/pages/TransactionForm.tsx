@@ -553,7 +553,7 @@ export const TransactionForm = ({
           setValue("token", defaultToken, { shouldDirty: true });
         }
       }
-      // Clear any existing walletAddress to start fresh
+     // Clear walletAddress when switching to onramp mode
       if (!walletAddress) {
         setValue("walletAddress", "", { shouldDirty: true });
       }

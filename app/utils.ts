@@ -86,6 +86,31 @@ export const formatCurrency = (
 };
 
 /**
+ * Gets the currency symbol for a given currency code.
+ * @param currency - The currency code (e.g., "NGN", "KES", "USD")
+ * @returns The currency symbol (e.g., "₦", "KSh", "$")
+ */
+export const getCurrencySymbol = (currency: string): string => {
+  const currencySymbols: Record<string, string> = {
+    NGN: "₦",
+    KES: "KSh",
+    UGX: "USh",
+    TZS: "TSh",
+    GHS: "₵",
+    BRL: "R$",
+    ARS: "$",
+    USD: "$",
+    GBP: "£",
+    EUR: "€",
+    MWK: "MK",
+    XOF: "CFA",
+    XAF: "FCFA",
+  };
+
+  return currencySymbols[currency.toUpperCase()] || currency;
+};
+
+/**
  * Encrypts data using the provided public key.
  * @param data - The data to be encrypted.
  * @param publicKeyPEM - The public key in PEM format.

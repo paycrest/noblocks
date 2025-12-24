@@ -85,7 +85,7 @@ export const RecipientListItem = ({
               <div className="relative size-11 flex-shrink-0 max-xsm:hidden">
                 <Image
                   src={avatarSrc}
-                  alt={displayName || "Wallet address"}
+                  alt={recipient.name || "Wallet address"}
                   width={44}
                   height={44}
                   className="size-11 rounded-xl object-cover"
@@ -94,11 +94,11 @@ export const RecipientListItem = ({
             )}
             <div>
               <p className="text-neutral-900 dark:text-white/80">
-                {isResolvingEns ? (
+                {recipient.name || (isResolvingEns ? (
                   <span className="text-gray-400 dark:text-white/30">Resolving...</span>
                 ) : (
                   displayName || shortenAddress(walletAddress, 6, 4)
-                )}
+                ))}
               </p>
               <p className="text-gray-500 dark:text-white/50">
                 {shortenAddress(walletAddress, 6, 4)}

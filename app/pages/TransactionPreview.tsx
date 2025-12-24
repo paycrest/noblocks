@@ -10,6 +10,7 @@ import {
   classNames,
   formatCurrency,
   formatNumberWithCommas,
+  getCurrencySymbol,
   getGatewayContractAddress,
   getInstitutionNameByCode,
   getNetworkImageUrl,
@@ -143,12 +144,13 @@ export const TransactionPreview = ({
   } = calculateSenderFee(amountSent, rate, tokenDecimals ?? 18);
 
   // Rendered tsx info - different for onramp vs offramp
+  const currencySymbol = getCurrencySymbol(currency);
   const renderedInfo = isOnramp
     ? {
       // For onramp: You send fiat currency, receive token
-      amount: `${currency} ${formatNumberWithCommas(amountSent ?? 0)}`,
+      amount: `${currencySymbol} ${formatNumberWithCommas(amountSent ?? 0)}`,
       totalValue: `${formatNumberWithCommas(amountReceived ?? 0)} ${token}`,
-      rate: `${formatNumberWithCommas(rate)} ${currency} ~ 1 ${token}`,
+      rate: `${formatNumberWithCommas(rate)} ${currencySymbol} ~ 1 ${token}`,
       network: selectedNetwork.chain.name,
       recipient: walletAddress ? shortenAddress(walletAddress, 6, 4) : "",
       ...(senderFeeAmount > 0 && {

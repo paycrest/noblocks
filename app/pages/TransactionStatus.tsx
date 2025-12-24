@@ -28,8 +28,10 @@ import {
   classNames,
   formatCurrency,
   formatNumberWithCommas,
+  getCurrencySymbol,
   getExplorerLink,
   getInstitutionNameByCode,
+  shortenAddress,
 } from "../utils";
 import {
   fetchOrderDetails,
@@ -58,6 +60,7 @@ import { BlockFestCashbackComponent } from "../components/blockfest";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { useRocketStatus } from "../context/RocketStatusContext";
 import { isBlockFestActive } from "../utils";
+import { AddBeneficiaryModal } from "../components/recipient/AddBeneficiaryModal";
 
 // Allowed tokens for BlockFest cashback
 const ALLOWED_CASHBACK_TOKENS = new Set(["USDC", "USDT"]);
@@ -137,6 +140,7 @@ export function TransactionStatus({
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [hasReindexed, setHasReindexed] = useState(false);
+  const [isOnrampModalOpen, setIsOnrampModalOpen] = useState(false);
   const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
 
@@ -146,14 +150,37 @@ export function TransactionStatus({
   const token = watch("token") || "";
   const currency = String(watch("currency")) || "USD";
   const amount = watch("amountSent") || 0;
-  const fiat = Number(watch("amountReceived")) || 0;
+  const amountReceived = Number(watch("amountReceived")) || 0;
   const recipientName = String(watch("recipientName")) || "";
   const accountIdentifier = watch("accountIdentifier") || "";
   const institution = watch("institution") || "";
-  const walletAddress = watch("walletAddress") || "";
+  const walletAddress = String(watch("walletAddress") || "");
 
   // Detect if this is an onramp transaction
   const isOnramp = !!walletAddress;
+  const recipientDisplayName = isOnramp
+    ? walletAddress
+      ? shortenAddress(walletAddress, 6, 4)
+      : "your wallet"
+    : recipientName
+      .toLowerCase()
+      .split(" ")
+      .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+      .join(" ");
+  const primaryAmountDisplay = isOnramp
+    ? `${formatNumberWithCommas(amountReceived)} ${token}`
+    : `${formatNumberWithCommas(amount)} ${token}`;
+  const fundStatusLabel = !isOnramp
+    ? null
+    : transactionStatus === "refunded"
+      ? "Refunded"
+      : ["validated", "settled"].includes(transactionStatus)
+        ? "Deposited"
+        : "Processing";
+  const shareDuration = calculateDuration(createdAt, completedAt);
+  const shareMessage = isOnramp
+    ? `Yay! I just sent crypto to a bank account in ${shareDuration} on noblocks.xyz`
+    : `Yay! I just swapped ${token} for ${currency} in ${shareDuration} on noblocks.xyz`;
 
   // Check if recipient is already saved in the database
   const [isRecipientInBeneficiaries, setIsRecipientInBeneficiaries] =
@@ -520,7 +547,7 @@ export function TransactionStatus({
   };
 
   // Helper function to build recipient object based on transaction type
-  const buildRecipient = (): RecipientDetails | null => {
+  const buildRecipient = (name: string): RecipientDetails | null => {
     if (isOnramp) {
       if (!walletAddress) {
         return null;
@@ -528,6 +555,7 @@ export function TransactionStatus({
       return {
         type: "wallet",
         walletAddress: walletAddress as string,
+        name: name,
       };
     }
 
@@ -548,7 +576,7 @@ export function TransactionStatus({
     }
 
     return {
-      name: recipientName,
+      name: name,
       institution: institutionName,
       institutionCode: String(institutionCode),
       accountIdentifier: String(formMethods.watch("accountIdentifier") || ""),
@@ -597,6 +625,7 @@ export function TransactionStatus({
       // Add a small delay to allow fade out animation to complete
       setTimeout(() => {
         setIsRecipientInBeneficiaries(true);
+        setIsOnrampModalOpen(false);
       }, 300);
     }, 2000);
   };
@@ -604,16 +633,30 @@ export function TransactionStatus({
   const handleAddToBeneficiariesChange = async (checked: boolean) => {
     setAddToBeneficiaries(checked);
     if (checked) {
-      await addBeneficiary();
+      if (isOnramp) {
+        setIsOnrampModalOpen(true);
+        return;
+      }
+      await addBeneficiary(recipientName);
     } else {
       await removeRecipient();
     }
   };
 
-  const addBeneficiary = async () => {
+  const handleOnrampModalClose = () => {
+    setIsOnrampModalOpen(false);
+    setAddToBeneficiaries(false);
+  };
+
+  const handleOnrampModalSave = async (name: string) => {
+    await addBeneficiary(name);
+    setIsOnrampModalOpen(false);
+  };
+
+  const addBeneficiary = async (name: string) => {
     setIsSavingRecipient(true);
 
-    const newRecipient = buildRecipient();
+    const newRecipient = buildRecipient(name);
     if (!newRecipient) {
       setIsSavingRecipient(false);
       return;
@@ -664,7 +707,6 @@ export function TransactionStatus({
       if (success) {
         // Update state to show the checkbox again since recipient is now removed
         setIsRecipientInBeneficiaries(false);
-        console.log("Recipient removed successfully");
       }
     } catch (error) {
       console.error("Error removing recipient:", error);
@@ -672,13 +714,42 @@ export function TransactionStatus({
   };
 
   const getPaymentMessage = () => {
-    const formattedRecipientName = recipientName
-      ? recipientName
-        .toLowerCase()
-        .split(" ")
-        .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
-        .join(" ")
-      : "";
+    if (isOnramp) {
+      if (transactionStatus === "refunded") {
+        return (
+          <>
+            Your payment to {recipientDisplayName} was unsuccessful.
+            <br />
+            <br />
+            The funds will be refunded to your account.
+          </>
+        );
+      }
+
+      if (!["validated", "settled"].includes(transactionStatus)) {
+        return (
+          <>
+            Processing payment to{" "}
+            <span className="text-text-body dark:text-white">
+              {recipientDisplayName}
+            </span>
+            . Hang on, this will only take a few seconds
+          </>
+        );
+      }
+
+      return (
+        <>
+          <span className="text-text-body dark:text-white">
+            {formatNumberWithCommas(amountReceived)} {token}
+          </span>{" "}
+          has been successfully deposited into recipient wallet address{" "}
+          {recipientDisplayName} on {selectedNetwork.chain.name} network.
+        </>
+      );
+    }
+
+    const formattedRecipientName = recipientDisplayName;
 
     if (transactionStatus === "refunded") {
       return (
@@ -686,7 +757,8 @@ export function TransactionStatus({
           Your transfer of{" "}
           <span className="text-text-body dark:text-white">
             {formatNumberWithCommas(amount)} {token} (
-            {formatCurrency(fiat ?? 0, currency, `en-${currency.slice(0, 2)}`)})
+            {getCurrencySymbol(currency)}{" "}
+            {formatNumberWithCommas(amountReceived ?? 0)})
           </span>{" "}
           to {formattedRecipientName} was unsuccessful.
           <br />
@@ -702,7 +774,8 @@ export function TransactionStatus({
           Processing payment of{" "}
           <span className="text-text-body dark:text-white">
             {formatNumberWithCommas(amount)} {token} (
-            {formatCurrency(fiat ?? 0, currency, `en-${currency.slice(0, 2)}`)})
+            {getCurrencySymbol(currency)}{" "}
+            {formatNumberWithCommas(amountReceived ?? 0)})
           </span>{" "}
           to {formattedRecipientName}. Hang on, this will only take a few
           seconds
@@ -715,7 +788,8 @@ export function TransactionStatus({
         Your transfer of{" "}
         <span className="text-text-body dark:text-white">
           {formatNumberWithCommas(amount)} {token} (
-          {formatCurrency(fiat ?? 0, currency, `en-${currency.slice(0, 2)}`)})
+          {getCurrencySymbol(currency)}{" "}
+          {formatNumberWithCommas(amountReceived ?? 0)})
         </span>{" "}
         to {formattedRecipientName} has been completed successfully.
       </>
@@ -781,7 +855,7 @@ export function TransactionStatus({
               />
             )}
             <p className="whitespace-nowrap pr-4 font-medium">
-              {formatNumberWithCommas(amount)} {token}
+              {primaryAmountDisplay}
             </p>
           </AnimatedComponent>
           <Image
@@ -796,7 +870,7 @@ export function TransactionStatus({
             delay={0.4}
             className="max-w-60 truncate whitespace-nowrap rounded-full bg-gray-50 px-3 py-1 capitalize dark:bg-white/5"
           >
-            {(recipientName ?? "").toLowerCase().split(" ")[0]}
+            {recipientDisplayName}
           </AnimatedComponent>
         </div>
       </div>
@@ -810,9 +884,13 @@ export function TransactionStatus({
           className="text-xl font-medium text-neutral-900 dark:text-white/80"
         >
           {transactionStatus === "refunded"
-            ? "Oops! Transaction failed"
+            ? isOnramp
+              ? "Oops! Deposit failed"
+              : "Oops! Transaction failed"
             : !["validated", "settled"].includes(transactionStatus)
-              ? "Processing payment..."
+              ? isOnramp
+                ? "Indexing by aggregator..."
+                : "Processing payment..."
               : "Transaction successful"}
         </AnimatedComponent>
 
@@ -831,7 +909,7 @@ export function TransactionStatus({
               />
             )}
             <p className="whitespace-nowrap pr-0.5 font-medium">
-              {amount} {token}
+              {primaryAmountDisplay}
             </p>
           </AnimatedComponent>
           <Image
@@ -846,7 +924,7 @@ export function TransactionStatus({
             delay={0.4}
             className="max-w-28 truncate rounded-full bg-gray-50 px-3 py-1 capitalize dark:bg-white/5"
           >
-            {(recipientName ?? "").toLowerCase().split(" ")[0]}
+            {recipientDisplayName}
           </AnimatedComponent>
         </div>
 
@@ -899,16 +977,17 @@ export function TransactionStatus({
                 delay={0.5}
                 className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
               >
-                {["validated", "settled"].includes(transactionStatus) && (
-                  <button
-                    type="button"
-                    onClick={handleGetReceipt}
-                    className={`w-fit ${secondaryBtnClasses}`}
-                    disabled={isGettingReceipt}
-                  >
-                    {isGettingReceipt ? "Generating..." : "Get receipt"}
-                  </button>
-                )}
+                {["validated", "settled"].includes(transactionStatus) &&
+                  !isOnramp && (
+                    <button
+                      type="button"
+                      onClick={handleGetReceipt}
+                      className={`w-fit ${secondaryBtnClasses}`}
+                      disabled={isGettingReceipt}
+                    >
+                      {isGettingReceipt ? "Generating..." : "Get receipt"}
+                    </button>
+                  )}
 
                 <button
                   type="button"
@@ -981,15 +1060,17 @@ export function TransactionStatus({
                         </Checkbox>
                         <label className="text-text-body dark:text-white/80">
                           Add{" "}
-                          {(recipientName ?? "")
-                            .split(" ")[0]
-                            .charAt(0)
-                            .toUpperCase() +
+                          {isOnramp
+                            ? recipientDisplayName
+                            : (recipientName ?? "")
+                              .split(" ")[0]
+                              .charAt(0)
+                              .toUpperCase() +
                             (recipientName ?? "")
                               .toLowerCase()
                               .split(" ")[0]
                               .slice(1)}{" "}
-                          to beneficiaries
+                          to your beneficiaries
                         </label>
                       </AnimatedComponent>
                     )}
@@ -1029,6 +1110,12 @@ export function TransactionStatus({
                   </p>
                 </div>
               </div>
+              {isOnramp && (
+                <div className="flex items-center justify-between gap-1">
+                  <p className="flex-1">Fund status</p>
+                  <p className="flex-1 capitalize">{fundStatusLabel}</p>
+                </div>
+              )}
               <div className="flex items-center justify-between gap-1">
                 <p className="flex-1">Time spent</p>
                 <p className="flex-1">
@@ -1075,8 +1162,7 @@ export function TransactionStatus({
                 <div className="relative flex items-center gap-3 overflow-hidden rounded-xl bg-gray-50 px-4 py-2 dark:bg-white/5">
                   <YellowHeart className="size-8 flex-shrink-0" />
                   <p>
-                    Yay! I just swapped {token} for {currency} in{" "}
-                    {calculateDuration(createdAt, completedAt)} on noblocks.xyz
+                    {shareMessage}
                   </p>
                   <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
                 </div>
@@ -1086,7 +1172,7 @@ export function TransactionStatus({
                     aria-label="Share on Twitter"
                     rel="noopener noreferrer"
                     target="_blank"
-                    href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
+                    href={`https://x.com/intent/tweet?text=${encodeURIComponent(shareMessage)}`}
                     className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                   >
                     {resolvedTheme === "dark" ? (
@@ -1100,7 +1186,7 @@ export function TransactionStatus({
                     aria-label="Share on Warpcast"
                     rel="noopener noreferrer"
                     target="_blank"
-                    href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${token}%20for%20${currency}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
+                    href={`https://warpcast.com/~/compose?text=${encodeURIComponent(shareMessage)}`}
                     className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                   >
                     {resolvedTheme === "dark" ? (
@@ -1115,6 +1201,15 @@ export function TransactionStatus({
             )}
         </AnimatePresence>
       </div>
+
+      {/* Onramp beneficiary modal */}
+      <AddBeneficiaryModal
+        isOpen={isOnrampModalOpen}
+        onClose={handleOnrampModalClose}
+        onSave={handleOnrampModalSave}
+        walletAddress={walletAddress || recipientDisplayName}
+        isSaving={isSavingRecipient}
+      />
     </div>
   );
 }

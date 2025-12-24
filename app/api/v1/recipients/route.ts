@@ -83,6 +83,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         id: recipient.id,
         type: "wallet" as const,
         walletAddress: recipient.recipient_wallet_address,
+        name: recipient.name || "",
       })) || [];
 
     // Combine both types of recipients
@@ -202,6 +203,24 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         }
       }
 
+      // Validate name for wallet recipients
+      if (!name || !name.trim()) {
+        trackApiError(
+          request,
+          "/api/v1/recipients",
+          "POST",
+          new Error("Missing required field: name"),
+          400,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Missing required field: name",
+          },
+          { status: 400 },
+        );
+      }
+
       // Insert wallet recipient into saved_wallet_recipients table
       const { data, error } = await supabaseAdmin
         .from("saved_wallet_recipients")
@@ -211,6 +230,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             normalized_wallet_address: walletAddress,
             recipient_wallet_address: walletAddressFromBody.trim(),
             normalized_recipient_wallet_address: walletAddressFromBody.toLowerCase().trim(),
+            name: name.trim(),
           },
           {
             onConflict: "normalized_wallet_address,normalized_recipient_wallet_address",
@@ -229,6 +249,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         id: data.id,
         type: "wallet",
         walletAddress: data.recipient_wallet_address,
+        name: data.name,
       };
 
       const response: SaveRecipientResponse = {

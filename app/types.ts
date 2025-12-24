@@ -60,6 +60,7 @@ export type RecipientDetails =
   | {
     type: "wallet";
     walletAddress: string;
+    name: string;
   }
   | {
     type: "bank" | "mobile_money";

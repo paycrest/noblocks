@@ -96,6 +96,7 @@ create table if not exists public.saved_wallet_recipients (
   normalized_wallet_address text not null check (normalized_wallet_address ~* '^0x[0-9a-f]{40}$'),
   recipient_wallet_address text not null, -- The recipient's wallet address
   normalized_recipient_wallet_address text not null check (normalized_recipient_wallet_address ~* '^0x[0-9a-f]{40}$'),
+  name text not null, -- The name/label for the recipient wallet
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -171,3 +172,41 @@ create policy "Service role can delete wallet recipients"
 on public.saved_wallet_recipients for delete
 to service_role
 using (true);
+
+-- Insert sample wallet recipients with names
+INSERT INTO public.saved_wallet_recipients (
+  wallet_address,
+  normalized_wallet_address,
+  recipient_wallet_address,
+  normalized_recipient_wallet_address,
+  name,
+  created_at,
+  updated_at
+) VALUES
+  (
+    '0xb61b2db649d54f8952da77f57aceacdd7f3de03a',
+    '0xb61b2db649d54f8952da77f57aceacdd7f3de03a',
+    '0x742d35cc6634c0532925a3b844bc9e7595f0beb0',
+    '0x742d35cc6634c0532925a3b844bc9e7595f0beb0',
+    'John Doe',
+    NOW(),
+    NOW()
+  ),
+  (
+    '0xb61b2db649d54f8952da77f57aceacdd7f3de03a',
+    '0xb61b2db649d54f8952da77f57aceacdd7f3de03a',
+    '0x8ba1f109551bd432803012645aac136c22c92900',
+    '0x8ba1f109551bd432803012645aac136c22c92900',
+    'Peter',
+    NOW(),
+    NOW()
+  ),
+  (
+    '0xb61b2db649d54f8952da77f57aceacdd7f3de03a',
+    '0xb61b2db649d54f8952da77f57aceacdd7f3de03a',
+    '0x1234567890123456789012345678901234567890',
+    '0x1234567890123456789012345678901234567890',
+    'Fred',
+    NOW(),
+    NOW()
+  );

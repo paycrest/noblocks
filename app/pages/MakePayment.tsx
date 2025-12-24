@@ -1,16 +1,19 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Copy01Icon } from "hugeicons-react";
 import { PiCheck } from "react-icons/pi";
+import { ImSpinner } from "react-icons/im";
 import {
     classNames,
     formatCurrency,
     formatNumberWithCommas,
     copyToClipboard,
+    getCurrencySymbol,
 } from "../utils";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components";
 import type { TransactionPreviewProps } from "../types";
-import { useStep } from "../context";
+import { useStep, useNetwork } from "../context";
+import { fetchOrderDetails } from "../api/aggregator";
 
 interface PaymentAccountDetails {
     provider: string;
@@ -27,8 +30,9 @@ export const MakePayment = ({
     stateProps: TransactionPreviewProps["stateProps"];
     handleBackButtonClick: () => void;
 }) => {
-    const { formValues, rate } = stateProps;
+    const { formValues, rate, setTransactionStatus, setCreatedAt, orderId } = stateProps;
     const { setCurrentStep } = useStep();
+    const { selectedNetwork } = useNetwork();
     const { amountSent, currency, token, amountReceived } = formValues;
 
     // Mock payment account details - will be replaced with actual API call
@@ -42,8 +46,11 @@ export const MakePayment = ({
 
     const [timeRemaining, setTimeRemaining] = useState<string>("");
     const [isPaymentSent, setIsPaymentSent] = useState(false);
+    const [isCheckingPayment, setIsCheckingPayment] = useState(false);
     const [isAccountNumberCopied, setIsAccountNumberCopied] = useState(false);
     const [isAmountCopied, setIsAmountCopied] = useState(false);
+    const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Calculate time remaining
     useEffect(() => {
@@ -69,14 +76,103 @@ export const MakePayment = ({
         return () => clearInterval(interval);
     }, [paymentDetails.expiresAt]);
 
-
-    const handlePaymentSent = () => {
+    const handlePaymentSent = async () => {
         setIsPaymentSent(true);
-        // Navigate to status page after payment is sent
-        setCurrentStep("status");
+        setIsCheckingPayment(true);
+
+        // Mark the transaction as pending while the aggregator indexes the deposit
+        setTransactionStatus("pending");
+        setCreatedAt(new Date().toISOString());
+
+        // If no orderId, navigate immediately (shouldn't happen, but safety check)
+        if (!orderId) {
+            setCurrentStep("status");
+            setIsCheckingPayment(false);
+            return;
+        }
+
+        // Poll backend to check if payment has been detected
+        const checkPaymentStatus = async () => {
+            try {
+                const orderDetailsResponse = await fetchOrderDetails(
+                    selectedNetwork.chain.id,
+                    orderId,
+                );
+
+                const status = orderDetailsResponse.data.status;
+
+                // If status is no longer "pending", payment has been detected
+                if (status !== "pending") {
+                    // TODO: Validate amount - compare UI input with backend amount
+                    // Once backend response structure is known, add validation here:
+                    // - Extract fiat amount from orderDetailsResponse.data (check which field contains it)
+                    // - Compare with amountSent from UI (Number(amountSent))
+                    // Example structure (to be updated based on actual backend response):
+                    // const backendAmount = /* extract from backend response */;
+                    // const uiAmount = Number(amountSent) || 0;
+                    // if (Math.abs(backendAmount - uiAmount) > tolerance) {
+                    //     // Handle mismatch
+                    // }
+
+                    // Clear polling
+                    if (pollingIntervalRef.current) {
+                        clearInterval(pollingIntervalRef.current);
+                        pollingIntervalRef.current = null;
+                    }
+                    if (pollingTimeoutRef.current) {
+                        clearTimeout(pollingTimeoutRef.current);
+                        pollingTimeoutRef.current = null;
+                    }
+
+                    // Update status and navigate
+                    setTransactionStatus(
+                        status as
+                        | "processing"
+                        | "fulfilled"
+                        | "validated"
+                        | "settled"
+                        | "refunded",
+                    );
+                    setIsCheckingPayment(false);
+                    setCurrentStep("status");
+                }
+            } catch (error) {
+                console.error("Error checking payment status:", error);
+                // On error, still navigate to status page (it will handle polling there)
+                setIsCheckingPayment(false);
+                setCurrentStep("status");
+            }
+        };
+
+        // Start polling every 3 seconds
+        checkPaymentStatus(); // Check immediately
+        pollingIntervalRef.current = setInterval(checkPaymentStatus, 3000);
+
+        // Set a timeout to stop polling after 30 seconds and navigate anyway
+        pollingTimeoutRef.current = setTimeout(() => {
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+            }
+            setIsCheckingPayment(false);
+            setCurrentStep("status");
+        }, 30000);
     };
 
-    const formattedAmount = `${paymentDetails.currency} ${formatNumberWithCommas(paymentDetails.amount)}`;
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+            }
+            if (pollingTimeoutRef.current) {
+                clearTimeout(pollingTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    const currencySymbol = getCurrencySymbol(paymentDetails.currency);
+    const formattedAmount = `${currencySymbol} ${formatNumberWithCommas(paymentDetails.amount)}`;
 
     return (
         <div className="mx-auto grid max-w-[26.0625rem] gap-6 py-10 text-sm">
@@ -205,9 +301,21 @@ export const MakePayment = ({
                 <button
                     type="button"
                     onClick={handlePaymentSent}
-                    className={classNames(primaryBtnClasses, "w-full")}
+                    disabled={isPaymentSent}
+                    className={classNames(
+                        primaryBtnClasses,
+                        "w-full",
+                        isPaymentSent ? "cursor-not-allowed opacity-50" : "",
+                    )}
                 >
-                    I have sent the money
+                    {isPaymentSent ? (
+                        <span className="flex items-center justify-center gap-2">
+                            <ImSpinner className="animate-spin text-lg" />
+                            {isCheckingPayment ? "Checking payment..." : "Processing..."}
+                        </span>
+                    ) : (
+                        "I have sent the money"
+                    )}
                 </button>
             </div>
         </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { trackServerEvent } from "@/app/lib/server-analytics";
+import { trackServerEvent, identifyServerUser } from "@/app/lib/server-analytics";
 
 export async function POST(request: NextRequest) {
   try {
@@ -51,6 +51,11 @@ export async function POST(request: NextRequest) {
       },
       wallet,
     );
+
+    // Update last_seen timestamp on user identification (additive enhancement)
+    identifyServerUser(wallet, {
+      $last_seen: new Date().toISOString(),
+    });
 
     return NextResponse.json({
       success: true,

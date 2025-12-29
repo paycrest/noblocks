@@ -1,8 +1,7 @@
 "use client";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useEffect, useState } from "react";
-import { type Address, type WalletClient, createWalletClient, custom } from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { type Address, type WalletClient } from "viem";
 import { useBalance } from "../context/BalanceContext";
 
 // ################################################
@@ -65,11 +64,10 @@ export function useEIP7702Account(): EIP7702Account {
                 return;
             }
 
-            // ✅ Just store addresses, don't create wallet client here
             setAccount({
                 eoaAddress: embeddedWallet.address as Address,
                 smartWalletAddress: smartWallet.address as Address,
-                signer: null, // Not needed here
+                signer: null,
                 isReady: true,
             });
         }
@@ -113,7 +111,6 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
             );
 
             if (!smartWallet) {
-                console.log("✅ [Migration] No smart wallet - no migration needed");
                 setNeedsMigration(false);
                 setIsChecking(false);
                 return;
@@ -127,15 +124,7 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
             // ✅ Get balance directly from useBalance hook
             const smartWalletBalance = allBalances.smartWallet?.total ?? 0;
 
-
-            // If no balance, no need to migrate
-            if (smartWalletBalance <= 0) {
-                setNeedsMigration(false);
-                setIsChecking(false);
-                return;
-            }
-
-            // Check if already migrated in database
+            // Check if already migrated in database FIRST
             try {
                 const response = await fetch(`/api/v1/wallets/migration-status?userId=${user.id}`);
 
@@ -143,16 +132,23 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
                     const data = await response.json();
                     const alreadyMigrated = data.migrationCompleted ?? false;
 
-                    const shouldMigrate = !alreadyMigrated;
+                    // If already migrated, no need to show banner
+                    if (alreadyMigrated) {
+                        setNeedsMigration(false);
+                        setIsChecking(false);
+                        return;
+                    }
 
-                    setNeedsMigration(shouldMigrate);
-                } else {
-                    // If can't check, assume migration needed (safer)
                     setNeedsMigration(true);
+                    setIsChecking(false);
+                    return;
+                } else {
+                    const hasBalance = smartWalletBalance > 0;
+                    setNeedsMigration(hasBalance || !!smartWallet);
                 }
             } catch (error) {
-                // On error, assume migration needed if there's balance
-                setNeedsMigration(true);
+                const hasBalance = smartWalletBalance > 0;
+                setNeedsMigration(hasBalance || !!smartWallet);
             }
 
             setIsChecking(false);

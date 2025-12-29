@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { Cancel01Icon, Wallet01Icon, InformationCircleIcon } from "hugeicons-react";
@@ -8,24 +8,19 @@ import { useBalance } from "../context/BalanceContext";
 import { useTokens } from "../context";
 import { useNetwork } from "../context/NetworksContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { formatCurrency, shortenAddress, getNetworkImageUrl } from "../utils";
+import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import WalletMigrationSuccessModal from "./WalletMigrationSuccessModal";
 import { type Address, encodeFunctionData, parseAbi, createPublicClient, http } from "viem";
-import { base, baseSepolia, polygon, arbitrum, bsc, mainnet, lisk } from "viem/chains";
 import { toast } from "sonner";
+import { networks } from "../mocks";
 
 // Map network names to viem chains
-const CHAIN_MAP: Record<string, any> = {
-    "Base": base,
-    "Base Sepolia": baseSepolia,
-    "Polygon": polygon,
-    "Arbitrum One": arbitrum,
-    "BNB Smart Chain": bsc,
-    "Ethereum": mainnet,
-    "Lisk": lisk,
-};
+const CHAIN_MAP = Object.fromEntries(
+    networks.map(n => [n.chain.name, n.chain])
+);
 
 interface WalletTransferApprovalModalProps {
     isOpen: boolean;
@@ -40,12 +35,15 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [progress, setProgress] = useState<string>("");
+    const [allChainBalances, setAllChainBalances] = useState<Record<string, Record<string, number>>>({});
+    const [isFetchingBalances, setIsFetchingBalances] = useState(false);
 
     const { allBalances, isLoading } = useBalance();
     const { allTokens } = useTokens();
     const { selectedNetwork } = useNetwork();
     const { user, getAccessToken } = usePrivy();
     const { wallets } = useWallets();
+    const { client: smartWalletClient } = useSmartWallets();
     const isDark = useActualTheme();
     const { rate } = useCNGNRate({
         network: selectedNetwork.chain.name,
@@ -58,56 +56,95 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
 
     const oldAddress = smartWallet?.address; // SCW
     const newAddress = embeddedWallet?.address; // EOA
-    // -------------------- Group tokens by chain --------------------
+
+    // -------------------- Fetch balances from all networks --------------------
+    useEffect(() => {
+        if (!isOpen || !oldAddress) return;
+
+        const fetchAllChainBalances = async () => {
+            setIsFetchingBalances(true);
+            const balancesByChain: Record<string, Record<string, number>> = {};
+
+            // Fetch balances for each supported network
+            for (const network of networks) {
+                try {
+                    const publicClient = createPublicClient({
+                        chain: network.chain,
+                        transport: http(),
+                    });
+
+                    const result = await fetchWalletBalance(
+                        publicClient,
+                        oldAddress
+                    );
+
+                    // Only include chains with non-zero balances
+                    const hasBalance = Object.values(result.balances).some(b => b > 0);
+                    if (hasBalance) {
+                        balancesByChain[network.chain.name] = result.balances;
+                    }
+                } catch (error) {
+                    console.error(`Error fetching balances for ${network.chain.name}:`, error);
+                }
+            }
+
+            setAllChainBalances(balancesByChain);
+            setIsFetchingBalances(false);
+        };
+
+        fetchAllChainBalances();
+    }, [isOpen, oldAddress]);
+
+    // -------------------- Group tokens by chain from all networks --------------------
     const tokensByChain = useMemo(() => {
         const grouped: Record<string, any[]> = {};
 
-        const smartWalletData = allBalances.smartWallet;
-        if (!smartWalletData) return grouped;
+        // Process balances from all chains
+        for (const [chainName, balances] of Object.entries(allChainBalances)) {
+            const fetchedTokens = allTokens[chainName] || [];
 
-        const balances = smartWalletData.balances || {};
-        const networkName = selectedNetwork.chain.name;
-        const fetchedTokens = allTokens[networkName] || [];
+            for (const [symbol, balance] of Object.entries(balances)) {
+                const balanceNum = balance as number;
+                if (balanceNum <= 0) continue;
 
-        Object.entries(balances).forEach(([symbol, balance]) => {
-            const balanceNum = balance as number;
-            if (balanceNum <= 0) return;
+                const tokenMeta = fetchedTokens.find(t =>
+                    t.symbol.toUpperCase() === symbol.toUpperCase()
+                );
 
-            const tokenMeta = fetchedTokens.find(t =>
-                t.symbol.toUpperCase() === symbol.toUpperCase()
-            );
+                if (tokenMeta?.address) {
+                    // Get CNGN rate for this chain if needed
+                    const chainRate = symbol.toUpperCase() === "CNGN" ? rate : undefined;
+                    let usdValue = balanceNum;
+                    if (chainRate) {
+                        usdValue = balanceNum / chainRate;
+                    }
 
-            if (tokenMeta?.address) {
-                let usdValue = balanceNum;
-                if (symbol.toUpperCase() === "CNGN" && rate) {
-                    usdValue = balanceNum / rate;
+                    const token = {
+                        id: `${chainName}-${symbol}`,
+                        chain: chainName,
+                        name: tokenMeta.name || symbol,
+                        symbol,
+                        amount: balanceNum,
+                        displayAmount: balanceNum.toFixed(2),
+                        value: `${usdValue.toFixed(2)}`,
+                        icon: `/logos/${symbol.toLowerCase()}-logo.svg`,
+                        address: tokenMeta.address,
+                        decimals: tokenMeta.decimals || 18,
+                    };
+
+                    if (!grouped[chainName]) {
+                        grouped[chainName] = [];
+                    }
+
+                    grouped[chainName].push(token);
+                } else {
+                    console.warn(`⚠️ No metadata found for ${symbol} on ${chainName}`);
                 }
-
-                const token = {
-                    id: `${networkName}-${symbol}`,
-                    chain: networkName,
-                    name: tokenMeta.name || symbol,
-                    symbol,
-                    amount: balanceNum,
-                    displayAmount: balanceNum.toFixed(2),
-                    value: `${usdValue.toFixed(2)}`,
-                    icon: `/logos/${symbol.toLowerCase()}-logo.svg`,
-                    address: tokenMeta.address,
-                    decimals: tokenMeta.decimals || 18,
-                };
-
-                if (!grouped[networkName]) {
-                    grouped[networkName] = [];
-                }
-
-                grouped[networkName].push(token);
-            } else {
-                console.warn(`⚠️ No metadata found for ${symbol} on ${networkName}`);
             }
-        });
+        }
 
         return grouped;
-    }, [allBalances, allTokens, rate, selectedNetwork]);
+    }, [allChainBalances, allTokens, rate]);
 
     // Flatten for display
     const tokens = useMemo(() => {
@@ -115,27 +152,35 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
     }, [tokensByChain]);
 
     const totalBalance = useMemo(() => {
-        const sum = tokens.reduce((acc, t) => acc + t.amount, 0);
+        const sum = tokens.reduce((acc, t) => acc + parseFloat(t.value || "0"), 0);
         return formatCurrency(sum, "USD", "en-US");
     }, [tokens]);
 
+    // Helper to get network config for a chain name
+    const getNetworkConfig = (chainName: string) => {
+        return networks.find(n => n.chain.name === chainName);
+    };
+
     const handleCloseSuccessModal = () => setShowSuccessModal(false);
 
-    // -------------------- Migration Handler --------------------
+    // Handle approve transfer
     const handleApproveTransfer = async () => {
         if (!user || !oldAddress || !newAddress || !embeddedWallet) {
             setError("Wallet not ready");
             return;
         }
 
-        if (tokens.length === 0) {
-            setError("No tokens to migrate");
-            return;
+        // ✅ Allow migration even with zero balance - need to deprecate old SCW
+        const hasTokens = tokens.length > 0;
+
+        if (!hasTokens) {
+            // No tokens to transfer, but still need to deprecate old wallet
+            setProgress("No tokens to migrate, but deprecating old wallet...");
         }
 
         setIsProcessing(true);
         setError(null);
-        setProgress("Initializing migration...");
+        setProgress(hasTokens ? "Initializing migration..." : "Deprecating old wallet...");
 
         try {
             const accessToken = await getAccessToken();
@@ -144,105 +189,74 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             const allTxHashes: string[] = [];
             const chains = Object.keys(tokensByChain);
 
-            // ✅ Get the embedded wallet provider (we'll use this to send transactions)
-            const eoaProvider = await embeddedWallet.getEthereumProvider();
-
-            console.log('🔍 Debug - All wallets:', wallets.map(w => ({
-                address: w.address,
-                type: w.walletClientType,
-                chainId: w.chainId,
-            })));
-
-            console.log('🔍 Debug - User linked accounts:', user?.linkedAccounts.map(a => ({
-                type: a.type,
-                address: (a as any).address,
-            })));
-
-            // ✅ Find the smart wallet object in wallets array
-            // Try different ways to find the SCW
-            let scwWallet = wallets.find(w =>
-                w.address.toLowerCase() === oldAddress.toLowerCase()
-            );
-
-            // If not found, the SCW might be controlled through the embedded wallet
-            // In Privy, embedded wallets can control SCWs
-            if (!scwWallet) {
-                console.log('⚠️ SCW not found in wallets array, will use embedded wallet to control it');
-                scwWallet = embeddedWallet; // Use EOA to control SCW
-            }
-
-            const scwProvider = await scwWallet.getEthereumProvider();
-
-            for (let i = 0; i < chains.length; i++) {
-                const chainName = chains[i];
-                const chainTokens = tokensByChain[chainName];
-                const chain = CHAIN_MAP[chainName];
-
-                if (!chain) {
-                    console.warn(`Chain ${chainName} not supported, skipping...`);
-                    continue;
+            // ✅ If tokens exist, process transfers
+            if (hasTokens) {
+                // ✅ Check if smart wallet client is available
+                if (!smartWalletClient) {
+                    throw new Error("Smart wallet client not available. Please ensure you have a smart wallet linked.");
                 }
 
-                setProgress(`Processing ${chainName} (${i + 1}/${chains.length})...`);
+                for (let i = 0; i < chains.length; i++) {
+                    const chainName = chains[i];
+                    const chainTokens = tokensByChain[chainName];
+                    const chain = CHAIN_MAP[chainName];
 
-                try {
-                    // ✅ Switch to the correct chain
-                    try {
-                        await scwProvider.request({
-                            method: "wallet_switchEthereumChain",
-                            params: [{ chainId: `0x${chain.id.toString(16)}` }],
-                        });
-                    } catch (switchError: any) {
-                        // Chain might not be added, try to add it
-                        if (switchError.code === 4902) {
-                            await scwProvider.request({
-                                method: "wallet_addEthereumChain",
-                                params: [{
-                                    chainId: `0x${chain.id.toString(16)}`,
-                                    chainName: chain.name,
-                                    rpcUrls: [chain.rpcUrls.default.http[0]],
-                                }],
-                            });
-                        } else {
-                            throw switchError;
-                        }
+                    if (!chain) {
+                        console.warn(`Chain ${chainName} not supported, skipping...`);
+                        continue;
                     }
 
-                    // ✅ Create public client for waiting for receipts
-                    const publicClient = createPublicClient({
-                        chain,
-                        transport: http(),
-                    });
+                    setProgress(`Processing ${chainName} (${i + 1}/${chains.length})...`);
 
-                    // ✅ Transfer each token from SCW to EOA
-                    for (const token of chainTokens) {
-                        const amountInWei = BigInt(
-                            Math.floor(token.amount * Math.pow(10, token.decimals))
-                        );
-
-                        setProgress(`Transferring ${token.symbol} on ${chainName}...`);
-
-                        // ✅ Encode the transfer function call
-                        const transferData = encodeFunctionData({
-                            abi: parseAbi(["function transfer(address to, uint256 amount) returns (bool)"]),
-                            functionName: "transfer",
-                            args: [newAddress as Address, amountInWei],
+                    try {
+                        // ✅ Switch to the correct chain using smart wallet client
+                        await smartWalletClient.switchChain({
+                            id: chain.id,
                         });
 
-                        // ✅ Send transaction from SCW to transfer tokens
-                        const txHash = await scwProvider.request({
-                            method: "eth_sendTransaction",
-                            params: [{
-                                from: oldAddress, // SCW address
-                                to: token.address, // Token contract
-                                data: transferData, // transfer(newAddress, amount)
-                            }],
-                        }) as string;
+                        // ✅ Create public client for waiting for receipts
+                        const publicClient = createPublicClient({
+                            chain,
+                            transport: http(),
+                        });
+
+                        // ✅ Batch all token transfers into a single transaction for gasless execution
+                        // This uses Privy's smart wallet batch capability with Biconomy paymaster
+                        const calls = chainTokens.map((token) => {
+                            const amountInWei = BigInt(
+                                Math.floor(token.amount * Math.pow(10, token.decimals))
+                            );
+
+                            // ✅ Encode the transfer function call
+                            const transferData = encodeFunctionData({
+                                abi: parseAbi(["function transfer(address to, uint256 amount) returns (bool)"]),
+                                functionName: "transfer",
+                                args: [newAddress as Address, amountInWei],
+                            });
+
+                            return {
+                                to: token.address as `0x${string}`,
+                                data: transferData as `0x${string}`,
+                                value: BigInt(0),
+                            };
+                        });
+
+                        if (calls.length === 0) {
+                            console.warn(`No tokens to migrate on ${chainName}`);
+                            continue;
+                        }
+
+                        setProgress(`Transferring ${calls.length} token(s) on ${chainName} (gasless)...`);
+
+                        // ✅ Send batched transaction from SCW
+                        const txHash = (await smartWalletClient.sendTransaction({
+                            calls,
+                        })) as `0x${string}`;
 
                         allTxHashes.push(txHash);
 
                         // ✅ Wait for transaction confirmation
-                        setProgress(`Confirming ${token.symbol} transfer...`);
+                        setProgress(`Confirming ${chainName} migration...`);
 
                         const receipt = await publicClient.waitForTransactionReceipt({
                             hash: txHash as `0x${string}`,
@@ -250,29 +264,27 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         });
 
                         if (receipt.status === 'success') {
-                            toast.success(`${token.symbol} migrated!`, {
-                                description: `${token.amount} ${token.symbol} transferred to your EOA`
+                            toast.success(`${chainName} migration complete!`, {
+                                description: `${calls.length} token(s) transferred to your EOA (gasless)`
                             });
                         } else {
-                            throw new Error(`Transaction failed for ${token.symbol}`);
+                            throw new Error(`Transaction failed for ${chainName}`);
                         }
+
+                        toast.success(`${chainName} migration complete!`);
+
+                    } catch (chainError) {
+                        const errorMsg = chainError instanceof Error ? chainError.message : 'Unknown error';
+                        toast.error(`Failed to migrate ${chainName}`, {
+                            description: errorMsg
+                        });
                     }
-
-                    toast.success(`${chainName} migration complete!`);
-
-                } catch (chainError) {
-                    const errorMsg = chainError instanceof Error ? chainError.message : 'Unknown error';
-                    toast.error(`Failed to migrate ${chainName}`, {
-                        description: errorMsg
-                    });
                 }
-            }
-
-            if (allTxHashes.length === 0) {
-                throw new Error("No successful migrations");
-            }
+            } // End of hasTokens block
 
             // ✅ Update Backend - Deprecate old wallet
+            // This happens regardless of whether tokens were transferred
+            // (even if zero balance, we need to deprecate the old SCW)
             setProgress("Finalizing migration...");
 
             const response = await fetch("/api/v1/wallets/deprecate", {
@@ -285,19 +297,19 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                 body: JSON.stringify({
                     oldAddress,
                     newAddress,
-                    txHash: allTxHashes[0], // Primary transaction hash
+                    txHash: allTxHashes.length > 0 ? allTxHashes[0] : null, // null if no transactions
                     userId: user.id
                 }),
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                console.warn('⚠️ Database update failed:', errorText);
                 throw new Error("Failed to update backend");
             }
 
             toast.success("🎉 Migration Complete!", {
-                description: `${allTxHashes.length} token(s) successfully migrated to your EOA`,
+                description: hasTokens
+                    ? `${allTxHashes.length} token(s) successfully migrated to your EOA`
+                    : "Old wallet deprecated successfully",
                 duration: 5000,
             });
 
@@ -390,8 +402,8 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
 
                                             {/* Token List */}
                                             <div className="mb-4 space-y-3">
-                                                {isLoading ? (
-                                                    <div className="text-sm text-text-secondary dark:text-white/50">Loading balances...</div>
+                                                {isFetchingBalances || isLoading ? (
+                                                    <div className="text-sm text-text-secondary dark:text-white/50">Loading balances from all networks...</div>
                                                 ) : tokens.length === 0 ? (
                                                     <div className="text-sm text-text-secondary dark:text-white/50">No tokens found</div>
                                                 ) : (
@@ -409,13 +421,22 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                                                             (e.target as HTMLImageElement).style.display = 'none';
                                                                         }}
                                                                     />
-                                                                    <Image
-                                                                        src={getNetworkImageUrl(selectedNetwork, isDark)}
-                                                                        alt={selectedNetwork.chain.name}
-                                                                        width={16}
-                                                                        height={16}
-                                                                        className="absolute -bottom-1 -right-1 size-6 rounded-full"
-                                                                    />
+                                                                    {(() => {
+                                                                        const networkConfig = getNetworkConfig(token.chain);
+                                                                        if (!networkConfig) return null;
+                                                                        const imageUrl = typeof networkConfig.imageUrl === 'string'
+                                                                            ? networkConfig.imageUrl
+                                                                            : (isDark ? networkConfig.imageUrl.dark : networkConfig.imageUrl.light);
+                                                                        return (
+                                                                            <Image
+                                                                                src={imageUrl}
+                                                                                alt={token.chain}
+                                                                                width={16}
+                                                                                height={16}
+                                                                                className="absolute -bottom-1 -right-1 size-6 rounded-full"
+                                                                            />
+                                                                        );
+                                                                    })()}
                                                                 </div>
                                                                 <div className="flex flex-col">
                                                                     <span className="text-sm font-medium">{token.name}</span>
@@ -455,10 +476,10 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                             {/* Approve Transfer Button */}
                                             <button
                                                 onClick={handleApproveTransfer}
-                                                disabled={isProcessing || isLoading || tokens.length === 0}
+                                                disabled={isProcessing || isLoading || isFetchingBalances || tokens.length === 0}
                                                 className="w-full rounded-xl bg-lavender-500 px-6 py-3.5 text-base font-semibold text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                                             >
-                                                {isProcessing ? progress || "Processing migration..." : "Approve transfer"}
+                                                {isProcessing ? progress || "Processing migration..." : isFetchingBalances ? "Loading balances..." : "Approve transfer"}
                                             </button>
                                         </div>
                                     </motion.div>

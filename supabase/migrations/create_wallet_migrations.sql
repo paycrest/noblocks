@@ -60,14 +60,11 @@ using (true)
 with check (true);
 
 -- Users can read their own migration status (if needed for future client-side queries)
--- Note: This uses the wallet_address from the request context set by middleware
+-- Note: This verifies that privy_user_id matches the JWT sub claim
 create policy "Users can read their own migrations"
 on public.wallet_migrations for select
 to authenticated
 using (
-  exists (
-    select 1 from auth.users 
-    where auth.users.id::text = current_setting('request.jwt.claims', true)::json->>'sub'
-  )
+  privy_user_id = current_setting('request.jwt.claims', true)::json->>'sub'
 );
 

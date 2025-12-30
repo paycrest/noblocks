@@ -1,4 +1,4 @@
-import { arbitrum, base, bsc, polygon, lisk, mainnet} from "viem/chains";
+import { arbitrum, base, bsc, polygon, lisk, mainnet, baseSepolia } from "viem/chains";
 import {
   addRpcUrlOverrideToChain,
   type PrivyClientConfig,
@@ -25,7 +25,8 @@ const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
       },
     },
   },
-  supportedChains: [mainnet, base, bscOverride, arbitrum, polygon, lisk],
+  supportedChains: [mainnet, base, baseSepolia, bscOverride, arbitrum, polygon, lisk],
+  defaultChain: baseSepolia,
 };
 
 export const lightModeConfig: PrivyClientConfig = {

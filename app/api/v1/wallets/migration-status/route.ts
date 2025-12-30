@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
         console.error("Error checking migration status:", error);
         return NextResponse.json({
             error: "Internal server error",
-            migrationCompleted: false
+            migrationCompleted: false,
+            status: "unknown",
+            hasSmartWallet: false
         }, { status: 500 });
     }
 }

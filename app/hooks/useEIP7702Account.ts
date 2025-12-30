@@ -61,6 +61,13 @@ export function useEIP7702Account(): EIP7702Account {
 
             if (!embeddedWallet) {
                 console.warn("⚠️ [EIP7702] User has smart wallet but no embedded wallet");
+                // Set account state to prevent perpetual loading
+                setAccount({
+                    eoaAddress: null,
+                    smartWalletAddress: smartWallet.address as Address,
+                    signer: null,
+                    isReady: true, // Set to true to prevent loading state
+                });
                 return;
             }
 
@@ -143,12 +150,14 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
                     setIsChecking(false);
                     return;
                 } else {
+                    // Fallback: show banner if there's balance
                     const hasBalance = smartWalletBalance > 0;
-                    setNeedsMigration(hasBalance || !!smartWallet);
+                    setNeedsMigration(hasBalance);
                 }
             } catch (error) {
+                // Fallback: show banner if there's balance
                 const hasBalance = smartWalletBalance > 0;
-                setNeedsMigration(hasBalance || !!smartWallet);
+                setNeedsMigration(hasBalance);
             }
 
             setIsChecking(false);

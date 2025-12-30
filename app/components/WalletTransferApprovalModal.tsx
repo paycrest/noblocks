@@ -13,7 +13,7 @@ import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance 
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import WalletMigrationSuccessModal from "./WalletMigrationSuccessModal";
-import { type Address, encodeFunctionData, parseAbi, createPublicClient, http } from "viem";
+import { type Address, encodeFunctionData, parseAbi, createPublicClient, http, parseUnits } from "viem";
 import { toast } from "sonner";
 import { networks } from "../mocks";
 
@@ -223,8 +223,10 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         // ✅ Batch all token transfers into a single transaction for gasless execution
                         // This uses Privy's smart wallet batch capability with Biconomy paymaster
                         const calls = chainTokens.map((token) => {
-                            const amountInWei = BigInt(
-                                Math.floor(token.amount * Math.pow(10, token.decimals))
+                            // Use parseUnits for precise decimal handling (avoids floating-point precision loss)
+                            const amountInWei = parseUnits(
+                                token.amount.toString(),
+                                token.decimals
                             );
 
                             // ✅ Encode the transfer function call
@@ -270,8 +272,6 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         } else {
                             throw new Error(`Transaction failed for ${chainName}`);
                         }
-
-                        toast.success(`${chainName} migration complete!`);
 
                     } catch (chainError) {
                         const errorMsg = chainError instanceof Error ? chainError.message : 'Unknown error';

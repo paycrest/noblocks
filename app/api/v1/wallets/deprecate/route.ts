@@ -2,11 +2,45 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import { trackApiRequest, trackApiResponse, trackApiError } from "@/app/lib/server-analytics";
+import { verifyJWT } from "@/app/lib/jwt";
+import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
 
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
 
   try {
+    // Step 1: Verify authentication token
+    const authHeader = request.headers.get("Authorization");
+    const token = authHeader?.replace("Bearer ", "");
+
+    if (!token) {
+      trackApiError(request, "/api/v1/wallets/deprecate", "POST", new Error("Unauthorized"), 401);
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    let authenticatedUserId: string;
+    try {
+      const jwtResult = await verifyJWT(token, DEFAULT_PRIVY_CONFIG);
+      authenticatedUserId = jwtResult.payload.sub;
+
+      if (!authenticatedUserId) {
+        trackApiError(request, "/api/v1/wallets/deprecate", "POST", new Error("Invalid token"), 401);
+        return NextResponse.json(
+          { success: false, error: "Invalid token" },
+          { status: 401 }
+        );
+      }
+    } catch (jwtError) {
+      trackApiError(request, "/api/v1/wallets/deprecate", "POST", jwtError as Error, 401);
+      return NextResponse.json(
+        { success: false, error: "Invalid or expired token" },
+        { status: 401 }
+      );
+    }
+
     const walletAddress = request.headers.get("x-wallet-address")?.toLowerCase();
     const body = await request.json();
     const { oldAddress, newAddress, txHash, userId } = body;
@@ -19,13 +53,32 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
+    // Step 2: Verify userId matches authenticated user (CRITICAL SECURITY FIX)
+    if (userId !== authenticatedUserId) {
+      trackApiError(request, "/api/v1/wallets/deprecate", "POST", new Error("Unauthorized: userId mismatch"), 403);
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 403 }
+      );
+    }
+
+    // Step 3: Verify wallet addresses match
+    if (newAddress.toLowerCase() !== walletAddress) {
+      trackApiError(request, "/api/v1/wallets/deprecate", "POST", new Error("Wallet address mismatch"), 403);
+      return NextResponse.json(
+        { success: false, error: "Wallet address mismatch" },
+        { status: 403 }
+      );
+    }
+
     trackApiRequest(request, "/api/v1/wallets/deprecate", "POST", {
       wallet_address: walletAddress,
       old_address: oldAddress,
       new_address: newAddress,
     });
 
-    // 1. Mark old wallet as deprecated
+    // Step 4: Atomic database operations with rollback on failure
+    // Mark old wallet as deprecated
     const { error: deprecateError } = await supabaseAdmin
       .from("wallets")
       .update({
@@ -37,9 +90,12 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       .eq("address", oldAddress.toLowerCase())
       .eq("user_id", userId);
 
-    if (deprecateError) throw deprecateError;
+    if (deprecateError) {
+      trackApiError(request, "/api/v1/wallets/deprecate", "POST", deprecateError, 500);
+      throw deprecateError;
+    }
 
-    // 2. Create or update new EOA wallet record
+    // Create or update new EOA wallet record
     const { error: upsertError } = await supabaseAdmin
       .from("wallets")
       .upsert({
@@ -50,16 +106,47 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         created_at: new Date().toISOString(),
       });
 
-    if (upsertError) throw upsertError;
+    if (upsertError) {
+      // Rollback: Restore old wallet status
+      await supabaseAdmin
+        .from("wallets")
+        .update({
+          status: "active",
+          deprecated_at: null,
+          migration_completed: false,
+          migration_tx_hash: null,
+        })
+        .eq("address", oldAddress.toLowerCase())
+        .eq("user_id", userId);
 
-    // 3. Migrate KYC data
+      trackApiError(request, "/api/v1/wallets/deprecate", "POST", upsertError, 500);
+      throw upsertError;
+    }
+
+    // Migrate KYC data
     const { error: kycError } = await supabaseAdmin
       .from("kyc_data")
       .update({ wallet_address: newAddress.toLowerCase() })
       .eq("wallet_address", oldAddress.toLowerCase())
       .eq("user_id", userId);
 
-    if (kycError) console.error("KYC migration error:", kycError);
+    if (kycError) {
+      console.error("KYC migration error:", kycError);
+      // Return partial success - wallet migrated but KYC migration failed
+      // This is better than rolling back the entire migration
+      const responseTime = Date.now() - startTime;
+      trackApiResponse("/api/v1/wallets/deprecate", "POST", 200, responseTime, {
+        wallet_address: walletAddress,
+        migration_successful: true,
+        kyc_migration_failed: true,
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Wallet migrated but KYC migration failed",
+        kycMigrationFailed: true,
+      });
+    }
 
     const responseTime = Date.now() - startTime;
     trackApiResponse("/api/v1/wallets/deprecate", "POST", 200, responseTime, {

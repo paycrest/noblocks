@@ -161,11 +161,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
     // Filter fulfilled results, skip rejected (RPC failures)
     const successfulResults = results
-      .filter(
-        (result): result is PromiseFulfilledResult<CrossChainBalanceEntry> =>
-          result.status === "fulfilled",
-      )
-      .map((result) => result.value);
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => (result as PromiseFulfilledResult<CrossChainBalanceEntry>).value);
 
     setCrossChainBalances(successfulResults);
   };

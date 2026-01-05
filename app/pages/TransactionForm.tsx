@@ -118,7 +118,10 @@ export const TransactionForm = ({
     ? injectedWalletBalance
     : smartWalletBalance;
 
-  const balance = activeBalance?.balances[token] ?? 0;
+  // For CNGN, use raw balance instead of USD equivalent
+  const balance = (token === "CNGN" || token === "cNGN")
+    ? (activeBalance?.rawBalances?.[token] ?? activeBalance?.balances[token] ?? 0)
+    : (activeBalance?.balances[token] ?? 0);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 

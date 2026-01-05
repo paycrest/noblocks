@@ -1,12 +1,12 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import {
   classNames,
   formatCurrency,
   getNetworkImageUrl,
   shortenAddress,
 } from "../utils";
-import { useBalance } from "../context/BalanceContext";
+import { useBalance, type CrossChainBalanceEntry } from "../context";
 import { usePrivy } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import {
@@ -31,12 +31,16 @@ import {
 import { TransactionDetails } from "./transaction/TransactionDetails";
 import type { TransactionHistory } from "../types";
 import { PiCheck } from "react-icons/pi";
-import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
-import { useCNGNRate } from "../hooks/useCNGNRate";
+import { BalanceSkeleton, CrossChainBalanceSkeleton } from "./BalanceSkeleton";
+import { useCNGNRate, getCNGNRateForNetwork } from "../hooks/useCNGNRate";
 import { useActualTheme } from "../hooks/useActualTheme";
 import TransactionList from "./transaction/TransactionList";
 import { FundWalletForm, TransferForm } from "./index";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
+
+const Divider = () => (
+  <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
+);
 
 export const WalletDetails = () => {
   const [isTransferModalOpen, setIsTransferModalOpen] =
@@ -52,7 +56,8 @@ export const WalletDetails = () => {
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
   const { selectedNetwork } = useNetwork();
-  const { allBalances, isLoading, refreshBalance } = useBalance();
+  const { allBalances, crossChainBalances, crossChainTotal, isLoading, refreshBalance } =
+    useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user } = usePrivy();
   const isDark = useActualTheme();
@@ -79,6 +84,20 @@ export const WalletDetails = () => {
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
     : allBalances.smartWallet;
+
+  // Sort cross-chain balances: selected network first, then alphabetically
+  // Filter to show only networks with non-zero balances (except selected network)
+  const sortedCrossChainBalances = useMemo(() => {
+    if (!crossChainBalances.length) return [];
+
+    return [...crossChainBalances].sort((a, b) => {
+      // Selected network always comes first
+      if (a.network.chain.name === selectedNetwork.chain.name) return -1;
+      if (b.network.chain.name === selectedNetwork.chain.name) return 1;
+      // Alphabetical sort for other networks
+      return a.network.chain.name.localeCompare(b.network.chain.name);
+    });
+  }, [crossChainBalances, selectedNetwork]);
 
   // Handler for funding wallet with specified amount and token
   const handleFundWalletClick = async (
@@ -131,7 +150,7 @@ export const WalletDetails = () => {
           {isLoading ? (
             <BalanceSkeleton />
           ) : (
-            <p>{formatCurrency(activeBalance?.total ?? 0, "USD", "en-US")}</p>
+            <p>{formatCurrency(crossChainTotal, "USD", "en-US")}</p>
           )}
           <ArrowDown01Icon
             aria-label="Caret down"
@@ -228,10 +247,14 @@ export const WalletDetails = () => {
 
                       <div className="flex items-center justify-between">
                         <div className="text-2xl font-medium text-text-body dark:text-white">
-                          {formatCurrency(
-                            activeBalance?.total ?? 0,
-                            "USD",
-                            "en-US",
+                          {isLoading ? (
+                            <BalanceSkeleton className="w-24" />
+                          ) : (
+                            formatCurrency(
+                              crossChainTotal,
+                              "USD",
+                              "en-US",
+                            )
                           )}
                         </div>
                         <button
@@ -310,73 +333,112 @@ export const WalletDetails = () => {
                     <div className="scrollbar-hide mt-6 w-full flex-grow overflow-y-scroll">
                       <AnimatePresence mode="wait">
                         {activeTab === "balances" ? (
-                          // Balances tab content
+                          // Balances tab content with cross-chain grouping
                           <motion.div
                             key="balances"
                             variants={fadeInOut}
                             initial="initial"
                             animate="animate"
                             exit="exit"
-                            className="h-full space-y-4 overflow-y-auto pb-16"
+                            className="h-full space-y-6 overflow-y-auto pb-16"
                           >
                             {isLoading ? (
-                              <BalanceCardSkeleton />
+                              <CrossChainBalanceSkeleton />
                             ) : (
-                              Object.entries(activeBalance?.balances || {}).map(
-                                ([token, balance]) => (
+                              sortedCrossChainBalances.map((entry) => {
+                                const isSelectedNetwork =
+                                  entry.network.chain.name ===
+                                  selectedNetwork.chain.name;
+                                const balanceEntries = Object.entries(
+                                  entry.balances.balances || {},
+                                );
+
+                                // For selected network: show ALL balances (including zeros)
+                                // For other networks: only show non-zero balances
+                                const filteredBalances = isSelectedNetwork
+                                  ? balanceEntries
+                                  : balanceEntries.filter(
+                                      ([, balance]) => balance > 0,
+                                    );
+
+                                // Skip networks with no balances to show
+                                if (filteredBalances.length === 0) return null;
+
+                                return (
                                   <div
-                                    key={token}
-                                    className="flex items-center justify-between text-sm"
+                                    key={entry.network.chain.name}
+                                    className="space-y-3"
                                   >
-                                    <div className="flex items-center gap-3">
-                                      <div className="relative">
-                                        <Image
-                                          src={`/logos/${token.toLowerCase()}-logo.svg`}
-                                          alt={token}
-                                          width={32}
-                                          height={32}
-                                          className="size-8 rounded-full"
-                                          priority
-                                        />
-                                        <Image
-                                          src={getNetworkImageUrl(
-                                            selectedNetwork,
-                                            isDark,
-                                          )}
-                                          alt={selectedNetwork.chain.name}
-                                          width={16}
-                                          height={16}
-                                          className="absolute -bottom-1 -right-1 size-4 rounded-full"
-                                        />
-                                      </div>
-                                      <div className="flex flex-col">
-                                        <span className="text-text-body dark:text-white/80">
-                                          {token}
-                                        </span>
-                                        <span className="text-text-secondary dark:text-white/50">
-                                          {balance}
-                                        </span>
-                                      </div>
+                                    {/* Network header with divider */}
+                                    <div className="flex items-center justify-between gap-x-6">
+                                      <h3 className="whitespace-nowrap text-sm font-medium text-text-secondary dark:text-white/50">
+                                        {entry.network.chain.name}
+                                      </h3>
+                                      <Divider />
                                     </div>
-                                    <div className="flex flex-col items-end">
-                                      <span className="text-text-body dark:text-white/80">
-                                        {token.toUpperCase() === "CNGN" ? (
-                                          <span>
-                                            $
-                                            {(
-                                              (balance || 0) / (rate || 1)
-                                            ).toFixed(2)}
-                                          </span>
-                                        ) : (
-                                          <span>
-                                            ${(balance || 0).toFixed(2)}
-                                          </span>
-                                        )}
-                                      </span>
+
+                                    {/* Token balances for this network */}
+                                    <div className="space-y-4">
+                                      {filteredBalances.map(
+                                        ([token, balance]) => {
+                                          // For CNGN, use raw balance for token amount display
+                                          const displayBalance = (token === "CNGN" || token === "cNGN")
+                                            ? (entry.balances.rawBalances?.[token] ?? balance)
+                                            : balance;
+                                          const usdEquivalent = balance; // The 'balance' is the USD equivalent
+
+                                          return (
+                                          <div
+                                            key={`${entry.network.chain.name}-${token}`}
+                                            className="flex items-center justify-between text-sm"
+                                          >
+                                            <div className="flex items-center gap-3">
+                                              <div className="relative">
+                                                <Image
+                                                  src={`/logos/${token.toLowerCase()}-logo.svg`}
+                                                  alt={token}
+                                                  width={32}
+                                                  height={32}
+                                                  className="size-8 rounded-full"
+                                                  priority
+                                                />
+                                                <Image
+                                                  src={getNetworkImageUrl(
+                                                    entry.network,
+                                                    isDark,
+                                                  )}
+                                                  alt={entry.network.chain.name}
+                                                  width={16}
+                                                  height={16}
+                                                  className="absolute -bottom-1 -right-1 size-4 rounded-full"
+                                                />
+                                              </div>
+                                              <div className="flex flex-col">
+                                                <span className="text-text-body dark:text-white/80">
+                                                  {token}
+                                                </span>
+                                                <span className="text-text-secondary dark:text-white/50">
+                                                  {displayBalance}
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <div className="flex flex-col items-end">
+                                              <span className={`${
+                                                usdEquivalent === 0 && displayBalance > 0
+                                                  ? "text-red-500"
+                                                  : "text-text-body dark:text-white/80"
+                                              }`}>
+                                                ${usdEquivalent.toFixed(2)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        );
+                                      },
+                                      )}
                                     </div>
                                   </div>
-                                ),
-                              )
+                                );
+                              })
                             )}
                           </motion.div>
                         ) : (

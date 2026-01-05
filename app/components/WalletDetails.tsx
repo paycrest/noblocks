@@ -102,7 +102,7 @@ export const WalletDetails = () => {
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : selectedNetwork.chain.name === "Starknet Sepolia"
+    : selectedNetwork.chain.name === "Starknet"
       ? hookWalletAddress
         ? { address: hookWalletAddress }
         : undefined
@@ -114,7 +114,7 @@ export const WalletDetails = () => {
 
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
-    : selectedNetwork.chain.name === "Starknet Sepolia"
+    : selectedNetwork.chain.name === "Starknet"
       ? allBalances.starknetWallet
       : shouldUseEOA
         ? allBalances.externalWallet
@@ -306,7 +306,7 @@ export const WalletDetails = () => {
                         <div className="text-2xl font-medium text-text-body dark:text-white">
                           {isLoading ? (
                             <BalanceSkeleton className="w-24" />
-                          ) : selectedNetwork.chain.name === "Starknet Sepolia" ? (
+                          ) : selectedNetwork.chain.name === "Starknet" ? (
                             `$${(activeBalance?.total ?? 0).toFixed(2)}`
                           ) : (
                             formatCurrency(crossChainTotal, "USD", "en-US")

@@ -9,11 +9,11 @@ import {
   mainnet,
 } from "viem/chains";
 
-// Define Starknet Sepolia chain (not in viem by default)
-export const starknetSepolia = {
-  id: 11155111, // Starknet Sepolia chain ID (using unique identifier)
-  name: "Starknet Sepolia",
-  network: "starknet-sepolia",
+// Define Starknet Mainnet chain (not in viem by default)
+export const starknetMainnet = {
+  id: 23448594291968334, // Starknet Mainnet chain ID (SN_MAIN encoded)
+  name: "Starknet",
+  network: "starknet-mainnet",
   nativeCurrency: {
     decimals: 18,
     name: "Ether",
@@ -21,22 +21,16 @@ export const starknetSepolia = {
   },
   rpcUrls: {
     default: {
-      http: [
-        process.env.NEXT_PUBLIC_STARKNET_RPC_URL ||
-          "https://starknet-sepolia.public.blastapi.io",
-      ],
+      http: [process.env.NEXT_PUBLIC_STARKNET_RPC_URL || ""],
     },
     public: {
-      http: [
-        process.env.NEXT_PUBLIC_STARKNET_RPC_URL ||
-          "https://starknet-sepolia.public.blastapi.io",
-      ],
+      http: [process.env.NEXT_PUBLIC_STARKNET_RPC_URL || ""],
     },
   },
   blockExplorers: {
-    default: { name: "Voyager", url: "https://sepolia.voyager.online" },
+    default: { name: "Voyager", url: "https://voyager.online" },
   },
-  testnet: true,
+  testnet: false,
 };
 
 export const acceptedCurrencies = [
@@ -115,7 +109,7 @@ export const networks = [
     imageUrl: "/logos/scroll-logo.svg",
   },
   {
-    chain: starknetSepolia,
+    chain: starknetMainnet,
     imageUrl: "/logos/strk-logo.svg",
   },
   //   {
@@ -132,7 +126,7 @@ export const networks = [
 export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number>([
   celo.id,
   scroll.id,
-  starknetSepolia.id,
+  starknetMainnet.id,
 ]);
 
 /** Networks scanned and shown in the wallet migration modal (excludes Celo and Scroll). */

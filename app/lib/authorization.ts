@@ -1,71 +1,49 @@
-/**
- * Privy Wallet API authorization helpers
- * Based on: https://github.com/starknet-edu/starknet-privy-demo
- */
+import { getPrivyClient } from "./privy";
+import type { WalletApiRequestSignatureInput } from "@privy-io/server-auth";
+import { generateAuthorizationSignature } from "@privy-io/server-auth/wallet-api";
 
-import { createPrivateKey, createPublicKey, randomBytes, sign } from "crypto";
-import { type WalletApiRequestSignatureInput } from "@privy-io/server-auth";
+// In-memory cache of user authorization keys to avoid regenerating per request.
+// Keyed by userId; values include key and expiry.
+const userSignerCache = new Map<
+  string,
+  { authorizationKey: string; expiresAt: number }
+>();
 
-/**
- * Generate or retrieve a user-specific authorization key for Privy Wallet API
- * In production, you might want to cache this per user
- */
-export async function getUserAuthorizationKey(opts: {
+export async function getUserAuthorizationKey({
+  userJwt,
+  userId,
+}: {
   userJwt: string;
   userId?: string;
 }): Promise<string> {
-  // For simplicity, generate a new key pair
-  // In production, you'd want to store and reuse keys per user
-  const { privateKey } = generateKeyPair();
-  return privateKey;
+  const cacheKey = userId || "unknown";
+  const cached = userSignerCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now + 5_000) {
+    // 5s safety buffer
+    return cached.authorizationKey;
+  }
+  const privy = getPrivyClient();
+  const res = await privy.walletApi.generateUserSigner({
+    userJwt: userJwt,
+  });
+  const authKey = res.authorizationKey;
+  const expiresAt = new Date(res.expiresAt as unknown as string).getTime();
+  userSignerCache.set(cacheKey, { authorizationKey: authKey, expiresAt });
+  return authKey;
 }
 
-/**
- * Generate a new ECDSA P-256 key pair
- */
-function generateKeyPair(): { privateKey: string; publicKey: string } {
-  const { privateKey: privKey, publicKey: pubKey } = require("crypto").generateKeyPairSync(
-    "ec",
-    {
-      namedCurve: "prime256v1", // P-256
-      publicKeyEncoding: {
-        type: "spki",
-        format: "pem",
-      },
-      privateKeyEncoding: {
-        type: "pkcs8",
-        format: "pem",
-      },
-    }
-  );
-
-  return {
-    privateKey: privKey,
-    publicKey: pubKey,
-  };
-}
-
-/**
- * Build authorization signature for Privy Wallet API request
- */
-export function buildAuthorizationSignature(opts: {
+export function buildAuthorizationSignature({
+  input,
+  authorizationKey,
+}: {
   input: WalletApiRequestSignatureInput;
   authorizationKey: string;
 }): string {
-  const { input, authorizationKey } = opts;
-
-  // Build the signature payload
-  const payload = JSON.stringify({
-    version: input.version,
-    method: input.method,
-    url: input.url,
-    body: input.body,
-    headers: input.headers,
+  const signature = generateAuthorizationSignature({
+    input,
+    authorizationPrivateKey: authorizationKey,
   });
 
-  // Sign with the authorization key
-  const privateKeyObj = createPrivateKey(authorizationKey);
-  const signature = sign("sha256", Buffer.from(payload), privateKeyObj);
-
-  return signature.toString("base64");
+  return signature ?? "";
 }

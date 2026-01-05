@@ -55,7 +55,7 @@ export const Navbar = () => {
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress, type: "injected_wallet" as const }
-    : selectedNetwork.chain.name === "Starknet Sepolia"
+    : selectedNetwork.chain.name === "Starknet"
       ? walletAddress
         ? { address: walletAddress, type: "smart_wallet" as const }
         : undefined

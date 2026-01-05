@@ -18,8 +18,8 @@ export function useWalletAddress(): string | undefined {
     return injectedAddress ?? undefined;
   }
 
-  // If on Starknet Sepolia, return Starknet wallet address
-  if (selectedNetwork?.chain?.name === "Starknet Sepolia") {
+  // If on Starknet, return Starknet wallet address
+  if (selectedNetwork?.chain?.name === "Starknet") {
     return starknetAddress ?? undefined;
   }
 

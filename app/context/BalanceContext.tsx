@@ -168,8 +168,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   const applicableNetworks = networks;
   const evmBalanceNetworks = applicableNetworks.filter(
-    (n) =>
-      n.chain.name !== "Starknet Sepolia" && n.chain.name !== "Starknet",
+    (n) => n.chain.name !== "Starknet",
   );
 
   /**
@@ -252,14 +251,13 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     if (user && !isInjectedWallet && wallets.length === 0) return;
 
     try {
-      // Resolve CNGN rate once so all branches use the same value
       const resolvedCngnRate =
         cngnRate ?? (await getCNGNRateForNetwork(selectedNetwork.chain.name));
 
-      if (selectedNetwork.chain.name === "Starknet Sepolia") {
+      if (selectedNetwork.chain.name === "Starknet") {
         if (starknetAddress) {
           try {
-            const tokens = await getNetworkTokens("Starknet Sepolia");
+            const tokens = await getNetworkTokens("Starknet");
             const result = await fetchStarknetBalance(starknetAddress, tokens);
 
             setStarknetWalletBalance(result);

@@ -259,6 +259,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://blockscout.lisk.com/tx/${txHash}`;
     case "Ethereum":
       return `https://etherscan.io/tx/${txHash}`;
+    case "Starknet":
+      return `https://voyager.online/tx/${txHash}`;
     default:
       return "";
   }
@@ -284,6 +286,8 @@ export function getRpcUrl(network: string) {
       return `https://api-lisk-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Ethereum":
       return `https://api-ethereum-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
+    case "Starknet":
+      return process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
     default:
       return undefined;
   }
@@ -516,7 +520,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/cngn-logo.svg",
     },
   ],
-  "Starknet Sepolia": [
+  "Starknet": [
     {
       name: "Starknet",
       symbol: "STRK",
@@ -603,16 +607,13 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
             tokens["Base"].push(usdtBase);
           }
         }
-
-        if (FALLBACK_TOKENS["Starknet Sepolia"]) {
-          tokens["Starknet Sepolia"] = FALLBACK_TOKENS["Starknet Sepolia"];
+        if (FALLBACK_TOKENS["Starknet"]) {
+          tokens["Starknet"] = FALLBACK_TOKENS["Starknet"];
         }
 
         // Merge fallback tokens for any networks missing from API response
         Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
-          // Skip Starknet Sepolia since we already handled it above
-          if (networkName === "Starknet Sepolia") return;
-          
+          if (networkName === "Starknet") return;
           if (!tokens[networkName] || tokens[networkName].length === 0) {
             tokens[networkName] = FALLBACK_TOKENS[networkName];
           }
@@ -689,8 +690,7 @@ export async function fetchStarknetBalance(
   try {
     const { RpcProvider } = await import("starknet");
     const rpcUrl =
-      process.env.NEXT_PUBLIC_STARKNET_RPC_URL ||
-      "https://starknet-sepolia.public.blastapi.io";
+      process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
     const provider = new RpcProvider({ nodeUrl: rpcUrl });
 
     let totalBalance = 0;
@@ -972,6 +972,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
     Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
     Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5",
+    Starknet: "0x06ff3a3b1532da65594fc98f9ca7200af6c3dbaf37e7339b0ebd3b3f2390c583",
   }[network];
 }
 
@@ -1141,8 +1142,8 @@ export const handleNetworkSwitch = async (
   onError: (error: Error) => void,
   ensureWalletExists?: () => Promise<void>,
 ) => {
-  // If switching to Starknet Sepolia, ensure wallet exists first
-  if (network.chain.name === "Starknet Sepolia" && ensureWalletExists) {
+  // If switching to Starknet, ensure wallet exists first
+  if (network.chain.name === "Starknet" && ensureWalletExists) {
     try {
       await ensureWalletExists();
     } catch (error) {

@@ -157,7 +157,7 @@ export const TransactionForm = ({
   // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
   const activeBalance = isInjectedWallet
     ? injectedWalletBalance
-    : selectedNetwork.chain.name === "Starknet Sepolia"
+    : selectedNetwork.chain.name === "Starknet"
       ? starknetWalletBalance
       : shouldUseEOA
         ? externalWalletBalance

@@ -78,7 +78,7 @@ export const WalletDetails = () => {
   // Get appropriate balance based on wallet type
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
-    : selectedNetwork.chain.name === "Starknet Sepolia"
+    : selectedNetwork.chain.name === "Starknet"
       ? allBalances.starknetWallet
       : allBalances.smartWallet;
 
@@ -230,8 +230,8 @@ export const WalletDetails = () => {
 
                       <div className="flex items-center justify-between">
                         <div className="text-2xl font-medium text-text-body dark:text-white">
-                          {selectedNetwork.chain.name === "Starknet Sepolia"
-                            ? // For Starknet testnet, show token amount directly
+                          {selectedNetwork.chain.name === "Starknet"
+                            ? // For Starknet, show token amount directly
                               `$${(activeBalance?.total ?? 0).toFixed(2)}`
                             : // For mainnet chains, show USD value
                               formatCurrency(

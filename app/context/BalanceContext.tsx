@@ -77,11 +77,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     setIsLoading(true);
 
     try {
-      // Handle Starknet Sepolia network separately
-      if (selectedNetwork.chain.name === "Starknet Sepolia") {
+      // Handle Starknet network separately
+      if (selectedNetwork.chain.name === "Starknet") {
         if (starknetAddress) {
           try {
-            const tokens = await getNetworkTokens("Starknet Sepolia");
+            const tokens = await getNetworkTokens("Starknet");
             const result = await fetchStarknetBalance(starknetAddress, tokens);
 
             setStarknetWalletBalance(result);

@@ -13,18 +13,15 @@ import {
   RpcProvider,
   PaymasterRpc,
   num,
-  type SignerInterface,
-  type Signature,
+  typedData,
 } from "starknet";
+import type { SignerInterface, Signature } from "starknet";
 import { getPrivyClient } from "./privy";
-import { 
-  buildAuthorizationSignature,
-  getUserAuthorizationKey 
-} from "./authorization";
-import { type WalletApiRequestSignatureInput } from "@privy-io/server-auth";
+import { buildAuthorizationSignature, getUserAuthorizationKey } from "./authorization";
+import { WalletApiRequestSignatureInput } from "@privy-io/server-auth";
 
 /**
- * Custom signer base class (matches demo's RawSigner)
+ * Custom signer base class (matches Privy demo's RawSigner)
  */
 class RawSigner implements SignerInterface {
   async getPubKey(): Promise<string> {
@@ -51,6 +48,7 @@ class RawSigner implements SignerInterface {
     throw new Error("signRaw not implemented - override in subclass");
   }
 }
+
 
 /**
  * Build Ready account constructor calldata
@@ -99,29 +97,32 @@ export async function getStarknetWallet(walletId: string, providedPublicKey?: st
 }
 
 /**
- * Sign a message hash using Privy's raw_sign API
+ * Sign a message hash using Privy's rawSign API for Starknet
+ * Reference: https://docs.privy.io/recipes/use-tier-2#starknet
  */
+
+
 export async function rawSign(
   walletId: string,
   messageHash: string,
   opts: { userJwt: string; userId?: string; origin?: string }
-): Promise<string> {
-  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  if (!appId) throw new Error("Missing NEXT_PUBLIC_PRIVY_APP_ID");
-  
+) {
+  const appId = process.env.PRIVY_APP_ID;
+  if (!appId) throw new Error("Missing PRIVY_APP_ID");
   const appSecret = process.env.PRIVY_APP_SECRET;
   if (!appSecret) throw new Error("Missing PRIVY_APP_SECRET");
   
+  // Use the documented Wallet API path
   const url = `https://api.privy.io/v1/wallets/${walletId}/raw_sign`;
   const body = { params: { hash: messageHash } };
-  
-  // Generate user-specific authorization key
+
+  // Generate or fetch a user-specific authorization key
   const authorizationKey = await getUserAuthorizationKey({
     userJwt: opts.userJwt,
     userId: opts.userId,
   });
 
-  // Build signature for this request
+  // Build signature for this request per Privy docs
   const sigInput: WalletApiRequestSignatureInput = {
     version: 1,
     method: "POST",
@@ -131,7 +132,6 @@ export async function rawSign(
       "privy-app-id": appId,
     },
   };
-  
   const signature = buildAuthorizationSignature({
     input: sigInput,
     authorizationKey,
@@ -141,33 +141,38 @@ export async function rawSign(
     "privy-app-id": appId,
     "privy-authorization-signature": signature,
     "Content-Type": "application/json",
-    "Authorization": `Basic ${Buffer.from(`${appId}:${appSecret}`).toString("base64")}`,
   };
-  
+  // App authentication for Wallet API
+  headers["Authorization"] = `Basic ${Buffer.from(
+    `${appId}:${appSecret}`
+  ).toString("base64")}`;
+
   if (opts.origin) headers["Origin"] = opts.origin;
-  
   const resp = await fetch(url, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
   });
-  
+
   const text = await resp.text();
   let data: any;
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(`Failed to parse Privy response: ${text}`);
+    throw new Error(`Invalid JSON response: ${text}`);
   }
-  
-  if (!resp.ok) {
-    throw new Error(data?.message || data?.error || `Privy raw_sign failed: ${resp.status}`);
-  }
-  
-  const sig = data?.data?.signature;
-  if (!sig) throw new Error("No signature in Privy response");
-  
-  return sig;
+
+  if (!resp.ok)
+    throw new Error(data?.error || data?.message || `HTTP ${resp.status}`);
+  const sig: string | undefined =
+    data?.signature ||
+    data?.result?.signature ||
+    data?.data?.signature ||
+    data?.result?.data?.signature ||
+    (typeof data === "string" ? data : undefined);
+  if (!sig || typeof sig !== "string")
+    throw new Error("No signature returned from Privy");
+  return sig.startsWith("0x") ? sig : `0x${sig}`;
 }
 
 /**
@@ -204,6 +209,36 @@ export async function buildReadyAccount({
     provider,
     address,
     signer: new (class extends RawSigner {
+      async signMessage(typedDataInput: any, accountAddress: string): Promise<Signature> {
+        // For paymaster, we need to sign the typed data message
+        // Use Starknet's typed data hashing
+        const messageHash = typedData.getMessageHash(typedDataInput, accountAddress);
+        
+        const sig = await rawSign(walletId, messageHash, {
+          userJwt,
+          userId,
+          origin,
+        });
+        const body = sig.slice(2);
+        return [`0x${body.slice(0, 64)}`, `0x${body.slice(64)}`];
+      }
+      
+      async signTransaction(transactions: any[], transactionsDetail: any): Promise<Signature> {
+        // Get the transaction hash from transactionsDetail
+        const messageHash = transactionsDetail.transactionHash || transactionsDetail.hash;
+        if (!messageHash) {
+          throw new Error("No transaction hash found in transaction details");
+        }
+        
+        const sig = await rawSign(walletId, messageHash, {
+          userJwt,
+          userId,
+          origin,
+        });
+        const body = sig.slice(2);
+        return [`0x${body.slice(0, 64)}`, `0x${body.slice(64)}`];
+      }
+      
       async signRaw(messageHash: string): Promise<[string, string]> {
         const sig = await rawSign(walletId, messageHash, {
           userJwt,

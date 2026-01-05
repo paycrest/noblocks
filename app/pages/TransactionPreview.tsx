@@ -37,6 +37,7 @@ import {
   http,
 } from "viem";
 import { useBalance, useInjectedWallet, useStep } from "../context";
+import { useStarknet } from "../context/StarknetContext";
 
 import { fetchAggregatorPublicKey, saveTransaction } from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics/client";
@@ -62,12 +63,22 @@ export const TransactionPreview = ({
   const { client } = useSmartWallets();
   const { isInjectedWallet, injectedAddress, injectedProvider, injectedReady } =
     useInjectedWallet();
+  const {
+    walletId,
+    address: starknetAddress,
+    publicKey,
+    deployed,
+  } = useStarknet();
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();
   const { currentStep, setCurrentStep } = useStep();
-  const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
-    useBalance();
+  const {
+    refreshBalance,
+    smartWalletBalance,
+    injectedWalletBalance,
+    allBalances,
+  } = useBalance();
 
   const {
     rate,
@@ -128,7 +139,9 @@ export const TransactionPreview = ({
 
   const balance = injectedWallet
     ? injectedWalletBalance?.balances[token] || 0
-    : smartWalletBalance?.balances[token] || 0;
+    : selectedNetwork.chain.name === "Starknet"
+      ? allBalances.starknetWallet?.balances[token] || 0
+      : smartWalletBalance?.balances[token] || 0;
 
   // Calculate sender fee for display and balance check
   const {
@@ -172,8 +185,6 @@ export const TransactionPreview = ({
     const publicKey = await fetchAggregatorPublicKey();
     const encryptedRecipient = publicKeyEncrypt(recipient, publicKey.data);
 
-    // Use the fee values calculated earlier (already in base units and capped)
-
     // Prepare transaction parameters
     const params = {
       token: tokenAddress,
@@ -181,15 +192,101 @@ export const TransactionPreview = ({
       rate: BigInt(Math.round(rate * 100)),
       senderFeeRecipient: getAddress(senderFeeRecipientAddress),
       senderFee: senderFeeInTokenUnits,
-      refundAddress: activeWallet?.address as `0x${string}`,
+      refundAddress: starknetAddress as `0x${string}`,
       messageHash: encryptedRecipient,
     };
-
     return params;
   };
 
   const createOrder = async () => {
     try {
+      // Check if on Starknet and not using injected wallet
+      if (selectedNetwork.chain.name === "Starknet" && !isInjectedWallet) {
+        if (!walletId || !publicKey || !starknetAddress) {
+          toast.error(
+            "Starknet wallet not found. Please create a wallet first.",
+          );
+          return;
+        }
+
+        if (!deployed) {
+          toast.error(
+            "Starknet wallet not deployed. Please deploy your wallet first.",
+          );
+          return;
+        }
+
+        const params = await prepareCreateOrderParams();
+        setCreatedAt(new Date().toISOString());
+
+        const classHash = process.env.NEXT_PUBLIC_STARKNET_READY_CLASSHASH;
+
+        const token = await getAccessToken();
+        if (!token) {
+          throw new Error("Failed to get access token");
+        }
+
+        toast.loading("Approving tokens and creating order on Starknet...");
+
+        // Execute the transaction using Starknet paymaster via API
+        const response = await fetch("/api/starknet/create-order", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            walletId,
+            publicKey,
+            classHash,
+            userId: user?.id,
+            origin: window.location.origin,
+            tokenAddress: tokenAddress,
+            gatewayAddress: getGatewayContractAddress(
+              selectedNetwork.chain.name,
+            ) as string,
+            amount: params.amount.toString(),
+            rate: params.rate.toString(),
+            senderFeeRecipient: params.senderFeeRecipient as string,
+            senderFee: params.senderFee.toString(),
+            refundAddress: params.refundAddress ?? "",
+            messageHash: params.messageHash,
+          }),
+        });
+
+        toast.dismiss();
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to create order");
+        }
+
+        const result = await response.json();
+        const orderId = result.orderId;
+
+        setOrderId(orderId);
+
+        await saveTransactionData({
+          orderId: orderId,
+          txHash: result.transactionHash,
+        });
+
+        setCreatedAt(new Date().toISOString());
+        setTransactionStatus("pending");
+        setCurrentStep("status");
+
+        toast.success("Order created successfully");
+
+        refreshBalance();
+        setIsOrderCreated(true);
+
+        trackEvent("Swap started", {
+          "Entry point": "Transaction preview",
+          "Wallet type": "Starknet embedded wallet",
+          "Transaction hash": result.transaction_hash,
+        });
+      }
+
       if (isInjectedWallet && injectedProvider) {
         // Injected wallet
         if (!injectedReady) {
@@ -388,7 +485,8 @@ export const TransactionPreview = ({
     orderId: string;
     txHash: `0x${string}`;
   }) => {
-    if (!embeddedWallet?.address || isSavingTransaction) return;
+    if (!embeddedWallet?.address || !starknetAddress || isSavingTransaction)
+      return;
     setIsSavingTransaction(true);
 
     try {

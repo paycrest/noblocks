@@ -155,7 +155,6 @@ export const WalletView: React.FC<WalletViewProps> = ({
                       const isCNGN = token === "CNGN" || token === "cNGN";
                       const rawBalance =
                         entry.balances.rawBalances?.[token] ?? balance;
-                      const usdEquivalent = balance; // The 'balance' is already the USD equivalent
 
                       return (
                         <div
@@ -183,17 +182,6 @@ export const WalletView: React.FC<WalletViewProps> = ({
                               <span className="font-medium dark:text-white/80">
                                 {isCNGN ? rawBalance : balance} {token}
                               </span>
-                              {isCNGN && (
-                                <span
-                                  className={`text-xs ${
-                                    usdEquivalent === 0 && rawBalance > 0
-                                      ? "text-red-500"
-                                      : "text-text-secondary dark:text-white/50"
-                                  }`}
-                                >
-                                  ${usdEquivalent.toFixed(2)}
-                                </span>
-                              )}
                             </div>
                           </div>
                         </div>

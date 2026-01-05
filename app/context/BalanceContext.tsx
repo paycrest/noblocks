@@ -34,6 +34,46 @@ export interface CrossChainBalanceEntry {
   balances: WalletBalances;
 }
 
+/**
+ * Applies CNGN balance conversion logic to corrected balances
+ * @param correctedBalances - The balance object to modify
+ * @param cngnRate - The current CNGN rate (can be null for fallback handling)
+ */
+function applyCNGNBalanceConversion(
+  correctedBalances: Record<string, number>,
+  cngnRate: number | null
+): void {
+  const cngnBalance = correctedBalances["CNGN"] || correctedBalances["cNGN"];
+
+  if (
+    typeof cngnBalance === "number" &&
+    !isNaN(cngnBalance) &&
+    cngnBalance > 0 &&
+    cngnRate &&
+    cngnRate > 0
+  ) {
+    // Convert CNGN to USD equivalent
+    const usdEquivalent = cngnBalance / cngnRate;
+    if (correctedBalances["CNGN"]) {
+      correctedBalances["CNGN"] = usdEquivalent;
+    } else if (correctedBalances["cNGN"]) {
+      correctedBalances["cNGN"] = usdEquivalent;
+    }
+  } else if (
+    typeof cngnBalance === "number" &&
+    !isNaN(cngnBalance) &&
+    cngnBalance > 0 &&
+    (!cngnRate || cngnRate <= 0)
+  ) {
+    // No rate available - set CNGN balance to 0 so it doesn't contribute to total
+    if (correctedBalances["CNGN"]) {
+      correctedBalances["CNGN"] = 0;
+    } else if (correctedBalances["cNGN"]) {
+      correctedBalances["cNGN"] = 0;
+    }
+  }
+}
+
 interface BalanceContextProps {
   smartWalletBalance: WalletBalances | null;
   externalWalletBalance: WalletBalances | null;
@@ -103,34 +143,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         // Create corrected balances object with CNGN properly valued
         const correctedBalances = { ...rawResult.balances };
 
-        // If there's CNGN in this network, convert it to USD equivalent
-        const cngnBalance = correctedBalances["CNGN"] || correctedBalances["cNGN"];
-        if (
-          typeof cngnBalance === "number" &&
-          !isNaN(cngnBalance) &&
-          cngnBalance > 0 &&
-          cngnRate &&
-          cngnRate > 0
-        ) {
-          const usdEquivalent = cngnBalance / cngnRate;
-          if (correctedBalances["CNGN"]) {
-            correctedBalances["CNGN"] = usdEquivalent;
-          } else if (correctedBalances["cNGN"]) {
-            correctedBalances["cNGN"] = usdEquivalent;
-          }
-        } else if (
-          typeof cngnBalance === "number" &&
-          !isNaN(cngnBalance) &&
-          cngnBalance > 0 &&
-          (!cngnRate || cngnRate <= 0)
-        ) {
-          // No rate available - set CNGN balance to 0 so it doesn't contribute to total
-          if (correctedBalances["CNGN"]) {
-            correctedBalances["CNGN"] = 0;
-          } else if (correctedBalances["cNGN"]) {
-            correctedBalances["cNGN"] = 0;
-          }
-        }
+        // Apply CNGN balance conversion
+        applyCNGNBalanceConversion(correctedBalances, cngnRate);
 
         const correctedResult = {
           total: correctedTotal,
@@ -203,33 +217,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           );
           // Create corrected balances object with CNGN properly valued
           const correctedBalances = { ...result.balances };
-          const cngnBalance = correctedBalances["CNGN"] || correctedBalances["cNGN"];
-          if (
-            typeof cngnBalance === "number" &&
-            !isNaN(cngnBalance) &&
-            cngnBalance > 0 &&
-            cngnRate &&
-            cngnRate > 0
-          ) {
-            const usdEquivalent = cngnBalance / cngnRate;
-            if (correctedBalances["CNGN"]) {
-              correctedBalances["CNGN"] = usdEquivalent;
-            } else if (correctedBalances["cNGN"]) {
-              correctedBalances["cNGN"] = usdEquivalent;
-            }
-          } else if (
-            typeof cngnBalance === "number" &&
-            !isNaN(cngnBalance) &&
-            cngnBalance > 0 &&
-            (!cngnRate || cngnRate <= 0)
-          ) {
-            // No rate available - set CNGN balance to 0 so it doesn't contribute to total
-            if (correctedBalances["CNGN"]) {
-              correctedBalances["CNGN"] = 0;
-            } else if (correctedBalances["cNGN"]) {
-              correctedBalances["cNGN"] = 0;
-            }
-          }
+          applyCNGNBalanceConversion(correctedBalances, cngnRate);
 
           setSmartWalletBalance({
             total: correctedTotal,
@@ -259,33 +247,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           );
           // Create corrected balances object with CNGN properly valued
           const correctedBalances = { ...result.balances };
-          const cngnBalance = correctedBalances["CNGN"] || correctedBalances["cNGN"];
-          if (
-            typeof cngnBalance === "number" &&
-            !isNaN(cngnBalance) &&
-            cngnBalance > 0 &&
-            cngnRate &&
-            cngnRate > 0
-          ) {
-            const usdEquivalent = cngnBalance / cngnRate;
-            if (correctedBalances["CNGN"]) {
-              correctedBalances["CNGN"] = usdEquivalent;
-            } else if (correctedBalances["cNGN"]) {
-              correctedBalances["cNGN"] = usdEquivalent;
-            }
-          } else if (
-            typeof cngnBalance === "number" &&
-            !isNaN(cngnBalance) &&
-            cngnBalance > 0 &&
-            (!cngnRate || cngnRate <= 0)
-          ) {
-            // No rate available - set CNGN balance to 0 so it doesn't contribute to total
-            if (correctedBalances["CNGN"]) {
-              correctedBalances["CNGN"] = 0;
-            } else if (correctedBalances["cNGN"]) {
-              correctedBalances["cNGN"] = 0;
-            }
-          }
+          applyCNGNBalanceConversion(correctedBalances, cngnRate);
 
           setExternalWalletBalance({
             total: correctedTotal,
@@ -324,33 +286,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           );
           // Create corrected balances object with CNGN properly valued
           const correctedBalances = { ...result.balances };
-          const cngnBalance = correctedBalances["CNGN"] || correctedBalances["cNGN"];
-          if (
-            typeof cngnBalance === "number" &&
-            !isNaN(cngnBalance) &&
-            cngnBalance > 0 &&
-            cngnRate &&
-            cngnRate > 0
-          ) {
-            const usdEquivalent = cngnBalance / cngnRate;
-            if (correctedBalances["CNGN"]) {
-              correctedBalances["CNGN"] = usdEquivalent;
-            } else if (correctedBalances["cNGN"]) {
-              correctedBalances["cNGN"] = usdEquivalent;
-            }
-          } else if (
-            typeof cngnBalance === "number" &&
-            !isNaN(cngnBalance) &&
-            cngnBalance > 0 &&
-            (!cngnRate || cngnRate <= 0)
-          ) {
-            // No rate available - set CNGN balance to 0 so it doesn't contribute to total
-            if (correctedBalances["CNGN"]) {
-              correctedBalances["CNGN"] = 0;
-            } else if (correctedBalances["cNGN"]) {
-              correctedBalances["cNGN"] = 0;
-            }
-          }
+          applyCNGNBalanceConversion(correctedBalances, cngnRate);
 
           setInjectedWalletBalance({
             total: correctedTotal,

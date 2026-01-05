@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyJWT } from "@/app/lib/jwt";
 import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
 import { buildReadyAccount, getStarknetWallet, setupPaymaster } from "@/app/lib/starknet";
-import { cairo, CallData, byteArray, num } from "starknet";
-import { hash } from "crypto";
+import { cairo, CallData, byteArray } from "starknet";
 
 
 export async function POST(request: NextRequest) {

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getServerMixpanelToken } from "./server-config";
+import { captureException } from "./sentry";
 
 // Check if we're on the server
 const isServer = typeof window === "undefined";
@@ -287,6 +288,33 @@ export const trackApiError = (
     user_agent: userAgent,
     ip_address: ip,
     request_id: crypto?.randomUUID() || "unknown",
+  });
+
+  // Track to Sentry
+  captureException(error, {
+    level: "error",
+    tags: {
+      errorType: "apiError",
+      endpoint,
+      method,
+      statusCode: String(statusCode),
+    },
+    extra: {
+      ...sanitizeProperties(properties),
+      status_code: statusCode,
+      error_message: error.message,
+    },
+    request: {
+      url: endpoint,
+      method,
+      headers: Object.fromEntries(request.headers.entries()),
+      query_string: request.nextUrl.search,
+    },
+    user: {
+      ip_address: ip !== "unknown" ? ip : undefined,
+    },
+  }).catch(() => {
+    // Silently fail - don't break the app if Sentry fails
   });
 };
 

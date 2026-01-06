@@ -117,6 +117,7 @@ export type RatePayload = {
   currency: string;
   providerId?: string;
   network?: string;
+  signal?: AbortSignal;
 };
 
 export type RateResponse = {
@@ -262,11 +263,11 @@ export type Config = {
 export type Network = {
   chain: any;
   imageUrl:
-  | string
-  | {
-    light: string;
-    dark: string;
-  };
+    | string
+    | {
+        light: string;
+        dark: string;
+      };
 };
 
 export interface TransactionResponse {

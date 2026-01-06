@@ -32,7 +32,7 @@ import { TransactionDetails } from "./transaction/TransactionDetails";
 import type { TransactionHistory } from "../types";
 import { PiCheck } from "react-icons/pi";
 import { BalanceSkeleton, CrossChainBalanceSkeleton } from "./BalanceSkeleton";
-import { useCNGNRate, getCNGNRateForNetwork } from "../hooks/useCNGNRate";
+import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useActualTheme } from "../hooks/useActualTheme";
 import TransactionList from "./transaction/TransactionList";
 import { FundWalletForm, TransferForm } from "./index";
@@ -56,8 +56,13 @@ export const WalletDetails = () => {
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
   const { selectedNetwork } = useNetwork();
-  const { allBalances, crossChainBalances, crossChainTotal, isLoading, refreshBalance } =
-    useBalance();
+  const {
+    allBalances,
+    crossChainBalances,
+    crossChainTotal,
+    isLoading,
+    refreshBalance,
+  } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user } = usePrivy();
   const isDark = useActualTheme();
@@ -250,11 +255,7 @@ export const WalletDetails = () => {
                           {isLoading ? (
                             <BalanceSkeleton className="w-24" />
                           ) : (
-                            formatCurrency(
-                              crossChainTotal,
-                              "USD",
-                              "en-US",
-                            )
+                            formatCurrency(crossChainTotal, "USD", "en-US")
                           )}
                         </div>
                         <button
@@ -382,58 +383,66 @@ export const WalletDetails = () => {
                                       {filteredBalances.map(
                                         ([token, balance]) => {
                                           // For CNGN, use raw balance for token amount display
-                                          const displayBalance = (token === "CNGN" || token === "cNGN")
-                                            ? (entry.balances.rawBalances?.[token] ?? balance)
-                                            : balance;
+                                          const displayBalance =
+                                            token === "CNGN" || token === "cNGN"
+                                              ? (entry.balances.rawBalances?.[
+                                                  token
+                                                ] ?? balance)
+                                              : balance;
                                           const usdEquivalent = balance; // The 'balance' is the USD equivalent
 
                                           return (
-                                          <div
-                                            key={`${entry.network.chain.name}-${token}`}
-                                            className="flex items-center justify-between text-sm"
-                                          >
-                                            <div className="flex items-center gap-3">
-                                              <div className="relative">
-                                                <Image
-                                                  src={`/logos/${token.toLowerCase()}-logo.svg`}
-                                                  alt={token}
-                                                  width={32}
-                                                  height={32}
-                                                  className="size-8 rounded-full"
-                                                  priority
-                                                />
-                                                <Image
-                                                  src={getNetworkImageUrl(
-                                                    entry.network,
-                                                    isDark,
-                                                  )}
-                                                  alt={entry.network.chain.name}
-                                                  width={16}
-                                                  height={16}
-                                                  className="absolute -bottom-1 -right-1 size-4 rounded-full"
-                                                />
+                                            <div
+                                              key={`${entry.network.chain.name}-${token}`}
+                                              className="flex items-center justify-between text-sm"
+                                            >
+                                              <div className="flex items-center gap-3">
+                                                <div className="relative">
+                                                  <Image
+                                                    src={`/logos/${token.toLowerCase()}-logo.svg`}
+                                                    alt={token}
+                                                    width={32}
+                                                    height={32}
+                                                    className="size-8 rounded-full"
+                                                    priority
+                                                  />
+                                                  <Image
+                                                    src={getNetworkImageUrl(
+                                                      entry.network,
+                                                      isDark,
+                                                    )}
+                                                    alt={
+                                                      entry.network.chain.name
+                                                    }
+                                                    width={16}
+                                                    height={16}
+                                                    className="absolute -bottom-1 -right-1 size-4 rounded-full"
+                                                  />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                  <span className="text-text-body dark:text-white/80">
+                                                    {token}
+                                                  </span>
+                                                  <span className="text-text-secondary dark:text-white/50">
+                                                    {displayBalance}
+                                                  </span>
+                                                </div>
                                               </div>
-                                              <div className="flex flex-col">
-                                                <span className="text-text-body dark:text-white/80">
-                                                  {token}
-                                                </span>
-                                                <span className="text-text-secondary dark:text-white/50">
-                                                  {displayBalance}
+                                              <div className="flex flex-col items-end">
+                                                <span
+                                                  className={`${
+                                                    usdEquivalent === 0 &&
+                                                    displayBalance > 0
+                                                      ? "text-red-500"
+                                                      : "text-text-body dark:text-white/80"
+                                                  }`}
+                                                >
+                                                  ${usdEquivalent.toFixed(2)}
                                                 </span>
                                               </div>
                                             </div>
-                                            <div className="flex flex-col items-end">
-                                              <span className={`${
-                                                usdEquivalent === 0 && displayBalance > 0
-                                                  ? "text-red-500"
-                                                  : "text-text-body dark:text-white/80"
-                                              }`}>
-                                                ${usdEquivalent.toFixed(2)}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        );
-                                      },
+                                          );
+                                        },
                                       )}
                                     </div>
                                   </div>

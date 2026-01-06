@@ -290,6 +290,19 @@ export const trackApiError = (
     request_id: crypto?.randomUUID() || "unknown",
   });
 
+  // Filter out sensitive headers before sending to Sentry
+  const sensitiveHeaders = [
+    "authorization",
+    "cookie",
+    "x-api-key",
+    "x-auth-token",
+  ];
+  const safeHeaders = Object.fromEntries(
+    Array.from(request.headers.entries()).filter(
+      ([key]) => !sensitiveHeaders.includes(key.toLowerCase())
+    )
+  );
+
   // Track to Sentry
   captureException(error, {
     level: "error",
@@ -307,7 +320,7 @@ export const trackApiError = (
     request: {
       url: endpoint,
       method,
-      headers: Object.fromEntries(request.headers.entries()),
+      headers: safeHeaders,
       query_string: request.nextUrl.search,
     },
     user: {

@@ -89,7 +89,7 @@ export const sentryConfig = {
   serverUrl: dsnParts?.serverUrl || sentryUrl,
   projectId: dsnParts?.projectId,
   publicKey: dsnParts?.publicKey,
-  enabled: true,
+  enabled: Boolean(dsnParts?.projectId && dsnParts?.publicKey),
   sampleRate: 1.0,
   environment: process.env.NODE_ENV || "development",
   release: "2.0.0",

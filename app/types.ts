@@ -274,6 +274,9 @@ export interface SentryEvent {
   level?: "fatal" | "error" | "warning" | "info" | "debug";
   tags?: Record<string, string>;
   extra?: Record<string, any>;
+  user?: {
+    ip_address?: string;
+  };
   request?: {
     url?: string;
     method?: string;

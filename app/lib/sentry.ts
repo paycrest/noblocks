@@ -50,6 +50,9 @@ function createEvent(
         level?: "fatal" | "error" | "warning" | "info" | "debug";
         tags?: Record<string, string>;
         extra?: Record<string, any>;
+        user?: {
+            ip_address?: string;
+        };
         request?: {
             url?: string;
             method?: string;
@@ -71,6 +74,7 @@ function createEvent(
         release: config.release,
         platform: "javascript",
         sdk: { name: "sentry-api", version: "1.0.0" },
+        user: context.user,
         tags: {
             ...context.tags,
             source: typeof window === "undefined" ? "server" : "client",

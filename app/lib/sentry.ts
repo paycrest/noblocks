@@ -15,8 +15,9 @@ function parseStackTrace(error: Error) {
         colno?: number;
         in_app?: boolean;
     }> = [];
+
     error.stack.split("\n").forEach((line) => {
-        // Try pattern with function name first (V8 format: "at functionName (file:line:col)")
+        // Try pattern with function name first
         let match = line.match(/at\s+(.+?)\s+\((.+?):(\d+):(\d+)\)/);
         if (match) {
             frames.push({
@@ -27,7 +28,7 @@ function parseStackTrace(error: Error) {
                 in_app: true,
             });
         } else {
-            // Try pattern without function name (V8 format: "at file:line:col")
+            // Try pattern without function name
             match = line.match(/at\s+(.+?):(\d+):(\d+)/);
             if (match) {
                 frames.push({
@@ -37,18 +38,6 @@ function parseStackTrace(error: Error) {
                     colno: parseInt(match[3], 10) || undefined,
                     in_app: true,
                 });
-            } else {
-                // Try Firefox/Safari format: "functionName@file:line:col" or "@file:line:col"
-                match = line.match(/(.+?)@(.+?):(\d+):(\d+)/) || line.match(/@(.+?):(\d+):(\d+)/);
-                if (match) {
-                    frames.push({
-                        function: match[1] || undefined,
-                        filename: match[2] || match[1],
-                        lineno: parseInt(match[3] || match[2], 10) || undefined,
-                        colno: parseInt(match[4] || match[3], 10) || undefined,
-                        in_app: true,
-                    });
-                }
             }
         }
     });

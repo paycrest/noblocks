@@ -1,8 +1,9 @@
+import { toHex } from "viem";
 import { arbitrum, base, bsc, polygon, lisk, celo, mainnet } from "viem/chains";
 
 // Define Starknet Mainnet chain (not in viem by default)
 export const starknetMainnet = {
-  id: 23448594291968334, // Starknet Mainnet chain ID (SN_MAIN encoded)
+  id: BigInt(toHex('SN_MAIN')).toString(), // Starknet Mainnet chain ID (SN_MAIN encoded)
   name: "Starknet",
   network: "starknet-mainnet",
   nativeCurrency: {

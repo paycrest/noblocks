@@ -29,9 +29,6 @@ export async function POST(request: NextRequest) {
 
     // Get request body
     const body = await request.json();
-    
-    console.log("[API] Received body:", JSON.stringify(body, null, 2));
-    
     const {
       walletId,
       publicKey,
@@ -76,8 +73,6 @@ export async function POST(request: NextRequest) {
     // Use origin from client or header
     const origin = clientOrigin || request.headers.get("origin") || undefined;
 
-    console.log("[API] Creating Starknet order...");
-
     const { publicKey: walletPublicKey } = await getStarknetWallet(walletId);
 
     // Setup paymaster if configured
@@ -115,14 +110,9 @@ export async function POST(request: NextRequest) {
       paymasterRpc
     });
 
-    console.log(`[API] Account address: ${address}`);
-
     // Convert amounts to u256 (following the working script pattern)
     const amountU256 = cairo.uint256(BigInt(amount));
     const senderFeeU256 = cairo.uint256(BigInt(senderFee));
-
-    // Use a plain test string for message hash (for testing)
-    const testMessageString = 'test-message-' + Date.now();
     
     // Encode message hash as Cairo ByteArray
     const messageHashByteArray = byteArray.byteArrayFromString(messageHash);
@@ -130,20 +120,6 @@ export async function POST(request: NextRequest) {
     // Calculate total amount (amount + senderFee)
     const totalAmount = BigInt(amount) + BigInt(senderFee);
     const totalAmountU256 = cairo.uint256(totalAmount);
-
-    console.log(`[API] Creating order with params:`, {
-      token: tokenAddress,
-      amount: `${amount} (low: ${amountU256.low}, high: ${amountU256.high})`,
-      rate,
-      senderFeeRecipient,
-      senderFee: `${senderFee} (low: ${senderFeeU256.low}, high: ${senderFeeU256.high})`,
-      totalAmount: `${totalAmount} (low: ${totalAmountU256.low}, high: ${totalAmountU256.high})`,
-      refundAddress,
-      messageHash: messageHash,
-      messageHashByteArray: messageHashByteArray
-    });
-
-    console.log("[API] Preparing multicall: approve + create_order...");
 
     // Prepare calls using manual call structure (more reliable than populate)
     const calls = [
@@ -172,8 +148,6 @@ export async function POST(request: NextRequest) {
       }
     ];
 
-    console.log("[API] Executing transaction with paymaster...");
-
     // Prepare paymaster details
     const paymasterDetails: any = isSponsored
       ? { feeMode: { mode: "sponsored" as const } }
@@ -192,7 +166,6 @@ export async function POST(request: NextRequest) {
           return (bi * BigInt(3) + BigInt(1)) / BigInt(2); // ceil(1.5x)
         };
         maxFee = withMargin15(est.suggested_max_fee_in_gas_token);
-        console.log(`[API] Estimated max fee: ${maxFee}`);
       } catch (error: any) {
         console.error("[API] Fee estimation failed:", error.message);
         return NextResponse.json(
@@ -218,23 +191,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`[API] Transaction submitted: ${result.transaction_hash}`);
     let orderId;
 
     // Wait for transaction confirmation
     const wait = true;
     if (wait) {
       try {
-        console.log("[API] Waiting for transaction confirmation...");
         const txReceipt = await account.waitForTransaction(result.transaction_hash);
-        console.log("[API] Transaction confirmed!");
         if (txReceipt.isSuccess()) {
           const rawEvents = txReceipt.value.events;
           rawEvents.forEach((event) => {
             if (Object.values(event.keys).includes("0x3427759bfd3b941f14e687e129519da3c9b0046c5b9aaa290bb1dede63753b3")) {
               orderId = event.data[2];
-              console.log("[API] Order ID:", orderId);
-              console.log("[API] OrderCreatedEvent:", event);
             }
           });
         }
@@ -249,7 +217,7 @@ export async function POST(request: NextRequest) {
       address,
       transactionHash: result.transaction_hash,
       mode: isSponsored ? "sponsored" : "default",
-      messageHash: testMessageString,
+      messageHash,
       orderId
     });
   } catch (error: any) {

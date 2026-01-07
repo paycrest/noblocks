@@ -11,6 +11,7 @@ interface UseSwapButtonProps {
   isUserVerified: boolean;
   rate?: number | null;
   tokenDecimals?: number;
+  isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
 }
 
 export function useSwapButton({
@@ -21,10 +22,11 @@ export function useSwapButton({
   isUserVerified,
   rate,
   tokenDecimals = 18,
+  isSwapped = false,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
-  const { amountSent, currency, recipientName } = watch();
+  const { amountSent, currency, recipientName, walletAddress } = watch();
 
   const isAmountValid = Number(amountSent) >= 0.5;
   const isCurrencySelected = Boolean(currency);
@@ -37,7 +39,11 @@ export function useSwapButton({
   );
   const totalRequired = (Number(amountSent) || 0) + senderFeeAmount;
 
-  const hasInsufficientBalance = totalRequired > balance;
+  // Skip balance check in onramp mode (isSwapped = true)
+  const hasInsufficientBalance = isSwapped ? false : totalRequired > balance;
+
+  // Check recipient based on mode: walletAddress for onramp, recipientName for offramp
+  const hasRecipient = isSwapped ? Boolean(walletAddress) : Boolean(recipientName);
 
   const isEnabled = (() => {
     if (!rate) return false;
@@ -64,7 +70,7 @@ export function useSwapButton({
       if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
         return false;
       }
-      return Boolean(recipientName);
+      return hasRecipient;
     }
 
     if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
@@ -75,7 +81,7 @@ export function useSwapButton({
       return true; // Enable for login if amount and currency are valid
     }
 
-    return Boolean(recipientName); // Additional check for authenticated users
+    return hasRecipient; // Check walletAddress for onramp, recipientName for offramp
   })();
 
   const buttonText = (() => {

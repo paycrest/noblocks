@@ -7,6 +7,7 @@ import {
   trackApiError,
   trackBusinessEvent,
 } from "@/app/lib/server-analytics";
+import { isValidEvmAddressCaseInsensitive } from "@/app/lib/validation";
 import type {
   RecipientDetailsWithId,
   SavedRecipientsResponse,
@@ -42,20 +43,33 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       wallet_address: walletAddress,
     });
 
-    const { data: recipients, error } = await supabaseAdmin
+    // Fetch bank/mobile_money recipients
+    const { data: bankRecipients, error: bankError } = await supabaseAdmin
       .from("saved_recipients")
       .select("*")
       .eq("normalized_wallet_address", walletAddress)
       .order("created_at", { ascending: false });
 
-    if (error) {
-      console.error("Supabase query error:", error);
-      throw error;
+    if (bankError) {
+      console.error("Supabase query error:", bankError);
+      throw bankError;
     }
 
-    // Transform database format to frontend format
-    const transformedRecipients: RecipientDetailsWithId[] =
-      recipients?.map((recipient) => ({
+    // Fetch wallet recipients
+    const { data: walletRecipients, error: walletError } = await supabaseAdmin
+      .from("saved_wallet_recipients")
+      .select("*")
+      .eq("normalized_wallet_address", walletAddress)
+      .order("created_at", { ascending: false });
+
+    if (walletError) {
+      console.error("Supabase query error:", walletError);
+      throw walletError;
+    }
+
+    // Transform bank/mobile_money recipients
+    const transformedBankRecipients: RecipientDetailsWithId[] =
+      bankRecipients?.map((recipient) => ({
         id: recipient.id,
         name: recipient.name,
         institution: recipient.institution,
@@ -63,6 +77,21 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         accountIdentifier: recipient.account_identifier,
         type: recipient.type,
       })) || [];
+
+    // Transform wallet recipients
+    const transformedWalletRecipients: RecipientDetailsWithId[] =
+      walletRecipients?.map((recipient) => ({
+        id: recipient.id,
+        type: "wallet" as const,
+        walletAddress: recipient.recipient_wallet_address,
+        name: recipient.name || "",
+      })) || [];
+
+    // Combine both types of recipients
+    const transformedRecipients: RecipientDetailsWithId[] = [
+      ...transformedBankRecipients,
+      ...transformedWalletRecipients,
+    ];
 
     const response: SavedRecipientsResponse = {
       success: true,
@@ -124,9 +153,146 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     });
 
     const body = await request.json();
-    const { name, institution, institutionCode, accountIdentifier, type } =
+    const { name, institution, institutionCode, accountIdentifier, type, walletAddress: walletAddressFromBody } =
       body;
 
+    // Handle wallet recipients (onramp)
+    if (type === "wallet") {
+      if (!walletAddressFromBody) {
+        trackApiError(
+          request,
+          "/api/v1/recipients",
+          "POST",
+          new Error("Missing required field: walletAddress"),
+          400,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Missing required field: walletAddress",
+          },
+          { status: 400 },
+        );
+      }
+
+      // Validate wallet address format
+      if (!isValidEvmAddressCaseInsensitive(walletAddressFromBody.trim())) {
+        trackApiError(
+          request,
+          "/api/v1/recipients",
+          "POST",
+          new Error("Invalid wallet address format"),
+          400,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Invalid wallet address format",
+          },
+          { status: 400 },
+        );
+      }
+
+      // Check recipient count limit (100 max per wallet)
+      const { count: recipientCount, error: countError } = await supabaseAdmin
+        .from("saved_wallet_recipients")
+        .select("*", { count: "exact", head: true })
+        .eq("normalized_wallet_address", walletAddress);
+
+      if (countError) {
+        console.error("Error checking recipient count:", countError);
+        throw countError;
+      }
+
+      // If at limit, remove the oldest recipient before adding new one
+      if (recipientCount && recipientCount >= 100) {
+        const { data: oldestRecipient } = await supabaseAdmin
+          .from("saved_wallet_recipients")
+          .select("id")
+          .eq("normalized_wallet_address", walletAddress)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .single();
+
+        if (oldestRecipient) {
+          await supabaseAdmin
+            .from("saved_wallet_recipients")
+            .delete()
+            .eq("id", oldestRecipient.id);
+        }
+      }
+
+      // Validate name for wallet recipients
+      if (!name || !name.trim()) {
+        trackApiError(
+          request,
+          "/api/v1/recipients",
+          "POST",
+          new Error("Missing required field: name"),
+          400,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Missing required field: name",
+          },
+          { status: 400 },
+        );
+      }
+
+      // Insert wallet recipient into saved_wallet_recipients table
+      const { data, error } = await supabaseAdmin
+        .from("saved_wallet_recipients")
+        .upsert(
+          {
+            wallet_address: walletAddress,
+            normalized_wallet_address: walletAddress,
+            recipient_wallet_address: walletAddressFromBody.trim(),
+            normalized_recipient_wallet_address: walletAddressFromBody.toLowerCase().trim(),
+            name: name.trim(),
+          },
+          {
+            onConflict: "normalized_wallet_address,normalized_recipient_wallet_address",
+          },
+        )
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Supabase insert error:", error);
+        throw error;
+      }
+
+      // Transform to frontend format
+      const transformedRecipient: RecipientDetailsWithId = {
+        id: data.id,
+        type: "wallet",
+        walletAddress: data.recipient_wallet_address,
+        name: data.name,
+      };
+
+      const response: SaveRecipientResponse = {
+        success: true,
+        data: transformedRecipient,
+      };
+
+      // Track successful API response
+      const responseTime = Date.now() - startTime;
+      trackApiResponse("/api/v1/recipients", "POST", 200, responseTime, {
+        wallet_address: walletAddress,
+        type: "wallet",
+      });
+
+      // Track business event
+      trackBusinessEvent("Recipient Saved", {
+        wallet_address: walletAddress,
+        type: "wallet",
+      });
+
+      return NextResponse.json(response, { status: 201 });
+    }
+
+    // Handle bank/mobile_money recipients (offramp)
     // Validate request body
     if (
       !name ||
@@ -315,16 +481,44 @@ export const DELETE = withRateLimit(async (request: NextRequest) => {
       recipient_id: recipientId,
     });
 
-    // Delete the recipient (RLS policies ensure only owner can delete)
-    const { error: deleteError } = await supabaseAdmin
-      .from("saved_recipients")
-      .delete()
+    // Check which table the recipient is in by trying to find it first
+    const { data: walletRecipient, error: walletQueryError } = await supabaseAdmin
+      .from("saved_wallet_recipients")
+      .select("id")
       .eq("id", recipientId)
-      .eq("normalized_wallet_address", walletAddress);
+      .eq("normalized_wallet_address", walletAddress)
+      .maybeSingle();
 
-    if (deleteError) {
-      console.error("Error deleting recipient:", deleteError);
-      throw deleteError;
+    // Handle query errors (except "no rows found" which is expected)
+    if (walletQueryError && walletQueryError.code !== "PGRST116") {
+      console.error("Error querying wallet recipient:", walletQueryError);
+      throw walletQueryError;
+    }
+
+    if (walletRecipient) {
+      // Delete from saved_wallet_recipients
+      const { error: walletDeleteError } = await supabaseAdmin
+        .from("saved_wallet_recipients")
+        .delete()
+        .eq("id", recipientId)
+        .eq("normalized_wallet_address", walletAddress);
+
+      if (walletDeleteError) {
+        console.error("Error deleting wallet recipient:", walletDeleteError);
+        throw walletDeleteError;
+      }
+    } else {
+      // Delete from saved_recipients (bank/mobile_money)
+      const { error: bankDeleteError } = await supabaseAdmin
+        .from("saved_recipients")
+        .delete()
+        .eq("id", recipientId)
+        .eq("normalized_wallet_address", walletAddress);
+
+      if (bankDeleteError) {
+        console.error("Error deleting recipient:", bankDeleteError);
+        throw bankDeleteError;
+      }
     }
 
     const response = {

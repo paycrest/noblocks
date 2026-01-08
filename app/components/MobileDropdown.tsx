@@ -1,7 +1,7 @@
 "use client";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
@@ -39,7 +39,8 @@ export const MobileDropdown = ({
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, linkEmail, updateEmail } = usePrivy();
-  const { allBalances, isLoading, refreshBalance } = useBalance();
+  const { allBalances, crossChainBalances, isLoading, refreshBalance } =
+    useBalance();
   const { allTokens } = useTokens();
   const { logout } = useLogout({
     onSuccess: () => {
@@ -100,6 +101,19 @@ export const MobileDropdown = ({
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
     : allBalances.smartWallet;
+
+  // Sort cross-chain balances: selected network first, then alphabetically
+  const sortedCrossChainBalances = useMemo(() => {
+    if (!crossChainBalances.length) return [];
+
+    return [...crossChainBalances].sort((a, b) => {
+      // Selected network always comes first
+      if (a.network.chain.name === selectedNetwork.chain.name) return -1;
+      if (b.network.chain.name === selectedNetwork.chain.name) return 1;
+      // Alphabetical sort for other networks
+      return a.network.chain.name.localeCompare(b.network.chain.name);
+    });
+  }, [crossChainBalances, selectedNetwork]);
 
   const handleNetworkSwitchWrapper = (network: Network) => {
     if (currentStep !== STEPS.FORM) {
@@ -217,6 +231,7 @@ export const MobileDropdown = ({
                               detectWalletProvider={detectWalletProvider}
                               isLoading={isLoading}
                               activeBalance={activeBalance}
+                              crossChainBalances={sortedCrossChainBalances}
                               getTokenImageUrl={getTokenImageUrl}
                               onTransfer={() => setCurrentView("transfer")}
                               onFund={() => setCurrentView("fund")}

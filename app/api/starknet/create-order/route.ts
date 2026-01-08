@@ -3,13 +3,15 @@ import { verifyJWT } from "@/app/lib/jwt";
 import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
 import {
   buildReadyAccount,
+  deployReadyAccount,
+  getRpcProvider,
   getStarknetWallet,
   setupPaymaster,
 } from "@/app/lib/starknet";
 import { cairo, CallData, byteArray } from "starknet";
-import { useStarknet } from "@/app/context";
 
 export async function POST(request: NextRequest) {
+  let isDeployed = false;
   try {
     // Extract and verify JWT token
     const authHeader = request.headers.get("authorization");
@@ -46,16 +48,19 @@ export async function POST(request: NextRequest) {
       refundAddress,
       messageHash,
       origin: clientOrigin,
+      address: WalletAddress,
     } = body;
+
+    const provider = getRpcProvider();
+    try {
+      await provider.getClassHashAt(WalletAddress);
+      isDeployed = true;
+    } catch {
+      isDeployed = false;
+    }
 
     // Validate required fields
     if (!walletId || !publicKey || !tokenAddress || !gatewayAddress) {
-      console.log("[API] Missing required fields:", {
-        walletId,
-        publicKey,
-        tokenAddress,
-        gatewayAddress,
-      });
       return NextResponse.json(
         {
           error: "Missing required fields",
@@ -78,14 +83,6 @@ export async function POST(request: NextRequest) {
       !refundAddress ||
       !messageHash
     ) {
-      console.log("[API] Missing transaction parameters:", {
-        amount,
-        rate,
-        senderFeeRecipient,
-        senderFee,
-        refundAddress,
-        messageHash,
-      });
       return NextResponse.json(
         {
           error: "Missing transaction parameters",
@@ -219,11 +216,23 @@ export async function POST(request: NextRequest) {
     // Execute transaction with paymaster
     let result;
     try {
-      result = await account.executePaymasterTransaction(
-        calls,
-        paymasterDetails,
-        maxFee,
-      );
+      if (!isDeployed) {
+        result = await deployReadyAccount({
+          walletId,
+          publicKey,
+          classHash,
+          userJwt: token,
+          userId: authUserId,
+          origin,
+          calls,
+        });
+      } else {
+        result = await account.executePaymasterTransaction(
+          calls,
+          paymasterDetails,
+          maxFee,
+        );
+      }
     } catch (error: any) {
       console.error("[API] Error executing transaction:", error);
       return NextResponse.json(

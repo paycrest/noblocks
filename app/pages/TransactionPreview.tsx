@@ -358,14 +358,6 @@ export const TransactionPreview = ({
           return;
         }
 
-        if (!deployed) {
-          try {
-            await deployWallet();
-          } catch (error: any) {
-            console.error("[API] Wallet deployment failed:", error.message);
-          }
-        }
-
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
@@ -376,7 +368,7 @@ export const TransactionPreview = ({
           throw new Error("Failed to get access token");
         }
 
-        toast.loading("Approving tokens and creating order on Starknet...");
+        toast.loading("Creating order...");
 
         // Execute the transaction using Starknet paymaster via API
         const response = await fetch("/api/starknet/create-order", {
@@ -401,6 +393,7 @@ export const TransactionPreview = ({
             senderFee: params.senderFee.toString(),
             refundAddress: params.refundAddress ?? "",
             messageHash: params.messageHash,
+            address: starknetAddress,
           }),
         });
 

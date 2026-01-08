@@ -172,6 +172,7 @@ export function useSmartWalletTransfer({
               tokenAddress,
               amount: amountInWei,
               recipientAddress,
+              address: starknetWallet.address,
             }),
           });
           const data = (await response.json()) as { error?: string; transactionHash?: string };

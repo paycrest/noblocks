@@ -15,13 +15,11 @@ interface StarknetWalletState {
   publicKey: string | null;
   deployed: boolean;
   isCreating: boolean;
-  isDeploying: boolean;
   error: string | null;
 }
 
 interface StarknetContextType extends StarknetWalletState {
   createWallet: () => Promise<void>;
-  deployWallet: () => Promise<void>;
   resetError: () => void;
   refreshWalletState: () => Promise<void>;
   ensureWalletExists: () => Promise<void>; // Auto-create wallet if needed
@@ -41,7 +39,6 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [deployed, setDeployed] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [isDeploying, setIsDeploying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Check for Starknet wallet in user's linked accounts
@@ -208,52 +205,6 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const deployWallet = async (walletIdToUse?: string) => {
-    const targetWalletId = walletIdToUse || walletId;
-
-    if (!authenticated || !targetWalletId) {
-      setError("No wallet to deploy");
-      throw new Error("No wallet to deploy");
-    }
-
-    try {
-      setError(null);
-      setIsDeploying(true);
-
-      const token = await getAccessToken();
-      const response = await fetch("/api/starknet/deploy-wallet", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          walletId: targetWalletId,
-          publicKey: publicKey, // Pass the public key we derived earlier
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to deploy Starknet wallet");
-      }
-
-      setDeployed(true);
-      setAddress(data.address);
-
-      saveToLocalStorage({
-        deployed: true,
-        address: data.address,
-      });
-    } catch (err: any) {
-      setError(err.message || "Failed to deploy Starknet wallet");
-      throw err;
-    } finally {
-      setIsDeploying(false);
-    }
-  };
-
   const refreshWalletState = async () => {
     if (!authenticated || !user?.id) return;
 
@@ -284,7 +235,7 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
 
   /**
    * Ensures a Starknet wallet exists for the user
-   * Auto-creates and deploys if needed (silent operation)
+   * Auto-creates if needed (silent operation)
    */
   const ensureWalletExists = async () => {
     // If wallet already exists and is deployed, do nothing
@@ -292,8 +243,8 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // If already creating or deploying, do nothing
-    if (isCreating || isDeploying) {
+    // If already creating, do nothing
+    if (isCreating) {
       return;
     }
 
@@ -302,7 +253,7 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
 
       let currentWalletId = walletId;
 
-      // Step 1: Create wallet if not exists
+      // Create wallet if not exists
       if (!currentWalletId) {
         const createToastId = toast.loading("Creating Starknet wallet...");
         try {
@@ -315,23 +266,8 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
           throw error;
         }
       }
-
-      // // Step 2: Deploy wallet if not deployed
-      // if (!deployed && currentWalletId) {
-      //   const deployToastId = toast.loading("Deploying Starknet wallet...");
-      //   try {
-      //     await deployWallet(currentWalletId);
-      //     toast.success("Starknet wallet deployed!", { id: deployToastId });
-      //   } catch (error) {
-      //     toast.error("Failed to deploy Starknet wallet", {
-      //       id: deployToastId,
-      //     });
-      //     throw error;
-      //   }
-      // }
     } catch (err) {
       console.error("Failed to ensure Starknet wallet exists:", err);
-      // Don't throw - fail silently for better UX
     }
   };
 
@@ -342,10 +278,6 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
     await createWallet();
   };
 
-  const deployWalletWrapper = async () => {
-    await deployWallet();
-  };
-
   return (
     <StarknetContext.Provider
       value={{
@@ -354,10 +286,8 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
         publicKey,
         deployed,
         isCreating,
-        isDeploying,
         error,
         createWallet: createWalletWrapper,
-        deployWallet: deployWalletWrapper,
         resetError,
         refreshWalletState,
         ensureWalletExists,

@@ -17,7 +17,10 @@ import {
 } from "starknet";
 import type { SignerInterface, Signature } from "starknet";
 import { getPrivyClient } from "./privy";
-import { buildAuthorizationSignature, getUserAuthorizationKey } from "./authorization";
+import {
+  buildAuthorizationSignature,
+  getUserAuthorizationKey,
+} from "./authorization";
 import { WalletApiRequestSignatureInput } from "@privy-io/server-auth";
 
 /**
@@ -28,11 +31,17 @@ class RawSigner implements SignerInterface {
     throw new Error("getPubKey not implemented");
   }
 
-  async signMessage(_typedData: any, _accountAddress: string): Promise<Signature> {
+  async signMessage(
+    _typedData: any,
+    _accountAddress: string,
+  ): Promise<Signature> {
     throw new Error("signMessage not implemented");
   }
 
-  async signTransaction(_transactions: any[], _transactionsDetail: any): Promise<Signature> {
+  async signTransaction(
+    _transactions: any[],
+    _transactionsDetail: any,
+  ): Promise<Signature> {
     throw new Error("signTransaction not implemented");
   }
 
@@ -49,7 +58,6 @@ class RawSigner implements SignerInterface {
   }
 }
 
-
 /**
  * Build Ready account constructor calldata
  */
@@ -62,36 +70,43 @@ function buildReadyConstructor(publicKey: string) {
 /**
  * Compute the Ready account address for a given public key
  */
-export function computeReadyAddress(publicKey: string, classHash: string): string {
+export function computeReadyAddress(
+  publicKey: string,
+  classHash: string,
+): string {
   const calldata = buildReadyConstructor(publicKey);
   return hash.calculateContractAddressFromHash(
     publicKey,
     classHash,
     calldata,
-    0
+    0,
   );
 }
 
 /**
  * Get Starknet wallet details from Privy
  */
-export async function getStarknetWallet(walletId: string, providedPublicKey?: string) {
+export async function getStarknetWallet(
+  walletId: string,
+  providedPublicKey?: string,
+) {
   if (!walletId) throw new Error("walletId is required");
-  
+
   const privy = getPrivyClient();
   const wallet: any = await privy.walletApi.getWallet({ id: walletId });
-  
+
   const chainType = wallet?.chainType || wallet?.chain_type;
   if (!wallet || !chainType || chainType !== "starknet") {
     throw new Error("Provided wallet is not a Starknet wallet");
   }
-  
-  let publicKey: string | undefined = providedPublicKey || wallet.public_key || wallet.publicKey || wallet.pubkey;
-  
+
+  let publicKey: string | undefined =
+    providedPublicKey || wallet.public_key || wallet.publicKey || wallet.pubkey;
+
   if (!publicKey) {
     throw new Error("Wallet missing Starknet public key");
   }
-  
+
   const address: string | undefined = wallet.address;
   return { publicKey, address, chainType, wallet };
 }
@@ -101,17 +116,16 @@ export async function getStarknetWallet(walletId: string, providedPublicKey?: st
  * Reference: https://docs.privy.io/recipes/use-tier-2#starknet
  */
 
-
 export async function rawSign(
   walletId: string,
   messageHash: string,
-  opts: { userJwt: string; userId?: string; origin?: string }
+  opts: { userJwt: string; userId?: string; origin?: string },
 ) {
   const appId = process.env.PRIVY_APP_ID;
   if (!appId) throw new Error("Missing PRIVY_APP_ID");
   const appSecret = process.env.PRIVY_APP_SECRET;
   if (!appSecret) throw new Error("Missing PRIVY_APP_SECRET");
-  
+
   // Use the documented Wallet API path
   const url = `https://api.privy.io/v1/wallets/${walletId}/raw_sign`;
   const body = { params: { hash: messageHash } };
@@ -144,7 +158,7 @@ export async function rawSign(
   };
   // App authentication for Wallet API
   headers["Authorization"] = `Basic ${Buffer.from(
-    `${appId}:${appSecret}`
+    `${appId}:${appSecret}`,
   ).toString("base64")}`;
 
   if (opts.origin) headers["Origin"] = opts.origin;
@@ -196,24 +210,30 @@ export async function buildReadyAccount({
   paymasterRpc?: PaymasterRpc | null;
 }): Promise<{ account: Account; address: string }> {
   const provider = getRpcProvider();
-  
+
   const constructorCalldata = buildReadyConstructor(publicKey);
   const address = hash.calculateContractAddressFromHash(
     publicKey,
     classHash,
     constructorCalldata,
-    0
+    0,
   );
-  
+
   const account = new Account({
     provider,
     address,
     signer: new (class extends RawSigner {
-      async signMessage(typedDataInput: any, accountAddress: string): Promise<Signature> {
+      async signMessage(
+        typedDataInput: any,
+        accountAddress: string,
+      ): Promise<Signature> {
         // For paymaster, we need to sign the typed data message
         // Use Starknet's typed data hashing
-        const messageHash = typedData.getMessageHash(typedDataInput, accountAddress);
-        
+        const messageHash = typedData.getMessageHash(
+          typedDataInput,
+          accountAddress,
+        );
+
         const sig = await rawSign(walletId, messageHash, {
           userJwt,
           userId,
@@ -222,14 +242,18 @@ export async function buildReadyAccount({
         const body = sig.slice(2);
         return [`0x${body.slice(0, 64)}`, `0x${body.slice(64)}`];
       }
-      
-      async signTransaction(transactions: any[], transactionsDetail: any): Promise<Signature> {
+
+      async signTransaction(
+        transactions: any[],
+        transactionsDetail: any,
+      ): Promise<Signature> {
         // Get the transaction hash from transactionsDetail
-        const messageHash = transactionsDetail.transactionHash || transactionsDetail.hash;
+        const messageHash =
+          transactionsDetail.transactionHash || transactionsDetail.hash;
         if (!messageHash) {
           throw new Error("No transaction hash found in transaction details");
         }
-        
+
         const sig = await rawSign(walletId, messageHash, {
           userJwt,
           userId,
@@ -238,7 +262,7 @@ export async function buildReadyAccount({
         const body = sig.slice(2);
         return [`0x${body.slice(0, 64)}`, `0x${body.slice(64)}`];
       }
-      
+
       async signRaw(messageHash: string): Promise<[string, string]> {
         const sig = await rawSign(walletId, messageHash, {
           userJwt,
@@ -251,7 +275,7 @@ export async function buildReadyAccount({
     })(),
     ...(paymasterRpc ? { paymaster: paymasterRpc } : {}),
   });
-  
+
   return { account, address };
 }
 
@@ -259,7 +283,9 @@ export async function buildReadyAccount({
  * Get RPC provider
  */
 export function getRpcProvider() {
-  const rpcUrl = process.env.NEXT_PUBLIC_STARKNET_RPC_URL || "https://starknet-sepolia.public.blastapi.io";
+  const rpcUrl =
+    process.env.NEXT_PUBLIC_STARKNET_RPC_URL ||
+    "https://starknet-sepolia.public.blastapi.io";
   return new RpcProvider({ nodeUrl: rpcUrl });
 }
 
@@ -280,7 +306,9 @@ export async function setupPaymaster(): Promise<{
   const isSponsored = paymasterMode.toLowerCase() === "sponsored";
 
   if (isSponsored && !process.env.STARKNET_PAYMASTER_API_KEY) {
-    throw new Error("STARKNET_PAYMASTER_API_KEY is required when PAYMASTER_MODE is 'sponsored'");
+    throw new Error(
+      "STARKNET_PAYMASTER_API_KEY is required when PAYMASTER_MODE is 'sponsored'",
+    );
   }
 
   const headers: Record<string, string> = {};
@@ -302,9 +330,12 @@ export async function setupPaymaster(): Promise<{
   let gasToken: string | undefined;
   if (!isSponsored) {
     const supported = await paymasterRpc.getSupportedTokens();
-    gasToken = process.env.STARKNET_GAS_TOKEN_ADDRESS || supported[0]?.token_address;
+    gasToken =
+      process.env.STARKNET_GAS_TOKEN_ADDRESS || supported[0]?.token_address;
     if (!gasToken) {
-      throw new Error("No supported gas tokens available (and STARKNET_GAS_TOKEN_ADDRESS not set)");
+      throw new Error(
+        "No supported gas tokens available (and STARKNET_GAS_TOKEN_ADDRESS not set)",
+      );
     }
   }
 
@@ -322,6 +353,7 @@ export async function deployReadyAccount({
   userJwt,
   userId,
   origin,
+  calls,
 }: {
   walletId: string;
   publicKey: string;
@@ -329,6 +361,7 @@ export async function deployReadyAccount({
   userJwt: string;
   userId?: string;
   origin?: string;
+  calls: any[];
 }): Promise<{ transaction_hash: string }> {
   const provider = getRpcProvider();
   const { paymasterRpc, isSponsored, gasToken } = await setupPaymaster();
@@ -338,13 +371,12 @@ export async function deployReadyAccount({
     publicKey,
     classHash,
     constructorCalldata,
-    0
+    0,
   );
 
   // Paymaster deployment data requires hex-encoded calldata
-  const constructorHex: string[] = (Array.isArray(constructorCalldata)
-    ? constructorCalldata
-    : []
+  const constructorHex: string[] = (
+    Array.isArray(constructorCalldata) ? constructorCalldata : []
   ).map((v: any) => num.toHex(v));
 
   const deploymentData = {
@@ -364,20 +396,6 @@ export async function deployReadyAccount({
     origin,
     paymasterRpc,
   });
-
-  // Prepare calls array
-  const calls: any[] = [];
-  const contractToCall = process.env.STARKNET_CONTRACT_ADDRESS;
-  
-  if (contractToCall) {
-    // Optional: Execute an initial call after deployment
-    const initialCall = {
-      contractAddress: contractToCall,
-      entrypoint: process.env.STARKNET_CONTRACT_ENTRY_POINT || "get_counter",
-      calldata: CallData.compile([contractAddress]),
-    };
-    calls.push(initialCall);
-  }
 
   // Prepare paymaster fee details
   const paymasterDetails: any = {
@@ -400,10 +418,10 @@ export async function deployReadyAccount({
   if (!isSponsored && calls.length > 0) {
     const feeEstimation = await account.estimatePaymasterTransactionFee(
       calls,
-      paymasterDetails
+      paymasterDetails,
     );
     const suggested = feeEstimation.suggested_max_fee_in_gas_token;
-    
+
     // Apply 1.5x safety margin
     const withMargin15 = (v: any) => {
       const bi = BigInt(v.toString());
@@ -416,7 +434,7 @@ export async function deployReadyAccount({
   const res = await account.executePaymasterTransaction(
     calls, // Empty array means deploy only, with calls means deploy + invoke
     paymasterDetails,
-    maxFee
+    maxFee,
   );
 
   return res;

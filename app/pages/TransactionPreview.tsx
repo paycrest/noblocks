@@ -112,6 +112,7 @@ export const TransactionPreview = ({
     address: starknetAddress,
     publicKey,
     deployed,
+    deployWallet,
   } = useStarknet();
 
   const { selectedNetwork } = useNetwork();
@@ -358,10 +359,11 @@ export const TransactionPreview = ({
         }
 
         if (!deployed) {
-          toast.error(
-            "Starknet wallet not deployed. Please deploy your wallet first.",
-          );
-          return;
+          try {
+            await deployWallet();
+          } catch (error: any) {
+            console.error("[API] Wallet deployment failed:", error.message);
+          }
         }
 
         const params = await prepareCreateOrderParams();

@@ -160,6 +160,10 @@ export const SettingsDropdown = () => {
           console.warn("Wallet disconnect failed:", disconnectError);
         }
       }
+      localStorage.removeItem(`starknet_walletId_${user?.id}`);
+      localStorage.removeItem(`starknet_address_${user?.id}`);
+      localStorage.removeItem(`starknet_publicKey_${user?.id}`);
+      localStorage.removeItem(`starknet_deployed_${user?.id}`);
     } catch (error) {
       console.error("Error during logout:", error);
     } finally {

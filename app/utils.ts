@@ -520,7 +520,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/cngn-logo.svg",
     },
   ],
-  "Starknet": [
+  Starknet: [
     {
       name: "Starknet",
       symbol: "STRK",
@@ -658,14 +658,14 @@ async function fetchTokenPrice(tokenSymbol: string): Promise<number | null> {
     }
 
     const response = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`
+      `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`,
     );
-    
+
     if (response.ok) {
       const data = await response.json();
       return data[coinId]?.usd || null;
     }
-    
+
     return null;
   } catch (error) {
     console.error(`Error fetching ${tokenSymbol} price:`, error);
@@ -682,15 +682,18 @@ async function fetchTokenPrice(tokenSymbol: string): Promise<number | null> {
 export async function fetchStarknetBalance(
   address: string,
   tokens: Token[],
-): Promise<{ total: number; balances: Record<string, number>; balancesUsd: Record<string, number> }> {
+): Promise<{
+  total: number;
+  balances: Record<string, number>;
+  balancesUsd: Record<string, number>;
+}> {
   if (!address || !tokens || tokens.length === 0) {
     return { total: 0, balances: {}, balancesUsd: {} };
   }
 
   try {
     const { RpcProvider } = await import("starknet");
-    const rpcUrl =
-      process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
+    const rpcUrl = process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
     const provider = new RpcProvider({ nodeUrl: rpcUrl });
 
     let totalBalance = 0;
@@ -721,13 +724,13 @@ export async function fetchStarknetBalance(
 
         const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
         const tokenPrice = await fetchTokenPrice(token.symbol);
-        
+
         balances[token.symbol] = isNaN(balance) ? 0 : balance;
-        
+
         // Convert token amount to USD using its specific price
         const usdValue = tokenPrice ? balance * tokenPrice : 0;
         balancesUsd[token.symbol] = isNaN(usdValue) ? 0 : usdValue;
-        
+
         return usdValue;
       } catch (error) {
         balances[token.symbol] = 0;
@@ -945,6 +948,49 @@ export async function resolveEnsNameOrShorten(
     // Fallback to first 5 chars (skip 0x)
     return address.slice(2, 7);
   }
+}
+
+/**
+ * Normalizes a Starknet address to ensure it's properly formatted.
+ * Ensures the address is exactly 66 characters long (0x + 64 hex chars).
+ * Pads with zeros after the 0x prefix if necessary.
+ *
+ * @param address - The Starknet address to normalize (can be shorter than 66 chars)
+ * @returns The normalized address with proper padding (0x0...address)
+ * @throws Error if the address is invalid
+ *
+ * @example
+ * normalizeStarknetAddress("0x1234") => "0x0000000000000000000000000000000000000000000000000000000000001234"
+ * normalizeStarknetAddress("0x04718f5a...") => "0x04718f5a..." (already normalized)
+ */
+export function normalizeStarknetAddress(address: string): string {
+  // Remove any whitespace
+  const trimmedAddress = address?.trim();
+
+  // Validate that address starts with 0x
+  if (!trimmedAddress?.startsWith("0x")) {
+    throw new Error("Starknet address must start with 0x");
+  }
+
+  // Extract hex part (without 0x prefix)
+  const hexPart = trimmedAddress?.slice(2);
+
+  // Validate hex characters
+  if (!/^[a-fA-F0-9]*$/.test(hexPart)) {
+    throw new Error("Invalid hex characters in Starknet address");
+  }
+
+  // Validate length (must not exceed 64 hex chars)
+  if (hexPart.length > 64) {
+    throw new Error(
+      "Starknet address too long (max 64 hex characters after 0x)",
+    );
+  }
+
+  // Pad with zeros after 0x to make it 66 chars total
+  const paddedHex = hexPart.padStart(64, "0");
+
+  return `0x${paddedHex}`;
 }
 
 /**

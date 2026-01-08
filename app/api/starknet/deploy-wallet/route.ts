@@ -4,8 +4,6 @@ import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
 import { 
   getStarknetWallet, 
   computeReadyAddress, 
-  buildReadyAccount, 
-  getRpcProvider,
   deployReadyAccount 
 } from "@/app/lib/starknet";
 

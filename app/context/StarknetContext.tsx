@@ -22,7 +22,6 @@ interface StarknetWalletState {
 interface StarknetContextType extends StarknetWalletState {
   createWallet: () => Promise<void>;
   deployWallet: () => Promise<void>;
-  deleteWallet: () => Promise<void>; // Delete/unlink wallet
   resetError: () => void;
   refreshWalletState: () => Promise<void>;
   ensureWalletExists: () => Promise<void>; // Auto-create wallet if needed
@@ -97,8 +96,14 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
       if (storedAddress) setAddress(storedAddress);
       if (storedPublicKey) setPublicKey(storedPublicKey);
       if (storedDeployed === "true") setDeployed(true);
+    } else if (!user) {
+      setWalletId(null);
+      setAddress(null);
+      setPublicKey(null);
+      setDeployed(false);
+      setError(null);
     }
-  }, [authenticated, user?.id]);
+  }, [authenticated, user]);
 
   // Save wallet state to localStorage
   const saveToLocalStorage = (data: Partial<StarknetWalletState>) => {
@@ -311,72 +316,22 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // Step 2: Deploy wallet if not deployed
-      if (!deployed && currentWalletId) {
-        const deployToastId = toast.loading("Deploying Starknet wallet...");
-        try {
-          await deployWallet(currentWalletId);
-          toast.success("Starknet wallet deployed!", { id: deployToastId });
-        } catch (error) {
-          toast.error("Failed to deploy Starknet wallet", {
-            id: deployToastId,
-          });
-          throw error;
-        }
-      }
+      // // Step 2: Deploy wallet if not deployed
+      // if (!deployed && currentWalletId) {
+      //   const deployToastId = toast.loading("Deploying Starknet wallet...");
+      //   try {
+      //     await deployWallet(currentWalletId);
+      //     toast.success("Starknet wallet deployed!", { id: deployToastId });
+      //   } catch (error) {
+      //     toast.error("Failed to deploy Starknet wallet", {
+      //       id: deployToastId,
+      //     });
+      //     throw error;
+      //   }
+      // }
     } catch (err) {
       console.error("Failed to ensure Starknet wallet exists:", err);
       // Don't throw - fail silently for better UX
-    }
-  };
-
-  const deleteWallet = async () => {
-    if (!authenticated || !walletId) {
-      setError("No wallet to delete");
-      throw new Error("No wallet to delete");
-    }
-
-    try {
-      setError(null);
-
-      const token = await getAccessToken();
-      const response = await fetch("/api/starknet/delete-wallet", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          walletId: walletId,
-          userId: user?.id,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to delete Starknet wallet");
-      }
-
-      // Clear state
-      setWalletId(null);
-      setAddress(null);
-      setPublicKey(null);
-      setDeployed(false);
-
-      // Clear localStorage
-      if (user?.id) {
-        localStorage.removeItem(`${STORAGE_PREFIX}walletId_${user.id}`);
-        localStorage.removeItem(`${STORAGE_PREFIX}address_${user.id}`);
-        localStorage.removeItem(`${STORAGE_PREFIX}publicKey_${user.id}`);
-        localStorage.removeItem(`${STORAGE_PREFIX}deployed_${user.id}`);
-      }
-
-      toast.success("Starknet wallet unlinked successfully");
-    } catch (err: any) {
-      setError(err.message || "Failed to delete Starknet wallet");
-      toast.error(err.message || "Failed to delete Starknet wallet");
-      throw err;
     }
   };
 
@@ -391,10 +346,6 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
     await deployWallet();
   };
 
-  const deleteWalletWrapper = async () => {
-    await deleteWallet();
-  };
-
   return (
     <StarknetContext.Provider
       value={{
@@ -407,7 +358,6 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
         error,
         createWallet: createWalletWrapper,
         deployWallet: deployWalletWrapper,
-        deleteWallet: deleteWalletWrapper,
         resetError,
         refreshWalletState,
         ensureWalletExists,

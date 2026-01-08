@@ -50,7 +50,7 @@ export function useSwapButton({
     }
 
     if (
-      !isUserVerified &&
+      isUserVerified &&
       (authenticated || isInjectedWallet) &&
       amountSent > 0 &&
       isCurrencySelected &&

@@ -3,12 +3,15 @@ import { verifyJWT } from "@/app/lib/jwt";
 import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
 import {
   buildReadyAccount,
+  deployReadyAccount,
+  getRpcProvider,
   getStarknetWallet,
   setupPaymaster,
 } from "@/app/lib/starknet";
 import { cairo, CallData } from "starknet";
 
 export async function POST(request: NextRequest) {
+  let isDeployed = false;
   try {
     // Extract and verify JWT token
     const authHeader = request.headers.get("authorization");
@@ -40,16 +43,19 @@ export async function POST(request: NextRequest) {
       amount,
       recipientAddress,
       origin: clientOrigin,
+      address: WalletAddress,
     } = body;
+
+    const provider = getRpcProvider();
+    try {
+      await provider.getClassHashAt(WalletAddress);
+      isDeployed = true;
+    } catch {
+      isDeployed = false;
+    }
 
     // Validate required fields
     if (!walletId || !publicKey || !tokenAddress || !recipientAddress) {
-      console.log("[API] Missing required fields:", {
-        walletId,
-        publicKey,
-        tokenAddress,
-        recipientAddress,
-      });
       return NextResponse.json(
         {
           error: "Missing required fields",
@@ -65,7 +71,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (amount === undefined || amount === null) {
-      console.log("[API] Missing amount parameter");
       return NextResponse.json(
         { error: "Missing amount parameter" },
         { status: 400 },
@@ -120,13 +125,6 @@ export async function POST(request: NextRequest) {
       paymasterRpc,
     });
 
-    console.log("[API] Executing transfer from:", address);
-    console.log("[API] Transfer details:", {
-      token: tokenAddress,
-      amount: amount.toString(),
-      recipient: recipientAddress,
-    });
-
     // Convert amount to u256 format
     const amountU256 = cairo.uint256(BigInt(amount));
 
@@ -173,11 +171,23 @@ export async function POST(request: NextRequest) {
     // Execute transaction with paymaster
     let result;
     try {
-      result = await account.executePaymasterTransaction(
-        calls,
-        paymasterDetails,
-        maxFee,
-      );
+      if (!isDeployed) {
+        result = await deployReadyAccount({
+          walletId,
+          publicKey,
+          classHash,
+          userJwt: token,
+          userId: authUserId,
+          origin,
+          calls,
+        });
+      } else {
+        result = await account.executePaymasterTransaction(
+          calls,
+          paymasterDetails,
+          maxFee,
+        );
+      }
     } catch (error: any) {
       console.error("[API] Error executing transaction:", error);
       return NextResponse.json(
@@ -191,10 +201,6 @@ export async function POST(request: NextRequest) {
       const txReceipt = await account.waitForTransaction(
         result.transaction_hash,
       );
-      console.log("[API] Transaction confirmed:", {
-        hash: result.transaction_hash,
-        status: txReceipt.isSuccess() ? "success" : "reverted",
-      });
 
       if (!txReceipt.isSuccess()) {
         return NextResponse.json(
@@ -206,7 +212,6 @@ export async function POST(request: NextRequest) {
       console.log(
         "[API] Warning: Could not confirm transaction, but it may still succeed",
       );
-      // Don't fail if confirmation times out - transaction might still succeed
     }
 
     return NextResponse.json({

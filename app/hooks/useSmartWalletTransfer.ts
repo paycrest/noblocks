@@ -6,7 +6,6 @@ import { saveTransaction } from "../api/aggregator";
 import { trackEvent } from "./analytics/useMixpanel";
 import type { Token, Network } from "../types";
 import type { User } from "@privy-io/react-auth";
-import { useStarknet } from "../context";
 
 interface SmartWalletClient {
   sendTransaction: (args: {
@@ -72,7 +71,6 @@ export function useSmartWalletTransfer({
   const [txHash, setTxHash] = useState<string | null>(null);
   const [transferAmount, setTransferAmount] = useState("");
   const [transferToken, setTransferToken] = useState("");
-  const { deployWallet } = useStarknet();
 
   // Helper to get the embedded wallet address (with address)
   const getEmbeddedWalletAddress = (): `0x${string}` | undefined => {
@@ -152,16 +150,6 @@ export function useSmartWalletTransfer({
             throw new Error(error);
           }
 
-          if (!starknetWallet?.deployed) {
-            try {
-              await deployWallet();
-
-              await new Promise((resolve) => setTimeout(resolve, 1000));
-            } catch (error: any) {
-              console.error("[API] Wallet deployment failed:", error.message);
-            }
-          }
-
           // Get access token for API authentication
           const accessToken = await getAccessToken();
           if (!accessToken) {
@@ -191,6 +179,7 @@ export function useSmartWalletTransfer({
               tokenAddress,
               amount: amountInWei,
               recipientAddress,
+              address: starknetWallet.address,
             }),
           });
 

@@ -187,7 +187,7 @@ export const TransactionPreview = ({
       rate: BigInt(Math.round(rate * 100)),
       senderFeeRecipient: getAddress(senderFeeRecipientAddress),
       senderFee: senderFeeInTokenUnits,
-      refundAddress: starknetAddress as `0x${string}`,
+      refundAddress: activeWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
     return params;
@@ -474,7 +474,7 @@ export const TransactionPreview = ({
     orderId: string;
     txHash: `0x${string}`;
   }) => {
-    if (!embeddedWallet?.address || !starknetAddress || isSavingTransaction)
+    if ((!embeddedWallet?.address && !starknetAddress) || isSavingTransaction)
       return;
     setIsSavingTransaction(true);
 
@@ -485,7 +485,7 @@ export const TransactionPreview = ({
       }
 
       const transaction: TransactionCreateInput = {
-        walletAddress: embeddedWallet.address,
+        walletAddress: embeddedWallet?.address || "",
         transactionType: "swap",
         fromCurrency: token,
         toCurrency: currency,

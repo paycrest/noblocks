@@ -372,28 +372,20 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
   ],
   Starknet: [
     {
-      name: "Starknet",
-      symbol: "STRK",
-      decimals: 18,
-      address:
-        "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
-      imageUrl: "/logos/strk-logo.svg",
-    },
-    {
-      name: "Ethereum",
-      symbol: "ETH",
-      decimals: 18,
-      address:
-        "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7",
-      imageUrl: "/logos/ethereum-logo.svg",
-    },
-    {
       name: "USD Coin",
       symbol: "USDC",
       decimals: 6,
       address:
         "0x02613a46ec7f06ae803a16bce8ede8a72f5bf3daf883c530d3a6e7719d31a7a7",
       imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address:
+        "0x068F5c6a61780768455de69077E07e89787839bf8166dEcfBf92B645209c0fB8",
+      imageUrl: "/logos/usdt-logo.svg",
     },
   ],
 };
@@ -484,14 +476,13 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
 
 /**
  * Fetches token price in USD from CoinGecko
- * @param tokenSymbol - The token symbol (e.g., "STRK", "ETH", "USDC")
+ * @param tokenSymbol - The token symbol (e.g. "ETH", "USDC")
  * @returns The token price in USD, or null if fetch fails
  */
 async function fetchTokenPrice(tokenSymbol: string): Promise<number | null> {
   try {
     // Map token symbols to CoinGecko IDs
     const coinGeckoIds: Record<string, string> = {
-      STRK: "starknet",
       ETH: "ethereum",
       WETH: "ethereum",
       USDC: "usd-coin",

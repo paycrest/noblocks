@@ -2,6 +2,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useInjectedWallet } from "../context";
 import { useStarknet } from "../context/StarknetContext";
 import { useNetwork } from "../context/NetworksContext";
+import { normalizeStarknetAddress } from "../utils";
 
 /**
  * Hook to get the appropriate wallet address based on the current network
@@ -20,7 +21,10 @@ export function useWalletAddress(): string | undefined {
 
   // If on Starknet, return Starknet wallet address
   if (selectedNetwork?.chain?.name === "Starknet") {
-    return starknetAddress ?? undefined;
+    if (!starknetAddress) {
+      return undefined;
+    }
+    return normalizeStarknetAddress(starknetAddress);
   }
 
   // Otherwise, return EVM smart wallet address

@@ -225,6 +225,16 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     cngnRate,
   ]);
 
+  useEffect(() => {
+    if (!user && !isInjectedWallet && !starknetAddress) {
+      setSmartWalletBalance(null);
+      setExternalWalletBalance(null);
+      setInjectedWalletBalance(null);
+      setStarknetWalletBalance(null);
+      setIsLoading(false);
+    }
+  }, [user, isInjectedWallet, starknetAddress]);
+
   const allBalances = {
     smartWallet: smartWalletBalance,
     externalWallet: externalWalletBalance,

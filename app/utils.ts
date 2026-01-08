@@ -348,21 +348,21 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
     },
   ],
   Ethereum: [
-  {
-    name: "USD Coin",
-    symbol: "USDC",
-    decimals: 6,
-    address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    imageUrl: "/logos/usdc-logo.svg",
-  },
-  {
-    name: "Tether USD", 
-    symbol: "USDT",
-    decimals: 6,
-    address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-    imageUrl: "/logos/usdt-logo.svg",
-  },
-      {
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
       name: "cNGN",
       symbol: "cNGN",
       decimals: 6,
@@ -370,29 +370,32 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/cngn-logo.svg",
     },
   ],
-  "Starknet": [
+  Starknet: [
     {
       name: "Starknet",
       symbol: "STRK",
       decimals: 18,
-      address: "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+      address:
+        "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
       imageUrl: "/logos/strk-logo.svg",
     },
     {
       name: "Ethereum",
       symbol: "ETH",
       decimals: 18,
-      address: "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7",
+      address:
+        "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7",
       imageUrl: "/logos/ethereum-logo.svg",
     },
     {
       name: "USD Coin",
       symbol: "USDC",
       decimals: 6,
-      address: "0x02613a46ec7f06ae803a16bce8ede8a72f5bf3daf883c530d3a6e7719d31a7a7",
+      address:
+        "0x02613a46ec7f06ae803a16bce8ede8a72f5bf3daf883c530d3a6e7719d31a7a7",
       imageUrl: "/logos/usdc-logo.svg",
-    }
-  ]
+    },
+  ],
 };
 
 /**
@@ -456,8 +459,7 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
             tokens["Base"].push(usdtBase);
           }
         }
-        
-        
+
         // Merge fallback tokens for any networks missing from API response
         Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
           if (networkName === "Starknet") return;
@@ -505,14 +507,14 @@ async function fetchTokenPrice(tokenSymbol: string): Promise<number | null> {
     }
 
     const response = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`
+      `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`,
     );
-    
+
     if (response.ok) {
       const data = await response.json();
       return data[coinId]?.usd || null;
     }
-    
+
     return null;
   } catch (error) {
     console.error(`Error fetching ${tokenSymbol} price:`, error);
@@ -529,15 +531,18 @@ async function fetchTokenPrice(tokenSymbol: string): Promise<number | null> {
 export async function fetchStarknetBalance(
   address: string,
   tokens: Token[],
-): Promise<{ total: number; balances: Record<string, number>; balancesUsd: Record<string, number> }> {
+): Promise<{
+  total: number;
+  balances: Record<string, number>;
+  balancesUsd: Record<string, number>;
+}> {
   if (!address || !tokens || tokens.length === 0) {
     return { total: 0, balances: {}, balancesUsd: {} };
   }
 
   try {
     const { RpcProvider } = await import("starknet");
-    const rpcUrl =
-      process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
+    const rpcUrl = process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
     const provider = new RpcProvider({ nodeUrl: rpcUrl });
 
     let totalBalance = 0;
@@ -568,13 +573,13 @@ export async function fetchStarknetBalance(
 
         const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
         const tokenPrice = await fetchTokenPrice(token.symbol);
-        
+
         balances[token.symbol] = isNaN(balance) ? 0 : balance;
-        
+
         // Convert token amount to USD using its specific price
         const usdValue = tokenPrice ? balance * tokenPrice : 0;
         balancesUsd[token.symbol] = isNaN(usdValue) ? 0 : usdValue;
-        
+
         return usdValue;
       } catch (error) {
         balances[token.symbol] = 0;
@@ -736,6 +741,49 @@ export function shortenAddress(
 }
 
 /**
+ * Normalizes a Starknet address to ensure it's properly formatted.
+ * Ensures the address is exactly 66 characters long (0x + 64 hex chars).
+ * Pads with zeros after the 0x prefix if necessary.
+ *
+ * @param address - The Starknet address to normalize (can be shorter than 66 chars)
+ * @returns The normalized address with proper padding (0x0...address)
+ * @throws Error if the address is invalid
+ *
+ * @example
+ * normalizeStarknetAddress("0x1234") => "0x0000000000000000000000000000000000000000000000000000000000001234"
+ * normalizeStarknetAddress("0x04718f5a...") => "0x04718f5a..." (already normalized)
+ */
+export function normalizeStarknetAddress(address: string): string {
+  // Remove any whitespace
+  const trimmedAddress = address?.trim();
+
+  // Validate that address starts with 0x
+  if (!trimmedAddress?.startsWith("0x")) {
+    throw new Error("Starknet address must start with 0x");
+  }
+
+  // Extract hex part (without 0x prefix)
+  const hexPart = trimmedAddress?.slice(2);
+
+  // Validate hex characters
+  if (!/^[a-fA-F0-9]*$/.test(hexPart)) {
+    throw new Error("Invalid hex characters in Starknet address");
+  }
+
+  // Validate length (must not exceed 64 hex chars)
+  if (hexPart.length > 64) {
+    throw new Error(
+      "Starknet address too long (max 64 hex characters after 0x)",
+    );
+  }
+
+  // Pad with zeros after 0x to make it 66 chars total
+  const paddedHex = hexPart.padStart(64, "0");
+
+  return `0x${paddedHex}`;
+}
+
+/**
  * Normalizes network name for rate fetching API.
  * @param network - The network name to normalize.
  * @returns The normalized network name for rate fetching.
@@ -760,7 +808,8 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
     Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
     Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5",
-    "Starknet": "0x06ff3a3b1532da65594fc98f9ca7200af6c3dbaf37e7339b0ebd3b3f2390c583"
+    Starknet:
+      "0x06ff3a3b1532da65594fc98f9ca7200af6c3dbaf37e7339b0ebd3b3f2390c583",
   }[network];
 }
 
@@ -1368,7 +1417,8 @@ export function calculateSenderFee(
   const defaultFeePercent = 0.1; // 0.1% default fee for local transfers
   const maxFeeCapInHumanReadable = 10000; // 10k CNGN cap in human-readable units
   const decimalsMultiplier = BigInt(10 ** tokenDecimals);
-  const maxFeeCapInBaseUnits = BigInt(maxFeeCapInHumanReadable) * decimalsMultiplier; // 10k CNGN in base units
+  const maxFeeCapInBaseUnits =
+    BigInt(maxFeeCapInHumanReadable) * decimalsMultiplier; // 10k CNGN in base units
 
   // Calculate fee in human-readable format
   const calculatedFee = isLocalTransfer

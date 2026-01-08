@@ -6,8 +6,7 @@ import {
   getStarknetWallet,
   setupPaymaster,
 } from "@/app/lib/starknet";
-import { cairo, CallData, byteArray } from "starknet";
-import { useStarknet } from "@/app/context";
+import { cairo, CallData } from "starknet";
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,23 +37,18 @@ export async function POST(request: NextRequest) {
       publicKey,
       classHash: clientClassHash,
       tokenAddress,
-      gatewayAddress,
       amount,
-      rate,
-      senderFeeRecipient,
-      senderFee,
-      refundAddress,
-      messageHash,
+      recipientAddress,
       origin: clientOrigin,
     } = body;
 
     // Validate required fields
-    if (!walletId || !publicKey || !tokenAddress || !gatewayAddress) {
+    if (!walletId || !publicKey || !tokenAddress || !recipientAddress) {
       console.log("[API] Missing required fields:", {
         walletId,
         publicKey,
         tokenAddress,
-        gatewayAddress,
+        recipientAddress,
       });
       return NextResponse.json(
         {
@@ -63,41 +57,17 @@ export async function POST(request: NextRequest) {
             walletId: !walletId,
             publicKey: !publicKey,
             tokenAddress: !tokenAddress,
-            gatewayAddress: !gatewayAddress,
+            recipientAddress: !recipientAddress,
           },
         },
         { status: 400 },
       );
     }
 
-    if (
-      amount === undefined ||
-      rate === undefined ||
-      !senderFeeRecipient ||
-      senderFee === undefined ||
-      !refundAddress ||
-      !messageHash
-    ) {
-      console.log("[API] Missing transaction parameters:", {
-        amount,
-        rate,
-        senderFeeRecipient,
-        senderFee,
-        refundAddress,
-        messageHash,
-      });
+    if (amount === undefined || amount === null) {
+      console.log("[API] Missing amount parameter");
       return NextResponse.json(
-        {
-          error: "Missing transaction parameters",
-          missing: {
-            amount: amount === undefined,
-            rate: rate === undefined,
-            senderFeeRecipient: !senderFeeRecipient,
-            senderFee: senderFee === undefined,
-            refundAddress: !refundAddress,
-            messageHash: !messageHash,
-          },
-        },
+        { error: "Missing amount parameter" },
         { status: 400 },
       );
     }
@@ -114,8 +84,8 @@ export async function POST(request: NextRequest) {
     // Use origin from client or header
     const origin = clientOrigin || request.headers.get("origin") || undefined;
 
+    // Get wallet public key from Privy
     const { publicKey: walletPublicKey } = await getStarknetWallet(walletId);
-
     // Setup paymaster if configured
     const usePaymaster = !!(
       process.env.STARKNET_PAYMASTER_URL && process.env.STARKNET_PAYMASTER_MODE
@@ -137,10 +107,9 @@ export async function POST(request: NextRequest) {
         { status: 500 },
       );
     }
-
     const { paymasterRpc, isSponsored, gasToken } = config;
 
-    // Build account with paymaster support
+    // Build account without paymaster (user pays gas for transfers)
     const { account, address } = await buildReadyAccount({
       walletId,
       publicKey: walletPublicKey,
@@ -151,40 +120,24 @@ export async function POST(request: NextRequest) {
       paymasterRpc,
     });
 
-    // Convert amounts to u256 (following the working script pattern)
+    console.log("[API] Executing transfer from:", address);
+    console.log("[API] Transfer details:", {
+      token: tokenAddress,
+      amount: amount.toString(),
+      recipient: recipientAddress,
+    });
+
+    // Convert amount to u256 format
     const amountU256 = cairo.uint256(BigInt(amount));
-    const senderFeeU256 = cairo.uint256(BigInt(senderFee));
 
-    // Encode message hash as Cairo ByteArray
-    const messageHashByteArray = byteArray.byteArrayFromString(messageHash);
-
-    // Calculate total amount (amount + senderFee)
-    const totalAmount = BigInt(amount) + BigInt(senderFee);
-    const totalAmountU256 = cairo.uint256(totalAmount);
-
-    // Prepare calls using manual call structure (more reliable than populate)
+    // Prepare transfer call
     const calls = [
-      // 1. Approve gateway to spend tokens
       {
         contractAddress: tokenAddress,
-        entrypoint: "approve",
+        entrypoint: "transfer",
         calldata: CallData.compile({
-          spender: gatewayAddress,
-          amount: totalAmountU256,
-        }),
-      },
-      // 2. Create order
-      {
-        contractAddress: gatewayAddress,
-        entrypoint: "create_order",
-        calldata: CallData.compile({
-          token: tokenAddress,
+          recipient: recipientAddress,
           amount: amountU256,
-          rate: rate,
-          sender_fee_recipient: senderFeeRecipient,
-          sender_fee: senderFeeU256,
-          refund_address: refundAddress,
-          message_hash: messageHashByteArray, // Use encoded ByteArray
         }),
       },
     ];
@@ -216,6 +169,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Execute transfer transaction
     // Execute transaction with paymaster
     let result;
     try {
@@ -232,47 +186,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let orderId;
-
     // Wait for transaction confirmation
-    const wait = true;
-    if (wait) {
-      try {
-        const txReceipt = await account.waitForTransaction(
-          result.transaction_hash,
-        );
-        if (txReceipt.isSuccess()) {
-          const rawEvents = txReceipt.value.events;
-          rawEvents.forEach((event) => {
-            if (
-              Object.values(event.keys).includes(
-                "0x3427759bfd3b941f14e687e129519da3c9b0046c5b9aaa290bb1dede63753b3",
-              )
-            ) {
-              orderId = event.data[2];
-            }
-          });
-        }
-      } catch (error) {
-        console.log(
-          "[API] Warning: Could not confirm transaction, but it may still succeed",
+    try {
+      const txReceipt = await account.waitForTransaction(
+        result.transaction_hash,
+      );
+      console.log("[API] Transaction confirmed:", {
+        hash: result.transaction_hash,
+        status: txReceipt.isSuccess() ? "success" : "reverted",
+      });
+
+      if (!txReceipt.isSuccess()) {
+        return NextResponse.json(
+          { error: "Transaction reverted on-chain" },
+          { status: 500 },
         );
       }
+    } catch (error) {
+      console.log(
+        "[API] Warning: Could not confirm transaction, but it may still succeed",
+      );
+      // Don't fail if confirmation times out - transaction might still succeed
     }
 
     return NextResponse.json({
       success: true,
+      transactionHash: result.transaction_hash,
       walletId,
       address,
-      transactionHash: result.transaction_hash,
-      mode: isSponsored ? "sponsored" : "default",
-      messageHash,
-      orderId,
+      amount: amount.toString(),
+      recipient: recipientAddress,
     });
   } catch (error: any) {
-    console.error("[API] Error executing transaction:", error);
+    console.error("[API] Error in Starknet transfer:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to execute transaction" },
+      { error: error.message || "Failed to process transfer" },
       { status: 500 },
     );
   }

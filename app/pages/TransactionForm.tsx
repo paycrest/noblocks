@@ -121,7 +121,7 @@ export const TransactionForm = ({
 
   const activeBalance = isInjectedWallet
     ? injectedWalletBalance
-    : selectedNetwork.chain.name === "Starknet Sepolia"
+    : selectedNetwork.chain.name === "Starknet"
       ? starknetWalletBalance
       : smartWalletBalance;
 

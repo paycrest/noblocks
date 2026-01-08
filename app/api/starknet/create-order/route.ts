@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
       if (!isDeployed) {
         result = await deployReadyAccount({
           walletId,
-          publicKey,
+          publicKey: walletPublicKey,
           classHash,
           userJwt: token,
           userId: authUserId,

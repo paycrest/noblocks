@@ -24,7 +24,8 @@ export function useWalletAddress(): string | undefined {
     if (!starknetAddress) {
       return undefined;
     }
-    return normalizeStarknetAddress(starknetAddress);
+    const address = normalizeStarknetAddress(starknetAddress);
+    return address ?? starknetAddress;
   }
 
   // Otherwise, return EVM smart wallet address

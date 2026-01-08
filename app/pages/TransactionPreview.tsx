@@ -329,7 +329,7 @@ export const TransactionPreview = ({
       rate: BigInt(Math.round(rate * 100)),
       senderFeeRecipient: getAddress(senderFeeRecipientAddress),
       senderFee: senderFeeInTokenUnits,
-      refundAddress: starknetAddress as `0x${string}`,
+      refundAddress: activeWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
     return params;

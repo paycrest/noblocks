@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     if (!authHeader?.startsWith("Bearer ")) {
       return NextResponse.json(
         { error: "Missing or invalid authorization header" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -25,33 +25,33 @@ export async function POST(request: NextRequest) {
     if (!authUserId) {
       return NextResponse.json(
         { error: "Invalid token: missing user ID" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     // Get request body
     const body = await request.json();
-    const { ownerId } = body;
 
-    const userId = ownerId || authUserId;
+    const userId = authUserId;
 
     if (!userId) {
       return NextResponse.json(
         { error: "No user ID available" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // First, check if user already has a Starknet wallet
     const privy = getPrivyClient();
-    
+
     try {
       const user = await privy.getUser(userId);
       const linkedAccounts = user.linkedAccounts || [];
       const existingStarknetWallet = linkedAccounts.find(
         (account: any) =>
           account.type === "wallet" &&
-          (account.chainType === "starknet" || account.chain_type === "starknet")
+          (account.chainType === "starknet" ||
+            account.chain_type === "starknet"),
       );
 
       if (existingStarknetWallet) {
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
       {
         error: error.message || "Failed to create Starknet wallet",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

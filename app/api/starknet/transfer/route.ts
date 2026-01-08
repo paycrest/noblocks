@@ -168,13 +168,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Execute transfer transaction
-    // Execute transaction with paymaster
     let result;
     try {
       if (!isDeployed) {
         result = await deployReadyAccount({
           walletId,
-          publicKey,
+          publicKey: walletPublicKey,
           classHash,
           userJwt: token,
           userId: authUserId,

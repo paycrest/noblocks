@@ -283,9 +283,8 @@ export async function buildReadyAccount({
  * Get RPC provider
  */
 export function getRpcProvider() {
-  const rpcUrl =
-    process.env.NEXT_PUBLIC_STARKNET_RPC_URL ||
-    "https://starknet-sepolia.public.blastapi.io";
+  const rpcUrl = process.env.NEXT_PUBLIC_STARKNET_RPC_URL || "";
+
   return new RpcProvider({ nodeUrl: rpcUrl });
 }
 

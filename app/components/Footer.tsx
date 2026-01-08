@@ -97,7 +97,7 @@ export const Footer = () => {
       transition: {
         repeat: Infinity,
         duration: 0.1,
-        ease: "linear",
+        ease: "easeInOut",
         filter: { duration: 0.5 },
       },
     },
@@ -203,8 +203,8 @@ export const Footer = () => {
         </div>
         <motion.img
           key={rocketStatus}
-          src="/images/footer-santa-illustration.svg"
-          alt="Footer Santa Image"
+          src="/images/footer-rocket-illustration.svg"
+          alt="Footer Rocket Image"
           height={100}
           width={100}
           initial="pending"

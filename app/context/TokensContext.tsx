@@ -68,6 +68,22 @@ export function TokensProvider({ children }: { children: ReactNode }) {
         if (!hasUSDT) {
           newTokens["Base"].push(usdtBase);
         }
+
+        // Ensure native ETH is present in Base
+        const nativeETH = {
+          name: "Ethereum",
+          symbol: "ETH",
+          decimals: 18,
+          address: "", // Native token has no contract address
+          imageUrl: "/logos/eth-logo.svg",
+          isNative: true,
+        };
+        const hasNativeETH = newTokens["Base"].some(
+          (token) => token.symbol === "ETH" && token.isNative,
+        );
+        if (!hasNativeETH) {
+          newTokens["Base"].push(nativeETH);
+        }
       }
 
       // Merge fallback tokens for any networks missing from API response

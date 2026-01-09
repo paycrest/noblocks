@@ -5,6 +5,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
+import { useStarknet } from "../context/StarknetContext";
 import {
   classNames,
   formatDecimalPrecision,
@@ -44,8 +45,9 @@ export const TransferForm: React.FC<{
   const { selectedNetwork } = useNetwork();
   const { client } = useSmartWallets();
   const { user, getAccessToken } = usePrivy();
-  const { refreshBalance } = useBalance();
+  const { refreshBalance, starknetWalletBalance } = useBalance();
   const { allTokens } = useTokens();
+  const { walletId, publicKey, address, deployed } = useStarknet();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
@@ -79,7 +81,8 @@ export const TransferForm: React.FC<{
   const { token, amount, recipientNetwork, recipientNetworkImageUrl } = watch();
 
   // Get the Network object for the selected recipient network
-  const transferNetwork = networks.find(n => n.chain.name === recipientNetwork) || selectedNetwork;
+  const transferNetwork =
+    networks.find((n) => n.chain.name === recipientNetwork) || selectedNetwork;
 
   const fetchedTokens: Token[] = allTokens[transferNetwork.chain.name] || [];
   const tokens = fetchedTokens.map((token) => ({
@@ -93,9 +96,7 @@ export const TransferForm: React.FC<{
   const recipientNetworks = networks
     .filter((network) => {
       if (useInjectedWallet) return true;
-      return (
-        network.chain.name !== "Celo"
-      );
+      return network.chain.name !== "Celo";
     })
     .map((network) => ({
       name: network.chain.name,
@@ -112,10 +113,16 @@ export const TransferForm: React.FC<{
     error,
   } = useSmartWalletTransfer({
     client: client ?? null,
-    selectedNetwork: transferNetwork,  // Use the recipient's network, not global
+    selectedNetwork: transferNetwork, // Use the recipient's network, not global
     user,
     supportedTokens: fetchedTokens,
     getAccessToken,
+    starknetWallet: {
+      walletId,
+      publicKey,
+      address,
+      deployed,
+    },
   });
 
   useEffect(() => {
@@ -159,11 +166,16 @@ export const TransferForm: React.FC<{
       setIsBalanceLoading(true);
       setBalanceError(null);
       try {
-        const balance = await fetchBalanceForNetwork(
-          transferNetwork,
-          smartWalletAccount.address,
-        );
-        setTransferNetworkBalance(balance);
+        if (transferNetwork.chain.name === "Starknet") {
+          setTransferNetworkBalance(starknetWalletBalance);
+        } else {
+          const balance = await fetchBalanceForNetwork(
+            transferNetwork,
+            smartWalletAccount.address,
+          );
+
+          setTransferNetworkBalance(balance);
+        }
         setBalanceError(null);
       } catch (error) {
         console.error("Error fetching transfer network balance:", error);
@@ -352,12 +364,14 @@ export const TransferForm: React.FC<{
                 message: "Recipient address is required",
               },
               pattern: {
-                value: /^0x[a-fA-F0-9]{40}$/,
+                value: /^0x[a-fA-F0-9]{40}$|^0x[a-fA-F0-9]{64}$/,
                 message: "Invalid wallet address format",
               },
               validate: {
                 length: (value) =>
-                  value.length === 42 || "Address must be 42 characters long",
+                  value.length === 42 ||
+                  value.length === 66 ||
+                  "Address must be 42 characters (EVM) or 66 characters (Starknet)",
                 prefix: (value) =>
                   value.startsWith("0x") || "Address must start with 0x",
               },
@@ -369,7 +383,7 @@ export const TransferForm: React.FC<{
                 : "text-neutral-900 dark:text-white/80",
             )}
             placeholder="Enter recipient wallet address"
-            maxLength={42}
+            maxLength={66}
           />
         </div>
         {errors.recipientAddress && (

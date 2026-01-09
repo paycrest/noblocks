@@ -27,6 +27,7 @@ import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -37,12 +38,14 @@ export const Navbar = () => {
   const { selectedNetwork } = useNetwork();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const isDark = useActualTheme();
+  const walletAddress = useWalletAddress();
 
   const { ready, authenticated, user } = usePrivy();
 
-  const activeWallet = isInjectedWallet
-    ? { address: injectedAddress, type: "injected_wallet" }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+  const activeWallet = {
+    address: walletAddress,
+    type: isInjectedWallet ? "injected_wallet" : "smart_wallet",
+  };
 
   const { login } = useLogin({
     onComplete: async ({ user, isNewUser, loginMethod }) => {

@@ -1,5 +1,29 @@
+import { toHex } from "viem";
 import { arbitrum, base, bsc, polygon, lisk, celo, mainnet } from "viem/chains";
 
+// Define Starknet Mainnet chain (not in viem by default)
+export const starknetMainnet = {
+  id: BigInt(toHex('SN_MAIN')).toString(), // Starknet Mainnet chain ID (SN_MAIN encoded)
+  name: "Starknet",
+  network: "starknet-mainnet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Ether",
+    symbol: "ETH",
+  },
+  rpcUrls: {
+    default: {
+      http: [process.env.NEXT_PUBLIC_STARKNET_RPC_URL],
+    },
+    public: {
+      http: [process.env.NEXT_PUBLIC_STARKNET_RPC_URL],
+    },
+  },
+  blockExplorers: {
+    default: { name: "Voyager", url: "https://voyager.online" },
+  },
+  testnet: false,
+};
 
 export const acceptedCurrencies = [
   {
@@ -72,6 +96,10 @@ export const networks = [
   {
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
+  },
+  {
+    chain: starknetMainnet,
+    imageUrl: "/logos/strk-logo.svg",
   },
 //   {
 //     chain: hedera,

@@ -118,7 +118,7 @@ export const Footer = () => {
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
       <motion.footer
-        className="relative mx-auto min-h-[360px] w-full max-w-screen-2xl overflow-hidden px-5 md:items-center lg:min-h-[540px]"
+        className="relative mx-auto min-h-[440px] w-full max-w-screen-2xl overflow-hidden px-5 md:items-center lg:min-h-[640px]"
         role="contentinfo"
         layout
         transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}

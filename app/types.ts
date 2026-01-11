@@ -258,6 +258,10 @@ export type Config = {
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
+  sentryDsn: string;
+  nodeEnv: string;
+  sentryUrl: string;
+  sentryAuthToken: string;
 };
 
 export type Network = {
@@ -403,6 +407,29 @@ export interface SaveRecipientResponse {
   data: RecipientDetailsWithId;
 }
 
+export interface ReferralData {
+  referral_code: string;
+  total_earned: number;
+  total_pending: number;
+  total_referrals?: number;
+  earned_count?: number;
+  pending_count?: number;
+  referrals: Array<{
+    id: string;
+    wallet_address: string;
+    wallet_address_short: string;
+    status: string;
+    amount: number;
+    created_at: string;
+    completed_at?: string | null;
+  }>;
+}
+
+export type ApiResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error: string; status?: number };
+
+export type SubmitReferralResult = { message?: string };
 declare global {
   interface Window {
     BrevoConversationsID?: string;

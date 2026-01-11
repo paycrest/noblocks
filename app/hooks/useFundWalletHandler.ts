@@ -71,6 +71,7 @@ export const useFundWalletHandler = (entryPoint: string) => {
       (t: Token) => t.address === tokenAddress,
     );
 
+    // Server side tracking
     trackEvent("Funding started", {
       "Entry point": entryPoint,
       Amount: amount,

@@ -12,6 +12,7 @@ import {
 } from "hugeicons-react";
 import { BalanceCardSkeleton } from "../BalanceSkeleton";
 import { classNames, getNetworkImageUrl } from "../../utils";
+import { ReferralCTA } from "../ReferralCTA";
 
 // Types for props
 interface WalletViewProps {
@@ -35,6 +36,7 @@ interface WalletViewProps {
   onHistory: () => void;
   setSelectedNetwork: (network: any) => void;
   onRefreshBalance: () => void;
+  onViewReferrals?: () => void;
 }
 
 export const WalletView: React.FC<WalletViewProps> = ({
@@ -57,6 +59,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onClose,
   onHistory,
   onRefreshBalance,
+  onViewReferrals,
 }) => {
   return (
     <div className="mb-[1.5rem] space-y-4">
@@ -189,10 +192,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
       {/* Network List Container */}
       <div
         className={classNames(
-          "space-y-3 rounded-[20px] py-3",
-          isNetworkListOpen
-            ? "border border-border-light px-4 dark:border-white/10"
-            : "",
+          "space-y-3 rounded-[16px] py-3 border border-border-light px-4 dark:border-white/10",
         )}
       >
         <div
@@ -292,6 +292,11 @@ export const WalletView: React.FC<WalletViewProps> = ({
           )}
         </AnimatePresence>
       </div>
+      {!isInjectedWallet && (
+        <ReferralCTA
+          onViewReferrals={onViewReferrals ?? (() => { })}
+        />
+      )}
     </div>
   );
 };

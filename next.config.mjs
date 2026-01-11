@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   headers: async () => [
@@ -52,7 +53,7 @@ const nextConfig = {
     optimizeCss: true,
     optimizePackageImports: ["@headlessui/react", "framer-motion"],
   },
-  serverExternalPackages: ['mixpanel', 'https-proxy-agent'],
+  serverExternalPackages: ["mixpanel", "https-proxy-agent"],
   webpack: (config, { isServer }) => {
     // Handle both client and server-side fallbacks
     config.resolve.fallback = {
@@ -71,15 +72,15 @@ const nextConfig = {
       path: false,
       os: false,
     };
-    
+
     // Handle Mixpanel on server-side only
     if (isServer) {
       config.externals = config.externals || [];
       config.externals.push({
-        'mixpanel': 'commonjs mixpanel'
+        mixpanel: "commonjs mixpanel",
       });
     }
-    
+
     return config;
   },
   compiler: {
@@ -118,10 +119,35 @@ const nextConfig = {
     rules: {
       "*.svg": {
         loaders: ["@svgr/webpack"],
-        as: "*.js"
-      }
-    }
+        as: "*.js",
+      },
+    },
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: "Paycrest",
+
+  project: "noblocks",
+
+  sentryUrl: process.env.SENTRY_URL,
+
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  release: "2.0.0",
+
+  silent: !process.env.CI,
+
+  // Disable source map upload in low-memory environments
+  sourcemaps: {
+    disable: process.env.LOW_MEMORY_BUILD === "true",
+  },
+
+  widenClientFileUpload: true,
+
+  tunnelRoute: "/monitoring",
+
+  disableLogger: true,
+
+  automaticVercelMonitors: true,
+});

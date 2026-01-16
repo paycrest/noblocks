@@ -351,8 +351,15 @@ export const TransactionForm = ({
             setRateError(errorMessage);
           }
         } else if (selectedNetwork?.chain?.name === "Ethereum") {
-          // For Ethereum network, apply $50 USD minimum
-          minAmountSentValue = 50;
+          if (cngnRate && cngnRate > 0) {
+            // Valid rate available - calculate limits and clear errors
+            maxAmountSentValue = 50000000;
+            minAmountSentValue = 50 * cngnRate;
+            setRateError(null);
+          } else {
+            // For Ethereum network, apply $50 USD minimum
+            minAmountSentValue = 50;
+          }
         }
 
         formMethods.register("amountSent", {

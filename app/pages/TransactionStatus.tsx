@@ -115,8 +115,12 @@ export function TransactionStatus({
   const { claimed } = useBlockFestClaim();
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
-  const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
-    useBalance();
+  const {
+    refreshBalance,
+    smartWalletBalance,
+    injectedWalletBalance,
+    starknetWalletBalance,
+  } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user, getAccessToken } = usePrivy();
   const { setRocketStatus } = useRocketStatus();
@@ -346,8 +350,10 @@ export function TransactionStatus({
         );
 
         const balance = isInjectedWallet
-          ? smartWalletBalance?.balances[token] || 0
-          : injectedWalletBalance?.balances[token] || 0;
+          ? injectedWalletBalance?.balances[token] || 0
+          : selectedNetwork.chain.name === "Starknet"
+            ? starknetWalletBalance?.balances[token] || 0
+            : smartWalletBalance?.balances[token] || 0;
 
         const eventData = {
           Amount: amount,

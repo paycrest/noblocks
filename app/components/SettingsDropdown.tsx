@@ -23,13 +23,15 @@ import {
 import { toast } from "sonner";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 
 export const SettingsDropdown = () => {
   const { user, updateEmail } = usePrivy();
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isInjectedWallet } = useInjectedWallet();
+  const walletAddress = useWalletAddress();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -40,11 +42,6 @@ export const SettingsDropdown = () => {
     ref: dropdownRef,
     handler: () => setIsOpen(false),
   });
-
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-        ?.address;
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(walletAddress ?? "");
@@ -126,6 +123,11 @@ export const SettingsDropdown = () => {
           trackLogoutWithFetch(trackingPayload);
         }
       }
+
+      localStorage.removeItem(`starknet_walletId_${user?.id}`);
+      localStorage.removeItem(`starknet_address_${user?.id}`);
+      localStorage.removeItem(`starknet_publicKey_${user?.id}`);
+      localStorage.removeItem(`starknet_deployed_${user?.id}`);
 
       await logout();
       if (window.ethereum) {

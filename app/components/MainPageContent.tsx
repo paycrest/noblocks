@@ -19,7 +19,11 @@ import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
-import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
+import {
+  fetchRate,
+  fetchSupportedInstitutions,
+  migrateLocalStorageRecipients,
+} from "../api/aggregator";
 import { normalizeNetworkForRateFetch } from "../utils";
 import {
   STEPS,
@@ -37,6 +41,7 @@ import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
 import { useInjectedWallet } from "../context";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 
 const PageLayout = ({
   authenticated,
@@ -56,19 +61,8 @@ const PageLayout = ({
   const { claimed, resetClaim } = useBlockFestClaim();
   const { user } = usePrivy();
   const { isOpen, openModal, closeModal } = useBlockFestModal();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-
-  // Clean up claim state when user logs out
-  useEffect(() => {
-    if (!authenticated && !isInjectedWallet) {
-      resetClaim();
-    }
-  }, [authenticated, isInjectedWallet, resetClaim]);
-
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-        ?.address;
+  const { isInjectedWallet } = useInjectedWallet();
+  const walletAddress = useWalletAddress();
 
   return (
     <>
@@ -149,30 +143,30 @@ export function MainPageContent() {
 
   // State props for child components
   const stateProps: StateProps = {
-      formValues,
-      setFormValues,
+    formValues,
+    setFormValues,
 
-      rate,
-      setRate,
-      isFetchingRate,
-      setIsFetchingRate,
-      rateError,
-      setRateError,
+    rate,
+    setRate,
+    isFetchingRate,
+    setIsFetchingRate,
+    rateError,
+    setRateError,
 
-      institutions,
-      setInstitutions,
-      isFetchingInstitutions,
-      setIsFetchingInstitutions,
+    institutions,
+    setInstitutions,
+    isFetchingInstitutions,
+    setIsFetchingInstitutions,
 
-      selectedRecipient,
-      setSelectedRecipient,
+    selectedRecipient,
+    setSelectedRecipient,
 
-      orderId,
-      setOrderId,
-      setCreatedAt,
-      setTransactionStatus,
-    }
-    
+    orderId,
+    setOrderId,
+    setCreatedAt,
+    setTransactionStatus,
+  };
+
   useEffect(function setPageLoadingState() {
     setOrderId("");
     setIsPageLoading(false);

@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     };
     const wallet =
       typeof walletAddress === "string" ? walletAddress.trim() : "";
-    if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+    if (!/^0x[a-fA-F0-9]{40}$|^0x[a-fA-F0-9]{64}$/.test(wallet)) {
       return NextResponse.json(
         {
           success: false,

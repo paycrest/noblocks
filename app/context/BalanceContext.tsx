@@ -9,8 +9,10 @@ import {
 } from "react";
 import {
   fetchWalletBalance,
+  fetchStarknetBalance,
   getRpcUrl,
   calculateCorrectedTotalBalance,
+  getNetworkTokens,
 } from "../utils";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
@@ -18,21 +20,25 @@ import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createPublicClient, http } from "viem";
 import { useInjectedWallet } from "./InjectedWalletContext";
+import { useStarknet } from "./StarknetContext";
 import { bsc } from "viem/chains";
 
 interface WalletBalances {
   total: number;
   balances: Record<string, number>;
+  balancesUsd?: Record<string, number>; // USD value for each token
 }
 
 interface BalanceContextProps {
   smartWalletBalance: WalletBalances | null;
   externalWalletBalance: WalletBalances | null;
   injectedWalletBalance: WalletBalances | null;
+  starknetWalletBalance: WalletBalances | null;
   allBalances: {
     smartWallet: WalletBalances | null;
     externalWallet: WalletBalances | null;
     injectedWallet: WalletBalances | null;
+    starknetWallet: WalletBalances | null;
   };
   refreshBalance: () => void;
   isLoading: boolean;
@@ -49,12 +55,15 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const { selectedNetwork } = useNetwork();
   const { isInjectedWallet, injectedAddress, injectedReady, injectedProvider } =
     useInjectedWallet();
+  const { address: starknetAddress } = useStarknet();
 
   const [smartWalletBalance, setSmartWalletBalance] =
     useState<WalletBalances | null>(null);
   const [externalWalletBalance, setExternalWalletBalance] =
     useState<WalletBalances | null>(null);
   const [injectedWalletBalance, setInjectedWalletBalance] =
+    useState<WalletBalances | null>(null);
+  const [starknetWalletBalance, setStarknetWalletBalance] =
     useState<WalletBalances | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -68,6 +77,35 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     setIsLoading(true);
 
     try {
+      // Handle Starknet network separately
+      if (selectedNetwork.chain.name === "Starknet") {
+        if (starknetAddress) {
+          try {
+            const tokens = await getNetworkTokens("Starknet");
+            const result = await fetchStarknetBalance(starknetAddress, tokens);
+
+            setStarknetWalletBalance(result);
+            setSmartWalletBalance(null);
+            setExternalWalletBalance(null);
+            setInjectedWalletBalance(null);
+          } catch (error) {
+            console.error("Error fetching Starknet balance:", error);
+            setStarknetWalletBalance(null);
+          }
+        } else {
+          setStarknetWalletBalance(null);
+          setSmartWalletBalance(null);
+          setExternalWalletBalance(null);
+          setInjectedWalletBalance(null);
+        }
+
+        setIsLoading(false);
+        return;
+      }
+
+      // Reset Starknet balance when not on Starknet network
+      setStarknetWalletBalance(null);
+
       if (ready && !isInjectedWallet) {
         const smartWalletAccount = user?.linkedAccounts.find(
           (account) => account.type === "smart_wallet",
@@ -183,13 +221,25 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     isInjectedWallet,
     injectedReady,
     injectedAddress,
+    starknetAddress,
     cngnRate,
   ]);
+
+  useEffect(() => {
+    if (!user && !isInjectedWallet && !starknetAddress) {
+      setSmartWalletBalance(null);
+      setExternalWalletBalance(null);
+      setInjectedWalletBalance(null);
+      setStarknetWalletBalance(null);
+      setIsLoading(false);
+    }
+  }, [user, isInjectedWallet, starknetAddress]);
 
   const allBalances = {
     smartWallet: smartWalletBalance,
     externalWallet: externalWalletBalance,
     injectedWallet: injectedWalletBalance,
+    starknetWallet: starknetWalletBalance,
   };
 
   return (
@@ -198,6 +248,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         smartWalletBalance,
         externalWalletBalance,
         injectedWalletBalance,
+        starknetWalletBalance,
         allBalances,
         refreshBalance: fetchBalances,
         isLoading,

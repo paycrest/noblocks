@@ -88,6 +88,9 @@ export function TokensProvider({ children }: { children: ReactNode }) {
 
       // Merge fallback tokens for any networks missing from API response
       Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
+        // Skip Starknet since we already handled it above
+        if (networkName === "Starknet") return;
+
         if (!newTokens[networkName] || newTokens[networkName].length === 0) {
           newTokens[networkName] = FALLBACK_TOKENS[networkName];
         }

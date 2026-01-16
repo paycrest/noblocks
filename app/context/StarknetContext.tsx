@@ -142,6 +142,9 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
       setIsCreating(true);
 
       const token = await getAccessToken();
+      if (!token) {
+        throw new Error("Authentication required. Please sign in.");
+      }
 
       // Step 1: Create the wallet
       const response = await fetch("/api/starknet/create-wallet", {
@@ -209,6 +212,9 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
 
     try {
       const token = await getAccessToken();
+      if (!token) {
+        throw new Error("Authentication required. Please sign in.");
+      }
       const response = await fetch(
         `/api/starknet/wallet-state?userId=${user.id}`,
         {

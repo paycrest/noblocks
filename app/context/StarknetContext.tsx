@@ -61,13 +61,12 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
         setWalletId(walletId);
         setAddress(address);
         if (pk) setPublicKey(pk);
-        setDeployed(true);
 
         saveToLocalStorage({
           walletId,
           address,
           publicKey: pk,
-          deployed: true,
+          deployed: false,
         });
       }
     }

@@ -44,10 +44,11 @@ export async function POST(request: NextRequest) {
     // First, check if user already has a Starknet wallet
     const privy = getPrivyClient();
 
+    let existingStarknetWallet = null;
     try {
       const user = await privy.getUser(userId);
       const linkedAccounts = user.linkedAccounts || [];
-      const existingStarknetWallet = linkedAccounts.find(
+      existingStarknetWallet = linkedAccounts.find(
         (account: any) =>
           account.type === "wallet" &&
           (account.chainType === "starknet" ||
@@ -68,6 +69,8 @@ export async function POST(request: NextRequest) {
       }
     } catch (error) {
       console.error("Error checking for existing Starknet wallet:", error);
+      // Re-throw the error to prevent duplicate wallet creation
+      throw error;
     }
 
     // Create Starknet wallet via Privy

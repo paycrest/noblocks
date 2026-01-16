@@ -486,7 +486,7 @@ export const TransactionPreview = ({
       }
 
       const transaction: TransactionCreateInput = {
-        walletAddress: embeddedWallet?.address || "",
+        walletAddress: embeddedWallet?.address || starknetAddress || "",
         transactionType: "swap",
         fromCurrency: token,
         toCurrency: currency,

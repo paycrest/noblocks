@@ -437,21 +437,21 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
             tokens["Base"].push(usdtBase);
           }
 
-          // Ensure native ETH is present in Base
-          const nativeETH = {
-            name: "Ethereum",
-            symbol: "ETH",
-            decimals: 18,
-            address: "", // Native token has no contract address
-            imageUrl: "/logos/eth-logo.svg",
-            isNative: true,
-          };
-          const hasNativeETH = tokens["Base"].some(
-            (token) => token.symbol === "ETH" && token.isNative,
-          );
-          if (!hasNativeETH) {
-            tokens["Base"].push(nativeETH);
-          }
+          // Ensure native ETH is present in the target network
+          // const nativeETH = {
+          //   name: "Ethereum",
+          //   symbol: "ETH",
+          //   decimals: 18,
+          //   address: "", // Native token has no contract address
+          //   imageUrl: "/logos/eth-logo.svg",
+          //   isNative: true,
+          // };
+          // const hasNativeETH = tokens["Ethereum"].some(
+          //   (token) => token.symbol === "ETH" && token.isNative,
+          // );
+          // if (!hasNativeETH) {
+          //   tokens["Ethereum"].push(nativeETH);
+          // }
         }
         // Merge fallback tokens for any networks missing from API response
         Object.keys(FALLBACK_TOKENS).forEach((networkName) => {

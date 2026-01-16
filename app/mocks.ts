@@ -42,7 +42,7 @@ export const acceptedCurrencies = [
     name: "TZS",
     label: "Tanzanian Shilling (TZS)",
   },
-    {
+  {
     name: "MWK",
     label: "Malawian Kwacha (MWK)",
     disabled: true,
@@ -84,7 +84,7 @@ export const networks = [
   },
   {
     chain: mainnet,
-    imageUrl: "/logos/ethereum-logo.svg",
+    imageUrl: "/logos/eth-logo.svg",
   },
   {
     chain: lisk,

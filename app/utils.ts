@@ -259,6 +259,14 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
       imageUrl: "/logos/cngn-logo.svg",
     },
+    {
+      name: "Ethereum",
+      symbol: "ETH",
+      decimals: 18,
+      address: "", // Native token has no contract address
+      imageUrl: "/logos/eth-logo.svg",
+      isNative: true,
+    },
   ],
   "Arbitrum One": [
     {
@@ -450,6 +458,22 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
           if (!hasUSDT) {
             tokens["Base"].push(usdtBase);
           }
+
+          // Ensure native ETH is present in the target network
+          // const nativeETH = {
+          //   name: "Ethereum",
+          //   symbol: "ETH",
+          //   decimals: 18,
+          //   address: "", // Native token has no contract address
+          //   imageUrl: "/logos/eth-logo.svg",
+          //   isNative: true,
+          // };
+          // const hasNativeETH = tokens["Ethereum"].some(
+          //   (token) => token.symbol === "ETH" && token.isNative,
+          // );
+          // if (!hasNativeETH) {
+          //   tokens["Ethereum"].push(nativeETH);
+          // }
         }
 
         // Merge fallback tokens for any networks missing from API response
@@ -617,16 +641,25 @@ export async function fetchWalletBalance(
     // Fetch balances in parallel
     const balancePromises = supportedTokens.map(async (token: Token) => {
       try {
-        const balanceInWei = await client.readContract({
-          address: token.address as `0x${string}`,
-          abi: erc20Abi,
-          functionName: "balanceOf",
-          args: [address as `0x${string}`],
-        });
-        const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-        // Ensure balance is a valid number
-        balances[token.symbol] = isNaN(balance) ? 0 : balance;
-        return balances[token.symbol];
+        if (token.isNative && token.address === "") {
+          // Native token balance (ETH, BNB, etc.)
+          const balanceInWei = await client.getBalance({ address });
+          const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+          balances[token.symbol] = isNaN(balance) ? 0 : balance;
+          return balances[token.symbol];
+        } else {
+          // ERC-20 token balance
+          const balanceInWei = await client.readContract({
+            address: token.address as `0x${string}`,
+            abi: erc20Abi,
+            functionName: "balanceOf",
+            args: [address as `0x${string}`],
+          });
+          const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+          // Ensure balance is a valid number
+          balances[token.symbol] = isNaN(balance) ? 0 : balance;
+          return balances[token.symbol];
+        }
       } catch (error) {
         console.error(`Error fetching balance for ${token.symbol}:`, error);
         balances[token.symbol] = 0;

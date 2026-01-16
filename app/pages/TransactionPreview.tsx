@@ -428,6 +428,7 @@ export const TransactionPreview = ({
           "Wallet type": "Starknet embedded wallet",
           "Transaction hash": result.transaction_hash,
         });
+        return;
       }
 
       if (isInjectedWallet && injectedProvider) {

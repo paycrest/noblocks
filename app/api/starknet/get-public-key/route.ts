@@ -43,6 +43,20 @@ export async function POST(request: NextRequest) {
     const privy = getPrivyClient();
     const wallet: any = await privy.walletApi.getWallet({ id: walletId });
     
+    // Verify that the wallet belongs to the authenticated user
+    const user = await privy.getUser(authUserId);
+    const linkedAccounts = user.linkedAccounts || [];
+    const ownsWallet = linkedAccounts.find(
+      (account: any) => account.id === walletId && account.type === "wallet"
+    );
+    
+    if (!ownsWallet) {
+      return NextResponse.json(
+        { error: "Unauthorized: wallet does not belong to this user" },
+        { status: 403 }
+      );
+    }
+    
     const publicKey = wallet.public_key || wallet.publicKey;
     
     if (!publicKey) {
@@ -50,14 +64,12 @@ export async function POST(request: NextRequest) {
         error: "Public key not available from Privy. " +
                 "This may require enabling Starknet support in your Privy dashboard or " +
                 "upgrading to a Privy tier that supports Starknet public key access.",
-        wallet: wallet,
       }, { status: 404 });
     }
 
     return NextResponse.json({
       success: true,
       publicKey: publicKey,
-      wallet: wallet,
     });
 
   } catch (error: any) {

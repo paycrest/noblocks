@@ -38,6 +38,7 @@ import {
   useNetwork,
   useTokens,
 } from "../context";
+import { min } from "date-fns";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -338,28 +339,24 @@ export const TransactionForm = ({
         let minAmountSentValue = 0.5;
 
         const normalizedToken = token?.toUpperCase();
+        const isEthereum = selectedNetwork?.chain?.name === "Ethereum";
 
         if (normalizedToken === "CNGN") {
           if (cngnRate && cngnRate > 0) {
             // Valid rate available - calculate limits and clear errors
             maxAmountSentValue = 50000000;
-            minAmountSentValue = 0.5 * cngnRate;
+            // For Ethereum, require 1M worth of cNGN. For other networks, require 0.5 worth
+            minAmountSentValue = isEthereum ? 716 * cngnRate : 0.5 * cngnRate;
             setRateError(null);
           } else {
             // cNGN selected but no valid rate - set error
             const errorMessage = cngnRateError || "No available quote";
+            minAmountSentValue = isEthereum ? 716 : 0.5;
             setRateError(errorMessage);
           }
-        } else if (selectedNetwork?.chain?.name === "Ethereum") {
-          if (cngnRate && cngnRate > 0) {
-            // Valid rate available - calculate limits and clear errors
-            maxAmountSentValue = 50000000;
-            minAmountSentValue = 50 * cngnRate;
-            setRateError(null);
-          } else {
-            // For Ethereum network, apply $50 USD minimum
-            minAmountSentValue = 50;
-          }
+        } else if (isEthereum) {
+          // For non-cNGN tokens on Ethereum, require $50 minimum
+          minAmountSentValue = 50;
         }
 
         formMethods.register("amountSent", {

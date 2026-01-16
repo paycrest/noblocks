@@ -272,7 +272,7 @@ export const TransactionPreview = ({
         trackEvent("Swap started", {
           "Entry point": "Transaction preview",
           "Wallet type": "Starknet embedded wallet",
-          "Transaction hash": result.transaction_hash,
+          "Transaction hash": result.transactionHash,
         });
         return;
       }

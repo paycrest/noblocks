@@ -384,7 +384,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       symbol: "USDC",
       decimals: 6,
       address:
-        "0x02613a46ec7f06ae803a16bce8ede8a72f5bf3daf883c530d3a6e7719d31a7a7",
+        "0x033068F6539f8e6e6b131e6B2B814e6c34A5224bC66947c47DaB9dFeE93b35fb",
       imageUrl: "/logos/usdc-logo.svg",
     },
     {

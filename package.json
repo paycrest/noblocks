@@ -100,7 +100,7 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3"
   },
-    "engines": {
+  "engines": {
     "node": "22.x",
     "pnpm": "10.14.0"
   },

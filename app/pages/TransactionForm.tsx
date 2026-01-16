@@ -350,6 +350,9 @@ export const TransactionForm = ({
             const errorMessage = cngnRateError || "No available quote";
             setRateError(errorMessage);
           }
+        } else if (selectedNetwork?.chain?.name === "Ethereum") {
+          // For Ethereum network, apply $50 USD minimum
+          minAmountSentValue = 50;
         }
 
         formMethods.register("amountSent", {

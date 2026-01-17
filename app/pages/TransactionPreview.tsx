@@ -24,7 +24,7 @@ import type {
 } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components";
 import { gatewayAbi } from "../api/abi";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
   type BaseError,
@@ -37,6 +37,7 @@ import {
   http,
 } from "viem";
 import { useBalance, useInjectedWallet, useStep } from "../context";
+import { useMigrationStatus } from "../hooks/useEIP7702Account";
 
 import { fetchAggregatorPublicKey, saveTransaction } from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics/client";
@@ -59,14 +60,16 @@ export const TransactionPreview = ({
 }: TransactionPreviewProps) => {
   const isDark = useActualTheme();
   const { user, getAccessToken } = usePrivy();
+  const { wallets } = useWallets();
   const { client } = useSmartWallets();
   const { isInjectedWallet, injectedAddress, injectedProvider, injectedReady } =
     useInjectedWallet();
+  const { isMigrationComplete, isLoading: isMigrationLoading } = useMigrationStatus();
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();
   const { currentStep, setCurrentStep } = useStep();
-  const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
+  const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance } =
     useBalance();
 
   const {
@@ -101,11 +104,6 @@ export const TransactionPreview = ({
 
   const searchParams = useSearchParams();
 
-  const embeddedWallet = user?.linkedAccounts.find(
-    (account) =>
-      account.type === "wallet" && account.connectorType === "embedded",
-  ) as { address: string } | undefined;
-
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
   const tokenAddress = fetchedTokens.find(
@@ -120,15 +118,30 @@ export const TransactionPreview = ({
     ? { address: injectedAddress, type: "injected_wallet" }
     : null;
 
+  // Determine active wallet based on migration status
+  // After migration: use EOA (new wallet with funds)
+  // Before migration: use SCW (old wallet)
+  const embeddedWallet = wallets.find(
+    (wallet) => wallet.walletClientType === "privy"
+  );
   const smartWallet = isInjectedWallet
     ? null
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
-  const activeWallet = injectedWallet || smartWallet;
+  const activeWallet = injectedWallet ||
+    (isMigrationComplete && embeddedWallet
+      ? { address: embeddedWallet.address, type: "eoa" }
+      : smartWallet);
 
+  // Get appropriate balance based on migration status
+  // After migration: use externalWalletBalance (EOA balance)
+  // Before migration: use smartWalletBalance (SCW balance)
+  // Wait for migration status to load before making decision
   const balance = injectedWallet
     ? injectedWalletBalance?.balances[token] || 0
-    : smartWalletBalance?.balances[token] || 0;
+    : !isMigrationLoading && isMigrationComplete
+      ? externalWalletBalance?.balances[token] || 0
+      : smartWalletBalance?.balances[token] || 0;
 
   // Calculate sender fee for display and balance check
   const {
@@ -363,6 +376,19 @@ export const TransactionPreview = ({
   const handlePaymentConfirmation = async () => {
     // Check balance including sender fee
     const totalRequired = amountSent + senderFeeAmount;
+
+    // Debug: Log balance information
+    console.log("🔍 Balance check:", {
+      amountSent,
+      senderFeeAmount,
+      totalRequired,
+      balance,
+      isMigrationComplete,
+      activeWalletAddress: activeWallet?.address,
+      externalWalletBalance: externalWalletBalance?.balances[token],
+      smartWalletBalance: smartWalletBalance?.balances[token],
+    });
+
     if (totalRequired > balance) {
       toast.warning("Low balance. Fund your wallet.", {
         description: `Insufficient funds. You need ${formatNumberWithCommas(totalRequired)} ${token} (${formatNumberWithCommas(amountSent)} ${token} + ${formatNumberWithCommas(senderFeeAmount)} ${token} fee).`,
@@ -388,7 +414,7 @@ export const TransactionPreview = ({
     orderId: string;
     txHash: `0x${string}`;
   }) => {
-    if (!embeddedWallet?.address || isSavingTransaction) return;
+    if (!activeWallet?.address || isSavingTransaction) return;
     setIsSavingTransaction(true);
 
     try {
@@ -398,7 +424,7 @@ export const TransactionPreview = ({
       }
 
       const transaction: TransactionCreateInput = {
-        walletAddress: embeddedWallet.address,
+        walletAddress: activeWallet.address,
         transactionType: "swap",
         fromCurrency: token,
         toCurrency: currency,
@@ -610,9 +636,8 @@ export const TransactionPreview = ({
                   <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
                 ) : (
                   <TbCircleDashed
-                    className={`text-lg ${
-                      isGatewayApproved ? "animate-spin" : ""
-                    }`}
+                    className={`text-lg ${isGatewayApproved ? "animate-spin" : ""
+                      }`}
                   />
                 )}
                 <p className="pr-1">Create Order</p>

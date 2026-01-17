@@ -11,7 +11,7 @@ import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
-import { useCNGNRate } from "../hooks/useCNGNRate";
+import { getCNGNRateForNetwork } from "../hooks/useCNGNRate";
 import WalletMigrationSuccessModal from "./WalletMigrationSuccessModal";
 import { type Address, encodeFunctionData, parseAbi, createPublicClient, http, parseUnits } from "viem";
 import { toast } from "sonner";
@@ -37,6 +37,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
     const [progress, setProgress] = useState<string>("");
     const [allChainBalances, setAllChainBalances] = useState<Record<string, Record<string, number>>>({});
     const [isFetchingBalances, setIsFetchingBalances] = useState(false);
+    const [chainRates, setChainRates] = useState<Record<string, number | null>>({});
 
     const { allBalances, isLoading } = useBalance();
     const { allTokens } = useTokens();
@@ -45,10 +46,6 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
     const { wallets } = useWallets();
     const { client: smartWalletClient } = useSmartWallets();
     const isDark = useActualTheme();
-    const { rate } = useCNGNRate({
-        network: selectedNetwork.chain.name,
-        dependencies: [selectedNetwork],
-    });
 
     // Get wallet addresses
     const smartWallet = user?.linkedAccounts.find(a => a.type === "smart_wallet");
@@ -95,6 +92,32 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
         fetchAllChainBalances();
     }, [isOpen, oldAddress]);
 
+    // -------------------- Fetch CNGN rates for each chain --------------------
+    useEffect(() => {
+        if (!isOpen || Object.keys(allChainBalances).length === 0) return;
+
+        const fetchChainRates = async () => {
+            const rates: Record<string, number | null> = {};
+
+            // Fetch rates for chains that have CNGN tokens
+            for (const [chainName, balances] of Object.entries(allChainBalances)) {
+                if (balances.CNGN || balances.cNGN) {
+                    try {
+                        const rate = await getCNGNRateForNetwork(chainName);
+                        rates[chainName] = rate;
+                    } catch (error) {
+                        console.error(`Error fetching CNGN rate for ${chainName}:`, error);
+                        rates[chainName] = null;
+                    }
+                }
+            }
+
+            setChainRates(rates);
+        };
+
+        fetchChainRates();
+    }, [isOpen, allChainBalances]);
+
     // -------------------- Group tokens by chain from all networks --------------------
     const tokensByChain = useMemo(() => {
         const grouped: Record<string, any[]> = {};
@@ -112,10 +135,11 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                 );
 
                 if (tokenMeta?.address) {
-                    // Get CNGN rate for this chain if needed
-                    const chainRate = symbol.toUpperCase() === "CNGN" ? rate : undefined;
+                    // Get CNGN rate for this specific chain if needed
+                    const isCNGN = symbol.toUpperCase() === "CNGN";
+                    const chainRate = isCNGN ? chainRates[chainName] : undefined;
                     let usdValue = balanceNum;
-                    if (chainRate) {
+                    if (isCNGN && chainRate) {
                         usdValue = balanceNum / chainRate;
                     }
 
@@ -144,7 +168,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
         }
 
         return grouped;
-    }, [allChainBalances, allTokens, rate]);
+    }, [allChainBalances, allTokens, chainRates]);
 
     // Flatten for display
     const tokens = useMemo(() => {
@@ -188,6 +212,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
 
             const allTxHashes: string[] = [];
             const chains = Object.keys(tokensByChain);
+            let totalTokensMigrated = 0;
 
             // ✅ If tokens exist, process transfers
             if (hasTokens) {
@@ -266,6 +291,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         });
 
                         if (receipt.status === 'success') {
+                            totalTokensMigrated += calls.length;
                             toast.success(`${chainName} migration complete!`, {
                                 description: `${calls.length} token(s) transferred to your EOA (gasless)`
                             });
@@ -308,7 +334,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
 
             toast.success("🎉 Migration Complete!", {
                 description: hasTokens
-                    ? `${allTxHashes.length} token(s) successfully migrated to your EOA`
+                    ? `${totalTokensMigrated} token(s) successfully migrated to your EOA`
                     : "Old wallet deprecated successfully",
                 duration: 5000,
             });
@@ -336,7 +362,11 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
         <>
             <AnimatePresence>
                 {isOpen && (
-                    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+                    <Dialog
+                        open={isOpen}
+                        onClose={isProcessing ? () => { } : () => onClose()}
+                        className="relative z-50"
+                    >
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}

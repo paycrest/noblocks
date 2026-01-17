@@ -86,6 +86,50 @@ export function useEIP7702Account(): EIP7702Account {
 }
 
 // ################################################
+// ########## MIGRATION STATUS HOOK ###############
+// ################################################
+
+interface MigrationStatus {
+    isMigrationComplete: boolean;
+    isLoading: boolean;
+}
+
+/**
+ * Hook to check if wallet migration is complete
+ * Returns the migration completion status from the API
+ */
+export function useMigrationStatus(): MigrationStatus {
+    const { user } = usePrivy();
+    const [isMigrationComplete, setIsMigrationComplete] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        async function checkMigration() {
+            if (!user?.id) {
+                setIsLoading(false);
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/v1/wallets/migration-status?userId=${user.id}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setIsMigrationComplete(data.migrationCompleted ?? false);
+                }
+            } catch (error) {
+                console.error("Error checking migration status:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+
+        checkMigration();
+    }, [user?.id]);
+
+    return { isMigrationComplete, isLoading };
+}
+
+// ################################################
 // ########## WALLET MIGRATION STATUS #############
 // ################################################
 

@@ -32,6 +32,7 @@ import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
+import { useMigrationStatus } from "../hooks/useEIP7702Account";
 import {
   useBalance,
   useInjectedWallet,
@@ -64,7 +65,8 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
+  const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
+  const { isMigrationComplete, isLoading: isMigrationLoading } = useMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
 
@@ -110,13 +112,31 @@ export const TransactionForm = ({
     dependencies: [selectedNetwork],
   });
 
+  // Determine active wallet based on migration status
+  // After migration: use EOA (new wallet with funds)
+  // Before migration: use SCW (old wallet)
+  const embeddedWallet = wallets.find(
+    (wallet) => wallet.walletClientType === "privy"
+  );
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet"
+  );
+
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : isMigrationComplete && embeddedWallet
+      ? { address: embeddedWallet.address }
+      : smartWallet;
 
+  // Get appropriate balance based on migration status
+  // After migration: use externalWalletBalance (EOA balance)
+  // Before migration: use smartWalletBalance (SCW balance)
+  // Wait for migration status to load before making decision
   const activeBalance = isInjectedWallet
     ? injectedWalletBalance
-    : smartWalletBalance;
+    : !isMigrationLoading && isMigrationComplete
+      ? externalWalletBalance
+      : smartWalletBalance;
 
   const balance = activeBalance?.balances[token] ?? 0;
 
@@ -675,11 +695,10 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedSentAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                  authenticated && (amountSent > balance || errors.amountSent)
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${authenticated && (amountSent > balance || errors.amountSent)
                     ? "text-red-500 dark:text-red-500"
                     : "text-neutral-900 dark:text-white/80"
-                }`}
+                  }`}
                 placeholder="0"
                 title="Enter amount to send"
               />
@@ -697,16 +716,16 @@ export const TransactionForm = ({
             </div>
             {(errors.amountSent ||
               (authenticated && totalRequired > balance)) && (
-              <AnimatedComponent
-                variant={slideInOut}
-                className="!mt-0 text-xs text-red-500"
-              >
-                {errors.amountSent?.message ||
-                  (authenticated && totalRequired > balance
-                    ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
-                    : null)}
-              </AnimatedComponent>
-            )}
+                <AnimatedComponent
+                  variant={slideInOut}
+                  className="!mt-0 text-xs text-red-500"
+                >
+                  {errors.amountSent?.message ||
+                    (authenticated && totalRequired > balance
+                      ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
+                      : null)}
+                </AnimatedComponent>
+              )}
 
             {/* Arrow showing swap direction */}
             <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas">
@@ -761,11 +780,10 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedReceivedAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                  errors.amountReceived
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amountReceived
                     ? "text-red-500 dark:text-red-500"
                     : "text-neutral-900 dark:text-white/80"
-                }`}
+                  }`}
                 placeholder="0"
                 title="Enter amount to receive"
               />
@@ -814,11 +832,10 @@ export const TransactionForm = ({
                       formMethods.setValue("memo", e.target.value);
                     }}
                     value={formMethods.watch("memo")}
-                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
-                      errors.memo
+                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${errors.memo
                         ? "text-red-500 dark:text-red-500"
                         : "text-text-body dark:text-white/80"
-                    }`}
+                      }`}
                     placeholder="Add description (optional)"
                     maxLength={25}
                   />

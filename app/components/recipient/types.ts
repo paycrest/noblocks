@@ -16,6 +16,7 @@ export interface RecipientListItemProps {
   onSelect: (recipient: RecipientDetails) => void;
   onDelete: (recipient: RecipientDetails) => void;
   isBeingDeleted: boolean;
+  index?: number;
 }
 
 export interface SavedBeneficiariesModalProps {
@@ -29,6 +30,8 @@ export interface SavedBeneficiariesModalProps {
   institutions: InstitutionProps[];
   isLoading?: boolean;
   error?: string | null;
+  isSwapped?: boolean; // For onramp mode
+  networkName?: string; // Network name for wallet recipients
 }
 
 export type SelectBankModalProps = {

@@ -722,14 +722,28 @@ export async function migrateLocalStorageRecipients(
     // First, fetch existing recipients from DB to check for duplicates
     const existingRecipients = await fetchSavedRecipients(accessToken);
     const existingKeys = new Set(
-      existingRecipients.map(
-        (r) => `${r.institutionCode}-${r.accountIdentifier}`,
-      ),
+      existingRecipients.map((r) => {
+        if (r.type === "wallet") {
+          if (!r.walletAddress) {
+            console.warn("Wallet recipient missing walletAddress", r);
+            return `wallet-invalid-${r.id}`;
+          }
+          return `wallet-${r.walletAddress}`;
+        } else {
+          if (!r.institutionCode || !r.accountIdentifier) {
+            console.warn("Bank/mobile_money recipient missing required fields", r);
+            return `${r.type}-invalid-${r.id}`;
+          }
+          return `${r.institutionCode}-${r.accountIdentifier}`;
+        }
+      }),
     );
 
     // Filter out duplicates - only migrate recipients that don't exist in DB
     const recipientsToMigrate = recipients.filter((recipient) => {
-      const key = `${recipient.institutionCode}-${recipient.accountIdentifier}`;
+      const key = recipient.type === "wallet"
+        ? `wallet-${recipient.walletAddress}`
+        : `${recipient.institutionCode}-${recipient.accountIdentifier}`;
       return !existingKeys.has(key);
     });
 
@@ -746,7 +760,10 @@ export async function migrateLocalStorageRecipients(
         await saveRecipient(recipient, accessToken);
         return { success: true, recipient };
       } catch (error) {
-        console.error(`Failed to migrate recipient ${recipient.name}:`, error);
+        const recipientName = recipient.type === "wallet"
+          ? recipient.walletAddress
+          : recipient.name;
+        console.error(`Failed to migrate recipient ${recipientName}:`, error);
         return { success: false, recipient, error };
       }
     });

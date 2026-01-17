@@ -3,6 +3,7 @@ import { ImSpinner } from "react-icons/im";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown01Icon, Tick02Icon } from "hugeicons-react";
+import Image from "next/image";
 
 import { AnimatedFeedbackItem } from "../AnimatedComponents";
 import { InstitutionProps } from "@/app/types";
@@ -22,6 +23,10 @@ import {
 } from "@/app/api/aggregator";
 import { SavedBeneficiariesModal } from "@/app/components/recipient/SavedBeneficiariesModal";
 import { SelectBankModal } from "@/app/components/recipient/SelectBankModal";
+import { isValidEvmAddressCaseInsensitive } from "@/app/lib/validation";
+import { getNetworkImageUrl } from "@/app/utils";
+import { useActualTheme } from "@/app/hooks/useActualTheme";
+import { useNetwork } from "@/app/context";
 
 export const RecipientDetailsForm = ({
   formMethods,
@@ -31,6 +36,9 @@ export const RecipientDetailsForm = ({
     selectedRecipient,
     setSelectedRecipient,
   },
+  isSwapped = false,
+  token,
+  networkName,
 }: RecipientDetailsFormProps) => {
   const {
     watch,
@@ -40,11 +48,13 @@ export const RecipientDetailsForm = ({
   } = formMethods;
 
   const { getAccessToken, ready, authenticated, user } = usePrivy();
+  const { selectedNetwork } = useNetwork();
 
   const { currency } = watch();
   const institution = watch("institution");
   const accountIdentifier = watch("accountIdentifier");
   const recipientName = watch("recipientName");
+  const walletAddress = watch("walletAddress");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -78,6 +88,7 @@ export const RecipientDetailsForm = ({
   const [isReturningFromPreview, setIsReturningFromPreview] = useState(false);
 
   const prevCurrencyRef = useRef(currency);
+  const isDark = useActualTheme();
 
   /**
    * Array of institutions filtered and sorted alphabetically based on the bank search term.
@@ -109,21 +120,32 @@ export const RecipientDetailsForm = ({
 
   const selectSavedRecipient = (recipient: RecipientDetails) => {
     setSelectedRecipient(recipient);
-    setSelectedInstitution({
-      name: recipient.institution,
-      code: recipient.institutionCode,
-      type: recipient.type,
-    });
-    setValue("institution", recipient.institutionCode, { shouldDirty: true });
-    setValue("accountIdentifier", recipient.accountIdentifier, {
-      shouldDirty: true,
-    });
-    setValue("accountType", recipient.type, { shouldDirty: true });
 
-    // Remove extra spaces from recipient name
-    recipient.name = recipient.name.replace(/\s+/g, " ").trim();
-    setValue("recipientName", recipient.name, { shouldDirty: true });
-    setIsManualEntry(false);
+    if (recipient.type === "wallet") {
+      // Handle wallet address selection for onramp
+      setValue("walletAddress", recipient.walletAddress, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    } else {
+      // Handle bank/mobile money selection for offramp
+      setSelectedInstitution({
+        name: recipient.institution,
+        code: recipient.institutionCode,
+        type: recipient.type,
+      });
+      setValue("institution", recipient.institutionCode, { shouldDirty: true });
+      setValue("accountIdentifier", recipient.accountIdentifier, {
+        shouldDirty: true,
+      });
+      setValue("accountType", recipient.type, { shouldDirty: true });
+
+      // Remove extra spaces from recipient name
+      recipient.name = recipient.name.replace(/\s+/g, " ").trim();
+      setValue("recipientName", recipient.name, { shouldDirty: true });
+      setIsManualEntry(false);
+    }
+
     setIsModalOpen(false);
   };
 
@@ -134,8 +156,11 @@ export const RecipientDetailsForm = ({
       // Find the recipient with ID from the saved recipients
       const recipientWithId = savedRecipients.find(
         (r) =>
-          r.accountIdentifier === recipientToDeleteParam.accountIdentifier &&
-          r.institutionCode === recipientToDeleteParam.institutionCode,
+          recipientToDeleteParam.type === "wallet"
+            ? r.type === "wallet" && r.walletAddress === recipientToDeleteParam.walletAddress
+            : r.type !== "wallet" &&
+            r.accountIdentifier === recipientToDeleteParam.accountIdentifier &&
+            r.institutionCode === recipientToDeleteParam.institutionCode,
       );
 
       if (!recipientWithId) {
@@ -163,13 +188,16 @@ export const RecipientDetailsForm = ({
 
         setSavedRecipients(updatedRecipients);
 
-        if (
-          selectedRecipient?.accountIdentifier ===
-            recipientToDeleteParam.accountIdentifier &&
-          selectedRecipient?.institutionCode ===
-            recipientToDeleteParam.institutionCode
-        ) {
-          setSelectedRecipient(null);
+        if (selectedRecipient) {
+          if (
+            recipientToDeleteParam.type === "wallet"
+              ? selectedRecipient.type === "wallet" && selectedRecipient.walletAddress === recipientToDeleteParam.walletAddress
+              : selectedRecipient.type !== "wallet" &&
+              selectedRecipient.accountIdentifier === recipientToDeleteParam.accountIdentifier &&
+              selectedRecipient.institutionCode === recipientToDeleteParam.institutionCode
+          ) {
+            setSelectedRecipient(null);
+          }
         }
       } else {
         setRecipientsError("Failed to delete recipient");
@@ -210,15 +238,26 @@ export const RecipientDetailsForm = ({
       try {
         const accessToken = await getAccessToken();
         if (!accessToken) {
-          if (!isCancelled) setRecipientsError("Authentication required");
+          if (!isCancelled) {
+            setSavedRecipients([]);
+            setRecipientsError("Authentication required");
+            setIsLoadingRecipients(false);
+          }
           return;
         }
 
         const recipients = await fetchSavedRecipients(accessToken);
-        if (!isCancelled) setSavedRecipients(recipients);
+
+        if (!isCancelled) {
+          setSavedRecipients(recipients);
+          setRecipientsError(null);
+        }
       } catch (error) {
         console.error("Error loading recipients:", error);
-        if (!isCancelled) setRecipientsError("Failed to load saved recipients");
+        if (!isCancelled) {
+          setSavedRecipients([]);
+          setRecipientsError("Failed to load saved recipients");
+        }
       } finally {
         if (!isCancelled) setIsLoadingRecipients(false);
       }
@@ -253,7 +292,7 @@ export const RecipientDetailsForm = ({
         !institution ||
         !accountIdentifier ||
         accountIdentifier.toString().length <
-          (selectedInstitution?.code === "SAFAKEPC" ? 6 : 10)
+        (selectedInstitution?.code === "SAFAKEPC" ? 6 : 10)
       )
         return;
 
@@ -337,117 +376,195 @@ export const RecipientDetailsForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Format network name for display (e.g., "Binance Smartchain" from "bsc")
+  const formatNetworkName = (network?: string): string => {
+    if (!network) return "";
+    const networkMap: Record<string, string> = {
+      "bsc": "Binance Smartchain",
+      "arbitrum-one": "Arbitrum One",
+      "polygon": "Polygon",
+      "base": "Base",
+      "ethereum": "Ethereum",
+    };
+    return networkMap[network.toLowerCase()] || network;
+  };
+
+  // Filter saved recipients by type
+  const walletRecipients = useMemo(
+    () => savedRecipients.filter((r) => r.type === "wallet"),
+    [savedRecipients],
+  );
+
+  const bankRecipients = useMemo(
+    () => savedRecipients.filter((r) => r.type !== "wallet"),
+    [savedRecipients],
+  );
+
   return (
     <>
       <div className="space-y-4 rounded-2xl bg-white p-4 text-sm dark:bg-surface-canvas">
         <div className="flex items-center justify-between *:font-medium">
           <p className="text-base text-text-body dark:text-white">Recipient</p>
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="text-lavender-500 dark:text-lavender-500"
-          >
-            Select beneficiary
-          </button>
-        </div>
-
-        <div className="flex flex-col items-start gap-4 sm:flex-row">
-          {/* Bank */}
-          <div className="w-full flex-1 sm:w-1/2">
+          {/* Show Select beneficiary button when there are saved recipients */}
+          {((isSwapped && walletRecipients.length > 0) || (!isSwapped && bankRecipients.length > 0)) && (
             <button
               type="button"
-              onClick={() => setIsSelectBankModalOpen(true)}
-              disabled={isFetchingInstitutions}
-              className="flex w-full items-center justify-between gap-2 rounded-xl border border-border-input px-4 py-2.5 text-left text-sm dark:border-white/20 dark:text-white/80"
+              onClick={() => setIsModalOpen(true)}
+              className="text-lavender-500 dark:text-lavender-500"
             >
-              {selectedInstitution ? (
-                <p className="truncate">{selectedInstitution.name}</p>
-              ) : (
-                <p className="text-text-placeholder dark:text-white/30">
-                  Select institution
-                </p>
-              )}
-              {isFetchingInstitutions ? (
-                <ImSpinner className="size-4 flex-shrink-0 animate-spin text-gray-400" />
-              ) : (
-                <ArrowDown01Icon
-                  className={classNames(
-                    "size-5 flex-shrink-0 text-outline-gray transition-transform dark:text-white/50",
-                    isInstitutionsDropdownOpen ? "rotate-180" : "",
-                  )}
-                />
-              )}
+              Select beneficiary
             </button>
-          </div>
+          )}
+        </div>
 
-          {/* Account number */}
-          <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
+        {isSwapped ? (
+          /* Wallet address input for onramp */
+          <div className="space-y-3">
             <input
-              type="number"
-              placeholder="Account number"
-              {...register("accountIdentifier", {
+              type="text"
+              placeholder={`Enter ${token || "stablecoin"} wallet address`}
+              {...register("walletAddress", {
                 required: {
                   value: true,
-                  message: "Account number is required",
+                  message: "Wallet address is required",
                 },
-                minLength: {
-                  value: selectedInstitution?.code === "SAFAKEPC" ? 6 : 10,
-                  message: "Account number is invalid",
+                validate: (value) => {
+                  if (!value) return true;
+                  if (!isValidEvmAddressCaseInsensitive(value)) {
+                    return "Invalid wallet address format";
+                  }
+                  return true;
                 },
-                onChange: () => setIsManualEntry(true),
               })}
               className={classNames(
                 "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
-                errors.accountIdentifier
+                errors.walletAddress
                   ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
                   : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
               )}
             />
+            {errors.walletAddress && (
+              <InputError message={errors.walletAddress.message} />
+            )}
+            {networkName && (
+              <div className="flex items-center gap-2 text-xs text-text-disabled dark:text-white/30">
+                <div className="flex size-5 items-center justify-center">
+                  <Image
+                    src={getNetworkImageUrl(selectedNetwork, isDark)}
+                    alt={selectedNetwork.chain.name}
+                    width={20}
+                    height={20}
+                    className="size-5 rounded-full"
+                  />
+                </div>
+                <span className="text-xs font-normal leading-4 tracking-normal" style={{ fontFamily: 'Inter' }}>
+                  You are on {formatNetworkName(networkName)} network
+                </span>
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Account details feedback */}
-        <AnimatePresence mode="wait">
-          {isFetchingRecipientName ? (
-            <div className="flex items-center gap-1 text-gray-400 dark:text-white/50">
-              <AnimatedFeedbackItem className="animate-pulse">
-                <ImSpinner className="size-4 animate-spin" />
-                <p className="text-xs">Verifying account name...</p>
-              </AnimatedFeedbackItem>
-            </div>
-          ) : (
-            <>
-              {recipientName ? (
-                <AnimatedFeedbackItem className="justify-between text-gray-400 dark:text-white/50">
-                  <motion.div
-                    className="relative overflow-hidden rounded-lg p-0.5"
-                    style={{
-                      backgroundImage:
-                        "linear-gradient(90deg, #CB2DA899, #8250DF46, #FFEB3B99)",
-                      backgroundSize: "200% 100%",
-                    }}
-                    animate={{
-                      backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
-                    }}
-                    transition={{
-                      duration: 3,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }}
-                  >
-                    <p className="rounded-md bg-accent-gray px-3 py-1 capitalize text-text-accent-gray dark:bg-surface-overlay dark:text-white/80">
-                      {recipientName.toLowerCase()}
+        ) : (
+          /* Bank/Mobile Money fields for offramp */
+          <>
+            <div className="flex flex-col items-start gap-4 sm:flex-row">
+              {/* Bank */}
+              <div className="w-full flex-1 sm:w-1/2">
+                <button
+                  type="button"
+                  onClick={() => setIsSelectBankModalOpen(true)}
+                  disabled={isFetchingInstitutions}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-border-input px-4 py-2.5 text-left text-sm dark:border-white/20 dark:text-white/80"
+                >
+                  {selectedInstitution ? (
+                    <p className="truncate">{selectedInstitution.name}</p>
+                  ) : (
+                    <p className="text-text-placeholder dark:text-white/30">
+                      Select institution
                     </p>
-                  </motion.div>
+                  )}
+                  {isFetchingInstitutions ? (
+                    <ImSpinner className="size-4 flex-shrink-0 animate-spin text-gray-400" />
+                  ) : (
+                    <ArrowDown01Icon
+                      className={classNames(
+                        "size-5 flex-shrink-0 text-outline-gray transition-transform dark:text-white/50",
+                        isInstitutionsDropdownOpen ? "rotate-180" : "",
+                      )}
+                    />
+                  )}
+                </button>
+              </div>
 
-                  <Tick02Icon className="text-lg text-green-700 dark:text-green-500 max-sm:hidden" />
-                </AnimatedFeedbackItem>
-              ) : recipientNameError ? (
-                <InputError message={recipientNameError} />
-              ) : null}
-            </>
-          )}
-        </AnimatePresence>
+              {/* Account number */}
+              <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
+                <input
+                  type="number"
+                  placeholder="Account number"
+                  {...register("accountIdentifier", {
+                    required: {
+                      value: true,
+                      message: "Account number is required",
+                    },
+                    minLength: {
+                      value: selectedInstitution?.code === "SAFAKEPC" ? 6 : 10,
+                      message: "Account number is invalid",
+                    },
+                    onChange: () => setIsManualEntry(true),
+                  })}
+                  className={classNames(
+                    "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
+                    errors.accountIdentifier
+                      ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
+                      : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
+                  )}
+                />
+              </div>
+            </div>
+
+            {/* Account details feedback */}
+            <AnimatePresence mode="wait">
+              {isFetchingRecipientName ? (
+                <div className="flex items-center gap-1 text-gray-400 dark:text-white/50">
+                  <AnimatedFeedbackItem className="animate-pulse">
+                    <ImSpinner className="size-4 animate-spin" />
+                    <p className="text-xs">Verifying account name...</p>
+                  </AnimatedFeedbackItem>
+                </div>
+              ) : (
+                <>
+                  {recipientName ? (
+                    <AnimatedFeedbackItem className="justify-between text-gray-400 dark:text-white/50">
+                      <motion.div
+                        className="relative overflow-hidden rounded-lg p-0.5"
+                        style={{
+                          backgroundImage:
+                            "linear-gradient(90deg, #CB2DA899, #8250DF46, #FFEB3B99)",
+                          backgroundSize: "200% 100%",
+                        }}
+                        animate={{
+                          backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+                        }}
+                        transition={{
+                          duration: 3,
+                          repeat: Infinity,
+                          ease: "easeInOut",
+                        }}
+                      >
+                        <p className="rounded-md bg-accent-gray px-3 py-1 capitalize text-text-accent-gray dark:bg-surface-overlay dark:text-white/80">
+                          {recipientName.toLowerCase()}
+                        </p>
+                      </motion.div>
+
+                      <Tick02Icon className="text-lg text-green-700 dark:text-green-500 max-sm:hidden" />
+                    </AnimatedFeedbackItem>
+                  ) : recipientNameError ? (
+                    <InputError message={recipientNameError} />
+                  ) : null}
+                </>
+              )}
+            </AnimatePresence>
+          </>
+        )}
       </div>
 
       <SelectBankModal
@@ -468,13 +585,15 @@ export const RecipientDetailsForm = ({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSelectRecipient={selectSavedRecipient}
-        savedRecipients={savedRecipients}
+        savedRecipients={isSwapped ? walletRecipients : bankRecipients}
         onDeleteRecipient={deleteRecipient}
         recipientToDelete={recipientToDelete}
         currency={currency}
         institutions={institutions}
         isLoading={isLoadingRecipients}
         error={recipientsError}
+        isSwapped={isSwapped}
+        networkName={networkName}
       />
     </>
   );

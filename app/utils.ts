@@ -5,14 +5,44 @@ import type {
   Token,
   Currency,
   APIToken,
+  RecipientDetails,
 } from "./types";
 import type { SanityPost, SanityCategory } from "./blog/types";
-import { erc20Abi } from "viem";
+import { erc20Abi, createPublicClient, http } from "viem";
+import { mainnet } from "viem/chains";
+import { getEnsName } from "viem/actions";
+import { isValidEvmAddressCaseInsensitive } from "./lib/validation";
 import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
 import { feeRecipientAddress } from "./lib/config";
+
+/**
+ * Type predicate to narrow RecipientDetails to bank/mobile_money types.
+ * Used for type-safe filtering and property access.
+ *
+ * @param recipient - The recipient to check.
+ * @returns True if recipient is bank or mobile_money type.
+ */
+export function isBankOrMobileMoneyRecipient(
+  recipient: RecipientDetails,
+): recipient is Extract<RecipientDetails, { type: "bank" | "mobile_money" }> {
+  return recipient.type !== "wallet";
+}
+
+/**
+ * Type predicate to narrow RecipientDetails to wallet type.
+ * Used for type-safe filtering and property access.
+ *
+ * @param recipient - The recipient to check.
+ * @returns True if recipient is wallet type.
+ */
+export function isWalletRecipient(
+  recipient: RecipientDetails,
+): recipient is Extract<RecipientDetails, { type: "wallet" }> {
+  return recipient.type === "wallet";
+}
 
 /**
  * Concatenates and returns a string of class names.
@@ -80,6 +110,31 @@ export const formatCurrency = (
     // Set the currency to 'NGN' to format the number as Nigerian Naira.
     currency,
   }).format(value); // Format the provided value as a currency string.
+};
+
+/**
+ * Gets the currency symbol for a given currency code.
+ * @param currency - The currency code (e.g., "NGN", "KES", "USD")
+ * @returns The currency symbol (e.g., "₦", "KSh", "$")
+ */
+export const getCurrencySymbol = (currency: string): string => {
+  const currencySymbols: Record<string, string> = {
+    NGN: "₦",
+    KES: "KSh",
+    UGX: "USh",
+    TZS: "TSh",
+    GHS: "₵",
+    BRL: "R$",
+    ARS: "$",
+    USD: "$",
+    GBP: "£",
+    EUR: "€",
+    MWK: "MK",
+    XOF: "CFA",
+    XAF: "FCFA",
+  };
+
+  return currencySymbols[currency.toUpperCase()] || currency;
 };
 
 /**
@@ -616,6 +671,56 @@ export function shortenAddress(
     return address;
   }
   return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
+}
+
+/**
+ * Resolves ENS name from wallet address for supported networks
+ * Falls back to first 5 chars if no ENS name found
+ * @param address - The wallet address to resolve
+ * @param networkName - Optional network name (Lisk doesn't support ENS)
+ * @returns Promise<string> - ENS name or shortened address (first 5 chars after 0x)
+ */
+export async function resolveEnsNameOrShorten(
+  address: string,
+  networkName?: string,
+): Promise<string> {
+  if (!address) {
+    return "";
+  }
+
+  if (!isValidEvmAddressCaseInsensitive(address)) {
+    return address.slice(0, 5);
+  }
+
+  // Lisk doesn't support ENS, return shortened address immediately
+  if (networkName === "Lisk") {
+    return address.slice(2, 7); // First 5 chars (skip 0x)
+  }
+
+  try {
+
+    // ENS reverse resolution works on Ethereum mainnet
+    // But names can resolve to addresses on L2 networks (Base, Arbitrum, Polygon)
+    const publicClient = createPublicClient({
+      chain: mainnet,
+      transport: http("https://eth.llamarpc.com"), // Public Ethereum RPC
+    });
+
+    const ensName = await getEnsName(publicClient, {
+      address: address.toLowerCase() as `0x${string}`,
+    });
+
+    if (ensName) {
+      return ensName;
+    }
+
+    // Fallback to first 5 chars (skip 0x)
+    return address.slice(2, 7);
+  } catch (error) {
+    console.error("Error resolving ENS name:", error);
+    // Fallback to first 5 chars (skip 0x)
+    return address.slice(2, 7);
+  }
 }
 
 /**
@@ -1267,3 +1372,29 @@ export function calculateSenderFee(
 
   return { feeAmount, feeAmountInBaseUnits, feeRecipient };
 }
+
+/**
+ * Gets the avatar image path based on index, cycling through 1-4
+ */
+export const getAvatarImage = (index: number): string => {
+  const avatarNumber = (index % 4) + 1;
+  return `/images/onramp-avatar/avatar${avatarNumber}.png`;
+};
+
+/**
+ * Copies text to clipboard and shows a toast notification
+ * @param text - The text to copy to clipboard
+ * @param label - Optional label for the toast message (e.g., "Account number", "Amount")
+ * @returns Promise that resolves when copy is complete
+ */
+export const copyToClipboard = async (
+  text: string,
+  label?: string,
+): Promise<void> => {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(label ? `${label} copied to clipboard` : "Copied to clipboard");
+  } catch (error) {
+    toast.error("Failed to copy");
+  }
+};

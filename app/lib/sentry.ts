@@ -51,6 +51,9 @@ function createEvent(
         tags?: Record<string, string>;
         extra?: Record<string, any>;
         user?: {
+            id?: string;
+            email?: string;
+            username?: string;
             ip_address?: string;
         };
         request?: {
@@ -201,6 +204,9 @@ export async function captureException(
         tags?: Record<string, string>;
         extra?: Record<string, any>;
         user?: {
+            id?: string;
+            email?: string;
+            username?: string;
             ip_address?: string;
         };
         request?: {

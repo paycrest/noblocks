@@ -13,6 +13,7 @@ import {
   calculateCorrectedTotalBalance,
 } from "../utils";
 import { useCNGNRate } from "../hooks/useCNGNRate";
+import { useMigrationStatus } from "../hooks/useEIP7702Account";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -64,6 +65,9 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     dependencies: [selectedNetwork],
   });
 
+  // Check migration status
+  const { isMigrationComplete } = useMigrationStatus();
+
   const fetchBalances = async () => {
     setIsLoading(true);
 
@@ -72,28 +76,51 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const smartWalletAccount = user?.linkedAccounts.find(
           (account) => account.type === "smart_wallet",
         );
+        const embeddedWalletAccount = wallets.find(
+          (wallet) => wallet.walletClientType === "privy"
+        );
         const externalWalletAccount = wallets.find(
           (account) => account.connectorType === "injected",
         );
 
         if (client) {
-          await client.switchChain({
-            id: selectedNetwork.chain.id,
-          });
+          try {
+            await client.switchChain({
+              id: selectedNetwork.chain.id,
+            });
+          } catch (error) {
+            console.warn("Error switching smart wallet chain:", error);
+          }
         }
-
-        await externalWalletAccount?.switchChain(selectedNetwork.chain.id);
 
         const publicClient = createPublicClient({
           chain: selectedNetwork.chain,
           transport: http(
             selectedNetwork.chain.id === bsc.id
               ? "https://bsc-dataseed.bnbchain.org/"
-              : undefined,
+              : getRpcUrl(selectedNetwork.chain.name),
           ),
         });
 
-        if (smartWalletAccount) {
+        // After migration, prioritize embedded wallet (EOA) over smart wallet
+        if (isMigrationComplete && embeddedWalletAccount) {
+          // Migration complete: Fetch balance for migrated EOA
+          const result = await fetchWalletBalance(
+            publicClient,
+            embeddedWalletAccount.address,
+          );
+          const correctedTotal = calculateCorrectedTotalBalance(
+            result,
+            cngnRate,
+          );
+          setExternalWalletBalance({
+            ...result,
+            total: correctedTotal,
+          });
+          // Clear smart wallet balance since it's deprecated
+          setSmartWalletBalance(null);
+        } else if (smartWalletAccount) {
+          // Migration not complete: Fetch balance for old SCW
           const result = await fetchWalletBalance(
             publicClient,
             smartWalletAccount.address,
@@ -107,11 +134,17 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             ...result,
             total: correctedTotal,
           });
+          setExternalWalletBalance(null);
         } else {
           setSmartWalletBalance(null);
+          setExternalWalletBalance(null);
         }
 
-        if (externalWalletAccount) {
+        // Handle external injected wallets (separate from embedded wallet)
+        // Only fetch if it's not the embedded wallet and migration not complete
+        if (externalWalletAccount &&
+          externalWalletAccount.address !== embeddedWalletAccount?.address &&
+          !isMigrationComplete) {
           const result = await fetchWalletBalance(
             publicClient,
             externalWalletAccount.address,
@@ -125,8 +158,6 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             ...result,
             total: correctedTotal,
           });
-        } else {
-          setExternalWalletBalance(null);
         }
 
         setInjectedWalletBalance(null);
@@ -184,6 +215,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     injectedReady,
     injectedAddress,
     cngnRate,
+    isMigrationComplete,
   ]);
 
   const allBalances = {

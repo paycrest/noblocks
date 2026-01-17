@@ -344,28 +344,28 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
     },
   ],
   Ethereum: [
-  {
-    name: "USD Coin",
-    symbol: "USDC",
-    decimals: 6,
-    address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    imageUrl: "/logos/usdc-logo.svg",
-  },
-  {
-    name: "Tether USD", 
-    symbol: "USDT",
-    decimals: 6,
-    address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-    imageUrl: "/logos/usdt-logo.svg",
-  },
-      {
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
       name: "cNGN",
       symbol: "cNGN",
       decimals: 6,
       address: "0x17CDB2a01e7a34CbB3DD4b83260B05d0274C8dab",
       imageUrl: "/logos/cngn-logo.svg",
     },
-],
+  ],
 };
 
 /**

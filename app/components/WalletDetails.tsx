@@ -7,8 +7,9 @@ import {
   shortenAddress,
 } from "../utils";
 import { useBalance } from "../context/BalanceContext";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
+import { useMigrationStatus } from "../hooks/useEIP7702Account";
 import {
   ArrowRight03Icon,
   Copy01Icon,
@@ -55,7 +56,9 @@ export const WalletDetails = () => {
   const { allBalances, isLoading, refreshBalance } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user } = usePrivy();
+  const { wallets } = useWallets();
   const isDark = useActualTheme();
+  const { isMigrationComplete } = useMigrationStatus();
 
   // Custom hook for handling wallet funding
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
@@ -70,15 +73,31 @@ export const WalletDetails = () => {
     dependencies: [selectedNetwork],
   });
 
-  // Determine active wallet based on wallet type
+  // Get embedded wallet (EOA) and smart wallet (SCW)
+  const embeddedWallet = wallets.find(
+    (wallet) => wallet.walletClientType === "privy"
+  );
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet"
+  );
+
+  // Determine active wallet based on migration status
+  // After migration: show EOA (new wallet with funds)
+  // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : isMigrationComplete && embeddedWallet
+      ? { address: embeddedWallet.address }
+      : smartWallet;
 
-  // Get appropriate balance based on wallet type
+  // Get appropriate balance based on migration status
+  // After migration: use externalWalletBalance (EOA balance)
+  // Before migration: use smartWalletBalance (SCW balance)
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
-    : allBalances.smartWallet;
+    : isMigrationComplete
+      ? allBalances.externalWallet
+      : allBalances.smartWallet;
 
   // Handler for funding wallet with specified amount and token
   const handleFundWalletClick = async (

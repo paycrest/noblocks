@@ -18,8 +18,36 @@ export async function GET(request: NextRequest) {
             .eq("wallet_type", "smart_contract")
             .single();
 
-        if (error && error.code !== "PGRST116") { // PGRST116 = no rows found
-            throw error;
+        // Handle specific error codes
+        if (error) {
+            // PGRST116 = no rows found (user has no smart wallet) - this is OK
+            if (error.code === "PGRST116") {
+                return NextResponse.json({
+                    migrationCompleted: false,
+                    status: "unknown",
+                    hasSmartWallet: false
+                });
+            }
+
+            // PGRST205 = table not found in schema cache (migration not run yet)
+            if (error.code === "PGRST205") {
+                console.warn("⚠️ Wallets table not found in schema cache. Migration may not be applied yet.");
+                return NextResponse.json({
+                    migrationCompleted: false,
+                    status: "unknown",
+                    hasSmartWallet: true, // Assume true to show banner
+                    error: "Database schema not ready"
+                }, { status: 200 }); // Return 200 so frontend doesn't break
+            }
+
+            // For other errors, log and return safe fallback
+            console.error("Database query error:", error);
+            return NextResponse.json({
+                migrationCompleted: false,
+                status: "unknown",
+                hasSmartWallet: true, // Assume true to show banner on error
+                error: error.message
+            }, { status: 200 }); // Return 200 so frontend doesn't break
         }
 
         return NextResponse.json({
@@ -27,13 +55,31 @@ export async function GET(request: NextRequest) {
             status: data?.status ?? "unknown",
             hasSmartWallet: !!data
         });
-    } catch (error) {
+    } catch (error: any) {
+        // Handle connection errors (DNS, network, etc.)
+        const errorMessage = error?.message || String(error);
+        const isConnectionError =
+            errorMessage.includes("ENOTFOUND") ||
+            errorMessage.includes("fetch failed") ||
+            errorMessage.includes("ECONNREFUSED") ||
+            errorMessage.includes("ETIMEDOUT");
+
+        if (isConnectionError) {
+            console.warn("⚠️ Database connection error, returning fallback response:", errorMessage);
+            return NextResponse.json({
+                migrationCompleted: false,
+                status: "unknown",
+                hasSmartWallet: true, // Assume true to show banner if DB is down
+                error: "Database temporarily unavailable"
+            }, { status: 200 }); // Return 200 so frontend doesn't break
+        }
+
         console.error("Error checking migration status:", error);
         return NextResponse.json({
-            error: "Internal server error",
+            error: error instanceof Error ? error.message : "Internal server error",
             migrationCompleted: false,
-            status: "unknown",
-            hasSmartWallet: false
-        }, { status: 500 });
+            status: "error",
+            hasSmartWallet: true // Assume true to show banner on error
+        }, { status: 200 }); // Return 200 so frontend doesn't break
     }
 }

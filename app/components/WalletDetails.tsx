@@ -35,7 +35,8 @@ import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useActualTheme } from "../hooks/useActualTheme";
 import TransactionList from "./transaction/TransactionList";
-import { FundWalletForm, TransferForm } from "./index";
+import { FundWalletForm, ReferralCTA, TransferForm } from "./index";
+import { ReferralDashboard } from "./ReferralDashboard";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 
 export const WalletDetails = () => {
@@ -46,6 +47,7 @@ export const WalletDetails = () => {
     "balances",
   );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isReferralOpen, setIsReferralOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionHistory | null>(null);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -275,6 +277,14 @@ export const WalletDetails = () => {
                         </div>
                       )}
                     </div>
+                    <div className="mt-8">
+                      <ReferralCTA
+                        onViewReferrals={() => {
+                          handleSidebarClose();
+                          setTimeout(() => setIsReferralOpen(true), 260);
+                        }}
+                      />
+                    </div>
 
                     {/* Tab navigation */}
                     <div className="mt-6 flex items-center gap-6">
@@ -403,6 +413,9 @@ export const WalletDetails = () => {
           </Dialog>
         )}
       </AnimatePresence>
+
+      {/* Referral sidebar (opens when CTA clicked) */}
+      <ReferralDashboard isOpen={isReferralOpen} onClose={() => setIsReferralOpen(false)} />
 
       {/* Transfer and Fund modals */}
       {!isInjectedWallet && (

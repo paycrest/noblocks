@@ -40,6 +40,8 @@ export { SearchInput } from "./recipient/SearchInput";
 export { RecipientListItem } from "./recipient/RecipientListItem";
 export { SavedBeneficiariesModal } from "./recipient/SavedBeneficiariesModal";
 export { TransactionHelperText } from "./TransactionHelperText";
+export { ReferralInputModal } from "./ReferralModal";
+export { ReferralCTA } from "./ReferralCTA";
 export {
   inputClasses,
   primaryBtnClasses,

@@ -18,7 +18,7 @@ import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useTransactions } from "../context/TransactionsContext";
 import { networks } from "../mocks";
 import { Network, Token, TransactionHistory } from "../types";
-import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
+import { WalletView, HistoryView, SettingsView, ReferralDashboardView } from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm, TransferForm } from "./index";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
@@ -26,12 +26,14 @@ import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 export const MobileDropdown = ({
   isOpen,
   onClose,
+  onViewReferrals,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  onViewReferrals?: () => void;
 }) => {
   const [currentView, setCurrentView] = useState<
-    "wallet" | "settings" | "transfer" | "fund" | "history"
+    "wallet" | "settings" | "transfer" | "fund" | "history" | "referrals"
   >("wallet");
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -140,14 +142,14 @@ export const MobileDropdown = ({
       body: JSON.stringify(payload),
       signal: controller.signal
     })
-    .catch(error => {
-      if (error.name !== 'AbortError') {
-        console.warn('Logout tracking failed:', error);
-      }
-    })
-    .finally(() => {
-      clearTimeout(timeoutId);
-    });
+      .catch(error => {
+        if (error.name !== 'AbortError') {
+          console.warn('Logout tracking failed:', error);
+        }
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
+      });
   };
 
   const handleLogout = async () => {
@@ -232,6 +234,7 @@ export const MobileDropdown = ({
                               }
                               onSettings={() => setCurrentView("settings")}
                               onClose={onClose}
+                              onViewReferrals={() => setCurrentView("referrals")}
                               onHistory={() => setCurrentView("history")}
                               setSelectedNetwork={setSelectedNetwork}
                               onRefreshBalance={refreshBalance}
@@ -278,6 +281,13 @@ export const MobileDropdown = ({
                               }
                             />
                           )}
+
+                          {currentView === "referrals" && (
+                            <ReferralDashboardView
+                              isOpen={true}
+                              onClose={() => setCurrentView("wallet")}
+                            />
+                          )}
                         </div>
                       </motion.div>
                     </AnimatePresence>
@@ -289,7 +299,7 @@ export const MobileDropdown = ({
         )}
       </AnimatePresence>
 
-      <CopyAddressWarningModal 
+      <CopyAddressWarningModal
         isOpen={isWarningModalOpen}
         onClose={() => setIsWarningModalOpen(false)}
         address={smartWallet?.address ?? ""}

@@ -59,7 +59,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onRefreshBalance,
 }) => {
   return (
-    <div className="space-y-4">
+    <div className="mb-[1.5rem] space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-text-body dark:text-white">
           Wallet
@@ -259,8 +259,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
               {networks
                 .filter(
                   (network) =>
-                    isInjectedWallet || 
-                    (network.chain.name !== "Celo" && network.chain.name !== "Hedera Mainnet"),
+                    isInjectedWallet || network.chain.name !== "Celo",
                 )
                 .map((network) => (
                   <button

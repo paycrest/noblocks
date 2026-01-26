@@ -1,4 +1,5 @@
 import { parsePhoneNumber, CountryCode } from "libphonenumber-js";
+import { randomInt } from "crypto";
 import twilio from "twilio";
 
 // Initialize Twilio client
@@ -146,5 +147,5 @@ export async function sendTwilioOTP(
  * Generates a 6-digit OTP
  */
 export function generateOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return randomInt(100000, 1000000).toString();
 }

@@ -68,7 +68,7 @@ export const TransactionForm = ({
   const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
-  const { canTransact, refreshStatus, isFullyVerified } = useKYCStatus();
+  const { canTransact, refreshStatus, isPhoneVerified, tier } = useKYCStatus();
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -430,7 +430,7 @@ export const TransactionForm = ({
     balance,
     isDirty,
     isValid,
-    isUserVerified: isFullyVerified,
+    isUserVerified: isPhoneVerified,
     rate,
     tokenDecimals,
   });
@@ -788,7 +788,7 @@ export const TransactionForm = ({
         <AnimatePresence>
           {currency &&
             (authenticated || isInjectedWallet) &&
-            isFullyVerified && (
+            isPhoneVerified && (
               <AnimatedComponent
                 variant={slideInOut}
                 className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-white/5"
@@ -874,7 +874,7 @@ export const TransactionForm = ({
                       ?.address as `0x${string}`) ?? "",
                   ),
                 () => setIsLimitModalOpen(true),
-                isFullyVerified,
+                isPhoneVerified,
               )}
             >
               {buttonText}

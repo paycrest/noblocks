@@ -134,6 +134,10 @@ export default function PhoneVerificationModal({
   }, [isCountryDropdownOpen]);
 
   const handlePhoneSubmit = useCallback(async () => {
+    if (!name.trim()) {
+      toast.error("Please enter your full name");
+      return;
+    }
     if (!phoneNumber.trim() || !walletAddress) {
       toast.error("Please enter a valid phone number");
       return;
@@ -432,7 +436,7 @@ export default function PhoneVerificationModal({
       <button
         type="button"
         onClick={handlePhoneSubmit}
-        disabled={isLoading || !phoneNumber.trim()}
+        disabled={isLoading || !phoneNumber.trim() || !name.trim()}
         className={`${primaryBtnClasses} w-full`}
       >
         {isLoading ? "Sending..." : "Verify and start"}

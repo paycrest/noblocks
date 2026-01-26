@@ -437,20 +437,20 @@ export const TransactionForm = ({
 
   const handleSwap = () => {
     setOrderId("");
-    
+
     // Calculate the USD amount for transaction limit checking
     const formData = getValues();
-    const usdAmount = formData.amountReceived || 0;
-    
+    const usdAmount = formData.amountSent || 0;
+
     // Check transaction limits based on KYC tier
     const limitCheck = canTransact(usdAmount);
-    
+
     if (!limitCheck.allowed) {
       setBlockedTransactionAmount(usdAmount);
       setIsLimitModalOpen(true);
       return;
     }
-    
+
     // If limits are okay, proceed with transaction
     handleSubmit(onSubmit)();
   };
@@ -838,7 +838,7 @@ export const TransactionForm = ({
 
         <TransactionLimitModal
           isOpen={isLimitModalOpen}
-           onClose={async () => {
+          onClose={async () => {
             setIsLimitModalOpen(false);
             await refreshStatus();
           }}

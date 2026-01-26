@@ -1,20 +1,11 @@
-import { parsePhoneNumber, CountryCode } from 'libphonenumber-js';
-import twilio from 'twilio';
+import { parsePhoneNumber, CountryCode } from "libphonenumber-js";
+import twilio from "twilio";
 
 // Initialize Twilio client
 const twilioClient = twilio(
   process.env.TWILIO_ACCOUNT_SID!,
-  process.env.TWILIO_AUTH_TOKEN!
+  process.env.TWILIO_AUTH_TOKEN!,
 );
-
-// African country codes that should use Termii
-const AFRICAN_COUNTRIES: CountryCode[] = [
-  'NG', 'KE', 'GH', 'ZA', 'UG', 'TZ', 'EG', 'MA', 'DZ', 'AO',
-  'MG', 'CM', 'CI', 'NE', 'BF', 'ML', 'MW', 'ZM', 'SN', 'SO',
-  'TD', 'GN', 'RW', 'BJ', 'TN', 'BI', 'ER', 'SL', 'TG', 'LR',
-  'LY', 'MR', 'GM', 'BW', 'GA', 'LS', 'GW', 'GQ', 'MU',
-  'DJ', 'SZ', 'KM', 'CV', 'ST', 'SC', 'SS', 'CF', 'CD', 'CG'
-];
 
 export interface PhoneVerificationResult {
   success: boolean;
@@ -28,9 +19,9 @@ export interface PhoneValidation {
   country?: CountryCode;
   internationalFormat?: string;
   e164Format?: string; // E.164 format without spaces (e.g., +12025550123)
-  digitsOnly?: string; // Digits only format for Termii (e.g., 2025550123)
-  isAfrican: boolean;
-  provider: 'termii' | 'twilio';
+  digitsOnly?: string; // Digits only format for KudiSMS (e.g., 2025550123)
+  isNigerian: boolean;
+  provider: "kudisms" | "twilio";
 }
 
 /**
@@ -38,7 +29,7 @@ export interface PhoneValidation {
  * Returns multiple formats for different use cases:
  * - internationalFormat: Display format with spaces (e.g., +1 202 555 0123)
  * - e164Format: Twilio-compatible format without spaces (e.g., +12025550123)
- * - digitsOnly: Termii-compatible format (e.g., 12025550123)
+ * - digitsOnly: KudiSMS-compatible format (e.g., 12025550123)
  */
 export function validatePhoneNumber(phoneNumber: string): PhoneValidation {
   try {
@@ -47,77 +38,77 @@ export function validatePhoneNumber(phoneNumber: string): PhoneValidation {
     if (!parsed || !parsed.isValid()) {
       return {
         isValid: false,
-        isAfrican: false,
-        provider: 'twilio'
+        isNigerian: false,
+        provider: "twilio",
       };
     }
 
     const country = parsed.country as CountryCode;
-    const isAfrican = AFRICAN_COUNTRIES.includes(country);
+    const isNigerian = country === "NG";
 
     return {
       isValid: true,
       country,
       internationalFormat: parsed.formatInternational(), // With spaces for display
-      e164Format: parsed.format('E.164'), // Without spaces for Twilio
-      digitsOnly: parsed.number.toString().replace(/\D/g, ''), // Digits only for Termii
-      isAfrican,
-      provider: isAfrican ? 'termii' : 'twilio'
+      e164Format: parsed.format("E.164"), // Without spaces for Twilio
+      digitsOnly: parsed.number.toString().replace(/\D/g, ""), // Digits only for KudiSMS
+      isNigerian,
+      provider: isNigerian ? "kudisms" : "twilio",
     };
   } catch (error) {
-    console.error('Error validating phone number:', error);
+    console.error("Error validating phone number:", error);
     return {
       isValid: false,
-      isAfrican: false,
-      provider: 'twilio'
+      isNigerian: false,
+      provider: "twilio",
     };
   }
 }
 
 /**
- * Sends OTP via Termii for African numbers
+ * Sends OTP via Kudi SMS for Nigerian numbers
  */
-export async function sendTermiiOTP(
+export async function sendKudiSMSOTP(
   phoneNumber: string,
-  code: string
+  code: string,
 ): Promise<PhoneVerificationResult> {
   try {
-    const response = await fetch('https://v3.api.termii.com/api/sms/send', {
-      method: 'POST',
+    const response = await fetch("https://my.kudisms.net/api/otp", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        to: phoneNumber,
-        from: process.env.TERMII_SENDER_ID || 'Noblocks',
-        sms: `Your Noblocks verification code is: ${code}. This code expires in 5 minutes.`,
-        type: 'plain',
-        channel: 'generic',
-        api_key: process.env.TERMII_API_KEY,
+        recipients: phoneNumber,
+        senderID: process.env.KUDISMS_SENDER_ID || "Noblocks",
+        otp: code,
+        appnamecode: process.env.KUDISMS_APP_NAME_CODE,
+        templatecode: process.env.KUDISMS_TEMPLATE_CODE,
+        token: process.env.KUDISMS_API_KEY,
       }),
     });
 
     const data = await response.json();
 
-    if (data.message === 'Successfully Sent') {
+    if (data.status === "success") {
       return {
         success: true,
-        message: 'OTP sent successfully via Termii',
-        messageId: data.message_id,
+        message: data.message,
+        messageId: data.data,
       };
     } else {
       return {
         success: false,
-        message: 'Failed to send OTP via Termii',
-        error: data.message || 'Unknown error',
+        message: "Failed to send OTP via KudiSMS",
+        error: data.message || "Unknown error",
       };
     }
   } catch (error) {
-    console.error('Termii OTP error:', error);
+    console.error("KudiSMS OTP error:", error);
     return {
       success: false,
-      message: 'Failed to send OTP via Termii',
-      error: error instanceof Error ? error.message : 'Unknown error',
+      message: "Failed to send OTP via KudiSMS",
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 }
@@ -127,7 +118,7 @@ export async function sendTermiiOTP(
  */
 export async function sendTwilioOTP(
   phoneNumber: string,
-  code: string
+  code: string,
 ): Promise<PhoneVerificationResult> {
   try {
     const message = await twilioClient.messages.create({
@@ -138,15 +129,15 @@ export async function sendTwilioOTP(
 
     return {
       success: true,
-      message: 'OTP sent successfully via Twilio',
+      message: "OTP sent successfully via Twilio",
       messageId: message.sid,
     };
   } catch (error: any) {
-    console.error('Twilio OTP error:', error);
+    console.error("Twilio OTP error:", error);
     return {
       success: false,
-      message: 'Failed to send OTP via Twilio',
-      error: error.message || 'Unknown error',
+      message: "Failed to send OTP via Twilio",
+      error: error.message || "Unknown error",
     };
   }
 }

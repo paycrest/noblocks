@@ -74,10 +74,12 @@ export type FormMethods = {
 export type TransactionStatusType =
   | "idle"
   | "pending"
-  | "processing"
+  | "fulfilling"
   | "fulfilled"
   | "validated"
+  | "settling"
   | "settled"
+  | "refunding"
   | "refunded";
 
 export type TransactionStatusProps = {
@@ -291,6 +293,7 @@ export type TransactionStatus =
   | "pending"
   | "processing"
   | "fulfilled"
+  | "refunding"
   | "refunded";
 export type TransactionHistoryType = "swap" | "transfer";
 

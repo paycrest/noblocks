@@ -260,6 +260,10 @@ export type Config = {
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
+  sentryDsn: string;
+  nodeEnv: string;
+  sentryUrl: string;
+  sentryAuthToken: string;
 };
 
 export type Network = {

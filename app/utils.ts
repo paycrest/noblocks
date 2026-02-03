@@ -255,6 +255,14 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
       imageUrl: "/logos/cngn-logo.svg",
     },
+    {
+      name: "Ethereum",
+      symbol: "ETH",
+      decimals: 18,
+      address: "", // Native token has no contract address
+      imageUrl: "/logos/eth-logo.svg",
+      isNative: true,
+    },
   ],
   "Arbitrum One": [
     {
@@ -344,28 +352,28 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
     },
   ],
   Ethereum: [
-  {
-    name: "USD Coin",
-    symbol: "USDC",
-    decimals: 6,
-    address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    imageUrl: "/logos/usdc-logo.svg",
-  },
-  {
-    name: "Tether USD", 
-    symbol: "USDT",
-    decimals: 6,
-    address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-    imageUrl: "/logos/usdt-logo.svg",
-  },
-      {
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
       name: "cNGN",
       symbol: "cNGN",
       decimals: 6,
       address: "0x17CDB2a01e7a34CbB3DD4b83260B05d0274C8dab",
       imageUrl: "/logos/cngn-logo.svg",
     },
-],
+  ],
 };
 
 /**
@@ -428,6 +436,22 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
           if (!hasUSDT) {
             tokens["Base"].push(usdtBase);
           }
+
+          // Ensure native ETH is present in the target network
+          // const nativeETH = {
+          //   name: "Ethereum",
+          //   symbol: "ETH",
+          //   decimals: 18,
+          //   address: "", // Native token has no contract address
+          //   imageUrl: "/logos/eth-logo.svg",
+          //   isNative: true,
+          // };
+          // const hasNativeETH = tokens["Ethereum"].some(
+          //   (token) => token.symbol === "ETH" && token.isNative,
+          // );
+          // if (!hasNativeETH) {
+          //   tokens["Ethereum"].push(nativeETH);
+          // }
         }
         // Merge fallback tokens for any networks missing from API response
         Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
@@ -471,16 +495,25 @@ export async function fetchWalletBalance(
     // Fetch balances in parallel
     const balancePromises = supportedTokens.map(async (token: Token) => {
       try {
-        const balanceInWei = await client.readContract({
-          address: token.address as `0x${string}`,
-          abi: erc20Abi,
-          functionName: "balanceOf",
-          args: [address as `0x${string}`],
-        });
-        const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-        // Ensure balance is a valid number
-        balances[token.symbol] = isNaN(balance) ? 0 : balance;
-        return balances[token.symbol];
+        if (token.isNative && token.address === "") {
+          // Native token balance (ETH, BNB, etc.)
+          const balanceInWei = await client.getBalance({ address });
+          const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+          balances[token.symbol] = isNaN(balance) ? 0 : balance;
+          return balances[token.symbol];
+        } else {
+          // ERC-20 token balance
+          const balanceInWei = await client.readContract({
+            address: token.address as `0x${string}`,
+            abi: erc20Abi,
+            functionName: "balanceOf",
+            args: [address as `0x${string}`],
+          });
+          const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+          // Ensure balance is a valid number
+          balances[token.symbol] = isNaN(balance) ? 0 : balance;
+          return balances[token.symbol];
+        }
       } catch (error) {
         console.error(`Error fetching balance for ${token.symbol}:`, error);
         balances[token.symbol] = 0;
@@ -609,7 +642,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
     Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
     Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
-    Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5"
+    Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5",
   }[network];
 }
 
@@ -1205,7 +1238,8 @@ export function calculateSenderFee(
   const defaultFeePercent = 0.1; // 0.1% default fee for local transfers
   const maxFeeCapInHumanReadable = 10000; // 10k CNGN cap in human-readable units
   const decimalsMultiplier = BigInt(10 ** tokenDecimals);
-  const maxFeeCapInBaseUnits = BigInt(maxFeeCapInHumanReadable) * decimalsMultiplier; // 10k CNGN in base units
+  const maxFeeCapInBaseUnits =
+    BigInt(maxFeeCapInHumanReadable) * decimalsMultiplier; // 10k CNGN in base units
 
   // Calculate fee in human-readable format
   const calculatedFee = isLocalTransfer

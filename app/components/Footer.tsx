@@ -97,7 +97,7 @@ export const Footer = () => {
       transition: {
         repeat: Infinity,
         duration: 0.1,
-        ease: "linear",
+        ease: "easeInOut",
         filter: { duration: 0.5 },
       },
     },
@@ -118,7 +118,7 @@ export const Footer = () => {
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
       <motion.footer
-        className="relative mx-auto min-h-[360px] w-full max-w-screen-2xl overflow-hidden px-5 md:items-center lg:min-h-[540px]"
+        className="relative mx-auto min-h-[440px] w-full max-w-screen-2xl overflow-hidden px-5 md:items-center lg:min-h-[640px]"
         role="contentinfo"
         layout
         transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -213,7 +213,7 @@ export const Footer = () => {
           }
           variants={rocketVariants}
           loading="lazy"
-          className="absolute bottom-7 right-8 z-10 w-full max-w-[120px] xsm:max-w-[175px] md:max-w-[250px] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[300px]"
+          className="absolute bottom-7 right-8 z-10 w-full max-w-[200px] xsm:max-w-[275px] md:max-w-[350px] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[450px]"
           style={{ willChange: "transform, filter" }}
         />
       </motion.footer>

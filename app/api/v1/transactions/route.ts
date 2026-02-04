@@ -157,6 +157,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         time_spent: body.time_spent,
         tx_hash: body.txHash,
         order_id: body.orderId,
+        refund_reason: body.refundReason ?? null,
       })
       .select()
       .single();

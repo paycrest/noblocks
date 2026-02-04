@@ -373,6 +373,18 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             </span>
           }
         />
+        {transaction.status === "refunded" &&
+          transaction.refund_reason &&
+          transaction.refund_reason.trim() !== "" && (
+            <DetailRow
+              label="Refund reason"
+              value={
+                <span className="text-text-accent-gray dark:text-white/80">
+                  {transaction.refund_reason}
+                </span>
+              }
+            />
+          )}
         <DetailRow
           label="Transaction status"
           value={

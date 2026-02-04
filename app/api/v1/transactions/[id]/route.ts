@@ -39,7 +39,7 @@ export const PUT = withRateLimit(
         new_status: body.status,
       });
 
-      const { txHash, timeSpent, status } = body;
+      const { txHash, timeSpent, status, refundReason } = body;
 
       // First verify that the transaction belongs to the wallet
       const { data: existingTransaction, error: fetchError } =
@@ -64,15 +64,19 @@ export const PUT = withRateLimit(
         );
       }
 
-      // Update transaction
+      // Update transaction (only include refund_reason when provided, e.g. for refunded status)
+      const updatePayload: Record<string, unknown> = {
+        tx_hash: txHash,
+        time_spent: timeSpent,
+        status: status,
+        updated_at: new Date().toISOString(),
+      };
+      if (refundReason !== undefined) {
+        updatePayload.refund_reason = refundReason;
+      }
       const { data, error } = await supabaseAdmin
         .from("transactions")
-        .update({
-          tx_hash: txHash,
-          time_spent: timeSpent,
-          status: status,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq("id", id)
         .eq("wallet_address", walletAddress)
         .select()

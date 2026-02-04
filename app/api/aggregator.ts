@@ -461,6 +461,7 @@ export async function updateTransactionDetails({
   status,
   txHash,
   timeSpent,
+  refundReason,
   accessToken,
   walletAddress,
 }: UpdateTransactionDetailsPayload): Promise<SaveTransactionResponse> {
@@ -475,6 +476,9 @@ export async function updateTransactionDetails({
   }
   if (timeSpent !== undefined && timeSpent !== null && timeSpent !== "") {
     data.timeSpent = timeSpent;
+  }
+  if (refundReason !== undefined && refundReason !== null && refundReason !== "") {
+    data.refundReason = refundReason;
   }
 
   const response = await axios.put(

@@ -88,11 +88,17 @@ export function TransactionsProvider({
               tx.order_id!,
             );
 
-            // Determine new txHash
+            // Determine new txHash and refund reason
             let newTxHash: string | undefined;
+            let refundReason: string | undefined;
             const orderData = res.data;
             if (orderData.status === "refunded") {
               newTxHash = orderData.txHash;
+              refundReason =
+                orderData.cancellationReasons?.length &&
+                orderData.cancellationReasons[0]
+                  ? orderData.cancellationReasons.join(", ")
+                  : undefined;
             } else if (Array.isArray(orderData.txReceipts)) {
               // Prefer validated, settled, then pending
               const relevantReceipt = orderData.txReceipts.find(
@@ -130,15 +136,18 @@ export function TransactionsProvider({
               }
             }
 
-            // update transaction status or txHash if changed
+            // update transaction status or txHash or refund_reason if changed
             const statusChanged = orderData.status !== tx.status;
             const hashChanged = newTxHash && newTxHash !== tx.tx_hash;
-            if (statusChanged || hashChanged) {
+            const refundReasonChanged =
+              refundReason !== undefined && refundReason !== tx.refund_reason;
+            if (statusChanged || hashChanged || refundReasonChanged) {
               // Update backend
               await updateTransactionDetails({
                 transactionId: tx.id,
                 status: orderData.status,
                 txHash: newTxHash,
+                refundReason: refundReason ?? undefined,
                 accessToken,
                 walletAddress,
               });
@@ -149,6 +158,7 @@ export function TransactionsProvider({
                   ? "completed"
                   : (orderData.status as TransactionStatus),
                 tx_hash: newTxHash ?? tx.tx_hash,
+                refund_reason: refundReason ?? tx.refund_reason,
               };
 
               // Update local state

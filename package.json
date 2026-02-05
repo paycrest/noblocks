@@ -104,7 +104,7 @@
     "node": "22.x",
     "pnpm": "10.14.0"
   },
-  "packageManager": "pnpm@10.14.0",
+  "packageManager": "pnpm@10.27.0",
   "pnpm": {
     "overrides": {
       "@types/react": "^19.0.8",

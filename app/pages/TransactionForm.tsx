@@ -64,7 +64,12 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
+  const {
+    smartWalletBalance,
+    injectedWalletBalance,
+    starknetWalletBalance,
+    isLoading,
+  } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
 
@@ -116,7 +121,9 @@ export const TransactionForm = ({
 
   const activeBalance = isInjectedWallet
     ? injectedWalletBalance
-    : smartWalletBalance;
+    : selectedNetwork.chain.name === "Starknet"
+      ? starknetWalletBalance
+      : smartWalletBalance;
 
   const balance = activeBalance?.balances[token] ?? 0;
 

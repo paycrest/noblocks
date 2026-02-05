@@ -23,6 +23,12 @@ interface UseSmartWalletTransferParams {
   supportedTokens: Token[];
   getAccessToken: () => Promise<string | null>;
   refreshBalance?: () => void;
+  starknetWallet?: {
+    walletId: string | null;
+    publicKey: string | null;
+    address: string | null;
+    deployed: boolean;
+  };
 }
 
 interface TransferArgs {
@@ -57,6 +63,7 @@ export function useSmartWalletTransfer({
   supportedTokens,
   getAccessToken,
   refreshBalance,
+  starknetWallet,
 }: UseSmartWalletTransferParams): UseSmartWalletTransferReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -99,7 +106,12 @@ export function useSmartWalletTransfer({
 
       try {
         const availableTokens: Token[] = supportedTokens;
-        await client?.switchChain({ id: selectedNetwork.chain.id });
+
+        // Only switch chain for EVM networks, not Starknet
+        if (selectedNetwork.chain.name !== "Starknet") {
+          await client?.switchChain({ id: selectedNetwork.chain.id });
+        }
+
         const searchToken = token.toUpperCase();
         const tokenData = availableTokens.find(
           (t) => t.symbol.toUpperCase() === searchToken,
@@ -160,21 +172,81 @@ export function useSmartWalletTransfer({
             `Token data not found for ${token}. Available tokens: ${availableTokens.map((t) => t.symbol).join(", ")}`,
           );
         }
-        // Send transaction and get hash
-        const hash = (await client?.sendTransaction({
-          to: tokenAddress,
-          data: encodeFunctionData({
-            abi: erc20Abi,
-            functionName: "transfer",
-            args: [
-              recipientAddress as `0x${string}`,
-              parseUnits(amount.toString(), tokenDecimals),
-            ],
-          }) as `0x${string}`,
-          value: BigInt(0),
-        })) as `0x${string}`;
+        let hash = "";
+        if (selectedNetwork.chain.name === "Starknet") {
+          // Handle Starknet transfer via API route
+          if (!starknetWallet?.walletId || !starknetWallet?.publicKey) {
+            const error = "Starknet wallet not configured";
+            setError(error);
+            trackEvent("Transfer failed", {
+              Amount: amount,
+              "Send token": token,
+              "Recipient address": recipientAddress,
+              Network: selectedNetwork.chain.name,
+              "Reason for failure": error,
+              "Transfer date": new Date().toISOString(),
+            });
+            throw new Error(error);
+          }
 
-        if (!hash) throw new Error("No transaction hash returned");
+          // Get access token for API authentication
+          const accessToken = await getAccessToken();
+          if (!accessToken) {
+            throw new Error("Failed to get access token");
+          }
+
+          // Get class hash from environment
+          const classHash = process.env.NEXT_PUBLIC_STARKNET_READY_CLASSHASH;
+
+          // Convert amount to wei (smallest unit)
+          const amountInWei = parseUnits(
+            amount.toString(),
+            tokenDecimals,
+          ).toString();
+
+          // Call Starknet transfer API
+          const response = await fetch("/api/starknet/transfer", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              walletId: starknetWallet.walletId,
+              publicKey: starknetWallet.publicKey,
+              classHash,
+              tokenAddress,
+              amount: amountInWei,
+              recipientAddress,
+              address: starknetWallet.address,
+            }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || "Transfer failed");
+          }
+
+          hash = data.transactionHash;
+        } else {
+          // Handle EVM transfer
+          hash = (await client?.sendTransaction({
+            to: tokenAddress,
+            data: encodeFunctionData({
+              abi: erc20Abi,
+              functionName: "transfer",
+              args: [
+                recipientAddress as `0x${string}`,
+                parseUnits(amount.toString(), tokenDecimals),
+              ],
+            }) as `0x${string}`,
+            value: BigInt(0),
+          })) as `0x${string}`;
+
+          if (!hash) throw new Error("No transaction hash returned");
+        }
+
         setTxHash(hash);
 
         setTransferAmount(amount.toString());
@@ -236,6 +308,7 @@ export function useSmartWalletTransfer({
       supportedTokens,
       getAccessToken,
       refreshBalance,
+      starknetWallet,
     ],
   );
 

@@ -150,6 +150,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://blockscout.lisk.com/tx/${txHash}`;
     case "Ethereum":
       return `https://etherscan.io/tx/${txHash}`;
+    case "Starknet":
+      return `https://voyager.online/tx/${txHash}`;
     default:
       return "";
   }
@@ -172,6 +174,8 @@ export function getRpcUrl(network: string) {
       return `https://1135.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
     case "Ethereum":
       return `https://1.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+    case "Starknet":
+      return process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
     default:
       return undefined;
   }
@@ -374,6 +378,24 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/cngn-logo.svg",
     },
   ],
+  Starknet: [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address:
+        "0x033068F6539f8e6e6b131e6B2B814e6c34A5224bC66947c47DaB9dFeE93b35fb",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address:
+        "0x068F5c6a61780768455de69077E07e89787839bf8166dEcfBf92B645209c0fB8",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+  ],
 };
 
 /**
@@ -453,8 +475,10 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
           //   tokens["Ethereum"].push(nativeETH);
           // }
         }
+
         // Merge fallback tokens for any networks missing from API response
         Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
+          if (networkName === "Starknet") return;
           if (!tokens[networkName] || tokens[networkName].length === 0) {
             tokens[networkName] = FALLBACK_TOKENS[networkName];
           }
@@ -471,6 +495,128 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
     ongoingFetch = null;
     // Return fallback tokens if API fails
     return FALLBACK_TOKENS[network];
+  }
+}
+
+/**
+ * Fetches token price in USD from CoinGecko
+ * @param tokenSymbol - The token symbol (e.g. "ETH", "USDC")
+ * @returns The token price in USD, or null if fetch fails
+ */
+async function fetchTokenPrice(tokenSymbol: string): Promise<number | null> {
+  try {
+    // Map token symbols to CoinGecko IDs
+    const coinGeckoIds: Record<string, string> = {
+      ETH: "ethereum",
+      WETH: "ethereum",
+      USDC: "usd-coin",
+      USDT: "tether",
+      DAI: "dai",
+      WBTC: "wrapped-bitcoin",
+    };
+
+    const coinId = coinGeckoIds[tokenSymbol.toUpperCase()];
+    if (!coinId) {
+      console.warn(`No CoinGecko ID mapping for token: ${tokenSymbol}`);
+      return null;
+    }
+
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`,
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      return data[coinId]?.usd || null;
+    }
+
+    return null;
+  } catch (error) {
+    console.error(`Error fetching ${tokenSymbol} price:`, error);
+    return null;
+  }
+}
+
+/**
+ * Fetches Starknet wallet balance for the specified address
+ * @param address - The Starknet wallet address
+ * @param tokens - Array of tokens to check balances for
+ * @returns An object containing the total balance in USD, individual token balances, and USD values per token
+ */
+export async function fetchStarknetBalance(
+  address: string,
+  tokens: Token[],
+): Promise<{
+  total: number;
+  balances: Record<string, number>;
+  balancesUsd: Record<string, number>;
+}> {
+  if (!address || !tokens || tokens.length === 0) {
+    return { total: 0, balances: {}, balancesUsd: {} };
+  }
+
+  try {
+    const { RpcProvider } = await import("starknet");
+    const rpcUrl = process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
+    const provider = new RpcProvider({ nodeUrl: rpcUrl });
+
+    let totalBalance = 0;
+    const balances: Record<string, number> = {};
+    const balancesUsd: Record<string, number> = {};
+
+    // Fetch balances in parallel
+    const balancePromises = tokens.map(async (token: Token) => {
+      try {
+        const result = await provider.callContract({
+          contractAddress: token.address,
+          entrypoint: "balanceOf",
+          calldata: [address],
+        });
+
+        // Starknet returns Uint256 as array [low, high]
+        let balanceInWei: bigint;
+        if (Array.isArray(result) && result.length >= 2) {
+          // Combine low and high parts: balance = low + (high << 128)
+          const low = BigInt(result[0]);
+          const high = BigInt(result[1]);
+          balanceInWei = low + (high << BigInt(128));
+        } else if (Array.isArray(result) && result.length === 1) {
+          balanceInWei = BigInt(result[0]);
+        } else {
+          balanceInWei = BigInt(0);
+        }
+
+        const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+        const tokenPrice = await fetchTokenPrice(token.symbol);
+
+        balances[token.symbol] = isNaN(balance) ? 0 : balance;
+
+        // Convert token amount to USD using its specific price
+        const usdValue = tokenPrice ? balance * tokenPrice : 0;
+        balancesUsd[token.symbol] = isNaN(usdValue) ? 0 : usdValue;
+
+        return usdValue;
+      } catch (error) {
+        balances[token.symbol] = 0;
+        balancesUsd[token.symbol] = 0;
+        return 0;
+      }
+    });
+
+    // Wait for all promises to resolve
+    const tokenBalancesInUsd = await Promise.all(balancePromises);
+    totalBalance = tokenBalancesInUsd.reduce(
+      (acc: number, curr: number) => (acc || 0) + (curr || 0),
+      0,
+    );
+
+    return {
+      total: isNaN(totalBalance) ? 0 : totalBalance,
+      balances,
+      balancesUsd,
+    };
+  } catch (error) {
+    return { total: 0, balances: {}, balancesUsd: {} };
   }
 }
 
@@ -619,6 +765,49 @@ export function shortenAddress(
 }
 
 /**
+ * Normalizes a Starknet address to ensure it's properly formatted.
+ * Ensures the address is exactly 66 characters long (0x + 64 hex chars).
+ * Pads with zeros after the 0x prefix if necessary.
+ *
+ * @param address - The Starknet address to normalize (can be shorter than 66 chars)
+ * @returns The normalized address with proper padding (0x0...address)
+ * @throws Error if the address is invalid
+ *
+ * @example
+ * normalizeStarknetAddress("0x1234") => "0x0000000000000000000000000000000000000000000000000000000000001234"
+ * normalizeStarknetAddress("0x04718f5a...") => "0x04718f5a..." (already normalized)
+ */
+export function normalizeStarknetAddress(address: string): string {
+  // Remove any whitespace
+  const trimmedAddress = address?.trim();
+
+  // Validate that address starts with 0x
+  if (!trimmedAddress?.startsWith("0x")) {
+    throw new Error("Starknet address must start with 0x");
+  }
+
+  // Extract hex part (without 0x prefix)
+  const hexPart = trimmedAddress?.slice(2);
+
+  // Validate hex characters
+  if (!/^[a-fA-F0-9]*$/.test(hexPart)) {
+    throw new Error("Invalid hex characters in Starknet address");
+  }
+
+  // Validate length (must not exceed 64 hex chars)
+  if (hexPart.length > 64) {
+    throw new Error(
+      "Starknet address too long (max 64 hex characters after 0x)",
+    );
+  }
+
+  // Pad with zeros after 0x to make it 66 chars total
+  const paddedHex = hexPart.padStart(64, "0");
+
+  return `0x${paddedHex}`;
+}
+
+/**
  * Normalizes network name for rate fetching API.
  * @param network - The network name to normalize.
  * @returns The normalized network name for rate fetching.
@@ -643,6 +832,8 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
     Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
     Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5",
+    Starknet:
+      "0x06ff3a3b1532da65594fc98f9ca7200af6c3dbaf37e7339b0ebd3b3f2390c583",
   }[network];
 }
 
@@ -802,6 +993,7 @@ function getAddChainParameters(network: Network) {
  * @param setSelectedNetwork - Function to update the selected network state.
  * @param onSuccess - Callback function to execute on successful network switch.
  * @param onError - Callback function to execute on network switch failure.
+ * @param ensureWalletExists - Optional function to ensure Starknet wallet exists (for Starknet).
  */
 export const handleNetworkSwitch = async (
   network: Network,
@@ -809,7 +1001,18 @@ export const handleNetworkSwitch = async (
   setSelectedNetwork: (network: Network) => void,
   onSuccess: () => void,
   onError: (error: Error) => void,
+  ensureWalletExists?: () => Promise<void>,
 ) => {
+  // If switching to Starknet, ensure wallet exists first
+  if (network.chain.name === "Starknet" && ensureWalletExists) {
+    try {
+      await ensureWalletExists();
+    } catch (error) {
+      console.error("Failed to ensure Starknet wallet exists:", error);
+      // Continue with network switch even if wallet creation fails
+    }
+  }
+
   if (useInjectedWallet && window.ethereum) {
     if (!network.chain?.id) {
       throw new Error(`Missing chainId for network: ${network.chain?.name}`);

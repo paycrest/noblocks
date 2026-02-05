@@ -12,3 +12,4 @@ export {
   BlockFestModalProvider,
   useBlockFestModal,
 } from "./BlockFestModalContext";
+export { StarknetProvider, useStarknet } from "./StarknetContext";

@@ -5,7 +5,7 @@ import { getExplorerLink } from "../utils";
 import { saveTransaction } from "../api/aggregator";
 import { trackEvent } from "./analytics/useMixpanel";
 import type { Token, Network } from "../types";
-import type { User } from "@privy-io/react-auth";
+import { useSendTransaction, type User } from "@privy-io/react-auth";
 
 interface SmartWalletClient {
   sendTransaction: (args: {
@@ -104,6 +104,45 @@ export function useSmartWalletTransfer({
         const tokenData = availableTokens.find(
           (t) => t.symbol.toUpperCase() === searchToken,
         );
+
+        // Native token transfer logic (ETH, BNB, etc.)
+        if (tokenData?.isNative && tokenData?.address === "") {
+          const value = BigInt(Math.floor(amount * 1e18));
+          const hash = await client?.sendTransaction({
+            to: recipientAddress as `0x${string}`,
+            value,
+            data: "0x" as `0x${string}`,
+          });
+          if (!hash) throw new Error("No transaction hash returned");
+          const txhash = hash as unknown as string;
+          setTxHash(txhash);
+          setTransferAmount(amount.toString());
+          setTransferToken(token);
+          setIsSuccess(true);
+          setIsLoading(false);
+          toast.success(
+            `${amount.toString()} ${token} successfully transferred`,
+          );
+          trackEvent("Transfer completed", {
+            Amount: amount,
+            "Send token": token,
+            "Recipient address": recipientAddress,
+            Network: selectedNetwork.chain.name,
+            "Transaction hash": hash,
+            "Transfer date": new Date().toISOString(),
+          });
+          await saveTransferTransaction({
+            txHash: txhash,
+            recipientAddress,
+            amount,
+            token,
+          });
+          if (resetForm) resetForm();
+          if (refreshBalance) refreshBalance();
+          return;
+        }
+
+        // ERC-20 token transfer logic
         const tokenAddress = tokenData?.address as `0x${string}` | undefined;
         const tokenDecimals = tokenData?.decimals;
         if (!tokenAddress || tokenDecimals === undefined) {
@@ -143,7 +182,7 @@ export function useSmartWalletTransfer({
         setIsSuccess(true);
         setIsLoading(false);
         toast.success(`${amount.toString()} ${token} successfully transferred`);
-        
+
         // Track successful transfer
         trackEvent("Transfer completed", {
           Amount: amount,
@@ -153,7 +192,7 @@ export function useSmartWalletTransfer({
           "Transaction hash": hash,
           "Transfer date": new Date().toISOString(),
         });
-        
+
         // Save to transaction history
         await saveTransferTransaction({
           txHash: hash,
@@ -164,10 +203,11 @@ export function useSmartWalletTransfer({
         if (resetForm) resetForm();
         if (refreshBalance) refreshBalance();
       } catch (e: unknown) {
-        const errorMessage = (e as { shortMessage?: string; message?: string }).shortMessage ||
+        const errorMessage =
+          (e as { shortMessage?: string; message?: string }).shortMessage ||
           (e as { message?: string }).message ||
           "Transfer failed";
-        
+
         setError(errorMessage);
         setIsLoading(false);
         setIsSuccess(false);
@@ -180,9 +220,11 @@ export function useSmartWalletTransfer({
           Network: selectedNetwork.chain.name,
           "Reason for failure": errorMessage,
           "Transfer date": new Date().toISOString(),
-          "Error type": errorMessage.includes("429") ? "RPC Rate Limited" : 
-                       errorMessage.includes("HTTP") ? "RPC Connection Error" : 
-                       "Transaction Error",
+          "Error type": errorMessage.includes("429")
+            ? "RPC Rate Limited"
+            : errorMessage.includes("HTTP")
+              ? "RPC Connection Error"
+              : "Transaction Error",
         });
       }
     },

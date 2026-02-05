@@ -91,7 +91,7 @@ export const Footer = () => {
     },
     fulfilled: {
       y: [0, -5, 5, 0],
-      rotate: [20, 15, 25, 20],
+      rotate: [-20, -15, -25, -20],
       scale: 1.15,
       filter: "drop-shadow(0 4px 0 #FFD700)",
       transition: {
@@ -103,8 +103,7 @@ export const Footer = () => {
     },
     settled: {
       x: "-175vw",
-      y: "-95vw",
-      rotate: [20, 15, 25, 20],
+      y: "-45vw",
       filter: "drop-shadow(0 8px 32px #FFD700)",
       transition: {
         x: { duration: 1.2, ease: "easeIn" },
@@ -119,7 +118,7 @@ export const Footer = () => {
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
       <motion.footer
-        className="relative mx-auto min-h-[360px] w-full max-w-screen-2xl overflow-hidden px-5 md:items-center lg:min-h-[540px]"
+        className="relative mx-auto min-h-[440px] w-full max-w-screen-2xl overflow-hidden px-5 md:items-center lg:min-h-[640px]"
         role="contentinfo"
         layout
         transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -204,8 +203,8 @@ export const Footer = () => {
         </div>
         <motion.img
           key={rocketStatus}
-          src="/images/footer-santa-illustration.svg"
-          alt="Footer Santa Image"
+          src="/images/footer-rocket-illustration.svg"
+          alt="Footer Rocket Image"
           height={100}
           width={100}
           initial="pending"

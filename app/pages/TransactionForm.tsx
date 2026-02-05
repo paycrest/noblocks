@@ -593,8 +593,13 @@ export const TransactionForm = ({
         className="grid gap-4 pb-20 text-sm text-text-body transition-all dark:text-white sm:gap-2"
         noValidate
       >
-        <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
-          <h3 className="px-2 py-1 text-base font-medium">Swap</h3>
+        <section
+          aria-labelledby="swap-heading"
+          className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5"
+        >
+          <h3 id="swap-heading" className="px-2 py-1 text-base font-medium">
+            Swap
+          </h3>
 
           <motion.div
             layout
@@ -789,7 +794,7 @@ export const TransactionForm = ({
               />
             </div>
           </div>
-        </div>
+        </section>
 
         {/* Recipient and memo */}
         <AnimatePresence>

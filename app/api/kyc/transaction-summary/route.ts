@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       .from('transactions')
       .select('amount_sent, created_at')
       .eq('wallet_address', walletAddress.toLowerCase())
-      .eq('status', 'completed')
+      .in('status', ['fulfilling', 'completed'])
       .gte('created_at', monthStart.toISOString());
 
     if (error) {

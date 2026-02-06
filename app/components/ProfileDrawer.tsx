@@ -13,7 +13,8 @@ import {
   CallingIcon,
 } from "hugeicons-react";
 import { usePrivy, useLinkAccount } from "@privy-io/react-auth";
-import { useKYCStatus, KYC_TIERS } from "../hooks/useKYCStatus";
+import { useKYC } from "../context";
+import { KYC_TIERS } from "../context/KYCContext";
 import { formatNumberWithCommas, shortenAddress, classNames } from "../utils";
 import { sidebarAnimation } from "./AnimatedComponents";
 import { PiCheck } from "react-icons/pi";
@@ -33,7 +34,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
     transactionSummary,
     getCurrentLimits,
     refreshStatus,
-  } = useKYCStatus();
+  } = useKYC();
 
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [expandedTiers, setExpandedTiers] = useState<Record<number, boolean>>(
@@ -49,18 +50,13 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
       ? (transactionSummary.monthlySpent / monthlyLimit) * 100
       : 0;
 
-  // Refresh KYC status only if last refresh was >30s ago
-  const lastRefreshRef = useRef<number>(0);
+  // Refresh KYC status when drawer opens so profile stays in sync with Get started / limit modal
   useEffect(() => {
     if (isOpen) {
-      const now = Date.now();
-      if (now - lastRefreshRef.current > 30000) {
-        setIsLoading(true);
-        refreshStatus().finally(() => setIsLoading(false));
-        lastRefreshRef.current = now;
-      }
+      setIsLoading(true);
+      refreshStatus().finally(() => setIsLoading(false));
     }
-  }, [isOpen, refreshStatus]);
+  }, [isOpen]); // Remove refreshStatus from deps to prevent infinite loop
 
   const walletAddress = user?.linkedAccounts.find(
     (account) => account.type === "smart_wallet",

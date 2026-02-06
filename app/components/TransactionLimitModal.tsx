@@ -7,7 +7,8 @@ import {
   StarIcon,
   InformationCircleIcon,
 } from "hugeicons-react";
-import { useKYCStatus, KYC_TIERS } from "../hooks/useKYCStatus";
+import { useKYC } from "../context";
+import { KYC_TIERS } from "../context/KYCContext";
 import PhoneVerificationModal from "./PhoneVerificationModal";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { AnimatedModal, fadeInOut } from "./AnimatedComponents";
@@ -32,7 +33,7 @@ export default function TransactionLimitModal({
     refreshStatus,
     phoneNumber,
     transactionSummary,
-  } = useKYCStatus();
+  } = useKYC();
 
   const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
@@ -63,6 +64,7 @@ export default function TransactionLimitModal({
 
   const handlePhoneVerified = async (phoneNumber: string) => {
     setIsPhoneModalOpen(false);
+    refreshStatus();
     onClose();
   };
 

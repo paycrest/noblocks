@@ -115,30 +115,75 @@ export async function sendKudiSMSOTP(
 }
 
 /**
- * Sends OTP via Twilio for international numbers
+ * Sends OTP via Twilio Verify for non-Nigerian numbers.
+ * Twilio generates and sends the code; we do not pass a custom code.
  */
-export async function sendTwilioOTP(
-  phoneNumber: string,
-  code: string,
+export async function sendTwilioVerifyOTP(
+  phoneE164: string,
 ): Promise<PhoneVerificationResult> {
+  const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+  if (!serviceSid) {
+    console.error("TWILIO_VERIFY_SERVICE_SID is not set");
+    return {
+      success: false,
+      message: "Twilio Verify is not configured",
+      error: "Missing TWILIO_VERIFY_SERVICE_SID",
+    };
+  }
+
   try {
-    const message = await twilioClient.messages.create({
-      body: `Your Noblocks verification code is: ${code}. This code expires in 5 minutes.`,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: phoneNumber,
-    });
+    const verification = await twilioClient.verify.v2
+      .services(serviceSid)
+      .verifications.create({
+        to: phoneE164,
+        channel: "sms",
+      });
 
     return {
       success: true,
-      message: "OTP sent successfully via Twilio",
-      messageId: message.sid,
+      message: "Verification code sent via Twilio Verify",
+      messageId: verification.sid,
     };
-  } catch (error: any) {
-    console.error("Twilio OTP error:", error);
+  } catch (error: unknown) {
+    const err = error as { message?: string; code?: number };
+    console.error("Twilio Verify send error:", error);
     return {
       success: false,
-      message: "Failed to send OTP via Twilio",
-      error: error.message || "Unknown error",
+      message: "Failed to send verification code",
+      error: err?.message || "Unknown error",
+    };
+  }
+}
+
+/**
+ * Verifies the code with Twilio Verify (for non-Nigerian numbers).
+ * Returns true if the verification was approved.
+ */
+export async function checkTwilioVerifyCode(
+  phoneE164: string,
+  code: string,
+): Promise<{ success: boolean; error?: string }> {
+  const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
+  if (!serviceSid) {
+    console.error("TWILIO_VERIFY_SERVICE_SID is not set");
+    return { success: false, error: "Twilio Verify is not configured" };
+  }
+
+  try {
+    const check = await twilioClient.verify.v2
+      .services(serviceSid)
+      .verificationChecks.create({
+        to: phoneE164,
+        code,
+      });
+
+    return { success: check.status === "approved" };
+  } catch (error: unknown) {
+    const err = error as { message?: string };
+    console.error("Twilio Verify check error:", error);
+    return {
+      success: false,
+      error: err?.message || "Verification failed",
     };
   }
 }

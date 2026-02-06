@@ -3,7 +3,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useWallets } from "@privy-io/react-auth";
+import { useWallets, usePrivy } from "@privy-io/react-auth";
 import {
   Cancel01Icon,
   CheckmarkCircle01Icon,
@@ -45,6 +45,7 @@ export default function PhoneVerificationModal({
   onVerified,
 }: PhoneVerificationModalProps) {
   const { wallets } = useWallets();
+  const { getAccessToken } = usePrivy();
 
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -161,12 +162,15 @@ export default function PhoneVerificationModal({
 
       setIsLoading(true);
 
+      const accessToken = await getAccessToken();
       const response = await fetch("/api/phone/send-otp", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           phoneNumber: fullPhoneNumber,
-          walletAddress: walletAddress,
           name: name,
         }),
       });
@@ -193,7 +197,7 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [phoneNumber, walletAddress, selectedCountry, name]);
+  }, [phoneNumber, walletAddress, selectedCountry, name, getAccessToken]);
 
   const handleOtpSubmit = useCallback(async () => {
     if (!otpCode.trim() || otpCode.length !== 6) {
@@ -204,13 +208,16 @@ export default function PhoneVerificationModal({
     setIsLoading(true);
 
     try {
+      const accessToken = await getAccessToken();
       const response = await fetch("/api/phone/verify-otp", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           phoneNumber: formattedPhone,
           otpCode: otpCode,
-          walletAddress: walletAddress,
         }),
       });
 
@@ -230,17 +237,20 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [otpCode, formattedPhone, walletAddress]);
+  }, [otpCode, formattedPhone, getAccessToken]);
 
   const handleResendOtp = useCallback(async () => {
     setIsLoading(true);
     try {
+      const accessToken = await getAccessToken();
       const response = await fetch("/api/phone/send-otp", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           phoneNumber: formattedPhone,
-          walletAddress: walletAddress,
         }),
       });
 
@@ -257,7 +267,7 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [formattedPhone, walletAddress]);
+  }, [formattedPhone, getAccessToken]);
 
   const handleClose = () => {
     onClose();

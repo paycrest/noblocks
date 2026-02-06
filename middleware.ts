@@ -266,6 +266,8 @@ export const config = {
     "/api/blockfest/cashback",
     "/api/kyc/smile-id",
     "/api/kyc/status",
+    "/api/phone/send-otp",
+    "/api/phone/verify-otp",
     // (optional) add other instrumented API routes:
     // '/api/v1/kyc/:path*', '/api/v1/rates', '/api/v1/rates/:path*'
   ],

@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 
@@ -98,6 +98,9 @@ export const TransactionPreview = ({
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
+  
+  // Ref to prevent duplicate transaction saves
+  const isSavingTransactionRef = useRef(false);
 
   const searchParams = useSearchParams();
 
@@ -388,8 +391,11 @@ export const TransactionPreview = ({
     orderId: string;
     txHash: `0x${string}`;
   }) => {
-    if (!embeddedWallet?.address || isSavingTransaction) return;
+    if (!embeddedWallet?.address || isSavingTransaction || isSavingTransactionRef.current) return;
+    
+    // Set both state and ref to prevent race conditions
     setIsSavingTransaction(true);
+    isSavingTransactionRef.current = true;
 
     try {
       const accessToken = await getAccessToken();
@@ -432,6 +438,8 @@ export const TransactionPreview = ({
       // Don't show error toast as this is a background operation
     } finally {
       setIsSavingTransaction(false);
+      // Don't reset the ref here - keep it true to prevent any retry attempts
+      // isSavingTransactionRef.current = false;
     }
   };
 
@@ -444,7 +452,7 @@ export const TransactionPreview = ({
         transport: http(getRpcUrl(selectedNetwork.chain.name)),
       });
 
-      if (!publicClient || !activeWallet?.address || isOrderCreatedLogsFetched)
+      if (!publicClient || !activeWallet?.address || isOrderCreatedLogsFetched || isSavingTransactionRef.current)
         return;
 
       try {
@@ -484,6 +492,7 @@ export const TransactionPreview = ({
           });
 
           setIsOrderCreatedLogsFetched(true);
+          isSavingTransactionRef.current = true; // Set ref immediately to prevent race condition
           clearInterval(intervalId);
           setOrderId(decodedLog.args.orderId);
 

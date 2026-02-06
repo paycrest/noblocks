@@ -3,7 +3,7 @@ import { supabaseAdmin } from "@/app/lib/supabase";
 import {
   validatePhoneNumber,
   sendKudiSMSOTP,
-  sendTwilioOTP,
+  sendTwilioVerifyOTP,
   generateOTP,
 } from "../../../lib/phone-verification";
 import {
@@ -29,9 +29,29 @@ export async function POST(request: NextRequest) {
     trackApiRequest(request, "/api/phone/send-otp", "POST");
 
     const body = await request.json();
-    const { phoneNumber, walletAddress, name } = body;
+    const { phoneNumber, name } = body;
 
-    if (!phoneNumber || !walletAddress) {
+    // Use authenticated wallet address and user ID from middleware
+    const walletAddress = request.headers
+      .get("x-wallet-address")
+      ?.toLowerCase();
+    const userId = request.headers.get("x-user-id");
+
+    if (!walletAddress) {
+      trackApiError(
+        request,
+        "/api/phone/send-otp",
+        "POST",
+        new Error("Unauthorized"),
+        401,
+      );
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
+      );
+    }
+
+    if (!phoneNumber) {
       trackApiError(
         request,
         "/api/phone/send-otp",
@@ -42,7 +62,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Phone number and wallet address are required",
+          error: "Phone number is required",
         },
         { status: 400 },
       );
@@ -64,10 +84,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate OTP
-    const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
-
     // Get existing profile to preserve important fields
     const { data: existingProfile } = await supabaseAdmin
       .from("user_kyc_profiles")
@@ -77,20 +93,26 @@ export async function POST(request: NextRequest) {
       .eq("wallet_address", walletAddress.toLowerCase())
       .single();
 
-    // Store OTP in database
+    const isNigerian = validation.isNigerian;
+    const expiresAt = new Date(Date.now() + (isNigerian ? 5 : 10) * 60 * 1000); // 5 min KudiSMS, 10 min Twilio Verify
+
+    // Nigerian: we generate OTP and store it. Non-Nigerian: Twilio Verify sends its own code, we don't store one.
+    const otp = isNigerian ? generateOTP() : null;
+
+    // Store verification record (otp_code only for Nigerian/KudiSMS path)
     const { error: dbError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .upsert(
         {
           wallet_address: walletAddress.toLowerCase(),
+          user_id: userId,
           full_name: name || existingProfile?.full_name || null,
-          phone_number: validation.e164Format, // Store in E.164 format (no spaces)
+          phone_number: validation.e164Format,
           otp_code: otp,
           expires_at: expiresAt.toISOString(),
           verified: existingProfile?.verified || false,
           verified_at: existingProfile?.verified_at || null,
           tier: existingProfile?.tier || 0,
-          // Preserve existing ID verification data
           id_country: existingProfile?.id_country || null,
           id_type: existingProfile?.id_type || null,
           platform: existingProfile?.platform || null,
@@ -111,12 +133,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use digitsOnly for KudiSMS, e164Format for Twilio
+    // Nigerian: KudiSMS with our OTP. Non-Nigerian: Twilio Verify (Twilio sends its own code).
     let result;
-    if (validation.isNigerian) {
-      result = await sendKudiSMSOTP(validation.digitsOnly!, otp);
+    if (isNigerian) {
+      result = await sendKudiSMSOTP(validation.digitsOnly!, otp!);
     } else {
-      result = await sendTwilioOTP(validation.e164Format!, otp);
+      result = await sendTwilioVerifyOTP(validation.e164Format!);
     }
 
     const responseTime = Date.now() - startTime;

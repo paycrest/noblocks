@@ -37,8 +37,8 @@ import {
   useInjectedWallet,
   useNetwork,
   useTokens,
+  useKYC,
 } from "../context";
-import { useKYCStatus } from "../hooks/useKYCStatus";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -68,7 +68,7 @@ export const TransactionForm = ({
   const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
-  const { canTransact, refreshStatus, isPhoneVerified, tier } = useKYCStatus();
+  const { canTransact, refreshStatus, isPhoneVerified, tier } = useKYC();
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -315,6 +315,19 @@ export const TransactionForm = ({
     [amountSent, amountReceived, rate],
   );
 
+  // Update isUserVerified based on tier changes and current amount
+  useEffect(
+    function updateVerificationStatus() {
+      if (tier > 0 && amountSent) {
+        const canUserTransact = canTransact(Number(amountSent)).allowed;
+        setIsUserVerified(canUserTransact);
+      } else if (tier === 0) {
+        setIsUserVerified(false);
+      }
+    },
+    [tier, amountSent, canTransact, setIsUserVerified],
+  );
+
   // Register form fields
   useEffect(
     function registerFieldsWithValidation() {
@@ -430,7 +443,7 @@ export const TransactionForm = ({
     balance,
     isDirty,
     isValid,
-    isUserVerified: isPhoneVerified,
+    isUserVerified,
     rate,
     tokenDecimals,
   });
@@ -586,13 +599,8 @@ export const TransactionForm = ({
         className="grid gap-4 pb-20 text-sm text-text-body transition-all dark:text-white sm:gap-2"
         noValidate
       >
-        <section
-          aria-labelledby="swap-heading"
-          className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5"
-        >
-          <h3 id="swap-heading" className="px-2 py-1 text-base font-medium">
-            Swap
-          </h3>
+        <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
+          <h3 className="px-2 py-1 text-base font-medium">Swap</h3>
 
           <motion.div
             layout
@@ -787,13 +795,13 @@ export const TransactionForm = ({
               />
             </div>
           </div>
-        </section>
+        </div>
 
         {/* Recipient and memo */}
         <AnimatePresence>
           {currency &&
             (authenticated || isInjectedWallet) &&
-            isPhoneVerified && (
+            isUserVerified && (
               <AnimatedComponent
                 variant={slideInOut}
                 className="space-y-2 rounded-[20px] bg-gray-50 p-2 dark:bg-white/5"

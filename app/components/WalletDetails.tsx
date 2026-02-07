@@ -9,7 +9,7 @@ import {
 import { useBalance } from "../context/BalanceContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
-import { useMigrationStatus } from "../hooks/useEIP7702Account";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import {
   ArrowRight03Icon,
   Copy01Icon,
@@ -58,7 +58,7 @@ export const WalletDetails = () => {
   const { user } = usePrivy();
   const { wallets } = useWallets();
   const isDark = useActualTheme();
-  const { isMigrationComplete } = useMigrationStatus();
+  const shouldUseEOA = useShouldUseEOA();
 
   // Custom hook for handling wallet funding
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
@@ -86,16 +86,14 @@ export const WalletDetails = () => {
   // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : isMigrationComplete && embeddedWallet
+    : shouldUseEOA && embeddedWallet
       ? { address: embeddedWallet.address }
       : smartWallet;
 
-  // Get appropriate balance based on migration status
-  // After migration: use externalWalletBalance (EOA balance)
-  // Before migration: use smartWalletBalance (SCW balance)
+  // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
-    : isMigrationComplete
+    : shouldUseEOA
       ? allBalances.externalWallet
       : allBalances.smartWallet;
 

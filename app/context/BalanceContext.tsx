@@ -65,7 +65,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     dependencies: [selectedNetwork],
   });
 
-  // Check migration status
+  // Cannot use useShouldUseEOA here (it uses useBalance and would create a circular dependency)
   const { isMigrationComplete } = useMigrationStatus();
 
   const fetchBalances = async () => {
@@ -102,9 +102,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           ),
         });
 
-        // After migration, prioritize embedded wallet (EOA) over smart wallet
+        let primaryIsEOA = false;
+
         if (isMigrationComplete && embeddedWalletAccount) {
-          // Migration complete: Fetch balance for migrated EOA
+          // Migrated in DB: use EOA balance
+          primaryIsEOA = true;
           const result = await fetchWalletBalance(
             publicClient,
             embeddedWalletAccount.address,
@@ -117,15 +119,13 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             ...result,
             total: correctedTotal,
           });
-          // Clear smart wallet balance since it's deprecated
           setSmartWalletBalance(null);
         } else if (smartWalletAccount) {
-          // Migration not complete: Fetch balance for old SCW
+          // Not migrated: fetch SCW balance first
           const result = await fetchWalletBalance(
             publicClient,
             smartWalletAccount.address,
           );
-          // Apply cNGN conversion correction
           const correctedTotal = calculateCorrectedTotalBalance(
             result,
             cngnRate,
@@ -134,22 +134,38 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             ...result,
             total: correctedTotal,
           });
-          setExternalWalletBalance(null);
+          // If SCW balance is 0, also fetch EOA so 0-balance users see EOA in nav (useShouldUseEOA is true elsewhere)
+          if (correctedTotal === 0 && embeddedWalletAccount) {
+            primaryIsEOA = true;
+            const eoaResult = await fetchWalletBalance(
+              publicClient,
+              embeddedWalletAccount.address,
+            );
+            const eoaCorrected = calculateCorrectedTotalBalance(
+              eoaResult,
+              cngnRate,
+            );
+            setExternalWalletBalance({
+              ...eoaResult,
+              total: eoaCorrected,
+            });
+          } else {
+            setExternalWalletBalance(null);
+          }
         } else {
           setSmartWalletBalance(null);
           setExternalWalletBalance(null);
         }
 
-        // Handle external injected wallets (separate from embedded wallet)
-        // Only fetch if it's not the embedded wallet and migration not complete
+        // Handle external injected wallets (separate from embedded wallet) – don't overwrite EOA balance for 0-balance users
         if (externalWalletAccount &&
           externalWalletAccount.address !== embeddedWalletAccount?.address &&
-          !isMigrationComplete) {
+          !isMigrationComplete &&
+          !primaryIsEOA) {
           const result = await fetchWalletBalance(
             publicClient,
             externalWalletAccount.address,
           );
-          // Apply cNGN conversion correction
           const correctedTotal = calculateCorrectedTotalBalance(
             result,
             cngnRate,
@@ -210,6 +226,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   }, [
     ready,
     user,
+    wallets,
     selectedNetwork,
     isInjectedWallet,
     injectedReady,

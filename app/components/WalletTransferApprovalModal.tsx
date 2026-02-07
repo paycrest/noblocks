@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
-import { Cancel01Icon, Wallet01Icon, InformationCircleIcon } from "hugeicons-react";
+import { Cancel01Icon, Wallet01Icon, InformationCircleIcon, InformationSquareIcon } from "hugeicons-react";
 import Image from "next/image";
 import { useBalance } from "../context/BalanceContext";
 import { useTokens } from "../context";
@@ -185,7 +185,10 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
         return networks.find(n => n.chain.name === chainName);
     };
 
-    const handleCloseSuccessModal = () => setShowSuccessModal(false);
+    const handleCloseSuccessModal = () => {
+        setShowSuccessModal(false);
+        window.location.reload();
+    };
 
     // Handle approve transfer
     const handleApproveTransfer = async () => {
@@ -402,22 +405,34 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                             </button>
                                         </div>
 
-                                        <div className="relative -mt-6 w-full overflow-y-auto rounded-t-[24px] bg-white p-5 pt-6 text-text-body sm:max-h-[90vh] dark:bg-[#2C2C2C] dark:text-white">
-                                            <h2 className="mb-6 text-xl font-semibold">Wallet Migration</h2>
+                                        <div className="relative -mt-6 w-full overflow-y-auto rounded-t-[24px] bg-white p-5 text-text-body sm:max-h-[90vh] dark:bg-[#363636] dark:text-white">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <span className="text-xl font-semibold">Wallet</span>
+                                                    <div className="flex items-center gap-2 pt-2">
+                                                        <Wallet01Icon className="h-5 w-5 text-text-secondary dark:text-white/60" strokeWidth={2} />
+                                                        <span
+                                                            className="font-[Inter] text-sm font-medium leading-5 tracking-normal text-text-body align-middle dark:text-[#FFFFFF]"
+                                                        >
+                                                            {displayOldAddress}
+                                                        </span>
+                                                    </div>
+                                                </div>
 
-                                            {/* Old Wallet Balance Card */}
-                                            <div className="mb-4 space-y-3 rounded-[20px] border border-border-light p-4 dark:border-white/10">
-                                                <div className="flex items-center gap-2">
-                                                    <Wallet01Icon className="h-5 w-5 text-text-secondary dark:text-white/60" strokeWidth={2} />
-                                                    <span className="text-sm font-medium">Smart Contract Wallet</span>
+                                                {/* Old Wallet Balance Card */}
+                                                <div className="space-y-3  p-4 dark:border-white/10 text-right">
+                                                    <span
+                                                        className="font-[Inter] text-sm font-normal leading-5 tracking-normal text-text-secondary dark:text-[#FFFFFF80]"
+                                                    >
+                                                        Total wallet balance
+                                                    </span>
+                                                    <div
+                                                        className="font-[Inter] text-2xl font-medium leading-9 tracking-tight text-text-body align-middle dark:text-[#FFFFFF]"
+
+                                                    >
+                                                        {isLoading ? "..." : totalBalance}
+                                                    </div>
                                                 </div>
-                                                <div className="text-sm text-text-secondary dark:text-white/50">
-                                                    {displayOldAddress}
-                                                </div>
-                                                <div className="text-sm text-text-secondary dark:text-white/50">
-                                                    Total balance
-                                                </div>
-                                                <div className="text-3xl font-semibold">{isLoading ? "..." : totalBalance}</div>
                                             </div>
 
                                             {/* Progress indicator */}
@@ -430,53 +445,59 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                                 </div>
                                             )}
 
-                                            {/* Token List */}
+                                            {/* Token List - Each Network gets its own card */}
                                             <div className="mb-4 space-y-3">
                                                 {isFetchingBalances || isLoading ? (
                                                     <div className="text-sm text-text-secondary dark:text-white/50">Loading balances from all networks...</div>
-                                                ) : tokens.length === 0 ? (
+                                                ) : Object.keys(tokensByChain).length === 0 ? (
                                                     <div className="text-sm text-text-secondary dark:text-white/50">No tokens found</div>
                                                 ) : (
-                                                    tokens.map((token) => (
-                                                        <div key={token.id} className="flex items-center justify-between rounded-2xl py-4">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="relative">
-                                                                    <Image
-                                                                        src={token.icon}
-                                                                        alt={token.name}
-                                                                        width={32}
-                                                                        height={32}
-                                                                        className="size-10 rounded-full"
-                                                                        onError={(e) => {
-                                                                            (e.target as HTMLImageElement).style.display = 'none';
-                                                                        }}
-                                                                    />
-                                                                    {(() => {
-                                                                        const networkConfig = getNetworkConfig(token.chain);
-                                                                        if (!networkConfig) return null;
-                                                                        const imageUrl = typeof networkConfig.imageUrl === 'string'
-                                                                            ? networkConfig.imageUrl
-                                                                            : (isDark ? networkConfig.imageUrl.dark : networkConfig.imageUrl.light);
-                                                                        return (
-                                                                            <Image
-                                                                                src={imageUrl}
-                                                                                alt={token.chain}
-                                                                                width={16}
-                                                                                height={16}
-                                                                                className="absolute -bottom-1 -right-1 size-6 rounded-full"
-                                                                            />
-                                                                        );
-                                                                    })()}
-                                                                </div>
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-sm font-medium">{token.name}</span>
-                                                                    <span className="text-xs text-text-secondary dark:text-white/50">
-                                                                        {token.displayAmount} {token.symbol}
-                                                                    </span>
-                                                                </div>
+                                                    Object.entries(tokensByChain).map(([chainName, chainTokens]) => (
+                                                        <div key={chainName} className="rounded-3xl bg-background-neutral p-4 dark:bg-[#2C2C2C]">
+                                                            {/* Network Title */}
+                                                            <div className="mb-3">
+                                                                <h3 className="text-sm font-medium text-text-body dark:text-[#FFFFFFCC] capitalize">
+                                                                    {chainName}
+                                                                </h3>
                                                             </div>
-                                                            <div className="flex flex-col items-end">
-                                                                <span className="text-sm font-medium">${token.value}</span>
+
+                                                            {/* Network Tokens */}
+                                                            <div className="space-y-2">
+                                                                {chainTokens.map((token) => (
+                                                                    <div key={token.id} className="flex items-center gap-3 py-1">
+                                                                        <div className="relative flex-shrink-0">
+                                                                            <Image
+                                                                                src={token.icon}
+                                                                                alt={token.name}
+                                                                                width={24}
+                                                                                height={24}
+                                                                                className="size-6 rounded-full"
+                                                                                onError={(e) => {
+                                                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                                                }}
+                                                                            />
+                                                                            {(() => {
+                                                                                const networkConfig = getNetworkConfig(token.chain);
+                                                                                if (!networkConfig) return null;
+                                                                                const imageUrl = typeof networkConfig.imageUrl === 'string'
+                                                                                    ? networkConfig.imageUrl
+                                                                                    : (isDark ? networkConfig.imageUrl.dark : networkConfig.imageUrl.light);
+                                                                                return (
+                                                                                    <Image
+                                                                                        src={imageUrl}
+                                                                                        alt={token.chain}
+                                                                                        width={8}
+                                                                                        height={8}
+                                                                                        className="absolute -bottom-1 -right-1 size-3 rounded-full border border-white dark:border-gray-800"
+                                                                                    />
+                                                                                );
+                                                                            })()}
+                                                                        </div>
+                                                                        <span className="font-[Inter] text-sm font-medium text-text-body dark:text-white/90">
+                                                                            {token.displayAmount} {token.symbol}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
                                                             </div>
                                                         </div>
                                                     ))
@@ -485,14 +506,14 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
 
                                             {/* Info Banner */}
                                             <div className="mb-6 flex items-start gap-2.5 rounded-2xl border border-border-light bg-accent-gray p-4 dark:border-white/10 dark:bg-[#3c3a38]">
-                                                <InformationCircleIcon
+                                                {/* <InformationCircleIcon */}
+                                                <InformationSquareIcon
                                                     className="mt-0.5 h-5 w-5 flex-shrink-0 text-text-secondary dark:text-white/60"
                                                     strokeWidth={2}
                                                 />
-                                                <p className="text-sm leading-relaxed">
-                                                    Your funds will be transferred to your new EOA address{" "}
-                                                    <span className="font-semibold">{displayNewAddress}</span>.
-                                                    This EOA can be upgraded with EIP-7702 for enhanced features.
+                                                <p className="text-sm font-normal leading-5 tracking-normal text-text-secondary dark:text-white/50">
+                                                    Your funds are safe, they are being transferred to your new secured wallet address{" "}
+                                                    <span className="font-semibold text-text-body dark:text-white/80">{displayNewAddress}</span>
                                                 </p>
                                             </div>
 
@@ -503,13 +524,13 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                                 </div>
                                             )}
 
-                                            {/* Approve Transfer Button */}
+                                            {/* Approve Transfer Button - enabled even with 0 balance (deprecate-only migration) */}
                                             <button
                                                 onClick={handleApproveTransfer}
-                                                disabled={isProcessing || isLoading || isFetchingBalances || tokens.length === 0}
+                                                disabled={isProcessing || isLoading || isFetchingBalances}
                                                 className="w-full rounded-xl bg-lavender-500 px-6 py-3.5 text-base font-semibold text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                                             >
-                                                {isProcessing ? progress || "Processing migration..." : isFetchingBalances ? "Loading balances..." : "Approve transfer"}
+                                                {isProcessing ? progress || "Processing migration..." : isFetchingBalances ? "Loading balances..." : tokens.length === 0 ? "Complete migration" : "Approve transfer"}
                                             </button>
                                         </div>
                                     </motion.div>

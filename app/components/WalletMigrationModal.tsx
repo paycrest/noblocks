@@ -18,7 +18,7 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
     const [showTransferModal, setShowTransferModal] = useState(false);
 
     const handleApproveMigration = () => {
-        onClose(); 
+        onClose();
         setTimeout(() => {
             setShowTransferModal(true);
         }, 300);
@@ -93,13 +93,13 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
                                                     backgroundClip: "text",
                                                 }}
                                             >
-                                                A short letter from us to you!
+                                                Complete your wallet upgrade
                                             </h2>
-                                      
-                                            <div className="mb-3 text-sm font-medium text-text-secondary dark:text-white/50">
+
+                                            {/* <div className="mb-3 text-sm font-medium text-text-secondary dark:text-white/50">
                                                 Chibie
                                             </div>
-                                     
+
                                             <div className="mb-6 flex items-start gap-3 ">
                                                 <div className="flex-shrink-0">
                                                     <div className="h-8 w-8 overflow-hidden">
@@ -117,74 +117,74 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
                                                         Hello, we are migrating!
                                                     </div>
                                                 </div>
-                                            </div>
+                                            </div> */}
 
                                             {/* Migration Overview */}
                                             <div className="rounded-[20px] bg-accent-gray p-4 mb-6 dark:bg-[#373636]">
-                                                <p className="text-sm leading-relaxed text-text-body px-2 pb-4 dark:text-white/90">
-                                                    We're upgrading to a faster, more secure
-                                                    wallet powered by{" "}
-                                                    <span className="font-semibold">
-                                                        Thirdweb
-                                                    </span>
-                                                    . What does this mean?
+                                                <p
+                                                    className="font-[Inter] text-sm font-normal leading-5 tracking-normal text-text-body px-2 pb-4 align-middle dark:text-[#FFFFFFCC]"
+                                                    style={{ fontStyle: "normal", verticalAlign: "middle" }}
+                                                >
+                                                    Your wallet address has been updated to give you more flexibility. After this migration, you&apos;ll be able to export your wallet and view your balance in MetaMask or any other wallet app.
+                                                </p>
+                                                <p
+                                                    className="font-[Inter] text-sm font-normal leading-5 tracking-normal text-text-body px-2 pb-4 align-middle dark:text-[#FFFFFFCC]"
+                                                    style={{ fontStyle: "normal", verticalAlign: "middle" }}
+                                                >
+                                                    We&apos;ll transfer your funds from your previous address to your new address. This is a one-time process.
                                                 </p>
 
-                                                {/* KYC Migration Section */}
-                                                <div className="rounded-[20px] bg-white p-1 py-3 mb-4 dark:bg-[#3d3d3d]">
-                                                    <div className="flex items-start mb-3">
-                                                        <div className="flex-shrink-0">
-                                                            <div className="flex h-12 w-12 items-center justify-center rounded-lg">
-                                                                <Image
-                                                                    src="/images/finger-print-scan.png"
-                                                                    alt="KYC Migration"
-                                                                    width={32}
-                                                                    height={32}
-                                                                    className="h-8 w-8 object-contain opacity-100"
-                                                                />
-                                                            </div>
+                                                <p className="text-sm font-bold leading-5 tracking-normal text-text-body px-2 mb-3 align-middle dark:text-[#FFFFFFCC]">
+                                                    What you&apos;re getting:
+                                                </p>
+                                                <div className="rounded-[20px] bg-white px-4 py-3 mb-4 dark:bg-[#3d3d3d] space-y-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
+                                                            <Image
+                                                                src="/images/sent.png"
+                                                                alt="Export wallet"
+                                                                width={32}
+                                                                height={32}
+                                                                className="h-8 w-8 object-contain"
+                                                            />
                                                         </div>
-                                                        <div className="flex-1">
-                                                            <p className="text-sm leading-relaxed text-text-body dark:text-white/90">
-                                                                Your KYC will be moved from{" "}
-                                                                <span className="font-semibold">
-                                                                    Privy
-                                                                </span>{" "}
-                                                                to a new wallet address assigned by{" "}
-                                                                <span className="font-semibold">
-                                                                    Thirdweb
-                                                                </span>
-                                                            </p>
-                                                        </div>
+                                                        <p className="text-sm font-normal leading-5 tracking-normal text-text-body min-w-0 dark:text-white/90">
+                                                            Ability to export your wallet
+                                                        </p>
                                                     </div>
-
-                                                    {/* Funds Transfer Section */}
-                                                    <div className="flex items-start">
-                                                        <div className="flex-shrink-0">
-                                                            <div className="flex h-12 w-12 items-center justify-center rounded-lg">
-                                                                <Image
-                                                                    src="/images/wallet.png"
-                                                                    alt="Funds Transfer"
-                                                                    width={32}
-                                                                    height={32}
-                                                                    className="h-8 w-8 object-contain opacity-70"
-                                                                />
-                                                            </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
+                                                            <Image
+                                                                src="/images/wallet.png"
+                                                                alt="Use balance in MetaMask or other platforms"
+                                                                width={32}
+                                                                height={32}
+                                                                className="h-8 w-8 object-contain"
+                                                            />
                                                         </div>
-                                                        <div className="flex-1">
-                                                            <p className="text-sm leading-relaxed text-text-body dark:text-white/90">
-                                                                If you have any funds in your account,
-                                                                it will be transferred to your new
-                                                                KYCed address
-                                                            </p>
+                                                        <p className="text-sm font-normal leading-5 tracking-normal text-text-body min-w-0 dark:text-white/90">
+                                                            Use your balance in MetaMask or other platforms
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
+                                                            <Image
+                                                                src="/images/locked.png"
+                                                                alt="Same security, more control"
+                                                                width={32}
+                                                                height={32}
+                                                                className="h-8 w-8 object-contain"
+                                                            />
                                                         </div>
+                                                        <p className="text-sm font-normal leading-5 tracking-normal text-text-body min-w-0 dark:text-white/90">
+                                                            Same security, more control
+                                                        </p>
                                                     </div>
                                                 </div>
 
                                                 {/* Call to Action Explanation */}
-                                                <p className="text-sm leading-relaxed text-text-body dark:text-white/90">
-                                                    All you have to do is approve both actions and
-                                                    we will do all the heavy liftings for you
+                                                <p className="text-sm font-normal leading-5 tracking-normal text-text-body align-middle dark:text-[#FFFFFFCC]">
+                                                    All you have to do is approve both actions and we will do all the heavy liftings for you
                                                 </p>
                                             </div>
 
@@ -193,7 +193,7 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
                                                 onClick={handleApproveMigration}
                                                 className="w-full rounded-xl bg-lavender-500 px-6 py-3.5 text-sm font-semibold text-white transition-all hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-white active:opacity-80 dark:focus:ring-offset-neutral-900"
                                             >
-                                                Approve migration
+                                                Approve Transfer
                                             </button>
                                         </div>
                                     </motion.div>

@@ -22,7 +22,7 @@ import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm, TransferForm } from "./index";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
-import { useMigrationStatus } from "../hooks/useEIP7702Account";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 
 export const MobileDropdown = ({
   isOpen,
@@ -49,7 +49,7 @@ export const MobileDropdown = ({
     },
   });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const { isMigrationComplete } = useMigrationStatus();
+  const shouldUseEOA = useShouldUseEOA();
 
   // Get embedded wallet (EOA) and smart wallet (SCW)
   const embeddedWallet = wallets.find(
@@ -64,7 +64,7 @@ export const MobileDropdown = ({
   // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress, type: "injected_wallet" }
-    : isMigrationComplete && embeddedWallet
+    : shouldUseEOA && embeddedWallet
       ? { address: embeddedWallet.address, type: "eoa" }
       : smartWallet;
 
@@ -115,7 +115,7 @@ export const MobileDropdown = ({
   // Get appropriate balance based on migration status
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
-    : isMigrationComplete
+    : shouldUseEOA
       ? allBalances.externalWallet
       : allBalances.smartWallet;
 

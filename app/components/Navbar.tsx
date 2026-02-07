@@ -28,7 +28,7 @@ import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useWallets } from "@privy-io/react-auth";
-import { useMigrationStatus } from "../hooks/useEIP7702Account";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -42,7 +42,7 @@ export const Navbar = () => {
 
   const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
-  const { isMigrationComplete } = useMigrationStatus();
+  const shouldUseEOA = useShouldUseEOA();
 
   // Get embedded wallet (EOA) and smart wallet (SCW)
   const embeddedWallet = wallets.find(
@@ -57,7 +57,7 @@ export const Navbar = () => {
   // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress, type: "injected_wallet" }
-    : isMigrationComplete && embeddedWallet
+    : shouldUseEOA && embeddedWallet
       ? { address: embeddedWallet.address, type: "eoa" }
       : smartWallet;
 

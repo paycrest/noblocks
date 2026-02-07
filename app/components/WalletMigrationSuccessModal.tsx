@@ -78,7 +78,7 @@ const WalletMigrationSuccessModal: React.FC<WalletMigrationSuccessModalProps> = 
                                             Migration successful
                                         </h2>
                                         <p className="mb-8 text-center text-sm font-normal leading-relaxed text-text-body/90 dark:text-white/90">
-                                            You can now continue converting your crypto to <br /> fiats at zero fees on noblocks
+                                            You can now continue converting your stablecoins to fiats at zero fees on noblocks
                                         </p>
                                         <button
                                             onClick={handleContinue}

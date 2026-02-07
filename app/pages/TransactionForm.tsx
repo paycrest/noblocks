@@ -32,7 +32,7 @@ import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
-import { useMigrationStatus } from "../hooks/useEIP7702Account";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import {
   useBalance,
   useInjectedWallet,
@@ -66,7 +66,7 @@ export const TransactionForm = ({
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
-  const { isMigrationComplete, isLoading: isMigrationLoading } = useMigrationStatus();
+  const shouldUseEOA = useShouldUseEOA();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
 
@@ -124,17 +124,14 @@ export const TransactionForm = ({
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : isMigrationComplete && embeddedWallet
+    : shouldUseEOA && embeddedWallet
       ? { address: embeddedWallet.address }
       : smartWallet;
 
-  // Get appropriate balance based on migration status
-  // After migration: use externalWalletBalance (EOA balance)
-  // Before migration: use smartWalletBalance (SCW balance)
-  // Wait for migration status to load before making decision
+  // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
   const activeBalance = isInjectedWallet
     ? injectedWalletBalance
-    : !isMigrationLoading && isMigrationComplete
+    : shouldUseEOA
       ? externalWalletBalance
       : smartWalletBalance;
 
@@ -696,8 +693,8 @@ export const TransactionForm = ({
                 }}
                 value={formattedSentAmount}
                 className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${authenticated && (amountSent > balance || errors.amountSent)
-                    ? "text-red-500 dark:text-red-500"
-                    : "text-neutral-900 dark:text-white/80"
+                  ? "text-red-500 dark:text-red-500"
+                  : "text-neutral-900 dark:text-white/80"
                   }`}
                 placeholder="0"
                 title="Enter amount to send"
@@ -781,8 +778,8 @@ export const TransactionForm = ({
                 }}
                 value={formattedReceivedAmount}
                 className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amountReceived
-                    ? "text-red-500 dark:text-red-500"
-                    : "text-neutral-900 dark:text-white/80"
+                  ? "text-red-500 dark:text-red-500"
+                  : "text-neutral-900 dark:text-white/80"
                   }`}
                 placeholder="0"
                 title="Enter amount to receive"
@@ -833,8 +830,8 @@ export const TransactionForm = ({
                     }}
                     value={formMethods.watch("memo")}
                     className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${errors.memo
-                        ? "text-red-500 dark:text-red-500"
-                        : "text-text-body dark:text-white/80"
+                      ? "text-red-500 dark:text-red-500"
+                      : "text-text-body dark:text-white/80"
                       }`}
                     placeholder="Add description (optional)"
                     maxLength={25}

@@ -1,88 +1,62 @@
 "use client";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useEffect, useState } from "react";
-import { type Address, type WalletClient } from "viem";
+import { usePrivy, useWallets, useSign7702Authorization } from "@privy-io/react-auth";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+    type Address,
+    type Chain,
+    type PublicClient,
+    SignedAuthorization,
+    createPublicClient,
+    http,
+} from "viem";
 import { useBalance } from "../context/BalanceContext";
 
 // ################################################
-// ############## EIP7702 ACCOUNT #################
+// ########## EIP-7702 LIB HELPERS ################
 // ################################################
 
-interface EIP7702Account {
-    eoaAddress: Address | null;
-    smartWalletAddress: Address | null;
-    signer: WalletClient | null;
-    isReady: boolean;
+/** EIP-7702 magic prefix: authorized EOA bytecode starts with this. */
+export const EIP7702_MAGIC_PREFIX = "0xef0100";
+
+/**
+ * Parse the authorized implementation address from EOA bytecode (eth_getCode).
+ * Under EIP-7702, authorized EOAs expose bytecode starting with 0xef0100 followed by the 20-byte implementation address.
+ */
+export function parseEip7702AuthorizedAddress(
+    code: string | null | undefined
+): Address | null {
+    if (!code || code === "0x" || code === "0x0") return null;
+    const normalized = code.toLowerCase();
+    const idx = normalized.indexOf(EIP7702_MAGIC_PREFIX);
+    if (idx === -1) return null;
+    return `0x${normalized.slice(idx + EIP7702_MAGIC_PREFIX.length, idx + EIP7702_MAGIC_PREFIX.length + 40)}` as Address;
 }
 
 /**
- * Hook to setup EIP-7702 account with EOA and Smart Wallet
- * This creates the wallet client needed for migration
+ * Detect whether an EOA is delegated via EIP-7702 and return the implementation address.
  */
-export function useEIP7702Account(): EIP7702Account {
-    const { user, authenticated } = usePrivy();
-    const { wallets } = useWallets();
-    const [account, setAccount] = useState<EIP7702Account>({
-        eoaAddress: null,
-        smartWalletAddress: null,
-        signer: null,
-        isReady: false,
+export async function get7702ImplementationAddress(
+    publicClient: PublicClient,
+    address: Address
+): Promise<Address | null> {
+    const code = await publicClient.getCode({ address });
+    return parseEip7702AuthorizedAddress(code ?? undefined);
+}
+
+/**
+ * Get the EIP-7702 authorized implementation address for an EOA on a given chain.
+ * Creates a public client and runs getCode + parse. Use when you don't have a PublicClient.
+ */
+export async function get7702AuthorizedImplementationForAddress(
+    chain: Chain,
+    rpcUrl: string,
+    address: Address
+): Promise<Address | null> {
+    const publicClient = createPublicClient({
+        chain,
+        transport: http(rpcUrl),
     });
-
-    useEffect(() => {
-        async function setupAccount() {
-            if (!user || !authenticated) {
-                setAccount({
-                    eoaAddress: null,
-                    smartWalletAddress: null,
-                    signer: null,
-                    isReady: false,
-                });
-                return;
-            }
-
-            const embeddedWallet = wallets.find(
-                (wallet) => wallet.walletClientType === "privy"
-            );
-
-            const smartWallet = user.linkedAccounts.find(
-                (account) => account.type === "smart_wallet"
-            );
-
-            if (!smartWallet) {
-                setAccount({
-                    eoaAddress: embeddedWallet?.address as Address ?? null,
-                    smartWalletAddress: null,
-                    signer: null,
-                    isReady: true,
-                });
-                return;
-            }
-
-            if (!embeddedWallet) {
-                console.warn("⚠️ [EIP7702] User has smart wallet but no embedded wallet");
-                // Set account state to prevent perpetual loading
-                setAccount({
-                    eoaAddress: null,
-                    smartWalletAddress: smartWallet.address as Address,
-                    signer: null,
-                    isReady: true, // Set to true to prevent loading state
-                });
-                return;
-            }
-
-            setAccount({
-                eoaAddress: embeddedWallet.address as Address,
-                smartWalletAddress: smartWallet.address as Address,
-                signer: null,
-                isReady: true,
-            });
-        }
-
-        setupAccount();
-    }, [authenticated, user?.id, wallets.length]);
-
-    return account;
+    return get7702ImplementationAddress(publicClient, address);
 }
 
 // ################################################
@@ -130,52 +104,84 @@ export function useMigrationStatus(): MigrationStatus {
 }
 
 // ################################################
+// ########## SHOULD USE EOA (NAV + ACTIONS) ######
+// ################################################
+
+/**
+ * True when the app should use the embedded wallet (EOA) for nav, balance, createOrder, transfer.
+ * True if: migrated in DB, OR has smart wallet with 0 balance (treat as EOA without DB migration).
+ * During balance load we return the last known value so 0-balance users don't see SCW address flicker.
+ */
+export function useShouldUseEOA(): boolean {
+    const { user } = usePrivy();
+    const { isMigrationComplete } = useMigrationStatus();
+    const { allBalances, isLoading: isBalanceLoading } = useBalance();
+    const lastValueRef = useRef<boolean | null>(null);
+
+    const hasSmartWallet = !!user?.linkedAccounts?.find((a) => a.type === "smart_wallet");
+    const smartWalletBalance = allBalances.smartWallet?.total ?? 0;
+
+    if (isMigrationComplete) {
+        lastValueRef.current = true;
+        return true;
+    }
+    if (!hasSmartWallet) {
+        lastValueRef.current = false;
+        return false;
+    }
+    // During load, keep last value to avoid SCW→EOA flicker on refresh; first load prefer EOA if they have smart wallet
+    if (isBalanceLoading) return lastValueRef.current ?? hasSmartWallet;
+    const value = smartWalletBalance === 0;
+    lastValueRef.current = value;
+    return value;
+}
+
+// ################################################
 // ########## WALLET MIGRATION STATUS #############
 // ################################################
 
 interface WalletMigrationStatus {
     needsMigration: boolean;
     isChecking: boolean;
+    showZeroBalanceMessage: boolean;
 }
 
 /**
  * Hook to check if wallet migration is needed
- * Uses real blockchain balances from useBalance
+ * - needsMigration: show full "Start migration" banner (has funds in SCW, not migrated)
+ * - showZeroBalanceMessage: show short text only (0 balance SCW; nav/actions use EOA)
  */
 export function useWalletMigrationStatus(): WalletMigrationStatus {
     const { user, authenticated } = usePrivy();
     const { allBalances, isLoading: isBalanceLoading } = useBalance();
     const [needsMigration, setNeedsMigration] = useState(false);
+    const [showZeroBalanceMessage, setShowZeroBalanceMessage] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
 
     useEffect(() => {
         async function checkMigrationStatus() {
             if (!authenticated || !user) {
                 setNeedsMigration(false);
+                setShowZeroBalanceMessage(false);
                 setIsChecking(false);
                 return;
             }
 
-            // Check if user has smart wallet
             const smartWallet = user.linkedAccounts.find(
                 (account) => account.type === "smart_wallet"
             );
 
             if (!smartWallet) {
                 setNeedsMigration(false);
+                setShowZeroBalanceMessage(false);
                 setIsChecking(false);
                 return;
             }
 
-            // Wait for balances to load
-            if (isBalanceLoading) {
-                return;
-            }
+            if (isBalanceLoading) return;
 
-            // ✅ Get balance directly from useBalance hook
             const smartWalletBalance = allBalances.smartWallet?.total ?? 0;
 
-            // Check if already migrated in database FIRST
             try {
                 const response = await fetch(`/api/v1/wallets/migration-status?userId=${user.id}`);
 
@@ -183,25 +189,28 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
                     const data = await response.json();
                     const alreadyMigrated = data.migrationCompleted ?? false;
 
-                    // If already migrated, no need to show banner
                     if (alreadyMigrated) {
                         setNeedsMigration(false);
+                        setShowZeroBalanceMessage(false);
                         setIsChecking(false);
                         return;
                     }
 
-                    setNeedsMigration(true);
-                    setIsChecking(false);
-                    return;
-                } else {
-                    // Fallback: show banner if there's balance
+                    // Not migrated: show banner only if has funds; else show short text only
                     const hasBalance = smartWalletBalance > 0;
                     setNeedsMigration(hasBalance);
+                    setShowZeroBalanceMessage(!hasBalance);
+                    setIsChecking(false);
+                    return;
                 }
-            } catch (error) {
-                // Fallback: show banner if there's balance
+
                 const hasBalance = smartWalletBalance > 0;
                 setNeedsMigration(hasBalance);
+                setShowZeroBalanceMessage(!hasBalance);
+            } catch (error) {
+                const hasBalance = smartWalletBalance > 0;
+                setNeedsMigration(hasBalance);
+                setShowZeroBalanceMessage(!hasBalance);
             }
 
             setIsChecking(false);
@@ -210,5 +219,43 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
         checkMigrationStatus();
     }, [authenticated, user?.id, allBalances.smartWallet?.total, isBalanceLoading]);
 
-    return { needsMigration, isChecking };
+    return { needsMigration, isChecking, showZeroBalanceMessage };
+}
+
+/** Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation. */
+export const BICONOMY_NEXUS_V120 = "0x000000004F43C49e93C970E84001853a70923B03" as const;
+
+/**
+ * Hook to sign EIP-7702 authorizations for Biconomy Nexus (MEE).
+ * Sign with the execution chainId so MEE has authorization for that chain (e.g. 8453 for Base).
+ *
+ * @see https://docs.biconomy.io/new/integration-guides/wallets-and-signers/privy
+ *
+ * @example
+ * const { signBiconomyAuthorization } = useBiconomy7702Auth();
+ * const authorization = await signBiconomyAuthorization(chain.id);
+ */
+export function useBiconomy7702Auth() {
+    const { signAuthorization } = useSign7702Authorization();
+    const { wallets } = useWallets();
+    const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
+
+    const signBiconomyAuthorization = useCallback(
+        async (chainId: number): Promise<SignedAuthorization> => {
+            if (!embeddedWallet?.address) {
+                throw new Error("Embedded wallet not ready for EIP-7702 signing");
+            }
+            const signed = await signAuthorization(
+                {
+                    contractAddress: BICONOMY_NEXUS_V120,
+                    chainId,
+                },
+                { address: embeddedWallet.address as Address }
+            );
+            return signed as SignedAuthorization;
+        },
+        [signAuthorization, embeddedWallet?.address]
+    );
+
+    return { signBiconomyAuthorization };
 }

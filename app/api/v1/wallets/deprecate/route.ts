@@ -78,17 +78,23 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     });
 
     // Step 4: Atomic database operations with rollback on failure
-    // Mark old wallet as deprecated
+    // Ensure old (SCW) wallet exists and mark as deprecated (upsert so we insert if never saved to DB)
+    const now = new Date().toISOString();
     const { error: deprecateError } = await supabaseAdmin
       .from("wallets")
-      .update({
-        status: "deprecated",
-        deprecated_at: new Date().toISOString(),
-        migration_completed: true,
-        migration_tx_hash: txHash,
-      })
-      .eq("address", oldAddress.toLowerCase())
-      .eq("user_id", userId);
+      .upsert(
+        {
+          address: oldAddress.toLowerCase(),
+          user_id: userId,
+          wallet_type: "smart_contract",
+          status: "deprecated",
+          deprecated_at: now,
+          migration_completed: true,
+          migration_tx_hash: txHash,
+          updated_at: now,
+        },
+        { onConflict: "address,user_id" }
+      );
 
     if (deprecateError) {
       trackApiError(request, "/api/v1/wallets/deprecate", "POST", deprecateError, 500);

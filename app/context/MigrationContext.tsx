@@ -1,19 +1,13 @@
 "use client";
 import { useWalletMigrationStatus } from "../hooks/useEIP7702Account";
 import { WalletMigrationBanner } from "../components";
+import { MigrationZeroBalanceModal } from "../components/MigrationZeroBalanceModal";
 
 export const MigrationBannerWrapper = () => {
-    const { needsMigration, isChecking } = useWalletMigrationStatus();
+    const { needsMigration, isChecking, showZeroBalanceMessage } = useWalletMigrationStatus();
 
-    // Don't show banner while checking
-    if (isChecking) {
-        return null;
-    }
-
-    // Don't show banner if migration not needed
-    if (!needsMigration) {
-        return null;
-    }
-
-    return <WalletMigrationBanner />;
-}
+    if (isChecking) return null;
+    if (needsMigration) return <WalletMigrationBanner />;
+    if (showZeroBalanceMessage) return <MigrationZeroBalanceModal showZeroBalanceMessage={showZeroBalanceMessage} />;
+    return null;
+};

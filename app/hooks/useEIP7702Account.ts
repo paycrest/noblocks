@@ -197,15 +197,14 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
             }
 
             // Don't wait for balance loading - handle API call independently
+            const smartWalletBalance = allBalances.smartWallet?.total ?? 0;
 
             try {
                 const accessToken = await getAccessToken();
                 if (!accessToken) {
                     console.warn("No access token available for wallet migration status check");
-                    // Fall back to default behavior when auth is not available
-                    const hasBalance = smartWalletBalance > 0;
-                    setNeedsMigration(hasBalance);
-                    setShowZeroBalanceMessage(!hasBalance);
+                    // Set migration as incomplete when auth is not available
+                    setIsMigrationComplete(false);
                     setIsChecking(false);
                     return;
                 }

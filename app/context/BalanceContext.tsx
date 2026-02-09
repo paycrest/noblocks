@@ -47,35 +47,27 @@ function applyCNGNBalanceConversion(
   cngnRate: number | null,
 ): Record<string, number> {
   const correctedBalances = { ...balances };
-  const cngnBalance = correctedBalances["CNGN"] || correctedBalances["cNGN"];
+  const cngnSymbols = ["CNGN", "cNGN"] as const;
 
-  if (
-    typeof cngnBalance === "number" &&
-    !isNaN(cngnBalance) &&
-    cngnBalance > 0 &&
-    cngnRate &&
-    cngnRate > 0
-  ) {
-    // Convert CNGN to USD equivalent
-    const usdEquivalent = cngnBalance / cngnRate;
-    if (correctedBalances["CNGN"]) {
-      correctedBalances["CNGN"] = usdEquivalent;
-    } else if (correctedBalances["cNGN"]) {
-      correctedBalances["cNGN"] = usdEquivalent;
+  cngnSymbols.forEach((symbol) => {
+    const cngnBalance = correctedBalances[symbol];
+    if (
+      typeof cngnBalance !== "number" ||
+      isNaN(cngnBalance) ||
+      cngnBalance <= 0
+    ) {
+      return;
     }
-  } else if (
-    typeof cngnBalance === "number" &&
-    !isNaN(cngnBalance) &&
-    cngnBalance > 0 &&
-    (!cngnRate || cngnRate <= 0)
-  ) {
-    // No rate available - set CNGN balance to 0 so it doesn't contribute to total
-    if (correctedBalances["CNGN"]) {
-      correctedBalances["CNGN"] = 0;
-    } else if (correctedBalances["cNGN"]) {
-      correctedBalances["cNGN"] = 0;
+
+    if (cngnRate && cngnRate > 0) {
+      // Convert CNGN to USD equivalent
+      correctedBalances[symbol] = cngnBalance / cngnRate;
+      return;
     }
-  }
+
+    // No rate available - set CNGN balance to 0 so it doesn't contribute to totals
+    correctedBalances[symbol] = 0;
+  });
 
   return correctedBalances;
 }

@@ -153,6 +153,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
                       const isCNGN = token === "CNGN" || token === "cNGN";
                       const rawBalance =
                         entry.balances.rawBalances?.[token] ?? balance;
+                      const tokenImageUrl =
+                        getTokenImageUrl(token) ||
+                        `/logos/${token.toLowerCase()}-logo.svg`;
 
                       return (
                         <div
@@ -162,7 +165,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                           <div className="flex items-center gap-1">
                             <div className="relative">
                               <Image
-                                src={`/logos/${token.toLowerCase()}-logo.svg`}
+                                src={tokenImageUrl}
                                 alt={token}
                                 width={14}
                                 height={14}

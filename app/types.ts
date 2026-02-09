@@ -262,6 +262,58 @@ export type Config = {
   blockfestEndDate: string; // BlockFest campaign end date
 };
 
+export type SentryConfig = {
+  serverUrl: string;
+  projectId: string;
+  publicKey: string;
+  enabled: boolean;
+  sampleRate: number;
+  environment: string;
+  release: string;
+};
+
+export interface SentryEvent {
+  message?: string;
+  level?: "fatal" | "error" | "warning" | "info" | "debug";
+  tags?: Record<string, string>;
+  extra?: Record<string, any>;
+  user?: {
+    id?: string;
+    email?: string;
+    username?: string;
+    ip_address?: string;
+  };
+  request?: {
+    url?: string;
+    method?: string;
+    headers?: Record<string, string>;
+    query_string?: string;
+  };
+  exception?: {
+    values: Array<{
+      type: string;
+      value: string;
+      stacktrace?: {
+        frames: Array<{
+          filename?: string;
+          function?: string;
+          lineno?: number;
+          colno?: number;
+          in_app?: boolean;
+        }>;
+      };
+    }>;
+  };
+  timestamp?: number;
+  release?: string;
+  environment?: string;
+  platform?: string;
+  sdk?: {
+    name: string;
+    version: string;
+  };
+}
+
 export type Network = {
   chain: any;
   imageUrl:

@@ -58,3 +58,39 @@ export const serverConfig = {
   apiVersion: "2024-01-01", // Pin to a stable date
   useCdn: false, // Set to false for fresh data
 };
+
+//  Parse Sentry DSN to extract components
+function parseDSN(dsn: string): { publicKey: string; serverUrl: string; projectId: string } | null {
+  try {
+    const match = dsn.match(/^https:\/\/([^@]+)@([^\/]+)\/(\d+)$/);
+    if (match) {
+      return {
+        publicKey: match[1],
+        serverUrl: `https://${match[2]}`,
+        projectId: match[3],
+      };
+    }
+  } catch {
+    // Invalid DSN format
+  }
+  return null;
+}
+
+const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN || "";
+const sentryUrl = process.env.NEXT_PUBLIC_SENTRY_URL || "";
+const dsnParts = sentryDsn ? parseDSN(sentryDsn) : null;
+
+// Validate DSN parsing
+if (sentryDsn && !dsnParts) {
+  console.warn("[Sentry Config] Failed to parse DSN:", sentryDsn);
+}
+
+export const sentryConfig = {
+  serverUrl: dsnParts?.serverUrl || sentryUrl,
+  projectId: dsnParts?.projectId,
+  publicKey: dsnParts?.publicKey,
+  enabled: Boolean(dsnParts?.projectId && dsnParts?.publicKey),
+  sampleRate: 1.0,
+  environment: process.env.NODE_ENV || "development",
+  release: "2.0.0",
+};

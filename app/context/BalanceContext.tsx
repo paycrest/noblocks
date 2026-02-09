@@ -119,7 +119,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   // Hook for CNGN rate to correct total balances
-  const { rate: cngnRate, refetch: refetchCNGNRate } = useCNGNRate({
+  const { rate: cngnRate } = useCNGNRate({
     network: selectedNetwork.chain.name,
     dependencies: [selectedNetwork],
   });

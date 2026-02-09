@@ -169,7 +169,7 @@ interface WalletMigrationStatus {
  * - showZeroBalanceMessage: show short text only (0 balance SCW; nav/actions use EOA)
  */
 export function useWalletMigrationStatus(): WalletMigrationStatus {
-    const { user, authenticated } = usePrivy();
+    const { user, authenticated, getAccessToken } = usePrivy();
     const { allBalances, isLoading: isBalanceLoading } = useBalance();
     const [needsMigration, setNeedsMigration] = useState(false);
     const [showZeroBalanceMessage, setShowZeroBalanceMessage] = useState(false);
@@ -200,7 +200,22 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
             const smartWalletBalance = allBalances.smartWallet?.total ?? 0;
 
             try {
-                const response = await fetch(`/api/v1/wallets/migration-status?userId=${user.id}`);
+                const accessToken = await getAccessToken();
+                if (!accessToken) {
+                    console.warn("No access token available for wallet migration status check");
+                    // Fall back to default behavior when auth is not available
+                    const hasBalance = smartWalletBalance > 0;
+                    setNeedsMigration(hasBalance);
+                    setShowZeroBalanceMessage(!hasBalance);
+                    setIsChecking(false);
+                    return;
+                }
+
+                const response = await fetch(`/api/v1/wallets/migration-status?userId=${user.id}`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
 
                 if (response.ok) {
                     const data = await response.json();
@@ -219,12 +234,16 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
                     setShowZeroBalanceMessage(!hasBalance);
                     setIsChecking(false);
                     return;
+                } else {
+                    console.error("Migration status API error:", response.status, response.statusText);
+                    // Fall back to balance-based logic on API error
+                    const hasBalance = smartWalletBalance > 0;
+                    setNeedsMigration(hasBalance);
+                    setShowZeroBalanceMessage(!hasBalance);
                 }
-
-                const hasBalance = smartWalletBalance > 0;
-                setNeedsMigration(hasBalance);
-                setShowZeroBalanceMessage(!hasBalance);
             } catch (error) {
+                console.error("Error checking wallet migration status:", error);
+                // Fall back to balance-based logic on error
                 const hasBalance = smartWalletBalance > 0;
                 setNeedsMigration(hasBalance);
                 setShowZeroBalanceMessage(!hasBalance);
@@ -241,6 +260,11 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
 
 /** Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation. */
 export const BICONOMY_NEXUS_V120 = config.biconomyNexusV120;
+
+// Validate that the Biconomy Nexus address is properly configured
+if (!BICONOMY_NEXUS_V120 || BICONOMY_NEXUS_V120 === "") {
+    throw new Error("BICONOMY_NEXUS_V120 environment variable is not configured. Please set NEXT_PUBLIC_BICONOMY_NEXUS_V120 in your environment.");
+}
 
 /**
  * Hook to sign EIP-7702 authorizations for Biconomy Nexus (MEE).

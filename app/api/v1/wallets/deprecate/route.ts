@@ -110,20 +110,27 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         wallet_type: "eoa",
         status: "active",
         created_at: new Date().toISOString(),
-      });
+        updated_at: now,
+      }, { onConflict: "address,user_id" });
 
     if (upsertError) {
       // Rollback: Restore old wallet status
-      await supabaseAdmin
+      const { error: rollbackError } = await supabaseAdmin
         .from("wallets")
         .update({
           status: "active",
           deprecated_at: null,
           migration_completed: false,
           migration_tx_hash: null,
+          updated_at: new Date().toISOString(),
         })
         .eq("address", oldAddress.toLowerCase())
         .eq("user_id", userId);
+
+      if (rollbackError) {
+        console.error("Critical: Rollback failed after EOA upsert error:", rollbackError);
+        trackApiError(request, "/api/v1/wallets/deprecate", "POST", rollbackError, 500);
+      }
 
       trackApiError(request, "/api/v1/wallets/deprecate", "POST", upsertError, 500);
       throw upsertError;

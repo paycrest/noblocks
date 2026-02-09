@@ -23,10 +23,12 @@ export const MigrationZeroBalanceModal: React.FC<MigrationZeroBalanceModalProps>
     const storageKey = userId ? `${STORAGE_KEY_PREFIX}${userId}` : null;
 
     useEffect(() => {
-        if (!hasCheckedStorage && storageKey) {
-            const alreadyDismissed = localStorage.getItem(storageKey);
-            if (alreadyDismissed === "true") {
-                setDismissed(true);
+        if (!hasCheckedStorage) {
+            if (storageKey) {
+                const alreadyDismissed = localStorage.getItem(storageKey);
+                if (alreadyDismissed === "true") {
+                    setDismissed(true);
+                }
             }
             setHasCheckedStorage(true);
         }

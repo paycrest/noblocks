@@ -39,8 +39,7 @@ export const MobileDropdown = ({
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, linkEmail, updateEmail } = usePrivy();
-  const { allBalances, crossChainBalances, isLoading, refreshBalance } =
-    useBalance();
+  const { crossChainBalances, isLoading, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const { logout } = useLogout({
     onSuccess: () => {
@@ -97,10 +96,6 @@ export const MobileDropdown = ({
       onComplete,
     );
   };
-
-  const activeBalance = isInjectedWallet
-    ? allBalances.injectedWallet
-    : allBalances.smartWallet;
 
   // Sort cross-chain balances: selected network first, then alphabetically
   const sortedCrossChainBalances = useMemo(() => {
@@ -230,7 +225,6 @@ export const MobileDropdown = ({
                               isInjectedWallet={isInjectedWallet}
                               detectWalletProvider={detectWalletProvider}
                               isLoading={isLoading}
-                              activeBalance={activeBalance}
                               crossChainBalances={sortedCrossChainBalances}
                               getTokenImageUrl={getTokenImageUrl}
                               onTransfer={() => setCurrentView("transfer")}

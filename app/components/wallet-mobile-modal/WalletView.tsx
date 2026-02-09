@@ -23,7 +23,6 @@ interface WalletViewProps {
   isInjectedWallet: boolean;
   detectWalletProvider: () => string;
   isLoading: boolean;
-  activeBalance: any;
   crossChainBalances: CrossChainBalanceEntry[];
   getTokenImageUrl: (tokenName: string) => string | undefined;
   onTransfer: () => void;
@@ -47,7 +46,6 @@ export const WalletView: React.FC<WalletViewProps> = ({
   isInjectedWallet,
   detectWalletProvider,
   isLoading,
-  activeBalance,
   crossChainBalances,
   getTokenImageUrl,
   onTransfer,

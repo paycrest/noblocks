@@ -115,6 +115,7 @@ export function useMigrationStatus(): MigrationStatus {
         }
 
         checkMigration();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id]);
 
     return { isMigrationComplete, isLoading };
@@ -196,9 +197,6 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
                 return;
             }
 
-            // Don't wait for balance loading - handle API call independently
-            const smartWalletBalance = allBalances.smartWallet?.total ?? 0;
-
             try {
                 const accessToken = await getAccessToken();
                 if (!accessToken) {
@@ -236,7 +234,8 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
         }
 
         checkMigrationStatus();
-    }, [authenticated, user?.id, getAccessToken]); // Only re-run when user changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [authenticated, user?.id]); // getAccessToken intentionally omitted to prevent excessive API calls
 
     // Separate effect to handle balance-based migration status display
     useEffect(() => {

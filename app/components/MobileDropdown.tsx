@@ -1,7 +1,7 @@
 "use client";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
@@ -14,6 +14,7 @@ import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useSortedCrossChainBalances } from "../hooks/useSortedCrossChainBalances";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useTransactions } from "../context/TransactionsContext";
 import { networks } from "../mocks";
@@ -98,17 +99,10 @@ export const MobileDropdown = ({
   };
 
   // Sort cross-chain balances: selected network first, then alphabetically
-  const sortedCrossChainBalances = useMemo(() => {
-    if (!crossChainBalances.length) return [];
-
-    return [...crossChainBalances].sort((a, b) => {
-      // Selected network always comes first
-      if (a.network.chain.name === selectedNetwork.chain.name) return -1;
-      if (b.network.chain.name === selectedNetwork.chain.name) return 1;
-      // Alphabetical sort for other networks
-      return a.network.chain.name.localeCompare(b.network.chain.name);
-    });
-  }, [crossChainBalances, selectedNetwork]);
+  const sortedCrossChainBalances = useSortedCrossChainBalances(
+    crossChainBalances,
+    selectedNetwork.chain.name,
+  );
 
   const handleNetworkSwitchWrapper = (network: Network) => {
     if (currentStep !== STEPS.FORM) {

@@ -1,12 +1,12 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import {
   classNames,
   formatCurrency,
   getNetworkImageUrl,
   shortenAddress,
 } from "../utils";
-import { useBalance, type CrossChainBalanceEntry } from "../context";
+import { useBalance } from "../context";
 import { usePrivy } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import {
@@ -34,6 +34,7 @@ import { PiCheck } from "react-icons/pi";
 import { BalanceSkeleton, CrossChainBalanceSkeleton } from "./BalanceSkeleton";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useSortedCrossChainBalances } from "../hooks/useSortedCrossChainBalances";
 import TransactionList from "./transaction/TransactionList";
 import { FundWalletForm, TransferForm } from "./index";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
@@ -92,17 +93,10 @@ export const WalletDetails = () => {
 
   // Sort cross-chain balances: selected network first, then alphabetically
   // Filter to show only networks with non-zero balances (except selected network)
-  const sortedCrossChainBalances = useMemo(() => {
-    if (!crossChainBalances.length) return [];
-
-    return [...crossChainBalances].sort((a, b) => {
-      // Selected network always comes first
-      if (a.network.chain.name === selectedNetwork.chain.name) return -1;
-      if (b.network.chain.name === selectedNetwork.chain.name) return 1;
-      // Alphabetical sort for other networks
-      return a.network.chain.name.localeCompare(b.network.chain.name);
-    });
-  }, [crossChainBalances, selectedNetwork]);
+  const sortedCrossChainBalances = useSortedCrossChainBalances(
+    crossChainBalances,
+    selectedNetwork.chain.name,
+  );
 
   // Handler for funding wallet with specified amount and token
   const handleFundWalletClick = async (

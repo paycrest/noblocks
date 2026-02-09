@@ -312,22 +312,23 @@ export const TransactionPreview = ({
         await embeddedWallet.switchChain(chainId);
 
         const provider = await embeddedWallet.getEthereumProvider();
-        
+
         // Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation
-        const biconomyNexusV120 = config.biconomyNexusV120 as `0x${string}`;
-        
+        // const biconomyNexusV120 = config.biconomyNexusV120 as `0x${string}`;
+        const biconomyNexusV120 = "0x000000004f43c49e93c970e84001853a70923b03" as `0x${string}`;
+
         // Check if already authorized to the correct implementation to avoid unnecessary signatures
         const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
         if (!rpcUrl) {
           throw new Error(`RPC URL not configured for network: ${selectedNetwork.chain.name}`);
         }
-        
+
         const currentImplementation = await get7702AuthorizedImplementationForAddress(
           chain,
           rpcUrl,
           embeddedWallet.address as `0x${string}`
         );
-        
+
         let authorization;
         if (currentImplementation === biconomyNexusV120) {
           authorization = null; // MEE will handle existing authorization
@@ -359,6 +360,8 @@ export const TransactionPreview = ({
           signer: provider,
         });
 
+        console.log("nexusAccount", nexusAccount);
+
         const biconomyApiKey = config.biconomyPaymasterKey;
         if (!biconomyApiKey) {
           throw new Error("Biconomy paymaster API key not configured");
@@ -374,16 +377,16 @@ export const TransactionPreview = ({
 
         const totalAmountToApprove = params.amount + params.senderFee;
 
-        const approveInstruction = await nexusAccount.buildComposable({
-          type: "default",
-          data: {
-            abi: erc20Abi,
-            chainId,
-            to: tokenAddress,
-            functionName: "approve",
-            args: [gatewayAddress, totalAmountToApprove],
-          },
-        });
+        // const approveInstruction = await nexusAccount.buildComposable({
+        //   type: "default",
+        //   data: {
+        //     abi: erc20Abi,
+        //     chainId,
+        //     to: tokenAddress,
+        //     functionName: "approve",
+        //     args: [gatewayAddress, totalAmountToApprove],
+        //   },
+        // });
 
         const createOrderInstruction = await nexusAccount.buildComposable({
           type: "default",
@@ -404,14 +407,12 @@ export const TransactionPreview = ({
           },
         });
 
-        console.log("authorization", createOrderInstruction);
-
         // Use your project's sponsorship (apiKey above must match dashboard project)
         const { hash } = await meeClient.execute({
-          authorizations: [authorization],
+          authorizations: authorization ? [authorization] : [],
           delegate: true,
           sponsorship: true,
-          instructions: [approveInstruction, createOrderInstruction],
+          instructions: [createOrderInstruction],
         });
 
         await meeClient.waitForSupertransactionReceipt({ hash });

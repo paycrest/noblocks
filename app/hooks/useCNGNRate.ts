@@ -7,7 +7,7 @@ import { getPreferredRateToken, normalizeNetworkForRateFetch } from "../utils";
 const CNGN_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
 const PRIMARY_TIMEOUT = 5000; // 5 seconds for primary network attempts
 const FALLBACK_TIMEOUT = 3000; // 3 seconds for fallback network attempts
-const RELIABLE_NETWORKS = ["base", "bnb"]; // Most reliable networks for rate fallback
+const RELIABLE_NETWORKS = ["Base", "BNB Smart Chain"]; // Most reliable networks for rate fallback
 const CNGN_CACHE_KEY = "cngn_last_rate";
 const CNGN_CACHE_TIME_KEY = "cngn_cache_time";
 
@@ -102,8 +102,10 @@ async function fetchRateWithTimeout(
 }
 
 async function fetchFallbackRate(primaryNetwork: string): Promise<number | null> {
+  const normalizedPrimaryNetwork = normalizeNetworkForRateFetch(primaryNetwork);
   const availableNetworks = RELIABLE_NETWORKS.filter(
-    (net) => net !== primaryNetwork.toLowerCase(),
+    (networkName) =>
+      normalizeNetworkForRateFetch(networkName) !== normalizedPrimaryNetwork,
   );
 
   const fallbackPromises = availableNetworks.map(async (networkName) => {

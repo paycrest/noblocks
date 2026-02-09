@@ -32,7 +32,6 @@ import { TransactionDetails } from "./transaction/TransactionDetails";
 import type { TransactionHistory } from "../types";
 import { PiCheck } from "react-icons/pi";
 import { BalanceSkeleton, CrossChainBalanceSkeleton } from "./BalanceSkeleton";
-import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useSortedCrossChainBalances } from "../hooks/useSortedCrossChainBalances";
 import TransactionList from "./transaction/TransactionList";
@@ -70,16 +69,6 @@ export const WalletDetails = () => {
 
   // Custom hook for handling wallet funding
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
-
-  // Custom hook for CNGN rate fetching
-  const {
-    rate,
-    isLoading: isRateLoading,
-    error: rateError,
-  } = useCNGNRate({
-    network: selectedNetwork.chain.name,
-    dependencies: [selectedNetwork],
-  });
 
   // Determine active wallet based on wallet type
   const activeWallet = isInjectedWallet

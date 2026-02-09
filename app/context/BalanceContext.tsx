@@ -188,6 +188,13 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   };
 
   const fetchBalances = async () => {
+    const clearAllWalletBalances = () => {
+      setSmartWalletBalance(null);
+      setExternalWalletBalance(null);
+      setInjectedWalletBalance(null);
+      setCrossChainBalances([]);
+    };
+
     setIsLoading(true);
 
     try {
@@ -322,14 +329,12 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           setExternalWalletBalance(null);
         } catch (error) {
           console.error("Error fetching injected wallet balance:", error);
-          setInjectedWalletBalance(null);
+          clearAllWalletBalances();
         }
       }
     } catch (error) {
       console.error("Error fetching balances:", error);
-      setSmartWalletBalance(null);
-      setExternalWalletBalance(null);
-      setInjectedWalletBalance(null);
+      clearAllWalletBalances();
     } finally {
       setIsLoading(false);
     }

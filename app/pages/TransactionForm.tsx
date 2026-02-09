@@ -122,9 +122,7 @@ export const TransactionForm = ({
   // the token, treat as zero rather than falling back to USD-denominated balance.
   const balance =
     token === "CNGN" || token === "cNGN"
-      ? activeBalance?.rawBalances?.[token] !== undefined
-        ? activeBalance.rawBalances[token]
-        : (activeBalance?.balances[token] ?? 0)
+      ? (activeBalance?.rawBalances?.[token] ?? 0)
       : (activeBalance?.balances[token] ?? 0);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];

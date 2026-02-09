@@ -22,17 +22,22 @@ export const MigrationZeroBalanceModal: React.FC<MigrationZeroBalanceModalProps>
     const userId = user?.wallet?.address ?? user?.id;
     const storageKey = userId ? `${STORAGE_KEY_PREFIX}${userId}` : null;
 
+    // Reset check state when storage key changes (user loads)
     useEffect(() => {
-        if (!hasCheckedStorage) {
-            if (storageKey) {
-                const alreadyDismissed = localStorage.getItem(storageKey);
-                if (alreadyDismissed === "true") {
-                    setDismissed(true);
-                }
+        if (storageKey) {
+            setHasCheckedStorage(false);
+        }
+    }, [storageKey]);
+
+    useEffect(() => {
+        if (storageKey && !hasCheckedStorage) {
+            const alreadyDismissed = localStorage.getItem(storageKey);
+            if (alreadyDismissed === "true") {
+                setDismissed(true);
             }
             setHasCheckedStorage(true);
         }
-    }, [hasCheckedStorage, storageKey]);
+    }, [storageKey, hasCheckedStorage]);
 
     const handleClose = () => {
         if (storageKey) {

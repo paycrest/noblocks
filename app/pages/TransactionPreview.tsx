@@ -383,18 +383,18 @@ export const TransactionPreview = ({
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
-        const totalAmountToApprove = params.amount + params.senderFee;
+        // const totalAmountToApprove = params.amount + params.senderFee;
 
-        const approveInstruction = await nexusAccount.buildComposable({
-          type: "default",
-          data: {
-            abi: erc20Abi,
-            chainId,
-            to: tokenAddress,
-            functionName: "approve",
-            args: [gatewayAddress, totalAmountToApprove],
-          },
-        });
+        // const approveInstruction = await nexusAccount.buildComposable({
+        //   type: "default",
+        //   data: {
+        //     abi: erc20Abi,
+        //     chainId,
+        //     to: tokenAddress,
+        //     functionName: "approve",
+        //     args: [gatewayAddress, totalAmountToApprove],
+        //   },
+        // });
 
         const createOrderInstruction = await nexusAccount.buildComposable({
           type: "default",
@@ -420,7 +420,7 @@ export const TransactionPreview = ({
           authorizations: authorization ? [authorization] : [],
           delegate: true,
           sponsorship: true,
-          instructions: [approveInstruction, createOrderInstruction],
+          instructions: [createOrderInstruction],
         });
 
         await meeClient.waitForSupertransactionReceipt({ hash });

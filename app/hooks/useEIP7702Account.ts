@@ -174,6 +174,7 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
     const [needsMigration, setNeedsMigration] = useState(false);
     const [showZeroBalanceMessage, setShowZeroBalanceMessage] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
+    const [isMigrationComplete, setIsMigrationComplete] = useState<boolean | null>(null);
 
     useEffect(() => {
         async function checkMigrationStatus() {
@@ -195,9 +196,7 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
                 return;
             }
 
-            if (isBalanceLoading) return;
-
-            const smartWalletBalance = allBalances.smartWallet?.total ?? 0;
+            // Don't wait for balance loading - handle API call independently
 
             try {
                 const accessToken = await getAccessToken();
@@ -220,40 +219,45 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
                 if (response.ok) {
                     const data = await response.json();
                     const alreadyMigrated = data.migrationCompleted ?? false;
-
-                    if (alreadyMigrated) {
-                        setNeedsMigration(false);
-                        setShowZeroBalanceMessage(false);
-                        setIsChecking(false);
-                        return;
-                    }
-
-                    // Not migrated: show banner only if has funds; else show short text only
-                    const hasBalance = smartWalletBalance > 0;
-                    setNeedsMigration(hasBalance);
-                    setShowZeroBalanceMessage(!hasBalance);
+                    setIsMigrationComplete(alreadyMigrated);
                     setIsChecking(false);
                     return;
                 } else {
                     console.error("Migration status API error:", response.status, response.statusText);
-                    // Fall back to balance-based logic on API error
-                    const hasBalance = smartWalletBalance > 0;
-                    setNeedsMigration(hasBalance);
-                    setShowZeroBalanceMessage(!hasBalance);
+                    // Set migration as incomplete on API error
+                    setIsMigrationComplete(false);
                 }
             } catch (error) {
                 console.error("Error checking wallet migration status:", error);
-                // Fall back to balance-based logic on error
-                const hasBalance = smartWalletBalance > 0;
-                setNeedsMigration(hasBalance);
-                setShowZeroBalanceMessage(!hasBalance);
+                // Set migration as incomplete on error
+                setIsMigrationComplete(false);
             }
 
             setIsChecking(false);
         }
 
         checkMigrationStatus();
-    }, [authenticated, user?.id, allBalances.smartWallet?.total, isBalanceLoading]);
+    }, [authenticated, user?.id, getAccessToken]); // Only re-run when user changes
+
+    // Separate effect to handle balance-based migration status display
+    useEffect(() => {
+        if (isMigrationComplete === null || isBalanceLoading) {
+            // Still loading migration status or balances
+            return;
+        }
+
+        if (isMigrationComplete) {
+            // Migration is complete - hide all migration UI
+            setNeedsMigration(false);
+            setShowZeroBalanceMessage(false);
+        } else {
+            // Migration not complete - show UI based on balance
+            const smartWalletBalance = allBalances.smartWallet?.total ?? 0;
+            const hasBalance = smartWalletBalance > 0;
+            setNeedsMigration(hasBalance);
+            setShowZeroBalanceMessage(!hasBalance);
+        }
+    }, [isMigrationComplete, allBalances.smartWallet?.total, isBalanceLoading]);
 
     return { needsMigration, isChecking, showZeroBalanceMessage };
 }
@@ -261,9 +265,9 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
 /** Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation. */
 export const BICONOMY_NEXUS_V120 = config.biconomyNexusV120;
 
-// Validate that the Biconomy Nexus address is properly configured
+// Warn about missing configuration but don't crash the app
 if (!BICONOMY_NEXUS_V120 || BICONOMY_NEXUS_V120 === "") {
-    throw new Error("BICONOMY_NEXUS_V120 environment variable is not configured. Please set NEXT_PUBLIC_BICONOMY_NEXUS_V120 in your environment.");
+    console.warn("BICONOMY_NEXUS_V120 not configured - EIP-7702 migration features will be disabled. Please set NEXT_PUBLIC_BICONOMY_NEXUS_V120 in your environment.");
 }
 
 /**
@@ -285,6 +289,9 @@ export function useBiconomy7702Auth() {
         async (chainId: number): Promise<SignedAuthorization> => {
             if (!embeddedWallet?.address) {
                 throw new Error("Embedded wallet not ready for EIP-7702 signing");
+            }
+            if (!BICONOMY_NEXUS_V120 || BICONOMY_NEXUS_V120 === "") {
+                throw new Error("Biconomy Nexus V1.2.0 address is not configured. Please set NEXT_PUBLIC_BICONOMY_NEXUS_V120 in your environment.");
             }
             const signed = await signAuthorization(
                 {

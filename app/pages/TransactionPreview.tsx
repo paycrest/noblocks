@@ -17,6 +17,7 @@ import {
   publicKeyEncrypt,
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
+import config from "../lib/config";
 import type {
   Token,
   TransactionPreviewProps,
@@ -41,6 +42,7 @@ import {
   useShouldUseEOA,
   useBiconomy7702Auth,
   useMigrationStatus,
+  get7702AuthorizedImplementationForAddress,
 } from "../hooks/useEIP7702Account";
 import {
   createMeeClient,
@@ -310,7 +312,39 @@ export const TransactionPreview = ({
         await embeddedWallet.switchChain(chainId);
 
         const provider = await embeddedWallet.getEthereumProvider();
-        const authorization = await signBiconomyAuthorization(chainId);
+        
+        // Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation
+        const biconomyNexusV120 = config.biconomyNexusV120 as `0x${string}`;
+        
+        // Check if already authorized to the correct implementation to avoid unnecessary signatures
+        const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
+        if (!rpcUrl) {
+          throw new Error(`RPC URL not configured for network: ${selectedNetwork.chain.name}`);
+        }
+        
+        const currentImplementation = await get7702AuthorizedImplementationForAddress(
+          chain,
+          rpcUrl,
+          embeddedWallet.address as `0x${string}`
+        );
+        
+        let authorization;
+        if (currentImplementation === biconomyNexusV120) {
+          authorization = null; // MEE will handle existing authorization
+        } else {
+          // Need new authorization
+          authorization = await signBiconomyAuthorization(chainId);
+          
+          // Verify authorization worked (optional validation)
+          const newImplementation = await get7702AuthorizedImplementationForAddress(
+            chain,
+            rpcUrl,
+            embeddedWallet.address as `0x${string}`
+          );
+          if (newImplementation !== biconomyNexusV120) {
+            throw new Error("EIP-7702 authorization failed to set correct implementation address");
+          }
+        }
 
         // Match Biconomy example: signer is EIP-1193 provider so SDK uses eth_requestAccounts (no getAddresses)
         const nexusAccount = await toMultichainNexusAccount({
@@ -325,9 +359,14 @@ export const TransactionPreview = ({
           signer: provider,
         });
 
+        const biconomyApiKey = config.biconomyPaymasterKey;
+        if (!biconomyApiKey) {
+          throw new Error("Biconomy paymaster API key not configured");
+        }
+
         const meeClient = await createMeeClient({
           account: nexusAccount,
-          apiKey: process.env.NEXT_PUBLIC_BICONOMY_PAYMASTER_KEY ?? "",
+          apiKey: biconomyApiKey,
         });
 
         const params = await prepareCreateOrderParams();
@@ -365,6 +404,8 @@ export const TransactionPreview = ({
           },
         });
 
+        console.log("authorization", createOrderInstruction);
+
         // Use your project's sponsorship (apiKey above must match dashboard project)
         const { hash } = await meeClient.execute({
           authorizations: [authorization],
@@ -372,10 +413,12 @@ export const TransactionPreview = ({
           sponsorship: true,
           instructions: [approveInstruction, createOrderInstruction],
         });
-        setIsGatewayApproved(true);
-        setIsOrderCreated(true);
 
         await meeClient.waitForSupertransactionReceipt({ hash });
+
+        // Set success state only after transaction is confirmed
+        setIsGatewayApproved(true);
+        setIsOrderCreated(true);
 
         trackEvent("Swap started", {
           "Entry point": "Transaction preview",

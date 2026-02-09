@@ -10,6 +10,7 @@ import {
     http,
 } from "viem";
 import { useBalance } from "../context/BalanceContext";
+import config from "../lib/config";
 
 // ################################################
 // ########## EIP-7702 LIB HELPERS ################
@@ -73,7 +74,7 @@ interface MigrationStatus {
  * Returns the migration completion status from the API
  */
 export function useMigrationStatus(): MigrationStatus {
-    const { user } = usePrivy();
+    const { user, getAccessToken } = usePrivy();
     const [isMigrationComplete, setIsMigrationComplete] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -85,13 +86,29 @@ export function useMigrationStatus(): MigrationStatus {
             }
 
             try {
-                const response = await fetch(`/api/v1/wallets/migration-status?userId=${user.id}`);
+                const accessToken = await getAccessToken();
+                if (!accessToken) {
+                    console.warn("No access token available for migration status check");
+                    setIsMigrationComplete(false);
+                    return;
+                }
+
+                const response = await fetch(`/api/v1/wallets/migration-status?userId=${user.id}`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+                
                 if (response.ok) {
                     const data = await response.json();
                     setIsMigrationComplete(data.migrationCompleted ?? false);
+                } else {
+                    console.error("Migration status API error:", response.status, response.statusText);
+                    setIsMigrationComplete(false);
                 }
             } catch (error) {
                 console.error("Error checking migration status:", error);
+                setIsMigrationComplete(false);
             } finally {
                 setIsLoading(false);
             }
@@ -223,7 +240,7 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
 }
 
 /** Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation. */
-export const BICONOMY_NEXUS_V120 = "0x000000004F43C49e93C970E84001853a70923B03" as const;
+export const BICONOMY_NEXUS_V120 = config.biconomyNexusV120;
 
 /**
  * Hook to sign EIP-7702 authorizations for Biconomy Nexus (MEE).
@@ -247,7 +264,7 @@ export function useBiconomy7702Auth() {
             }
             const signed = await signAuthorization(
                 {
-                    contractAddress: BICONOMY_NEXUS_V120,
+                    contractAddress: BICONOMY_NEXUS_V120 as `0x${string}`,
                     chainId,
                 },
                 { address: embeddedWallet.address as Address }

@@ -260,6 +260,8 @@ export type Config = {
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
+  biconomyNexusV120: string; // Biconomy Nexus V1.2.0 contract address
+  biconomyPaymasterKey: string; // Biconomy MEE Paymaster API key
 };
 
 export type Network = {

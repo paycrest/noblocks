@@ -8,6 +8,149 @@ const CNGN_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
 const PRIMARY_TIMEOUT = 5000; // 5 seconds for primary network attempts
 const FALLBACK_TIMEOUT = 3000; // 3 seconds for fallback network attempts
 const RELIABLE_NETWORKS = ["base", "bnb"]; // Most reliable networks for rate fallback
+const CNGN_CACHE_KEY = "cngn_last_rate";
+const CNGN_CACHE_TIME_KEY = "cngn_cache_time";
+
+type CNGNRateSource =
+  | "fresh-cache"
+  | "primary"
+  | "fallback"
+  | "expired-cache"
+  | "none";
+
+interface CNGNRateFetchResult {
+  rate: number | null;
+  source: CNGNRateSource;
+}
+
+function getFreshCachedRate(): number | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const cached = localStorage.getItem(CNGN_CACHE_KEY);
+  const cacheTime = localStorage.getItem(CNGN_CACHE_TIME_KEY);
+
+  if (cached && cacheTime) {
+    const age = Date.now() - Number(cacheTime);
+    if (age < CNGN_CACHE_TTL) {
+      return Number(cached);
+    }
+  }
+
+  return null;
+}
+
+function getCachedRate(): number | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const cached = localStorage.getItem(CNGN_CACHE_KEY);
+  if (cached) {
+    return Number(cached);
+  }
+
+  return null;
+}
+
+function cacheRate(rate: number): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  localStorage.setItem(CNGN_CACHE_KEY, rate.toString());
+  localStorage.setItem(CNGN_CACHE_TIME_KEY, Date.now().toString());
+}
+
+function parseRateResponse(
+  rateResponse: { data?: unknown } | null | undefined,
+): number | null {
+  if (rateResponse?.data && typeof rateResponse.data === "string") {
+    const numericRate = Number(rateResponse.data);
+    if (numericRate > 0) {
+      return numericRate;
+    }
+  }
+
+  return null;
+}
+
+async function fetchRateWithTimeout(
+  network: string,
+  timeoutMs: number,
+): Promise<number | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const preferredToken = await getPreferredRateToken(network);
+    const rateResponse = await fetchRate({
+      token: preferredToken,
+      amount: 100,
+      currency: "NGN",
+      network: normalizeNetworkForRateFetch(network),
+      signal: controller.signal,
+    });
+
+    return parseRateResponse(rateResponse);
+  } catch (err) {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchFallbackRate(primaryNetwork: string): Promise<number | null> {
+  const availableNetworks = RELIABLE_NETWORKS.filter(
+    (net) => net !== primaryNetwork.toLowerCase(),
+  );
+
+  const fallbackPromises = availableNetworks.map(async (networkName) => {
+    const rate = await fetchRateWithTimeout(networkName, FALLBACK_TIMEOUT);
+    if (rate !== null) {
+      return { network: networkName, rate };
+    }
+    return null;
+  });
+
+  const results = await Promise.allSettled(fallbackPromises);
+  for (const result of results) {
+    if (result.status === "fulfilled" && result.value) {
+      return result.value.rate;
+    }
+  }
+
+  return null;
+}
+
+async function fetchCNGNRateWithFallback(
+  network: string,
+): Promise<CNGNRateFetchResult> {
+  const freshCachedRate = getFreshCachedRate();
+  if (freshCachedRate !== null) {
+    return { rate: freshCachedRate, source: "fresh-cache" };
+  }
+
+  const primaryRate = await fetchRateWithTimeout(network, PRIMARY_TIMEOUT);
+  if (primaryRate !== null) {
+    cacheRate(primaryRate);
+    return { rate: primaryRate, source: "primary" };
+  }
+
+  const fallbackRate = await fetchFallbackRate(network);
+  if (fallbackRate !== null) {
+    cacheRate(fallbackRate);
+    return { rate: fallbackRate, source: "fallback" };
+  }
+
+  const staleCachedRate = getCachedRate();
+  if (staleCachedRate !== null) {
+    return { rate: staleCachedRate, source: "expired-cache" };
+  }
+
+  return { rate: null, source: "none" };
+}
 
 interface UseCNGNRateOptions {
   network: string;
@@ -50,129 +193,20 @@ export function useCNGNRate({
     setIsLoading(true);
     setError(null);
 
-    // Fast path: Check fresh cache first
-    if (typeof window !== "undefined") {
-      const cached = localStorage.getItem("cngn_last_rate");
-      const cacheTime = localStorage.getItem("cngn_cache_time");
-
-      if (cached && cacheTime) {
-        const age = Date.now() - Number(cacheTime);
-
-        if (age < CNGN_CACHE_TTL) {
-          const cachedRate = Number(cached);
-          setRate(cachedRate);
-          setIsLoading(false);
-          return;
-        }
-      }
-    }
-
-    // Primary attempt: Try current network with timeout
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), PRIMARY_TIMEOUT);
-
-      try {
-        const preferredToken = await getPreferredRateToken(network);
-        const rateResponse = await fetchRate({
-          token: preferredToken,
-          amount: 100,
-          currency: "NGN",
-          network: normalizeNetworkForRateFetch(network),
-          signal: controller.signal,
-        });
-
-        if (rateResponse?.data && typeof rateResponse.data === "string") {
-          const numericRate = Number(rateResponse.data);
-          if (numericRate > 0) {
-            setRate(numericRate);
-            // Cache with timestamp
-            if (typeof window !== "undefined") {
-              localStorage.setItem("cngn_last_rate", numericRate.toString());
-              localStorage.setItem("cngn_cache_time", Date.now().toString());
-            }
-            setError(null);
-            setIsLoading(false);
-            return;
-          }
-        }
-        throw new Error("Invalid rate data");
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    } catch (err) {
-      // Continue to fallback on error
-    }
-
-    // Fallback: Try most reliable networks - use first successful result
-    const availableNetworks = RELIABLE_NETWORKS.filter(
-      (net) => net !== network.toLowerCase(),
-    );
-
-    const fallbackPromises = availableNetworks.map(async (networkName) => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), FALLBACK_TIMEOUT);
-
-      try {
-        const preferredToken = await getPreferredRateToken(networkName);
-        const rateResponse = await fetchRate({
-          token: preferredToken,
-          amount: 100,
-          currency: "NGN",
-          network: normalizeNetworkForRateFetch(networkName),
-          signal: controller.signal,
-        });
-
-        if (rateResponse?.data && typeof rateResponse.data === "string") {
-          const numericRate = Number(rateResponse.data);
-          if (numericRate > 0) {
-            return { network: networkName, rate: numericRate };
-          }
-        }
-        return null;
-      } catch (err) {
-        return null;
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    });
-
-    // Use first successful result from fallback attempts
-    try {
-      const results = await Promise.allSettled(fallbackPromises);
-      for (const result of results) {
-        if (result.status === "fulfilled" && result.value) {
-          const { network: successfulNetwork, rate } = result.value;
-          setRate(rate);
-          // Cache with timestamp
-          if (typeof window !== "undefined") {
-            localStorage.setItem("cngn_last_rate", rate.toString());
-            localStorage.setItem("cngn_cache_time", Date.now().toString());
-          }
-          setError(null);
-          setIsLoading(false);
-          return;
-        }
-      }
-    } catch (err) {
-      // Continue to ultimate fallback on error
-    }
-
-    // Ultimate fallback: Use expired cached rate if available
-    if (typeof window !== "undefined") {
-      const cached = localStorage.getItem("cngn_last_rate");
-      if (cached) {
-        const cachedRate = Number(cached);
-        setRate(cachedRate);
+    const result = await fetchCNGNRateWithFallback(network);
+    if (result.rate !== null) {
+      setRate(result.rate);
+      if (result.source === "expired-cache") {
         setError(
           "Using outdated cached rate (network issues - please refresh)",
         );
-        setIsLoading(false);
-        return;
+      } else {
+        setError(null);
       }
+      setIsLoading(false);
+      return;
     }
 
-    // Complete failure
     setRate(null);
     setError(
       "Unable to fetch CNGN rate - please check your internet connection",
@@ -206,112 +240,6 @@ export function useCNGNRate({
 export async function getCNGNRateForNetwork(
   network: string,
 ): Promise<number | null> {
-  // Fast path: Check fresh cache first
-  if (typeof window !== "undefined") {
-    const cached = localStorage.getItem("cngn_last_rate");
-    const cacheTime = localStorage.getItem("cngn_cache_time");
-
-    if (cached && cacheTime) {
-      const age = Date.now() - Number(cacheTime);
-
-      if (age < CNGN_CACHE_TTL) {
-        const cachedRate = Number(cached);
-        return cachedRate;
-      }
-    }
-  }
-
-  // Primary attempt: Try requested network with timeout
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), PRIMARY_TIMEOUT);
-
-    try {
-      const preferredToken = await getPreferredRateToken(network);
-      const rateResponse = await fetchRate({
-        token: preferredToken,
-        amount: 100,
-        currency: "NGN",
-        network: normalizeNetworkForRateFetch(network),
-        signal: controller.signal,
-      });
-
-      if (rateResponse?.data && typeof rateResponse.data === "string") {
-        const numericRate = Number(rateResponse.data);
-        if (numericRate > 0) {
-          // Cache successful rate
-          if (typeof window !== "undefined") {
-            localStorage.setItem("cngn_last_rate", numericRate.toString());
-            localStorage.setItem("cngn_cache_time", Date.now().toString());
-          }
-          return numericRate;
-        }
-      }
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  } catch (err) {
-    // Continue to fallback on error
-  }
-
-  // Fallback: Try most reliable networks - use first successful result
-  const availableNetworks = RELIABLE_NETWORKS.filter(
-    (net) => net !== network.toLowerCase(),
-  );
-
-  const fallbackPromises = availableNetworks.map(async (networkName) => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), FALLBACK_TIMEOUT);
-
-    try {
-      const preferredToken = await getPreferredRateToken(networkName);
-      const rateResponse = await fetchRate({
-        token: preferredToken,
-        amount: 100,
-        currency: "NGN",
-        network: normalizeNetworkForRateFetch(networkName),
-        signal: controller.signal,
-      });
-
-      if (rateResponse?.data && typeof rateResponse.data === "string") {
-        const numericRate = Number(rateResponse.data);
-        if (numericRate > 0) {
-          return { network: networkName, rate: numericRate };
-        }
-      }
-      return null;
-    } catch (err) {
-      return null;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  });
-
-  try {
-    const results = await Promise.allSettled(fallbackPromises);
-    for (const result of results) {
-      if (result.status === "fulfilled" && result.value) {
-        const { network: successfulNetwork, rate } = result.value;
-        // Cache successful rate
-        if (typeof window !== "undefined") {
-          localStorage.setItem("cngn_last_rate", rate.toString());
-          localStorage.setItem("cngn_cache_time", Date.now().toString());
-        }
-        return rate;
-      }
-    }
-  } catch (err) {
-    // Continue to ultimate fallback on error
-  }
-
-  // Ultimate fallback: Use expired cached rate
-  if (typeof window !== "undefined") {
-    const cached = localStorage.getItem("cngn_last_rate");
-    if (cached) {
-      const cachedRate = Number(cached);
-      return cachedRate;
-    }
-  }
-
-  return null;
+  const result = await fetchCNGNRateWithFallback(network);
+  return result.rate;
 }

@@ -11,6 +11,8 @@ import {
   InformationCircleIcon,
   FaceIdIcon,
   CallingIcon,
+  WorkAlertIcon,
+  MapPinpoint01Icon,
 } from "hugeicons-react";
 import { usePrivy, useLinkAccount } from "@privy-io/react-auth";
 import { useKYC } from "../context";
@@ -190,8 +192,16 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                       <div className="rounded-lg bg-white/10 p-0.5">
                         {req.includes("number") ? (
                           <CallingIcon className="size-4 text-outline-gray dark:text-white/50" />
-                        ) : req.includes("verification") ? (
+                        ) : req.includes("Selfie verification") ? (
                           <FaceIdIcon className="size-4 text-outline-gray dark:text-white/70" />
+                        ) : req.includes("Address verification") ? (
+                          <MapPinpoint01Icon 
+                            className="size-4 text-outline-gray dark:text-white/50"
+                          />
+                        ) : req.includes("Business verification") ? (
+                          <WorkAlertIcon 
+                            className="size-4 text-outline-gray dark:text-white/50"
+                          />
                         ) : (
                           req.includes("ID") && (
                             <TbIdBadge className="size-4 text-outline-gray dark:text-white/50" />
@@ -207,10 +217,14 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                     Limit
                   </p>
                   <p className="text-xs font-light text-text-body dark:text-white/80">
+                  { tierData.limits.unlimited ? "Unlimited" : (
+                    <>
                     <span className="text-sm font-medium">
                       ${formatNumberWithCommas(tierData.limits.monthly)}
                     </span>{" "}
                     / month
+                    </>
+                  )}
                   </p>
                 </div>
                 {tier == 0 && tierLevel === tier + 1 && (
@@ -374,7 +388,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                             </div>
 
                             {/* Upgrade Button */}
-                            {tier < 2 && !isFullyVerified && (
+                            {tier < 4 && (
                               <button
                                 type="button"
                                 onClick={() => {

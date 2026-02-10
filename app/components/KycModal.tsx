@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
-
 declare global {
   namespace JSX {
     interface IntrinsicElements {
@@ -14,27 +13,40 @@ declare global {
   }
 }
 
-
 import {
   CheckIcon,
   SadFaceIcon,
   UserDetailsIcon,
   VerificationPendingIcon,
 } from "./ImageAssets";
-import { FlexibleDropdown } from "./FlexibleDropdown";
-import { ArrowDown01Icon } from "hugeicons-react";
+import { DropdownItem, FlexibleDropdown } from "./FlexibleDropdown";
+import {
+  ArrowDown01Icon,
+  ArrowLeft01Icon,
+  FileAddIcon,
+  Folder02Icon,
+  MapPinpoint01Icon,
+  PencilEdit01Icon,
+  PencilEdit02Icon,
+  Tick01Icon,
+} from "hugeicons-react";
 import { classNames } from "../utils";
 import { fadeInOut } from "./AnimatedComponents";
-import {
-  fetchKYCStatus,
-  submitSmileIDData,
-} from "../api/aggregator";
+import { fetchKYCStatus, submitSmileIDData } from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics/client";
-import { CheckmarkCircle01Icon, Clock05Icon } from "hugeicons-react";
+import { CheckmarkCircle01Icon, Clock05Icon, StarIcon } from "hugeicons-react";
 import { useInjectedWallet } from "../context";
+import { KYC_TIERS, useKYC } from "../context/KYCContext";
+import { formatNumberWithCommas } from "../utils";
+import { DocumentRequirementsModal } from "./kyc/DocumentRequirementsModal";
 
 import idTypesData from "../api/kyc/smile-id/id_types.json";
+
+const TIER3_DOCUMENT_TYPES = [
+  { value: "utility_bill", label: "Utility bill" },
+  { value: "bank_statement", label: "Bank statement" },
+] as const;
 
 export const STEPS = {
   TERMS: "terms",
@@ -48,6 +60,10 @@ export const STEPS = {
   LOADING: "loading",
   EXPIRED: "expired",
   REFRESH: "refresh",
+  // Tier 3 (address verification) flow
+  TIER3_PROMPT: "tier3_prompt",
+  TIER3_COUNTRY: "tier3_country",
+  TIER3_UPLOAD: "tier3_upload",
 } as const;
 
 type Step =
@@ -56,7 +72,10 @@ type Step =
   | typeof STEPS.CAPTURE
   | typeof STEPS.LOADING
   | typeof STEPS.REFRESH
-  | (typeof STEPS.STATUS)[keyof typeof STEPS.STATUS];
+  | (typeof STEPS.STATUS)[keyof typeof STEPS.STATUS]
+  | typeof STEPS.TIER3_PROMPT
+  | typeof STEPS.TIER3_COUNTRY
+  | typeof STEPS.TIER3_UPLOAD;
 
 // Types for ID types JSON
 type IdType = {
@@ -76,7 +95,10 @@ const getAllCountries = (): Country[] => {
     .sort((a, b) => a.name.localeCompare(b.name));
 };
 
-const requiresDocumentCapture = (country: Country | null, idType: string): boolean => {
+const requiresDocumentCapture = (
+  country: Country | null,
+  idType: string,
+): boolean => {
   if (!country || !idType) return true;
   const selectedIdType = country.id_types.find((t) => t.type === idType);
   return selectedIdType?.verification_method === "doc_verification";
@@ -85,9 +107,11 @@ const requiresDocumentCapture = (country: Country | null, idType: string): boole
 export const KycModal = ({
   setIsUserVerified,
   setIsKycModalOpen,
+  targetTier,
 }: {
   setIsUserVerified: (value: boolean) => void;
   setIsKycModalOpen: (value: boolean) => void;
+  targetTier?: 2 | 3;
 }) => {
   const { getAccessToken, user } = usePrivy();
   const { wallets } = useWallets();
@@ -100,7 +124,9 @@ export const KycModal = ({
     ? injectedAddress
     : embeddedWallet?.address;
 
-  const [step, setStep] = useState<Step>(STEPS.LOADING);
+  const [step, setStep] = useState<Step>(() =>
+    targetTier === 3 ? STEPS.TIER3_PROMPT : STEPS.LOADING,
+  );
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cameraElement, setCameraElement] = useState<HTMLElement | null>(null);
@@ -110,13 +136,47 @@ export const KycModal = ({
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
   const [selectedIdType, setSelectedIdType] = useState<string>("");
   const [idNumber, setIdNumber] = useState<string>("");
+
+  // Tier 3 (address verification) state
+  const [tier3CountryCode, setTier3CountryCode] = useState<string>("");
+  const [tier3HouseNumber, setTier3HouseNumber] = useState("");
+  const [tier3StreetAddress, setTier3StreetAddress] = useState("");
+  const [tier3County, setTier3County] = useState("");
+  const [tier3PostalCode, setTier3PostalCode] = useState("");
+  const [tier3DocumentType, setTier3DocumentType] = useState<string>(
+    TIER3_DOCUMENT_TYPES[0].value,
+  );
+  const [tier3UploadedFile, setTier3UploadedFile] = useState<File | null>(null);
+  const [tier3RequirementsOpen, setTier3RequirementsOpen] = useState(false);
+  const [tier3Submitting, setTier3Submitting] = useState(false);
+  const { refreshStatus } = useKYC();
   const countries = getAllCountries();
+  const tier3CountryOptions = countries.map((c) => ({
+    name: c.code,
+    label: c.name,
+    imageUrl: `https://flagcdn.com/h24/${c.code.toLowerCase()}.webp`,
+  }));
+  const tier3SelectedCountryLabel =
+    tier3CountryOptions.find((c) => c.name === tier3CountryCode)?.label ?? "";
+  const tier3AddressDisplay =
+    [
+      tier3HouseNumber,
+      tier3StreetAddress,
+      tier3County,
+      tier3PostalCode,
+      tier3SelectedCountryLabel,
+    ]
+      .filter(Boolean)
+      .join(", ") || "—";
 
   // Check if current selection requires document capture or just ID number
-  const needsDocCapture = requiresDocumentCapture(selectedCountry, selectedIdType);
+  const needsDocCapture = requiresDocumentCapture(
+    selectedCountry,
+    selectedIdType,
+  );
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && !smileIdLoaded) {
+    if (typeof window !== "undefined" && !smileIdLoaded) {
       import("@smileid/web-components/smart-camera-web")
         .then(() => {
           console.log("SmileID web components loaded");
@@ -133,7 +193,6 @@ export const KycModal = ({
     setIsKycModalOpen(true);
     setStep(STEPS.ID_INFO);
   };
-
 
   const renderTerms = () => (
     <motion.div key="terms" {...fadeInOut} className="space-y-4">
@@ -244,9 +303,9 @@ export const KycModal = ({
             </svg>
           </Checkbox>
           <p className="text-xs text-gray-500 dark:text-white/50">
-            By clicking &ldquo;Accept and continue&rdquo; below, you are agreeing to
-            the KYC Policy and hereby request an identity verification check for
-            your wallet address.
+            By clicking &ldquo;Accept and continue&rdquo; below, you are
+            agreeing to the KYC Policy and hereby request an identity
+            verification check for your wallet address.
           </p>
         </div>
       </div>
@@ -280,7 +339,8 @@ export const KycModal = ({
             Select your ID document
           </h2>
           <p className="text-sm text-gray-500 dark:text-white/50">
-            Choose your country and the type of ID you&apos;ll use for verification.
+            Choose your country and the type of ID you&apos;ll use for
+            verification.
           </p>
         </div>
       </div>
@@ -288,7 +348,7 @@ export const KycModal = ({
       <div className="space-y-4">
         {/* Country Selection */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-white/70 mb-2">
+          <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-white/70">
             Country
           </label>
           <FlexibleDropdown
@@ -307,7 +367,7 @@ export const KycModal = ({
               <button
                 type="button"
                 onClick={toggleDropdown}
-                className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white focus:outline-none focus:ring-2 focus:ring-lavender-500"
+                className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-gray-900 focus:outline-none focus:ring-2 focus:ring-lavender-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
               >
                 <span className={selectedItem ? "" : "text-gray-400"}>
                   {selectedItem?.label || "Select a country"}
@@ -315,7 +375,7 @@ export const KycModal = ({
                 <ArrowDown01Icon
                   className={classNames(
                     "size-5 text-gray-400 transition-transform",
-                    isOpen ? "rotate-180" : ""
+                    isOpen ? "rotate-180" : "",
                   )}
                 />
               </button>
@@ -326,7 +386,7 @@ export const KycModal = ({
         {/* ID Type Selection */}
         {selectedCountry && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-white/70 mb-2">
+            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-white/70">
               ID Type
             </label>
             <FlexibleDropdown
@@ -346,7 +406,7 @@ export const KycModal = ({
                 <button
                   type="button"
                   onClick={toggleDropdown}
-                  className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white focus:outline-none focus:ring-2 focus:ring-lavender-500"
+                  className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left text-gray-900 focus:outline-none focus:ring-2 focus:ring-lavender-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
                 >
                   <span className={selectedItem ? "" : "text-gray-400"}>
                     {selectedItem?.label || "Select ID type"}
@@ -354,7 +414,7 @@ export const KycModal = ({
                   <ArrowDown01Icon
                     className={classNames(
                       "size-5 text-gray-400 transition-transform",
-                      isOpen ? "rotate-180" : ""
+                      isOpen ? "rotate-180" : "",
                     )}
                   />
                 </button>
@@ -366,7 +426,7 @@ export const KycModal = ({
         {/* ID Number Input - only for biometric_kyc verification (BVN, NIN, etc.) */}
         {selectedIdType && !needsDocCapture && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-white/70 mb-2">
+            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-white/70">
               {selectedIdType.replace(/_/g, " ")} Number
             </label>
             <input
@@ -374,7 +434,7 @@ export const KycModal = ({
               value={idNumber}
               onChange={(e) => setIdNumber(e.target.value)}
               placeholder={`Enter your ${selectedIdType.replace(/_/g, " ")} number`}
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-white focus:outline-none focus:ring-2 focus:ring-lavender-500 placeholder:text-gray-400"
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-lavender-500 dark:border-white/10 dark:bg-white/5 dark:text-white"
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-white/50">
               Your ID will be verified against the government database
@@ -394,7 +454,11 @@ export const KycModal = ({
         <button
           type="button"
           className={`${primaryBtnClasses} w-full`}
-          disabled={!selectedCountry || !selectedIdType || (!needsDocCapture && !idNumber)}
+          disabled={
+            !selectedCountry ||
+            !selectedIdType ||
+            (!needsDocCapture && !idNumber)
+          }
           onClick={() => setStep(STEPS.CAPTURE)}
         >
           Continue
@@ -446,18 +510,18 @@ export const KycModal = ({
     </motion.div>
   );
 
-
   const renderPendingStatus = () => (
     <motion.div key="pending" {...fadeInOut} className="space-y-4 pt-4">
       <Clock05Icon className="mx-auto dark:text-yellow-primary" size={40} />
 
-      <div className="space-y-3 pb-2 px-6 text-center">
+      <div className="space-y-3 px-6 pb-2 text-center">
         <DialogTitle className="text-lg font-semibold">
           Tier 2 Upgrade in progress
         </DialogTitle>
 
         <p className="text-gray-500 dark:text-white/50">
-          We are currently verifying your identity. You will get feedback within 24 hours. Kindly check back soon
+          We are currently verifying your identity. You will get feedback within
+          24 hours. Kindly check back soon
         </p>
       </div>
 
@@ -477,7 +541,7 @@ export const KycModal = ({
     <motion.div key="success" {...fadeInOut} className="space-y-4 pt-4">
       <CheckmarkCircle01Icon className="mx-auto size-12" color="#39C65D" />
 
-      <div className="space-y-3 pb-2 px-6 text-center">
+      <div className="space-y-3 px-6 pb-2 text-center">
         <DialogTitle className="text-lg font-semibold">
           Verification successful
         </DialogTitle>
@@ -505,7 +569,7 @@ export const KycModal = ({
     <motion.div key="failed" {...fadeInOut} className="space-y-4 pt-4">
       <SadFaceIcon className="mx-auto" />
 
-      <div className="space-y-3 pb-2 px-6 text-center">
+      <div className="space-y-3 px-6 pb-2 text-center">
         <DialogTitle className="text-lg font-semibold">
           Verification failed
         </DialogTitle>
@@ -540,7 +604,7 @@ export const KycModal = ({
     <motion.div key="refresh" {...fadeInOut} className="space-y-4 pt-4">
       <VerificationPendingIcon className="mx-auto" />
 
-      <div className="space-y-3 pb-2 px-6 text-center">
+      <div className="space-y-3 px-6 pb-2 text-center">
         <DialogTitle className="text-lg font-semibold">
           Refresh to Update KYC
         </DialogTitle>
@@ -561,15 +625,430 @@ export const KycModal = ({
     </motion.div>
   );
 
+  // Tier 3: Address verification card (reused in Tier 3 steps)
+  const Tier3AddressCard = ({ className }: { className?: string }) => (
+    <div
+      className={classNames(
+        "flex items-center gap-3 rounded-2xl p-3",
+        className || "",
+      )}
+    >
+      <div className="flex size-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#FF7D52]">
+        <MapPinpoint01Icon className="size-5 text-white" />
+      </div>
+      <div className="space-y-0.5">
+        <p className="text-xs font-normal text-neutral-800 dark:text-white/80">
+          Address verification
+        </p>
+        <p className="text-xs font-light text-gray-500 dark:text-white/50">
+          Utility bill, Bank statement.
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderTier3Prompt = () => {
+    const tier3Limits = KYC_TIERS[3];
+    return (
+      <motion.div key="tier3_prompt" {...fadeInOut} className="space-y-4 pt-4">
+        <div className="space-y-3">
+          <UserDetailsIcon />
+          <div className="flex items-center gap-1">
+            <h2 className="text-md font-normal dark:text-white">
+              Upgrade KYC to Tier 3
+            </h2>
+            <p className="text-md bg-[linear-gradient(119.63deg,_#04FF44_45.08%,_#EAAB12_70.6%,_rgba(255,107,144,0.6)_105.17%,_#FF0087_122.94%,_#5189F9_161.1%)] bg-clip-text text-transparent">
+              in 2 minutes
+            </p>
+          </div>
+        </div>
+        <div className="space-y-2 rounded-lg bg-gray-50 p-4 dark:bg-white/5">
+          <div className="space-y-2">
+            <p className="text-sm font-normal text-neutral-800 dark:text-white/80">
+              Account limit
+            </p>
+            <div className="flex flex-col items-start gap-2 rounded-3xl border border-gray-200 p-4 dark:border-white/10">
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-[#39C65D] px-2.5 py-1 text-xs font-medium text-black dark:bg-[#39C65D]">
+                <StarIcon className="size-4" />
+                Tier 3
+              </span>
+              <p className="text-xs font-normal text-gray-500 dark:text-white/80">
+                Monthly limit{" "}
+              </p>
+              <span className="text-xl font-normal text-neutral-900 dark:text-white">
+                ${formatNumberWithCommas(tier3Limits.limits.monthly)}
+              </span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-xs font-normal text-neutral-800 dark:text-white/80">
+              Key requirements
+            </p>
+            <Tier3AddressCard className="border border-gray-100 bg-gray-50 dark:border-white/10 dark:bg-white/5" />
+          </div>
+        </div>
+        <div className="flex gap-4">
+          <button
+            type="button"
+            onClick={() => setIsKycModalOpen(false)}
+            className={secondaryBtnClasses}
+          >
+            No, thanks
+          </button>
+          <button
+            type="button"
+            onClick={() => setStep(STEPS.TIER3_COUNTRY)}
+            className={`${primaryBtnClasses} w-full`}
+          >
+            Upgrade to Tier 3
+          </button>
+        </div>
+      </motion.div>
+    );
+  };
+
+  const renderTier3Country = () => (
+    <motion.div key="tier3_country" {...fadeInOut} className="space-y-4">
+      <div className="space-y-3">
+        <UserDetailsIcon />
+        <div className="space-y-1">
+          <h2 className="text-md font-normal dark:text-white">
+            Get started with Tier 3 KYC Upgrade
+          </h2>
+          <p className="text-xs font-light text-gray-500 dark:text-white/50">
+            Fill the details below to start upgrade
+          </p>
+        </div>
+      </div>
+      <div className="rounded-2xl bg-[#141414] p-2">
+        <Tier3AddressCard className="border-none bg-transparent" />
+        <div className="p-2">
+          <label className="mb-1.5 block text-xs font-normal text-gray-700 dark:text-white/80">
+            Country of Residence
+          </label>
+          <FlexibleDropdown
+            data={tier3CountryOptions}
+            selectedItem={tier3CountryCode}
+            onSelect={(code) => setTier3CountryCode(code)}
+            mobileTitle="Select Country"
+            dropdownWidth={350}
+          >
+            {({ selectedItem, isOpen, toggleDropdown }) => (
+              <button
+                type="button"
+                onClick={toggleDropdown}
+                className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
+              >
+                <span className={selectedItem ? "" : "text-gray-400"}>
+                  {selectedItem?.label || "Enter country of residence"}
+                </span>
+                <ArrowDown01Icon
+                  className={classNames(
+                    "size-5 text-gray-400 transition-transform",
+                    isOpen ? "rotate-180" : "",
+                  )}
+                />
+              </button>
+            )}
+          </FlexibleDropdown>
+        </div>
+        {tier3CountryCode != "" && (
+          <div className="space-y-2 p-2">
+            <div>
+              <label className="mb-1.5 block text-xs font-normal text-gray-700 dark:text-white/80">
+                House Number
+              </label>
+              <input
+                type="text"
+                value={tier3HouseNumber}
+                onChange={(e) => setTier3HouseNumber(e.target.value)}
+                placeholder="Enter house number"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-normal text-gray-700 dark:text-white/80">
+                Street Address
+              </label>
+              <input
+                type="text"
+                value={tier3StreetAddress}
+                onChange={(e) => setTier3StreetAddress(e.target.value)}
+                placeholder="Enter street address"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-normal text-gray-700 dark:text-white/80">
+                County / State
+              </label>
+              <input
+                type="text"
+                value={tier3County}
+                onChange={(e) => setTier3County(e.target.value)}
+                placeholder="Select county"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-normal text-gray-700 dark:text-white/80">
+                Postal code
+              </label>
+              <input
+                type="text"
+                value={tier3PostalCode}
+                onChange={(e) => setTier3PostalCode(e.target.value)}
+                placeholder="Enter postal code"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="flex gap-4">
+        <button
+          type="button"
+          onClick={() => setIsKycModalOpen(false)}
+          className={secondaryBtnClasses}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className={`${primaryBtnClasses} w-full`}
+          disabled={
+            !tier3CountryCode ||
+            !tier3HouseNumber.trim() ||
+            !tier3StreetAddress.trim() ||
+            !tier3County.trim() ||
+            !tier3PostalCode.trim()
+          }
+          onClick={() => setStep(STEPS.TIER3_UPLOAD)}
+        >
+          Continue
+        </button>
+      </div>
+    </motion.div>
+  );
+
+  const renderTier3Upload = () => {
+    const handleTier3FileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const ext = file.name.split(".").pop()?.toUpperCase();
+      if (ext && !["JPG", "PNG", "PDF", "DOC", "JPEG", "DOCX"].includes(ext))
+        return;
+      if (file.size > 5 * 1024 * 1024) return;
+      setTier3UploadedFile(file);
+    };
+    const handleTier3Drop = (e: React.DragEvent) => {
+      e.preventDefault();
+      const file = e.dataTransfer.files?.[0];
+      if (file) {
+        const ext = file.name.split(".").pop()?.toUpperCase();
+        if (
+          ext &&
+          ["JPG", "PNG", "PDF", "DOC", "JPEG", "DOCX"].includes(ext) &&
+          file.size <= 5 * 1024 * 1024
+        ) {
+          setTier3UploadedFile(file);
+        }
+      }
+    };
+    const docLabel =
+      TIER3_DOCUMENT_TYPES.find(
+        (d) => d.value === tier3DocumentType,
+      )?.label?.toLowerCase() ?? "document";
+    return (
+      <motion.div key="tier3_upload" {...fadeInOut} className="space-y-4">
+        <button
+          type="button"
+          onClick={() => setStep(STEPS.TIER3_COUNTRY)}
+          className="text-sm text-gray-500 hover:text-gray-700 dark:text-white/50 dark:hover:text-white/70"
+        >
+          <ArrowLeft01Icon className="size-5 text-gray-500 hover:text-gray-700 dark:text-white/50 dark:hover:text-white/70" />
+        </button>
+        <div className="space-y-1">
+          <h2 className="text-sm font-normal dark:text-white">
+            Upload proof of address
+          </h2>
+          <p className="text-xs font-light text-gray-500 dark:text-white/50">
+            Provide any of the document below as proof of your residential
+            address
+          </p>
+        </div>
+        <div className="rounded-2xl bg-[#141414] p-2">
+          <Tier3AddressCard className="border-none bg-transparent" />
+          <div className="p-2">
+            <p className="mb-1.5 flex items-center gap-1 text-xs font-light text-gray-500 dark:text-white/50">
+              Current address{" "}
+              <PencilEdit01Icon className="size-4 text-gray-500 hover:text-gray-700 dark:text-white/50 dark:hover:text-white/70" />
+            </p>
+            <p className="text-xs font-extralight text-gray-500 dark:text-white/80">
+              {tier3AddressDisplay !== "—" ? tier3AddressDisplay : "—"}
+            </p>
+          </div>
+          <div className="space-y-2 p-2">
+            <label className="mb-1.5 text-xs font-normal text-gray-800 dark:text-white/80">
+              Document type
+            </label>
+            <FlexibleDropdown
+              data={
+                TIER3_DOCUMENT_TYPES.map((d) => ({
+                  name: d.value,
+                  label: d.label,
+                })) as DropdownItem[]
+              }
+              selectedItem={
+                TIER3_DOCUMENT_TYPES.find((d) => d.value === tier3DocumentType)
+                  ?.value ?? undefined
+              }
+              mobileTitle="Select Document Type"
+              dropdownWidth={350}
+              onSelect={(value) =>
+                setTier3DocumentType(value as typeof tier3DocumentType)
+              }
+            >
+              {({ selectedItem, isOpen, toggleDropdown }) => (
+                <button
+                  type="button"
+                  onClick={toggleDropdown}
+                  className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
+                >
+                  <span className={selectedItem ? "" : "text-gray-400"}>
+                    {selectedItem?.label || "Select document type"}
+                  </span>
+                  <ArrowDown01Icon
+                    className={classNames(
+                      "size-5 text-gray-400 transition-transform",
+                      isOpen ? "rotate-180" : "",
+                    )}
+                  />
+                </button>
+              )}
+            </FlexibleDropdown>
+          </div>
+        </div>
+        {tier3DocumentType && (
+        <div className="bg-[#141414] rounded-2xl p-4">
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="text-xs font-normal text-gray-700 dark:text-white/70">
+              Upload {docLabel}
+            </label>
+            <button
+              type="button"
+              onClick={() => setTier3RequirementsOpen(true)}
+              className="text-xs text-lavender-500 hover:underline"
+            >
+              See requirements
+            </button>
+          </div>
+          <div
+            onDrop={handleTier3Drop}
+            onDragOver={(e) => e.preventDefault()}
+            className={classNames(
+              "flex flex-col items-start px-4 justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-white/5 py-3 bg-transparent",
+              tier3UploadedFile ? "border-lavender-500/50" : "",
+            )}
+          >
+            <div className="bg-transparent border border-white/10 shadow-xs shadow-[#A9A9BC] rounded-xl p-2">
+            {tier3UploadedFile ? <Tick01Icon className="size-4 text-green-500" /> : <FileAddIcon className="size-4 text-white/50" />}
+            </div>
+            {tier3UploadedFile ? (
+              <>
+               <p className="flex items-center gap-1 text-xs font-light text-gray-600 dark:text-white/70">
+                {tier3UploadedFile.name} <PencilEdit02Icon className="size-3.5 text-lavender-500" /> <span className="text-lavender-500 hover:underline">change</span>
+               </p>
+               <p className="text-xs font-extralight text-gray-500 dark:text-white/50">
+               Size: {(tier3UploadedFile.size / 1024 / 1024).toFixed(2)} MB Format: {tier3UploadedFile.type.split("/")[1].toUpperCase()}
+               </p>
+</>
+            ) : (
+              <>
+            <p className="flex items-center gap-1 text-xs font-light text-gray-600 dark:text-white/70">
+              Drag and drop or{" "}
+              <label className="flex items-center gap-1 cursor-pointer text-lavender-500 hover:underline">
+                <Folder02Icon className="size-3.5" /> browse file
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
+                  className="sr-only"
+                  onChange={handleTier3FileChange}
+                />
+              </label>
+            </p>
+            <p className="text-xs font-extralight text-gray-500 dark:text-white/50">
+              JPG, PNG, PDF, DOC allowed. 5MB Max.
+            </p>
+            </>
+            )}
+            </div>
+          </div>
+        )}
+        <div className="flex gap-4">
+          <button
+            type="button"
+            onClick={() => setStep(STEPS.TIER3_COUNTRY)}
+            className={secondaryBtnClasses}
+          >
+            Back
+          </button>
+          <button
+            type="button"
+            className={`${primaryBtnClasses} w-full`}
+            disabled={!tier3UploadedFile || tier3Submitting}
+            onClick={async () => {
+              if (!tier3UploadedFile || tier3Submitting) return;
+              setTier3Submitting(true);
+              try {
+                const accessToken = await getAccessToken();
+                if (!accessToken) {
+                  toast.error("Session expired. Please sign in again.");
+                  return;
+                }
+                const formData = new FormData();
+                formData.append("file", tier3UploadedFile);
+                formData.append("countryCode", tier3CountryCode);
+                formData.append("documentType", tier3DocumentType);
+                formData.append("houseNumber", tier3HouseNumber);
+                formData.append("streetAddress", tier3StreetAddress);
+                formData.append("county", tier3County);
+                formData.append("postalCode", tier3PostalCode);
+                const res = await fetch("/api/kyc/tier3-verify", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${accessToken}` },
+                  body: formData,
+                });
+                const data = await res.json();
+                if (data.status === "success") {
+                  await refreshStatus();
+                  setIsUserVerified(true);
+                  setStep(STEPS.STATUS.SUCCESS);
+                } else {
+                  setStep(STEPS.STATUS.FAILED);
+                }
+              } catch (e) {
+                setStep(STEPS.STATUS.FAILED);
+              } finally {
+                setTier3Submitting(false);
+              }
+            }}
+          >
+            {tier3Submitting ? "Verifying…" : "Complete upgrade"}
+          </button>
+        </div>
+      </motion.div>
+    );
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await fetchStatus();
     setIsRefreshing(false);
   };
 
-  // fetch the KYC status
   const fetchStatus = async () => {
-    if (!walletAddress) return;
+    if (!walletAddress || targetTier === 3) return;
 
     try {
       const response = await fetchKYCStatus(walletAddress);
@@ -755,12 +1234,27 @@ export const KycModal = ({
     cameraElement.addEventListener("smart-camera-web.back", handleBack);
 
     return () => {
-      cameraElement.removeEventListener("smart-camera-web.publish", handlePublish);
-      cameraElement.removeEventListener("smart-camera-web.cancelled", handleCancel);
+      cameraElement.removeEventListener(
+        "smart-camera-web.publish",
+        handlePublish,
+      );
+      cameraElement.removeEventListener(
+        "smart-camera-web.cancelled",
+        handleCancel,
+      );
       cameraElement.removeEventListener("smart-camera-web.back", handleBack);
     };
-  }, [step, cameraElement, walletAddress, selectedCountry, selectedIdType, idNumber, needsDocCapture, getAccessToken, user]);
-
+  }, [
+    step,
+    cameraElement,
+    walletAddress,
+    selectedCountry,
+    selectedIdType,
+    idNumber,
+    needsDocCapture,
+    getAccessToken,
+    user,
+  ]);
 
   return (
     <>
@@ -775,9 +1269,19 @@ export const KycModal = ({
             [STEPS.STATUS.FAILED]: renderFailedStatus(),
             [STEPS.LOADING]: renderLoadingStatus(),
             [STEPS.REFRESH]: renderRefresh(),
+            [STEPS.TIER3_PROMPT]: renderTier3Prompt(),
+            [STEPS.TIER3_COUNTRY]: renderTier3Country(),
+            [STEPS.TIER3_UPLOAD]: renderTier3Upload(),
           }[step]
         }
       </AnimatePresence>
+      <DocumentRequirementsModal
+        isOpen={tier3RequirementsOpen}
+        onClose={() => setTier3RequirementsOpen(false)}
+        addressDisplay={
+          tier3AddressDisplay !== "—" ? tier3AddressDisplay : undefined
+        }
+      />
     </>
   );
 };

@@ -26,11 +26,11 @@ export async function GET(request: NextRequest) {
       .eq('wallet_address', walletAddress.toLowerCase())
       .single();
 
-    const tier: 0 | 1 | 2 = (kycProfile?.tier as 0 | 1 | 2) || 0;
+    const tier: 0 | 1 | 2 | 3 | 4 = (kycProfile?.tier as 0 | 1 | 2 | 3 | 4) || 0;
     const phoneNumber = kycProfile?.phone_number || null;
     const phoneVerified = kycProfile?.verified && phoneNumber ? true : false;
 
-    // Full KYC (SmileID) is verified if tier is 2
+    // Full KYC (SmileID) is verified if tier is at least 2; Tier 3/4 add address verification
     const fullKYCVerified = tier >= 2;
 
     const responseTime = Date.now() - startTime;

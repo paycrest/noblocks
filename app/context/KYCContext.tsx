@@ -18,10 +18,13 @@ declare global {
 
 export interface TransactionLimits {
   monthly: number;
+  unlimited?: boolean;
 }
 
+export type KYCTierLevel = 0 | 1 | 2 | 3 | 4;
+
 export interface KYCTier {
-  level: 0 | 1 | 2;
+  level: 1 | 2 | 3 | 4;
   name: string;
   limits: TransactionLimits;
   requirements: string[];
@@ -40,6 +43,18 @@ export const KYC_TIERS: Record<number, KYCTier> = {
     limits: { monthly: 15000 },
     requirements: ["Government ID", "Selfie verification"],
   },
+  3: {
+    level: 3,
+    name: "Tier 3",
+    limits: { monthly: 50000 },
+    requirements: ["Address verification"],
+  },
+  4: {
+    level: 4,
+    name: "Tier 4",
+    limits: { monthly: 0, unlimited: true },
+    requirements: ["Business verification"],
+  },
 };
 
 interface UserTransactionSummary {
@@ -49,7 +64,7 @@ interface UserTransactionSummary {
 }
 
 interface KYCContextType {
-  tier: 0 | 1 | 2;
+  tier: KYCTierLevel;
   isPhoneVerified: boolean;
   phoneNumber: string | null;
   isFullyVerified: boolean;
@@ -74,7 +89,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   const fetchGuardsRef = useRef<Record<string, string>>({});
   const guardKey = walletAddress || "no_wallet";
 
-  const [tier, setTier] = useState<0 | 1 | 2>(0);
+  const [tier, setTier] = useState<KYCTierLevel>(0);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [isFullyVerified, setIsFullyVerified] = useState(false);
@@ -98,12 +113,15 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       0,
       currentLimits.monthly - transactionSummary.monthlySpent,
     );
-    return { monthly: remaining };
+    return { monthly: remaining, unlimited: currentLimits.unlimited };
   }, [tier, transactionSummary.monthlySpent]);
 
   const canTransact = useCallback(
     (amount: number): { allowed: boolean; reason?: string } => {
       const remaining = getRemainingLimits();
+      if (remaining.unlimited) {
+        return { allowed: true };
+      }
       if (amount > remaining.monthly) {
         return {
           allowed: false,

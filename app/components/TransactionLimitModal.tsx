@@ -159,7 +159,7 @@ export default function TransactionLimitModal({
               You&apos;re currently at {currentTier?.name} with $
               {formatNumberWithCommas(currentLimits.monthly)}/month.{" "}
               {nextTier
-                ? `Upgrade to ${nextTier.name} for ${formatNumberWithCommas(nextTier.limits.monthly)}/month`
+                ? `Upgrade to ${nextTier.name} for ${nextTier.limits.unlimited ? "Unlimited" : `$${formatNumberWithCommas(nextTier.limits.monthly)}/month`}`
                 : "You have the highest tier available"}
               .{" "}
               <span className="cursor-pointer text-lavender-600 underline dark:text-lavender-400">
@@ -171,13 +171,12 @@ export default function TransactionLimitModal({
       </div>
 
       {/* Action Button */}
-      {tier < 2 && (
+      {tier < 4 && (
         <button
           onClick={() => {
             if (tier < 1) {
               setIsPhoneModalOpen(true);
             } else {
-              // Trigger full KYC modal
               setIsKycModalOpen(true);
             }
           }}
@@ -188,7 +187,7 @@ export default function TransactionLimitModal({
       )}
 
       {/* Already at max tier */}
-      {tier >= 2 && (
+      {tier >= 4 && (
         <button onClick={onClose} className={`${secondaryBtnClasses} w-full`}>
           Got it
         </button>
@@ -244,6 +243,7 @@ export default function TransactionLimitModal({
                 setIsKycModalOpen(false);
                 onClose();
               }}
+              targetTier={tier === 2 ? 3 : 2}
             />
           </AnimatedModal>
         )}

@@ -844,6 +844,7 @@ export const TransactionForm = ({
               <KycModal
                 setIsKycModalOpen={setIsKycModalOpen}
                 setIsUserVerified={setIsUserVerified}
+                targetTier={tier === 2 ? 3 : 2}
               />
             </AnimatedModal>
           )}

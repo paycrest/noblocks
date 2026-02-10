@@ -101,6 +101,9 @@ export const WalletMigrationBanner = () => {
                 </div>
             </motion.div>
 
+            {/* Spacer to offset fixed banner height so content is not hidden underneath */}
+            <div className="h-24 sm:h-16" aria-hidden="true" />
+
             <WalletMigrationModal
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}

@@ -7,8 +7,9 @@ import {
   shortenAddress,
 } from "../utils";
 import { useBalance } from "../context";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import {
   ArrowRight03Icon,
   Copy01Icon,
@@ -65,20 +66,46 @@ export const WalletDetails = () => {
   } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user } = usePrivy();
+  const { wallets } = useWallets();
   const isDark = useActualTheme();
+  const shouldUseEOA = useShouldUseEOA();
 
   // Custom hook for handling wallet funding
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
 
-  // Determine active wallet based on wallet type
+  // Custom hook for CNGN rate fetching
+  const {
+    rate,
+    isLoading: isRateLoading,
+    error: rateError,
+  } = useCNGNRate({
+    network: selectedNetwork.chain.name,
+    dependencies: [selectedNetwork],
+  });
+
+  // Get embedded wallet (EOA) and smart wallet (SCW)
+  const embeddedWallet = wallets.find(
+    (wallet) => wallet.walletClientType === "privy"
+  );
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet"
+  );
+
+  // Determine active wallet based on migration status
+  // After migration: show EOA (new wallet with funds)
+  // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : shouldUseEOA && embeddedWallet
+      ? { address: embeddedWallet.address }
+      : smartWallet;
 
-  // Get appropriate balance based on wallet type
+  // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
-    : allBalances.smartWallet;
+    : shouldUseEOA
+      ? allBalances.externalWallet
+      : allBalances.smartWallet;
 
   // Sort cross-chain balances: selected network first, then alphabetically
   // Filter to show only networks with non-zero balances (except selected network)

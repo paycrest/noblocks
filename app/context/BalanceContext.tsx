@@ -12,7 +12,7 @@ import {
   getRpcUrl,
   calculateCorrectedTotalBalance,
 } from "../utils";
-import { useCNGNRate } from "../hooks/useCNGNRate";
+import { useCNGNRate, getCNGNRateForNetwork } from "../hooks/useCNGNRate";
 import { useMigrationStatus } from "../hooks/useEIP7702Account";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "./NetworksContext";
@@ -20,10 +20,57 @@ import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createPublicClient, http } from "viem";
 import { useInjectedWallet } from "./InjectedWalletContext";
 import { bsc } from "viem/chains";
+import { networks } from "../mocks";
+import type { Network } from "../types";
+
+const CROSS_CHAIN_CONCURRENCY = 3; // Limit parallel RPC requests
 
 interface WalletBalances {
   total: number;
   balances: Record<string, number>;
+  rawBalances?: Record<string, number>; // Raw balances before CNGN conversion
+}
+
+// Cross-chain balance entry for a single network
+export interface CrossChainBalanceEntry {
+  network: Network;
+  balances: WalletBalances;
+}
+
+/**
+ * Applies CNGN balance conversion logic to balances
+ * @param balances - The balance object to convert
+ * @param cngnRate - The current CNGN rate (can be null for fallback handling)
+ * @returns New balances object with CNGN conversion applied
+ */
+function applyCNGNBalanceConversion(
+  balances: Record<string, number>,
+  cngnRate: number | null,
+): Record<string, number> {
+  const correctedBalances = { ...balances };
+  const cngnSymbols = ["CNGN", "cNGN"] as const;
+
+  cngnSymbols.forEach((symbol) => {
+    const cngnBalance = correctedBalances[symbol];
+    if (
+      typeof cngnBalance !== "number" ||
+      isNaN(cngnBalance) ||
+      cngnBalance <= 0
+    ) {
+      return;
+    }
+
+    if (cngnRate && cngnRate > 0) {
+      // Convert CNGN to USD equivalent
+      correctedBalances[symbol] = cngnBalance / cngnRate;
+      return;
+    }
+
+    // No rate available - set CNGN balance to 0 so it doesn't contribute to totals
+    correctedBalances[symbol] = 0;
+  });
+
+  return correctedBalances;
 }
 
 interface BalanceContextProps {
@@ -35,6 +82,8 @@ interface BalanceContextProps {
     externalWallet: WalletBalances | null;
     injectedWallet: WalletBalances | null;
   };
+  crossChainBalances: CrossChainBalanceEntry[];
+  crossChainTotal: number;
   refreshBalance: () => void;
   isLoading: boolean;
 }
@@ -57,6 +106,9 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     useState<WalletBalances | null>(null);
   const [injectedWalletBalance, setInjectedWalletBalance] =
     useState<WalletBalances | null>(null);
+  const [crossChainBalances, setCrossChainBalances] = useState<
+    CrossChainBalanceEntry[]
+  >([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Hook for CNGN rate to correct total balances
@@ -67,8 +119,77 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   // Cannot use useShouldUseEOA here (it uses useBalance and would create a circular dependency)
   const { isMigrationComplete } = useMigrationStatus();
+  // Fetch balances from all networks in parallel
+  const fetchCrossChainBalances = async (address: string) => {
+    const results: PromiseSettledResult<CrossChainBalanceEntry>[] = [];
+
+    // Process networks in batches
+    for (let i = 0; i < networks.length; i += CROSS_CHAIN_CONCURRENCY) {
+      const batch = networks.slice(i, i + CROSS_CHAIN_CONCURRENCY);
+
+      const batchResults = await Promise.allSettled(
+        batch.map(async (network) => {
+          const publicClient = createPublicClient({
+            chain: network.chain,
+            transport: http(getRpcUrl(network.chain.name)),
+          });
+
+          const rawResult = await fetchWalletBalance(publicClient, address);
+
+          // Apply CNGN correction for this specific network
+          const cngnRate = await getCNGNRateForNetwork(network.chain.name);
+
+          // Store raw balances before any modifications
+          const rawBalances = { ...rawResult.balances };
+
+          const correctedTotal = calculateCorrectedTotalBalance(
+            rawResult,
+            cngnRate,
+          );
+
+          // Apply CNGN balance conversion and use returned value
+          const correctedBalances = applyCNGNBalanceConversion(
+            rawResult.balances,
+            cngnRate,
+          );
+
+          const correctedResult = {
+            total: correctedTotal,
+            balances: correctedBalances,
+            rawBalances: rawBalances,
+          };
+
+          return {
+            network,
+            balances: correctedResult,
+          };
+        }),
+      );
+
+      results.push(
+        ...(batchResults as PromiseSettledResult<CrossChainBalanceEntry>[]),
+      );
+    }
+
+    // Filter fulfilled results, skip rejected (RPC failures)
+    const successfulResults = results
+      .filter((result) => result.status === "fulfilled")
+      .map(
+        (result) =>
+          (result as PromiseFulfilledResult<CrossChainBalanceEntry>).value,
+      );
+
+    setCrossChainBalances(successfulResults);
+  };
 
   const fetchBalances = async () => {
+    const clearAllWalletBalances = () => {
+      setSmartWalletBalance(null);
+      setExternalWalletBalance(null);
+      setInjectedWalletBalance(null);
+      setCrossChainBalances([]);
+    };
+
     setIsLoading(true);
 
     try {
@@ -126,13 +247,25 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             publicClient,
             smartWalletAccount.address,
           );
+
+          // Store raw balances BEFORE any modifications
+          const rawBalances = { ...result.balances };
+
+          // Apply cNGN conversion correction
           const correctedTotal = calculateCorrectedTotalBalance(
             result,
             cngnRate,
           );
+          // Apply CNGN balance conversion and use returned value
+          const correctedBalances = applyCNGNBalanceConversion(
+            result.balances,
+            cngnRate,
+          );
+
           setSmartWalletBalance({
-            ...result,
             total: correctedTotal,
+            balances: correctedBalances,
+            rawBalances: rawBalances,
           });
           // If SCW balance is 0, also fetch EOA so 0-balance users see EOA in nav (useShouldUseEOA is true elsewhere)
           if (correctedTotal === 0 && embeddedWalletAccount) {
@@ -152,6 +285,9 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           } else {
             setExternalWalletBalance(null);
           }
+
+          // Fetch cross-chain balances for smart wallet
+          await fetchCrossChainBalances(smartWalletAccount.address);
         } else {
           setSmartWalletBalance(null);
           setExternalWalletBalance(null);
@@ -166,13 +302,25 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             publicClient,
             externalWalletAccount.address,
           );
+
+          // Store raw balances BEFORE any modifications
+          const rawBalances = { ...result.balances };
+
+          // Apply cNGN conversion correction
           const correctedTotal = calculateCorrectedTotalBalance(
             result,
             cngnRate,
           );
+          // Apply CNGN balance conversion and use returned value
+          const correctedBalances = applyCNGNBalanceConversion(
+            result.balances,
+            cngnRate,
+          );
+
           setExternalWalletBalance({
-            ...result,
             total: correctedTotal,
+            balances: correctedBalances,
+            rawBalances: rawBalances,
           });
         }
 
@@ -193,28 +341,40 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             publicClient,
             injectedAddress,
           );
+
+          // Store raw balances BEFORE any modifications
+          const rawBalances = { ...result.balances };
+
           // Apply cNGN conversion correction
           const correctedTotal = calculateCorrectedTotalBalance(
             result,
             cngnRate,
           );
+          // Apply CNGN balance conversion and use returned value
+          const correctedBalances = applyCNGNBalanceConversion(
+            result.balances,
+            cngnRate,
+          );
+
           setInjectedWalletBalance({
-            ...result,
             total: correctedTotal,
+            balances: correctedBalances,
+            rawBalances: rawBalances,
           });
+
+          // Fetch cross-chain balances for injected wallet
+          await fetchCrossChainBalances(injectedAddress);
 
           setSmartWalletBalance(null);
           setExternalWalletBalance(null);
         } catch (error) {
           console.error("Error fetching injected wallet balance:", error);
-          setInjectedWalletBalance(null);
+          clearAllWalletBalances();
         }
       }
     } catch (error) {
       console.error("Error fetching balances:", error);
-      setSmartWalletBalance(null);
-      setExternalWalletBalance(null);
-      setInjectedWalletBalance(null);
+      clearAllWalletBalances();
     } finally {
       setIsLoading(false);
     }
@@ -241,6 +401,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     injectedWallet: injectedWalletBalance,
   };
 
+  // Calculate cross-chain total for the active wallet type (balances are already CNGN-corrected)
+  const crossChainTotal = crossChainBalances.reduce((total, entry) => {
+    return total + (entry.balances.total || 0);
+  }, 0);
+
   return (
     <BalanceContext.Provider
       value={{
@@ -248,6 +413,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         externalWalletBalance,
         injectedWalletBalance,
         allBalances,
+        crossChainBalances,
+        crossChainTotal,
         refreshBalance: fetchBalances,
         isLoading,
       }}

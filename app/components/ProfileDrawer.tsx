@@ -167,7 +167,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
             <ArrowDown01Icon
               className={classNames(
                 "size-4 text-outline-gray transition-transform dark:text-lavender-500",
-                isExpanded ? "" : "",
+                isExpanded ? "rotate-180" : "rotate-0",
               )}
             />
           </div>
@@ -379,7 +379,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                               {/* Progress Bar */}
                               <div className="flex h-2 w-full items-center rounded-full bg-accent-gray dark:bg-white/10">
                                 <div
-                                  className="h-2.5 rounded-full bg-gradient-to-r from-white to-white transition-all duration-500"
+                                  className="h-2.5 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 transition-all duration-500 dark:from-sky-400 dark:to-indigo-400"
                                   style={{
                                     width: `${Math.min(monthlyProgress, 100)}%`,
                                   }}

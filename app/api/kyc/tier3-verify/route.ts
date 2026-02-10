@@ -8,6 +8,13 @@ import { rateLimit } from "@/app/lib/rate-limit";
 
 const KYC_BUCKET = process.env.KYC_DOCUMENTS_BUCKET || "kyc-documents";
 const SIGNED_URL_EXPIRY_SEC = 3600;
+const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const MIME_TO_EXT: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
 
 export async function POST(request: NextRequest) {
   const rateLimitResult = await rateLimit(request);
@@ -49,9 +56,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const ext = file.name.split(".").pop() || "jpg";
+    if (file.size > MAX_FILE_BYTES) {
+      return NextResponse.json(
+        { status: "error", message: "File too large; maximum 10 MB" },
+        { status: 413 }
+      );
+    }
+    const mime = (file.type || "").toLowerCase();
+    if (!ALLOWED_MIME_TYPES.includes(mime as (typeof ALLOWED_MIME_TYPES)[number])) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message: "Invalid file type; allowed: image/jpeg, image/png, image/webp",
+        },
+        { status: 400 }
+      );
+    }
+
+    const nameExt = file.name?.split(".").pop();
+    const ext = (nameExt && nameExt.length <= 4 ? nameExt : MIME_TO_EXT[mime]) || "jpg";
     const path = `tier3/${walletAddress}/${Date.now()}.${ext}`;
+
+    const buffer = Buffer.from(await file.arrayBuffer());
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from(KYC_BUCKET)
@@ -102,14 +128,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: existingProfile } = await supabaseAdmin
+    const { data: currentProfile, error: fetchError } = await supabaseAdmin
       .from("user_kyc_profiles")
-      .select("platform")
+      .select("tier, platform")
       .eq("wallet_address", walletAddress)
       .single();
 
-    const existingPlatform = Array.isArray(existingProfile?.platform)
-      ? existingProfile.platform
+    if (fetchError || !currentProfile) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message:
+            "No KYC profile found. Complete phone and ID verification first.",
+        },
+        { status: 404 }
+      );
+    }
+
+    const currentTier = Number(currentProfile.tier) ?? 0;
+    if (currentTier < 2) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message:
+            "Complete Tier 1 (phone) and Tier 2 (ID) verification before upgrading to Tier 3.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const existingPlatform = Array.isArray(currentProfile?.platform)
+      ? currentProfile.platform
       : [];
     const otherVerifications = existingPlatform.filter(
       (p: { type: string }) => p.type !== "address"

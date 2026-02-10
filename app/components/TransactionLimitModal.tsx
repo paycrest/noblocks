@@ -62,10 +62,9 @@ export default function TransactionLimitModal({
   const currentTier = KYC_TIERS[tier];
   const nextTier = KYC_TIERS[tier + 1];
 
-  const handlePhoneVerified = async (phoneNumber: string) => {
+  const handlePhoneVerified = async () => {
     setIsPhoneModalOpen(false);
-    refreshStatus();
-    onClose();
+    await refreshStatus();
   };
 
   const renderLoadingStatus = () => (

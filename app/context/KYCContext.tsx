@@ -143,6 +143,16 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       const response = await fetch(
         `/api/kyc/transaction-summary?walletAddress=${encodeURIComponent(walletAddress)}`,
       );
+      if (!response.ok) {
+        let body: unknown;
+        try {
+          body = await response.json();
+        } catch {
+          body = await response.text();
+        }
+        console.error("Transaction summary fetch failed:", response.status, response.statusText, body);
+        return;
+      }
       const data = await response.json();
       if (data.success) {
         setTransactionSummary({
@@ -178,6 +188,16 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
           Authorization: `Bearer ${accessToken}`,
         },
       });
+      if (!response.ok) {
+        let body: unknown;
+        try {
+          body = await response.json();
+        } catch {
+          body = await response.text();
+        }
+        console.error("KYC status fetch failed:", response.status, response.statusText, body);
+        return;
+      }
       const data = await response.json();
       if (data.success) {
         setTier(data.tier);

@@ -149,6 +149,7 @@ export const KycModal = ({
   const [tier3UploadedFile, setTier3UploadedFile] = useState<File | null>(null);
   const [tier3RequirementsOpen, setTier3RequirementsOpen] = useState(false);
   const [tier3Submitting, setTier3Submitting] = useState(false);
+  const [tier3ErrorMessage, setTier3ErrorMessage] = useState<string | null>(null);
   const { refreshStatus } = useKYC();
   const countries = getAllCountries();
   const tier3CountryOptions = countries.map((c) => ({
@@ -831,29 +832,40 @@ export const KycModal = ({
     </motion.div>
   );
 
+  const ALLOWED_TIER3_EXTENSIONS = ["JPG", "PNG", "PDF", "DOC", "JPEG", "DOCX"];
+  const TIER3_MAX_BYTES = 5 * 1024 * 1024;
+
   const renderTier3Upload = () => {
     const handleTier3FileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const ext = file.name.split(".").pop()?.toUpperCase();
-      if (ext && !["JPG", "PNG", "PDF", "DOC", "JPEG", "DOCX"].includes(ext))
+      if (!ext || !ALLOWED_TIER3_EXTENSIONS.includes(ext)) {
+        setTier3ErrorMessage("Invalid file type; allowed: JPG, PNG, PDF, DOC, JPEG, DOCX");
         return;
-      if (file.size > 5 * 1024 * 1024) return;
+      }
+      if (file.size > TIER3_MAX_BYTES) {
+        setTier3ErrorMessage("File too large; maximum 5 MB");
+        return;
+      }
+      setTier3ErrorMessage(null);
       setTier3UploadedFile(file);
     };
     const handleTier3Drop = (e: React.DragEvent) => {
       e.preventDefault();
       const file = e.dataTransfer.files?.[0];
-      if (file) {
-        const ext = file.name.split(".").pop()?.toUpperCase();
-        if (
-          ext &&
-          ["JPG", "PNG", "PDF", "DOC", "JPEG", "DOCX"].includes(ext) &&
-          file.size <= 5 * 1024 * 1024
-        ) {
-          setTier3UploadedFile(file);
-        }
+      if (!file) return;
+      const ext = file.name.split(".").pop()?.toUpperCase();
+      if (!ext || !ALLOWED_TIER3_EXTENSIONS.includes(ext)) {
+        setTier3ErrorMessage("Invalid file type; allowed: JPG, PNG, PDF, DOC, JPEG, DOCX");
+        return;
       }
+      if (file.size > TIER3_MAX_BYTES) {
+        setTier3ErrorMessage("File too large; maximum 5 MB");
+        return;
+      }
+      setTier3ErrorMessage(null);
+      setTier3UploadedFile(file);
     };
     const docLabel =
       TIER3_DOCUMENT_TYPES.find(
@@ -960,7 +972,7 @@ export const KycModal = ({
                 {tier3UploadedFile.name} <PencilEdit02Icon className="size-3.5 text-lavender-500" /> <span className="text-lavender-500 hover:underline">change</span>
                </p>
                <p className="text-xs font-extralight text-gray-500 dark:text-white/50">
-               Size: {(tier3UploadedFile.size / 1024 / 1024).toFixed(2)} MB Format: {tier3UploadedFile.type.split("/")[1].toUpperCase()}
+               Size: {(tier3UploadedFile.size / 1024 / 1024).toFixed(2)} MB Format: {String(tier3UploadedFile.type?.split("/")[1] ?? tier3UploadedFile.name?.split(".").pop() ?? "UNKNOWN").toUpperCase()}
                </p>
 </>
             ) : (
@@ -981,6 +993,9 @@ export const KycModal = ({
               JPG, PNG, PDF, DOC allowed. 5MB Max.
             </p>
             </>
+            )}
+            {tier3ErrorMessage && (
+              <p className="mt-1 text-xs text-red-500 dark:text-red-400">{tier3ErrorMessage}</p>
             )}
             </div>
           </div>

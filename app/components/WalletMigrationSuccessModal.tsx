@@ -84,7 +84,8 @@ const WalletMigrationSuccessModal: React.FC<WalletMigrationSuccessModalProps> = 
                                             onClick={handleContinue}
                                             className="w-full rounded-xl bg-lavender-500 px-6 py-3.5 text-sm font-medium text-white transition-all hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-white active:opacity-80 dark:focus:ring-offset-neutral-900"
                                         >
-                                            Let's go!
+                                            Let&apos;s go!
+
                                         </button>
                                     </div>
                                 </motion.div>

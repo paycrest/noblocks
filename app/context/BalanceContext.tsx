@@ -241,6 +241,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             total: correctedTotal,
           });
           setSmartWalletBalance(null);
+          // Navbar and WalletDetails use crossChainTotal; populate it for EOA
+          await fetchCrossChainBalances(embeddedWalletAccount.address);
         } else if (smartWalletAccount) {
           // Not migrated: fetch SCW balance first
           const result = await fetchWalletBalance(

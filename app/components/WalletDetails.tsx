@@ -38,6 +38,7 @@ import { useSortedCrossChainBalances } from "../hooks/useSortedCrossChainBalance
 import TransactionList from "./transaction/TransactionList";
 import { FundWalletForm, TransferForm } from "./index";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
+import { useCNGNRate } from "../hooks/useCNGNRate";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />

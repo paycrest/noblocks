@@ -50,6 +50,7 @@ export const MobileDropdown = ({
   });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const shouldUseEOA = useShouldUseEOA();
+  const { wallets } = useWallets();
 
   // Get embedded wallet (EOA) and smart wallet (SCW)
   const embeddedWallet = wallets.find(

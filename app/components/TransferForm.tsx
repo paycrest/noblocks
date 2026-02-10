@@ -159,9 +159,17 @@ export const TransferForm: React.FC<{
         setIsBalanceLoading(true);
         return;
       }
+
       if (shouldUseEOA && !embeddedWallet) {
         setIsBalanceLoading(true);
-        return;
+
+        const timeout = setTimeout(() => {
+          setTransferNetworkBalance({ total: 0, balances: {} });
+          setBalanceError("Wallet unavailable");
+          setIsBalanceLoading(false);
+        }, 10_000);
+
+        return () => clearTimeout(timeout);
       }
 
       const activeAddress =

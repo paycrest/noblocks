@@ -344,7 +344,7 @@ export const TransactionPreview = ({
               rpcUrl,
               embeddedWallet.address as `0x${string}`
             );
-            
+
             if (newImplementation !== biconomyNexusV120) {
               console.warn(`EIP-7702 authorization verification failed. Expected: ${biconomyNexusV120}, Got: ${newImplementation}`);
               console.warn("Proceeding with authorization anyway - MEE will handle validation");
@@ -383,18 +383,18 @@ export const TransactionPreview = ({
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
-        // const totalAmountToApprove = params.amount + params.senderFee;
+        const totalAmountToApprove = params.amount + params.senderFee;
 
-        // const approveInstruction = await nexusAccount.buildComposable({
-        //   type: "default",
-        //   data: {
-        //     abi: erc20Abi,
-        //     chainId,
-        //     to: tokenAddress,
-        //     functionName: "approve",
-        //     args: [gatewayAddress, totalAmountToApprove],
-        //   },
-        // });
+        const approveInstruction = await nexusAccount.buildComposable({
+          type: "default",
+          data: {
+            abi: erc20Abi,
+            chainId,
+            to: tokenAddress,
+            functionName: "approve",
+            args: [gatewayAddress, totalAmountToApprove],
+          },
+        });
 
         const createOrderInstruction = await nexusAccount.buildComposable({
           type: "default",
@@ -420,7 +420,7 @@ export const TransactionPreview = ({
           authorizations: authorization ? [authorization] : [],
           delegate: true,
           sponsorship: true,
-          instructions: [createOrderInstruction],
+          instructions: [approveInstruction, createOrderInstruction],
         });
 
         await meeClient.waitForSupertransactionReceipt({ hash });
@@ -523,8 +523,7 @@ export const TransactionPreview = ({
 
   const handlePaymentConfirmation = async () => {
     // Check balance including sender fee
-    // const totalRequired = amountSent + senderFeeAmount;
-    const totalRequired = amountSent + 0;
+    const totalRequired = amountSent + senderFeeAmount;
 
     if (totalRequired > balance) {
       toast.warning("Low balance. Fund your wallet.", {

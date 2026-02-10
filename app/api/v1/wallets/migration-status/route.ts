@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
+import { getPrivyClient } from "@/app/lib/privy";
 
 export async function GET(request: NextRequest) {
     try {
+        const authHeader = request.headers.get("Authorization");
+        const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+        if (!token) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        let authenticatedUserId: string;
+        try {
+            const privy = getPrivyClient();
+            const claims = await privy.verifyAuthToken(token);
+            authenticatedUserId = claims.userId;
+        } catch {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get("userId");
 
@@ -10,7 +27,10 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "User ID required" }, { status: 400 });
         }
 
-        // Check if user has completed migration
+        if (userId !== authenticatedUserId) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+
         const { data, error } = await supabaseAdmin
             .from("wallets")
             .select("migration_completed, status, wallet_type")
@@ -18,46 +38,49 @@ export async function GET(request: NextRequest) {
             .eq("wallet_type", "smart_contract")
             .single();
 
-        // Handle specific error codes
         if (error) {
-            // PGRST116 = no rows found (user has no smart wallet) - this is OK
+            // PGRST116 = no rows found — user has no smart wallet, not an error
             if (error.code === "PGRST116") {
                 return NextResponse.json({
                     migrationCompleted: false,
                     status: "unknown",
-                    hasSmartWallet: false
+                    hasSmartWallet: false,
                 });
             }
 
-            // PGRST205 = table not found in schema cache (migration not run yet)
+            // PGRST205 = table not found in schema cache — migration not applied yet
             if (error.code === "PGRST205") {
-                console.warn("⚠️ Wallets table not found in schema cache. Migration may not be applied yet.");
+                console.warn(
+                    "⚠️ Wallets table not found in schema cache. Migration may not be applied yet."
+                );
+
                 return NextResponse.json({
                     migrationCompleted: false,
-                    status: "unknown",
-                    hasSmartWallet: true, // Assume true to show banner
-                    error: "Database schema not ready"
-                }, { status: 200 }); // Return 200 so frontend doesn't break
+                    status: "schema_unavailable",
+                    hasSmartWallet: false,
+                    error: "Database schema not ready",
+                });
             }
 
-            // For other errors, log and return safe fallback
             console.error("Database query error:", error);
             return NextResponse.json({
                 migrationCompleted: false,
-                status: "unknown",
-                hasSmartWallet: true, // Assume true to show banner on error
-                error: error.message
-            }, { status: 200 }); // Return 200 so frontend doesn't break
+                status: "error",
+                hasSmartWallet: false,
+                error: error.message,
+            });
         }
 
         return NextResponse.json({
             migrationCompleted: data?.migration_completed ?? false,
             status: data?.status ?? "unknown",
-            hasSmartWallet: !!data
+            hasSmartWallet: !!data,
         });
-    } catch (error: any) {
-        // Handle connection errors (DNS, network, etc.)
-        const errorMessage = error?.message || String(error);
+
+    } catch (error: unknown) {
+        const errorMessage =
+            error instanceof Error ? error.message : String(error);
+
         const isConnectionError =
             errorMessage.includes("ENOTFOUND") ||
             errorMessage.includes("fetch failed") ||
@@ -65,21 +88,24 @@ export async function GET(request: NextRequest) {
             errorMessage.includes("ETIMEDOUT");
 
         if (isConnectionError) {
-            console.warn("⚠️ Database connection error, returning fallback response:", errorMessage);
+            console.warn(
+                "⚠️ Database connection error, returning fallback response:",
+                errorMessage
+            );
             return NextResponse.json({
                 migrationCompleted: false,
-                status: "unknown",
-                hasSmartWallet: true, // Assume true to show banner if DB is down
-                error: "Database temporarily unavailable"
-            }, { status: 200 }); // Return 200 so frontend doesn't break
+                status: "db_unavailable",
+                hasSmartWallet: false,
+                error: "Database temporarily unavailable",
+            });
         }
 
-        console.error("Error checking migration status:", error);
+        console.error("Unexpected error in migration-status route:", error);
         return NextResponse.json({
-            error: error instanceof Error ? error.message : "Internal server error",
             migrationCompleted: false,
             status: "error",
-            hasSmartWallet: true // Assume true to show banner on error
-        }, { status: 200 }); // Return 200 so frontend doesn't break
+            hasSmartWallet: false,
+            error: errorMessage || "Internal server error",
+        }, { status: 500 });
     }
 }

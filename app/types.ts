@@ -93,6 +93,7 @@ export type TransactionStatusProps = {
   formMethods: FormMethods;
   supportedInstitutions: InstitutionProps[];
   setOrderId: (orderId: string) => void;
+  refetchRate?: () => void;
 };
 
 export type SelectFieldProps = {

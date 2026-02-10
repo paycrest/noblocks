@@ -129,6 +129,11 @@ export function MainPageContent() {
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
+  const [rateRefetchTrigger, setRateRefetchTrigger] = useState(0);
+
+  const refetchRate = useCallback(() => {
+    setRateRefetchTrigger((prev) => prev + 1);
+  }, []);
 
   const formMethods = useForm<FormData, any, undefined>({
     mode: "onChange",
@@ -228,10 +233,14 @@ export function MainPageContent() {
     [currency],
   );
 
+  const prevRateRefetchTriggerRef = useRef(rateRefetchTrigger);
+
   useEffect(
     function handleRateFetch() {
       // Debounce rate fetching
       let timeoutId: NodeJS.Timeout;
+      const isExplicitRefetch = prevRateRefetchTriggerRef.current !== rateRefetchTrigger;
+      prevRateRefetchTriggerRef.current = rateRefetchTrigger;
 
       if (!currency) return;
 
@@ -294,7 +303,11 @@ export function MainPageContent() {
 
       const debounceFetchRate = () => {
         clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => getRate(), 1000);
+        if (isExplicitRefetch) {
+          getRate();
+        } else {
+          timeoutId = setTimeout(() => getRate(), 1000);
+        }
       };
 
       debounceFetchRate();
@@ -310,6 +323,7 @@ export function MainPageContent() {
       token,
       searchParams,
       selectedNetwork,
+      rateRefetchTrigger,
     ],
   );
 
@@ -409,6 +423,7 @@ export function MainPageContent() {
             setCurrentStep={setCurrentStep}
             supportedInstitutions={institutions}
             setOrderId={setOrderId}
+            refetchRate={refetchRate}
           />
         );
       default:
@@ -430,6 +445,7 @@ export function MainPageContent() {
     setTransactionStatus,
     setCurrentStep,
     setOrderId,
+    refetchRate,
   ]);
 
   const transactionFormComponent = useMemo(

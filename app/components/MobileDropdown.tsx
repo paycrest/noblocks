@@ -14,6 +14,7 @@ import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useSortedCrossChainBalances } from "../hooks/useSortedCrossChainBalances";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useTransactions } from "../context/TransactionsContext";
 import { networks } from "../mocks";
@@ -40,8 +41,7 @@ export const MobileDropdown = ({
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, linkEmail, updateEmail } = usePrivy();
-  const { wallets } = useWallets();
-  const { allBalances, isLoading, refreshBalance } = useBalance();
+  const { allBalances, crossChainBalances, isLoading, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const { logout } = useLogout({
     onSuccess: () => {
@@ -118,6 +118,11 @@ export const MobileDropdown = ({
     : shouldUseEOA
       ? allBalances.externalWallet
       : allBalances.smartWallet;
+  // Sort cross-chain balances: selected network first, then alphabetically
+  const sortedCrossChainBalances = useSortedCrossChainBalances(
+    crossChainBalances,
+    selectedNetwork.chain.name,
+  );
 
   const handleNetworkSwitchWrapper = (network: Network) => {
     if (currentStep !== STEPS.FORM) {
@@ -234,7 +239,7 @@ export const MobileDropdown = ({
                               isInjectedWallet={isInjectedWallet}
                               detectWalletProvider={detectWalletProvider}
                               isLoading={isLoading}
-                              activeBalance={activeBalance}
+                              crossChainBalances={sortedCrossChainBalances}
                               getTokenImageUrl={getTokenImageUrl}
                               onTransfer={() => setCurrentView("transfer")}
                               onFund={() => setCurrentView("fund")}

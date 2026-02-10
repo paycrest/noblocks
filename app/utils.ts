@@ -551,23 +551,23 @@ export function calculateCorrectedTotalBalance(
 ): number {
   let correctedTotal = rawBalance.total;
 
-  // Check for both "cNGN" and "CNGN" keys (case sensitivity issue)
-  const cngnBalance =
-    rawBalance.balances["cNGN"] ?? rawBalance.balances["CNGN"];
+  // Handle both "cNGN" and "CNGN" keys consistently.
+  const cngnBalance = ["cNGN", "CNGN"].reduce((sum, symbol) => {
+    const value = rawBalance.balances[symbol];
+    if (typeof value === "number" && !isNaN(value) && value > 0) {
+      return sum + value;
+    }
+    return sum;
+  }, 0);
 
-  // If there's cNGN balance and we have a rate, convert it
-  if (
-    typeof cngnBalance === "number" &&
-    !isNaN(cngnBalance) &&
-    cngnBalance > 0 &&
-    cngnRate &&
-    cngnRate > 0
-  ) {
-    // Remove the raw cNGN value (which was counted as 1:1 USD)
+  // Remove the raw cNGN value (which was counted as 1:1 USD).
+  if (cngnBalance > 0) {
     correctedTotal -= cngnBalance;
-    // Add back the USD equivalent
-    const usdEquivalent = cngnBalance / cngnRate;
-    correctedTotal += usdEquivalent;
+
+    // Add back USD equivalent only when a valid positive rate is available.
+    if (cngnRate && cngnRate > 0) {
+      correctedTotal += cngnBalance / cngnRate;
+    }
   }
 
   return isNaN(correctedTotal) ? 0 : correctedTotal;

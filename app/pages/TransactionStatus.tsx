@@ -111,6 +111,7 @@ export function TransactionStatus({
   formMethods,
   supportedInstitutions,
   setOrderId,
+  refetchRate,
 }: TransactionStatusProps) {
   const { claimed } = useBlockFestClaim();
   const { resolvedTheme } = useTheme();
@@ -513,6 +514,7 @@ export function TransactionStatus({
    */
   const handleBackButtonClick = () => {
     if (transactionStatus === "refunded") {
+      refetchRate?.();
       clearTransactionStatus();
       setCurrentStep(STEPS.FORM);
     } else {

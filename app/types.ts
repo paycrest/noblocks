@@ -93,6 +93,7 @@ export type TransactionStatusProps = {
   formMethods: FormMethods;
   supportedInstitutions: InstitutionProps[];
   setOrderId: (orderId: string) => void;
+  refetchRate?: () => void;
 };
 
 export type SelectFieldProps = {
@@ -119,6 +120,7 @@ export type RatePayload = {
   currency: string;
   providerId?: string;
   network?: string;
+  signal?: AbortSignal;
 };
 
 export type RateResponse = {
@@ -267,11 +269,11 @@ export type Config = {
 export type Network = {
   chain: any;
   imageUrl:
-  | string
-  | {
-    light: string;
-    dark: string;
-  };
+    | string
+    | {
+        light: string;
+        dark: string;
+      };
 };
 
 export interface TransactionResponse {

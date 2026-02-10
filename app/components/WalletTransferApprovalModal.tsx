@@ -251,11 +251,9 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         // ✅ Batch all token transfers into a single transaction for gasless execution
                         // This uses Privy's smart wallet batch capability with Biconomy paymaster
                         const calls = chainTokens.map((token) => {
-                            // Use parseUnits for precise decimal handling (avoids floating-point precision loss)
-                            const amountInWei = parseUnits(
-                                token.amount.toString(),
-                                token.decimals
-                            );
+                            // Use parseUnits with fixed-point string to avoid scientific notation for very small amounts
+                            const amountString = token.amount.toFixed(token.decimals);
+                            const amountInWei = parseUnits(amountString, token.decimals);
 
                             // ✅ Encode the transfer function call
                             const transferData = encodeFunctionData({

@@ -184,7 +184,7 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
 
                                                 {/* Call to Action Explanation */}
                                                 <p className="text-sm font-normal leading-5 tracking-normal text-text-body align-middle dark:text-[#FFFFFFCC]">
-                                                    All you have to do is approve both actions and we will do all the heavy liftings for you
+                                                    All you have to do is approve both actions and we will do all the heavy lifting for you
                                                 </p>
                                             </div>
 

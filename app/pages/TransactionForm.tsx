@@ -553,7 +553,7 @@ export const TransactionForm = ({
           setValue("token", defaultToken, { shouldDirty: true });
         }
       }
-     // Clear walletAddress when switching to onramp mode
+      // Clear walletAddress when switching to onramp mode
       if (!walletAddress) {
         setValue("walletAddress", "", { shouldDirty: true });
       }
@@ -707,7 +707,49 @@ export const TransactionForm = ({
         noValidate
       >
         <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
-          <h3 className="px-2 py-1 text-base font-medium">Swap</h3>
+          <div className="flex items-center justify-between px-2 py-1">
+            <h3 className="text-base font-medium">Swap</h3>
+
+            <div className="flex items-center gap-1">
+              {/* Onramp button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isSwapped) {
+                    void handleSwapFields();
+                  }
+                }}
+                className={[
+                  "px-3 h-8 text-sm font-medium rounded-full transition-colors",
+                  "bg-neutral-100 dark:bg-[#141414]",
+                  isSwapped
+                    ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
+                    : "border border-transparent text-neutral-400 dark:text-[#FFFFFF80]",
+                ].join(" ")}
+              >
+                Onramp
+              </button>
+
+              {/* Offramp button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSwapped) {
+                    void handleSwapFields();
+                  }
+                }}
+                className={[
+                  "px-3 h-8 text-sm font-medium rounded-full transition-colors",
+                  "bg-neutral-100 dark:bg-[#141414]",
+                  !isSwapped
+                    ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
+                    : "border border-transparent text-neutral-400 dark:text-[#FFFFFF80]",
+                ].join(" ")}
+              >
+                Offramp
+              </button>
+            </div>
+          </div>
 
           <motion.div
             layout

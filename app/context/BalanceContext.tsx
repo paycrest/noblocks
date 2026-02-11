@@ -19,7 +19,6 @@ import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createPublicClient, http } from "viem";
 import { useInjectedWallet } from "./InjectedWalletContext";
-import { bsc } from "viem/chains";
 import { networks } from "../mocks";
 import type { Network } from "../types";
 
@@ -122,83 +121,21 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   // Cannot use useShouldUseEOA here (it uses useBalance and would create a circular dependency)
   const { isMigrationComplete } = useMigrationStatus();
-  // Fetch balances from all networks in parallel
-  const fetchCrossChainBalances = async (address: string) => {
-    const results: PromiseSettledResult<CrossChainBalanceEntry>[] = [];
 
-    // Process networks in batches
-    for (let i = 0; i < networks.length; i += CROSS_CHAIN_CONCURRENCY) {
-      const batch = networks.slice(i, i + CROSS_CHAIN_CONCURRENCY);
-
-      const batchResults = await Promise.allSettled(
-        batch.map(async (network) => {
-          const publicClient = createPublicClient({
-            chain: network.chain,
-            transport: http(getRpcUrl(network.chain.name)),
-          });
-
-          const rawResult = await fetchWalletBalance(publicClient, address);
-
-          // Apply CNGN correction for this specific network
-          const cngnRate = await getCNGNRateForNetwork(network.chain.name);
-
-          // Store raw balances before any modifications
-          const rawBalances = { ...rawResult.balances };
-
-          const correctedTotal = calculateCorrectedTotalBalance(
-            rawResult,
-            cngnRate,
-          );
-
-          // Apply CNGN balance conversion and use returned value
-          const correctedBalances = applyCNGNBalanceConversion(
-            rawResult.balances,
-            cngnRate,
-          );
-
-          const correctedResult = {
-            total: correctedTotal,
-            balances: correctedBalances,
-            rawBalances: rawBalances,
-          };
-
-          return {
-            network,
-            balances: correctedResult,
-          };
-        }),
-      );
-
-      results.push(
-        ...(batchResults as PromiseSettledResult<CrossChainBalanceEntry>[]),
-      );
-    }
-
-    // Filter fulfilled results, skip rejected (RPC failures)
-    const successfulResults = results
-      .filter((result) => result.status === "fulfilled")
-      .map(
-        (result) =>
-          (result as PromiseFulfilledResult<CrossChainBalanceEntry>).value,
-      );
-
-    setCrossChainBalances(successfulResults);
-  };
-
-  /** Fetches cross-chain total for an address without updating crossChainBalances. Used to detect SCW remaining funds after migration. */
-  const fetchCrossChainTotalForAddress = async (
+  /**
+   * Shared helper: fetches cross-chain balance entries for an address.
+   * Uses getRpcUrl(chainName) for RPC; undefined is passed to http() so viem falls back to chain defaults.
+   * Used by fetchCrossChainBalances (state update) and fetchCrossChainTotalForAddress (aggregate total).
+   */
+  const fetchCrossChainEntriesForAddress = async (
     address: string,
-  ): Promise<number> => {
+  ): Promise<CrossChainBalanceEntry[]> => {
     const results: CrossChainBalanceEntry[] = [];
     for (let i = 0; i < networks.length; i += CROSS_CHAIN_CONCURRENCY) {
       const batch = networks.slice(i, i + CROSS_CHAIN_CONCURRENCY);
       const batchResults = await Promise.allSettled(
         batch.map(async (network) => {
-          const rpcUrl =
-            network.chain.id === bsc.id
-              ? "https://bsc-dataseed.bnbchain.org/"
-              : getRpcUrl(network.chain.name);
-          if (!rpcUrl) return { network, balances: { total: 0, balances: {} } };
+          const rpcUrl = getRpcUrl(network.chain.name);
           const publicClient = createPublicClient({
             chain: network.chain,
             transport: http(rpcUrl),
@@ -228,7 +165,20 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         if (r.status === "fulfilled") results.push(r.value);
       });
     }
-    return results.reduce(
+    return results;
+  };
+
+  const fetchCrossChainBalances = async (address: string) => {
+    const entries = await fetchCrossChainEntriesForAddress(address);
+    setCrossChainBalances(entries);
+  };
+
+  /** Fetches cross-chain total for an address without updating crossChainBalances. Used to detect SCW remaining funds after migration. */
+  const fetchCrossChainTotalForAddress = async (
+    address: string,
+  ): Promise<number> => {
+    const entries = await fetchCrossChainEntriesForAddress(address);
+    return entries.reduce(
       (sum, entry) => sum + (entry.balances.total || 0),
       0,
     );
@@ -269,11 +219,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
         const publicClient = createPublicClient({
           chain: selectedNetwork.chain,
-          transport: http(
-            selectedNetwork.chain.id === bsc.id
-              ? "https://bsc-dataseed.bnbchain.org/"
-              : getRpcUrl(selectedNetwork.chain.name),
-          ),
+          transport: http(getRpcUrl(selectedNetwork.chain.name)),
         });
 
         let primaryIsEOA = false;

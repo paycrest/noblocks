@@ -162,6 +162,7 @@ interface WalletMigrationStatus {
     needsMigration: boolean;
     isChecking: boolean;
     showZeroBalanceMessage: boolean;
+    isRemainingFundsMigration: boolean;
 }
 
 /**
@@ -171,7 +172,7 @@ interface WalletMigrationStatus {
  */
 export function useWalletMigrationStatus(): WalletMigrationStatus {
     const { user, authenticated, getAccessToken } = usePrivy();
-    const { allBalances, isLoading: isBalanceLoading } = useBalance();
+    const { allBalances, isLoading: isBalanceLoading, smartWalletRemainingTotal } = useBalance();
     const [needsMigration, setNeedsMigration] = useState(false);
     const [showZeroBalanceMessage, setShowZeroBalanceMessage] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
@@ -245,8 +246,8 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
         }
 
         if (isMigrationComplete) {
-            // Migration is complete - hide all migration UI
-            setNeedsMigration(false);
+            // DB says migrated: show migration banner again only if SCW still has funds on any network (partial migration)
+            setNeedsMigration(smartWalletRemainingTotal > 0);
             setShowZeroBalanceMessage(false);
         } else {
             // Migration not complete - show UI based on balance
@@ -255,9 +256,12 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
             setNeedsMigration(hasBalance);
             setShowZeroBalanceMessage(!hasBalance);
         }
-    }, [isMigrationComplete, allBalances.smartWallet?.total, isBalanceLoading]);
+    }, [isMigrationComplete, allBalances.smartWallet?.total, isBalanceLoading, smartWalletRemainingTotal]);
 
-    return { needsMigration, isChecking, showZeroBalanceMessage };
+    const isRemainingFundsMigration =
+        isMigrationComplete === true && smartWalletRemainingTotal > 0;
+
+    return { needsMigration, isChecking, showZeroBalanceMessage, isRemainingFundsMigration };
 }
 
 /** Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation. */

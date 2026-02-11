@@ -4,8 +4,15 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import WalletMigrationModal from "./WalletMigrationModal";
 
-export const WalletMigrationBanner = () => {
+const MIGRATION_DEADLINE = new Date("2026-02-28");
+
+interface WalletMigrationBannerProps {
+    isRemainingFundsMigration?: boolean;
+}
+
+export const WalletMigrationBanner = ({ isRemainingFundsMigration = false }: WalletMigrationBannerProps) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const isMigrationMandatory = new Date() >= MIGRATION_DEADLINE;
 
     const handleStartMigration = () => {
         setIsModalOpen(true);
@@ -38,14 +45,29 @@ export const WalletMigrationBanner = () => {
 
                         <div className="flex flex-col items-start justify-center gap-1 text-left text-sm font-medium leading-tight text-white/80">
                             <span className="block text-base font-bold leading-6 text-white/80">
-                                Your wallet address has been updated.
+                                {isRemainingFundsMigration
+                                    ? "You have funds left in your previous wallet."
+                                    : "Your wallet address has been updated."}
                             </span>
                             <span className="block text-sm font-medium leading-[21px] text-white/80">
-                                You can now export your wallet and use it with MetaMask or other platforms. Migration will be mandatory after{" "}
-                                <span className="font-semibold text-white">
-                                    28th February 2026.
-                                </span>{" "}
-                                Start migration to transfer your funds.
+                                {isRemainingFundsMigration
+                                    ? "Transfer your remaining funds to your new wallet."
+                                    : (
+                                        <>
+                                            You can now export your wallet and use it with MetaMask or other platforms.{" "}
+                                            {isMigrationMandatory ? (
+                                                "Migration is now mandatory."
+                                            ) : (
+                                                <>
+                                                    Migration will be mandatory after{" "}
+                                                    <span className="font-semibold text-white">
+                                                        28th February 2026.
+                                                    </span>
+                                                </>
+                                            )}{" "}
+                                            Start migration to transfer your funds.
+                                        </>
+                                    )}
                             </span>
                         </div>
                     </div>
@@ -55,7 +77,7 @@ export const WalletMigrationBanner = () => {
                             onClick={handleStartMigration}
                             className="whitespace-nowrap rounded-xl bg-white px-6 py-2.5 text-sm font-semibold text-neutral-900 transition-all hover:bg-white/90 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-[#2D77E2] active:bg-white/80"
                         >
-                            Start migration
+                            {isRemainingFundsMigration ? "Complete migration" : "Start migration"}
                         </button>
                     </div>
                 </div>
@@ -78,16 +100,31 @@ export const WalletMigrationBanner = () => {
                     />
                 </div>
 
-                <div className="relative z-10 mb-6 pl-4 pr-10">
+                <div className="relative z-10 mb-1 pl-4 pr-8">
                     <span className="block text-base font-bold leading-6 text-white/80">
-                        Your wallet address has been updated.
+                        {isRemainingFundsMigration
+                            ? "You have funds left in your previous wallet."
+                            : "Your wallet address has been updated."}
                     </span>
                     <span className="block text-sm font-medium leading-[21px] text-white/80">
-                        You can now export your wallet and use it with MetaMask or other platforms. Migration will be mandatory after{" "}
-                        <span className="font-semibold text-white">
-                            28th February 2026.
-                        </span>{" "}
-                        Start migration to transfer your funds.
+                        {isRemainingFundsMigration
+                            ? "Transfer your remaining funds to your new wallet."
+                            : (
+                                <>
+                                    You can now export your wallet and use it with MetaMask or other platforms.{" "}
+                                    {isMigrationMandatory ? (
+                                        "Migration is now mandatory."
+                                    ) : (
+                                        <>
+                                            Migration will be mandatory after{" "}
+                                            <span className="font-semibold text-white">
+                                                28th February 2026.
+                                            </span>
+                                        </>
+                                    )}{" "}
+                                    Start migration to transfer your funds.
+                                </>
+                            )}
                     </span>
                 </div>
 
@@ -96,7 +133,7 @@ export const WalletMigrationBanner = () => {
                         onClick={handleStartMigration}
                         className="rounded-xl bg-white px-8 py-3 text-base font-semibold text-neutral-900 transition-all hover:bg-white/90 active:bg-white/80"
                     >
-                        Start migration
+                        {isRemainingFundsMigration ? "Complete migration" : "Start migration"}
                     </button>
                 </div>
             </motion.div>

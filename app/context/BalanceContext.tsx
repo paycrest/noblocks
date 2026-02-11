@@ -19,7 +19,6 @@ import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createPublicClient, http } from "viem";
 import { useInjectedWallet } from "./InjectedWalletContext";
-import { bsc } from "viem/chains";
 import { networks } from "../mocks";
 import type { Network } from "../types";
 
@@ -84,6 +83,7 @@ interface BalanceContextProps {
   };
   crossChainBalances: CrossChainBalanceEntry[];
   crossChainTotal: number;
+  smartWalletRemainingTotal: number;
   refreshBalance: () => void;
   isLoading: boolean;
 }
@@ -109,6 +109,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [crossChainBalances, setCrossChainBalances] = useState<
     CrossChainBalanceEntry[]
   >([]);
+  const [smartWalletRemainingTotal, setSmartWalletRemainingTotal] =
+    useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
   // Hook for CNGN rate to correct total balances
@@ -119,67 +121,67 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   // Cannot use useShouldUseEOA here (it uses useBalance and would create a circular dependency)
   const { isMigrationComplete } = useMigrationStatus();
-  // Fetch balances from all networks in parallel
-  const fetchCrossChainBalances = async (address: string) => {
-    const results: PromiseSettledResult<CrossChainBalanceEntry>[] = [];
 
-    // Process networks in batches
+  /**
+   * Shared helper: fetches cross-chain balance entries for an address.
+   * Uses getRpcUrl(chainName) for RPC; undefined is passed to http() so viem falls back to chain defaults.
+   * Used by fetchCrossChainBalances (state update) and fetchCrossChainTotalForAddress (aggregate total).
+   */
+  const fetchCrossChainEntriesForAddress = async (
+    address: string,
+  ): Promise<CrossChainBalanceEntry[]> => {
+    const results: CrossChainBalanceEntry[] = [];
     for (let i = 0; i < networks.length; i += CROSS_CHAIN_CONCURRENCY) {
       const batch = networks.slice(i, i + CROSS_CHAIN_CONCURRENCY);
-
       const batchResults = await Promise.allSettled(
         batch.map(async (network) => {
+          const rpcUrl = getRpcUrl(network.chain.name);
           const publicClient = createPublicClient({
             chain: network.chain,
-            transport: http(getRpcUrl(network.chain.name)),
+            transport: http(rpcUrl),
           });
-
           const rawResult = await fetchWalletBalance(publicClient, address);
-
-          // Apply CNGN correction for this specific network
           const cngnRate = await getCNGNRateForNetwork(network.chain.name);
-
-          // Store raw balances before any modifications
           const rawBalances = { ...rawResult.balances };
-
           const correctedTotal = calculateCorrectedTotalBalance(
             rawResult,
             cngnRate,
           );
-
-          // Apply CNGN balance conversion and use returned value
           const correctedBalances = applyCNGNBalanceConversion(
             rawResult.balances,
             cngnRate,
           );
-
-          const correctedResult = {
-            total: correctedTotal,
-            balances: correctedBalances,
-            rawBalances: rawBalances,
-          };
-
           return {
             network,
-            balances: correctedResult,
+            balances: {
+              total: correctedTotal,
+              balances: correctedBalances,
+              rawBalances,
+            },
           };
         }),
       );
-
-      results.push(
-        ...(batchResults as PromiseSettledResult<CrossChainBalanceEntry>[]),
-      );
+      batchResults.forEach((r) => {
+        if (r.status === "fulfilled") results.push(r.value);
+      });
     }
+    return results;
+  };
 
-    // Filter fulfilled results, skip rejected (RPC failures)
-    const successfulResults = results
-      .filter((result) => result.status === "fulfilled")
-      .map(
-        (result) =>
-          (result as PromiseFulfilledResult<CrossChainBalanceEntry>).value,
-      );
+  const fetchCrossChainBalances = async (address: string) => {
+    const entries = await fetchCrossChainEntriesForAddress(address);
+    setCrossChainBalances(entries);
+  };
 
-    setCrossChainBalances(successfulResults);
+  /** Fetches cross-chain total for an address without updating crossChainBalances. Used to detect SCW remaining funds after migration. */
+  const fetchCrossChainTotalForAddress = async (
+    address: string,
+  ): Promise<number> => {
+    const entries = await fetchCrossChainEntriesForAddress(address);
+    return entries.reduce(
+      (sum, entry) => sum + (entry.balances.total || 0),
+      0,
+    );
   };
 
   const fetchBalances = async () => {
@@ -188,6 +190,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       setExternalWalletBalance(null);
       setInjectedWalletBalance(null);
       setCrossChainBalances([]);
+      setSmartWalletRemainingTotal(0);
     };
 
     setIsLoading(true);
@@ -216,11 +219,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
         const publicClient = createPublicClient({
           chain: selectedNetwork.chain,
-          transport: http(
-            selectedNetwork.chain.id === bsc.id
-              ? "https://bsc-dataseed.bnbchain.org/"
-              : getRpcUrl(selectedNetwork.chain.name),
-          ),
+          transport: http(getRpcUrl(selectedNetwork.chain.name)),
         });
 
         let primaryIsEOA = false;
@@ -243,6 +242,15 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           setSmartWalletBalance(null);
           // Navbar and WalletDetails use crossChainTotal; populate it for EOA
           await fetchCrossChainBalances(embeddedWalletAccount.address);
+          // Even when DB says migrated, check if SCW still has funds on any network (e.g. partial migration)
+          if (smartWalletAccount) {
+            const remaining = await fetchCrossChainTotalForAddress(
+              smartWalletAccount.address,
+            );
+            setSmartWalletRemainingTotal(remaining);
+          } else {
+            setSmartWalletRemainingTotal(0);
+          }
         } else if (smartWalletAccount) {
           // Not migrated: fetch SCW balance first
           const result = await fetchWalletBalance(
@@ -417,6 +425,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         allBalances,
         crossChainBalances,
         crossChainTotal,
+        smartWalletRemainingTotal,
         refreshBalance: fetchBalances,
         isLoading,
       }}

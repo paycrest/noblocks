@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import {
   validatePhoneNumber,
@@ -12,6 +13,10 @@ import {
   trackApiError,
 } from "../../../lib/server-analytics";
 import { rateLimit } from "@/app/lib/rate-limit";
+
+function hashOTP(otp: string): string {
+  return createHash("sha256").update(otp).digest("hex");
+}
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -32,9 +37,7 @@ export async function POST(request: NextRequest) {
     const { phoneNumber, name } = body;
 
     // Use authenticated wallet address and user ID from middleware
-    const walletAddress = request.headers
-      .get("x-wallet-address")
-      ?.toLowerCase();
+    const walletAddress = request.headers.get("x-wallet-address");
     const userId = request.headers.get("x-user-id");
 
     if (!walletAddress) {
@@ -90,25 +93,26 @@ export async function POST(request: NextRequest) {
       .select(
         "tier, verified, verified_at, id_country, id_type, platform, full_name",
       )
-      .eq("wallet_address", walletAddress.toLowerCase())
+      .eq("wallet_address", walletAddress)
       .single();
 
     const isNigerian = validation.isNigerian;
     const expiresAt = new Date(Date.now() + (isNigerian ? 5 : 10) * 60 * 1000); // 5 min KudiSMS, 10 min Twilio Verify
 
-    // Nigerian: we generate OTP and store it. Non-Nigerian: Twilio Verify sends its own code, we don't store one.
+    // Nigerian: we generate OTP, hash it, and store the hash. Non-Nigerian: Twilio Verify sends its own code.
     const otp = isNigerian ? generateOTP() : null;
+    const otpHash = otp ? hashOTP(otp) : null;
 
-    // Store verification record (otp_code only for Nigerian/KudiSMS path)
+    // Store verification record (otp_code hash only for Nigerian/KudiSMS path)
     const { error: dbError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .upsert(
         {
-          wallet_address: walletAddress.toLowerCase(),
+          wallet_address: walletAddress,
           user_id: userId,
           full_name: name || existingProfile?.full_name || null,
           phone_number: validation.e164Format,
-          otp_code: otp,
+          otp_code: otpHash,
           expires_at: expiresAt.toISOString(),
           verified: existingProfile?.verified || false,
           verified_at: existingProfile?.verified_at || null,
@@ -125,7 +129,6 @@ export async function POST(request: NextRequest) {
       );
 
     if (dbError) {
-      console.error("Database error:", dbError);
       trackApiError(request, "/api/phone/send-otp", "POST", dbError, 500);
       return NextResponse.json(
         { success: false, error: "Failed to store verification data" },
@@ -166,7 +169,6 @@ export async function POST(request: NextRequest) {
       phoneNumber: validation.internationalFormat,
     });
   } catch (error) {
-    console.error("Send OTP error:", error);
     trackApiError(request, "/api/phone/send-otp", "POST", error as Error, 500);
 
     return NextResponse.json(

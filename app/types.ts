@@ -245,10 +245,9 @@ export type InitiateKYCResponse = {
 export type SmileIDSubmissionResponse = {
   status: string;
   message: string;
-  data: {
+  data?: {
     jobId: string;
     userId: string;
-    smileIdResponse: any;
   };
 };
 

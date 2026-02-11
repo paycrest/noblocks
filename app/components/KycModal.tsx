@@ -4,12 +4,18 @@ import { toast } from "sonner";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 declare global {
   namespace JSX {
     interface IntrinsicElements {
       "smart-camera-web": any;
     }
+  }
+  interface Window {
+    tf?: {
+      load: () => void;
+      reload: () => void;
+    };
   }
 }
 
@@ -64,6 +70,8 @@ export const STEPS = {
   TIER3_PROMPT: "tier3_prompt",
   TIER3_COUNTRY: "tier3_country",
   TIER3_UPLOAD: "tier3_upload",
+  // Tier 4 (business verification) flow
+  TIER4_TYPEFORM: "tier4_typeform",
 } as const;
 
 type Step =
@@ -75,7 +83,8 @@ type Step =
   | (typeof STEPS.STATUS)[keyof typeof STEPS.STATUS]
   | typeof STEPS.TIER3_PROMPT
   | typeof STEPS.TIER3_COUNTRY
-  | typeof STEPS.TIER3_UPLOAD;
+  | typeof STEPS.TIER3_UPLOAD
+  | typeof STEPS.TIER4_TYPEFORM;
 
 // Types for ID types JSON
 type IdType = {
@@ -111,7 +120,7 @@ export const KycModal = ({
 }: {
   setIsUserVerified: (value: boolean) => void;
   setIsKycModalOpen: (value: boolean) => void;
-  targetTier?: 2 | 3;
+  targetTier?: 2 | 3 | 4;
 }) => {
   const { getAccessToken, user } = usePrivy();
   const { wallets } = useWallets();
@@ -125,7 +134,11 @@ export const KycModal = ({
     : embeddedWallet?.address;
 
   const [step, setStep] = useState<Step>(() =>
-    targetTier === 3 ? STEPS.TIER3_PROMPT : STEPS.LOADING,
+    targetTier === 4
+      ? STEPS.TIER4_TYPEFORM
+      : targetTier === 3
+        ? STEPS.TIER3_PROMPT
+        : STEPS.LOADING,
   );
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -149,7 +162,9 @@ export const KycModal = ({
   const [tier3UploadedFile, setTier3UploadedFile] = useState<File | null>(null);
   const [tier3RequirementsOpen, setTier3RequirementsOpen] = useState(false);
   const [tier3Submitting, setTier3Submitting] = useState(false);
-  const [tier3ErrorMessage, setTier3ErrorMessage] = useState<string | null>(null);
+  const [tier3ErrorMessage, setTier3ErrorMessage] = useState<string | null>(
+    null,
+  );
   const { refreshStatus } = useKYC();
   const countries = getAllCountries();
   const tier3CountryOptions = countries.map((c) => ({
@@ -177,18 +192,18 @@ export const KycModal = ({
   );
 
   useEffect(() => {
+    // Only load SmileID components for Tier 2 verification flow
+    if (targetTier === 3 || targetTier === 4) return;
     if (typeof window !== "undefined" && !smileIdLoaded) {
       import("@smileid/web-components/smart-camera-web")
         .then(() => {
-          console.log("SmileID web components loaded");
           setSmileIdLoaded(true);
         })
-        .catch((error) => {
-          console.error("Failed to load SmileID components:", error);
+        .catch(() => {
           toast.error("Failed to load verification component");
         });
     }
-  }, [smileIdLoaded]);
+  }, [smileIdLoaded, targetTier]);
 
   const handleAcceptTerms = () => {
     setIsKycModalOpen(true);
@@ -530,7 +545,10 @@ export const KycModal = ({
         <button
           type="button"
           className={`${primaryBtnClasses} w-full`}
-          onClick={() => setIsKycModalOpen(false)}
+          onClick={async () => {
+            await refreshStatus();
+            setIsKycModalOpen(false);
+          }}
         >
           Got it
         </button>
@@ -556,7 +574,8 @@ export const KycModal = ({
       <button
         type="button"
         className={`${primaryBtnClasses} w-full`}
-        onClick={() => {
+        onClick={async () => {
+          await refreshStatus();
           setIsUserVerified(true);
           setIsKycModalOpen(false);
         }}
@@ -721,7 +740,7 @@ export const KycModal = ({
           </p>
         </div>
       </div>
-      <div className="rounded-2xl bg-[#141414] p-2">
+      <div className="rounded-2xl bg-gray-50 p-2 dark:bg-[#141414]">
         <Tier3AddressCard className="border-none bg-transparent" />
         <div className="p-2">
           <label className="mb-1.5 block text-xs font-normal text-gray-700 dark:text-white/80">
@@ -754,7 +773,7 @@ export const KycModal = ({
           </FlexibleDropdown>
         </div>
         {tier3CountryCode != "" && (
-          <div className="space-y-2 p-2">
+          <div className="space-y-4 p-2">
             <div>
               <label className="mb-1.5 block text-xs font-normal text-gray-700 dark:text-white/80">
                 House Number
@@ -841,7 +860,9 @@ export const KycModal = ({
       if (!file) return;
       const ext = file.name.split(".").pop()?.toUpperCase();
       if (!ext || !ALLOWED_TIER3_EXTENSIONS.includes(ext)) {
-        setTier3ErrorMessage("Invalid file type; allowed: JPG, PNG, PDF, DOC, JPEG, DOCX");
+        setTier3ErrorMessage(
+          "Invalid file type; allowed: JPG, PNG, PDF, DOC, JPEG, DOCX",
+        );
         return;
       }
       if (file.size > TIER3_MAX_BYTES) {
@@ -857,7 +878,9 @@ export const KycModal = ({
       if (!file) return;
       const ext = file.name.split(".").pop()?.toUpperCase();
       if (!ext || !ALLOWED_TIER3_EXTENSIONS.includes(ext)) {
-        setTier3ErrorMessage("Invalid file type; allowed: JPG, PNG, PDF, DOC, JPEG, DOCX");
+        setTier3ErrorMessage(
+          "Invalid file type; allowed: JPG, PNG, PDF, DOC, JPEG, DOCX",
+        );
         return;
       }
       if (file.size > TIER3_MAX_BYTES) {
@@ -889,7 +912,7 @@ export const KycModal = ({
             address
           </p>
         </div>
-        <div className="rounded-2xl bg-[#141414] p-2">
+        <div className="rounded-2xl bg-gray-50 p-2 dark:bg-[#141414]">
           <Tier3AddressCard className="border-none bg-transparent" />
           <div className="p-2">
             <p className="mb-1.5 flex items-center gap-1 text-xs font-light text-gray-500 dark:text-white/50">
@@ -942,61 +965,77 @@ export const KycModal = ({
           </div>
         </div>
         {tier3DocumentType && (
-        <div className="bg-[#141414] rounded-2xl p-4">
-          <div className="mb-1.5 flex items-center justify-between">
-            <label className="text-xs font-normal text-gray-700 dark:text-white/70">
-              Upload {docLabel}
-            </label>
-            <button
-              type="button"
-              onClick={() => setTier3RequirementsOpen(true)}
-              className="text-xs text-lavender-500 hover:underline"
-            >
-              See requirements
-            </button>
-          </div>
-          <div
-            onDrop={handleTier3Drop}
-            onDragOver={(e) => e.preventDefault()}
-            className={classNames(
-              "flex flex-col items-start px-4 justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-white/5 py-3 bg-transparent",
-              tier3UploadedFile ? "border-lavender-500/50" : "",
-            )}
-          >
-            <div className="bg-transparent border border-white/10 shadow-xs shadow-[#A9A9BC] rounded-xl p-2">
-            {tier3UploadedFile ? <Tick01Icon className="size-4 text-green-500" /> : <FileAddIcon className="size-4 text-white/50" />}
-            </div>
-            {tier3UploadedFile ? (
-              <>
-               <p className="flex items-center gap-1 text-xs font-light text-gray-600 dark:text-white/70">
-                {tier3UploadedFile.name} <PencilEdit02Icon className="size-3.5 text-lavender-500" /> <span className="text-lavender-500 hover:underline">change</span>
-               </p>
-               <p className="text-xs font-extralight text-gray-500 dark:text-white/50">
-               Size: {(tier3UploadedFile.size / 1024 / 1024).toFixed(2)} MB Format: {String(tier3UploadedFile.type?.split("/")[1] ?? tier3UploadedFile.name?.split(".").pop() ?? "UNKNOWN").toUpperCase()}
-               </p>
-</>
-            ) : (
-              <>
-            <p className="flex items-center gap-1 text-xs font-light text-gray-600 dark:text-white/70">
-              Drag and drop or{" "}
-              <label className="flex items-center gap-1 cursor-pointer text-lavender-500 hover:underline">
-                <Folder02Icon className="size-3.5" /> browse file
-                <input
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
-                  className="sr-only"
-                  onChange={handleTier3FileChange}
-                />
+          <div className="rounded-2xl bg-gray-50 p-4 dark:bg-[#141414]">
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="text-xs font-normal text-gray-700 dark:text-white/70">
+                Upload {docLabel}
               </label>
-            </p>
-            <p className="text-xs font-extralight text-gray-500 dark:text-white/50">
-              JPG, PNG, PDF, DOC allowed. 5MB Max.
-            </p>
-            </>
-            )}
-            {tier3ErrorMessage && (
-              <p className="mt-1 text-xs text-red-500 dark:text-red-400">{tier3ErrorMessage}</p>
-            )}
+              <button
+                type="button"
+                onClick={() => setTier3RequirementsOpen(true)}
+                className="text-xs text-lavender-500 hover:underline"
+              >
+                See requirements
+              </button>
+            </div>
+            <div
+              onDrop={handleTier3Drop}
+              onDragOver={(e) => e.preventDefault()}
+              className={classNames(
+                "flex flex-col items-start justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-white/5 bg-transparent px-4 py-3",
+                tier3UploadedFile ? "border-lavender-500/50" : "",
+              )}
+            >
+              <div className="shadow-xs rounded-xl border border-white/5 bg-transparent p-2 shadow-[0_1px_2px_rgba(0,0,0,0.5)] dark:border-white/10 dark:shadow-[#A9A9BC]">
+                {tier3UploadedFile ? (
+                  <Tick01Icon className="size-4 text-green-500" />
+                ) : (
+                  <FileAddIcon className="size-4 text-black dark:text-white/50" />
+                )}
+              </div>
+              {tier3UploadedFile ? (
+                <>
+                  <p className="flex items-center gap-1 text-xs font-light text-gray-600 dark:text-white/70">
+                    {tier3UploadedFile.name}{" "}
+                    <PencilEdit02Icon className="size-3.5 text-lavender-500" />{" "}
+                    <span className="text-lavender-500 hover:underline">
+                      change
+                    </span>
+                  </p>
+                  <p className="text-xs font-extralight text-gray-500 dark:text-white/50">
+                    Size: {(tier3UploadedFile.size / 1024 / 1024).toFixed(2)} MB
+                    Format:{" "}
+                    {String(
+                      tier3UploadedFile.type?.split("/")[1] ??
+                        tier3UploadedFile.name?.split(".").pop() ??
+                        "UNKNOWN",
+                    ).toUpperCase()}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="flex items-center gap-1 text-xs font-light text-gray-600 dark:text-white/70">
+                    Drag and drop or{" "}
+                    <label className="flex cursor-pointer items-center gap-1 text-lavender-500 hover:underline">
+                      <Folder02Icon className="size-3.5" /> browse file
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
+                        className="sr-only"
+                        onChange={handleTier3FileChange}
+                      />
+                    </label>
+                  </p>
+                  <p className="text-xs font-extralight text-gray-500 dark:text-white/50">
+                    JPG, PNG, PDF, DOC allowed. 5MB Max.
+                  </p>
+                </>
+              )}
+              {tier3ErrorMessage && (
+                <p className="mt-1 text-xs text-red-500 dark:text-red-400">
+                  {tier3ErrorMessage}
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -1035,7 +1074,7 @@ export const KycModal = ({
                   body: formData,
                 });
                 const data = await res.json();
-                if (data.status === "success") {
+                if (data.success) {
                   await refreshStatus();
                   setIsUserVerified(true);
                   setStep(STEPS.STATUS.SUCCESS);
@@ -1062,8 +1101,88 @@ export const KycModal = ({
     setIsRefreshing(false);
   };
 
+  // Tier 4: Typeform live embed
+  const typeformContainerRef = useRef<HTMLDivElement>(null);
+  const typeformScriptLoaded = useRef(false);
+  const [isTypeformReady, setIsTypeformReady] = useState(false);
+
+  useEffect(() => {
+    if (step !== STEPS.TIER4_TYPEFORM) return;
+    setIsTypeformReady(false);
+
+    const loadScript = () => {
+      if (typeformScriptLoaded.current && window.tf) {
+        window.tf.load();
+        return;
+      }
+
+      const existing = document.querySelector(
+        'script[src*="embed.typeform.com/next/embed.js"]',
+      );
+      if (existing) {
+        typeformScriptLoaded.current = true;
+        window.tf?.load();
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = "//embed.typeform.com/next/embed.js";
+      script.async = true;
+      script.onload = () => {
+        typeformScriptLoaded.current = true;
+      };
+      document.head.appendChild(script);
+    };
+
+    const scriptTimer = setTimeout(loadScript, 100);
+    const spinnerTimer = setTimeout(() => setIsTypeformReady(true), 2000);
+
+    return () => {
+      clearTimeout(scriptTimer);
+      clearTimeout(spinnerTimer);
+    };
+  }, [step]);
+
+  const renderTier4Typeform = () => (
+    <motion.div key="tier4_typeform" {...fadeInOut} className="space-y-4">
+      <div className="space-y-3">
+        <UserDetailsIcon />
+        <div>
+          <h2 className="text-lg font-medium dark:text-white">
+            Business verification
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-white/50">
+            Complete this form to apply for unlimited transaction limits.
+          </p>
+        </div>
+      </div>
+
+      {!isTypeformReady && (
+        <div className="flex items-center justify-center py-10">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-lavender-500 border-t-white"></div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => setIsKycModalOpen(false)}
+          className={`${secondaryBtnClasses} w-2/3`}
+        >
+          Close
+        </button>
+        <div
+          ref={typeformContainerRef}
+          data-tf-live="01KH3NC0M1G4MNHBCWM320WBP9"
+          style={{ width: "", minHeight: "11px" }}
+          className=""
+        />
+      </div>
+    </motion.div>
+  );
+
   const fetchStatus = async () => {
-    if (!walletAddress || targetTier === 3) return;
+    if (!walletAddress || targetTier === 3 || targetTier === 4) return;
 
     try {
       const response = await fetchKYCStatus(walletAddress);
@@ -1226,10 +1345,6 @@ export const KycModal = ({
           setStep(STEPS.STATUS.FAILED);
         }
       } catch (error) {
-        if (error instanceof Error) {
-          console.error("Error message:", error.message);
-          console.error("Error stack:", error.stack);
-        }
         toast.error("Failed to submit verification data");
         setStep(STEPS.STATUS.FAILED);
       }
@@ -1287,6 +1402,7 @@ export const KycModal = ({
             [STEPS.TIER3_PROMPT]: renderTier3Prompt(),
             [STEPS.TIER3_COUNTRY]: renderTier3Country(),
             [STEPS.TIER3_UPLOAD]: renderTier3Upload(),
+            [STEPS.TIER4_TYPEFORM]: renderTier4Typeform(),
           }[step]
         }
       </AnimatePresence>

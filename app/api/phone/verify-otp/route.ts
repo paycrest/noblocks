@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import {
   trackApiRequest,
@@ -12,6 +13,10 @@ import {
 
 const MAX_ATTEMPTS = 3;
 
+function hashOTP(otp: string): string {
+  return createHash("sha256").update(otp).digest("hex");
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
@@ -22,9 +27,7 @@ export async function POST(request: NextRequest) {
     const { phoneNumber, otpCode } = body;
 
     // Use authenticated wallet address from middleware
-    const walletAddress = request.headers
-      .get("x-wallet-address")
-      ?.toLowerCase();
+    const walletAddress = request.headers.get("x-wallet-address");
 
     if (!walletAddress) {
       trackApiError(
@@ -73,13 +76,12 @@ export async function POST(request: NextRequest) {
     // Get verification record using normalized E.164 format
     const { data: verification, error: fetchError } = await supabaseAdmin
       .from("user_kyc_profiles")
-      .select("*")
-      .eq("wallet_address", walletAddress.toLowerCase())
+      .select("verified, provider, tier, expires_at, attempts, otp_code")
+      .eq("wallet_address", walletAddress)
       .eq("phone_number", validation.e164Format)
       .single();
 
     if (fetchError) {
-      console.error("Database error fetching verification record:", fetchError);
       trackApiError(request, "/api/phone/verify-otp", "POST", fetchError, 500);
       return NextResponse.json(
         { success: false, error: "Failed to fetch verification record" },
@@ -140,6 +142,8 @@ export async function POST(request: NextRequest) {
       const updateData: Record<string, unknown> = {
         verified: true,
         verified_at: new Date().toISOString(),
+        otp_code: null,
+        attempts: 0,
       };
       if (verification.tier === 0) {
         updateData.tier = 1;
@@ -147,9 +151,8 @@ export async function POST(request: NextRequest) {
       const { error: updateError } = await supabaseAdmin
         .from("user_kyc_profiles")
         .update(updateData)
-        .eq("wallet_address", walletAddress.toLowerCase());
+        .eq("wallet_address", walletAddress);
       if (updateError) {
-        console.error("Update error:", updateError);
         trackApiError(
           request,
           "/api/phone/verify-otp",
@@ -191,18 +194,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (verification.otp_code !== otpCode) {
+    if (verification.otp_code !== hashOTP(otpCode)) {
       // Atomic increment with boundary check to prevent race conditions
       const { data: updated, error: attemptsError } = await supabaseAdmin
         .from("user_kyc_profiles")
         .update({ attempts: verification.attempts + 1 })
-        .eq("wallet_address", walletAddress.toLowerCase())
+        .eq("wallet_address", walletAddress)
         .lt("attempts", MAX_ATTEMPTS)
         .select("attempts")
         .single();
 
       if (attemptsError) {
-        console.error("Failed to increment OTP attempts:", attemptsError);
         trackApiError(
           request,
           "/api/phone/verify-otp",
@@ -239,9 +241,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark as verified - preserve existing tier if higher than 1
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       verified: true,
       verified_at: new Date().toISOString(),
+      otp_code: null, // Clear OTP hash after successful verification
+      attempts: 0,
     };
 
     // Only set tier to 1 if current tier is 0 (unverified)
@@ -252,10 +256,9 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .update(updateData)
-      .eq("wallet_address", walletAddress.toLowerCase());
+      .eq("wallet_address", walletAddress);
 
     if (updateError) {
-      console.error("Update error:", updateError);
       trackApiError(request, "/api/phone/verify-otp", "POST", updateError, 500);
       return NextResponse.json(
         { success: false, error: "Failed to update verification status" },
@@ -273,7 +276,6 @@ export async function POST(request: NextRequest) {
       phoneNumber: phoneNumber,
     });
   } catch (error) {
-    console.error("Verify OTP error:", error);
     trackApiError(
       request,
       "/api/phone/verify-otp",

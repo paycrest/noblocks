@@ -20,15 +20,15 @@ export async function POST(request: NextRequest) {
   const rateLimitResult = await rateLimit(request);
   if (!rateLimitResult.success) {
     return NextResponse.json(
-      { status: "error", message: "Too many requests. Please try again later." },
+      { success: false, error: "Too many requests. Please try again later." },
       { status: 429 }
     );
   }
 
-  const walletAddress = request.headers.get("x-wallet-address")?.toLowerCase();
+  const walletAddress = request.headers.get("x-wallet-address");
   if (!walletAddress) {
     return NextResponse.json(
-      { status: "error", message: "Unauthorized" },
+      { success: false, error: "Unauthorized" },
       { status: 401 }
     );
   }
@@ -45,20 +45,20 @@ export async function POST(request: NextRequest) {
 
     if (!file || file.size === 0) {
       return NextResponse.json(
-        { status: "error", message: "Document file is required" },
+        { success: false, error: "Document file is required" },
         { status: 400 }
       );
     }
     if (!countryCode?.trim()) {
       return NextResponse.json(
-        { status: "error", message: "Country is required" },
+        { success: false, error: "Country is required" },
         { status: 400 }
       );
     }
 
     if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json(
-        { status: "error", message: "File too large; maximum 10 MB" },
+        { success: false, error: "File too large; maximum 5 MB" },
         { status: 413 }
       );
     }
@@ -66,8 +66,8 @@ export async function POST(request: NextRequest) {
     if (!ALLOWED_MIME_TYPES.includes(mime as (typeof ALLOWED_MIME_TYPES)[number])) {
       return NextResponse.json(
         {
-          status: "error",
-          message: "Invalid file type; allowed: image/jpeg, image/png, image/webp",
+          success: false,
+          error: "Invalid file type; allowed: image/jpeg, image/png, image/webp",
         },
         { status: 400 }
       );
@@ -87,11 +87,10 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
-      console.error("KYC document upload error:", uploadError);
       return NextResponse.json(
         {
-          status: "error",
-          message:
+          success: false,
+          error:
             uploadError.message ||
             "Failed to upload document. Ensure the KYC storage bucket exists.",
         },
@@ -99,19 +98,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const {
-      data: { signedUrl },
-      error: signError,
-    } = await supabaseAdmin.storage
-      .from(KYC_BUCKET)
-      .createSignedUrl(path, SIGNED_URL_EXPIRY_SEC);
+    const { data: signedUrlData, error: signError } =
+      await supabaseAdmin.storage
+        .from(KYC_BUCKET)
+        .createSignedUrl(path, SIGNED_URL_EXPIRY_SEC);
 
+    const signedUrl = signedUrlData?.signedUrl;
     if (signError || !signedUrl) {
-      console.error("Signed URL creation error:", signError);
       return NextResponse.json(
         {
-          status: "error",
-          message: "Failed to generate document URL",
+          success: false,
+          error: "Failed to generate document URL",
         },
         { status: 500 }
       );
@@ -123,7 +120,7 @@ export async function POST(request: NextRequest) {
         dojahResult?.entity?.result?.message ||
         "Document could not be verified as a valid proof of address.";
       return NextResponse.json(
-        { status: "error", message: msg },
+        { success: false, error: msg },
         { status: 400 }
       );
     }
@@ -137,8 +134,8 @@ export async function POST(request: NextRequest) {
     if (fetchError || !currentProfile) {
       return NextResponse.json(
         {
-          status: "error",
-          message:
+          success: false,
+          error:
             "No KYC profile found. Complete phone and ID verification first.",
         },
         { status: 404 }
@@ -149,8 +146,8 @@ export async function POST(request: NextRequest) {
     if (currentTier < 2) {
       return NextResponse.json(
         {
-          status: "error",
-          message:
+          success: false,
+          error:
             "Complete Tier 1 (phone) and Tier 2 (ID) verification before upgrading to Tier 3.",
         },
         { status: 400 }
@@ -173,7 +170,7 @@ export async function POST(request: NextRequest) {
     ];
 
     const updatePayload: Record<string, unknown> = {
-      tier: 3,
+      tier: Math.max(currentTier, 3),
       verified: true,
       verified_at: new Date().toISOString(),
       platform: updatedPlatform,
@@ -196,11 +193,10 @@ export async function POST(request: NextRequest) {
       .select("wallet_address");
 
     if (supabaseError) {
-      console.error("Supabase tier3 update error:", supabaseError);
       return NextResponse.json(
         {
-          status: "error",
-          message: "Failed to update KYC profile",
+          success: false,
+          error: "Failed to update KYC profile",
         },
         { status: 500 }
       );
@@ -209,8 +205,8 @@ export async function POST(request: NextRequest) {
     if (!updatedProfile || updatedProfile.length === 0) {
       return NextResponse.json(
         {
-          status: "error",
-          message:
+          success: false,
+          error:
             "No KYC profile found. Complete phone and ID verification first.",
         },
         { status: 404 }
@@ -218,16 +214,15 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      status: "success",
+      success: true,
       message: "Tier 3 address verification completed",
       data: { tier: 3 },
     });
   } catch (err) {
-    console.error("Tier 3 verify error:", err);
     const message =
       err instanceof Error ? err.message : "Verification failed";
     return NextResponse.json(
-      { status: "error", message },
+      { success: false, error: message },
       { status: 500 }
     );
   }

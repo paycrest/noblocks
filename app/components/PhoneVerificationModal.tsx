@@ -88,8 +88,7 @@ export default function PhoneVerificationModal({
             setSelectedCountry(nigeria);
           }
         })
-        .catch((error) => {
-          console.error("Failed to load countries:", error);
+        .catch(() => {
           toast.error("Failed to load countries. Using defaults.");
         })
         .finally(() => {
@@ -192,7 +191,6 @@ export default function PhoneVerificationModal({
         toast.error(data.error || "Failed to send OTP");
       }
     } catch (error) {
-      console.error("Phone submission error:", error);
       toast.error("Failed to send OTP. Please try again.");
     } finally {
       setIsLoading(false);
@@ -232,7 +230,6 @@ export default function PhoneVerificationModal({
         }
       }
     } catch (error) {
-      console.error("OTP verification error:", error);
       toast.error("Failed to verify OTP. Please try again.");
     } finally {
       setIsLoading(false);

@@ -32,7 +32,6 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
   const { user } = usePrivy();
   const {
     tier,
-    isFullyVerified,
     transactionSummary,
     getCurrentLimits,
     refreshStatus,
@@ -195,13 +194,9 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                         ) : req.includes("Selfie verification") ? (
                           <FaceIdIcon className="size-4 text-outline-gray dark:text-white/70" />
                         ) : req.includes("Address verification") ? (
-                          <MapPinpoint01Icon 
-                            className="size-4 text-outline-gray dark:text-white/50"
-                          />
+                          <MapPinpoint01Icon className="size-4 text-outline-gray dark:text-white/50" />
                         ) : req.includes("Business verification") ? (
-                          <WorkAlertIcon 
-                            className="size-4 text-outline-gray dark:text-white/50"
-                          />
+                          <WorkAlertIcon className="size-4 text-outline-gray dark:text-white/50" />
                         ) : (
                           req.includes("ID") && (
                             <TbIdBadge className="size-4 text-outline-gray dark:text-white/50" />
@@ -217,14 +212,16 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                     Limit
                   </p>
                   <p className="text-xs font-light text-text-body dark:text-white/80">
-                  { tierData.limits.unlimited ? "Unlimited" : (
-                    <>
-                    <span className="text-sm font-medium">
-                      ${formatNumberWithCommas(tierData.limits.monthly)}
-                    </span>{" "}
-                    / month
-                    </>
-                  )}
+                    {tierData.limits.unlimited ? (
+                      "Unlimited"
+                    ) : (
+                      <>
+                        <span className="text-sm font-medium">
+                          ${formatNumberWithCommas(tierData.limits.monthly)}
+                        </span>{" "}
+                        / month
+                      </>
+                    )}
                   </p>
                 </div>
                 {tier == 0 && tierLevel === tier + 1 && (
@@ -377,9 +374,9 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                               </div>
 
                               {/* Progress Bar */}
-                              <div className="flex h-2 w-full items-center rounded-full bg-accent-gray dark:bg-white/10">
+                              <div className="flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/10">
                                 <div
-                                  className="h-2.5 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 transition-all duration-500 dark:from-sky-400 dark:to-indigo-400"
+                                  className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
                                   style={{
                                     width: `${Math.min(monthlyProgress, 100)}%`,
                                   }}

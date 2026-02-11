@@ -1,21 +1,31 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/app/lib/supabase';
-import { trackApiRequest, trackApiResponse, trackApiError } from '@/app/lib/server-analytics';
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/app/lib/supabase";
+import {
+  trackApiRequest,
+  trackApiResponse,
+  trackApiError,
+} from "@/app/lib/server-analytics";
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now();
-  
-  try {
-    trackApiRequest(request, '/api/kyc/transaction-summary', 'GET');
 
-    const { searchParams } = new URL(request.url);
-    const walletAddress = searchParams.get('walletAddress');
+  try {
+    trackApiRequest(request, "/api/kyc/transaction-summary", "GET");
+
+    // Get the wallet address from the header set by the middleware
+    const walletAddress = request.headers.get("x-wallet-address");
 
     if (!walletAddress) {
-      trackApiError(request, '/api/kyc/transaction-summary', 'GET', new Error('Missing wallet address'), 400);
+      trackApiError(
+        request,
+        "/api/kyc/transaction-summary",
+        "GET",
+        new Error("Unauthorized"),
+        401,
+      );
       return NextResponse.json(
-        { success: false, error: 'Wallet address is required' },
-        { status: 400 }
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
       );
     }
 
@@ -23,20 +33,20 @@ export async function GET(request: NextRequest) {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Fetch transactions from the last 30 days
+    // Fetch transactions for the current month
     const { data: transactions, error } = await supabaseAdmin
-      .from('transactions')
-      .select('amount_sent, created_at')
-      .eq('wallet_address', walletAddress.toLowerCase())
-      .in('status', ['fulfilling', 'completed'])
-      .gte('created_at', monthStart.toISOString());
+      .from("transactions")
+      .select("amount_sent, created_at")
+      .eq("wallet_address", walletAddress)
+      .eq("transaction_type", "swap")
+      .in("status", ["fulfilling", "completed"])
+      .gte("created_at", monthStart.toISOString());
 
     if (error) {
-      console.error('Error fetching transaction summary:', error);
-      trackApiError(request, '/api/kyc/transaction-summary', 'GET', error, 500);
+      trackApiError(request, "/api/kyc/transaction-summary", "GET", error, 500);
       return NextResponse.json(
-        { success: false, error: 'Failed to fetch transaction summary' },
-        { status: 500 }
+        { success: false, error: "Failed to fetch transaction summary" },
+        { status: 500 },
       );
     }
 
@@ -44,12 +54,12 @@ export async function GET(request: NextRequest) {
     let monthlySpent = 0;
     let lastTransactionDate: string | null = null;
 
-    transactions?.forEach(tx => {
+    transactions?.forEach((tx) => {
       const txDate = new Date(tx.created_at);
       const amount = parseFloat(tx.amount_sent) || 0;
-      
+
       monthlySpent += amount;
-      
+
       if (txDate >= today) {
         dailySpent += amount;
       }
@@ -60,7 +70,7 @@ export async function GET(request: NextRequest) {
     });
 
     const responseTime = Date.now() - startTime;
-    trackApiResponse('/api/kyc/transaction-summary', 'GET', 200, responseTime);
+    trackApiResponse("/api/kyc/transaction-summary", "GET", 200, responseTime);
 
     return NextResponse.json({
       success: true,
@@ -68,14 +78,18 @@ export async function GET(request: NextRequest) {
       monthlySpent,
       lastTransactionDate,
     });
-
   } catch (error) {
-    console.error('Transaction summary error:', error);
-    trackApiError(request, '/api/kyc/transaction-summary', 'GET', error as Error, 500);
-    
+    trackApiError(
+      request,
+      "/api/kyc/transaction-summary",
+      "GET",
+      error as Error,
+      500,
+    );
+
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
+      { success: false, error: "Internal server error" },
+      { status: 500 },
     );
   }
 }

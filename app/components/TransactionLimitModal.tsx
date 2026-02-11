@@ -86,7 +86,7 @@ export default function TransactionLimitModal({
         </DialogTitle>
         <p className="text-sm font-light text-text-secondary dark:text-white/50">
           Your current monthly limit is{" "}
-          <span className="font-medium text-white">
+          <span className="font-medium text-black dark:text-white">
             ${formatNumberWithCommas(currentLimits.monthly)}
           </span>
           . Verify your identity to unlock higher limits.
@@ -118,9 +118,9 @@ export default function TransactionLimitModal({
             </div>
 
             {/* Progress Bar */}
-            <div className="mb-4 flex h-2 w-full items-center rounded-full bg-gray-400 dark:bg-white/20">
+            <div className="mb-4 flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/20">
               <div
-                className="h-2.5 rounded-full bg-gradient-to-r from-white to-white transition-all duration-500"
+                className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
                 style={{
                   width:
                     currentLimits.monthly > 0
@@ -158,7 +158,7 @@ export default function TransactionLimitModal({
               You&apos;re currently at {currentTier?.name} with $
               {formatNumberWithCommas(currentLimits.monthly)}/month.{" "}
               {nextTier
-                ? `Upgrade to ${nextTier.name} for ${nextTier.limits.unlimited ? "Unlimited" : `$${formatNumberWithCommas(nextTier.limits.monthly)}/month`}`
+                ? `Upgrade to ${nextTier.name} for ${nextTier.limits.unlimited ? "Unlimited transactions" : `$${formatNumberWithCommas(nextTier.limits.monthly)}/month`}`
                 : "You have the highest tier available"}
               .{" "}
               <span className="cursor-pointer text-lavender-600 underline dark:text-lavender-400">
@@ -236,13 +236,16 @@ export default function TransactionLimitModal({
             }}
           >
             <KycModal
-              setIsKycModalOpen={setIsKycModalOpen}
+              setIsKycModalOpen={(value) => {
+                setIsKycModalOpen(value);
+                if (!value) onClose();
+              }}
               setIsUserVerified={async () => {
                 await refreshStatus();
                 setIsKycModalOpen(false);
                 onClose();
               }}
-              targetTier={tier === 2 ? 3 : 2}
+              targetTier={tier === 3 ? 4 : tier === 2 ? 3 : 2}
             />
           </AnimatedModal>
         )}

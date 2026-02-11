@@ -13,6 +13,7 @@ import {
   calculateCorrectedTotalBalance,
 } from "../utils";
 import { useCNGNRate, getCNGNRateForNetwork } from "../hooks/useCNGNRate";
+import { useMigrationStatus } from "../hooks/useEIP7702Account";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -116,6 +117,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     dependencies: [selectedNetwork],
   });
 
+  // Cannot use useShouldUseEOA here (it uses useBalance and would create a circular dependency)
+  const { isMigrationComplete } = useMigrationStatus();
   // Fetch balances from all networks in parallel
   const fetchCrossChainBalances = async (address: string) => {
     const results: PromiseSettledResult<CrossChainBalanceEntry>[] = [];
@@ -194,28 +197,54 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const smartWalletAccount = user?.linkedAccounts.find(
           (account) => account.type === "smart_wallet",
         );
+        const embeddedWalletAccount = wallets.find(
+          (wallet) => wallet.walletClientType === "privy"
+        );
         const externalWalletAccount = wallets.find(
           (account) => account.connectorType === "injected",
         );
 
         if (client) {
-          await client.switchChain({
-            id: selectedNetwork.chain.id,
-          });
+          try {
+            await client.switchChain({
+              id: selectedNetwork.chain.id,
+            });
+          } catch (error) {
+            console.warn("Error switching smart wallet chain:", error);
+          }
         }
-
-        await externalWalletAccount?.switchChain(selectedNetwork.chain.id);
 
         const publicClient = createPublicClient({
           chain: selectedNetwork.chain,
           transport: http(
             selectedNetwork.chain.id === bsc.id
               ? "https://bsc-dataseed.bnbchain.org/"
-              : undefined,
+              : getRpcUrl(selectedNetwork.chain.name),
           ),
         });
 
-        if (smartWalletAccount) {
+        let primaryIsEOA = false;
+
+        if (isMigrationComplete && embeddedWalletAccount) {
+          // Migrated in DB: use EOA balance
+          primaryIsEOA = true;
+          const result = await fetchWalletBalance(
+            publicClient,
+            embeddedWalletAccount.address,
+          );
+          const correctedTotal = calculateCorrectedTotalBalance(
+            result,
+            cngnRate,
+          );
+          setExternalWalletBalance({
+            ...result,
+            total: correctedTotal,
+          });
+          setSmartWalletBalance(null);
+          // Navbar and WalletDetails use crossChainTotal; populate it for EOA
+          await fetchCrossChainBalances(embeddedWalletAccount.address);
+        } else if (smartWalletAccount) {
+          // Not migrated: fetch SCW balance first
           const result = await fetchWalletBalance(
             publicClient,
             smartWalletAccount.address,
@@ -240,14 +269,37 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             balances: correctedBalances,
             rawBalances: rawBalances,
           });
+          // If SCW balance is 0, also fetch EOA so 0-balance users see EOA in nav (useShouldUseEOA is true elsewhere)
+          if (correctedTotal === 0 && embeddedWalletAccount) {
+            primaryIsEOA = true;
+            const eoaResult = await fetchWalletBalance(
+              publicClient,
+              embeddedWalletAccount.address,
+            );
+            const eoaCorrected = calculateCorrectedTotalBalance(
+              eoaResult,
+              cngnRate,
+            );
+            setExternalWalletBalance({
+              ...eoaResult,
+              total: eoaCorrected,
+            });
+          } else {
+            setExternalWalletBalance(null);
+          }
 
           // Fetch cross-chain balances for smart wallet
           await fetchCrossChainBalances(smartWalletAccount.address);
         } else {
           setSmartWalletBalance(null);
+          setExternalWalletBalance(null);
         }
 
-        if (externalWalletAccount) {
+        // Handle external injected wallets (separate from embedded wallet) – don't overwrite EOA balance for 0-balance users
+        if (externalWalletAccount &&
+          externalWalletAccount.address !== embeddedWalletAccount?.address &&
+          !isMigrationComplete &&
+          !primaryIsEOA) {
           const result = await fetchWalletBalance(
             publicClient,
             externalWalletAccount.address,
@@ -272,8 +324,6 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             balances: correctedBalances,
             rawBalances: rawBalances,
           });
-        } else {
-          setExternalWalletBalance(null);
         }
 
         setInjectedWalletBalance(null);
@@ -338,11 +388,13 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   }, [
     ready,
     user,
+    wallets,
     selectedNetwork,
     isInjectedWallet,
     injectedReady,
     injectedAddress,
     cngnRate,
+    isMigrationComplete,
   ]);
 
   const allBalances = {

@@ -2,7 +2,7 @@
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
+import { usePrivy, useMfaEnrollment, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
 import { handleNetworkSwitch, detectWalletProvider } from "../utils";
@@ -23,6 +23,7 @@ import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm, TransferForm } from "./index";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 
 export const MobileDropdown = ({
   isOpen,
@@ -40,7 +41,7 @@ export const MobileDropdown = ({
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, linkEmail, updateEmail } = usePrivy();
-  const { crossChainBalances, isLoading, refreshBalance } = useBalance();
+  const { allBalances, crossChainBalances, isLoading, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const { logout } = useLogout({
     onSuccess: () => {
@@ -48,16 +49,30 @@ export const MobileDropdown = ({
     },
   });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const shouldUseEOA = useShouldUseEOA();
+  const { wallets } = useWallets();
 
+  // Get embedded wallet (EOA) and smart wallet (SCW)
+  const embeddedWallet = wallets.find(
+    (wallet) => wallet.walletClientType === "privy"
+  );
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet"
+  );
+
+  // Determine active wallet based on migration status
+  // After migration: show EOA (new wallet with funds)
+  // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress, type: "injected_wallet" }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : shouldUseEOA && embeddedWallet
+      ? { address: embeddedWallet.address, type: "eoa" }
+      : smartWallet;
 
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
-  const smartWallet = isInjectedWallet
-    ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+  // Use activeWallet for consistency
+  const walletForCopy = activeWallet;
 
   const { currentStep } = useStep();
 
@@ -66,7 +81,7 @@ export const MobileDropdown = ({
   const { showMfaEnrollmentModal } = useMfaEnrollment();
 
   const handleCopyAddress = () => {
-    navigator.clipboard.writeText(smartWallet?.address ?? "");
+    navigator.clipboard.writeText(walletForCopy?.address ?? "");
     toast.success("Address copied to clipboard");
     setIsWarningModalOpen(true);
   };
@@ -91,13 +106,19 @@ export const MobileDropdown = ({
     onComplete?: (success: boolean) => void,
   ) => {
     await handleFundWallet(
-      smartWallet?.address ?? "",
+      walletForCopy?.address ?? "",
       amount,
       tokenAddress,
       onComplete,
     );
   };
 
+  // Get appropriate balance based on migration status
+  const activeBalance = isInjectedWallet
+    ? allBalances.injectedWallet
+    : shouldUseEOA
+      ? allBalances.externalWallet
+      : allBalances.smartWallet;
   // Sort cross-chain balances: selected network first, then alphabetically
   const sortedCrossChainBalances = useSortedCrossChainBalances(
     crossChainBalances,
@@ -143,14 +164,14 @@ export const MobileDropdown = ({
       body: JSON.stringify(payload),
       signal: controller.signal
     })
-    .catch(error => {
-      if (error.name !== 'AbortError') {
-        console.warn('Logout tracking failed:', error);
-      }
-    })
-    .finally(() => {
-      clearTimeout(timeoutId);
-    });
+      .catch(error => {
+        if (error.name !== 'AbortError') {
+          console.warn('Logout tracking failed:', error);
+        }
+      })
+      .finally(() => {
+        clearTimeout(timeoutId);
+      });
   };
 
   const handleLogout = async () => {
@@ -223,7 +244,7 @@ export const MobileDropdown = ({
                               getTokenImageUrl={getTokenImageUrl}
                               onTransfer={() => setCurrentView("transfer")}
                               onFund={() => setCurrentView("fund")}
-                              smartWallet={smartWallet}
+                              smartWallet={walletForCopy}
                               handleCopyAddress={handleCopyAddress}
                               isNetworkListOpen={isNetworkListOpen}
                               setIsNetworkListOpen={setIsNetworkListOpen}
@@ -292,10 +313,10 @@ export const MobileDropdown = ({
         )}
       </AnimatePresence>
 
-      <CopyAddressWarningModal 
+      <CopyAddressWarningModal
         isOpen={isWarningModalOpen}
         onClose={() => setIsWarningModalOpen(false)}
-        address={smartWallet?.address ?? ""}
+        address={walletForCopy?.address ?? ""}
       />
     </>
   );

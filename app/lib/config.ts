@@ -13,6 +13,10 @@ const config: Config = {
   brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
   blockfestEndDate:
     process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
+  biconomyNexusV120:
+    process.env.NEXT_PUBLIC_BICONOMY_NEXUS_V120 || "0x000000004f43c49e93c970e84001853a70923b03",
+  biconomyPaymasterKey:
+    process.env.NEXT_PUBLIC_BICONOMY_PAYMASTER_KEY || "",
 };
 
 export default config;

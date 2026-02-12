@@ -410,7 +410,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                                     <div className="flex items-center gap-2 pt-2">
                                                         <Wallet01Icon className="h-5 w-5 text-text-secondary dark:text-white/60" strokeWidth={2} />
                                                         <span
-                                                            className="font-[Inter] text-sm font-medium leading-5 tracking-normal text-text-body align-middle dark:text-[#FFFFFF]"
+                                                            className="font-[Inter] text-sm font-light leading-5 tracking-normal text-text-body align-middle dark:text-[#FFFFFF]"
                                                         >
                                                             {displayOldAddress}
                                                         </span>
@@ -420,7 +420,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                                 {/* Old Wallet Balance Card */}
                                                 <div className="space-y-3  p-4 dark:border-white/10 text-right">
                                                     <span
-                                                        className="font-[Inter] text-sm font-normal leading-5 tracking-normal text-text-secondary dark:text-[#FFFFFF80]"
+                                                        className="font-[Inter] text-sm font-light leading-5 tracking-normal text-text-secondary dark:text-[#FFFFFF80]"
                                                     >
                                                         Total wallet balance
                                                     </span>
@@ -446,13 +446,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                             {/* Token List - Each Network gets its own card */}
                                             <div className="mb-4 space-y-3">
                                                 {isFetchingBalances || isLoading ? (
-                                                    <div className="flex items-center gap-2 text-sm text-text-secondary dark:text-white/50">
-                                                        <div
-                                                            className="h-4 w-4 flex-shrink-0 animate-spin rounded-full border-2 border-blue-600 border-t-transparent dark:border-blue-400 dark:border-t-transparent"
-                                                            aria-hidden
-                                                        />
-                                                        <span>Loading balances from all networks...</span>
-                                                    </div>
+                                                    <div className="text-sm text-text-secondary dark:text-white/50">Loading balances from all networks...</div>
                                                 ) : Object.keys(tokensByChain).length === 0 ? (
                                                     <div className="text-sm text-text-secondary dark:text-white/50">No tokens found</div>
                                                 ) : (
@@ -460,7 +454,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                                         <div key={chainName} className="rounded-3xl bg-background-neutral p-4 dark:bg-[#2C2C2C]">
                                                             {/* Network Title */}
                                                             <div className="mb-3">
-                                                                <h3 className="text-sm font-medium text-text-body dark:text-[#FFFFFFCC] capitalize">
+                                                                <h3 className="text-sm font-light text-text-body dark:text-[#FFFFFFCC] capitalize">
                                                                     {chainName}
                                                                 </h3>
                                                             </div>
@@ -497,7 +491,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                                                                 );
                                                                             })()}
                                                                         </div>
-                                                                        <span className="font-[Inter] text-sm font-medium text-text-body dark:text-white/90">
+                                                                        <span className="font-[Inter] text-sm font-light text-text-body dark:text-white/90">
                                                                             {token.displayAmount} {token.symbol}
                                                                         </span>
                                                                     </div>
@@ -517,7 +511,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                                 />
                                                 <p className="text-sm font-normal leading-5 tracking-normal text-text-secondary dark:text-white/50">
                                                     Your funds are safe, they are being transferred to your new secured wallet address{" "}
-                                                    <span className="font-bold text-sm text-text-body dark:text-white/80">{displayNewAddress}</span>
+                                                    <span className="font-normal text-sm text-text-body dark:text-white/80">{displayNewAddress}</span>
                                                 </p>
                                             </div>
 
@@ -532,7 +526,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                             <button
                                                 onClick={handleApproveTransfer}
                                                 disabled={isProcessing || isLoading || isFetchingBalances}
-                                                className="w-full rounded-xl bg-lavender-500 px-6 py-3.5 text-base font-semibold text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                                                className="w-full rounded-xl bg-lavender-500 px-6 py-3.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
                                             >
                                                 {isProcessing ? progress || "Processing migration..." : isFetchingBalances ? "Loading balances..." : tokens.length === 0 ? "Complete migration" : "Approve transfer"}
                                             </button>

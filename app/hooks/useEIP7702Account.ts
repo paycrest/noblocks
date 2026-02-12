@@ -73,10 +73,19 @@ interface MigrationStatus {
  * Hook to check if wallet migration is complete
  * Returns the migration completion status from the API
  */
+const MIGRATION_STATUS_REFETCH_EVENT = "refetch-migration-status";
+
 export function useMigrationStatus(): MigrationStatus {
     const { user, getAccessToken } = usePrivy();
     const [isMigrationComplete, setIsMigrationComplete] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [refetchTrigger, setRefetchTrigger] = useState(0);
+
+    useEffect(() => {
+        const handler = () => setRefetchTrigger((t) => t + 1);
+        window.addEventListener(MIGRATION_STATUS_REFETCH_EVENT, handler);
+        return () => window.removeEventListener(MIGRATION_STATUS_REFETCH_EVENT, handler);
+    }, []);
 
     useEffect(() => {
         async function checkMigration() {
@@ -116,9 +125,16 @@ export function useMigrationStatus(): MigrationStatus {
 
         checkMigration();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.id]);
+    }, [user?.id, refetchTrigger]);
 
     return { isMigrationComplete, isLoading };
+}
+
+/** Call after zero-balance "I understand" deprecate so useMigrationStatus and BalanceContext see updated state */
+export function triggerMigrationStatusRefetch(): void {
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(MIGRATION_STATUS_REFETCH_EVENT));
+    }
 }
 
 // ################################################
@@ -127,17 +143,18 @@ export function useMigrationStatus(): MigrationStatus {
 
 /**
  * True when the app should use the embedded wallet (EOA) for nav, balance, createOrder, transfer.
- * True if: migrated in DB, OR has smart wallet with 0 balance (treat as EOA without DB migration).
- * During balance load we return the last known value so 0-balance users don't see SCW address flicker.
+ * True if: migrated in DB, OR smart wallet has 0 balance across all networks (treat as EOA without DB migration).
+ * Uses cross-chain SCW total so the displayed address does not change when switching networks.
  */
 export function useShouldUseEOA(): boolean {
     const { user } = usePrivy();
     const { isMigrationComplete } = useMigrationStatus();
-    const { allBalances, isLoading: isBalanceLoading } = useBalance();
+    const { crossChainTotal, isLoading: isBalanceLoading } = useBalance();
     const lastValueRef = useRef<boolean | null>(null);
 
     const hasSmartWallet = !!user?.linkedAccounts?.find((a) => a.type === "smart_wallet");
-    const smartWalletBalance = allBalances.smartWallet?.total ?? 0;
+    // When not migrated, crossChainTotal is SCW total across all networks (not selected network only)
+    const smartWalletCrossChainTotal = hasSmartWallet && !isMigrationComplete ? crossChainTotal : 0;
 
     if (isMigrationComplete) {
         lastValueRef.current = true;
@@ -147,9 +164,9 @@ export function useShouldUseEOA(): boolean {
         lastValueRef.current = false;
         return false;
     }
-    // During load, keep last value to avoid SCW→EOA flicker on refresh; first load prefer EOA if they have smart wallet
-    if (isBalanceLoading) return lastValueRef.current ?? hasSmartWallet;
-    const value = smartWalletBalance === 0;
+    // During load, keep last value to avoid SCW→EOA flicker on refresh
+    if (isBalanceLoading) return lastValueRef.current ?? false;
+    const value = smartWalletCrossChainTotal === 0;
     lastValueRef.current = value;
     return value;
 }
@@ -163,6 +180,7 @@ interface WalletMigrationStatus {
     isChecking: boolean;
     showZeroBalanceMessage: boolean;
     isRemainingFundsMigration: boolean;
+    refetchMigrationStatus: () => void;
 }
 
 /**
@@ -172,11 +190,12 @@ interface WalletMigrationStatus {
  */
 export function useWalletMigrationStatus(): WalletMigrationStatus {
     const { user, authenticated, getAccessToken } = usePrivy();
-    const { allBalances, isLoading: isBalanceLoading, smartWalletRemainingTotal } = useBalance();
+    const { crossChainTotal, isLoading: isBalanceLoading, smartWalletRemainingTotal } = useBalance();
     const [needsMigration, setNeedsMigration] = useState(false);
     const [showZeroBalanceMessage, setShowZeroBalanceMessage] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
     const [isMigrationComplete, setIsMigrationComplete] = useState<boolean | null>(null);
+    const [refetchCounter, setRefetchCounter] = useState(0);
 
     useEffect(() => {
         async function checkMigrationStatus() {
@@ -236,7 +255,7 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
 
         checkMigrationStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [authenticated, user?.id]); // getAccessToken intentionally omitted to prevent excessive API calls
+    }, [authenticated, user?.id, refetchCounter]); // getAccessToken intentionally omitted to prevent excessive API calls
 
     // Separate effect to handle balance-based migration status display
     useEffect(() => {
@@ -250,18 +269,21 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
             setNeedsMigration(smartWalletRemainingTotal > 0);
             setShowZeroBalanceMessage(false);
         } else {
-            // Migration not complete - show UI based on balance
-            const smartWalletBalance = allBalances.smartWallet?.total ?? 0;
-            const hasBalance = smartWalletBalance > 0;
+            // Migration not complete - use cross-chain SCW total so banner stays when switching networks
+            const hasBalance = crossChainTotal > 0;
             setNeedsMigration(hasBalance);
             setShowZeroBalanceMessage(!hasBalance);
         }
-    }, [isMigrationComplete, allBalances.smartWallet?.total, isBalanceLoading, smartWalletRemainingTotal]);
+    }, [isMigrationComplete, crossChainTotal, isBalanceLoading, smartWalletRemainingTotal]);
 
     const isRemainingFundsMigration =
         isMigrationComplete === true && smartWalletRemainingTotal > 0;
 
-    return { needsMigration, isChecking, showZeroBalanceMessage, isRemainingFundsMigration };
+    const refetchMigrationStatus = useCallback(() => {
+        setRefetchCounter((c) => c + 1);
+    }, []);
+
+    return { needsMigration, isChecking, showZeroBalanceMessage, isRemainingFundsMigration, refetchMigrationStatus };
 }
 
 /** Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation. */

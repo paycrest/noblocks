@@ -277,10 +277,12 @@ export function TransactionStatus({
             }
 
             // Handle final statuses
-            if (["validated", "settling", "settled", "refunding", "refunded"].includes(status)) {
+            if (
+              ["validated", "settling", "settled", "refunded"].includes(status)
+            ) {
               setCompletedAt(orderDetailsResponse.data.updatedAt);
 
-              if (["refunding", "refunded"].includes(status)) {
+              if (status === "refunded") {
                 refreshBalance();
                 setRocketStatus("pending");
               } else {
@@ -480,7 +482,7 @@ export function TransactionStatus({
         <AnimatedComponent variant={scaleInOut} key="settled">
           <CheckmarkCircle01Icon className="size-10" color="#39C65D" />
         </AnimatedComponent>
-      ) : ["refunding", "refunded"].includes(transactionStatus) ? (
+      ) : transactionStatus === "refunded" ? (
         <AnimatedComponent variant={scaleInOut} key="refunded">
           <CancelCircleIcon className="size-10" color="#F53D6B" />
         </AnimatedComponent>
@@ -501,7 +503,11 @@ export function TransactionStatus({
           }`}
         >
           <ImSpinner className="animate-spin" />
-          <p>{transactionStatus === "fulfilling" ? "processing" : transactionStatus}</p>
+          <p>
+            {transactionStatus === "fulfilling"
+              ? "processing"
+              : transactionStatus}
+          </p>
         </AnimatedComponent>
       )}
     </AnimatePresence>
@@ -657,23 +663,10 @@ export function TransactionStatus({
       );
     }
 
-    if (transactionStatus === "refunding") {
+    if (!["validated", "settling", "settled", "refunding"].includes(transactionStatus)) {
       return (
         <>
-          Refunding{" "}
-          <span className="text-text-body dark:text-white">
-            {formatNumberWithCommas(amount)} {token} (
-            {formatCurrency(fiat ?? 0, currency, `en-${currency.slice(0, 2)}`)})
-          </span>{" "}
-          to your account. Hang on, this will only take a few seconds.
-        </>
-      );
-    }
-
-    if (!["validated", "settling", "settled"].includes(transactionStatus)) {
-      return (
-        <>
-          Processing payment of{" "}
+          {transactionStatus === "refunding" ? "Refunding" : "Processing"} payment of{" "}
           <span className="text-text-body dark:text-white">
             {formatNumberWithCommas(amount)} {token} (
             {formatCurrency(fiat ?? 0, currency, `en-${currency.slice(0, 2)}`)})
@@ -783,7 +776,7 @@ export function TransactionStatus({
           delay={0.2}
           className="text-xl font-medium text-neutral-900 dark:text-white/80"
         >
-          {["refunding", "refunded"].includes(transactionStatus)
+          {transactionStatus === "refunded"
             ? "Oops! Transaction failed"
             : !["validated", "settling", "settled"].includes(transactionStatus)
               ? "Processing payment..."
@@ -980,7 +973,9 @@ export function TransactionStatus({
         )}
 
         <AnimatePresence>
-          {["validated", "settling", "settled", "refunded"].includes(transactionStatus) && (
+          {["validated", "settling", "settled", "refunded"].includes(
+            transactionStatus,
+          ) && (
             <AnimatedComponent
               variant={{
                 ...fadeInOut,

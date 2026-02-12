@@ -223,12 +223,18 @@ export function TransactionStatus({
         return;
       }
 
+      const refundReason =
+        transactionStatus === "refunded" && orderDetails?.cancellationReasons?.length
+          ? orderDetails.cancellationReasons.join(", ")
+          : undefined;
+
       const response = await updateTransactionDetails({
         transactionId,
         status: transactionStatus,
         txHash:
           transactionStatus !== "refunded" ? createdHash : orderDetails?.txHash,
         timeSpent,
+        refundReason,
         accessToken,
         walletAddress: embeddedWallet.address,
       });
@@ -364,9 +370,14 @@ export function TransactionStatus({
           trackEvent("Swap completed", eventData);
           setIsTracked(true);
         } else if (transactionStatus === "refunded") {
+          const reason =
+            orderDetails?.cancellationReasons?.length &&
+            orderDetails.cancellationReasons[0]
+              ? orderDetails.cancellationReasons[0]
+              : "Transaction failed and refunded";
           trackEvent("Swap failed", {
             ...eventData,
-            "Reason for failure": "Transaction failed and refunded",
+            "Reason for failure": reason,
           });
           setIsTracked(true);
         }
@@ -644,6 +655,11 @@ export function TransactionStatus({
       : "";
 
     if (transactionStatus === "refunded") {
+      const refundReason =
+        orderDetails?.cancellationReasons?.length &&
+        orderDetails.cancellationReasons[0]
+          ? orderDetails.cancellationReasons[0]
+          : null;
       return (
         <>
           Your transfer of{" "}
@@ -652,6 +668,14 @@ export function TransactionStatus({
             {formatCurrency(fiat ?? 0, currency, `en-${currency.slice(0, 2)}`)})
           </span>{" "}
           to {formattedRecipientName} was unsuccessful.
+          {refundReason && (
+            <>
+              <br />
+              <span className="text-text-secondary dark:text-white/70">
+                {refundReason}
+              </span>
+            </>
+          )}
           <br />
           <br />
           The stablecoin has been refunded to your account.

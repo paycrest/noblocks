@@ -152,6 +152,7 @@ export type OrderDetailsData = {
   settlements: Settlement[];
   txReceipts: TxReceipt[];
   updatedAt: string;
+  cancellationReasons?: string[];
 };
 
 type Settlement = {
@@ -325,6 +326,7 @@ export interface TransactionHistory {
   created_at: string;
   updated_at: string;
   order_id?: string;
+  refund_reason?: string | null;
 }
 
 export interface TransactionCreateInput {
@@ -341,12 +343,14 @@ export interface TransactionCreateInput {
   txHash?: string;
   timeSpent?: string;
   orderId?: string;
+  refundReason?: string | null;
 }
 
 export interface TransactionUpdateInput {
   status: TransactionStatus;
   timeSpent?: string;
   txHash?: string;
+  refundReason?: string | null;
 }
 
 export type JWTProvider = "privy" | "thirdweb";
@@ -385,6 +389,7 @@ export interface UpdateTransactionDetailsPayload
   extends UpdateTransactionStatusPayload {
   txHash?: string;
   timeSpent?: string;
+  refundReason?: string | null;
 }
 
 export type Currency = {

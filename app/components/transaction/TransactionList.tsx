@@ -77,22 +77,31 @@ export const TransactionListItem = ({
               {transaction.from_currency}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-text-disabled dark:text-white/30">
-              {new Date(transaction.created_at).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-            <span className="size-1 bg-icon-outline-disabled dark:bg-white/5"></span>
-            <span
-              className={classNames(
-                STATUS_COLOR_MAP[transaction.status] ||
-                  "text-text-secondary dark:text-white/50",
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <span className="text-text-disabled dark:text-white/30">
+                {new Date(transaction.created_at).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+              <span className="size-1 bg-icon-outline-disabled dark:bg-white/5"></span>
+              <span
+                className={classNames(
+                  STATUS_COLOR_MAP[transaction.status] ||
+                    "text-text-secondary dark:text-white/50",
+                )}
+              >
+                {transaction.status}
+              </span>
+            </div>
+            {transaction.status === "refunded" &&
+              transaction.refund_reason &&
+              transaction.refund_reason.trim() !== "" && (
+                <span className="text-xs text-text-secondary dark:text-white/50 line-clamp-1">
+                  {transaction.refund_reason}
+                </span>
               )}
-            >
-              {transaction.status}
-            </span>
           </div>
         </div>
       </div>

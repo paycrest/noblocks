@@ -16,7 +16,7 @@ import { useCNGNRate } from "../hooks/useCNGNRate";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, fallback, http } from "viem";
 import { useInjectedWallet } from "./InjectedWalletContext";
 import { bsc } from "viem/chains";
 
@@ -86,11 +86,13 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
         const publicClient = createPublicClient({
           chain: selectedNetwork.chain,
-          transport: http(
+          transport:
             selectedNetwork.chain.id === bsc.id
-              ? "https://bsc-dataseed.bnbchain.org/"
-              : undefined,
-          ),
+              ? fallback([
+                  http(getRpcUrl(selectedNetwork.chain.name)),
+                  http("https://bsc-dataseed.bnbchain.org/"),
+                ])
+              : http(getRpcUrl(selectedNetwork.chain.name)),
         });
 
         if (smartWalletAccount) {

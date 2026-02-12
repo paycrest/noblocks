@@ -246,7 +246,7 @@ export function TransactionStatus({
   /**
    * Polls the order details endpoint every 5 seconds to check transaction status
    * Updates local state when status changes
-   * Saves transaction data when status is final (validated/settled/refunded)
+   * Saves transaction data when status is final (validated/settling/settled/refunded)
    */
   useEffect(
     function pollOrderDetails() {
@@ -361,7 +361,7 @@ export function TransactionStatus({
           "Wallet type": isInjectedWallet ? "Injected" : "Smart wallet",
         };
 
-        if (["validated", "settled"].includes(transactionStatus)) {
+        if (["validated", "settling", "settled"].includes(transactionStatus)) {
           trackEvent("Swap completed", eventData);
           setIsTracked(true);
         } else if (transactionStatus === "refunded") {
@@ -663,7 +663,7 @@ export function TransactionStatus({
       );
     }
 
-    if (!["validated", "settling", "settled", "refunding"].includes(transactionStatus)) {
+    if (!["validated", "settling", "settled"].includes(transactionStatus)) {
       return (
         <>
           {transactionStatus === "refunding" ? "Refunding" : "Processing"} payment of{" "}
@@ -690,7 +690,7 @@ export function TransactionStatus({
   };
 
   const getImageSrc = () => {
-    const base = !["validated", "settled", "refunded"].includes(
+    const base = !["validated", "settling", "settled", "refunded"].includes(
       transactionStatus,
     )
       ? "/images/stepper"
@@ -842,9 +842,9 @@ export function TransactionStatus({
         />
 
         <AnimatePresence>
-          {["validated", "settled", "refunded"].includes(transactionStatus) && (
+          {["validated", "settling", "settled", "refunded"].includes(transactionStatus) && (
             <>
-              {/* BlockFest Cashback Component - only when validated/settled and claimed and on Base network */}
+              {/* BlockFest Cashback Component - only when validated/settling/settled and claimed and on Base network */}
               {isBlockFestEligible(
                 transactionStatus,
                 claimed,
@@ -868,7 +868,7 @@ export function TransactionStatus({
                 delay={0.5}
                 className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
               >
-                {["validated", "settled"].includes(transactionStatus) && (
+                {["validated", "settling", "settled"].includes(transactionStatus) && (
                   <button
                     type="button"
                     onClick={handleGetReceipt}
@@ -890,7 +890,7 @@ export function TransactionStatus({
                 </button>
               </AnimatedComponent>
 
-              {["validated", "settled"].includes(transactionStatus) &&
+              {["validated", "settling", "settled"].includes(transactionStatus) &&
                 !isRecipientInBeneficiaries && (
                   <AnimatePresence mode="wait">
                     {isSavingRecipient ? (
@@ -968,7 +968,7 @@ export function TransactionStatus({
           )}
         </AnimatePresence>
 
-        {["validated", "settled", "refunded"].includes(transactionStatus) && (
+        {["validated", "settling", "settled", "refunded"].includes(transactionStatus) && (
           <hr className="w-full border-dashed border-border-light dark:border-white/10" />
         )}
 

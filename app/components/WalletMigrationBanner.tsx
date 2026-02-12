@@ -25,12 +25,12 @@ export const WalletMigrationBanner = ({ isRemainingFundsMigration = false }: Wal
     return (
         <>
             <motion.div
-                className="fixed left-0 right-0 top-16 z-10 mt-1 hidden h-16 w-full items-center bg-[#2D77E2] sm:flex"
+                className="fixed left-0 right-0 top-16 z-10 mt-1 hidden min-h-[4.5rem] items-center bg-[#2D77E2] py-2 sm:flex"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: "easeOut" }}
             >
-                <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-between px-4 py-4 lg:px-8">
+                <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-between px-4 lg:px-8">
                     <div className="flex items-center gap-3">
                         <div className="flex-shrink-0">
                             <Image
@@ -65,6 +65,7 @@ export const WalletMigrationBanner = ({ isRemainingFundsMigration = false }: Wal
                                                     </span>
                                                 </>
                                             )}{" "}
+                                            <br />
                                             Start migration to transfer your funds.
                                         </>
                                     )}
@@ -84,7 +85,7 @@ export const WalletMigrationBanner = ({ isRemainingFundsMigration = false }: Wal
             </motion.div>
 
             <motion.div
-                className="fixed left-0 right-0 top-16 z-10 mt-1 flex w-full flex-col bg-[#2D77E2] px-5 py-4 sm:hidden"
+                className="fixed left-0 right-0 top-16 z-10 mt-1 flex w-full flex-col bg-[#2D77E2] px-6 py-5 sm:hidden"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: "easeOut" }}
@@ -122,6 +123,7 @@ export const WalletMigrationBanner = ({ isRemainingFundsMigration = false }: Wal
                                             </span>
                                         </>
                                     )}{" "}
+                                    <br />
                                     Start migration to transfer your funds.
                                 </>
                             )}

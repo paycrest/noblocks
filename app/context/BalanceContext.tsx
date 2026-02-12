@@ -193,6 +193,13 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       setSmartWalletRemainingTotal(0);
     };
 
+    /** Clear only per-network balances so migration banner stays correct on fetch error (keeps cross-chain state). */
+    const clearPerNetworkBalances = () => {
+      setSmartWalletBalance(null);
+      setExternalWalletBalance(null);
+      setInjectedWalletBalance(null);
+    };
+
     setIsLoading(true);
 
     try {
@@ -384,7 +391,9 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       }
     } catch (error) {
       console.error("Error fetching balances:", error);
-      clearAllWalletBalances();
+      // Preserve crossChainBalances and smartWalletRemainingTotal so migration banner
+      // and address don't flip to zero-balance UI when switching networks causes RPC errors
+      clearPerNetworkBalances();
     } finally {
       setIsLoading(false);
     }

@@ -7,6 +7,7 @@ import type {
   VerifyAccountPayload,
   InitiateKYCPayload,
   InitiateKYCResponse,
+  SmileIDSubmissionResponse,
   KYCStatusResponse,
   OrderDetailsResponse,
   TransactionResponse,
@@ -771,4 +772,60 @@ export async function migrateLocalStorageRecipients(
     console.error("Error migrating recipients:", error);
     // Don't throw - let the app continue even if migration fails
   }
-}
+};
+
+/**
+ * Submits Smile ID captured data for KYC verification
+ * @param {object} payload - The Smile ID data payload
+ * @param {string} accessToken - The access token for authentication
+ * @returns {Promise<SmileIDSubmissionResponse>} The submission response
+ * @throws {Error} If the API request fails
+ */
+export const submitSmileIDData = async (
+  payload: any,
+  accessToken: string,
+): Promise<SmileIDSubmissionResponse> => {
+  const startTime = Date.now();
+
+  try {
+    // Track external API request (log metadata only, no PII)
+    trackServerEvent("External API Request", {
+      service: "next-api",
+      endpoint: "/api/kyc/smile-id",
+      method: "POST",
+    });
+
+    // Call Next.js API route with JWT authentication
+    const response = await axios.post(`/api/kyc/smile-id`, payload, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    // Track successful response
+    const responseTime = Date.now() - startTime;
+    trackApiResponse("/api/kyc/smile-id", "POST", 200, responseTime, {
+      service: "next-api",
+    });
+
+    // Track business event
+    trackBusinessEvent("Smile ID Data Submitted", {
+      jobId: response.data.data?.jobId,
+    });
+
+    return response.data;
+  } catch (error) {
+    const responseTime = Date.now() - startTime;
+
+    // Track API error
+    trackServerEvent("External API Error", {
+      service: "next-api",
+      endpoint: "/api/kyc/smile-id",
+      method: "POST",
+      error_message: error instanceof Error ? error.message : "Unknown error",
+      response_time_ms: responseTime,
+    });
+
+    throw error;
+  }
+};

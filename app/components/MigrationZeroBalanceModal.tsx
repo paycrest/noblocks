@@ -76,7 +76,8 @@ export const MigrationZeroBalanceModal: React.FC<MigrationZeroBalanceModalProps>
                         refreshBalance();
                     }
                 }
-            } catch {
+            } catch (error: any) {
+                console.error("[MigrationZeroBalanceModal] Failed to deprecate SCW on zero-balance acknowledge:", error);
                 // Still dismiss modal and persist to storage; user can retry or support can fix
             } finally {
                 setIsDeprecating(false);

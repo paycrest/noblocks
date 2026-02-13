@@ -17,10 +17,11 @@ import { useMigrationStatus } from "../hooks/useEIP7702Account";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, fallback, http } from "viem";
 import { useInjectedWallet } from "./InjectedWalletContext";
 import { networks } from "../mocks";
 import type { Network } from "../types";
+import { bsc } from "viem/chains";
 
 const CROSS_CHAIN_CONCURRENCY = 3; // Limit parallel RPC requests
 
@@ -226,7 +227,13 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
         const publicClient = createPublicClient({
           chain: selectedNetwork.chain,
-          transport: http(getRpcUrl(selectedNetwork.chain.name)),
+          transport:
+            selectedNetwork.chain.id === bsc.id
+              ? fallback([
+                  http(getRpcUrl(selectedNetwork.chain.name)),
+                  http("https://bsc-dataseed.bnbchain.org/"),
+                ])
+              : http(getRpcUrl(selectedNetwork.chain.name)),
         });
 
         let primaryIsEOA = false;

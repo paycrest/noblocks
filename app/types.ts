@@ -264,6 +264,8 @@ export type Config = {
   blockfestEndDate: string; // BlockFest campaign end date
   biconomyNexusV120: string; // Biconomy Nexus V1.2.0 contract address
   biconomyPaymasterKey: string; // Biconomy MEE Paymaster API key
+  maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
+  maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
 };
 
 export type Network = {

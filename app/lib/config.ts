@@ -18,7 +18,7 @@ const config: Config = {
   biconomyPaymasterKey:
     process.env.NEXT_PUBLIC_BICONOMY_PAYMASTER_KEY || "",
   maintenanceEnabled:
-    !!process.env.NEXT_PUBLIC_MAINTENANCE_NOTICE_ENABLED &&
+    process.env.NEXT_PUBLIC_MAINTENANCE_NOTICE_ENABLED === "true" &&
     !!(process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "").trim(),
   maintenanceSchedule:
     process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "",

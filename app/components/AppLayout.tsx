@@ -20,7 +20,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <Providers>
       <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-        <div className="relative">
+        <div className={`relative ${config.maintenanceEnabled ? 'mb-16' : ''}`}>
           <Navbar />
           {config.maintenanceEnabled ? (
             <MaintenanceBanner />

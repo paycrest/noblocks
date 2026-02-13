@@ -16,7 +16,6 @@ export interface MaintenanceNoticeConfig {
   noticeKey: string;
 }
 
-
 const SCHEDULE =
   process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "";
 
@@ -37,7 +36,7 @@ function simpleHash(str: string): string {
 //
 // Expected format examples:
 //   "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
-//   "Saturday, March 1st, from 2:00 AM to 6:00 AM UTC"
+//   "Friday, February 13th, from 10:00 PM to 1:00 AM WAT"  ← overnight
 // ---------------------------------------------------------------------------
 
 const TZ_OFFSETS: Record<string, number> = {
@@ -55,8 +54,16 @@ const MONTH_MAP: Record<string, number> = {
   july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
 };
 
+function parse12hTime(h: number, m: number, meridiem: string): { hours: number; minutes: number } {
+  let hours = h;
+  if (meridiem === "PM" && hours !== 12) hours += 12;
+  if (meridiem === "AM" && hours === 12) hours = 0;
+  return { hours, minutes: m };
+}
+
 /**
  * Parse the end datetime from the schedule string.
+ * Handles overnight windows (e.g. 10 PM → 1 AM → end rolls to the next day).
  * Returns a Date in UTC, or null if parsing fails.
  */
 function parseScheduleEndTime(schedule: string): Date | null {
@@ -71,24 +78,45 @@ function parseScheduleEndTime(schedule: string): Date | null {
     const day = parseInt(dateMatch[2], 10);
     if (month === undefined || isNaN(day)) return null;
 
-    // Extract end time: "to 11:00 PM"
-    const timeMatch = schedule.match(/to\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-    if (!timeMatch) return null;
-    let hours = parseInt(timeMatch[1], 10);
-    const minutes = parseInt(timeMatch[2], 10);
-    const meridiem = timeMatch[3].toUpperCase();
-    if (meridiem === "PM" && hours !== 12) hours += 12;
-    if (meridiem === "AM" && hours === 12) hours = 0;
+    // Extract start time: "from 10:03 PM"
+    const startMatch = schedule.match(/from\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    // Extract end time: "to 01:04 AM"
+    const endMatch = schedule.match(/to\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (!endMatch) return null;
 
-    // Extract timezone abbreviation (last word of uppercase letters)
+    const end = parse12hTime(
+      parseInt(endMatch[1], 10),
+      parseInt(endMatch[2], 10),
+      endMatch[3].toUpperCase(),
+    );
+
+    // Extract timezone abbreviation (last uppercase word)
     const tzMatch = schedule.match(/([A-Z]{2,5})\s*$/);
     const tzName = tzMatch ? tzMatch[1] : "UTC";
     const tzOffset = TZ_OFFSETS[tzName] ?? 0;
 
-    // Build the date using the current year
     const year = new Date().getFullYear();
-    // Construct as UTC then subtract the tz offset to get true UTC
-    const utcMs = Date.UTC(year, month, day, hours, minutes) - tzOffset * 60 * 60 * 1000;
+
+    // Check for overnight: if we also matched a start time, compare them.
+    // When end < start (e.g. 10 PM → 1 AM), the end falls on the next day.
+    let extraDays = 0;
+    if (startMatch) {
+      const start = parse12hTime(
+        parseInt(startMatch[1], 10),
+        parseInt(startMatch[2], 10),
+        startMatch[3].toUpperCase(),
+      );
+      const startMinutes = start.hours * 60 + start.minutes;
+      const endMinutes = end.hours * 60 + end.minutes;
+      if (endMinutes <= startMinutes) {
+        extraDays = 1; // end time is the next calendar day
+      }
+    }
+
+    const utcMs =
+      Date.UTC(year, month, day + extraDays, end.hours, end.minutes) -
+      tzOffset * 60 * 60 * 1000;
+
     return new Date(utcMs);
   } catch {
     return null;
@@ -112,7 +140,6 @@ export const DEFAULT_MAINTENANCE_CONFIG: MaintenanceNoticeConfig = {
   buttonText: "Got it",
   noticeKey: `maintenance-${simpleHash(SCHEDULE)}`,
 };
-
 
 const STORAGE_PREFIX = "noblocks_notice_dismissed_";
 
@@ -177,7 +204,7 @@ export function MaintenanceBanner({
 
   return (
     <motion.div
-      className="fixed left-0 right-0 top-16 z-10 mt-1 hidden min-h-[4.5rem] items-center bg-[#2D77E2] py-2 sm:flex"
+ className="fixed left-0 right-0 top-16 z-10 mt-1 hidden min-h-[4.5rem] items-center bg-[#2D77E2] py-2 sm:flex"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}

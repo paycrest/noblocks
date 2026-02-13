@@ -93,7 +93,7 @@ export function MaintenanceBanner({
 
   return (
     <motion.div
-      className="fixed left-0 right-0 top-16 z-30 mt-1 flex min-h-14 w-full items-center bg-[#0860F0] px-0"
+      className="fixed left-0 right-0 top-16 z-30 mt-1 flex min-h-14 w-full items-center bg-[#0860F0] px-0 max-w-[1480px] mx-auto"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}

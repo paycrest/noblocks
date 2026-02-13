@@ -45,7 +45,6 @@ export const fetchRate = async ({
   currency,
   providerId,
   network,
-  signal,
 }: RatePayload): Promise<RateResponse> => {
   const startTime = Date.now();
 
@@ -72,7 +71,7 @@ export const fetchRate = async ({
       params.network = network;
     }
 
-    const response = await axios.get(endpoint, { params, signal });
+    const response = await axios.get(endpoint, { params });
     const { data } = response;
 
     // Track successful response

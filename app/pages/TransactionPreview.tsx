@@ -17,7 +17,6 @@ import {
   publicKeyEncrypt,
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
-import config from "../lib/config";
 import type {
   Token,
   TransactionPreviewProps,
@@ -25,7 +24,7 @@ import type {
 } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components";
 import { gatewayAbi } from "../api/abi";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
   type BaseError,
@@ -38,18 +37,6 @@ import {
   http,
 } from "viem";
 import { useBalance, useInjectedWallet, useStep } from "../context";
-import {
-  useShouldUseEOA,
-  useBiconomy7702Auth,
-  useMigrationStatus,
-  get7702AuthorizedImplementationForAddress,
-} from "../hooks/useEIP7702Account";
-import {
-  createMeeClient,
-  toMultichainNexusAccount,
-  getMEEVersion,
-  MEEVersion,
-} from "@biconomy/abstractjs";
 
 import { fetchAggregatorPublicKey, saveTransaction } from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics/client";
@@ -72,19 +59,14 @@ export const TransactionPreview = ({
 }: TransactionPreviewProps) => {
   const isDark = useActualTheme();
   const { user, getAccessToken } = usePrivy();
-  const { wallets } = useWallets();
   const { client } = useSmartWallets();
   const { isInjectedWallet, injectedAddress, injectedProvider, injectedReady } =
     useInjectedWallet();
-  const shouldUseEOA = useShouldUseEOA();
-  const { isLoading: isMigrationLoading } = useMigrationStatus();
-  const { signBiconomyAuthorization } = useBiconomy7702Auth();
-
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();
   const { currentStep, setCurrentStep } = useStep();
-  const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance } =
+  const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
     useBalance();
 
   const {
@@ -119,6 +101,11 @@ export const TransactionPreview = ({
 
   const searchParams = useSearchParams();
 
+  const embeddedWallet = user?.linkedAccounts.find(
+    (account) =>
+      account.type === "wallet" && account.connectorType === "embedded",
+  ) as { address: string } | undefined;
+
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
   const tokenAddress = fetchedTokens.find(
@@ -133,30 +120,15 @@ export const TransactionPreview = ({
     ? { address: injectedAddress, type: "injected_wallet" }
     : null;
 
-  // Determine active wallet based on migration status
-  // After migration: use EOA (new wallet with funds)
-  // Before migration: use SCW (old wallet)
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
-  );
   const smartWallet = isInjectedWallet
     ? null
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
-  const activeWallet = injectedWallet ||
-    (shouldUseEOA && embeddedWallet
-      ? { address: embeddedWallet.address, type: "eoa" }
-      : smartWallet);
+  const activeWallet = injectedWallet || smartWallet;
 
-  // Get appropriate balance based on migration status
-  // After migration: use externalWalletBalance (EOA balance)
-  // Before migration: use smartWalletBalance (SCW balance)
-  // Wait for migration status to load before making decision
   const balance = injectedWallet
     ? injectedWalletBalance?.balances[token] || 0
-    : !isMigrationLoading && shouldUseEOA
-      ? externalWalletBalance?.balances[token] || 0
-      : smartWalletBalance?.balances[token] || 0;
+    : smartWalletBalance?.balances[token] || 0;
 
   // Calculate sender fee for display and balance check
   const {
@@ -300,141 +272,8 @@ export const TransactionPreview = ({
           "Entry point": "Transaction preview",
           "Wallet type": "Injected wallet",
         });
-      } else if (shouldUseEOA && embeddedWallet) {
-        // EIP-7702 + Biconomy MEE path (migrated EOA or 0-balance SCW)
-        const chain = selectedNetwork?.chain;
-        if (!chain) throw new Error("Network not ready");
-        const chainId = chain.id;
-        const gatewayAddress = getGatewayContractAddress(
-          selectedNetwork.chain.name,
-        ) as `0x${string}`;
-
-        await embeddedWallet.switchChain(chainId);
-
-        const provider = await embeddedWallet.getEthereumProvider();
-
-        // Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation
-        const biconomyNexusV120 = config.biconomyNexusV120 as `0x${string}`;
-
-        // Check if already authorized to the correct implementation to avoid unnecessary signatures
-        const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
-        if (!rpcUrl) {
-          throw new Error(`RPC URL not configured for network: ${selectedNetwork.chain.name}`);
-        }
-
-        const currentImplementation = await get7702AuthorizedImplementationForAddress(
-          chain,
-          rpcUrl,
-          embeddedWallet.address as `0x${string}`
-        );
-        let authorization;
-        if (currentImplementation === biconomyNexusV120) {
-          authorization = null; // MEE will handle existing authorization
-        } else {
-          // Need new authorization
-          authorization = await signBiconomyAuthorization(chainId);
-
-          // Wait for authorization to propagate on the network
-          await new Promise(resolve => setTimeout(resolve, 2000));
-
-          // Verify authorization worked (optional validation)
-          try {
-            const newImplementation = await get7702AuthorizedImplementationForAddress(
-              chain,
-              rpcUrl,
-              embeddedWallet.address as `0x${string}`
-            );
-
-            if (newImplementation !== biconomyNexusV120) {
-              console.warn(`EIP-7702 authorization verification failed. Expected: ${biconomyNexusV120}, Got: ${newImplementation}`);
-              console.warn("Proceeding with authorization anyway - MEE will handle validation");
-              // Don't throw error, let MEE handle the validation
-            }
-          } catch (verificationError) {
-            console.warn("EIP-7702 verification failed, but proceeding:", verificationError);
-            // Don't throw error, let MEE handle the validation
-          }
-        }
-
-        // Match Biconomy example: signer is EIP-1193 provider so SDK uses eth_requestAccounts (no getAddresses)
-        const nexusAccount = await toMultichainNexusAccount({
-          chainConfigurations: [
-            {
-              chain,
-              transport: http(getRpcUrl(selectedNetwork.chain.name)),
-              version: getMEEVersion(MEEVersion.V2_1_0),
-              accountAddress: embeddedWallet.address as `0x${string}`,
-            },
-          ],
-          signer: provider,
-        });
-
-
-        const biconomyApiKey = config.biconomyPaymasterKey;
-        if (!biconomyApiKey) {
-          throw new Error("Biconomy paymaster API key not configured");
-        }
-
-        const meeClient = await createMeeClient({
-          account: nexusAccount,
-          apiKey: biconomyApiKey,
-        });
-
-        const params = await prepareCreateOrderParams();
-        setCreatedAt(new Date().toISOString());
-
-        const totalAmountToApprove = params.amount + params.senderFee;
-
-        const approveInstruction = await nexusAccount.buildComposable({
-          type: "default",
-          data: {
-            abi: erc20Abi,
-            chainId,
-            to: tokenAddress,
-            functionName: "approve",
-            args: [gatewayAddress, totalAmountToApprove],
-          },
-        });
-
-        const createOrderInstruction = await nexusAccount.buildComposable({
-          type: "default",
-          data: {
-            abi: gatewayAbi,
-            chainId,
-            to: gatewayAddress,
-            functionName: "createOrder",
-            args: [
-              params.token,
-              params.amount,
-              params.rate,
-              params.senderFeeRecipient,
-              params.senderFee,
-              params.refundAddress ?? "",
-              params.messageHash,
-            ],
-          },
-        });
-
-        // Use your project's sponsorship (apiKey above must match dashboard project)
-        const { hash } = await meeClient.execute({
-          authorizations: authorization ? [authorization] : [],
-          delegate: true,
-          sponsorship: true,
-          instructions: [approveInstruction, createOrderInstruction],
-        });
-
-        await meeClient.waitForSupertransactionReceipt({ hash });
-
-        // Set success state only after transaction is confirmed
-        setIsGatewayApproved(true);
-        setIsOrderCreated(true);
-
-        trackEvent("Swap started", {
-          "Entry point": "Transaction preview",
-          "Wallet type": "EIP-7702 (MEE)",
-        });
       } else {
-        // Smart wallet (pre-migration)
+        // Smart wallet
         if (!client) {
           throw new Error("Smart wallet not found");
         }
@@ -524,7 +363,6 @@ export const TransactionPreview = ({
   const handlePaymentConfirmation = async () => {
     // Check balance including sender fee
     const totalRequired = amountSent + senderFeeAmount;
-
     if (totalRequired > balance) {
       toast.warning("Low balance. Fund your wallet.", {
         description: `Insufficient funds. You need ${formatNumberWithCommas(totalRequired)} ${token} (${formatNumberWithCommas(amountSent)} ${token} + ${formatNumberWithCommas(senderFeeAmount)} ${token} fee).`,
@@ -550,7 +388,7 @@ export const TransactionPreview = ({
     orderId: string;
     txHash: `0x${string}`;
   }) => {
-    if (!activeWallet?.address || isSavingTransaction) return;
+    if (!embeddedWallet?.address || isSavingTransaction) return;
     setIsSavingTransaction(true);
 
     try {
@@ -560,7 +398,7 @@ export const TransactionPreview = ({
       }
 
       const transaction: TransactionCreateInput = {
-        walletAddress: activeWallet.address,
+        walletAddress: embeddedWallet.address,
         transactionType: "swap",
         fromCurrency: token,
         toCurrency: currency,
@@ -772,8 +610,9 @@ export const TransactionPreview = ({
                   <PiCheckCircleFill className="text-lg text-green-700 dark:text-green-500" />
                 ) : (
                   <TbCircleDashed
-                    className={`text-lg ${isGatewayApproved ? "animate-spin" : ""
-                      }`}
+                    className={`text-lg ${
+                      isGatewayApproved ? "animate-spin" : ""
+                    }`}
                   />
                 )}
                 <p className="pr-1">Create Order</p>

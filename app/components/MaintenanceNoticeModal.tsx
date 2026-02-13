@@ -16,10 +16,11 @@ export interface MaintenanceNoticeConfig {
   noticeKey: string;
 }
 
+
 const SCHEDULE =
   process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "";
 
-const ENABLED = process.env.NEXT_PUBLIC_MAINTENANCE_NOTICE_ENABLED === "true";
+const ENABLED = !!process.env.NEXT_PUBLIC_MAINTENANCE_NOTICE_ENABLED;
 
 /** Simple deterministic hash for the noticeKey so each schedule gets its own. */
 function simpleHash(str: string): string {
@@ -28,106 +29,6 @@ function simpleHash(str: string): string {
     h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
   }
   return Math.abs(h).toString(36);
-}
-
-// ---------------------------------------------------------------------------
-// Parse the end-of-maintenance datetime from the schedule text so the notice
-// auto-hides once the window is over — no code change or redeploy needed.
-//
-// Expected format examples:
-//   "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
-//   "Friday, February 13th, from 10:00 PM to 1:00 AM WAT"  ← overnight
-// ---------------------------------------------------------------------------
-
-const TZ_OFFSETS: Record<string, number> = {
-  UTC: 0, GMT: 0,
-  WAT: 1, CET: 1,
-  CAT: 2, CEST: 2, EET: 2, SAST: 2,
-  EAT: 3, EEST: 3,
-  EST: -5, CST: -6, MST: -7, PST: -8,
-  EDT: -4, CDT: -5, MDT: -6, PDT: -7,
-  IST: 5.5, SGT: 8, JST: 9, AEST: 10,
-};
-
-const MONTH_MAP: Record<string, number> = {
-  january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
-  july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
-};
-
-function parse12hTime(h: number, m: number, meridiem: string): { hours: number; minutes: number } {
-  let hours = h;
-  if (meridiem === "PM" && hours !== 12) hours += 12;
-  if (meridiem === "AM" && hours === 12) hours = 0;
-  return { hours, minutes: m };
-}
-
-/**
- * Parse the end datetime from the schedule string.
- * Handles overnight windows (e.g. 10 PM → 1 AM → end rolls to the next day).
- * Returns a Date in UTC, or null if parsing fails.
- */
-function parseScheduleEndTime(schedule: string): Date | null {
-  if (!schedule) return null;
-  try {
-    // Extract month + day: "February 13th"
-    const dateMatch = schedule.match(
-      /(\b(?:January|February|March|April|May|June|July|August|September|October|November|December))\s+(\d{1,2})(?:st|nd|rd|th)?/i,
-    );
-    if (!dateMatch) return null;
-    const month = MONTH_MAP[dateMatch[1].toLowerCase()];
-    const day = parseInt(dateMatch[2], 10);
-    if (month === undefined || isNaN(day)) return null;
-
-    // Extract start time: "from 10:03 PM"
-    const startMatch = schedule.match(/from\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-    // Extract end time: "to 01:04 AM"
-    const endMatch = schedule.match(/to\s+(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-    if (!endMatch) return null;
-
-    const end = parse12hTime(
-      parseInt(endMatch[1], 10),
-      parseInt(endMatch[2], 10),
-      endMatch[3].toUpperCase(),
-    );
-
-    // Extract timezone abbreviation (last uppercase word)
-    const tzMatch = schedule.match(/([A-Z]{2,5})\s*$/);
-    const tzName = tzMatch ? tzMatch[1] : "UTC";
-    const tzOffset = TZ_OFFSETS[tzName] ?? 0;
-
-    const year = new Date().getFullYear();
-
-    // Check for overnight: if we also matched a start time, compare them.
-    // When end < start (e.g. 10 PM → 1 AM), the end falls on the next day.
-    let extraDays = 0;
-    if (startMatch) {
-      const start = parse12hTime(
-        parseInt(startMatch[1], 10),
-        parseInt(startMatch[2], 10),
-        startMatch[3].toUpperCase(),
-      );
-      const startMinutes = start.hours * 60 + start.minutes;
-      const endMinutes = end.hours * 60 + end.minutes;
-      if (endMinutes <= startMinutes) {
-        extraDays = 1; // end time is the next calendar day
-      }
-    }
-
-    const utcMs =
-      Date.UTC(year, month, day + extraDays, end.hours, end.minutes) -
-      tzOffset * 60 * 60 * 1000;
-
-    return new Date(utcMs);
-  } catch {
-    return null;
-  }
-}
-
-/** Check (client-side) whether the maintenance window has already ended. */
-function isMaintenanceOver(): boolean {
-  const endTime = parseScheduleEndTime(SCHEDULE);
-  if (!endTime) return false; // can't parse → stay visible (safe default)
-  return Date.now() > endTime.getTime();
 }
 
 export const DEFAULT_MAINTENANCE_CONFIG: MaintenanceNoticeConfig = {
@@ -140,6 +41,7 @@ export const DEFAULT_MAINTENANCE_CONFIG: MaintenanceNoticeConfig = {
   buttonText: "Got it",
   noticeKey: `maintenance-${simpleHash(SCHEDULE)}`,
 };
+
 
 const STORAGE_PREFIX = "noblocks_notice_dismissed_";
 
@@ -187,29 +89,16 @@ export function MaintenanceBanner({
 }: {
   config?: MaintenanceNoticeConfig;
 }) {
-  const [expired, setExpired] = useState(false);
-
-  useEffect(() => {
-    if (!config.enabled) return;
-    // Check immediately
-    if (isMaintenanceOver()) { setExpired(true); return; }
-    // Re-check every 10 minutes so it auto-hides without a reload
-    const id = setInterval(() => {
-      if (isMaintenanceOver()) { setExpired(true); clearInterval(id); }
-    }, 600_000);
-    return () => clearInterval(id);
-  }, [config.enabled]);
-
-  if (!config.enabled || expired) return null;
+  if (!config.enabled) return null;
 
   return (
     <motion.div
- className="fixed left-0 right-0 top-16 z-10 mt-1 hidden min-h-[4.5rem] items-center bg-[#2D77E2] py-2 sm:flex"
+      className="fixed left-0 right-0 top-16 z-30 mt-1 flex min-h-14 w-full items-center bg-[#0860F0] px-0 max-w-[1480px] mx-auto"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
     >
-      <div className="mx-auto flex w-full max-w-screen-2xl items-center justify-between px-4 lg:px-8">
+      <div className="relative flex w-full items-center sm:pr-8">
         {/* Mobile illustration */}
         <div className="absolute left-0 top-0 z-0 sm:hidden">
           <Image
@@ -259,7 +148,6 @@ export function MaintenanceNoticeModal({
 
   useEffect(() => {
     if (!config.enabled) return;
-    if (isMaintenanceOver()) return;
     if (isDismissed(config.noticeKey)) return;
     // Small delay so it doesn't flash on initial page load
     const timer = setTimeout(() => setIsOpen(true), 400);

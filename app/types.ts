@@ -93,7 +93,6 @@ export type TransactionStatusProps = {
   formMethods: FormMethods;
   supportedInstitutions: InstitutionProps[];
   setOrderId: (orderId: string) => void;
-  refetchRate?: () => void;
 };
 
 export type SelectFieldProps = {
@@ -120,7 +119,6 @@ export type RatePayload = {
   currency: string;
   providerId?: string;
   network?: string;
-  signal?: AbortSignal;
 };
 
 export type RateResponse = {
@@ -262,8 +260,6 @@ export type Config = {
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
-  biconomyNexusV120: string; // Biconomy Nexus V1.2.0 contract address
-  biconomyPaymasterKey: string; // Biconomy MEE Paymaster API key
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
 };
@@ -271,11 +267,11 @@ export type Config = {
 export type Network = {
   chain: any;
   imageUrl:
-    | string
-    | {
-        light: string;
-        dark: string;
-      };
+  | string
+  | {
+    light: string;
+    dark: string;
+  };
 };
 
 export interface TransactionResponse {

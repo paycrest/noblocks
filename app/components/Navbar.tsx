@@ -27,8 +27,6 @@ import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
-import { useWallets } from "@privy-io/react-auth";
-import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -41,25 +39,10 @@ export const Navbar = () => {
   const isDark = useActualTheme();
 
   const { ready, authenticated, user } = usePrivy();
-  const { wallets } = useWallets();
-  const shouldUseEOA = useShouldUseEOA();
 
-  // Get embedded wallet (EOA) and smart wallet (SCW)
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
-  );
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet"
-  );
-
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
-  // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress, type: "injected_wallet" }
-    : shouldUseEOA && embeddedWallet
-      ? { address: embeddedWallet.address, type: "eoa" }
-      : smartWallet;
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
   const { login } = useLogin({
     onComplete: async ({ user, isNewUser, loginMethod }) => {
@@ -210,8 +193,9 @@ export const Navbar = () => {
               <div className="hidden items-center sm:flex">
                 <Link
                   href="/"
-                  className={`${IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"
-                    } text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
+                  className={`${
+                    IS_MAIN_PRODUCTION_DOMAIN ? "" : "-mt-[3px]"
+                  } text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 dark:text-white/80 dark:hover:text-white`}
                 >
                   Swap
                 </Link>

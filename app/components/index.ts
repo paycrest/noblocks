@@ -55,4 +55,8 @@ export { TransferForm } from "./TransferForm";
 
 export { default as NoticeBanner } from "./NoticeBanner";
 export { WalletMigrationBanner } from "./WalletMigrationBanner";
+export {
+  MaintenanceNoticeModal,
+  MaintenanceBanner,
+} from "./MaintenanceNoticeModal";
 export { default as AppLayout } from "./AppLayout";

@@ -13,6 +13,7 @@ import {
   NoticeBanner,
 } from "./index";
 import { MigrationBannerWrapper } from "../context";
+import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeModal";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
 
@@ -21,8 +22,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
         <div className="relative">
           <Navbar />
-          {config.noticeBannerText && (
-            <NoticeBanner textLines={config.noticeBannerText.split("|")} />
+          {config.maintenanceEnabled ? (
+            <MaintenanceBanner />
+          ) : (
+            config.noticeBannerText && (
+              <NoticeBanner textLines={config.noticeBannerText.split("|")} />
+            )
           )}
           <MigrationBannerWrapper />
         </div>
@@ -31,6 +36,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </LayoutWrapper>
 
         <PWAInstall />
+        <MaintenanceNoticeModal />
       </div>
       {/* Brevo Chat Widget */}
       {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && config.brevoConversationsGroupId && (

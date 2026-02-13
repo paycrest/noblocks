@@ -17,6 +17,11 @@ const config: Config = {
     process.env.NEXT_PUBLIC_BICONOMY_NEXUS_V120 || "0x000000004f43c49e93c970e84001853a70923b03",
   biconomyPaymasterKey:
     process.env.NEXT_PUBLIC_BICONOMY_PAYMASTER_KEY || "",
+  maintenanceEnabled:
+    !!process.env.NEXT_PUBLIC_MAINTENANCE_NOTICE_ENABLED &&
+    !!(process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "").trim(),
+  maintenanceSchedule:
+    process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "",
 };
 
 export default config;

@@ -11,7 +11,7 @@ import {
   PWAInstall,
   NoticeBanner,
 } from "./index";
-import { MaintenanceNoticeModal } from "./MaintenanceNoticeModal";
+import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeModal";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -19,8 +19,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
         <div className="relative">
           <Navbar />
-          {config.noticeBannerText && (
-            <NoticeBanner textLines={config.noticeBannerText.split("|")} />
+          {config.maintenanceEnabled ? (
+            <MaintenanceBanner />
+          ) : (
+            config.noticeBannerText && (
+              <NoticeBanner textLines={config.noticeBannerText.split("|")} />
+            )
           )}
         </div>
         <LayoutWrapper footer={<Footer />}>

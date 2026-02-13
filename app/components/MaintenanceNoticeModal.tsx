@@ -80,6 +80,63 @@ function RichText({ text, className }: { text: string; className?: string }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Persistent top-bar banner (does NOT dismiss — visible as long as enabled)
+// ---------------------------------------------------------------------------
+
+export function MaintenanceBanner({
+  config = DEFAULT_MAINTENANCE_CONFIG,
+}: {
+  config?: MaintenanceNoticeConfig;
+}) {
+  if (!config.enabled) return null;
+
+  return (
+    <motion.div
+      className="fixed left-0 right-0 top-16 z-30 mt-1 flex min-h-14 w-full items-center bg-[#0860F0] px-0"
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+    >
+      <div className="relative flex w-full items-center sm:pr-8">
+        {/* Mobile illustration */}
+        <div className="absolute left-0 top-0 z-0 sm:hidden">
+          <Image
+            src="/images/banner-illustration-mobile.svg"
+            alt=""
+            width={37}
+            height={104}
+            priority
+            className="h-full w-auto"
+          />
+        </div>
+        {/* Desktop illustration */}
+        <div className="z-10 hidden flex-shrink-0 sm:static sm:mr-4 sm:block">
+          <Image
+            src="/images/banner-illustration.svg"
+            alt=""
+            width={74}
+            height={64}
+            priority
+          />
+        </div>
+
+        {/* Copy */}
+        <div className="relative z-10 flex flex-grow items-center justify-between gap-3 px-4 py-3 pl-12 sm:pl-0">
+          <RichText
+            text={`Scheduled maintenance on **${SCHEDULE}**. Some services may be temporarily unavailable.`}
+            className="text-xs font-medium leading-snug text-white/90 sm:text-sm"
+          />
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dismissible modal
+// ---------------------------------------------------------------------------
+
 interface MaintenanceNoticeModalProps {
   config?: MaintenanceNoticeConfig;
 }

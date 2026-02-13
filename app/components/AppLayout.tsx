@@ -1,3 +1,4 @@
+"use client";
 import React from "react";
 import Script from "next/script";
 import config from "../lib/config";
@@ -11,13 +12,15 @@ import {
   PWAInstall,
   NoticeBanner,
 } from "./index";
+import { MigrationBannerWrapper } from "../context";
 import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeModal";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+
   return (
     <Providers>
       <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-        <div className="relative">
+        <div className={`relative ${config.maintenanceEnabled ? 'mb-16' : ''}`}>
           <Navbar />
           {config.maintenanceEnabled ? (
             <MaintenanceBanner />
@@ -26,6 +29,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <NoticeBanner textLines={config.noticeBannerText.split("|")} />
             )
           )}
+          <MigrationBannerWrapper />
         </div>
         <LayoutWrapper footer={<Footer />}>
           <MainContent>{children}</MainContent>
@@ -41,11 +45,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {`window.BrevoConversationsID=${JSON.stringify(config.brevoConversationsId)};
             window.BrevoConversations=window.BrevoConversations||function(){
             (window.BrevoConversations.q=window.BrevoConversations.q||[]).push(arguments)};
-            window.BrevoConversationsSetup=${
-              config.brevoConversationsGroupId 
-                ? `{groupId:${JSON.stringify(config.brevoConversationsGroupId)}}` 
+            window.BrevoConversationsSetup=${config.brevoConversationsGroupId
+                ? `{groupId:${JSON.stringify(config.brevoConversationsGroupId)}}`
                 : '{}'
-            };
+              };
             `}
           </Script>
           <Script

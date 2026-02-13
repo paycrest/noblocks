@@ -30,6 +30,7 @@
     "sanity:undeploy": "sanity undeploy"
   },
   "dependencies": {
+    "@biconomy/abstractjs": "^1.1.21",
     "@headlessui/react": "^2.2.4",
     "@hotjar/browser": "^1.0.9",
     "@portabletext/react": "^3.2.1",
@@ -101,10 +102,9 @@
     "typescript": "^5.8.3"
   },
   "engines": {
-    "node": "22.x",
-    "pnpm": "10.14.0"
+    "node": "22.x"
   },
-  "packageManager": "pnpm@10.14.0",
+  "packageManager": "pnpm@10.27.0",
   "pnpm": {
     "overrides": {
       "@types/react": "^19.0.8",

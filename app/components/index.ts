@@ -54,4 +54,5 @@ export { FundWalletForm } from "./FundWalletForm";
 export { TransferForm } from "./TransferForm";
 
 export { default as NoticeBanner } from "./NoticeBanner";
+export { MaintenanceNoticeModal } from "./MaintenanceNoticeModal";
 export { default as AppLayout } from "./AppLayout";

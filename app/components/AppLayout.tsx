@@ -11,6 +11,7 @@ import {
   PWAInstall,
   NoticeBanner,
 } from "./index";
+import { MaintenanceNoticeModal } from "./MaintenanceNoticeModal";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -27,6 +28,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </LayoutWrapper>
 
         <PWAInstall />
+        <MaintenanceNoticeModal />
       </div>
       {/* Brevo Chat Widget */}
       {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && config.brevoConversationsGroupId && (

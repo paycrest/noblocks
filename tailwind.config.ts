@@ -91,6 +91,9 @@ const config: Config = {
       animation: {
         "rocket-shake": "rocket-shake 0.7s infinite",
       },
+      fontFamily: {
+        'inter': ['"Inter"', 'system-ui', 'arial', 'sans-serif'],
+      },
     },
   },
   plugins: [],

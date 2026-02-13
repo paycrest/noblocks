@@ -14,9 +14,6 @@ importers:
 
   .:
     dependencies:
-      '@biconomy/abstractjs':
-        specifier: ^1.1.21
-        version: 1.1.21(@metamask/delegation-toolkit@0.11.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)))(@rhinestone/module-sdk@0.4.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)))(@safe-global/types-kit@3.0.0(typescript@5.8.3)(zod@3.25.24))(typescript@5.8.3)(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))
       '@headlessui/react':
         specifier: ^2.2.4
         version: 2.2.4(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -1031,15 +1028,6 @@ packages:
 
   '@bcoe/v8-coverage@0.2.3':
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
-
-  '@biconomy/abstractjs@1.1.21':
-    resolution: {integrity: sha512-JYmQE4jnOB1rIpE/7UWQK2eTYY2nw+eM5oUxP9BtZ3slAVsk/TB6vcq9fmQr4SI0i7eCKZ0QKkdaREQmSJboIg==}
-    peerDependencies:
-      '@metamask/delegation-toolkit': ^0.11.0
-      '@rhinestone/module-sdk': 0.4.0
-      '@safe-global/types-kit': 3.0.0
-      typescript: ^5.8.2
-      viem: ^2.26.2
 
   '@blocto/sdk@0.10.2':
     resolution: {integrity: sha512-9gCIUKA7/7/hMHaa5n94+OYU/3tHd6vmBgTgv4o2h3z9SFueQXAJMO4aBggH9+EldgHQDI6wHsnvytEt9AWb6g==}
@@ -2463,27 +2451,6 @@ packages:
   '@maverick-js/signals@5.11.5':
     resolution: {integrity: sha512-/GO94awrwN9ROYZDMTeByordjvbhcm3CMvB/2aL/sEUy9Va8nM/2GmNgOOe+rrooTGnz8/DzO73xomuBRrnYWw==}
 
-  '@metamask/delegation-abis@0.11.0':
-    resolution: {integrity: sha512-tnNGFDLQ5jfgPhHJaT5JwvF759nja1iGAG00REbk1Ufir+TxjxTmF8L9MbJifZmUh4fnyqV4Ik6NAOYVNBPVBg==}
-    engines: {node: ^18.18 || >=20}
-
-  '@metamask/delegation-deployments@0.11.0':
-    resolution: {integrity: sha512-RfeMr1Ct0givG7oOy1unwdb5lGttq9pape4OGz2mk8quG0KDqDi7cw3fzYc7wz9xFDZ2YrFanYRacaLTlqWS8g==}
-    engines: {node: ^18.18 || >=20}
-
-  '@metamask/delegation-toolkit@0.11.0':
-    resolution: {integrity: sha512-KQybftUahuPPjN842ejmVaJWg2rzHpSpvd+b6qtiOBypzJs7cgw1/f8QalHLugS1eyicEYLXwvRxjjufiG4wbg==}
-    engines: {node: ^18.18 || >=20}
-    deprecated: Renamed to @metamask/smart-accounts-kit
-    peerDependencies:
-      viem: '>=2.18.2 <3.0.0'
-
-  '@metamask/delegation-utils@0.11.0':
-    resolution: {integrity: sha512-eg8icyDtbzwER/G3VvaiVUNiNr9GXxJXQMcFRbhm9tTMqWXpphYXk9edSungRF+QqYmXIytRiR2ChSHp0uNtew==}
-    engines: {node: ^18.18 || >=20}
-    peerDependencies:
-      viem: '>=2.18.2 <3.0.0'
-
   '@metamask/eth-json-rpc-provider@1.0.1':
     resolution: {integrity: sha512-whiUMPlAOrVGmX8aKYVPvlKyG4CpQXiNNyt74vE1xb5sPvmx5oA7B/kOi/JdBvhGQq97U1/AVdXEdk2zkP8qyA==}
     engines: {node: '>=14.0.0'}
@@ -3598,12 +3565,6 @@ packages:
       react: ^19.0.1
       react-dom: ^19.0.1
 
-  '@rhinestone/module-sdk@0.4.0':
-    resolution: {integrity: sha512-MezAYnw+D7tWCVyUMYiA6YutsQT/dL2XPoVhJcfHUh+xccxadubBhU+IKA0MkAyibOWLWZ0yplbgPUKq7MPkFg==}
-    deprecated: This SDK is no longer supported. Please switch to '@rhinestone/sdk' to continue getting updates.
-    peerDependencies:
-      viem: ^2.0.0
-
   '@rolldown/pluginutils@1.0.0-beta.27':
     resolution: {integrity: sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==}
 
@@ -3745,9 +3706,6 @@ packages:
   '@safe-global/safe-ethers-lib@1.9.4':
     resolution: {integrity: sha512-WhzcmNun0s0VxeVQKRqaapV0vEpdm76zZBR2Du+S+58u1r57OjZkOSL2Gru0tdwkt3FIZZtE3OhDu09M70pVkA==}
     deprecated: 'WARNING: This package is now bundled in @safe-global/protocol-kit. Please, follow the migration guide https://docs.safe.global/safe-core-aa-sdk/protocol-kit/reference/v1'
-
-  '@safe-global/types-kit@3.0.0':
-    resolution: {integrity: sha512-AZWIlR5MguDPdGiOj7BB4JQPY2afqmWQww1mu8m8Oi16HHBW99G01kFOu4NEHBwEU1cgwWOMY19hsI5KyL4W2w==}
 
   '@sanity/asset-utils@2.2.1':
     resolution: {integrity: sha512-dBsZWH5X6ANcvclFRnQT9Y+NNvoWTJZIMKR5HT6hzoRpRb48p7+vWn+wi1V1wPvqgZg2ScsOQQcGXWXskbPbQQ==}
@@ -10199,9 +10157,6 @@ packages:
   solady@0.0.180:
     resolution: {integrity: sha512-9QVCyMph+wk78Aq/GxtDAQg7dvNoVWx2dS2Zwf11XlwFKDZ+YJG2lrQsK9NEIth9NOebwjBXAYk4itdwOOE4aw==}
 
-  solady@0.0.235:
-    resolution: {integrity: sha512-JUEXLDG7ag3HmqUnrDG7ilhafH6R9bFPpwV63O2kH4UbnS2+gRGEOqqy4k01O7tHjo3MWkDD0cpG+UY9pjy/fQ==}
-
   sonic-boom@2.8.0:
     resolution: {integrity: sha512-kuonw1YOYYNOve5iHdSahXPOK49GqwA+LZhI6Wz/l0rP57iKyXXIHaRagOBHAPmGwJC6od2Z9zgvZ5loSgMlVg==}
 
@@ -10527,7 +10482,6 @@ packages:
   tar@6.2.1:
     resolution: {integrity: sha512-DZ4yORTwrbTj/7MZYq2w+/ZFdI6OZ/f9SFHR+71gIVUZhOQPHzVCLpvRnPgyaMpfWxxk/4ONva3GQSyNIKRv6A==}
     engines: {node: '>=10'}
-    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   tar@7.4.3:
     resolution: {integrity: sha512-5S7Va8hKfV7W5U6g3aYxXmlPoZVAwUMy9AOKyF2fVuZa2UD3qZjg578OrLRt8PcNN1PleVaL/5/yYATNL0ICUw==}
@@ -11504,9 +11458,6 @@ packages:
   web3-utils@1.5.2:
     resolution: {integrity: sha512-quTtTeQJHYSxAwIBOCGEcQtqdVcFWX6mCFNoqnp+mRbq+Hxbs8CGgO/6oqfBx4OvxIOfCpgJWYVHswRXnbEu9Q==}
     engines: {node: '>=8.0.0'}
-
-  webauthn-p256@0.0.5:
-    resolution: {integrity: sha512-drMGNWKdaixZNobeORVIqq7k5DsRC9FnG201K2QjeOoQLmtSDaSsVZdkg6n5jUALJKcAG++zBPJXmv6hy0nWFg==}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -13548,14 +13499,6 @@ snapshots:
 
   '@bcoe/v8-coverage@0.2.3': {}
 
-  '@biconomy/abstractjs@1.1.21(@metamask/delegation-toolkit@0.11.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)))(@rhinestone/module-sdk@0.4.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)))(@safe-global/types-kit@3.0.0(typescript@5.8.3)(zod@3.25.24))(typescript@5.8.3)(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))':
-    dependencies:
-      '@metamask/delegation-toolkit': 0.11.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))
-      '@rhinestone/module-sdk': 0.4.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))
-      '@safe-global/types-kit': 3.0.0(typescript@5.8.3)(zod@3.25.24)
-      typescript: 5.8.3
-      viem: 2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)
-
   '@blocto/sdk@0.10.2(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
     dependencies:
       buffer: 6.0.3
@@ -15435,23 +15378,6 @@ snapshots:
 
   '@maverick-js/signals@5.11.5': {}
 
-  '@metamask/delegation-abis@0.11.0': {}
-
-  '@metamask/delegation-deployments@0.11.0': {}
-
-  '@metamask/delegation-toolkit@0.11.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))':
-    dependencies:
-      '@metamask/delegation-utils': 0.11.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))
-      viem: 2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)
-      webauthn-p256: 0.0.5
-
-  '@metamask/delegation-utils@0.11.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))':
-    dependencies:
-      '@metamask/delegation-abis': 0.11.0
-      '@metamask/delegation-deployments': 0.11.0
-      buffer: 6.0.3
-      viem: 2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)
-
   '@metamask/eth-json-rpc-provider@1.0.1':
     dependencies:
       '@metamask/json-rpc-engine': 7.3.3
@@ -17180,12 +17106,6 @@ snapshots:
       react: 19.2.1
       react-dom: 19.2.1(react@19.2.1)
 
-  '@rhinestone/module-sdk@0.4.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))':
-    dependencies:
-      solady: 0.0.235
-      tslib: 2.8.1
-      viem: 2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)
-
   '@rolldown/pluginutils@1.0.0-beta.27': {}
 
   '@rollup/rollup-android-arm-eabi@4.46.2':
@@ -17321,13 +17241,6 @@ snapshots:
       - encoding
       - supports-color
       - utf-8-validate
-
-  '@safe-global/types-kit@3.0.0(typescript@5.8.3)(zod@3.25.24)':
-    dependencies:
-      abitype: 1.1.0(typescript@5.8.3)(zod@3.25.24)
-    transitivePeerDependencies:
-      - typescript
-      - zod
 
   '@sanity/asset-utils@2.2.1': {}
 
@@ -27329,8 +27242,6 @@ snapshots:
 
   solady@0.0.180: {}
 
-  solady@0.0.235: {}
-
   sonic-boom@2.8.0:
     dependencies:
       atomic-sleep: 1.0.0
@@ -28837,11 +28748,6 @@ snapshots:
       number-to-bn: 1.7.0
       randombytes: 2.1.0
       utf8: 3.0.0
-
-  webauthn-p256@0.0.5:
-    dependencies:
-      '@noble/curves': 1.9.2
-      '@noble/hashes': 1.8.0
 
   webidl-conversions@3.0.1: {}
 

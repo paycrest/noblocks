@@ -19,23 +19,17 @@ import {
   Setting07Icon,
   Wallet01Icon,
   Key01Icon,
-  Download01Icon,
-  AccessIcon,
 } from "hugeicons-react";
 import { toast } from "sonner";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
-import { useWallets } from "@privy-io/react-auth";
-import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 
 export const SettingsDropdown = () => {
-  const { user, updateEmail, exportWallet } = usePrivy();
-  const { wallets } = useWallets();
+  const { user, updateEmail } = usePrivy();
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const shouldUseEOA = useShouldUseEOA();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -47,22 +41,10 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
-  // Get embedded wallet (EOA) and smart wallet (SCW)
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
-  );
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet"
-  );
-
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
-  // Before migration: show SCW (old wallet)
   const walletAddress = isInjectedWallet
     ? injectedAddress
-    : shouldUseEOA && embeddedWallet
-      ? embeddedWallet.address
-      : smartWallet?.address;
+    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
+        ?.address;
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(walletAddress ?? "");
@@ -275,7 +257,7 @@ export const SettingsDropdown = () => {
                     </button>
                   </li>
                 ))}
-              {!isInjectedWallet && (
+              {/* {!isInjectedWallet && (
                 <li
                   role="menuitem"
                   className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
@@ -284,7 +266,7 @@ export const SettingsDropdown = () => {
                   <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                   <p>Export wallet</p>
                 </li>
-              )}
+              )} */}
               {!isInjectedWallet && (
                 <li
                   role="menuitem"

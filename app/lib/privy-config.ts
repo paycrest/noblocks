@@ -1,4 +1,4 @@
-import { arbitrum, base, bsc, polygon, lisk, mainnet } from "viem/chains";
+import { arbitrum, base, bsc, polygon, lisk, mainnet} from "viem/chains";
 import {
   addRpcUrlOverrideToChain,
   type PrivyClientConfig,

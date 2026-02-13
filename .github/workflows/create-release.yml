@@ -89,51 +89,46 @@ jobs:
           fi
 
           # Format PRs for release notes
-          {
-            echo "formatted_prs<<EOF"
-            while IFS='|' read -r number title body labels; do
-              echo "### PR #$number: $title"
-              echo "Labels: $labels"
-              echo ""
-              echo "$body"
-              echo ""
-            done < prs.txt
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+          echo "formatted_prs<<EOF" >> $GITHUB_OUTPUT
+          while IFS='|' read -r number title body labels; do
+            echo "### PR #$number: $title"
+            echo "Labels: $labels"
+            echo ""
+            echo "$body"
+            echo ""
+          done < prs.txt
+          echo "EOF" >> $GITHUB_OUTPUT
 
-          # Format commits by type - use %s (subject) where conventional types live
-          # Wrap in block to redirect all output to GITHUB_OUTPUT
-          {
-            echo "formatted_commits<<EOF"
-            echo "### Breaking Changes"
-            if [ "$latest_tag" = "0.0.0" ]; then
-              git log --pretty=format:"- %s" | grep -E "^- (feat!|BREAKING CHANGE)" || echo "None"
-            else
-              git log $latest_tag..HEAD --pretty=format:"- %s" | grep -E "^- (feat!|BREAKING CHANGE)" || echo "None"
-            fi
-            echo ""
-            echo "### Features"
-            if [ "$latest_tag" = "0.0.0" ]; then
-              git log --pretty=format:"- %s" | grep -E "^- feat[^!]" || echo "None"
-            else
-              git log $latest_tag..HEAD --pretty=format:"- %s" | grep -E "^- feat[^!]" || echo "None"
-            fi
-            echo ""
-            echo "### Fixes"
-            if [ "$latest_tag" = "0.0.0" ]; then
-              git log --pretty=format:"- %s" | grep -E "^- fix" || echo "None"
-            else
-              git log $latest_tag..HEAD --pretty=format:"- %s" | grep -E "^- fix" || echo "None"
-            fi
-            echo ""
-            echo "### Other Changes"
-            if [ "$latest_tag" = "0.0.0" ]; then
-              git log --pretty=format:"- %s" | grep -E "^- (chore|docs|style|refactor|perf|test|ci|build|revert)" || echo "None"
-            else
-              git log $latest_tag..HEAD --pretty=format:"- %s" | grep -E "^- (chore|docs|style|refactor|perf|test|ci|build|revert)" || echo "None"
-            fi
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+          # Format commits by type - use full commit messages for display
+          echo "formatted_commits<<EOF" >> $GITHUB_OUTPUT
+          echo "### Breaking Changes"
+          if [ "$latest_tag" = "0.0.0" ]; then
+            git log --pretty=format:"%B" | grep -E "^(feat!|BREAKING CHANGE)" || echo "None"
+          else
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(feat!|BREAKING CHANGE)" || echo "None"
+          fi
+          echo ""
+          echo "### Features"
+          if [ "$latest_tag" = "0.0.0" ]; then
+            git log --pretty=format:"%B" | grep -E "^(feat|\[minor\])" || echo "None"
+          else
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(feat|\[minor\])" || echo "None"
+          fi
+          echo ""
+          echo "### Fixes"
+          if [ "$latest_tag" = "0.0.0" ]; then
+            git log --pretty=format:"%B" | grep -E "^(fix)" || echo "None"
+          else
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(fix)" || echo "None"
+          fi
+          echo ""
+          echo "### Other Changes"
+          if [ "$latest_tag" = "0.0.0" ]; then
+            git log --pretty=format:"%B" | grep -E "^(chore|docs|style|refactor|perf|test|ci|build|revert)" || echo "None"
+          else
+            git log $latest_tag..HEAD --pretty=format:"%B" | grep -E "^(chore|docs|style|refactor|perf|test|ci|build|revert)" || echo "None"
+          fi
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Generate new version
         id: new_version

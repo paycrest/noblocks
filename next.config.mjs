@@ -71,7 +71,7 @@ const nextConfig = {
       path: false,
       os: false,
     };
-
+    
     // Handle Mixpanel on server-side only
     if (isServer) {
       config.externals = config.externals || [];
@@ -79,7 +79,7 @@ const nextConfig = {
         'mixpanel': 'commonjs mixpanel'
       });
     }
-
+    
     return config;
   },
   compiler: {
@@ -105,12 +105,12 @@ const nextConfig = {
       },
       ...(process.env.NODE_ENV !== "production"
         ? [
-          {
-            protocol: "https",
-            hostname: "picsum.photos",
-            pathname: "/**",
-          },
-        ]
+            {
+              protocol: "https",
+              hostname: "picsum.photos",
+              pathname: "/**",
+            },
+          ]
         : []),
     ],
   },

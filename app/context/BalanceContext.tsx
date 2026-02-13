@@ -12,65 +12,17 @@ import {
   getRpcUrl,
   calculateCorrectedTotalBalance,
 } from "../utils";
-import { useCNGNRate, getCNGNRateForNetwork } from "../hooks/useCNGNRate";
-import { useMigrationStatus } from "../hooks/useEIP7702Account";
+import { useCNGNRate } from "../hooks/useCNGNRate";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createPublicClient, fallback, http } from "viem";
 import { useInjectedWallet } from "./InjectedWalletContext";
-import { networks } from "../mocks";
-import type { Network } from "../types";
 import { bsc } from "viem/chains";
-
-const CROSS_CHAIN_CONCURRENCY = 3; // Limit parallel RPC requests
 
 interface WalletBalances {
   total: number;
   balances: Record<string, number>;
-  rawBalances?: Record<string, number>; // Raw balances before CNGN conversion
-}
-
-// Cross-chain balance entry for a single network
-export interface CrossChainBalanceEntry {
-  network: Network;
-  balances: WalletBalances;
-}
-
-/**
- * Applies CNGN balance conversion logic to balances
- * @param balances - The balance object to convert
- * @param cngnRate - The current CNGN rate (can be null for fallback handling)
- * @returns New balances object with CNGN conversion applied
- */
-function applyCNGNBalanceConversion(
-  balances: Record<string, number>,
-  cngnRate: number | null,
-): Record<string, number> {
-  const correctedBalances = { ...balances };
-  const cngnSymbols = ["CNGN", "cNGN"] as const;
-
-  cngnSymbols.forEach((symbol) => {
-    const cngnBalance = correctedBalances[symbol];
-    if (
-      typeof cngnBalance !== "number" ||
-      isNaN(cngnBalance) ||
-      cngnBalance <= 0
-    ) {
-      return;
-    }
-
-    if (cngnRate && cngnRate > 0) {
-      // Convert CNGN to USD equivalent
-      correctedBalances[symbol] = cngnBalance / cngnRate;
-      return;
-    }
-
-    // No rate available - set CNGN balance to 0 so it doesn't contribute to totals
-    correctedBalances[symbol] = 0;
-  });
-
-  return correctedBalances;
 }
 
 interface BalanceContextProps {
@@ -82,9 +34,6 @@ interface BalanceContextProps {
     externalWallet: WalletBalances | null;
     injectedWallet: WalletBalances | null;
   };
-  crossChainBalances: CrossChainBalanceEntry[];
-  crossChainTotal: number;
-  smartWalletRemainingTotal: number;
   refreshBalance: () => void;
   isLoading: boolean;
 }
@@ -107,11 +56,6 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     useState<WalletBalances | null>(null);
   const [injectedWalletBalance, setInjectedWalletBalance] =
     useState<WalletBalances | null>(null);
-  const [crossChainBalances, setCrossChainBalances] = useState<
-    CrossChainBalanceEntry[]
-  >([]);
-  const [smartWalletRemainingTotal, setSmartWalletRemainingTotal] =
-    useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
   // Hook for CNGN rate to correct total balances
@@ -120,87 +64,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     dependencies: [selectedNetwork],
   });
 
-  // Cannot use useShouldUseEOA here (it uses useBalance and would create a circular dependency)
-  const { isMigrationComplete } = useMigrationStatus();
-
-  /**
-   * Shared helper: fetches cross-chain balance entries for an address.
-   * Uses getRpcUrl(chainName) for RPC; undefined is passed to http() so viem falls back to chain defaults.
-   * Used by fetchCrossChainBalances (state update) and fetchCrossChainTotalForAddress (aggregate total).
-   */
-  const fetchCrossChainEntriesForAddress = async (
-    address: string,
-  ): Promise<CrossChainBalanceEntry[]> => {
-    const results: CrossChainBalanceEntry[] = [];
-    for (let i = 0; i < networks.length; i += CROSS_CHAIN_CONCURRENCY) {
-      const batch = networks.slice(i, i + CROSS_CHAIN_CONCURRENCY);
-      const batchResults = await Promise.allSettled(
-        batch.map(async (network) => {
-          const rpcUrl = getRpcUrl(network.chain.name);
-          const publicClient = createPublicClient({
-            chain: network.chain,
-            transport: http(rpcUrl),
-          });
-          const rawResult = await fetchWalletBalance(publicClient, address);
-          const cngnRate = await getCNGNRateForNetwork(network.chain.name);
-          const rawBalances = { ...rawResult.balances };
-          const correctedTotal = calculateCorrectedTotalBalance(
-            rawResult,
-            cngnRate,
-          );
-          const correctedBalances = applyCNGNBalanceConversion(
-            rawResult.balances,
-            cngnRate,
-          );
-          return {
-            network,
-            balances: {
-              total: correctedTotal,
-              balances: correctedBalances,
-              rawBalances,
-            },
-          };
-        }),
-      );
-      batchResults.forEach((r) => {
-        if (r.status === "fulfilled") results.push(r.value);
-      });
-    }
-    return results;
-  };
-
-  const fetchCrossChainBalances = async (address: string) => {
-    const entries = await fetchCrossChainEntriesForAddress(address);
-    setCrossChainBalances(entries);
-  };
-
-  /** Fetches cross-chain total for an address without updating crossChainBalances. Used to detect SCW remaining funds after migration. */
-  const fetchCrossChainTotalForAddress = async (
-    address: string,
-  ): Promise<number> => {
-    const entries = await fetchCrossChainEntriesForAddress(address);
-    return entries.reduce(
-      (sum, entry) => sum + (entry.balances.total || 0),
-      0,
-    );
-  };
-
   const fetchBalances = async () => {
-    const clearAllWalletBalances = () => {
-      setSmartWalletBalance(null);
-      setExternalWalletBalance(null);
-      setInjectedWalletBalance(null);
-      setCrossChainBalances([]);
-      setSmartWalletRemainingTotal(0);
-    };
-
-    /** Clear only per-network balances so migration banner stays correct on fetch error (keeps cross-chain state). */
-    const clearPerNetworkBalances = () => {
-      setSmartWalletBalance(null);
-      setExternalWalletBalance(null);
-      setInjectedWalletBalance(null);
-    };
-
     setIsLoading(true);
 
     try {
@@ -208,22 +72,17 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const smartWalletAccount = user?.linkedAccounts.find(
           (account) => account.type === "smart_wallet",
         );
-        const embeddedWalletAccount = wallets.find(
-          (wallet) => wallet.walletClientType === "privy"
-        );
         const externalWalletAccount = wallets.find(
           (account) => account.connectorType === "injected",
         );
 
         if (client) {
-          try {
-            await client.switchChain({
-              id: selectedNetwork.chain.id,
-            });
-          } catch (error) {
-            console.warn("Error switching smart wallet chain:", error);
-          }
+          await client.switchChain({
+            id: selectedNetwork.chain.id,
+          });
         }
+
+        await externalWalletAccount?.switchChain(selectedNetwork.chain.id);
 
         const publicClient = createPublicClient({
           chain: selectedNetwork.chain,
@@ -236,15 +95,30 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
               : http(getRpcUrl(selectedNetwork.chain.name)),
         });
 
-        let primaryIsEOA = false;
-
-        if (isMigrationComplete && embeddedWalletAccount) {
-          // Migrated in DB: use EOA balance
-          primaryIsEOA = true;
+        if (smartWalletAccount) {
           const result = await fetchWalletBalance(
             publicClient,
-            embeddedWalletAccount.address,
+            smartWalletAccount.address,
           );
+          // Apply cNGN conversion correction
+          const correctedTotal = calculateCorrectedTotalBalance(
+            result,
+            cngnRate,
+          );
+          setSmartWalletBalance({
+            ...result,
+            total: correctedTotal,
+          });
+        } else {
+          setSmartWalletBalance(null);
+        }
+
+        if (externalWalletAccount) {
+          const result = await fetchWalletBalance(
+            publicClient,
+            externalWalletAccount.address,
+          );
+          // Apply cNGN conversion correction
           const correctedTotal = calculateCorrectedTotalBalance(
             result,
             cngnRate,
@@ -253,99 +127,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             ...result,
             total: correctedTotal,
           });
-          setSmartWalletBalance(null);
-          // Navbar and WalletDetails use crossChainTotal; populate it for EOA
-          await fetchCrossChainBalances(embeddedWalletAccount.address);
-          // Even when DB says migrated, check if SCW still has funds on any network (e.g. partial migration)
-          if (smartWalletAccount) {
-            const remaining = await fetchCrossChainTotalForAddress(
-              smartWalletAccount.address,
-            );
-            setSmartWalletRemainingTotal(remaining);
-          } else {
-            setSmartWalletRemainingTotal(0);
-          }
-        } else if (smartWalletAccount) {
-          // Not migrated: fetch SCW balance first
-          const result = await fetchWalletBalance(
-            publicClient,
-            smartWalletAccount.address,
-          );
-
-          // Store raw balances BEFORE any modifications
-          const rawBalances = { ...result.balances };
-
-          // Apply cNGN conversion correction
-          const correctedTotal = calculateCorrectedTotalBalance(
-            result,
-            cngnRate,
-          );
-          // Apply CNGN balance conversion and use returned value
-          const correctedBalances = applyCNGNBalanceConversion(
-            result.balances,
-            cngnRate,
-          );
-
-          setSmartWalletBalance({
-            total: correctedTotal,
-            balances: correctedBalances,
-            rawBalances: rawBalances,
-          });
-          // If SCW balance is 0, also fetch EOA so 0-balance users see EOA in nav (useShouldUseEOA is true elsewhere)
-          if (correctedTotal === 0 && embeddedWalletAccount) {
-            primaryIsEOA = true;
-            const eoaResult = await fetchWalletBalance(
-              publicClient,
-              embeddedWalletAccount.address,
-            );
-            const eoaCorrected = calculateCorrectedTotalBalance(
-              eoaResult,
-              cngnRate,
-            );
-            setExternalWalletBalance({
-              ...eoaResult,
-              total: eoaCorrected,
-            });
-          } else {
-            setExternalWalletBalance(null);
-          }
-
-          // Fetch cross-chain balances for smart wallet
-          await fetchCrossChainBalances(smartWalletAccount.address);
         } else {
-          setSmartWalletBalance(null);
           setExternalWalletBalance(null);
-        }
-
-        // Handle external injected wallets (separate from embedded wallet) – don't overwrite EOA balance for 0-balance users
-        if (externalWalletAccount &&
-          externalWalletAccount.address !== embeddedWalletAccount?.address &&
-          !isMigrationComplete &&
-          !primaryIsEOA) {
-          const result = await fetchWalletBalance(
-            publicClient,
-            externalWalletAccount.address,
-          );
-
-          // Store raw balances BEFORE any modifications
-          const rawBalances = { ...result.balances };
-
-          // Apply cNGN conversion correction
-          const correctedTotal = calculateCorrectedTotalBalance(
-            result,
-            cngnRate,
-          );
-          // Apply CNGN balance conversion and use returned value
-          const correctedBalances = applyCNGNBalanceConversion(
-            result.balances,
-            cngnRate,
-          );
-
-          setExternalWalletBalance({
-            total: correctedTotal,
-            balances: correctedBalances,
-            rawBalances: rawBalances,
-          });
         }
 
         setInjectedWalletBalance(null);
@@ -365,42 +148,28 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             publicClient,
             injectedAddress,
           );
-
-          // Store raw balances BEFORE any modifications
-          const rawBalances = { ...result.balances };
-
           // Apply cNGN conversion correction
           const correctedTotal = calculateCorrectedTotalBalance(
             result,
             cngnRate,
           );
-          // Apply CNGN balance conversion and use returned value
-          const correctedBalances = applyCNGNBalanceConversion(
-            result.balances,
-            cngnRate,
-          );
-
           setInjectedWalletBalance({
+            ...result,
             total: correctedTotal,
-            balances: correctedBalances,
-            rawBalances: rawBalances,
           });
-
-          // Fetch cross-chain balances for injected wallet
-          await fetchCrossChainBalances(injectedAddress);
 
           setSmartWalletBalance(null);
           setExternalWalletBalance(null);
         } catch (error) {
           console.error("Error fetching injected wallet balance:", error);
-          clearAllWalletBalances();
+          setInjectedWalletBalance(null);
         }
       }
     } catch (error) {
       console.error("Error fetching balances:", error);
-      // Preserve crossChainBalances and smartWalletRemainingTotal so migration banner
-      // and address don't flip to zero-balance UI when switching networks causes RPC errors
-      clearPerNetworkBalances();
+      setSmartWalletBalance(null);
+      setExternalWalletBalance(null);
+      setInjectedWalletBalance(null);
     } finally {
       setIsLoading(false);
     }
@@ -412,13 +181,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   }, [
     ready,
     user,
-    wallets,
     selectedNetwork,
     isInjectedWallet,
     injectedReady,
     injectedAddress,
     cngnRate,
-    isMigrationComplete,
   ]);
 
   const allBalances = {
@@ -427,11 +194,6 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     injectedWallet: injectedWalletBalance,
   };
 
-  // Calculate cross-chain total for the active wallet type (balances are already CNGN-corrected)
-  const crossChainTotal = crossChainBalances.reduce((total, entry) => {
-    return total + (entry.balances.total || 0);
-  }, 0);
-
   return (
     <BalanceContext.Provider
       value={{
@@ -439,9 +201,6 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         externalWalletBalance,
         injectedWalletBalance,
         allBalances,
-        crossChainBalances,
-        crossChainTotal,
-        smartWalletRemainingTotal,
         refreshBalance: fetchBalances,
         isLoading,
       }}

@@ -10,20 +10,15 @@ import {
   ArrowDown01Icon,
   RefreshIcon,
 } from "hugeicons-react";
-import { CrossChainBalanceSkeleton } from "../BalanceSkeleton";
+import { BalanceCardSkeleton } from "../BalanceSkeleton";
 import { classNames, getNetworkImageUrl } from "../../utils";
-import type { CrossChainBalanceEntry } from "../../context";
-
-const Divider = () => (
-  <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
-);
 
 // Types for props
 interface WalletViewProps {
   isInjectedWallet: boolean;
   detectWalletProvider: () => string;
   isLoading: boolean;
-  crossChainBalances: CrossChainBalanceEntry[];
+  activeBalance: any;
   getTokenImageUrl: (tokenName: string) => string | undefined;
   onTransfer: () => void;
   onFund: () => void;
@@ -46,7 +41,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   isInjectedWallet,
   detectWalletProvider,
   isLoading,
-  crossChainBalances,
+  activeBalance,
   getTokenImageUrl,
   onTransfer,
   onFund,
@@ -116,82 +111,34 @@ export const WalletView: React.FC<WalletViewProps> = ({
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-2">
           {isLoading ? (
-            <CrossChainBalanceSkeleton isMobile />
+            <BalanceCardSkeleton />
           ) : (
-            crossChainBalances.map((entry) => {
-              const isSelectedNetwork =
-                entry.network.chain.name === selectedNetwork.chain.name;
-              const balanceEntries = Object.entries(
-                entry.balances.balances || {},
-              ) as [string, number][];
-
-              // For selected network: show ALL balances (including zeros)
-              // For other networks: only show non-zero balances
-              const filteredBalances = isSelectedNetwork
-                ? balanceEntries
-                : balanceEntries.filter(([, balance]) => balance > 0);
-
-              // Skip networks with no balances to show
-              if (filteredBalances.length === 0) return null;
-
-              return (
-                <div key={entry.network.chain.name} className="space-y-2">
-                  {/* Network header with divider */}
-                  <div className="flex items-center justify-between gap-x-4">
-                    <span className="whitespace-nowrap text-xs font-medium text-text-secondary dark:text-white/50">
-                      {entry.network.chain.name}
-                    </span>
-                    <Divider />
-                  </div>
-
-                  {/* Token balances for this network */}
-                  <div className="space-y-1.5">
-                    {filteredBalances.map(([token, balance]) => {
-                      // For CNGN, show the raw token amount as primary display
-                      const isCNGN = token === "CNGN" || token === "cNGN";
-                      const rawBalance =
-                        entry.balances.rawBalances?.[token] ?? balance;
-                      const tokenImageUrl =
-                        getTokenImageUrl(token) ||
-                        `/logos/${token.toLowerCase()}-logo.svg`;
-
-                      return (
-                        <div
-                          key={`${entry.network.chain.name}-${token}`}
-                          className="flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-1">
-                            <div className="relative">
-                              <Image
-                                src={tokenImageUrl}
-                                alt={token}
-                                width={14}
-                                height={14}
-                                className="size-3.5"
-                              />
-                              <Image
-                                src={getNetworkImageUrl(entry.network, isDark)}
-                                alt={entry.network.chain.name}
-                                width={8}
-                                height={8}
-                                className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full"
-                              />
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="font-medium dark:text-white/80">
-                                {isCNGN ? rawBalance : balance} {token}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })
+            (
+              Object.entries(activeBalance?.balances || {}) as [
+                string,
+                string | number,
+              ][]
+            ).map(([token, balance]) => (
+              <div key={token} className="flex items-center gap-1">
+                {(() => {
+                  const imageUrl = getTokenImageUrl(token);
+                  return imageUrl ? (
+                    <Image
+                      src={imageUrl}
+                      alt={token}
+                      width={14}
+                      height={14}
+                      className="size-3.5"
+                    />
+                  ) : null;
+                })()}
+                <span className="font-medium dark:text-white/80">
+                  {balance} {token}
+                </span>
+              </div>
+            ))
           )}
         </div>
 

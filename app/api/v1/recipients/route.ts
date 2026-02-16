@@ -152,6 +152,29 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
+    // NUBAN is 10 digits; SAFAKEPC uses 6 digits - reject invalid length so we don't save 11-digit (e.g. phone) as beneficiary
+    const digits = String(accountIdentifier).replace(/\D/g, "");
+    const requiredLen = institutionCode === "SAFAKEPC" ? 6 : 10;
+    if (digits.length !== requiredLen) {
+      trackApiError(
+        request,
+        "/api/v1/recipients",
+        "POST",
+        new Error("Invalid account identifier length"),
+        400,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            requiredLen === 10
+              ? "Please enter a valid 10-digit account Number."
+              : "Invalid account number. Please enter a 6-digit account number.",
+        },
+        { status: 400 },
+      );
+    }
+
     // Validate type
     if (!["bank", "mobile_money"].includes(type)) {
       trackApiError(

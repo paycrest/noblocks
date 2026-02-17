@@ -152,9 +152,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
+    const trimmedInstitutionCode = String(institutionCode).trim();
+
     // NUBAN is 10 digits; SAFAKEPC uses 6 digits - reject invalid length so we don't save 11-digit (e.g. phone) as beneficiary
     const digits = String(accountIdentifier).replace(/\D/g, "");
-    const requiredLen = institutionCode === "SAFAKEPC" ? 6 : 10;
+    const requiredLen = trimmedInstitutionCode === "SAFAKEPC" ? 6 : 10;
     if (digits.length !== requiredLen) {
       trackApiError(
         request,
@@ -231,7 +233,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           normalized_wallet_address: walletAddress,
           name: name.trim(),
           institution: institution.trim(),
-          institution_code: institutionCode.trim(),
+          institution_code: trimmedInstitutionCode,
           account_identifier: digits,
           type,
         },
@@ -267,14 +269,14 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const responseTime = Date.now() - startTime;
     trackApiResponse("/api/v1/recipients", "POST", 200, responseTime, {
       wallet_address: walletAddress,
-      institution_code: institutionCode,
+      institution_code: trimmedInstitutionCode,
       type,
     });
 
     // Track business event
     trackBusinessEvent("Recipient Saved", {
       wallet_address: walletAddress,
-      institution_code: institutionCode,
+      institution_code: trimmedInstitutionCode,
       type,
     });
 

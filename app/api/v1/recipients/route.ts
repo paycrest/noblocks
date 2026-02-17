@@ -168,8 +168,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           success: false,
           error:
             requiredLen === 10
-              ? "Please enter a valid 10-digit account Number."
-              : "Invalid account number. Please enter a 6-digit account number.",
+              ? "Please enter a valid 10-digit account number."
+              : "Please enter a valid 6-digit account number.",
         },
         { status: 400 },
       );
@@ -222,7 +222,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       }
     }
 
-    // Insert recipient (upsert on unique constraint)
+    // Insert recipient (upsert on unique constraint) - store sanitized digits so DB has consistent format
     const { data, error } = await supabaseAdmin
       .from("saved_recipients")
       .upsert(
@@ -232,7 +232,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           name: name.trim(),
           institution: institution.trim(),
           institution_code: institutionCode.trim(),
-          account_identifier: accountIdentifier.trim(),
+          account_identifier: digits,
           type,
         },
         {

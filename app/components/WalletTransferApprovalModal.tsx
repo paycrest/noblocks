@@ -9,13 +9,24 @@ import { useTokens } from "../context";
 import { useNetwork } from "../context/NetworksContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance } from "../utils";
+import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance, getRpcUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { getCNGNRateForNetwork } from "../hooks/useCNGNRate";
 import WalletMigrationSuccessModal from "./WalletMigrationSuccessModal";
-import { type Address, encodeFunctionData, parseAbi, createPublicClient, http, parseUnits } from "viem";
+import { type Address, type Chain, encodeFunctionData, parseAbi, createPublicClient, http, fallback, parseUnits } from "viem";
+import { bsc } from "viem/chains";
 import { toast } from "sonner";
 import { networks } from "../mocks";
+
+function getTransportForChain(chain: Chain) {
+    if (chain.id === bsc.id) {
+        return fallback([
+            http(getRpcUrl(chain.name)),
+            http("https://bsc-dataseed.bnbchain.org/"),
+        ]);
+    }
+    return http(getRpcUrl(chain.name));
+}
 
 // Map network names to viem chains
 const CHAIN_MAP = Object.fromEntries(
@@ -67,7 +78,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                 try {
                     const publicClient = createPublicClient({
                         chain: network.chain,
-                        transport: http(),
+                        transport: getTransportForChain(network.chain),
                     });
 
                     const result = await fetchWalletBalance(
@@ -242,10 +253,9 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                             id: chain.id,
                         });
 
-                        // ✅ Create public client for waiting for receipts
                         const publicClient = createPublicClient({
                             chain,
-                            transport: http(),
+                            transport: getTransportForChain(chain),
                         });
 
                         // ✅ Batch all token transfers into a single transaction for gasless execution
@@ -309,9 +319,10 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                 }
             } // End of hasTokens block
 
-            // ✅ Update Backend - Deprecate old wallet
-            // This happens regardless of whether tokens were transferred
-            // (even if zero balance, we need to deprecate the old SCW)
+            if (hasTokens && totalTokensMigrated === 0) {
+                throw new Error("All token transfers failed. Please try again.");
+            }
+
             setProgress("Finalizing migration...");
 
             const response = await fetch("/api/v1/wallets/deprecate", {

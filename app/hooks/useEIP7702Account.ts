@@ -161,8 +161,8 @@ export function useShouldUseEOA(): boolean {
         return true;
     }
     if (!hasSmartWallet) {
-        lastValueRef.current = false;
-        return false;
+        lastValueRef.current = true;
+        return true; // No smart account → use EOA only (e.g. new users with smart wallet creation disabled)
     }
     // During load, keep last value to avoid SCW→EOA flicker on refresh
     if (isBalanceLoading) return lastValueRef.current ?? false;

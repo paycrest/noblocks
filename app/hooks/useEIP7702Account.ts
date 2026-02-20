@@ -161,8 +161,13 @@ export function useShouldUseEOA(): boolean {
         return true;
     }
     if (!hasSmartWallet) {
-        lastValueRef.current = true;
-        return true; // No smart account → use EOA only (e.g. new users with smart wallet creation disabled)
+        // Only treat as EOA when user is loaded; avoid corrupting lastValueRef during Privy init (user null)
+        if (user != null) {
+            lastValueRef.current = true;
+            return true; // No smart account → use EOA only (e.g. new users with smart wallet creation disabled)
+        }
+        lastValueRef.current = false;
+        return false;
     }
     // During load, keep last value to avoid SCW→EOA flicker on refresh
     if (isBalanceLoading) return lastValueRef.current ?? false;

@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 
@@ -116,6 +116,9 @@ export const TransactionPreview = ({
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
+
+  // Ref to prevent duplicate transaction saves
+  const isSavingTransactionRef = useRef(false);
 
   const searchParams = useSearchParams();
 
@@ -606,7 +609,12 @@ export const TransactionPreview = ({
         transport: http(getRpcUrl(selectedNetwork.chain.name)),
       });
 
-      if (!publicClient || !activeWallet?.address || isOrderCreatedLogsFetched)
+      if (
+        !publicClient ||
+        !activeWallet?.address ||
+        isOrderCreatedLogsFetched ||
+        isSavingTransactionRef.current
+      )
         return;
 
       try {
@@ -646,6 +654,7 @@ export const TransactionPreview = ({
           });
 
           setIsOrderCreatedLogsFetched(true);
+          isSavingTransactionRef.current = true; // Set ref immediately to prevent race condition
           clearInterval(intervalId);
           setOrderId(decodedLog.args.orderId);
 

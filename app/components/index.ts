@@ -27,6 +27,8 @@ export { KycModal } from "./KycModal";
 export { CookieConsent } from "./CookieConsent";
 export { NetworkSelectionModal } from "./NetworkSelectionModal";
 export { Disclaimer } from "./Disclaimer";
+export { default as PhoneVerificationModal } from "./PhoneVerificationModal";
+export { default as TransactionLimitModal } from "./TransactionLimitModal";
 
 export { TransactionForm } from "../pages/TransactionForm";
 export { TransactionPreview } from "../pages/TransactionPreview";

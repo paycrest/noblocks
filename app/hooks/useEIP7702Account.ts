@@ -156,13 +156,18 @@ export function useShouldUseEOA(): boolean {
     // When not migrated, crossChainTotal is SCW total across all networks (not selected network only)
     const smartWalletCrossChainTotal = hasSmartWallet && !isMigrationComplete ? crossChainTotal : 0;
 
+    // Single ready guard: during Privy init (user null) preserve last value, don't update ref
+    if (user == null) {
+        return lastValueRef.current ?? false;
+    }
+
     if (isMigrationComplete) {
         lastValueRef.current = true;
         return true;
     }
     if (!hasSmartWallet) {
-        lastValueRef.current = false;
-        return false;
+        lastValueRef.current = true;
+        return true; // No smart account → use EOA only (e.g. new users with smart wallet creation disabled)
     }
     // During load, keep last value to avoid SCW→EOA flicker on refresh
     if (isBalanceLoading) return lastValueRef.current ?? false;

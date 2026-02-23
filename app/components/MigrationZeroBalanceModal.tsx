@@ -168,7 +168,7 @@ export const MigrationZeroBalanceModal: React.FC<MigrationZeroBalanceModalProps>
                                                 <p
                                                     className="font-[Inter] text-sm font-light leading-5 tracking-normal text-text-body dark:text-[#FFFFFFCC]"
                                                 >
-                                                    Note: If you plan to share or save your wallet address, please copy and use your wallet address from your profile.
+                                                    Note: If you&apos;ve saved or shared your wallet address elsewhere, make sure to update it to your new wallet address.
 
                                                 </p>
                                             </div>

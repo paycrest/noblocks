@@ -667,25 +667,29 @@ export const TransactionPreview = ({
             settled = true;
             cleanup();
 
-            const decodedLog = decodeEventLog({
-              abi: gatewayAbi,
-              eventName: "OrderCreated",
-              data: logs[0].data,
-              topics: logs[0].topics,
-            });
+            try {
+              const decodedLog = decodeEventLog({
+                abi: gatewayAbi,
+                eventName: "OrderCreated",
+                data: logs[0].data,
+                topics: logs[0].topics,
+              });
 
-            setIsOrderCreatedLogsFetched(true);
-            setOrderId(decodedLog.args.orderId);
+              setIsOrderCreatedLogsFetched(true);
+              setOrderId(decodedLog.args.orderId);
 
-            await saveTransactionData({
-              orderId: decodedLog.args.orderId,
-              txHash: logs[0].transactionHash,
-            });
+              await saveTransactionData({
+                orderId: decodedLog.args.orderId,
+                txHash: logs[0].transactionHash,
+              });
 
-            setCreatedAt(new Date().toISOString());
-            setTransactionStatus("pending");
-            setCurrentStep("status");
-            resolve();
+              setCreatedAt(new Date().toISOString());
+              setTransactionStatus("pending");
+              setCurrentStep("status");
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
           }
         } catch (error) {
           console.error("Error fetching OrderCreated logs:", error);

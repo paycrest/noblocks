@@ -159,18 +159,17 @@ export const MigrationZeroBalanceModal: React.FC<MigrationZeroBalanceModalProps>
                                             <div className="rounded-[20px] bg-accent-gray p-4 dark:bg-[#2C2C2C]">
                                                 <p
                                                     className="font-[Inter] text-sm font-light leading-5 tracking-normal text-text-body dark:text-[#FFFFFFCC]"
-                                                    
+
                                                 >
-                                                    Your address has been updated. This means you can now export your
-                                                    wallet and use it across different platforms like MetaMask.
+                                                    Your wallet has been successfully set up and is now exportable. This means you can now export your wallet and use it across different platforms like MetaMask.
                                                 </p>
                                             </div>
                                             <div className="rounded-[20px] bg-accent-gray p-4 dark:bg-[#2C2C2C]">
                                                 <p
                                                     className="font-[Inter] text-sm font-light leading-5 tracking-normal text-text-body dark:text-[#FFFFFFCC]"
                                                 >
-                                                    Note: If you&apos;ve saved or shared your wallet address elsewhere,
-                                                    make sure to update it to your new wallet address.
+                                                    Note: If you plan to share or save your wallet address, please ensure you&apos;re using the latest one.
+
                                                 </p>
                                             </div>
                                         </div>

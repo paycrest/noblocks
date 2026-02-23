@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 
@@ -116,6 +116,7 @@ export const TransactionPreview = ({
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
+  const orderSubmissionBlock = useRef<bigint | null>(null);
 
   const searchParams = useSearchParams();
 
@@ -216,6 +217,18 @@ export const TransactionPreview = ({
     return params;
   };
 
+  const captureSubmissionBlock = async () => {
+    try {
+      const publicClient = createPublicClient({
+        chain: selectedNetwork.chain,
+        transport: http(getRpcUrl(selectedNetwork.chain.name)),
+      });
+      orderSubmissionBlock.current = await publicClient.getBlockNumber();
+    } catch {
+      orderSubmissionBlock.current = null;
+    }
+  };
+
   const createOrder = async () => {
     try {
       if (isInjectedWallet && injectedProvider) {
@@ -269,6 +282,7 @@ export const TransactionPreview = ({
         }
 
         // Create order transaction
+        await captureSubmissionBlock();
         await injectedProvider.request({
           method: "eth_sendTransaction",
           params: [
@@ -415,7 +429,7 @@ export const TransactionPreview = ({
           },
         });
 
-        // Use your project's sponsorship (apiKey above must match dashboard project)
+        await captureSubmissionBlock();
         const { hash } = await meeClient.execute({
           authorizations: authorization ? [authorization] : [],
           delegate: true,
@@ -449,6 +463,7 @@ export const TransactionPreview = ({
         // Calculate total amount to approve (amount + senderFee)
         const totalAmountToApprove = params.amount + params.senderFee;
 
+        await captureSubmissionBlock();
         await client.sendTransaction({
           calls: [
             // Approve gateway contract to spend token
@@ -597,82 +612,71 @@ export const TransactionPreview = ({
     }
   };
 
-  const getOrderId = async () => {
-    let intervalId: NodeJS.Timeout;
+  const getOrderId = () => {
+    return new Promise<void>((resolve) => {
+      let intervalId: NodeJS.Timeout;
+      let found = false;
 
-    const getOrderCreatedLogs = async () => {
-      const publicClient = createPublicClient({
-        chain: selectedNetwork.chain,
-        transport: http(getRpcUrl(selectedNetwork.chain.name)),
-      });
+      const poll = async () => {
+        if (found || !activeWallet?.address) return;
 
-      if (!publicClient || !activeWallet?.address || isOrderCreatedLogsFetched)
-        return;
+        try {
+          const publicClient = createPublicClient({
+            chain: selectedNetwork.chain,
+            transport: http(getRpcUrl(selectedNetwork.chain.name)),
+          });
 
-      try {
-        if (currentStep !== "preview") {
-          return () => {
-            if (intervalId) clearInterval(intervalId);
-          };
-        }
+          const toBlock = await publicClient.getBlockNumber();
+          const fromBlock =
+            orderSubmissionBlock.current ?? toBlock - BigInt(10);
 
-        const toBlock = await publicClient.getBlockNumber();
-
-        // Use different block ranges based on network
-        const blockRange =
-          selectedNetwork.chain.name.toLowerCase() === "arbitrum one" ? 25 : 10;
-
-        const logs = await publicClient.getContractEvents({
-          address: getGatewayContractAddress(
-            selectedNetwork.chain.name,
-          ) as `0x${string}`,
-          abi: gatewayAbi,
-          eventName: "OrderCreated",
-          args: {
-            sender: activeWallet.address as `0x${string}`,
-            token: tokenAddress,
-            amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-          },
-          fromBlock: toBlock - BigInt(blockRange),
-          toBlock: toBlock,
-        });
-
-        if (logs.length > 0) {
-          const decodedLog = decodeEventLog({
+          const logs = await publicClient.getContractEvents({
+            address: getGatewayContractAddress(
+              selectedNetwork.chain.name,
+            ) as `0x${string}`,
             abi: gatewayAbi,
             eventName: "OrderCreated",
-            data: logs[0].data,
-            topics: logs[0].topics,
+            args: {
+              sender: activeWallet.address as `0x${string}`,
+              token: tokenAddress,
+              amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+            },
+            fromBlock,
+            toBlock,
           });
 
-          setIsOrderCreatedLogsFetched(true);
-          clearInterval(intervalId);
-          setOrderId(decodedLog.args.orderId);
+          if (logs.length > 0 && !found) {
+            found = true;
+            clearInterval(intervalId);
 
-          await saveTransactionData({
-            orderId: decodedLog.args.orderId,
-            txHash: logs[0].transactionHash,
-          });
+            const decodedLog = decodeEventLog({
+              abi: gatewayAbi,
+              eventName: "OrderCreated",
+              data: logs[0].data,
+              topics: logs[0].topics,
+            });
 
-          setCreatedAt(new Date().toISOString());
-          setTransactionStatus("pending");
-          setCurrentStep("status");
+            setIsOrderCreatedLogsFetched(true);
+            setOrderId(decodedLog.args.orderId);
+
+            await saveTransactionData({
+              orderId: decodedLog.args.orderId,
+              txHash: logs[0].transactionHash,
+            });
+
+            setCreatedAt(new Date().toISOString());
+            setTransactionStatus("pending");
+            setCurrentStep("status");
+            resolve();
+          }
+        } catch (error) {
+          console.error("Error fetching OrderCreated logs:", error);
         }
-      } catch (error) {
-        console.error("Error fetching OrderCreated logs:", error);
-      }
-    };
+      };
 
-    // Initial call
-    getOrderCreatedLogs();
-
-    // Set up polling
-    intervalId = setInterval(getOrderCreatedLogs, 2000);
-
-    // Cleanup function
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
+      poll();
+      intervalId = setInterval(poll, 2_000);
+    });
   };
 
   useEffect(

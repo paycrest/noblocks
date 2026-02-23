@@ -152,25 +152,24 @@ export const MigrationZeroBalanceModal: React.FC<MigrationZeroBalanceModalProps>
                                                 backgroundClip: "text",
                                             }}
                                         >
-                                            Your wallet is now exportable
+                                            One wallet - Import anywhere
                                         </h2>
 
                                         <div className="mb-4 space-y-4">
                                             <div className="rounded-[20px] bg-accent-gray p-4 dark:bg-[#2C2C2C]">
                                                 <p
                                                     className="font-[Inter] text-sm font-light leading-5 tracking-normal text-text-body dark:text-[#FFFFFFCC]"
-                                                    
+
                                                 >
-                                                    Your address has been updated. This means you can now export your
-                                                    wallet and use it across different platforms like MetaMask.
+                                                    Your wallet has been successfully set up and is compatible with other on-chain apps.
                                                 </p>
                                             </div>
                                             <div className="rounded-[20px] bg-accent-gray p-4 dark:bg-[#2C2C2C]">
                                                 <p
                                                     className="font-[Inter] text-sm font-light leading-5 tracking-normal text-text-body dark:text-[#FFFFFFCC]"
                                                 >
-                                                    Note: If you&apos;ve saved or shared your wallet address elsewhere,
-                                                    make sure to update it to your new wallet address.
+                                                    Note: If you've saved or shared your wallet address elsewhere, make sure to update it to your new wallet address.
+
                                                 </p>
                                             </div>
                                         </div>

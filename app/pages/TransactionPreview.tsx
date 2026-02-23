@@ -436,7 +436,6 @@ export const TransactionPreview = ({
           sponsorship: true,
           instructions: [approveInstruction, createOrderInstruction],
         });
-
         await meeClient.waitForSupertransactionReceipt({ hash });
 
         // Set success state only after transaction is confirmed
@@ -552,7 +551,7 @@ export const TransactionPreview = ({
       await createOrder();
     } catch (e) {
       const error = e as BaseError;
-      setErrorMessage(error.shortMessage);
+      setErrorMessage(error.shortMessage || error.message);
       setErrorCount((prevCount: number) => prevCount + 1);
       setIsConfirming(false);
     }
@@ -613,12 +612,31 @@ export const TransactionPreview = ({
   };
 
   const getOrderId = () => {
-    return new Promise<void>((resolve) => {
+    const MAX_POLL_DURATION_MS = 120_000;
+
+    return new Promise<void>((resolve, reject) => {
       let intervalId: NodeJS.Timeout;
-      let found = false;
+      let timeoutId: NodeJS.Timeout;
+      let settled = false;
+
+      const cleanup = () => {
+        clearInterval(intervalId);
+        clearTimeout(timeoutId);
+      };
+
+      timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(
+          new Error(
+            "Unable to confirm order on-chain, but your transaction may still be processing. Please check your transaction history before retrying.",
+          ),
+        );
+      }, MAX_POLL_DURATION_MS);
 
       const poll = async () => {
-        if (found || !activeWallet?.address) return;
+        if (settled || !activeWallet?.address) return;
 
         try {
           const publicClient = createPublicClient({
@@ -645,9 +663,9 @@ export const TransactionPreview = ({
             toBlock,
           });
 
-          if (logs.length > 0 && !found) {
-            found = true;
-            clearInterval(intervalId);
+          if (logs.length > 0 && !settled) {
+            settled = true;
+            cleanup();
 
             const decodedLog = decodeEventLog({
               abi: gatewayAbi,

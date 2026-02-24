@@ -1241,7 +1241,7 @@ export function calculateSenderFee(
   const isLocalTransfer = calculatedRate === 100;
   const decimalsMultiplier = BigInt(10 ** tokenDecimals);
   const maxFeeCapInBaseUnits =
-    BigInt(localTransferFeeCap) * decimalsMultiplier;
+    BigInt(Math.floor(localTransferFeeCap)) * decimalsMultiplier;
 
   // Calculate fee in human-readable format
   const calculatedFee = isLocalTransfer

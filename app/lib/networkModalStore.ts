@@ -20,6 +20,12 @@ export function markNetworkModalDismissed() {
   listeners.forEach((fn) => fn());
 }
 
+/** Reset on logout so the next user must interact with the network modal themselves. */
+export function resetNetworkModalDismissed() {
+  dismissed = false;
+  listeners.forEach((fn) => fn());
+}
+
 /** Reactive hook — re-renders the component the instant markNetworkModalDismissed() is called. */
 export function useIsNetworkModalDismissed() {
   return useSyncExternalStore(subscribe, getSnapshot, () => false);

@@ -8,6 +8,7 @@ import {
   useMfaEnrollment,
 } from "@privy-io/react-auth";
 import { ImSpinner } from "react-icons/im";
+import { resetNetworkModalDismissed } from "../lib/networkModalStore";
 import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
 import { classNames, shortenAddress } from "../utils";
@@ -74,6 +75,7 @@ export const SettingsDropdown = () => {
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
+      resetNetworkModalDismissed();
     },
   });
 

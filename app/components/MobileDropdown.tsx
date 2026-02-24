@@ -7,6 +7,7 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
 import { handleNetworkSwitch, detectWalletProvider } from "../utils";
 import { useLogout } from "@privy-io/react-auth";
+import { resetNetworkModalDismissed } from "../lib/networkModalStore";
 import { toast } from "sonner";
 import { useStep } from "../context/StepContext";
 import { STEPS } from "../types";
@@ -46,6 +47,7 @@ export const MobileDropdown = ({
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
+      resetNetworkModalDismissed();
     },
   });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();

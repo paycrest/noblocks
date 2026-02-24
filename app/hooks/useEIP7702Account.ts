@@ -202,6 +202,11 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
     const [isMigrationComplete, setIsMigrationComplete] = useState<boolean | null>(null);
     const [refetchCounter, setRefetchCounter] = useState(0);
 
+    // Track smart wallet presence so the effect re-runs when Privy loads linked accounts after login
+    const hasSmartWalletLinked = user?.linkedAccounts?.some(
+        (account) => account.type === "smart_wallet"
+    ) ?? false;
+
     useEffect(() => {
         async function checkMigrationStatus() {
             if (!authenticated || !user) {
@@ -223,10 +228,10 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
             }
 
             try {
+                setIsChecking(true);
                 const accessToken = await getAccessToken();
                 if (!accessToken) {
                     console.warn("No access token available for wallet migration status check");
-                    // Set migration as incomplete when auth is not available
                     setIsMigrationComplete(false);
                     setIsChecking(false);
                     return;
@@ -246,12 +251,10 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
                     return;
                 } else {
                     console.error("Migration status API error:", response.status, response.statusText);
-                    // Set migration as incomplete on API error
                     setIsMigrationComplete(false);
                 }
             } catch (error) {
                 console.error("Error checking wallet migration status:", error);
-                // Set migration as incomplete on error
                 setIsMigrationComplete(false);
             }
 
@@ -260,7 +263,7 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
 
         checkMigrationStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [authenticated, user?.id, refetchCounter]); // getAccessToken intentionally omitted to prevent excessive API calls
+    }, [authenticated, user?.id, refetchCounter, hasSmartWalletLinked]); // getAccessToken intentionally omitted; hasSmartWalletLinked ensures re-run when Privy loads the smart wallet after login
 
     // Separate effect to handle balance-based migration status display
     useEffect(() => {

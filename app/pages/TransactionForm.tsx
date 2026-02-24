@@ -19,6 +19,13 @@ import {
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
 import { acceptedCurrencies } from "../mocks";
+
+type CurrencyOption = {
+  name: string;
+  label: string;
+  disabled?: boolean;
+  imageUrl: string;
+};
 import {
   calculateSenderFee,
   classNames,
@@ -251,7 +258,7 @@ export const TransactionForm = ({
     }
     if (currency) {
       const supported = currencies.find(
-        (c) => c.name === currency && !c.disabled,
+        (c: CurrencyOption) => c.name === currency && !c.disabled,
       );
 
       if (supported)
@@ -407,7 +414,7 @@ export const TransactionForm = ({
 
         if (normalizedToken === "CNGN") {
           // When cNGN is selected, only enable NGN
-          currencies.forEach((currency) => {
+          currencies.forEach((currency: CurrencyOption) => {
             currency.disabled = currency.name !== "NGN";
           });
           // If the selected currency is not NGN, set it to NGN
@@ -416,7 +423,7 @@ export const TransactionForm = ({
           }
         } else {
           // Reset currencies to their default state from mocks
-          currencies.forEach((currency) => {
+          currencies.forEach((currency: CurrencyOption) => {
             // Only GHS, BRL, ARS, and MWK are disabled by default
             currency.disabled = ["GHS", "BRL", "ARS", "MWK"].includes(
               currency.name,
@@ -425,7 +432,7 @@ export const TransactionForm = ({
         }
 
         // Sort currencies so enabled ones appear first
-        currencies.sort((a, b) => {
+        currencies.sort((a: CurrencyOption, b: CurrencyOption) => {
           if (a.disabled === b.disabled) return 0;
           return a.disabled ? 1 : -1;
         });
@@ -733,9 +740,13 @@ export const TransactionForm = ({
             <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas">
               <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
                 {isFetchingRate ? (
-                  <ImSpinner3 className="animate-spin text-xl text-outline-gray dark:text-white/50" />
+                  <span className="animate-spin text-xl text-outline-gray dark:text-white/50">
+                    <ImSpinner3 />
+                  </span>
                 ) : (
-                  <ArrowDown02Icon className="text-xl text-outline-gray dark:text-white/80" />
+                  <span className="text-xl text-outline-gray dark:text-white/80">
+                    <ArrowDown02Icon />
+                  </span>
                 )}
               </div>
             </div>
@@ -868,7 +879,9 @@ export const TransactionForm = ({
             className={`${primaryBtnClasses} cursor-not-allowed`}
             disabled
           >
-            <ImSpinner className="mx-auto animate-spin text-xl" />
+            <span className="mx-auto inline-block animate-spin text-xl">
+              <ImSpinner />
+            </span>
           </button>
         )}
 

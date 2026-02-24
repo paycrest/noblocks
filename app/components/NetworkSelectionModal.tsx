@@ -16,6 +16,7 @@ import {
 } from "../utils";
 import { useSearchParams } from "next/navigation";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { markNetworkModalDismissed } from "../lib/networkModalStore";
 
 export const NetworkSelectionModal = () => {
   const searchParams = useSearchParams();
@@ -29,7 +30,7 @@ export const NetworkSelectionModal = () => {
 
   useEffect(() => {
     if (!hasCheckedStorage && authenticated && user?.wallet?.address) {
-      const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
+      const storageKey = `hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`;
       const hasSeenModal = localStorage.getItem(storageKey);
 
       if (!hasSeenModal) {
@@ -41,8 +42,9 @@ export const NetworkSelectionModal = () => {
 
   const handleClose = () => {
     if (user?.wallet?.address) {
-      const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
+      const storageKey = `hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`;
       localStorage.setItem(storageKey, "true");
+      markNetworkModalDismissed();
     }
     setIsOpen(false);
   };

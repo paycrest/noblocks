@@ -74,7 +74,7 @@ export const Navbar = () => {
         localStorage.setItem("userId", user.wallet.address);
 
         if (isNewUser) {
-          localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address}`);
+          localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`);
 
           trackEvent("Sign up completed", {
             "Login method": loginMethod,

@@ -12,7 +12,11 @@ import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
-import { feeRecipientAddress } from "./lib/config";
+import {
+  feeRecipientAddress,
+  localTransferFeePercent,
+  localTransferFeeCap,
+} from "./lib/config";
 
 /**
  * Concatenates and returns a string of class names.
@@ -1235,15 +1239,13 @@ export function calculateSenderFee(
 ): { feeAmount: number; feeAmountInBaseUnits: bigint; feeRecipient: string } {
   const calculatedRate = Math.round(rate * 100);
   const isLocalTransfer = calculatedRate === 100;
-  const defaultFeePercent = 0.1; // 0.1% default fee for local transfers
-  const maxFeeCapInHumanReadable = 10000; // 10k CNGN cap in human-readable units
   const decimalsMultiplier = BigInt(10 ** tokenDecimals);
   const maxFeeCapInBaseUnits =
-    BigInt(maxFeeCapInHumanReadable) * decimalsMultiplier; // 10k CNGN in base units
+    BigInt(Math.floor(localTransferFeeCap)) * decimalsMultiplier;
 
   // Calculate fee in human-readable format
   const calculatedFee = isLocalTransfer
-    ? (amount * defaultFeePercent) / 100
+    ? (amount * localTransferFeePercent) / 100
     : 0;
 
   // Convert to base units

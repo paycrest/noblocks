@@ -14,6 +14,7 @@ interface UseSwapButtonProps {
   rate?: number | null;
   tokenDecimals?: number;
   needsMigration?: boolean;
+  isRemainingFundsMigration?: boolean;
 }
 
 export function useSwapButton({
@@ -25,6 +26,7 @@ export function useSwapButton({
   rate,
   tokenDecimals = 18,
   needsMigration = false,
+  isRemainingFundsMigration = false,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
@@ -34,7 +36,7 @@ export function useSwapButton({
   const isCurrencySelected = Boolean(currency);
 
   const isMigrationMandatory =
-    needsMigration && new Date() >= MIGRATION_DEADLINE;
+    needsMigration && !isRemainingFundsMigration && new Date() >= MIGRATION_DEADLINE;
 
   // Calculate sender fee and include in balance check
   const { feeAmount: senderFeeAmount } = calculateSenderFee(
@@ -47,7 +49,7 @@ export function useSwapButton({
   const hasInsufficientBalance = totalRequired > balance;
 
   const isEnabled = (() => {
-    if (isMigrationMandatory) return false;
+    if (isMigrationMandatory) return true;
     if (!rate) return false;
     if (isInjectedWallet && hasInsufficientBalance) {
       return false;
@@ -87,8 +89,6 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
-    if (isMigrationMandatory) return "Migrate wallet";
-
     if (isInjectedWallet && hasInsufficientBalance) {
       return "Insufficient balance";
     }
@@ -132,5 +132,6 @@ export function useSwapButton({
     buttonText,
     buttonAction,
     hasInsufficientBalance,
+    isMigrationMandatory,
   };
 }

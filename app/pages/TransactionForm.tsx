@@ -46,6 +46,7 @@ import {
   useNetwork,
   useTokens,
 } from "../context";
+import WalletMigrationModal from "../components/WalletMigrationModal";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -74,7 +75,7 @@ export const TransactionForm = ({
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
-  const { needsMigration } = useWalletMigrationStatus();
+  const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
 
@@ -470,7 +471,7 @@ export const TransactionForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currencies]);
 
-  const { isEnabled, buttonText, buttonAction } = useSwapButton({
+  const { isEnabled, buttonText, buttonAction, isMigrationMandatory } = useSwapButton({
     watch,
     balance,
     isDirty,
@@ -479,9 +480,16 @@ export const TransactionForm = ({
     rate,
     tokenDecimals,
     needsMigration,
+    isRemainingFundsMigration,
   });
 
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+
   const handleSwap = () => {
+    if (isMigrationMandatory) {
+      setIsMigrationModalOpen(true);
+      return;
+    }
     setOrderId("");
     handleSubmit(onSubmit)();
   };
@@ -948,6 +956,11 @@ export const TransactionForm = ({
           <FundWalletForm onClose={() => setIsFundModalOpen(false)} />
         </AnimatedModal>
       )}
+
+      <WalletMigrationModal
+        isOpen={isMigrationModalOpen}
+        onClose={() => setIsMigrationModalOpen(false)}
+      />
     </div>
   );
 };

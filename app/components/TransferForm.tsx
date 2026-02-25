@@ -172,10 +172,9 @@ export const TransferForm: React.FC<{
         return () => clearTimeout(timeout);
       }
 
-      const activeAddress =
-        shouldUseEOA && embeddedWallet
-          ? embeddedWallet.address
-          : smartWalletAccount?.address;
+      const activeAddress = shouldUseEOA
+        ? embeddedWallet?.address
+        : smartWalletAccount?.address;
 
       if (!activeAddress) {
         setTransferNetworkBalance({ total: 0, balances: {} });

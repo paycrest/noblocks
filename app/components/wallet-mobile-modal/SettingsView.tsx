@@ -6,6 +6,7 @@ import {
   ColorsIcon,
   Key01Icon,
   ArrowRight01Icon,
+  AccessIcon,
 } from "hugeicons-react";
 import { ImSpinner } from "react-icons/im";
 import { ThemeSwitch } from "../ThemeSwitch";
@@ -17,6 +18,7 @@ interface SettingsViewProps {
   user: any;
   updateEmail: () => void;
   linkEmail: () => void;
+  exportWallet: () => void;
   handleLogout: () => void;
   isLoggingOut: boolean;
   onBack: () => void;
@@ -28,6 +30,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   user,
   updateEmail,
   linkEmail,
+  exportWallet,
   handleLogout,
   isLoggingOut,
   onBack,
@@ -96,6 +99,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
         <ThemeSwitch />
       </div>
+      {!isInjectedWallet && (
+        <button
+          type="button"
+          onClick={exportWallet}
+          className="flex w-full items-center gap-3"
+        >
+          <AccessIcon className="size-5 text-outline-gray dark:text-white/50" />
+          <span className="text-text-body dark:text-white/80">Export wallet</span>
+        </button>
+      )}
       {!isInjectedWallet && (
         <button
           type="button"

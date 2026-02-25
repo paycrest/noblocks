@@ -54,11 +54,10 @@ export const Navbar = () => {
 
   // Determine active wallet based on migration status
   // After migration: show EOA (new wallet with funds)
-  // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress, type: "injected_wallet" }
-    : shouldUseEOA && embeddedWallet
-      ? { address: embeddedWallet.address, type: "eoa" }
+    : shouldUseEOA
+      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
       : smartWallet;
 
   const { login } = useLogin({

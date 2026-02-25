@@ -39,7 +39,7 @@ export const feeRecipientAddress: string = feeRecipientAddressEnv;
 const parsedFeePercent = parseFloat(process.env.NEXT_PUBLIC_LOCAL_TRANSFER_FEE_PERCENT ?? "");
 export const localTransferFeePercent: number = Number.isFinite(parsedFeePercent)
   ? parsedFeePercent
-  : 0.1;
+  : 0.3;
 
 const parsedFeeCap = parseFloat(process.env.NEXT_PUBLIC_LOCAL_TRANSFER_FEE_CAP ?? "");
 export const localTransferFeeCap: number =

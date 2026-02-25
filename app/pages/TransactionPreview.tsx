@@ -145,8 +145,8 @@ export const TransactionPreview = ({
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
   const activeWallet = injectedWallet ||
-    (shouldUseEOA && embeddedWallet
-      ? { address: embeddedWallet.address, type: "eoa" }
+    (shouldUseEOA
+      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
       : smartWallet);
 
   // Get appropriate balance based on migration status
@@ -536,6 +536,13 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
+    if (!activeWallet?.address) {
+      toast.error("Wallet not ready", {
+        description: "Please wait for your wallet to load before confirming.",
+      });
+      return;
+    }
+
     // Check balance including sender fee
     const totalRequired = amountSent + senderFeeAmount;
 

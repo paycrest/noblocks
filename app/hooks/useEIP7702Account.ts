@@ -10,6 +10,7 @@ import {
     http,
 } from "viem";
 import { useBalance } from "../context/BalanceContext";
+import { useMigrationStatus, triggerMigrationStatusRefetch } from "../context/MigrationStatusContext";
 import config from "../lib/config";
 
 // ################################################
@@ -60,82 +61,8 @@ export async function get7702AuthorizedImplementationForAddress(
     return get7702ImplementationAddress(publicClient, address);
 }
 
-// ################################################
-// ########## MIGRATION STATUS HOOK ###############
-// ################################################
-
-interface MigrationStatus {
-    isMigrationComplete: boolean;
-    isLoading: boolean;
-}
-
-/**
- * Hook to check if wallet migration is complete
- * Returns the migration completion status from the API
- */
-const MIGRATION_STATUS_REFETCH_EVENT = "refetch-migration-status";
-
-export function useMigrationStatus(): MigrationStatus {
-    const { user, getAccessToken } = usePrivy();
-    const [isMigrationComplete, setIsMigrationComplete] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
-    const [refetchTrigger, setRefetchTrigger] = useState(0);
-
-    useEffect(() => {
-        const handler = () => setRefetchTrigger((t) => t + 1);
-        window.addEventListener(MIGRATION_STATUS_REFETCH_EVENT, handler);
-        return () => window.removeEventListener(MIGRATION_STATUS_REFETCH_EVENT, handler);
-    }, []);
-
-    useEffect(() => {
-        async function checkMigration() {
-            if (!user?.id) {
-                setIsLoading(false);
-                return;
-            }
-
-            try {
-                const accessToken = await getAccessToken();
-                if (!accessToken) {
-                    console.warn("No access token available for migration status check");
-                    setIsMigrationComplete(false);
-                    return;
-                }
-
-                const response = await fetch(`/api/v1/wallets/migration-status?userId=${user.id}`, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`
-                    }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    setIsMigrationComplete(data.migrationCompleted ?? false);
-                } else {
-                    console.error("Migration status API error:", response.status, response.statusText);
-                    setIsMigrationComplete(false);
-                }
-            } catch (error) {
-                console.error("Error checking migration status:", error);
-                setIsMigrationComplete(false);
-            } finally {
-                setIsLoading(false);
-            }
-        }
-
-        checkMigration();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.id, refetchTrigger]);
-
-    return { isMigrationComplete, isLoading };
-}
-
-/** Call after zero-balance "I understand" deprecate so useMigrationStatus and BalanceContext see updated state */
-export function triggerMigrationStatusRefetch(): void {
-    if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent(MIGRATION_STATUS_REFETCH_EVENT));
-    }
-}
+// Re-export from centralized context so existing imports still work
+export { useMigrationStatus, triggerMigrationStatusRefetch } from "../context/MigrationStatusContext";
 
 // ################################################
 // ########## SHOULD USE EOA (NAV + ACTIONS) ######
@@ -148,29 +75,28 @@ export function triggerMigrationStatusRefetch(): void {
  */
 export function useShouldUseEOA(): boolean {
     const { user } = usePrivy();
-    const { isMigrationComplete } = useMigrationStatus();
+    const { isMigrationComplete, isLoading: isMigrationLoading } = useMigrationStatus();
     const { crossChainTotal, isLoading: isBalanceLoading } = useBalance();
     const lastValueRef = useRef<boolean | null>(null);
 
     const hasSmartWallet = !!user?.linkedAccounts?.find((a) => a.type === "smart_wallet");
-    // When not migrated, crossChainTotal is SCW total across all networks (not selected network only)
     const smartWalletCrossChainTotal = hasSmartWallet && !isMigrationComplete ? crossChainTotal : 0;
 
-    // Single ready guard: during Privy init (user null) preserve last value, don't update ref
     if (user == null) {
-        return lastValueRef.current ?? false;
+        return lastValueRef.current ?? true;
     }
 
+    if (!hasSmartWallet) {
+        lastValueRef.current = true;
+        return true;
+    }
     if (isMigrationComplete) {
         lastValueRef.current = true;
         return true;
     }
-    if (!hasSmartWallet) {
-        lastValueRef.current = true;
-        return true; // No smart account → use EOA only (e.g. new users with smart wallet creation disabled)
-    }
-    // During load, keep last value to avoid SCW→EOA flicker on refresh
-    if (isBalanceLoading) return lastValueRef.current ?? false;
+    // While migration status or balances are loading, hold the last value.
+    // Default to true (EOA) so we never briefly flash the old SCW address/balance.
+    if (isMigrationLoading || isBalanceLoading) return lastValueRef.current ?? true;
     const value = smartWalletCrossChainTotal === 0;
     lastValueRef.current = value;
     return value;
@@ -192,106 +118,45 @@ interface WalletMigrationStatus {
  * Hook to check if wallet migration is needed
  * - needsMigration: show full "Start migration" banner (has funds in SCW, not migrated)
  * - showZeroBalanceMessage: show short text only (0 balance SCW; nav/actions use EOA)
+ *
+ * Uses the shared MigrationStatusProvider instead of its own API call.
  */
 export function useWalletMigrationStatus(): WalletMigrationStatus {
-    const { user, authenticated, getAccessToken } = usePrivy();
+    const { user, authenticated } = usePrivy();
+    const { isMigrationComplete, isLoading: isMigrationLoading, refetch } = useMigrationStatus();
     const { crossChainTotal, isLoading: isBalanceLoading, smartWalletRemainingTotal } = useBalance();
     const [needsMigration, setNeedsMigration] = useState(false);
     const [showZeroBalanceMessage, setShowZeroBalanceMessage] = useState(false);
-    const [isChecking, setIsChecking] = useState(true);
-    const [isMigrationComplete, setIsMigrationComplete] = useState<boolean | null>(null);
-    const [refetchCounter, setRefetchCounter] = useState(0);
 
-    // Track smart wallet presence so the effect re-runs when Privy loads linked accounts after login
-    const hasSmartWalletLinked = user?.linkedAccounts?.some(
+    const hasSmartWallet = !!user?.linkedAccounts?.some(
         (account) => account.type === "smart_wallet"
-    ) ?? false;
+    );
+
+    const isChecking = isMigrationLoading || isBalanceLoading;
 
     useEffect(() => {
-        async function checkMigrationStatus() {
-            if (!authenticated || !user) {
-                setNeedsMigration(false);
-                setShowZeroBalanceMessage(false);
-                setIsChecking(false);
-                return;
-            }
-
-            const smartWallet = user.linkedAccounts.find(
-                (account) => account.type === "smart_wallet"
-            );
-
-            if (!smartWallet) {
-                setNeedsMigration(false);
-                setShowZeroBalanceMessage(false);
-                setIsChecking(false);
-                return;
-            }
-
-            try {
-                setIsChecking(true);
-                const accessToken = await getAccessToken();
-                if (!accessToken) {
-                    console.warn("No access token available for wallet migration status check");
-                    setIsMigrationComplete(false);
-                    setIsChecking(false);
-                    return;
-                }
-
-                const response = await fetch(`/api/v1/wallets/migration-status?userId=${user.id}`, {
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`
-                    }
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    const alreadyMigrated = data.migrationCompleted ?? false;
-                    setIsMigrationComplete(alreadyMigrated);
-                    setIsChecking(false);
-                    return;
-                } else {
-                    console.error("Migration status API error:", response.status, response.statusText);
-                    setIsMigrationComplete(false);
-                }
-            } catch (error) {
-                console.error("Error checking wallet migration status:", error);
-                setIsMigrationComplete(false);
-            }
-
-            setIsChecking(false);
-        }
-
-        checkMigrationStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [authenticated, user?.id, refetchCounter, hasSmartWalletLinked]); // getAccessToken intentionally omitted; hasSmartWalletLinked ensures re-run when Privy loads the smart wallet after login
-
-    // Separate effect to handle balance-based migration status display
-    useEffect(() => {
-        if (isMigrationComplete === null || isBalanceLoading) {
-            // Still loading migration status or balances
+        if (!authenticated || !user || !hasSmartWallet) {
+            setNeedsMigration(false);
+            setShowZeroBalanceMessage(false);
             return;
         }
 
+        if (isMigrationLoading || isBalanceLoading) return;
+
         if (isMigrationComplete) {
-            // DB says migrated: show migration banner again only if SCW still has funds on any network (partial migration)
             setNeedsMigration(smartWalletRemainingTotal > 0);
             setShowZeroBalanceMessage(false);
         } else {
-            // Migration not complete - use cross-chain SCW total so banner stays when switching networks
             const hasBalance = crossChainTotal > 0;
             setNeedsMigration(hasBalance);
             setShowZeroBalanceMessage(!hasBalance);
         }
-    }, [isMigrationComplete, crossChainTotal, isBalanceLoading, smartWalletRemainingTotal]);
+    }, [authenticated, user, hasSmartWallet, isMigrationComplete, isMigrationLoading, crossChainTotal, isBalanceLoading, smartWalletRemainingTotal]);
 
     const isRemainingFundsMigration =
         isMigrationComplete === true && smartWalletRemainingTotal > 0;
 
-    const refetchMigrationStatus = useCallback(() => {
-        setRefetchCounter((c) => c + 1);
-    }, []);
-
-    return { needsMigration, isChecking, showZeroBalanceMessage, isRemainingFundsMigration, refetchMigrationStatus };
+    return { needsMigration, isChecking, showZeroBalanceMessage, isRemainingFundsMigration, refetchMigrationStatus: refetch };
 }
 
 /** Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation. */

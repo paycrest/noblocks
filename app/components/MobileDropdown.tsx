@@ -25,6 +25,7 @@ import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm, TransferForm } from "./index";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
+import { clearUserSessionData } from "../lib/session-cleanup";
 
 export const MobileDropdown = ({
   isOpen,
@@ -41,7 +42,7 @@ export const MobileDropdown = ({
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
-  const { user, linkEmail, updateEmail } = usePrivy();
+  const { user, linkEmail, updateEmail, exportWallet } = usePrivy();
   const { allBalances, crossChainBalances, isLoading, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const { logout } = useLogout({
@@ -67,8 +68,8 @@ export const MobileDropdown = ({
   // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress, type: "injected_wallet" }
-    : shouldUseEOA && embeddedWallet
-      ? { address: embeddedWallet.address, type: "eoa" }
+    : shouldUseEOA
+      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
       : smartWallet;
 
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
@@ -83,7 +84,8 @@ export const MobileDropdown = ({
   const { showMfaEnrollmentModal } = useMfaEnrollment();
 
   const handleCopyAddress = () => {
-    navigator.clipboard.writeText(walletForCopy?.address ?? "");
+    if (!walletForCopy?.address) return;
+    navigator.clipboard.writeText(walletForCopy.address);
     toast.success("Address copied to clipboard");
     setIsWarningModalOpen(true);
   };
@@ -107,8 +109,9 @@ export const MobileDropdown = ({
     tokenAddress: `0x${string}`,
     onComplete?: (success: boolean) => void,
   ) => {
+    if (!walletForCopy?.address) return;
     await handleFundWallet(
-      walletForCopy?.address ?? "",
+      walletForCopy.address,
       amount,
       tokenAddress,
       onComplete,
@@ -179,15 +182,20 @@ export const MobileDropdown = ({
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      // Disconnect external wallet if connected
+      clearUserSessionData(user?.id, user?.wallet?.address);
       await logout();
+
       if (window.ethereum) {
-        await disconnectWallet();
+        try {
+          await disconnectWallet();
+        } catch (disconnectError) {
+          console.warn("Wallet disconnect failed:", disconnectError);
+        }
       }
     } catch (error) {
       console.error("Error during logout:", error);
-      // Still proceed with logout even if wallet disconnection fails
-      await logout();
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -271,6 +279,7 @@ export const MobileDropdown = ({
                               user={user}
                               updateEmail={updateEmail}
                               linkEmail={linkEmail}
+                              exportWallet={exportWallet}
                               handleLogout={handleLogout}
                               isLoggingOut={isLoggingOut}
                               onBack={() => setCurrentView("wallet")}

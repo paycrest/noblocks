@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import WalletMigrationModal from "./WalletMigrationModal";
 
-const MIGRATION_DEADLINE = new Date("2026-02-28");
+const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
 
 interface WalletMigrationBannerProps {
     isRemainingFundsMigration?: boolean;
@@ -54,7 +54,7 @@ export const WalletMigrationBanner = ({ isRemainingFundsMigration = false }: Wal
                                     ? "Transfer your remaining funds to your new wallet."
                                     : (
                                         <>
-                                            You can now export your wallet and use it with MetaMask or other platforms.{" "}
+                                            You can now export your wallet and use it with other onchain apps.{" "}
                                             {isMigrationMandatory ? (
                                                 "Migration is now mandatory."
                                             ) : (
@@ -112,7 +112,7 @@ export const WalletMigrationBanner = ({ isRemainingFundsMigration = false }: Wal
                             ? "Transfer your remaining funds to your new wallet."
                             : (
                                 <>
-                                    You can now export your wallet and use it with MetaMask or other platforms.{" "}
+                                    You can now export your wallet and use it with other onchain apps.{" "}
                                     {isMigrationMandatory ? (
                                         "Migration is now mandatory."
                                     ) : (

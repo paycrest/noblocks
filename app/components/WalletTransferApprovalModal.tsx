@@ -284,7 +284,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                             continue;
                         }
 
-                        setProgress(`Transferring ${calls.length} token(s) on ${chainName} (gasless)...`);
+                        setProgress(`Transferring ${calls.length} token${calls.length === 1 ? '' : 's'} on ${chainName}.`);
 
                         // ✅ Send batched transaction from SCW
                         const txHash = (await smartWalletClient.sendTransaction({
@@ -537,9 +537,11 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                             <button
                                                 onClick={handleApproveTransfer}
                                                 disabled={isProcessing || isLoading || isFetchingBalances}
-                                                className="w-full rounded-xl bg-lavender-500 px-6 py-3.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                                                className="w-full rounded-xl bg-lavender-500 px-4 py-3.5 text-center text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity sm:px-6"
                                             >
-                                                {isProcessing ? progress || "Processing migration..." : isFetchingBalances ? "Loading balances..." : tokens.length === 0 ? "Complete migration" : "Approve transfer"}
+                                                <span className="block truncate">
+                                                    {isProcessing ? progress || "Processing..." : isFetchingBalances ? "Loading balances..." : tokens.length === 0 ? "Complete migration" : "Approve transfer"}
+                                                </span>
                                             </button>
                                         </div>
                                     </motion.div>

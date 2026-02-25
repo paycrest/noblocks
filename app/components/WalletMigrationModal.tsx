@@ -159,9 +159,9 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
                                             {/* Approve Migration Button */}
                                             <button
                                                 onClick={handleApproveMigration}
-                                                className="w-full rounded-xl bg-lavender-500 px-6 py-3.5 text-sm font-medium text-white transition-all hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-white active:opacity-80 dark:focus:ring-offset-neutral-900"
+                                                className="w-full rounded-xl bg-lavender-500 px-4 py-3.5 text-center text-sm font-medium text-white transition-all hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 focus:ring-offset-white active:opacity-80 sm:px-6 dark:focus:ring-offset-neutral-900"
                                             >
-                                                Approve Transfer
+                                                Approve transfer
                                             </button>
                                         </div>
                                     </motion.div>

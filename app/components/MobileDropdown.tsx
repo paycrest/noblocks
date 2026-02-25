@@ -42,7 +42,7 @@ export const MobileDropdown = ({
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
-  const { user, linkEmail, updateEmail } = usePrivy();
+  const { user, linkEmail, updateEmail, exportWallet } = usePrivy();
   const { allBalances, crossChainBalances, isLoading, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const { logout } = useLogout({
@@ -273,6 +273,7 @@ export const MobileDropdown = ({
                               user={user}
                               updateEmail={updateEmail}
                               linkEmail={linkEmail}
+                              exportWallet={exportWallet}
                               handleLogout={handleLogout}
                               isLoggingOut={isLoggingOut}
                               onBack={() => setCurrentView("wallet")}

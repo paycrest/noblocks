@@ -153,11 +153,17 @@ export const TransactionPreview = ({
   // After migration: use externalWalletBalance (EOA balance)
   // Before migration: use smartWalletBalance (SCW balance)
   // Wait for migration status to load before making decision
-  const balance = injectedWallet
-    ? injectedWalletBalance?.balances[token] || 0
+  const activeBalance = injectedWallet
+    ? injectedWalletBalance
     : !isMigrationLoading && shouldUseEOA
-      ? externalWalletBalance?.balances[token] || 0
-      : smartWalletBalance?.balances[token] || 0;
+      ? externalWalletBalance
+      : smartWalletBalance;
+
+  // For CNGN, use raw balance (token units) instead of USD equivalent
+  const balance =
+    token === "CNGN" || token === "cNGN"
+      ? (activeBalance?.rawBalances?.[token] ?? activeBalance?.balances[token] ?? 0)
+      : (activeBalance?.balances[token] ?? 0);
 
   // Calculate sender fee for display and balance check
   const {

@@ -54,7 +54,7 @@ export const WalletMigrationBanner = ({ isRemainingFundsMigration = false }: Wal
                                     ? "Transfer your remaining funds to your new wallet."
                                     : (
                                         <>
-                                            You can now export your wallet and use it with other onchain apps.{" "}
+                                            You can now export your wallet and use it with other on-chain apps.{" "}
                                             {isMigrationMandatory ? (
                                                 "Migration is now mandatory."
                                             ) : (
@@ -112,7 +112,7 @@ export const WalletMigrationBanner = ({ isRemainingFundsMigration = false }: Wal
                             ? "Transfer your remaining funds to your new wallet."
                             : (
                                 <>
-                                    You can now export your wallet and use it with other onchain apps.{" "}
+                                    You can now export your wallet and use it with other on-chain apps.{" "}
                                     {isMigrationMandatory ? (
                                         "Migration is now mandatory."
                                     ) : (

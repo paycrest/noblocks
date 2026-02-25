@@ -100,7 +100,7 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
                                                 <p
                                                     className="text-sm font-[Inter] font-light leading-5 tracking-normal text-text-body px-2 pb-4 align-middle dark:text-[#FFFFFFCC]"
                                                 >
-                                                    Your wallet address has been updated to give you more flexibility. After this migration, you&apos;ll be able to export your wallet and view your balance on other onchain apps.
+                                                    Your wallet address has been updated to give you more flexibility. After this migration, you&apos;ll be able to export your wallet and view your balance on other on-chain apps.
                                                 </p>
                                                 <p
                                                     className="text-sm font-light leading-5 tracking-normal text-text-body px-2 pb-4 align-middle dark:text-[#FFFFFFCC]"
@@ -129,14 +129,14 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
                                                         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
                                                             <Image
                                                                 src="/images/wallet.png"
-                                                                alt="Use balance on other onchain apps"
+                                                                alt="Use balance on other on-chain apps"
                                                                 width={32}
                                                                 height={32}
                                                                 className="h-8 w-8 object-contain"
                                                             />
                                                         </div>
                                                         <p className="text-sm font-light leading-5 tracking-normal text-text-body min-w-0 dark:text-white/90">
-                                                            Use your balance on other onchain apps
+                                                            Use your balance on other on-chain apps
                                                         </p>
                                                     </div>
                                                     <div className="flex items-center gap-3">

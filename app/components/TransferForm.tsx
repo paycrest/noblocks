@@ -6,6 +6,7 @@ import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
+import WalletMigrationModal from "./WalletMigrationModal";
 import {
   classNames,
   formatDecimalPrecision,
@@ -47,11 +48,15 @@ export const TransferForm: React.FC<{
   const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const shouldUseEOA = useShouldUseEOA();
-  const { isChecking: isMigrationChecking } = useWalletMigrationStatus();
+  const { isChecking: isMigrationChecking, needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
+
+  const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
+  const isMigrationMandatory = needsMigration && !isRemainingFundsMigration && new Date() >= MIGRATION_DEADLINE;
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
 
   // State for network dropdown
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
@@ -323,9 +328,18 @@ export const TransferForm: React.FC<{
   const networksMatch = selectedNetwork.chain.name === recipientNetwork;
   const showNetworkWarning = recipientNetwork && !networksMatch;
 
+  const onFormSubmit = (data: any) => {
+    if (isMigrationMandatory) {
+      setIsMigrationModalOpen(true);
+      return;
+    }
+    transfer({ ...data, resetForm: reset });
+  };
+
   return (
+    <>
     <form
-      onSubmit={handleSubmit((data) => transfer({ ...data, resetForm: reset }))}
+      onSubmit={handleSubmit(onFormSubmit)}
       className="z-50 w-full max-w-full space-y-4 overflow-x-hidden text-neutral-900 transition-all dark:text-white"
       noValidate
     >
@@ -622,5 +636,11 @@ export const TransferForm: React.FC<{
         {isConfirming ? "Confirming..." : "Continue"}
       </button>
     </form>
+
+    <WalletMigrationModal
+      isOpen={isMigrationModalOpen}
+      onClose={() => setIsMigrationModalOpen(false)}
+    />
+    </>
   );
 };

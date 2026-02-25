@@ -39,7 +39,7 @@ import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
-import { useShouldUseEOA } from "../hooks/useEIP7702Account";
+import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
 import {
   useBalance,
   useInjectedWallet,
@@ -74,6 +74,7 @@ export const TransactionForm = ({
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
+  const { needsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
 
@@ -131,8 +132,8 @@ export const TransactionForm = ({
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : shouldUseEOA && embeddedWallet
-      ? { address: embeddedWallet.address }
+    : shouldUseEOA
+      ? (embeddedWallet ? { address: embeddedWallet.address } : undefined)
       : smartWallet;
 
   // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
@@ -477,6 +478,7 @@ export const TransactionForm = ({
     isUserVerified,
     rate,
     tokenDecimals,
+    needsMigration,
   });
 
   const handleSwap = () => {

@@ -3,6 +3,8 @@ import { UseFormWatch } from "react-hook-form";
 import { useInjectedWallet } from "../context";
 import { calculateSenderFee } from "../utils";
 
+const MIGRATION_DEADLINE = new Date("2026-02-28");
+
 interface UseSwapButtonProps {
   watch: UseFormWatch<any>;
   balance?: number;
@@ -11,6 +13,7 @@ interface UseSwapButtonProps {
   isUserVerified: boolean;
   rate?: number | null;
   tokenDecimals?: number;
+  needsMigration?: boolean;
 }
 
 export function useSwapButton({
@@ -21,6 +24,7 @@ export function useSwapButton({
   isUserVerified,
   rate,
   tokenDecimals = 18,
+  needsMigration = false,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
@@ -28,6 +32,9 @@ export function useSwapButton({
 
   const isAmountValid = Number(amountSent) >= 0.5;
   const isCurrencySelected = Boolean(currency);
+
+  const isMigrationMandatory =
+    needsMigration && new Date() >= MIGRATION_DEADLINE;
 
   // Calculate sender fee and include in balance check
   const { feeAmount: senderFeeAmount } = calculateSenderFee(
@@ -40,6 +47,7 @@ export function useSwapButton({
   const hasInsufficientBalance = totalRequired > balance;
 
   const isEnabled = (() => {
+    if (isMigrationMandatory) return false;
     if (!rate) return false;
     if (isInjectedWallet && hasInsufficientBalance) {
       return false;
@@ -79,6 +87,8 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
+    if (isMigrationMandatory) return "Migrate wallet";
+
     if (isInjectedWallet && hasInsufficientBalance) {
       return "Insufficient balance";
     }

@@ -30,7 +30,7 @@ export const MigrationBannerWrapper = () => {
     const canShowMigrationModal = isInjectedWallet || dismissedViaStore || dismissedViaStorage;
 
     if (isChecking) return null;
-    if (needsMigration) return <WalletMigrationBanner isRemainingFundsMigration={isRemainingFundsMigration} />;
+    if (needsMigration && canShowMigrationModal) return <WalletMigrationBanner isRemainingFundsMigration={isRemainingFundsMigration} />;
     if (showZeroBalanceMessage && canShowMigrationModal) {
         return (
             <MigrationZeroBalanceModal

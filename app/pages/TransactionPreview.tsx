@@ -145,8 +145,8 @@ export const TransactionPreview = ({
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
   const activeWallet = injectedWallet ||
-    (shouldUseEOA && embeddedWallet
-      ? { address: embeddedWallet.address, type: "eoa" }
+    (shouldUseEOA
+      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
       : smartWallet);
 
   // Get appropriate balance based on migration status

@@ -304,7 +304,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         if (receipt.status === 'success') {
                             totalTokensMigrated += calls.length;
                             toast.success(`${chainName} migration complete!`, {
-                                description: `${calls.length} token(s) transferred to your EOA (gasless)`
+                                description: `${calls.length} token${calls.length === 1 ? '' : 's'} transferred to your new wallet.`
                             });
                         } else {
                             throw new Error(`Transaction failed for ${chainName}`);
@@ -346,7 +346,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
 
             toast.success("🎉 Migration Complete!", {
                 description: hasTokens
-                    ? `${totalTokensMigrated} token(s) successfully migrated to your EOA`
+                    ? `${totalTokensMigrated} token ${totalTokensMigrated === 1 ? '' : 's'} successfully migrated to your new wallet`
                     : "Old wallet deprecated successfully",
                 duration: 5000,
             });

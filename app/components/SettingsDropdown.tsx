@@ -61,8 +61,8 @@ export const SettingsDropdown = () => {
   // Before migration: show SCW (old wallet)
   const walletAddress = isInjectedWallet
     ? injectedAddress
-    : shouldUseEOA && embeddedWallet
-      ? embeddedWallet.address
+    : shouldUseEOA
+      ? embeddedWallet?.address
       : smartWallet?.address;
 
   const handleCopyAddress = () => {

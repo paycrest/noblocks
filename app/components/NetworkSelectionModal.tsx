@@ -28,6 +28,11 @@ export const NetworkSelectionModal = () => {
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
+  // Reset when user changes (including logout → login as different user)
+  useEffect(() => {
+    setHasCheckedStorage(false);
+  }, [user?.wallet?.address]);
+
   useEffect(() => {
     if (!hasCheckedStorage && authenticated && user?.wallet?.address) {
       const storageKey = `hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`;

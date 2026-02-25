@@ -38,6 +38,8 @@ export const MigrationStatusProvider: FC<{ children: ReactNode }> = ({
   }, []);
 
   useEffect(() => {
+    const abortController = new AbortController();
+
     async function checkMigration() {
       if (!user?.id) {
         setIsMigrationComplete(false);
@@ -49,6 +51,8 @@ export const MigrationStatusProvider: FC<{ children: ReactNode }> = ({
 
       try {
         const accessToken = await getAccessToken();
+        if (abortController.signal.aborted) return;
+
         if (!accessToken) {
           console.warn(
             "No access token available for migration status check",
@@ -63,6 +67,7 @@ export const MigrationStatusProvider: FC<{ children: ReactNode }> = ({
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },
+            signal: abortController.signal,
           },
         );
 
@@ -78,14 +83,18 @@ export const MigrationStatusProvider: FC<{ children: ReactNode }> = ({
           setIsMigrationComplete(false);
         }
       } catch (error) {
+        if (abortController.signal.aborted) return;
         console.error("Error checking migration status:", error);
         setIsMigrationComplete(false);
       } finally {
-        setIsLoading(false);
+        if (!abortController.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     }
 
     checkMigration();
+    return () => abortController.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, refetchTrigger]);
 

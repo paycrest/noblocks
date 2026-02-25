@@ -536,6 +536,13 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
+    if (!activeWallet?.address) {
+      toast.error("Wallet not ready", {
+        description: "Please wait for your wallet to load before confirming.",
+      });
+      return;
+    }
+
     // Check balance including sender fee
     const totalRequired = amountSent + senderFeeAmount;
 

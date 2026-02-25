@@ -346,7 +346,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
 
             toast.success("🎉 Migration Complete!", {
                 description: hasTokens
-                    ? `${totalTokensMigrated} token ${totalTokensMigrated === 1 ? '' : 's'} successfully migrated to your new wallet`
+                    ? `${totalTokensMigrated} token${totalTokensMigrated === 1 ? '' : 's'} successfully migrated to your new wallet`
                     : "Old wallet deprecated successfully",
                 duration: 5000,
             });

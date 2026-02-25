@@ -193,6 +193,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       setInjectedWalletBalance(null);
     };
 
+    setIsLoading(true);
+
     if (isMigrationLoading) return;
     if (!ready) return;
 
@@ -200,8 +202,6 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     // user.linkedAccounts (smartWalletAccount) loads before useWallets() (embeddedWalletAccount),
     // so without this guard, a migrated user's fetch falls into the SCW branch and flashes SCW balance.
     if (user && !isInjectedWallet && wallets.length === 0) return;
-
-    setIsLoading(true);
 
     try {
       if (ready && !isInjectedWallet) {

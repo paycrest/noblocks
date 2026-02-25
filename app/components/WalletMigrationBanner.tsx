@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import WalletMigrationModal from "./WalletMigrationModal";
 
-const MIGRATION_DEADLINE = new Date("2026-02-28");
+const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
 
 interface WalletMigrationBannerProps {
     isRemainingFundsMigration?: boolean;

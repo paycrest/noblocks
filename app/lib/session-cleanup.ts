@@ -11,10 +11,13 @@ export function clearUserSessionData(userId?: string, walletAddress?: string) {
   ];
 
   if (walletAddress) {
-    keysToRemove.push(`hasSeenNetworkModal-${walletAddress.toLowerCase()}`);
+    const lowerAddress = walletAddress.toLowerCase();
+    keysToRemove.push(`hasSeenNetworkModal-${lowerAddress}`);
+    // recipientsMigrated uses the raw walletAddress stored in localStorage("userId")
     keysToRemove.push(`recipientsMigrated-${walletAddress}`);
   }
 
+  // hasDismissedZeroBalanceMigration uses userId ?? walletAddress (no lowercasing)
   const migrationDismissalId = userId ?? walletAddress;
   if (migrationDismissalId) {
     keysToRemove.push(`hasDismissedZeroBalanceMigration-${migrationDismissalId}`);

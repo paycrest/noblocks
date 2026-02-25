@@ -3,7 +3,7 @@ import { UseFormWatch } from "react-hook-form";
 import { useInjectedWallet } from "../context";
 import { calculateSenderFee } from "../utils";
 
-const MIGRATION_DEADLINE = new Date("2026-02-28");
+const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
 
 interface UseSwapButtonProps {
   watch: UseFormWatch<any>;

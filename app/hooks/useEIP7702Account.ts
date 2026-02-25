@@ -76,7 +76,7 @@ interface MigrationStatus {
 const MIGRATION_STATUS_REFETCH_EVENT = "refetch-migration-status";
 
 export function useMigrationStatus(): MigrationStatus {
-    const { user, getAccessToken } = usePrivy();
+    const { user, ready, getAccessToken } = usePrivy();
     const [isMigrationComplete, setIsMigrationComplete] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [refetchTrigger, setRefetchTrigger] = useState(0);
@@ -89,6 +89,8 @@ export function useMigrationStatus(): MigrationStatus {
 
     useEffect(() => {
         async function checkMigration() {
+            if (!ready) return;
+
             if (!user?.id) {
                 setIsLoading(false);
                 return;
@@ -125,7 +127,7 @@ export function useMigrationStatus(): MigrationStatus {
 
         checkMigration();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.id, refetchTrigger]);
+    }, [user?.id, refetchTrigger, ready]);
 
     return { isMigrationComplete, isLoading };
 }

@@ -73,8 +73,9 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             setIsFetchingBalances(true);
             const balancesByChain: Record<string, Record<string, number>> = {};
 
-            // Fetch balances for each supported network
-            for (const network of networks) {
+            // Fetch balances for each supported network (exclude Celo — not supported for migration)
+            const migrationNetworks = networks.filter(n => n.chain.name !== "Celo");
+            for (const network of migrationNetworks) {
                 try {
                     const publicClient = createPublicClient({
                         chain: network.chain,
@@ -284,7 +285,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                             continue;
                         }
 
-                        setProgress(`Transferring ${calls.length} token(s) on ${chainName} (gasless)...`);
+                        setProgress(`Transferring ${calls.length} ${calls.length === 1 ? "token" : "tokens"} on ${chainName} (gasless)...`);
 
                         // ✅ Send batched transaction from SCW
                         const txHash = (await smartWalletClient.sendTransaction({
@@ -304,7 +305,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         if (receipt.status === 'success') {
                             totalTokensMigrated += calls.length;
                             toast.success(`${chainName} migration complete!`, {
-                                description: `${calls.length} token(s) transferred to your EOA (gasless)`
+                                description: `${calls.length} ${calls.length === 1 ? "token" : "tokens"} transferred to your new wallet (gasless)`
                             });
                         } else {
                             throw new Error(`Transaction failed for ${chainName}`);
@@ -346,8 +347,8 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
 
             toast.success("🎉 Migration Complete!", {
                 description: hasTokens
-                    ? `${totalTokensMigrated} token(s) successfully migrated to your EOA`
-                    : "Old wallet deprecated successfully",
+                    ? `${totalTokensMigrated} ${totalTokensMigrated === 1 ? "token" : "tokens"} successfully migrated to your new wallet`
+                    : "Your old wallet has been deprecated successfully",
                 duration: 5000,
             });
 

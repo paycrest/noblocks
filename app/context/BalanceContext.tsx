@@ -112,7 +112,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   >([]);
   const [smartWalletRemainingTotal, setSmartWalletRemainingTotal] =
     useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Hook for CNGN rate to correct total balances
   const { rate: cngnRate } = useCNGNRate({
@@ -121,7 +121,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   });
 
   // Cannot use useShouldUseEOA here (it uses useBalance and would create a circular dependency)
-  const { isMigrationComplete } = useMigrationStatus();
+  const { isMigrationComplete, isLoading: isMigrationLoading } = useMigrationStatus();
 
   /**
    * Shared helper: fetches cross-chain balance entries for an address.
@@ -407,6 +407,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   };
 
   useEffect(() => {
+    if (isMigrationLoading) return;
     fetchBalances();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -419,6 +420,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     injectedAddress,
     cngnRate,
     isMigrationComplete,
+    isMigrationLoading,
   ]);
 
   const allBalances = {

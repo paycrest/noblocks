@@ -204,6 +204,10 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     if (user && !isInjectedWallet && wallets.length === 0) return;
 
     try {
+      // Resolve CNGN rate once so all branches use the same value
+      const resolvedCngnRate =
+        cngnRate ?? (await getCNGNRateForNetwork(selectedNetwork.chain.name));
+
       if (ready && !isInjectedWallet) {
         const smartWalletAccount = user?.linkedAccounts.find(
           (account) => account.type === "smart_wallet",
@@ -276,7 +280,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             );
             const correctedTotal = calculateCorrectedTotalBalance(
               result,
-              cngnRate,
+              resolvedCngnRate,
             );
             setExternalWalletBalance({ ...result, total: correctedTotal });
           }
@@ -301,8 +305,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
               smartWalletAccount.address,
             );
             const rawBalances = { ...result.balances };
-            const correctedTotal = calculateCorrectedTotalBalance(result, cngnRate);
-            const correctedBalances = applyCNGNBalanceConversion(result.balances, cngnRate);
+            const correctedTotal = calculateCorrectedTotalBalance(result, resolvedCngnRate);
+            const correctedBalances = applyCNGNBalanceConversion(result.balances, resolvedCngnRate);
             setSmartWalletBalance({
               total: correctedTotal,
               balances: correctedBalances,
@@ -326,7 +330,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
                 publicClient,
                 embeddedWalletAccount.address,
               );
-              const eoaCorrected = calculateCorrectedTotalBalance(eoaResult, cngnRate);
+              const eoaCorrected = calculateCorrectedTotalBalance(eoaResult, resolvedCngnRate);
               setExternalWalletBalance({ ...eoaResult, total: eoaCorrected });
             }
           } else {
@@ -353,12 +357,12 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           // Apply cNGN conversion correction
           const correctedTotal = calculateCorrectedTotalBalance(
             result,
-            cngnRate,
+            resolvedCngnRate,
           );
           // Apply CNGN balance conversion and use returned value
           const correctedBalances = applyCNGNBalanceConversion(
             result.balances,
-            cngnRate,
+            resolvedCngnRate,
           );
 
           setExternalWalletBalance({
@@ -392,12 +396,12 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           // Apply cNGN conversion correction
           const correctedTotal = calculateCorrectedTotalBalance(
             result,
-            cngnRate,
+            resolvedCngnRate,
           );
           // Apply CNGN balance conversion and use returned value
           const correctedBalances = applyCNGNBalanceConversion(
             result.balances,
-            cngnRate,
+            resolvedCngnRate,
           );
 
           setInjectedWalletBalance({

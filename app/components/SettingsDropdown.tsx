@@ -149,15 +149,19 @@ export const SettingsDropdown = () => {
       }
 
       clearUserSessionData(user?.id, user?.wallet?.address);
-
       await logout();
+
       if (window.ethereum) {
-        await disconnectWallet();
+        try {
+          await disconnectWallet();
+        } catch (disconnectError) {
+          console.warn("Wallet disconnect failed:", disconnectError);
+        }
       }
     } catch (error) {
       console.error("Error during logout:", error);
-      clearUserSessionData(user?.id, user?.wallet?.address);
-      await logout();
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 

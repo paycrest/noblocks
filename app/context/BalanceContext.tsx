@@ -334,8 +334,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             setCrossChainBalances(scwCrossChainEntries);
           }
         } else {
-          setSmartWalletBalance(null);
-          setExternalWalletBalance(null);
+          clearAllWalletBalances();
         }
 
         // Handle external injected wallets (separate from embedded wallet) – don't overwrite EOA balance for 0-balance users

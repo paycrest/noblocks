@@ -637,7 +637,7 @@ export const TransactionForm = ({
                 Send
               </label>
               <AnimatePresence>
-                {token && activeBalance && (
+                {authenticated && token && activeBalance && (
                   <AnimatedComponent
                     variant={slideInOut}
                     className="flex items-center gap-2"

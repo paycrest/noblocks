@@ -25,6 +25,7 @@ import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm, TransferForm } from "./index";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
+import { clearUserSessionData } from "../lib/session-cleanup";
 
 export const MobileDropdown = ({
   isOpen,
@@ -179,14 +180,15 @@ export const MobileDropdown = ({
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      // Disconnect external wallet if connected
+      clearUserSessionData(user?.id, user?.wallet?.address);
+
       await logout();
       if (window.ethereum) {
         await disconnectWallet();
       }
     } catch (error) {
       console.error("Error during logout:", error);
-      // Still proceed with logout even if wallet disconnection fails
+      clearUserSessionData(user?.id, user?.wallet?.address);
       await logout();
     }
   };

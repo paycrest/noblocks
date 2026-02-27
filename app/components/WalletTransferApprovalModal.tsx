@@ -13,7 +13,7 @@ import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance,
 import { useActualTheme } from "../hooks/useActualTheme";
 import { getCNGNRateForNetwork } from "../hooks/useCNGNRate";
 import WalletMigrationSuccessModal from "./WalletMigrationSuccessModal";
-import { type Address, type Chain, encodeFunctionData, parseAbi, createPublicClient, http, fallback, parseUnits } from "viem";
+import { type Address, type Chain, encodeFunctionData, parseAbi, createPublicClient, http, fallback } from "viem";
 import { bsc } from "viem/chains";
 import { toast } from "sonner";
 import { networks } from "../mocks";
@@ -47,6 +47,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
     const [error, setError] = useState<string | null>(null);
     const [progress, setProgress] = useState<string>("");
     const [allChainBalances, setAllChainBalances] = useState<Record<string, Record<string, number>>>({});
+    const [allChainRawBalances, setAllChainRawBalances] = useState<Record<string, Record<string, bigint>>>({});
     const [isFetchingBalances, setIsFetchingBalances] = useState(false);
     const [chainRates, setChainRates] = useState<Record<string, number | null>>({});
 
@@ -72,6 +73,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
         const fetchAllChainBalances = async () => {
             setIsFetchingBalances(true);
             const balancesByChain: Record<string, Record<string, number>> = {};
+            const rawByChain: Record<string, Record<string, bigint>> = {};
 
             // Fetch balances for each supported network
             for (const network of networks) {
@@ -90,6 +92,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                     const hasBalance = Object.values(result.balances).some(b => b > 0);
                     if (hasBalance) {
                         balancesByChain[network.chain.name] = result.balances;
+                        rawByChain[network.chain.name] = result.rawBalances;
                     }
                 } catch (error) {
                     console.error(`Error fetching balances for ${network.chain.name}:`, error);
@@ -97,6 +100,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             }
 
             setAllChainBalances(balancesByChain);
+            setAllChainRawBalances(rawByChain);
             setIsFetchingBalances(false);
         };
 
@@ -154,12 +158,15 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         usdValue = balanceNum / chainRate;
                     }
 
+                    const rawAmount = allChainRawBalances[chainName]?.[symbol] ?? BigInt(0);
+
                     const token = {
                         id: `${chainName}-${symbol}`,
                         chain: chainName,
                         name: tokenMeta.name || symbol,
                         symbol,
                         amount: balanceNum,
+                        rawAmount,
                         displayAmount: balanceNum.toFixed(2),
                         value: `${usdValue.toFixed(2)}`,
                         icon: `/logos/${symbol.toLowerCase()}-logo.svg`,
@@ -179,7 +186,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
         }
 
         return grouped;
-    }, [allChainBalances, allTokens, chainRates]);
+    }, [allChainBalances, allChainRawBalances, allTokens, chainRates]);
 
     // Flatten for display
     const tokens = useMemo(() => {
@@ -261,15 +268,10 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         // ✅ Batch all token transfers into a single transaction for gasless execution
                         // This uses Privy's smart wallet batch capability with Biconomy paymaster
                         const calls = chainTokens.map((token) => {
-                            // Use parseUnits with fixed-point string to avoid scientific notation for very small amounts
-                            const amountString = token.amount.toString();
-                            const amountInWei = parseUnits(amountString, token.decimals);
-
-                            // ✅ Encode the transfer function call
                             const transferData = encodeFunctionData({
                                 abi: parseAbi(["function transfer(address to, uint256 amount) returns (bool)"]),
                                 functionName: "transfer",
-                                args: [newAddress as Address, amountInWei],
+                                args: [newAddress as Address, token.rawAmount],
                             });
 
                             return {

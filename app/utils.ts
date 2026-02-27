@@ -488,12 +488,13 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
 export async function fetchWalletBalance(
   client: any,
   address: string,
-): Promise<{ total: number; balances: Record<string, number> }> {
+): Promise<{ total: number; balances: Record<string, number>; rawBalances: Record<string, bigint> }> {
   const supportedTokens = await getNetworkTokens(client.chain?.name);
-  if (!supportedTokens) return { total: 0, balances: {} };
+  if (!supportedTokens) return { total: 0, balances: {}, rawBalances: {} };
 
   let totalBalance = 0;
   const balances: Record<string, number> = {};
+  const rawBalances: Record<string, bigint> = {};
 
   try {
     // Fetch balances in parallel
@@ -502,6 +503,7 @@ export async function fetchWalletBalance(
         if (token.isNative && token.address === "") {
           // Native token balance (ETH, BNB, etc.)
           const balanceInWei = await client.getBalance({ address });
+          rawBalances[token.symbol] = balanceInWei;
           const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
           balances[token.symbol] = isNaN(balance) ? 0 : balance;
           return balances[token.symbol];
@@ -513,14 +515,15 @@ export async function fetchWalletBalance(
             functionName: "balanceOf",
             args: [address as `0x${string}`],
           });
+          rawBalances[token.symbol] = balanceInWei as bigint;
           const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-          // Ensure balance is a valid number
           balances[token.symbol] = isNaN(balance) ? 0 : balance;
           return balances[token.symbol];
         }
       } catch (error) {
         console.error(`Error fetching balance for ${token.symbol}:`, error);
         balances[token.symbol] = 0;
+        rawBalances[token.symbol] = BigInt(0);
         return 0;
       }
     });
@@ -532,13 +535,13 @@ export async function fetchWalletBalance(
       0,
     );
   } catch (error) {
-    return { total: 0, balances: {} };
+    return { total: 0, balances: {}, rawBalances: {} };
   }
 
-  // Ensure final total is a valid number
   return {
     total: isNaN(totalBalance) ? 0 : totalBalance,
     balances,
+    rawBalances,
   };
 }
 

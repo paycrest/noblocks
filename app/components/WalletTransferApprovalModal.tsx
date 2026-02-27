@@ -92,7 +92,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                     const hasBalance = Object.values(result.balances).some(b => b > 0);
                     if (hasBalance) {
                         balancesByChain[network.chain.name] = result.balances;
-                        rawByChain[network.chain.name] = result.rawBalances;
+                        rawByChain[network.chain.name] = result.balancesInWei;
                     }
                 } catch (error) {
                     console.error(`Error fetching balances for ${network.chain.name}:`, error);

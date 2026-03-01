@@ -51,7 +51,7 @@ import { pdf } from "@react-pdf/renderer";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { usePrivy } from "@privy-io/react-auth";
-import { TransactionHelperText } from "../components/TransactionHelperText";
+import { PaymentConfirmationModal } from "../components/PaymentConfirmationModal";
 import { useConfetti } from "../hooks/useConfetti";
 import { BlockFestCashbackComponent } from "../components/blockfest";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
@@ -137,6 +137,8 @@ export function TransactionStatus({
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [hasReindexed, setHasReindexed] = useState(false);
+  const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
+  const paymentConfirmationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
 
@@ -472,6 +474,66 @@ export function TransactionStatus({
     },
     [transactionStatus, hasReindexed, orderDetails, createdAt],
   );
+
+  useEffect(
+    function showPaymentConfirmationAfterDelay() {
+      if (
+        !["fulfilling", "fulfilled", "refunding"].includes(transactionStatus)
+      ) {
+        setShowPaymentConfirmation(false);
+        if (paymentConfirmationTimerRef.current) {
+          clearTimeout(paymentConfirmationTimerRef.current);
+          paymentConfirmationTimerRef.current = null;
+        }
+        return;
+      }
+
+      const createdAtTime = new Date(createdAt).getTime();
+      const elapsed = Date.now() - createdAtTime;
+      const delayMs = 5_000; // TODO: revert to 120_000 before merging
+
+      if (elapsed >= delayMs) {
+        setShowPaymentConfirmation(true);
+      } else {
+        paymentConfirmationTimerRef.current = setTimeout(() => {
+          setShowPaymentConfirmation(true);
+        }, delayMs - elapsed);
+      }
+
+      return () => {
+        if (paymentConfirmationTimerRef.current) {
+          clearTimeout(paymentConfirmationTimerRef.current);
+          paymentConfirmationTimerRef.current = null;
+        }
+      };
+    },
+    [transactionStatus, createdAt],
+  );
+
+  const handlePaymentConfirmed = async () => {
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken || !orderId) return;
+
+      const transactionId = localStorage.getItem("currentTransactionId");
+      if (!transactionId) return;
+
+      await updateTransactionDetails({
+        transactionId,
+        status: "settled",
+        txHash: createdHash || orderDetails?.txHash,
+        timeSpent: calculateDuration(createdAt, new Date().toISOString()),
+        accessToken,
+        walletAddress: embeddedWallet?.address || "",
+      });
+
+      setTransactionStatus("settled");
+      setShowPaymentConfirmation(false);
+    } catch (error) {
+      console.error("Error confirming payment:", error);
+      toast.error("Failed to confirm payment. Please try again.");
+    }
+  };
 
   /**
    * Renders the appropriate status indicator based on transaction status
@@ -829,18 +891,19 @@ export function TransactionStatus({
           {getPaymentMessage()}
         </AnimatedComponent>
 
-        {/* Helper text for long-running transactions */}
-        <TransactionHelperText
-          isVisible={["fulfilling", "fulfilled", "refunding"].includes(
-            transactionStatus,
-          )}
-          title="Taking longer than expected?"
-          message="Your transaction is still processing. You can safely
-                  refresh or leave this page - your funds will either be
-                  settled or automatically refunded if the transaction
-                  fails."
-          showAfterMs={60000}
-          className="w-full space-y-4"
+        {/* Payment confirmation modal for long-running transactions (120s) */}
+        <PaymentConfirmationModal
+          isOpen={showPaymentConfirmation}
+          onClose={() => setShowPaymentConfirmation(false)}
+          onConfirm={handlePaymentConfirmed}
+          tokenAmount={String(amount)}
+          token={String(token)}
+          txHash={createdHash || orderDetails?.txHash || "0xa5d960b4f3e8c2d1a7b9e6f5c4d3a2b1e0f9c8d706f6f"} // TODO: revert — remove fallback test hash
+          explorerLink={
+            createdHash && orderDetails?.network
+              ? getExplorerLink(orderDetails.network, createdHash)
+              : "https://basescan.org/tx/0xa5d960b4f3e8c2d1a7b9e6f5c4d3a2b1e0f9c8d706f6f" // TODO: revert — remove fallback test link
+          }
         />
 
         <AnimatePresence>

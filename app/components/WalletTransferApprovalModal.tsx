@@ -8,15 +8,21 @@ import { useBalance } from "../context/BalanceContext";
 import { useTokens } from "../context";
 import { useNetwork } from "../context/NetworksContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance, getRpcUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { getCNGNRateForNetwork } from "../hooks/useCNGNRate";
 import WalletMigrationSuccessModal from "./WalletMigrationSuccessModal";
-import { type Address, type Chain, encodeFunctionData, parseAbi, createPublicClient, http, fallback } from "viem";
+import { type Address, type Chain, createPublicClient, http, fallback, erc20Abi, encodeAbiParameters } from "viem";
 import { bsc } from "viem/chains";
 import { toast } from "sonner";
 import { networks } from "../mocks";
+import config from "../lib/config";
+import {
+  createMeeClient,
+  toMultichainNexusAccount,
+  getMEEVersion,
+  MEEVersion,
+} from "@biconomy/abstractjs";
 
 function getTransportForChain(chain: Chain) {
     if (chain.id === bsc.id) {
@@ -32,6 +38,9 @@ function getTransportForChain(chain: Chain) {
 const CHAIN_MAP = Object.fromEntries(
     networks.map(n => [n.chain.name, n.chain])
 );
+
+// Biconomy v2 ECDSA module address (same across chains). Signature must be ABI-encoded as (bytes moduleSig, address moduleAddress) per blog.
+const BICONOMY_V2_ECDSA_MODULE = "0x0000001c5b32F37F5beA87BDD5374eB2aC54eA8e" as const;
 
 interface WalletTransferApprovalModalProps {
     isOpen: boolean;
@@ -56,7 +65,6 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
     const { selectedNetwork } = useNetwork();
     const { user, getAccessToken } = usePrivy();
     const { wallets } = useWallets();
-    const { client: smartWalletClient } = useSmartWallets();
     const isDark = useActualTheme();
 
     // Get wallet addresses
@@ -235,87 +243,192 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             const chains = Object.keys(tokensByChain);
             let totalTokensMigrated = 0;
 
-            // ✅ If tokens exist, process transfers
+            // ✅ If tokens exist: (1) upgrade SCW to Nexus via upgrade-server, then (2) use MEE to transfer.
             if (hasTokens) {
-                // ✅ Check if smart wallet client is available
-                if (!smartWalletClient) {
-                    throw new Error("Smart wallet client not available. Please ensure you have a smart wallet linked.");
+                const meeApiKey = config.biconomyMeeApiKey;
+                const upgradeServerUrl = config.upgradeServerUrl;
+                if (!meeApiKey) {
+                    throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
+                }
+                if (!embeddedWallet || !oldAddress) {
+                    throw new Error("Wallet not available. Please ensure you are logged in.");
                 }
 
+                // --- Upgrade SCW to Nexus (generate-userop → sign → execute) before MEE ---
+                setProgress("Upgrading wallet to Nexus...");
+                const genRes = await fetch(`${upgradeServerUrl}/generate-userop`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        smartAccountAddress: oldAddress,
+                        ownerAddress: embeddedWallet.address,
+                    }),
+                });
+                if (!genRes.ok) {
+                    const errText = await genRes.text();
+                    let msg = errText || genRes.statusText;
+                    try {
+                        const j = JSON.parse(errText) as { error?: string };
+                        if (j?.error) msg = j.error;
+                    } catch {
+                        /* use errText as-is */
+                    }
+                    throw new Error(`Upgrade prepare failed: ${msg}`);
+                }
+                const { userOp: unsignedUserOp, userOpHash } = (await genRes.json()) as {
+                    userOp: Record<string, unknown> & { signature?: string };
+                    userOpHash: string;
+                };
+                if (!unsignedUserOp || !userOpHash) {
+                    throw new Error("Invalid response from upgrade server (missing userOp or userOpHash)");
+                }
+
+                setProgress("Signing upgrade...");
+                const provider = await embeddedWallet.getEthereumProvider();
+                const rawSignature = (await provider.request({
+                    method: "personal_sign",
+                    params: [userOpHash, embeddedWallet.address],
+                })) as string;
+                // Biconomy v2 expects signature = encode(["bytes","address"], [moduleSig, moduleAddress]). Without this, validateUserOp reverts → AA23.
+                const signature = encodeAbiParameters(
+                    [{ type: "bytes" }, { type: "address" }],
+                    [rawSignature as `0x${string}`, BICONOMY_V2_ECDSA_MODULE as Address]
+                );
+                const signedUserOp = { ...unsignedUserOp, signature };
+
+                setProgress("Submitting upgrade...");
+                const execRes = await fetch(`${upgradeServerUrl}/execute`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ userOp: signedUserOp }),
+                });
+                if (!execRes.ok) {
+                    const errText = await execRes.text();
+                    throw new Error(`Upgrade execute failed: ${errText || execRes.statusText}`);
+                }
+                const execData = (await execRes.json()) as { transactionHash?: string };
+                if (execData.transactionHash) {
+                    allTxHashes.push(execData.transactionHash);
+                }
+                toast.success("Wallet upgraded to Nexus");
+
+                // --- Use MEE to transfer tokens (SCW is now Nexus) ---
+                // Upgrade-server only upgrades on BSC. Running MEE on other chains uses the non-upgraded (v2) account and reverts with AA23. So only run MEE on BSC here.
                 for (let i = 0; i < chains.length; i++) {
                     const chainName = chains[i];
                     const chainTokens = tokensByChain[chainName];
                     const chain = CHAIN_MAP[chainName];
 
-                    if (!chain) {
-                        console.warn(`Chain ${chainName} not supported, skipping...`);
+                    if (!chain || !newAddress || !oldAddress) {
+                        if (!chain) console.warn(`Chain ${chainName} not supported, skipping...`);
                         continue;
                     }
 
                     setProgress(`Processing ${chainName} (${i + 1}/${chains.length})...`);
 
                     try {
-                        // ✅ Switch to the correct chain using smart wallet client
-                        await smartWalletClient.switchChain({
-                            id: chain.id,
+                        setProgress(`Preparing migration on ${chainName}...`);
+                        await embeddedWallet.switchChain(chain.id);
+                        const chainProvider = await embeddedWallet.getEthereumProvider();
+
+                        const nexusAccount = await toMultichainNexusAccount({
+                            chainConfigurations: [
+                                {
+                                    chain,
+                                    transport: http(getRpcUrl(chain.name)),
+                                    version: getMEEVersion(MEEVersion.V2_1_0),
+                                    accountAddress: oldAddress as `0x${string}`,
+                                },
+                            ],
+                            signer: chainProvider,
                         });
 
-                        const publicClient = createPublicClient({
-                            chain,
-                            transport: getTransportForChain(chain),
+                        const meeClient = await createMeeClient({
+                            account: nexusAccount,
+                            apiKey: meeApiKey,
                         });
 
-                        // ✅ Batch all token transfers into a single transaction for gasless execution
-                        // This uses Privy's smart wallet batch capability with Biconomy paymaster
-                        const calls = chainTokens.map((token) => {
-                            const transferData = encodeFunctionData({
-                                abi: parseAbi(["function transfer(address to, uint256 amount) returns (bool)"]),
-                                functionName: "transfer",
-                                args: [newAddress as Address, token.rawAmount],
-                            });
+                        // Use a tiny amount less than full balance to avoid rounding/revert edge cases (e.g. 0.01% buffer)
+                        const instructions = await Promise.all(
+                            chainTokens.map((token) => {
+                                const raw = token.rawAmount as bigint;
+                                const one = BigInt(1);
+                                const safeAmount = raw > one ? (raw * BigInt(9999)) / BigInt(10000) : raw;
+                                return nexusAccount.buildComposable({
+                                    type: "default",
+                                    data: {
+                                        abi: erc20Abi,
+                                        chainId: chain.id,
+                                        to: token.address as `0x${string}`,
+                                        functionName: "transfer",
+                                        args: [newAddress as Address, safeAmount],
+                                    },
+                                });
+                            })
+                        );
 
-                            return {
-                                to: token.address as `0x${string}`,
-                                data: transferData as `0x${string}`,
-                                value: BigInt(0),
-                            };
-                        });
-
-                        if (calls.length === 0) {
+                        if (instructions.length === 0) {
                             console.warn(`No tokens to migrate on ${chainName}`);
                             continue;
                         }
 
-                        setProgress(`Transferring ${calls.length} token${calls.length === 1 ? '' : 's'} on ${chainName}.`);
+                        setProgress(`Submitting transfer on ${chainName}...`);
 
-                        // ✅ Send batched transaction from SCW
-                        const txHash = (await smartWalletClient.sendTransaction({
-                            calls,
-                        })) as `0x${string}`;
-
-                        allTxHashes.push(txHash);
-
-                        // ✅ Wait for transaction confirmation
-                        setProgress(`Confirming ${chainName} migration...`);
-
-                        const receipt = await publicClient.waitForTransactionReceipt({
-                            hash: txHash as `0x${string}`,
-                            confirmations: 1,
+                        const { hash: supertxHash } = await meeClient.execute({
+                            delegate: true,
+                            sponsorship: true,
+                            instructions,
                         });
 
-                        if (receipt.status === 'success') {
-                            totalTokensMigrated += calls.length;
-                            toast.success(`${chainName} migration complete!`, {
-                                description: `${calls.length} token${calls.length === 1 ? '' : 's'} transferred to your new wallet.`
-                            });
-                        } else {
-                            throw new Error(`Transaction failed for ${chainName}`);
+                        setProgress(`Confirming on ${chainName}... (may take 1–2 min)`);
+
+                        const MEE_WAIT_TIMEOUT_MS = 120_000; // 2 min max so we don't hang
+                        const receipt = await Promise.race([
+                            meeClient.waitForSupertransactionReceipt({
+                                hash: supertxHash,
+                                waitForReceipts: true,
+                                confirmations: 1,
+                            }),
+                            new Promise<never>((_, reject) =>
+                                setTimeout(
+                                    () =>
+                                        reject(
+                                            new Error(
+                                                `Confirmation is taking longer than expected. You can check status at https://meescan.biconomy.io/details/${supertxHash} or try again.`
+                                            )
+                                        ),
+                                    MEE_WAIT_TIMEOUT_MS
+                                )
+                            ),
+                        ]);
+
+                        // SDK throws on FAILED/MINED_FAIL; double-check receipt when we have it
+                        const status = (receipt as { transactionStatus?: string; message?: string }).transactionStatus;
+                        const statusMessage = (receipt as { message?: string }).message;
+                        if (status === "FAILED" || status === "MINED_FAIL") {
+                            throw new Error(statusMessage || "Transaction failed on chain");
                         }
 
+                        const onChainTxHash =
+                            (receipt.receipts?.[0] as { transactionHash?: `0x${string}` } | undefined)?.transactionHash ??
+                            (receipt.userOps?.[0] as { executionData?: `0x${string}` } | undefined)?.executionData ??
+                            supertxHash;
+                        allTxHashes.push(onChainTxHash as string);
+
+                        totalTokensMigrated += instructions.length;
+                        toast.success(`${chainName} migration complete!`, {
+                            description: `${instructions.length} token${instructions.length === 1 ? "" : "s"} transferred to your new wallet.`,
+                        });
                     } catch (chainError) {
-                        const errorMsg = chainError instanceof Error ? chainError.message : 'Unknown error';
+                        const rawMsg = chainError instanceof Error ? chainError.message : "Unknown error";
+                        const isDeadlineOrRevert =
+                            /deadline limit exceeded|revert|transaction failed/i.test(rawMsg);
+                        const description = isDeadlineOrRevert
+                            ? "Simulation reverted or timed out. Try again, or transfer a slightly smaller amount. You can also check status at meescan.biconomy.io."
+                            : rawMsg;
+                        setError(rawMsg);
                         toast.error(`Failed to migrate ${chainName}`, {
-                            description: errorMsg
+                            description,
                         });
                     }
                 }

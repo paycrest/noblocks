@@ -14,6 +14,7 @@ import {
   getMEEVersion,
   MEEVersion,
 } from "@biconomy/abstractjs";
+import config from "../lib/config";
 
 interface SmartWalletClient {
   sendTransaction: (args: {
@@ -193,9 +194,13 @@ export function useSmartWalletTransfer({
             ],
             signer: provider,
           });
+          const meeApiKey = config.biconomyMeeApiKey;
+          if (!meeApiKey) {
+            throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
+          }
           const meeClient = await createMeeClient({
             account: nexusAccount,
-            apiKey: process.env.NEXT_PUBLIC_BICONOMY_PAYMASTER_KEY ?? "",
+            apiKey: meeApiKey,
           });
           const transferInstruction = await nexusAccount.buildComposable({
             type: "default",

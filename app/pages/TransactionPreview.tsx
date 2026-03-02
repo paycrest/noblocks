@@ -390,9 +390,9 @@ export const TransactionPreview = ({
         });
 
 
-        const biconomyApiKey = config.biconomyPaymasterKey;
+        const biconomyApiKey = config.biconomyMeeApiKey;
         if (!biconomyApiKey) {
-          throw new Error("Biconomy paymaster API key not configured");
+          throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
         }
 
         const meeClient = await createMeeClient({

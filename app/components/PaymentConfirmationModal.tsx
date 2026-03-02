@@ -152,7 +152,7 @@ export const PaymentConfirmationModal = ({
                   </h2>
 
                   {/* Transaction details row */}
-                  <div className="flex items-center rounded-full border border-border-light bg-gray-50 py-1.5 pl-1.5 pr-4 dark:border-white/10 dark:bg-white/5">
+                  <div className="flex items-center rounded-full border border-border-light py-1.5 pl-1.5 pr-4 dark:border-white/10">
                     {/* Token + amount chip */}
                     <div className="flex items-center gap-2 rounded-full bg-gray-200/70 px-3 py-1.5 dark:bg-white/5">
                       <Image
@@ -166,14 +166,13 @@ export const PaymentConfirmationModal = ({
                       </span>
                     </div>
 
-                    {/* Dotted separator */}
-                    <span className="mx-3 flex-1 text-center text-xs tracking-widest text-gray-300 dark:text-white/20">
-                      · · ·
+                    <span className="mx-5 flex-1 text-center text-xs tracking-[0.3em] text-gray-300 dark:text-white/20">
+                      - · · 
                     </span>
 
                     {/* Tx hash + View */}
                     {txHash && (
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-4">
                         <span className="whitespace-nowrap font-mono text-sm text-text-secondary dark:text-white/50">
                           {truncateHash(txHash)}
                         </span>
@@ -196,7 +195,7 @@ export const PaymentConfirmationModal = ({
                         href={explorerLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="whitespace-nowrap text-sm font-medium text-lavender-500 hover:underline dark:text-lavender-400"
+                        className="whitespace-nowrap text-sm font-normal text-lavender-500 hover:underline dark:text-lavender-400"
                       >
                         View
                       </a>
@@ -204,7 +203,7 @@ export const PaymentConfirmationModal = ({
                   </div>
 
                   {/* Description */}
-                  <p className="text-sm leading-relaxed text-text-secondary dark:text-white/50">
+                  <p className="text-sm font-normal leading-relaxed text-text-secondary dark:text-white/50">
                     We noticed this transaction is taking longer than usual to
                     update. Please let us know if you have received your funds so
                     we can finalize your status.
@@ -214,7 +213,7 @@ export const PaymentConfirmationModal = ({
                   <div
                     ref={trackRef}
                     className={classNames(
-                      "relative mx-auto h-16 w-[80%] select-none overflow-hidden rounded-2xl",
+                      "relative h-16 w-full select-none overflow-hidden rounded-2xl",
                       confirmed
                         ? "bg-green-500 dark:bg-green-600"
                         : "bg-gray-200/60 dark:bg-white/10",
@@ -231,18 +230,27 @@ export const PaymentConfirmationModal = ({
                       </motion.div>
                     ) : (
                       <>
-                        {/* Progress fill that follows thumb */}
+                        {/* Progress fill that follows thumb — opacity deepens as you drag */}
                         <div
                           className="pointer-events-none absolute inset-y-0 left-0 rounded-2xl"
                           style={{
-                            width: `${thumbOffset + THUMB_WIDTH + TRACK_PADDING}px`,
+                            width: "100%",
                             backgroundColor: "#8B85F4",
-                            opacity: thumbOffset > 0 ? 1 : 0,
+                            opacity:
+                              thumbOffset > 0
+                                ? 0.25 + 0.75 * Math.min(thumbOffset / (getMaxDrag() || 1), 1)
+                                : 0,
                             transition: dragging ? "none" : "all 0.3s ease",
                           }}
                         />
 
-                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-medium text-text-secondary dark:text-white/40">
+                        <span
+                          className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-medium text-text-secondary dark:text-white/40"
+                          style={{
+                            opacity: 1 - Math.min(thumbOffset / (getMaxDrag() || 1), 1),
+                            transition: dragging ? "none" : "opacity 0.3s ease",
+                          }}
+                        >
                           Slide to confirm
                         </span>
 

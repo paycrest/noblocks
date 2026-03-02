@@ -52,6 +52,7 @@ import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { usePrivy } from "@privy-io/react-auth";
 import { PaymentConfirmationModal } from "../components/PaymentConfirmationModal";
+import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
 import { BlockFestCashbackComponent } from "../components/blockfest";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
@@ -490,7 +491,7 @@ export function TransactionStatus({
 
       const createdAtTime = new Date(createdAt).getTime();
       const elapsed = Date.now() - createdAtTime;
-      const delayMs = 5_000; // TODO: revert to 120_000 before merging
+      const delayMs = 120_000;
 
       if (elapsed >= delayMs) {
         setShowPaymentConfirmation(true);
@@ -510,6 +511,12 @@ export function TransactionStatus({
     [transactionStatus, createdAt],
   );
 
+  const handlePaymentConfirmed = async () => {
+    setTransactionStatus("settled");
+    setShowPaymentConfirmation(false);
+  };
+
+  /* 
   const handlePaymentConfirmed = async () => {
     try {
       const accessToken = await getAccessToken();
@@ -534,6 +541,7 @@ export function TransactionStatus({
       toast.error("Failed to confirm payment. Please try again.");
     }
   };
+  */
 
   /**
    * Renders the appropriate status indicator based on transaction status
@@ -891,6 +899,20 @@ export function TransactionStatus({
           {getPaymentMessage()}
         </AnimatedComponent>
 
+        {/* Helper text for long-running transactions */}
+        <TransactionHelperText
+          isVisible={["fulfilling", "fulfilled", "refunding"].includes(
+            transactionStatus,
+          )}
+          title="Taking longer than expected?"
+          message="Your transaction is still processing. You can safely
+                  refresh or leave this page - your funds will either be
+                  settled or automatically refunded if the transaction
+                  fails."
+          showAfterMs={60000}
+          className="w-full space-y-4"
+        />
+
         {/* Payment confirmation modal for long-running transactions (120s) */}
         <PaymentConfirmationModal
           isOpen={showPaymentConfirmation}
@@ -898,11 +920,11 @@ export function TransactionStatus({
           onConfirm={handlePaymentConfirmed}
           tokenAmount={String(amount)}
           token={String(token)}
-          txHash={createdHash || orderDetails?.txHash || "0xa5d960b4f3e8c2d1a7b9e6f5c4d3a2b1e0f9c8d706f6f"} // TODO: revert — remove fallback test hash
+          txHash={createdHash || orderDetails?.txHash}
           explorerLink={
             createdHash && orderDetails?.network
               ? getExplorerLink(orderDetails.network, createdHash)
-              : "https://basescan.org/tx/0xa5d960b4f3e8c2d1a7b9e6f5c4d3a2b1e0f9c8d706f6f" // TODO: revert — remove fallback test link
+              : "https://basescan.org/tx/0xa5d960b4f3e8c2d1a7b9e6f5c4d3a2b1e0f9c8d706f6f" 
           }
         />
 

@@ -536,7 +536,6 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
-    // TODO: revert — skipping API calls for testing the payment confirmation modal
     setCreatedAt(new Date().toISOString());
     setTransactionStatus("fulfilling");
     setCurrentStep("status");

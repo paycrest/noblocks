@@ -591,17 +591,14 @@ export function calculateCorrectedTotalBalance(
 export async function fetchBalanceForNetwork(
   network: { chain: any },
   walletAddress: string,
-): Promise<{ total: number; balances: Record<string, number> }> {
+): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
   const { createPublicClient, http } = await import("viem");
-  const { bsc } = await import("viem/chains");
+
+  const rpcUrl = getRpcUrl(network.chain.name);
 
   const publicClient = createPublicClient({
     chain: network.chain,
-    transport: http(
-      network.chain.id === bsc.id
-        ? "https://bsc-dataseed.bnbchain.org/"
-        : undefined,
-    ),
+    transport: http(rpcUrl),
   });
 
   return fetchWalletBalance(publicClient, walletAddress);

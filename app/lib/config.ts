@@ -22,7 +22,7 @@ const config: Config = {
     "",
   /** Base URL of the Biconomy v2→Nexus upgrade server (mini bundler). e.g. http://localhost:3000 when running locally. */
   upgradeServerUrl:
-    process.env.NEXT_PUBLIC_UPGRADE_SERVER_URL || "http://localhost:3001",
+    process.env.NEXT_PUBLIC_UPGRADE_SERVER_URL || "",
   /** @deprecated Use biconomyMeeApiKey. Same value for backward compatibility. */
   biconomyPaymasterKey:
     process.env.NEXT_PUBLIC_BICONOMY_MEE_API_KEY ||

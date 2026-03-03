@@ -41,6 +41,14 @@ const CHAIN_MAP = Object.fromEntries(
 
 // Biconomy v2 ECDSA module address (same across chains). Signature must be ABI-encoded as (bytes moduleSig, address moduleAddress) per blog.
 const BICONOMY_V2_ECDSA_MODULE = "0x0000001c5b32F37F5beA87BDD5374eB2aC54eA8e" as const;
+// Ignore tiny balances in UI and migration. 1e-6 token + $0.001 min value.
+const DUST_USD_THRESHOLD = 0.001;
+const DUST_TOKEN_DECIMALS = 6;
+
+function getDustRawThreshold(decimals: number): bigint {
+    if (decimals <= DUST_TOKEN_DECIMALS) return BigInt(1);
+    return BigInt(10) ** BigInt(decimals - DUST_TOKEN_DECIMALS);
+}
 
 interface WalletTransferApprovalModalProps {
     isOpen: boolean;
@@ -158,6 +166,12 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                 );
 
                 if (tokenMeta?.address) {
+                    const rawAmount = allChainRawBalances[chainName]?.[symbol] ?? BigInt(0);
+                    const decimals = tokenMeta.decimals || 18;
+                    const dustRawThreshold = getDustRawThreshold(decimals);
+                    // Hide tiny balances (dust) before showing migration modal.
+                    if (rawAmount > BigInt(0) && rawAmount < dustRawThreshold) continue;
+
                     // Get CNGN rate for this specific chain if needed
                     const isCNGN = symbol.toUpperCase() === "CNGN";
                     const chainRate = isCNGN ? chainRates[chainName] : undefined;
@@ -165,8 +179,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                     if (isCNGN && chainRate) {
                         usdValue = balanceNum / chainRate;
                     }
-
-                    const rawAmount = allChainRawBalances[chainName]?.[symbol] ?? BigInt(0);
+                    if (usdValue < DUST_USD_THRESHOLD) continue;
 
                     const token = {
                         id: `${chainName}-${symbol}`,
@@ -179,7 +192,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         value: `${usdValue.toFixed(2)}`,
                         icon: `/logos/${symbol.toLowerCase()}-logo.svg`,
                         address: tokenMeta.address,
-                        decimals: tokenMeta.decimals || 18,
+                        decimals,
                     };
 
                     if (!grouped[chainName]) {
@@ -236,8 +249,21 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
         setProgress(hasTokens ? "Initializing migration..." : "Deprecating old wallet...");
 
         try {
-            const accessToken = await getAccessToken();
-            if (!accessToken) throw new Error("Failed to get access token");
+            const getAccessTokenWithRetry = async (): Promise<string> => {
+                // Token can be temporarily unavailable right after auth/wallet operations.
+                const tryGet = async () => (await getAccessToken()) ?? "";
+                let token = await tryGet();
+                if (token) return token;
+                await new Promise((resolve) => setTimeout(resolve, 400));
+                token = await tryGet();
+                if (token) return token;
+                await new Promise((resolve) => setTimeout(resolve, 700));
+                token = await tryGet();
+                if (!token) {
+                    throw new Error("Failed to get access token. Please re-login and try again.");
+                }
+                return token;
+            };
 
             const allTxHashes: string[] = [];
             const chains = Object.keys(tokensByChain);
@@ -254,66 +280,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                     throw new Error("Wallet not available. Please ensure you are logged in.");
                 }
 
-                // --- Upgrade SCW to Nexus (generate-userop → sign → execute) before MEE ---
-                setProgress("Upgrading wallet to Nexus...");
-                const genRes = await fetch(`${upgradeServerUrl}/generate-userop`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        smartAccountAddress: oldAddress,
-                        ownerAddress: embeddedWallet.address,
-                    }),
-                });
-                if (!genRes.ok) {
-                    const errText = await genRes.text();
-                    let msg = errText || genRes.statusText;
-                    try {
-                        const j = JSON.parse(errText) as { error?: string };
-                        if (j?.error) msg = j.error;
-                    } catch {
-                        /* use errText as-is */
-                    }
-                    throw new Error(`Upgrade prepare failed: ${msg}`);
-                }
-                const { userOp: unsignedUserOp, userOpHash } = (await genRes.json()) as {
-                    userOp: Record<string, unknown> & { signature?: string };
-                    userOpHash: string;
-                };
-                if (!unsignedUserOp || !userOpHash) {
-                    throw new Error("Invalid response from upgrade server (missing userOp or userOpHash)");
-                }
-
-                setProgress("Signing upgrade...");
-                const provider = await embeddedWallet.getEthereumProvider();
-                const rawSignature = (await provider.request({
-                    method: "personal_sign",
-                    params: [userOpHash, embeddedWallet.address],
-                })) as string;
-                // Biconomy v2 expects signature = encode(["bytes","address"], [moduleSig, moduleAddress]). Without this, validateUserOp reverts → AA23.
-                const signature = encodeAbiParameters(
-                    [{ type: "bytes" }, { type: "address" }],
-                    [rawSignature as `0x${string}`, BICONOMY_V2_ECDSA_MODULE as Address]
-                );
-                const signedUserOp = { ...unsignedUserOp, signature };
-
-                setProgress("Submitting upgrade...");
-                const execRes = await fetch(`${upgradeServerUrl}/execute`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ userOp: signedUserOp }),
-                });
-                if (!execRes.ok) {
-                    const errText = await execRes.text();
-                    throw new Error(`Upgrade execute failed: ${errText || execRes.statusText}`);
-                }
-                const execData = (await execRes.json()) as { transactionHash?: string };
-                if (execData.transactionHash) {
-                    allTxHashes.push(execData.transactionHash);
-                }
-                toast.success("Wallet upgraded to Nexus");
-
-                // --- Use MEE to transfer tokens (SCW is now Nexus) ---
-                // Upgrade-server only upgrades on BSC. Running MEE on other chains uses the non-upgraded (v2) account and reverts with AA23. So only run MEE on BSC here.
+                // --- For each chain: check nexus status, upgrade if needed, then transfer via MEE ---
                 for (let i = 0; i < chains.length; i++) {
                     const chainName = chains[i];
                     const chainTokens = tokensByChain[chainName];
@@ -330,12 +297,88 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         setProgress(`Preparing migration on ${chainName}...`);
                         await embeddedWallet.switchChain(chain.id);
                         const chainProvider = await embeddedWallet.getEthereumProvider();
+                        const chainRpcUrl = getRpcUrl(chain.name);
+
+                        setProgress(`Checking wallet version on ${chainName}...`);
+                        const statusUrl = `${upgradeServerUrl}/is-nexus?smartAccountAddress=${encodeURIComponent(oldAddress)}&chainId=${chain.id}${chainRpcUrl ? `&rpcUrl=${encodeURIComponent(chainRpcUrl)}` : ""}`;
+                        const statusRes = await fetch(statusUrl);
+                        if (!statusRes.ok) {
+                            const errText = await statusRes.text();
+                            throw new Error(`Nexus check failed on ${chainName}: ${errText || statusRes.statusText}`);
+                        }
+                        const statusData = (await statusRes.json()) as {
+                            isNexus?: boolean;
+                            accountId?: string;
+                        };
+                        const alreadyNexus = Boolean(statusData?.isNexus);
+
+                        if (!alreadyNexus) {
+                            setProgress(`Upgrading wallet to Nexus on ${chainName}...`);
+                            const genRes = await fetch(`${upgradeServerUrl}/generate-userop`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    smartAccountAddress: oldAddress,
+                                    ownerAddress: embeddedWallet.address,
+                                    chainId: chain.id,
+                                    rpcUrl: chainRpcUrl,
+                                }),
+                            });
+                            if (!genRes.ok) {
+                                const errText = await genRes.text();
+                                let msg = errText || genRes.statusText;
+                                try {
+                                    const j = JSON.parse(errText) as { error?: string };
+                                    if (j?.error) msg = j.error;
+                                } catch {
+                                    /* use errText as-is */
+                                }
+                                throw new Error(`Upgrade prepare failed on ${chainName}: ${msg}`);
+                            }
+                            const { userOp: unsignedUserOp, userOpHash } = (await genRes.json()) as {
+                                userOp: Record<string, unknown> & { signature?: string };
+                                userOpHash: string;
+                            };
+                            if (!unsignedUserOp || !userOpHash) {
+                                throw new Error(`Invalid upgrade response on ${chainName} (missing userOp or userOpHash)`);
+                            }
+
+                            setProgress(`Signing upgrade on ${chainName}...`);
+                            const rawSignature = (await chainProvider.request({
+                                method: "personal_sign",
+                                params: [userOpHash, embeddedWallet.address],
+                            })) as string;
+                            const signature = encodeAbiParameters(
+                                [{ type: "bytes" }, { type: "address" }],
+                                [rawSignature as `0x${string}`, BICONOMY_V2_ECDSA_MODULE as Address]
+                            );
+                            const signedUserOp = { ...unsignedUserOp, signature };
+
+                            setProgress(`Submitting upgrade on ${chainName}...`);
+                            const execRes = await fetch(`${upgradeServerUrl}/execute`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    userOp: signedUserOp,
+                                    smartAccountAddress: oldAddress,
+                                    chainId: chain.id,
+                                    rpcUrl: chainRpcUrl,
+                                }),
+                            });
+                            if (!execRes.ok) {
+                                const errText = await execRes.text();
+                                throw new Error(`Upgrade execute failed on ${chainName}: ${errText || execRes.statusText}`);
+                            }
+                            const execData = (await execRes.json()) as { transactionHash?: string };
+                            if (execData.transactionHash) allTxHashes.push(execData.transactionHash);
+                            toast.success(`Wallet upgraded to Nexus on ${chainName}`);
+                        }
 
                         const nexusAccount = await toMultichainNexusAccount({
                             chainConfigurations: [
                                 {
                                     chain,
-                                    transport: http(getRpcUrl(chain.name)),
+                                    transport: http(chainRpcUrl),
                                     version: getMEEVersion(MEEVersion.V2_1_0),
                                     accountAddress: oldAddress as `0x${string}`,
                                 },
@@ -348,12 +391,10 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                             apiKey: meeApiKey,
                         });
 
-                        // Use a tiny amount less than full balance to avoid rounding/revert edge cases (e.g. 0.01% buffer)
+                        // Transfer full raw balance so users don't lose meaningful dust (e.g. 50 -> 49.995).
                         const instructions = await Promise.all(
                             chainTokens.map((token) => {
                                 const raw = token.rawAmount as bigint;
-                                const one = BigInt(1);
-                                const safeAmount = raw > one ? (raw * BigInt(9999)) / BigInt(10000) : raw;
                                 return nexusAccount.buildComposable({
                                     type: "default",
                                     data: {
@@ -361,7 +402,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                         chainId: chain.id,
                                         to: token.address as `0x${string}`,
                                         functionName: "transfer",
-                                        args: [newAddress as Address, safeAmount],
+                                        args: [newAddress as Address, raw],
                                     },
                                 });
                             })
@@ -375,7 +416,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         setProgress(`Submitting transfer on ${chainName}...`);
 
                         const { hash: supertxHash } = await meeClient.execute({
-                            delegate: true,
+                            // Upgraded account is already a Nexus smart account; use regular sponsored smart-account execution.
                             sponsorship: true,
                             instructions,
                         });
@@ -439,6 +480,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             }
 
             setProgress("Finalizing migration...");
+            const accessToken = await getAccessTokenWithRetry();
 
             const response = await fetch("/api/v1/wallets/deprecate", {
                 method: "POST",
@@ -456,7 +498,8 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             });
 
             if (!response.ok) {
-                throw new Error("Failed to update backend");
+                const errText = await response.text().catch(() => "");
+                throw new Error(`Failed to update backend${errText ? `: ${errText}` : ""}`);
             }
 
             toast.success("🎉 Migration Complete!", {

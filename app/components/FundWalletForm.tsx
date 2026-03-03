@@ -17,8 +17,9 @@ import {
   ArrowDown01Icon,
   InformationSquareIcon,
 } from "hugeicons-react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { Token } from "../types";
 import Image from "next/image";
 
@@ -36,6 +37,8 @@ export const FundWalletForm: React.FC<{
   const { allTokens } = useTokens();
   const { handleFundWallet } = useFundWalletHandler("Fund wallet form");
   const { user } = usePrivy();
+  const { wallets } = useWallets();
+  const shouldUseEOA = useShouldUseEOA();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
@@ -134,7 +137,10 @@ export const FundWalletForm: React.FC<{
       const smartWalletAccount = user?.linkedAccounts?.find(
         (account) => account.type === "smart_wallet",
       );
-      const walletAddress = smartWalletAccount?.address ?? "";
+      const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
+      const walletAddress = shouldUseEOA
+        ? (embeddedWallet?.address ?? "")
+        : (smartWalletAccount?.address ?? "");
       setFundingInProgress(true);
       await handleFundWallet(
         walletAddress,

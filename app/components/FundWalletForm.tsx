@@ -141,6 +141,12 @@ export const FundWalletForm: React.FC<{
       const walletAddress = shouldUseEOA
         ? (embeddedWallet?.address ?? "")
         : (smartWalletAccount?.address ?? "");
+
+      if (!walletAddress) {
+        setIsFundConfirming(false);
+        toast.error("Wallet not ready. Please try again.");
+        return;
+      }
       setFundingInProgress(true);
       await handleFundWallet(
         walletAddress,

@@ -140,6 +140,9 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
+    const normalizedEmail =
+      typeof body.email === "string" ? body.email.trim() || null : null;
+
     // Insert transaction
     const { data, error } = await supabaseAdmin
       .from("transactions")
@@ -157,7 +160,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         time_spent: body.time_spent,
         tx_hash: body.txHash,
         order_id: body.orderId,
-        email: body.email?.trim() || null,
+        email: normalizedEmail,
       })
       .select()
       .single();

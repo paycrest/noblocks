@@ -343,6 +343,7 @@ export interface TransactionCreateInput {
   txHash?: string;
   timeSpent?: string;
   orderId?: string;
+  email?: string;
 }
 
 export interface TransactionUpdateInput {

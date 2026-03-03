@@ -345,6 +345,7 @@ export function useSmartWalletTransfer({
             account_identifier: recipientAddress,
           },
           status: "completed" as const,
+          email: user?.email?.address ?? undefined,
         };
         const response = await saveTransaction(transaction, accessToken);
         if (response.success) {

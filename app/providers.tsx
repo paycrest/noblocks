@@ -53,7 +53,7 @@ function PrivyConfigWrapper({
       appId={privyAppId}
       config={isDark ? darkModeConfig : lightModeConfig}
     >
-      {/* Sponsorship is handled via Biconomy MEE (Supertransaction API), not the deprecated paymaster. */}
+      {/* Sponsorship is handled via Biconomy MEE (Supertransaction API). */}
       <SmartWalletsProvider config={{}}>
         <ContextProviders>{children}</ContextProviders>
         <Toaster

@@ -277,7 +277,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                     throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
                 }
                 if (!bundlerServerUrl) {
-                    throw new Error("Upgrade server URL not configured. Set NEXT_PUBLIC_UPGRADE_SERVER_URL.");
+                    throw new Error("Upgrade server URL not configured. Set NEXT_PUBLIC_BUNDLER_SERVER_URL.");
                 }
                 try {
                     const parsed = new URL(bundlerServerUrl);

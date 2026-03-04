@@ -272,9 +272,20 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             // ✅ If tokens exist: (1) upgrade SCW to Nexus via upgrade-server, then (2) use MEE to transfer.
             if (hasTokens) {
                 const meeApiKey = config.biconomyMeeApiKey;
-                const upgradeServerUrl = config.upgradeServerUrl;
+                const bundlerServerUrl = config.bundlerServerUrl.trim().replace(/\/+$/, "");
                 if (!meeApiKey) {
                     throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
+                }
+                if (!bundlerServerUrl) {
+                    throw new Error("Upgrade server URL not configured. Set NEXT_PUBLIC_UPGRADE_SERVER_URL.");
+                }
+                try {
+                    const parsed = new URL(bundlerServerUrl);
+                    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+                        throw new Error("invalid protocol");
+                    }
+                } catch {
+                    throw new Error("Invalid NEXT_PUBLIC_BUNDLER_SERVER_URL. Use a full URL");
                 }
                 if (!embeddedWallet || !oldAddress) {
                     throw new Error("Wallet not available. Please ensure you are logged in.");
@@ -300,7 +311,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         const chainRpcUrl = getRpcUrl(chain.name);
 
                         setProgress(`Checking wallet version on ${chainName}...`);
-                        const statusUrl = `${upgradeServerUrl}/is-nexus?smartAccountAddress=${encodeURIComponent(oldAddress)}&chainId=${chain.id}${chainRpcUrl ? `&rpcUrl=${encodeURIComponent(chainRpcUrl)}` : ""}`;
+                        const statusUrl = `${bundlerServerUrl}/is-nexus?smartAccountAddress=${encodeURIComponent(oldAddress)}&chainId=${chain.id}${chainRpcUrl ? `&rpcUrl=${encodeURIComponent(chainRpcUrl)}` : ""}`;
                         const statusRes = await fetch(statusUrl);
                         if (!statusRes.ok) {
                             const errText = await statusRes.text();
@@ -314,7 +325,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
 
                         if (!alreadyNexus) {
                             setProgress(`Upgrading wallet to Nexus on ${chainName}...`);
-                            const genRes = await fetch(`${upgradeServerUrl}/generate-userop`, {
+                            const genRes = await fetch(`${bundlerServerUrl}/generate-userop`, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
@@ -355,7 +366,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                             const signedUserOp = { ...unsignedUserOp, signature };
 
                             setProgress(`Submitting upgrade on ${chainName}...`);
-                            const execRes = await fetch(`${upgradeServerUrl}/execute`, {
+                            const execRes = await fetch(`${bundlerServerUrl}/execute`, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({

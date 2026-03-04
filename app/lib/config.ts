@@ -18,16 +18,10 @@ const config: Config = {
   /** MEE API key for Biconomy Supertransaction API (sponsored execution). Replaces deprecated paymaster. */
   biconomyMeeApiKey:
     process.env.NEXT_PUBLIC_BICONOMY_MEE_API_KEY ||
-    process.env.NEXT_PUBLIC_BICONOMY_PAYMASTER_KEY ||
     "",
   /** Base URL of the Biconomy v2→Nexus upgrade server (mini bundler). e.g. http://localhost:3000 when running locally. */
-  upgradeServerUrl:
-    process.env.NEXT_PUBLIC_UPGRADE_SERVER_URL || "",
-  /** @deprecated Use biconomyMeeApiKey. Same value for backward compatibility. */
-  biconomyPaymasterKey:
-    process.env.NEXT_PUBLIC_BICONOMY_MEE_API_KEY ||
-    process.env.NEXT_PUBLIC_BICONOMY_PAYMASTER_KEY ||
-    "",
+  bundlerServerUrl:
+    process.env.NEXT_PUBLIC_BUNDLER_SERVER_URL || "",
   maintenanceEnabled:
     process.env.NEXT_PUBLIC_MAINTENANCE_NOTICE_ENABLED === "true" &&
     !!(process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "").trim(),

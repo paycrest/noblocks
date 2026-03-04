@@ -264,9 +264,8 @@ export type Config = {
   blockfestEndDate: string; // BlockFest campaign end date
   biconomyNexusV120: string; // Biconomy Nexus V1.2.0 contract address
   /** Base URL of the v2→Nexus upgrade server (e.g. http://localhost:3000). */
-  upgradeServerUrl: string;
+  bundlerServerUrl: string;
   /** @deprecated Use biconomyMeeApiKey. MEE API key for Supertransaction API (sponsored execution). */
-  biconomyPaymasterKey?: string;
   biconomyMeeApiKey: string;
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"

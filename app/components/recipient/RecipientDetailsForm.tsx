@@ -243,17 +243,23 @@ export const RecipientDetailsForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedInstitution, isManualEntry]);
 
-  // Fetch recipient name based on institution and account identifier (only when exactly 10-digit NUBAN or 6-digit SAFAKEPC)
+  // Fetch recipient name based on institution and account identifier (only enforce digit-length for NGN)
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     const getRecipientName = async () => {
       if (!isManualEntry) return;
 
+      const isNGN = currency === "NGN";
       const digits = String(accountIdentifier ?? "").replace(/\D/g, "");
       const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
 
-      if (!institution || !accountIdentifier || digits.length !== requiredLen) {
-        if (accountIdentifier && digits.length > 0 && digits.length !== requiredLen) {
+      if (!institution || !accountIdentifier) {
+        setRecipientNameError("");
+        return;
+      }
+
+      if (isNGN && digits.length !== requiredLen) {
+        if (digits.length > 0) {
           setRecipientNameError(
             requiredLen === 10
               ? "Please enter a valid 10-digit account Number."
@@ -395,13 +401,14 @@ export const RecipientDetailsForm = ({
               type="text"
               inputMode="numeric"
               placeholder="Account number"
-              maxLength={selectedInstitution?.code === "SAFAKEPC" ? 6 : 10}
+              maxLength={currency === "NGN" ? (selectedInstitution?.code === "SAFAKEPC" ? 6 : 10) : undefined}
               {...register("accountIdentifier", {
                 required: {
                   value: true,
                   message: "Account number is required",
                 },
                 validate: (value) => {
+                  if (currency !== "NGN") return true;
                   const digits = String(value ?? "").replace(/\D/g, "");
                   const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
                   if (digits.length !== requiredLen) {

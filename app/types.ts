@@ -57,6 +57,7 @@ export type RecipientDetails = {
   institutionCode: string;
   accountIdentifier: string;
   type: "bank" | "mobile_money";
+  currency?: string;
 };
 
 export type FormMethods = {

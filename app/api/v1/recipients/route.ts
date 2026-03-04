@@ -124,7 +124,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     });
 
     const body = await request.json();
-    const { name, institution, institutionCode, accountIdentifier, type } =
+    const { name, institution, institutionCode, accountIdentifier, type, currency } =
       body;
 
     // Validate request body
@@ -153,28 +153,31 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     const trimmedInstitutionCode = String(institutionCode).trim();
+    const sanitizedIdentifier = String(accountIdentifier).trim();
 
-    // NUBAN is 10 digits; SAFAKEPC uses 6 digits - reject invalid length so we don't save 11-digit (e.g. phone) as beneficiary
-    const digits = String(accountIdentifier).replace(/\D/g, "");
-    const requiredLen = trimmedInstitutionCode === "SAFAKEPC" ? 6 : 10;
-    if (digits.length !== requiredLen) {
-      trackApiError(
-        request,
-        "/api/v1/recipients",
-        "POST",
-        new Error("Invalid account identifier length"),
-        400,
-      );
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            requiredLen === 10
-              ? "Please enter a valid 10-digit account number."
-              : "Please enter a valid 6-digit account number.",
-        },
-        { status: 400 },
-      );
+    // Only enforce NUBAN digit-length validation for NGN recipients
+    if (currency === "NGN") {
+      const digits = sanitizedIdentifier.replace(/\D/g, "");
+      const requiredLen = trimmedInstitutionCode === "SAFAKEPC" ? 6 : 10;
+      if (digits.length !== requiredLen) {
+        trackApiError(
+          request,
+          "/api/v1/recipients",
+          "POST",
+          new Error("Invalid account identifier length"),
+          400,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              requiredLen === 10
+                ? "Please enter a valid 10-digit account number."
+                : "Please enter a valid 6-digit account number.",
+          },
+          { status: 400 },
+        );
+      }
     }
 
     // Validate type
@@ -234,7 +237,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           name: name.trim(),
           institution: institution.trim(),
           institution_code: trimmedInstitutionCode,
-          account_identifier: digits,
+          account_identifier: currency === "NGN" ? sanitizedIdentifier.replace(/\D/g, "") : sanitizedIdentifier,
           type,
         },
         {

@@ -69,6 +69,7 @@ export function useSmartWalletTransfer({
   const [txHash, setTxHash] = useState<string | null>(null);
   const [transferAmount, setTransferAmount] = useState("");
   const [transferToken, setTransferToken] = useState("");
+  const [txNetworkName, setTxNetworkName] = useState<string>("");
 
   // Helper to get the embedded wallet address (with address) for tx history
   const getEmbeddedWalletAddress = (): `0x${string}` | undefined => {
@@ -99,6 +100,7 @@ export function useSmartWalletTransfer({
       setIsSuccess(false);
       setError("");
       setTxHash(null);
+      setTxNetworkName("");
       setTransferAmount("");
       setTransferToken("");
 
@@ -210,6 +212,7 @@ export function useSmartWalletTransfer({
 
         if (!hash) throw new Error("No transaction hash returned");
         setTxHash(hash);
+        setTxNetworkName(selectedNetwork.chain.name);
 
         setTransferAmount(amount.toString());
         setTransferToken(token);
@@ -323,9 +326,9 @@ export function useSmartWalletTransfer({
   );
 
   const getTxExplorerLink = useCallback((): string | undefined => {
-    if (!txHash) return undefined;
-    return getExplorerLink(selectedNetwork.chain.name, txHash) || undefined;
-  }, [txHash, selectedNetwork]);
+    if (!txHash || !txNetworkName) return undefined;
+    return getExplorerLink(txNetworkName, txHash) || undefined;
+  }, [txHash, txNetworkName]);
 
   return {
     isLoading,

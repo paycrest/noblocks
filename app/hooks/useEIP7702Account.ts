@@ -13,6 +13,13 @@ import { useBalance } from "../context/BalanceContext";
 import { useMigrationStatus, triggerMigrationStatusRefetch } from "../context/MigrationStatusContext";
 import config from "../lib/config";
 
+// Treat tiny residual balances as zero for migration UX decisions.
+const MIGRATION_DUST_USD_THRESHOLD = 0.001;
+
+function hasMeaningfulBalance(value: number | null | undefined): boolean {
+    return Number(value ?? 0) >= MIGRATION_DUST_USD_THRESHOLD;
+}
+
 // ################################################
 // ########## EIP-7702 LIB HELPERS ################
 // ################################################
@@ -97,7 +104,7 @@ export function useShouldUseEOA(): boolean {
     // While migration status or balances are loading, hold the last value.
     // Default to true (EOA) so we never briefly flash the old SCW address/balance.
     if (isMigrationLoading || isBalanceLoading) return lastValueRef.current ?? true;
-    const value = smartWalletCrossChainTotal === 0;
+    const value = !hasMeaningfulBalance(smartWalletCrossChainTotal);
     lastValueRef.current = value;
     return value;
 }
@@ -144,17 +151,17 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
         if (isMigrationLoading || isBalanceLoading) return;
 
         if (isMigrationComplete) {
-            setNeedsMigration(smartWalletRemainingTotal > 0);
+            setNeedsMigration(hasMeaningfulBalance(smartWalletRemainingTotal));
             setShowZeroBalanceMessage(false);
         } else {
-            const hasBalance = crossChainTotal > 0;
+            const hasBalance = hasMeaningfulBalance(crossChainTotal);
             setNeedsMigration(hasBalance);
             setShowZeroBalanceMessage(!hasBalance);
         }
     }, [authenticated, user, hasSmartWallet, isMigrationComplete, isMigrationLoading, crossChainTotal, isBalanceLoading, smartWalletRemainingTotal]);
 
     const isRemainingFundsMigration =
-        isMigrationComplete === true && smartWalletRemainingTotal > 0;
+        isMigrationComplete === true && hasMeaningfulBalance(smartWalletRemainingTotal);
 
     return { needsMigration, isChecking, showZeroBalanceMessage, isRemainingFundsMigration, refetchMigrationStatus: refetch };
 }

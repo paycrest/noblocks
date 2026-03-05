@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useWalletMigrationStatus } from "../hooks/useEIP7702Account";
 import { WalletMigrationBanner } from "../components/WalletMigrationBanner";
 import { MigrationZeroBalanceModal } from "../components/MigrationZeroBalanceModal";
@@ -19,6 +20,11 @@ export const MigrationBannerWrapper = () => {
     const { user } = usePrivy();
     const { isInjectedWallet } = useInjectedWallet();
     const { needsMigration, isChecking, showZeroBalanceMessage, isRemainingFundsMigration, refetchMigrationStatus } = useWalletMigrationStatus();
+    const [stableVisibility, setStableVisibility] = useState({
+        needsMigration: false,
+        showZeroBalanceMessage: false,
+        isRemainingFundsMigration: false,
+    });
 
     const walletAddress = user?.wallet?.address;
 
@@ -29,12 +35,30 @@ export const MigrationBannerWrapper = () => {
 
     const canShowMigrationModal = isInjectedWallet || dismissedViaStore || dismissedViaStorage;
 
-    if (isChecking) return null;
-    if (needsMigration && canShowMigrationModal) return <WalletMigrationBanner isRemainingFundsMigration={isRemainingFundsMigration} />;
-    if (showZeroBalanceMessage && canShowMigrationModal) {
+    // Keep the last stable visibility while loading to avoid unmounting migration modals mid-flow.
+    useEffect(() => {
+        if (!isChecking) {
+            setStableVisibility({
+                needsMigration,
+                showZeroBalanceMessage,
+                isRemainingFundsMigration,
+            });
+        }
+    }, [isChecking, needsMigration, showZeroBalanceMessage, isRemainingFundsMigration]);
+
+    const visibleNeedsMigration = isChecking ? stableVisibility.needsMigration : needsMigration;
+    const visibleShowZeroBalance = isChecking ? stableVisibility.showZeroBalanceMessage : showZeroBalanceMessage;
+    const visibleRemainingFundsMigration = isChecking
+        ? stableVisibility.isRemainingFundsMigration
+        : isRemainingFundsMigration;
+
+    if (visibleNeedsMigration && canShowMigrationModal) {
+        return <WalletMigrationBanner isRemainingFundsMigration={visibleRemainingFundsMigration} />;
+    }
+    if (visibleShowZeroBalance && canShowMigrationModal) {
         return (
             <MigrationZeroBalanceModal
-                showZeroBalanceMessage={showZeroBalanceMessage}
+                showZeroBalanceMessage={visibleShowZeroBalance}
                 onAcknowledged={refetchMigrationStatus}
             />
         );

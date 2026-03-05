@@ -17,8 +17,15 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
 }) => {
     const [showTransferModal, setShowTransferModal] = useState(false);
 
-    const handleApproveMigration = () => {
-        setShowTransferModal(true);
+    const handleApproveMigration = (
+        event: React.MouseEvent<HTMLButtonElement>
+    ) => {
+        // Prevent click-through where the same click immediately closes the next modal.
+        event.preventDefault();
+        event.stopPropagation();
+        setTimeout(() => {
+            setShowTransferModal(true);
+        }, 50);
     };
 
     const handleCloseTransferModal = () => {

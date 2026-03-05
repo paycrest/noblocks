@@ -331,7 +331,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         if (!alreadyNexus) {
                             // If account is not deployed on this chain, deploy via Privy first (Privy's initCode). Then our Nexus upgrade will see a deployed account and use initCode '0x'.
                             if (!isDeployed && smartWalletClient) {
-                                setProgress(`Deploying wallet on ${chainName} (Privy)...`);
+                                setProgress(`Deploying wallet on ${chainName} ...`);
                                 try {
                                     await smartWalletClient.switchChain({ id: chain.id });
                                     const deployHash = await smartWalletClient.sendTransaction({
@@ -449,12 +449,11 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         setProgress(`Submitting transfer on ${chainName}...`);
 
                         const { hash: supertxHash } = await meeClient.execute({
-                            // Upgraded account is already a Nexus smart account; use regular sponsored smart-account execution.
                             sponsorship: true,
                             instructions,
                         });
 
-                        setProgress(`Confirming on ${chainName}... (may take 1–2 min)`);
+                        setProgress(`Confirming on ${chainName}... (may take 2–5 min)`);
 
                         const MEE_WAIT_TIMEOUT_MS = 120_000; // 2 min max so we don't hang
                         const receipt = await Promise.race([

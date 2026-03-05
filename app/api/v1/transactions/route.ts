@@ -9,6 +9,7 @@ import {
   trackBusinessEvent 
 } from "@/app/lib/server-analytics";
 import type { TransactionHistory, TransactionResponse } from "@/app/types";
+import { getExplorerLink } from "@/app/utils";
 
 // Route handler for GET requests
 export const GET = withRateLimit(async (request: NextRequest) => {
@@ -143,6 +144,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const normalizedEmail =
       typeof body.email === "string" ? body.email.trim() || null : null;
 
+    const explorerLink =
+      body.network && body.txHash
+        ? getExplorerLink(body.network, body.txHash)
+        : "";
+
     // Insert transaction
     const { data, error } = await supabaseAdmin
       .from("transactions")
@@ -161,6 +167,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         tx_hash: body.txHash,
         order_id: body.orderId,
         email: normalizedEmail,
+        ...(explorerLink ? { explorer_link: explorerLink } : {}),
       })
       .select()
       .single();

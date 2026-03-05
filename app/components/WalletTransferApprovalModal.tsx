@@ -8,6 +8,7 @@ import { useBalance } from "../context/BalanceContext";
 import { useTokens } from "../context";
 import { useNetwork } from "../context/NetworksContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance, getRpcUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { getCNGNRateForNetwork } from "../hooks/useCNGNRate";
@@ -73,6 +74,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
     const { selectedNetwork } = useNetwork();
     const { user, getAccessToken } = usePrivy();
     const { wallets } = useWallets();
+    const { client: smartWalletClient } = useSmartWallets();
     const isDark = useActualTheme();
 
     // Get wallet addresses
@@ -319,11 +321,31 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         }
                         const statusData = (await statusRes.json()) as {
                             isNexus?: boolean;
+                            deployed?: boolean;
                             accountId?: string;
+                            reason?: string;
                         };
                         const alreadyNexus = Boolean(statusData?.isNexus);
+                        const isDeployed = statusData?.deployed !== false;
 
                         if (!alreadyNexus) {
+                            // If account is not deployed on this chain, deploy via Privy first (Privy's initCode). Then our Nexus upgrade will see a deployed account and use initCode '0x'.
+                            if (!isDeployed && smartWalletClient) {
+                                setProgress(`Deploying wallet on ${chainName} (Privy)...`);
+                                try {
+                                    await smartWalletClient.switchChain({ id: chain.id });
+                                    const deployHash = await smartWalletClient.sendTransaction({
+                                        to: oldAddress as Address,
+                                        value: BigInt(0),
+                                        data: "0x",
+                                    });
+                                    if (deployHash) allTxHashes.push(deployHash);
+                                } catch (deployErr) {
+                                    const msg = deployErr instanceof Error ? deployErr.message : String(deployErr);
+                                    throw new Error(`Deploy wallet on ${chainName} failed: ${msg}`);
+                                }
+                            }
+
                             setProgress(`Upgrading wallet to Nexus on ${chainName}...`);
                             const genRes = await fetch(`${bundlerServerUrl}/generate-userop`, {
                                 method: "POST",
@@ -382,7 +404,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                             }
                             const execData = (await execRes.json()) as { transactionHash?: string };
                             if (execData.transactionHash) allTxHashes.push(execData.transactionHash);
-                            toast.success(`Wallet upgraded to Nexus on ${chainName}`);
+                            // toast.success(`Wallet upgraded to Nexus on ${chainName}`);
                         }
 
                         const nexusAccount = await toMultichainNexusAccount({

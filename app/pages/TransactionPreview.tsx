@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 
@@ -116,6 +116,7 @@ export const TransactionPreview = ({
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
+  const orderSubmissionBlock = useRef<bigint | null>(null);
 
   const searchParams = useSearchParams();
 
@@ -144,19 +145,25 @@ export const TransactionPreview = ({
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
   const activeWallet = injectedWallet ||
-    (shouldUseEOA && embeddedWallet
-      ? { address: embeddedWallet.address, type: "eoa" }
+    (shouldUseEOA
+      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
       : smartWallet);
 
   // Get appropriate balance based on migration status
   // After migration: use externalWalletBalance (EOA balance)
   // Before migration: use smartWalletBalance (SCW balance)
   // Wait for migration status to load before making decision
-  const balance = injectedWallet
-    ? injectedWalletBalance?.balances[token] || 0
+  const activeBalance = injectedWallet
+    ? injectedWalletBalance
     : !isMigrationLoading && shouldUseEOA
-      ? externalWalletBalance?.balances[token] || 0
-      : smartWalletBalance?.balances[token] || 0;
+      ? externalWalletBalance
+      : smartWalletBalance;
+
+  // For CNGN, use raw balance (token units) instead of USD equivalent
+  const balance =
+    token === "CNGN" || token === "cNGN"
+      ? (activeBalance?.rawBalances?.[token] ?? activeBalance?.balances[token] ?? 0)
+      : (activeBalance?.balances[token] ?? 0);
 
   // Calculate sender fee for display and balance check
   const {
@@ -216,6 +223,18 @@ export const TransactionPreview = ({
     return params;
   };
 
+  const captureSubmissionBlock = async () => {
+    try {
+      const publicClient = createPublicClient({
+        chain: selectedNetwork.chain,
+        transport: http(getRpcUrl(selectedNetwork.chain.name)),
+      });
+      orderSubmissionBlock.current = await publicClient.getBlockNumber();
+    } catch {
+      orderSubmissionBlock.current = null;
+    }
+  };
+
   const createOrder = async () => {
     try {
       if (isInjectedWallet && injectedProvider) {
@@ -269,6 +288,7 @@ export const TransactionPreview = ({
         }
 
         // Create order transaction
+        await captureSubmissionBlock();
         await injectedProvider.request({
           method: "eth_sendTransaction",
           params: [
@@ -370,9 +390,9 @@ export const TransactionPreview = ({
         });
 
 
-        const biconomyApiKey = config.biconomyPaymasterKey;
+        const biconomyApiKey = config.biconomyMeeApiKey;
         if (!biconomyApiKey) {
-          throw new Error("Biconomy paymaster API key not configured");
+          throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
         }
 
         const meeClient = await createMeeClient({
@@ -415,14 +435,13 @@ export const TransactionPreview = ({
           },
         });
 
-        // Use your project's sponsorship (apiKey above must match dashboard project)
+        await captureSubmissionBlock();
         const { hash } = await meeClient.execute({
           authorizations: authorization ? [authorization] : [],
           delegate: true,
           sponsorship: true,
           instructions: [approveInstruction, createOrderInstruction],
         });
-
         await meeClient.waitForSupertransactionReceipt({ hash });
 
         // Set success state only after transaction is confirmed
@@ -449,6 +468,7 @@ export const TransactionPreview = ({
         // Calculate total amount to approve (amount + senderFee)
         const totalAmountToApprove = params.amount + params.senderFee;
 
+        await captureSubmissionBlock();
         await client.sendTransaction({
           calls: [
             // Approve gateway contract to spend token
@@ -522,6 +542,13 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
+    if (!activeWallet?.address) {
+      toast.error("Wallet not ready", {
+        description: "Please wait for your wallet to load before confirming.",
+      });
+      return;
+    }
+
     // Check balance including sender fee
     const totalRequired = amountSent + senderFeeAmount;
 
@@ -537,7 +564,7 @@ export const TransactionPreview = ({
       await createOrder();
     } catch (e) {
       const error = e as BaseError;
-      setErrorMessage(error.shortMessage);
+      setErrorMessage(error.shortMessage || error.message);
       setErrorCount((prevCount: number) => prevCount + 1);
       setIsConfirming(false);
     }
@@ -597,82 +624,94 @@ export const TransactionPreview = ({
     }
   };
 
-  const getOrderId = async () => {
-    let intervalId: NodeJS.Timeout;
+  const getOrderId = () => {
+    const MAX_POLL_DURATION_MS = 120_000;
 
-    const getOrderCreatedLogs = async () => {
-      const publicClient = createPublicClient({
-        chain: selectedNetwork.chain,
-        transport: http(getRpcUrl(selectedNetwork.chain.name)),
-      });
+    return new Promise<void>((resolve, reject) => {
+      let intervalId: NodeJS.Timeout;
+      let timeoutId: NodeJS.Timeout;
+      let settled = false;
 
-      if (!publicClient || !activeWallet?.address || isOrderCreatedLogsFetched)
-        return;
+      const cleanup = () => {
+        clearInterval(intervalId);
+        clearTimeout(timeoutId);
+      };
 
-      try {
-        if (currentStep !== "preview") {
-          return () => {
-            if (intervalId) clearInterval(intervalId);
-          };
-        }
+      timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(
+          new Error(
+            "Unable to confirm order on-chain, but your transaction may still be processing. Please check your transaction history before retrying.",
+          ),
+        );
+      }, MAX_POLL_DURATION_MS);
 
-        const toBlock = await publicClient.getBlockNumber();
+      const poll = async () => {
+        if (settled || !activeWallet?.address) return;
 
-        // Use different block ranges based on network
-        const blockRange =
-          selectedNetwork.chain.name.toLowerCase() === "arbitrum one" ? 25 : 10;
+        try {
+          const publicClient = createPublicClient({
+            chain: selectedNetwork.chain,
+            transport: http(getRpcUrl(selectedNetwork.chain.name)),
+          });
 
-        const logs = await publicClient.getContractEvents({
-          address: getGatewayContractAddress(
-            selectedNetwork.chain.name,
-          ) as `0x${string}`,
-          abi: gatewayAbi,
-          eventName: "OrderCreated",
-          args: {
-            sender: activeWallet.address as `0x${string}`,
-            token: tokenAddress,
-            amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-          },
-          fromBlock: toBlock - BigInt(blockRange),
-          toBlock: toBlock,
-        });
+          const toBlock = await publicClient.getBlockNumber();
+          const fromBlock =
+            orderSubmissionBlock.current ?? toBlock - BigInt(10);
 
-        if (logs.length > 0) {
-          const decodedLog = decodeEventLog({
+          const logs = await publicClient.getContractEvents({
+            address: getGatewayContractAddress(
+              selectedNetwork.chain.name,
+            ) as `0x${string}`,
             abi: gatewayAbi,
             eventName: "OrderCreated",
-            data: logs[0].data,
-            topics: logs[0].topics,
+            args: {
+              sender: activeWallet.address as `0x${string}`,
+              token: tokenAddress,
+              amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
+            },
+            fromBlock,
+            toBlock,
           });
 
-          setIsOrderCreatedLogsFetched(true);
-          clearInterval(intervalId);
-          setOrderId(decodedLog.args.orderId);
+          if (logs.length > 0 && !settled) {
+            settled = true;
+            cleanup();
 
-          await saveTransactionData({
-            orderId: decodedLog.args.orderId,
-            txHash: logs[0].transactionHash,
-          });
+            try {
+              const decodedLog = decodeEventLog({
+                abi: gatewayAbi,
+                eventName: "OrderCreated",
+                data: logs[0].data,
+                topics: logs[0].topics,
+              });
 
-          setCreatedAt(new Date().toISOString());
-          setTransactionStatus("pending");
-          setCurrentStep("status");
+              setIsOrderCreatedLogsFetched(true);
+              setOrderId(decodedLog.args.orderId);
+
+              await saveTransactionData({
+                orderId: decodedLog.args.orderId,
+                txHash: logs[0].transactionHash,
+              });
+
+              setCreatedAt(new Date().toISOString());
+              setTransactionStatus("pending");
+              setCurrentStep("status");
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching OrderCreated logs:", error);
         }
-      } catch (error) {
-        console.error("Error fetching OrderCreated logs:", error);
-      }
-    };
+      };
 
-    // Initial call
-    getOrderCreatedLogs();
-
-    // Set up polling
-    intervalId = setInterval(getOrderCreatedLogs, 2000);
-
-    // Cleanup function
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
+      poll();
+      intervalId = setInterval(poll, 2_000);
+    });
   };
 
   useEffect(

@@ -92,13 +92,10 @@ export const WalletDetails = () => {
     (account) => account.type === "smart_wallet"
   );
 
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
-  // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : shouldUseEOA && embeddedWallet
-      ? { address: embeddedWallet.address }
+    : shouldUseEOA
+      ? (embeddedWallet ? { address: embeddedWallet.address } : undefined)
       : smartWallet;
 
   // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW

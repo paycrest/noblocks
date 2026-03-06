@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
@@ -17,21 +17,32 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
 }) => {
     const [showTransferModal, setShowTransferModal] = useState(false);
 
-    const handleApproveMigration = () => {
-        onClose();
+    const handleApproveMigration = (
+        event: React.MouseEvent<HTMLButtonElement>
+    ) => {
+        // Prevent click-through where the same click immediately closes the next modal.
+        event.preventDefault();
+        event.stopPropagation();
         setTimeout(() => {
             setShowTransferModal(true);
-        }, 300);
+        }, 50);
     };
 
     const handleCloseTransferModal = () => {
         setShowTransferModal(false);
+        onClose();
     };
+
+    useEffect(() => {
+        if (!isOpen && showTransferModal) {
+            setShowTransferModal(false);
+        }
+    }, [isOpen, showTransferModal]);
 
     return (
         <>
             <AnimatePresence>
-                {isOpen && (
+                {isOpen && !showTransferModal && (
                     <Dialog
                         key="wallet-migration-modal"
                         open={isOpen}
@@ -100,7 +111,7 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
                                                 <p
                                                     className="text-sm font-[Inter] font-light leading-5 tracking-normal text-text-body px-2 pb-4 align-middle dark:text-[#FFFFFFCC]"
                                                 >
-                                                    Your wallet address has been updated to give you more flexibility. After this migration, you&apos;ll be able to export your wallet and view your balance in MetaMask or any other wallet app.
+                                                    Your wallet address has been updated to give you more flexibility. After this migration, you&apos;ll be able to export your wallet and view your balance on other on-chain apps.
                                                 </p>
                                                 <p
                                                     className="text-sm font-light leading-5 tracking-normal text-text-body px-2 pb-4 align-middle dark:text-[#FFFFFFCC]"
@@ -129,14 +140,14 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
                                                         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center">
                                                             <Image
                                                                 src="/images/wallet.png"
-                                                                alt="Use balance in MetaMask or other platforms"
+                                                                alt="Use balance on other on-chain apps"
                                                                 width={32}
                                                                 height={32}
                                                                 className="h-8 w-8 object-contain"
                                                             />
                                                         </div>
                                                         <p className="text-sm font-light leading-5 tracking-normal text-text-body min-w-0 dark:text-white/90">
-                                                            Use your balance in MetaMask or other platforms
+                                                            Use your balance on other on-chain apps
                                                         </p>
                                                     </div>
                                                     <div className="flex items-center gap-3">
@@ -159,9 +170,9 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
                                             {/* Approve Migration Button */}
                                             <button
                                                 onClick={handleApproveMigration}
-                                                className="w-full rounded-xl bg-lavender-500 px-6 py-3.5 text-sm font-medium text-white transition-all hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-white active:opacity-80 dark:focus:ring-offset-neutral-900"
+                                                className="w-full rounded-xl bg-lavender-500 px-4 py-3.5 text-center text-sm font-medium text-white transition-all hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-lavender-500 focus:ring-offset-2 focus:ring-offset-white active:opacity-80 sm:px-6 dark:focus:ring-offset-neutral-900"
                                             >
-                                                Approve Transfer
+                                                Approve transfer
                                             </button>
                                         </div>
                                     </motion.div>

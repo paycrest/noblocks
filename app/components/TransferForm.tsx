@@ -2,7 +2,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
@@ -44,7 +43,6 @@ export const TransferForm: React.FC<{
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
   const searchParams = useSearchParams();
   const { selectedNetwork } = useNetwork();
-  const { client } = useSmartWallets();
   const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const shouldUseEOA = useShouldUseEOA();
@@ -120,12 +118,12 @@ export const TransferForm: React.FC<{
     getTxExplorerLink,
     error,
   } = useSmartWalletTransfer({
-    client: client ?? null,
     selectedNetwork: transferNetwork,
     user,
     supportedTokens: fetchedTokens,
     getAccessToken,
     refreshBalance,
+    onRequireMigration: () => setIsMigrationModalOpen(true),
   });
 
   useEffect(() => {

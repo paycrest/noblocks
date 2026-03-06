@@ -39,7 +39,6 @@ export async function GET(request: NextRequest) {
             .single();
 
         if (error) {
-            // PGRST116 = no rows found — user has no smart wallet, not an error
             if (error.code === "PGRST116") {
                 return NextResponse.json({
                     migrationCompleted: false,
@@ -47,13 +46,10 @@ export async function GET(request: NextRequest) {
                     hasSmartWallet: false,
                 });
             }
-
-            // PGRST205 = table not found in schema cache — migration not applied yet
             if (error.code === "PGRST205") {
                 console.warn(
                     "⚠️ Wallets table not found in schema cache. Migration may not be applied yet."
                 );
-
                 return NextResponse.json({
                     migrationCompleted: false,
                     status: "schema_unavailable",
@@ -61,7 +57,6 @@ export async function GET(request: NextRequest) {
                     error: "Database schema not ready",
                 });
             }
-
             console.error("Database query error:", error);
             return NextResponse.json({
                 migrationCompleted: false,

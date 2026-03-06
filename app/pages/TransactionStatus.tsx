@@ -564,6 +564,7 @@ export function TransactionStatus({
       accountIdentifier: String(formMethods.watch("accountIdentifier") || ""),
       type:
         (formMethods.watch("accountType") as "bank" | "mobile_money") || "bank",
+      currency: String(formMethods.watch("currency") || ""),
     };
 
     // Save recipient via API

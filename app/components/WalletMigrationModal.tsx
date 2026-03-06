@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
@@ -17,21 +17,32 @@ const WalletMigrationModal: React.FC<WalletMigrationModalProps> = ({
 }) => {
     const [showTransferModal, setShowTransferModal] = useState(false);
 
-    const handleApproveMigration = () => {
-        onClose();
+    const handleApproveMigration = (
+        event: React.MouseEvent<HTMLButtonElement>
+    ) => {
+        // Prevent click-through where the same click immediately closes the next modal.
+        event.preventDefault();
+        event.stopPropagation();
         setTimeout(() => {
             setShowTransferModal(true);
-        }, 300);
+        }, 50);
     };
 
     const handleCloseTransferModal = () => {
         setShowTransferModal(false);
+        onClose();
     };
+
+    useEffect(() => {
+        if (!isOpen && showTransferModal) {
+            setShowTransferModal(false);
+        }
+    }, [isOpen, showTransferModal]);
 
     return (
         <>
             <AnimatePresence>
-                {isOpen && (
+                {isOpen && !showTransferModal && (
                     <Dialog
                         key="wallet-migration-modal"
                         open={isOpen}

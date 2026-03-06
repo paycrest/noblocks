@@ -53,22 +53,8 @@ function PrivyConfigWrapper({
       appId={privyAppId}
       config={isDark ? darkModeConfig : lightModeConfig}
     >
-      <SmartWalletsProvider
-        config={{
-          paymasterContext: {
-            mode: "SPONSORED",
-            calculateGasLimits: true,
-            expiryDuration: 300,
-            sponsorshipInfo: {
-              webhookData: {},
-              smartAccountInfo: {
-                name: "BICONOMY",
-                version: "2.0.0",
-              },
-            },
-          },
-        }}
-      >
+      {/* Sponsorship is handled via Biconomy MEE (Supertransaction API). */}
+      <SmartWalletsProvider config={{}}>
         <ContextProviders>{children}</ContextProviders>
         <Toaster
           position={

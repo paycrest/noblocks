@@ -12,7 +12,11 @@ import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
-import { feeRecipientAddress } from "./lib/config";
+import {
+  feeRecipientAddress,
+  localTransferFeePercent,
+  localTransferFeeCap,
+} from "./lib/config";
 
 /**
  * Concatenates and returns a string of class names.
@@ -484,12 +488,13 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
 export async function fetchWalletBalance(
   client: any,
   address: string,
-): Promise<{ total: number; balances: Record<string, number> }> {
+): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
   const supportedTokens = await getNetworkTokens(client.chain?.name);
-  if (!supportedTokens) return { total: 0, balances: {} };
+  if (!supportedTokens) return { total: 0, balances: {}, balancesInWei: {} };
 
   let totalBalance = 0;
   const balances: Record<string, number> = {};
+  const balancesInWei: Record<string, bigint> = {};
 
   try {
     // Fetch balances in parallel
@@ -498,6 +503,7 @@ export async function fetchWalletBalance(
         if (token.isNative && token.address === "") {
           // Native token balance (ETH, BNB, etc.)
           const balanceInWei = await client.getBalance({ address });
+          balancesInWei[token.symbol] = balanceInWei;
           const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
           balances[token.symbol] = isNaN(balance) ? 0 : balance;
           return balances[token.symbol];
@@ -509,14 +515,15 @@ export async function fetchWalletBalance(
             functionName: "balanceOf",
             args: [address as `0x${string}`],
           });
+          balancesInWei[token.symbol] = balanceInWei as bigint;
           const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-          // Ensure balance is a valid number
           balances[token.symbol] = isNaN(balance) ? 0 : balance;
           return balances[token.symbol];
         }
       } catch (error) {
         console.error(`Error fetching balance for ${token.symbol}:`, error);
         balances[token.symbol] = 0;
+        balancesInWei[token.symbol] = BigInt(0);
         return 0;
       }
     });
@@ -528,13 +535,13 @@ export async function fetchWalletBalance(
       0,
     );
   } catch (error) {
-    return { total: 0, balances: {} };
+    return { total: 0, balances: {}, balancesInWei: {} };
   }
 
-  // Ensure final total is a valid number
   return {
     total: isNaN(totalBalance) ? 0 : totalBalance,
     balances,
+    balancesInWei,
   };
 }
 
@@ -551,23 +558,23 @@ export function calculateCorrectedTotalBalance(
 ): number {
   let correctedTotal = rawBalance.total;
 
-  // Check for both "cNGN" and "CNGN" keys (case sensitivity issue)
-  const cngnBalance =
-    rawBalance.balances["cNGN"] ?? rawBalance.balances["CNGN"];
+  // Handle both "cNGN" and "CNGN" keys consistently.
+  const cngnBalance = ["cNGN", "CNGN"].reduce((sum, symbol) => {
+    const value = rawBalance.balances[symbol];
+    if (typeof value === "number" && !isNaN(value) && value > 0) {
+      return sum + value;
+    }
+    return sum;
+  }, 0);
 
-  // If there's cNGN balance and we have a rate, convert it
-  if (
-    typeof cngnBalance === "number" &&
-    !isNaN(cngnBalance) &&
-    cngnBalance > 0 &&
-    cngnRate &&
-    cngnRate > 0
-  ) {
-    // Remove the raw cNGN value (which was counted as 1:1 USD)
+  // Remove the raw cNGN value (which was counted as 1:1 USD).
+  if (cngnBalance > 0) {
     correctedTotal -= cngnBalance;
-    // Add back the USD equivalent
-    const usdEquivalent = cngnBalance / cngnRate;
-    correctedTotal += usdEquivalent;
+
+    // Add back USD equivalent only when a valid positive rate is available.
+    if (cngnRate && cngnRate > 0) {
+      correctedTotal += cngnBalance / cngnRate;
+    }
   }
 
   return isNaN(correctedTotal) ? 0 : correctedTotal;
@@ -584,17 +591,14 @@ export function calculateCorrectedTotalBalance(
 export async function fetchBalanceForNetwork(
   network: { chain: any },
   walletAddress: string,
-): Promise<{ total: number; balances: Record<string, number> }> {
+): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
   const { createPublicClient, http } = await import("viem");
-  const { bsc } = await import("viem/chains");
+
+  const rpcUrl = getRpcUrl(network.chain.name);
 
   const publicClient = createPublicClient({
     chain: network.chain,
-    transport: http(
-      network.chain.id === bsc.id
-        ? "https://bsc-dataseed.bnbchain.org/"
-        : undefined,
-    ),
+    transport: http(rpcUrl),
   });
 
   return fetchWalletBalance(publicClient, walletAddress);
@@ -1235,15 +1239,13 @@ export function calculateSenderFee(
 ): { feeAmount: number; feeAmountInBaseUnits: bigint; feeRecipient: string } {
   const calculatedRate = Math.round(rate * 100);
   const isLocalTransfer = calculatedRate === 100;
-  const defaultFeePercent = 0.1; // 0.1% default fee for local transfers
-  const maxFeeCapInHumanReadable = 10000; // 10k CNGN cap in human-readable units
   const decimalsMultiplier = BigInt(10 ** tokenDecimals);
   const maxFeeCapInBaseUnits =
-    BigInt(maxFeeCapInHumanReadable) * decimalsMultiplier; // 10k CNGN in base units
+    BigInt(Math.floor(localTransferFeeCap)) * decimalsMultiplier;
 
   // Calculate fee in human-readable format
   const calculatedFee = isLocalTransfer
-    ? (amount * defaultFeePercent) / 100
+    ? (amount * localTransferFeePercent) / 100
     : 0;
 
   // Convert to base units

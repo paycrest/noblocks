@@ -187,11 +187,8 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             label="Amount"
             value={
               <span className="text-text-accent-gray dark:text-white/80">
-                {formatCurrency(
-                  transaction.amount_received ?? 0,
-                  transaction.to_currency,
-                  `en-${transaction.to_currency.slice(0, 2)}`,
-                )}
+                {formatNumberWithCommas(transaction.amount_received ?? 0)}{" "}
+                {transaction.to_currency}
               </span>
             }
           />

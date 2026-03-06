@@ -15,6 +15,9 @@ importers:
 
   .:
     dependencies:
+      '@biconomy/abstractjs':
+        specifier: ^1.1.21
+        version: 1.1.21(@metamask/delegation-toolkit@0.11.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)))(@rhinestone/module-sdk@0.4.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)))(@safe-global/types-kit@3.0.0(typescript@5.8.3)(zod@3.25.24))(typescript@5.8.3)(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))
       '@headlessui/react':
         specifier: ^2.2.4
         version: 2.2.9(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -986,6 +989,15 @@ packages:
 
   '@bcoe/v8-coverage@0.2.3':
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
+
+  '@biconomy/abstractjs@1.1.21':
+    resolution: {integrity: sha512-JYmQE4jnOB1rIpE/7UWQK2eTYY2nw+eM5oUxP9BtZ3slAVsk/TB6vcq9fmQr4SI0i7eCKZ0QKkdaREQmSJboIg==}
+    peerDependencies:
+      '@metamask/delegation-toolkit': ^0.11.0
+      '@rhinestone/module-sdk': 0.4.0
+      '@safe-global/types-kit': 3.0.0
+      typescript: ^5.8.2
+      viem: ^2.26.2
 
   '@blocto/sdk@0.10.2':
     resolution: {integrity: sha512-9gCIUKA7/7/hMHaa5n94+OYU/3tHd6vmBgTgv4o2h3z9SFueQXAJMO4aBggH9+EldgHQDI6wHsnvytEt9AWb6g==}
@@ -2673,6 +2685,27 @@ packages:
   '@maverick-js/signals@5.11.5':
     resolution: {integrity: sha512-/GO94awrwN9ROYZDMTeByordjvbhcm3CMvB/2aL/sEUy9Va8nM/2GmNgOOe+rrooTGnz8/DzO73xomuBRrnYWw==}
 
+  '@metamask/delegation-abis@0.11.0':
+    resolution: {integrity: sha512-tnNGFDLQ5jfgPhHJaT5JwvF759nja1iGAG00REbk1Ufir+TxjxTmF8L9MbJifZmUh4fnyqV4Ik6NAOYVNBPVBg==}
+    engines: {node: ^18.18 || >=20}
+
+  '@metamask/delegation-deployments@0.11.0':
+    resolution: {integrity: sha512-RfeMr1Ct0givG7oOy1unwdb5lGttq9pape4OGz2mk8quG0KDqDi7cw3fzYc7wz9xFDZ2YrFanYRacaLTlqWS8g==}
+    engines: {node: ^18.18 || >=20}
+
+  '@metamask/delegation-toolkit@0.11.0':
+    resolution: {integrity: sha512-KQybftUahuPPjN842ejmVaJWg2rzHpSpvd+b6qtiOBypzJs7cgw1/f8QalHLugS1eyicEYLXwvRxjjufiG4wbg==}
+    engines: {node: ^18.18 || >=20}
+    deprecated: Renamed to @metamask/smart-accounts-kit
+    peerDependencies:
+      viem: '>=2.18.2 <3.0.0'
+
+  '@metamask/delegation-utils@0.11.0':
+    resolution: {integrity: sha512-eg8icyDtbzwER/G3VvaiVUNiNr9GXxJXQMcFRbhm9tTMqWXpphYXk9edSungRF+QqYmXIytRiR2ChSHp0uNtew==}
+    engines: {node: ^18.18 || >=20}
+    peerDependencies:
+      viem: '>=2.18.2 <3.0.0'
+
   '@metamask/eth-json-rpc-provider@1.0.1':
     resolution: {integrity: sha512-whiUMPlAOrVGmX8aKYVPvlKyG4CpQXiNNyt74vE1xb5sPvmx5oA7B/kOi/JdBvhGQq97U1/AVdXEdk2zkP8qyA==}
     engines: {node: '>=14.0.0'}
@@ -4142,26 +4175,8 @@ packages:
       react: ^19.0.1
       react-dom: ^19.0.1
 
-  '@rolldown/pluginutils@1.0.0-beta.53':
-    resolution: {integrity: sha512-vENRlFU4YbrwVqNDZ7fLvy+JR1CRkyr01jhSiDpE1u6py3OMzQfztQU2jxykW3ALNxO4kSlqIDeYyD0Y9RcQeQ==}
-
-  '@rollup/plugin-commonjs@28.0.1':
-    resolution: {integrity: sha512-+tNWdlWKbpB3WgBN7ijjYkq9X5uhjmcvyjEght4NmH5fAU++zfQzAJ6wumLS+dNcvwEZhKx2Z+skY8m7v0wGSA==}
-    engines: {node: '>=16.0.0 || 14 >= 14.17'}
-    peerDependencies:
-      rollup: ^2.68.0||^3.0.0||^4.0.0
-    peerDependenciesMeta:
-      rollup:
-        optional: true
-
-  '@rollup/pluginutils@5.3.0':
-    resolution: {integrity: sha512-5EdhGZtnu3V88ces7s53hhfK5KSASnJZv8Lulpc04cWO3REESroJXg73DFsOmgbU2BhwV0E20bu2IDZb3VKW4Q==}
-    engines: {node: '>=14.0.0'}
-    peerDependencies:
-      rollup: ^1.20.0||^2.0.0||^3.0.0||^4.0.0
-    peerDependenciesMeta:
-      rollup:
-        optional: true
+  '@rolldown/pluginutils@1.0.0-beta.27':
+    resolution: {integrity: sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==}
 
   '@rollup/rollup-android-arm-eabi@4.53.3':
     resolution: {integrity: sha512-mRSi+4cBjrRLoaal2PnqH82Wqyb+d3HsPUN/W+WslCXsZsyHa9ZeQQX/pQsZaVIWDkPcpV6jJ+3KLbTbgnwv8w==}
@@ -4312,12 +4327,8 @@ packages:
     resolution: {integrity: sha512-WhzcmNun0s0VxeVQKRqaapV0vEpdm76zZBR2Du+S+58u1r57OjZkOSL2Gru0tdwkt3FIZZtE3OhDu09M70pVkA==}
     deprecated: 'WARNING: This package is now bundled in @safe-global/protocol-kit. Please, follow the migration guide https://docs.safe.global/safe-core-aa-sdk/protocol-kit/reference/v1'
 
-  '@safe-global/safe-gateway-typescript-sdk@3.23.1':
-    resolution: {integrity: sha512-6ORQfwtEJYpalCeVO21L4XXGSdbEMfyp2hEv6cP82afKXSwvse6d3sdelgaPWUxHIsFRkWvHDdzh8IyyKHZKxw==}
-    engines: {node: '>=16'}
-
-  '@sanity/asset-utils@2.3.0':
-    resolution: {integrity: sha512-dlEmALjQ5iyQG0O8ZVmkkE3wUYCKfRmiyMvuuGN5SF9buAHxmseBOKJ/Iy2DU/8ef70mtUXlzeCRSlTN/nmZsg==}
+  '@sanity/asset-utils@2.2.1':
+    resolution: {integrity: sha512-dBsZWH5X6ANcvclFRnQT9Y+NNvoWTJZIMKR5HT6hzoRpRb48p7+vWn+wi1V1wPvqgZg2ScsOQQcGXWXskbPbQQ==}
     engines: {node: '>=18'}
 
   '@sanity/bifur-client@0.4.1':
@@ -11976,6 +11987,9 @@ packages:
   solady@0.0.180:
     resolution: {integrity: sha512-9QVCyMph+wk78Aq/GxtDAQg7dvNoVWx2dS2Zwf11XlwFKDZ+YJG2lrQsK9NEIth9NOebwjBXAYk4itdwOOE4aw==}
 
+  solady@0.0.235:
+    resolution: {integrity: sha512-JUEXLDG7ag3HmqUnrDG7ilhafH6R9bFPpwV63O2kH4UbnS2+gRGEOqqy4k01O7tHjo3MWkDD0cpG+UY9pjy/fQ==}
+
   sonic-boom@2.8.0:
     resolution: {integrity: sha512-kuonw1YOYYNOve5iHdSahXPOK49GqwA+LZhI6Wz/l0rP57iKyXXIHaRagOBHAPmGwJC6od2Z9zgvZ5loSgMlVg==}
 
@@ -12307,6 +12321,14 @@ packages:
 
   tar-stream@3.1.7:
     resolution: {integrity: sha512-qJj60CXt7IU1Ffyc3NJMjh6EkuCFej46zUqJ4J7pqYlThyd9bO0XBTmcOIhSzZJVWfsLks0+nle/j538YAW9RQ==}
+
+  tar@6.2.1:
+    resolution: {integrity: sha512-DZ4yORTwrbTj/7MZYq2w+/ZFdI6OZ/f9SFHR+71gIVUZhOQPHzVCLpvRnPgyaMpfWxxk/4ONva3GQSyNIKRv6A==}
+    engines: {node: '>=10'}
+
+  tar@7.4.3:
+    resolution: {integrity: sha512-5S7Va8hKfV7W5U6g3aYxXmlPoZVAwUMy9AOKyF2fVuZa2UD3qZjg578OrLRt8PcNN1PleVaL/5/yYATNL0ICUw==}
+    engines: {node: '>=18'}
 
   teeny-request@9.0.0:
     resolution: {integrity: sha512-resvxdc6Mgb7YEThw6G6bExlXKkv6+YbuzGg9xuXxSgxJF7Ozs+o8Y9+2R3sArdWdW8nOokoQb1yrpFB0pQK2g==}
@@ -13357,9 +13379,6 @@ packages:
   web3-utils@1.5.2:
     resolution: {integrity: sha512-quTtTeQJHYSxAwIBOCGEcQtqdVcFWX6mCFNoqnp+mRbq+Hxbs8CGgO/6oqfBx4OvxIOfCpgJWYVHswRXnbEu9Q==}
     engines: {node: '>=8.0.0'}
-
-  webextension-polyfill@0.10.0:
-    resolution: {integrity: sha512-c5s35LgVa5tFaHhrZDnr3FpQpjj1BB+RXhLTYUxGqBVN460HkbM8TBtEqdXWbpTKfzwCcjAZVF7zXCYSKtcp9g==}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -14810,6 +14829,14 @@ snapshots:
       - zod
 
   '@bcoe/v8-coverage@0.2.3': {}
+
+  '@biconomy/abstractjs@1.1.21(@metamask/delegation-toolkit@0.11.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)))(@rhinestone/module-sdk@0.4.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)))(@safe-global/types-kit@3.0.0(typescript@5.8.3)(zod@3.25.24))(typescript@5.8.3)(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))':
+    dependencies:
+      '@metamask/delegation-toolkit': 0.11.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))
+      '@rhinestone/module-sdk': 0.4.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))
+      '@safe-global/types-kit': 3.0.0(typescript@5.8.3)(zod@3.25.24)
+      typescript: 5.8.3
+      viem: 2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)
 
   '@blocto/sdk@0.10.2(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
     dependencies:
@@ -16881,6 +16908,23 @@ snapshots:
       react-dom: 19.2.3(react@19.2.3)
 
   '@maverick-js/signals@5.11.5': {}
+
+  '@metamask/delegation-abis@0.11.0': {}
+
+  '@metamask/delegation-deployments@0.11.0': {}
+
+  '@metamask/delegation-toolkit@0.11.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))':
+    dependencies:
+      '@metamask/delegation-utils': 0.11.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))
+      viem: 2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)
+      webauthn-p256: 0.0.5
+
+  '@metamask/delegation-utils@0.11.0(viem@2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24))':
+    dependencies:
+      '@metamask/delegation-abis': 0.11.0
+      '@metamask/delegation-deployments': 0.11.0
+      buffer: 6.0.3
+      viem: 2.31.0(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.24)
 
   '@metamask/eth-json-rpc-provider@1.0.1':
     dependencies:
@@ -19161,7 +19205,7 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  '@rolldown/pluginutils@1.0.0-beta.53': {}
+  '@rolldown/pluginutils@1.0.0-beta.27': {}
 
   '@rollup/plugin-commonjs@28.0.1(rollup@4.53.3)':
     dependencies:
@@ -19339,9 +19383,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@safe-global/safe-gateway-typescript-sdk@3.23.1': {}
-
-  '@sanity/asset-utils@2.3.0': {}
+  '@sanity/asset-utils@2.2.1': {}
 
   '@sanity/bifur-client@0.4.1':
     dependencies:
@@ -31297,6 +31339,8 @@ snapshots:
 
   solady@0.0.180: {}
 
+  solady@0.0.235: {}
+
   sonic-boom@2.8.0:
     dependencies:
       atomic-sleep: 1.0.0
@@ -32891,8 +32935,6 @@ snapshots:
       number-to-bn: 1.7.0
       randombytes: 2.1.0
       utf8: 3.0.0
-
-  webextension-polyfill@0.10.0: {}
 
   webidl-conversions@3.0.1: {}
 

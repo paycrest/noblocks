@@ -1,28 +1,28 @@
 import { useState, useCallback } from "react";
-import { encodeFunctionData, erc20Abi, parseUnits } from "viem";
+import { erc20Abi, parseUnits, http } from "viem";
 import { toast } from "sonner";
-import { getExplorerLink } from "../utils";
+import { getExplorerLink, getRpcUrl } from "../utils";
 import { saveTransaction } from "../api/aggregator";
 import { trackEvent } from "./analytics/useMixpanel";
 import type { Token, Network } from "../types";
-import { useSendTransaction, type User } from "@privy-io/react-auth";
-
-interface SmartWalletClient {
-  sendTransaction: (args: {
-    to: `0x${string}`;
-    data: `0x${string}`;
-    value: bigint;
-  }) => Promise<unknown>;
-  switchChain: (args: { id: number }) => Promise<unknown>;
-}
+import type { User } from "@privy-io/react-auth";
+import { useShouldUseEOA, useBiconomy7702Auth } from "./useEIP7702Account";
+import { useWallets } from "@privy-io/react-auth";
+import {
+  createMeeClient,
+  toMultichainNexusAccount,
+  getMEEVersion,
+  MEEVersion,
+} from "@biconomy/abstractjs";
+import config from "../lib/config";
 
 interface UseSmartWalletTransferParams {
-  client: SmartWalletClient | null;
   selectedNetwork: { chain: Network["chain"] };
   user: User | null;
   supportedTokens: Token[];
   getAccessToken: () => Promise<string | null>;
   refreshBalance?: () => void;
+  onRequireMigration?: () => void;
 }
 
 interface TransferArgs {
@@ -51,21 +51,27 @@ interface UseSmartWalletTransferReturn {
  * @returns {UseSmartWalletTransferReturn} - State and transfer function
  */
 export function useSmartWalletTransfer({
-  client,
   selectedNetwork,
   user,
   supportedTokens,
   getAccessToken,
   refreshBalance,
+  onRequireMigration,
 }: UseSmartWalletTransferParams): UseSmartWalletTransferReturn {
+  const shouldUseEOA = useShouldUseEOA();
+  const { wallets } = useWallets();
+  const { signBiconomyAuthorization } = useBiconomy7702Auth();
+  const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
+
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [transferAmount, setTransferAmount] = useState("");
   const [transferToken, setTransferToken] = useState("");
+  const [txNetworkName, setTxNetworkName] = useState<string>("");
 
-  // Helper to get the embedded wallet address (with address)
+  // Helper to get the embedded wallet address (with address) for tx history
   const getEmbeddedWalletAddress = (): `0x${string}` | undefined => {
     if (!user?.linkedAccounts) return undefined;
     // Find the embedded wallet account with an address
@@ -80,13 +86,13 @@ export function useSmartWalletTransfer({
 
   const transfer = useCallback(
     async ({ amount, token, recipientAddress, resetForm }: TransferArgs) => {
-      // Track transfer attempt
+      const walletType = shouldUseEOA && embeddedWallet ? "EIP-7702 (MEE)" : "Smart wallet";
       trackEvent("Transfer started", {
         Amount: amount,
         "Send token": token,
         "Recipient address": recipientAddress,
         Network: selectedNetwork.chain.name,
-        "Wallet type": "Smart wallet",
+        "Wallet type": walletType,
         "Transfer date": new Date().toISOString(),
       });
 
@@ -94,88 +100,119 @@ export function useSmartWalletTransfer({
       setIsSuccess(false);
       setError("");
       setTxHash(null);
+      setTxNetworkName("");
       setTransferAmount("");
       setTransferToken("");
 
       try {
         const availableTokens: Token[] = supportedTokens;
-        await client?.switchChain({ id: selectedNetwork.chain.id });
         const searchToken = token.toUpperCase();
         const tokenData = availableTokens.find(
           (t) => t.symbol.toUpperCase() === searchToken,
         );
 
-        // Native token transfer logic (ETH, BNB, etc.)
-        if (tokenData?.isNative && tokenData?.address === "") {
-          const value = BigInt(Math.floor(amount * 1e18));
-          const hash = await client?.sendTransaction({
-            to: recipientAddress as `0x${string}`,
-            value,
-            data: "0x" as `0x${string}`,
-          });
-          if (!hash) throw new Error("No transaction hash returned");
-          const txhash = hash as unknown as string;
-          setTxHash(txhash);
-          setTransferAmount(amount.toString());
-          setTransferToken(token);
-          setIsSuccess(true);
+        if (!shouldUseEOA) {
+          onRequireMigration?.();
           setIsLoading(false);
-          toast.success(
-            `${amount.toString()} ${token} successfully transferred`,
-          );
-          trackEvent("Transfer completed", {
-            Amount: amount,
-            "Send token": token,
-            "Recipient address": recipientAddress,
-            Network: selectedNetwork.chain.name,
-            "Transaction hash": hash,
-            "Transfer date": new Date().toISOString(),
-          });
-          await saveTransferTransaction({
-            txHash: txhash,
-            recipientAddress,
-            amount,
-            token,
-          });
-          if (resetForm) resetForm();
-          if (refreshBalance) refreshBalance();
+          setIsSuccess(false);
+          setError("");
           return;
         }
 
-        // ERC-20 token transfer logic
-        const tokenAddress = tokenData?.address as `0x${string}` | undefined;
-        const tokenDecimals = tokenData?.decimals;
-        if (!tokenAddress || tokenDecimals === undefined) {
-          const error = `Token data not found for ${token}.`;
-          setError(error);
-          trackEvent("Transfer failed", {
-            Amount: amount,
-            "Send token": token,
-            "Recipient address": recipientAddress,
-            Network: selectedNetwork.chain.name,
-            "Reason for failure": error,
-            "Transfer date": new Date().toISOString(),
-          });
-          throw new Error(
-            `Token data not found for ${token}. Available tokens: ${availableTokens.map((t) => t.symbol).join(", ")}`,
-          );
+        let hash: `0x${string}`;
+
+        if (!embeddedWallet) {
+          throw new Error("Embedded wallet not ready. Please reconnect and try again.");
         }
-        // Send transaction and get hash
-        const hash = (await client?.sendTransaction({
-          to: tokenAddress,
-          data: encodeFunctionData({
-            abi: erc20Abi,
-            functionName: "transfer",
-            args: [
-              recipientAddress as `0x${string}`,
-              parseUnits(amount.toString(), tokenDecimals),
-            ],
-          }) as `0x${string}`,
-          value: BigInt(0),
-        })) as `0x${string}`;
+        // EIP-7702 + Biconomy MEE path (migrated EOA or 0-balance SCW)
+        const chain = selectedNetwork.chain;
+        const chainId = chain.id;
+        await embeddedWallet.switchChain(chainId);
+        const provider = await embeddedWallet.getEthereumProvider();
+        const authorization = await signBiconomyAuthorization(chainId);
+        const nexusAccount = await toMultichainNexusAccount({
+          chainConfigurations: [
+            {
+              chain,
+              transport: http(getRpcUrl(selectedNetwork.chain.name)),
+              version: getMEEVersion(MEEVersion.V2_1_0),
+              accountAddress: embeddedWallet.address as `0x${string}`,
+            },
+          ],
+          signer: provider,
+        });
+        const meeApiKey = config.biconomyMeeApiKey;
+        if (!meeApiKey) {
+          throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
+        }
+        const meeClient = await createMeeClient({
+          account: nexusAccount,
+          apiKey: meeApiKey,
+        });
+
+        const transferInstruction =
+          tokenData?.isNative && tokenData?.address === ""
+            ? await nexusAccount.buildComposable({
+                type: "nativeTokenTransfer",
+                data: {
+                  chainId,
+                  to: recipientAddress as `0x${string}`,
+                  value: parseUnits(amount.toString(), 18),
+                },
+              })
+            : await (async () => {
+                const tokenAddress = tokenData?.address as `0x${string}` | undefined;
+                const tokenDecimals = tokenData?.decimals;
+                if (!tokenAddress || tokenDecimals === undefined) {
+                  const error = `Token data not found for ${token}.`;
+                  setError(error);
+                  trackEvent("Transfer failed", {
+                    Amount: amount,
+                    "Send token": token,
+                    "Recipient address": recipientAddress,
+                    Network: selectedNetwork.chain.name,
+                    "Reason for failure": error,
+                    "Transfer date": new Date().toISOString(),
+                  });
+                  throw new Error(
+                    `Token data not found for ${token}. Available tokens: ${availableTokens.map((t) => t.symbol).join(", ")}`,
+                  );
+                }
+                return nexusAccount.buildComposable({
+                  type: "default",
+                  data: {
+                    abi: erc20Abi,
+                    chainId,
+                    to: tokenAddress,
+                    functionName: "transfer",
+                    args: [
+                      recipientAddress as `0x${string}`,
+                      parseUnits(amount.toString(), tokenDecimals),
+                    ],
+                  },
+                });
+              })();
+
+        const result = await meeClient.execute({
+          authorizations: [authorization],
+          delegate: true,
+          sponsorship: true,
+          instructions: [transferInstruction],
+        });
+        const receipt = await meeClient.waitForSupertransactionReceipt({
+          hash: result.hash,
+          waitForReceipts: true,
+        });
+        const onChainTxHash =
+          (receipt.receipts?.[0] as { transactionHash?: `0x${string}` } | undefined)
+            ?.transactionHash ??
+          (receipt.userOps?.[0] as { executionData?: `0x${string}` } | undefined)
+            ?.executionData;
+        hash = (onChainTxHash ?? result.hash) as `0x${string}`;
 
         if (!hash) throw new Error("No transaction hash returned");
         setTxHash(hash);
+        setTxNetworkName(selectedNetwork.chain.name);
 
         setTransferAmount(amount.toString());
         setTransferToken(token);
@@ -230,12 +267,15 @@ export function useSmartWalletTransfer({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      client,
       selectedNetwork,
       user,
       supportedTokens,
       getAccessToken,
       refreshBalance,
+      shouldUseEOA,
+      embeddedWallet,
+      signBiconomyAuthorization,
+      onRequireMigration,
     ],
   );
 
@@ -286,9 +326,9 @@ export function useSmartWalletTransfer({
   );
 
   const getTxExplorerLink = useCallback((): string | undefined => {
-    if (!txHash) return undefined;
-    return getExplorerLink(selectedNetwork.chain.name, txHash) || undefined;
-  }, [txHash, selectedNetwork]);
+    if (!txHash || !txNetworkName) return undefined;
+    return getExplorerLink(txNetworkName, txHash) || undefined;
+  }, [txHash, txNetworkName]);
 
   return {
     isLoading,

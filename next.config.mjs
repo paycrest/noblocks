@@ -106,12 +106,12 @@ const nextConfig = {
       },
       ...(process.env.NODE_ENV !== "production"
         ? [
-            {
-              protocol: "https",
-              hostname: "picsum.photos",
-              pathname: "/**",
-            },
-          ]
+          {
+            protocol: "https",
+            hostname: "picsum.photos",
+            pathname: "/**",
+          },
+        ]
         : []),
     ],
   },

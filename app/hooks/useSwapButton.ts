@@ -49,7 +49,7 @@ export function useSwapButton({
   const hasInsufficientBalance = totalRequired > balance;
 
   const isEnabled = (() => {
-    if (isMigrationMandatory) return true;
+    if (isMigrationMandatory || needsMigration) return true;
     if (!rate) return false;
     if (isInjectedWallet && hasInsufficientBalance) {
       return false;

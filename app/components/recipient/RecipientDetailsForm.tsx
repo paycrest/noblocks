@@ -348,10 +348,14 @@ export const RecipientDetailsForm = ({
 
       if (!institution || !accountIdentifier) {
         setRecipientNameError("");
+        setValue("recipientName", "");
+        setIsRecipientNameEditable(false);
         return;
       }
 
       if (isNGN && digits.length !== requiredLen) {
+        setValue("recipientName", "");
+        setIsRecipientNameEditable(false);
         if (digits.length > 0) {
           setRecipientNameError(
             requiredLen === 10

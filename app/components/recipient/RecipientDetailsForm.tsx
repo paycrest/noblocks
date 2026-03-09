@@ -28,6 +28,48 @@ import {
 import { SavedBeneficiariesModal } from "@/app/components/recipient/SavedBeneficiariesModal";
 import { SelectBankModal } from "@/app/components/recipient/SelectBankModal";
 
+interface RecipientAlertProps {
+  isEditable: boolean;
+  message: string;
+  currency: string;
+  institutionName: string;
+  onLearnMore: () => void;
+}
+
+const RecipientAlert = ({
+  isEditable,
+  message,
+  currency,
+  institutionName,
+  onLearnMore,
+}: RecipientAlertProps) => {
+  const handleLearnMoreClick = () => {
+    trackEvent("recipient_alert_learn_more_clicked", {
+      alert_type: isEditable ? "verification_failed" : "verification_success",
+      message: message.substring(0, 100),
+      currency,
+      institution: institutionName,
+    });
+    onLearnMore();
+  };
+
+  return (
+    <div className="flex h-fit min-h-[48px] w-full items-start gap-2 rounded-xl bg-warning-background/35 px-3 py-2 dark:bg-warning-background/10">
+      <InformationSquareIcon className="h-[36px] w-[36px] text-warning-foreground dark:text-warning-text md:h-[24px] md:w-[24px]" />
+      <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
+        {message}{" "}
+        <button
+          type="button"
+          onClick={handleLearnMoreClick}
+          className="font-semibold text-lavender-500"
+        >
+          Learn more.
+        </button>
+      </p>
+    </div>
+  );
+};
+
 export const RecipientDetailsForm = ({
   formMethods,
   stateProps: {
@@ -87,42 +129,10 @@ export const RecipientDetailsForm = ({
 
   const prevCurrencyRef = useRef(currency);
 
-  // Alert component to avoid duplication and handle analytics
-  const RecipientAlert = ({
-    isEditable,
-    message,
-  }: {
-    isEditable: boolean;
-    message: string;
-  }) => {
-    const handleLearnMoreClick = (e: React.MouseEvent) => {
-      e.preventDefault();
-      trackEvent("recipient_alert_learn_more_clicked", {
-        alert_type: isEditable ? "verification_failed" : "verification_success",
-        message: message.substring(0, 100), // Truncate for analytics
-        currency: currency,
-        institution: selectedInstitution?.name || "",
-      });
-      // Open relevant help article in new tab
-      const helpUrl =
-        "https://noblocks.xyz/blog/understanding-account-name-verification-on-noblocks";
-      window.open(helpUrl, "_blank");
-    };
-
-    return (
-      <div className="flex h-fit min-h-[48px] w-full items-start gap-2 rounded-xl bg-warning-background/35 px-3 py-2 dark:bg-warning-background/10">
-        <InformationSquareIcon className="h-[36px] w-[36px] text-warning-foreground dark:text-warning-text md:h-[24px] md:w-[24px]" />
-        <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
-          {message}{" "}
-          <a
-            href="#"
-            onClick={handleLearnMoreClick}
-            className="font-semibold text-lavender-500"
-          >
-            Learn more.
-          </a>
-        </p>
-      </div>
+  const handleLearnMore = () => {
+    window.open(
+      "https://noblocks.xyz/blog/understanding-account-name-verification-on-noblocks",
+      "_blank",
     );
   };
 
@@ -607,12 +617,18 @@ export const RecipientDetailsForm = ({
             <RecipientAlert
               isEditable={true}
               message="Unable to verify details. Ensure the recipient's account number is accurate before proceeding with swap."
+              currency={currency}
+              institutionName={selectedInstitution?.name || ""}
+              onLearnMore={handleLearnMore}
             />
           )}
         {!isRecipientNameEditable && recipientName && !recipientNameError && (
           <RecipientAlert
             isEditable={false}
             message="Make sure the recipient's account number is accurate before proceeding with swap."
+            currency={currency}
+            institutionName={selectedInstitution?.name || ""}
+            onLearnMore={handleLearnMore}
           />
         )}
       </AnimatedFeedbackItem>

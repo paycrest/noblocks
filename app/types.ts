@@ -326,6 +326,7 @@ export interface TransactionHistory {
   status: TransactionStatus;
   network: string;
   tx_hash?: string;
+  explorer_link?: string;
   time_spent?: string;
   created_at: string;
   updated_at: string;
@@ -346,6 +347,7 @@ export interface TransactionCreateInput {
   txHash?: string;
   timeSpent?: string;
   orderId?: string;
+  email?: string;
 }
 
 export interface TransactionUpdateInput {

@@ -536,11 +536,6 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
-    setCreatedAt(new Date().toISOString());
-    setTransactionStatus("fulfilling");
-    setCurrentStep("status");
-    return;
-
     // Check balance including sender fee
     const totalRequired = amountSent + senderFeeAmount;
 

@@ -512,12 +512,6 @@ export function TransactionStatus({
   );
 
   const handlePaymentConfirmed = async () => {
-    setTransactionStatus("settled");
-    setShowPaymentConfirmation(false);
-  };
-
-  /* 
-  const handlePaymentConfirmed = async () => {
     try {
       const accessToken = await getAccessToken();
       if (!accessToken || !orderId) return;
@@ -541,7 +535,6 @@ export function TransactionStatus({
       toast.error("Failed to confirm payment. Please try again.");
     }
   };
-  */
 
   /**
    * Renders the appropriate status indicator based on transaction status
@@ -924,7 +917,7 @@ export function TransactionStatus({
           explorerLink={
             createdHash && orderDetails?.network
               ? getExplorerLink(orderDetails.network, createdHash)
-              : "https://basescan.org/tx/0xa5d960b4f3e8c2d1a7b9e6f5c4d3a2b1e0f9c8d706f6f" 
+              : undefined
           }
         />
 

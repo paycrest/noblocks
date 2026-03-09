@@ -620,6 +620,7 @@ export const TransactionPreview = ({
         network: selectedNetwork.chain.name,
         orderId: orderId,
         txHash: txHash,
+        email: user?.email?.address ?? undefined,
       };
 
       const response = await saveTransaction(transaction, accessToken);

@@ -551,13 +551,20 @@ export const RecipientDetailsForm = ({
                     type="text"
                     placeholder="Enter recipient name"
                     {...register("recipientName", {
-                      required: {
-                        value: true,
-                        message: "Recipient name is required",
-                      },
-                      minLength: {
-                        value: 2,
-                        message: "Recipient name must be at least 2 characters",
+                      validate: (value) => {
+                        const normalized = String(value ?? "")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                        if (!normalized) {
+                          return "Recipient name is required";
+                        }
+
+                        if (normalized.length < 2) {
+                          return "Recipient name must be at least 2 characters";
+                        }
+
+                        return true;
                       },
                     })}
                     className={classNames(

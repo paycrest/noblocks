@@ -327,7 +327,7 @@ export const TransferForm: React.FC<{
   const showNetworkWarning = recipientNetwork && !networksMatch;
 
   const onFormSubmit = (data: any) => {
-    if (isMigrationMandatory) {
+    if (needsMigration || isMigrationMandatory) {
       setIsMigrationModalOpen(true);
       return;
     }

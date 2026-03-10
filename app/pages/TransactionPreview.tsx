@@ -189,13 +189,26 @@ export const TransactionPreview = ({
     network: selectedNetwork.chain.name,
   };
 
+  const normalizeAccountIdentifier = (identifier: string): string => {
+    const digits = identifier.replace(/\D/g, "");
+    if (
+      currency === "UGX" &&
+      formValues.accountType === "mobile_money" &&
+      !digits.startsWith("256")
+    ) {
+      const local = digits.startsWith("0") ? digits.slice(1) : digits;
+      return `256${local}`;
+    }
+    return digits || identifier;
+  };
+
   const prepareCreateOrderParams = async () => {
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
 
     // Prepare recipient data
     const recipient = {
-      accountIdentifier: formValues.accountIdentifier,
+      accountIdentifier: normalizeAccountIdentifier(formValues.accountIdentifier),
       accountName: recipientName,
       institution: formValues.institution,
       memo: formValues.memo,
@@ -600,7 +613,7 @@ export const TransactionPreview = ({
             institution,
             supportedInstitutions,
           ) as string,
-          account_identifier: accountIdentifier,
+          account_identifier: normalizeAccountIdentifier(accountIdentifier),
           ...(memo && { memo }),
         },
         status: "pending",

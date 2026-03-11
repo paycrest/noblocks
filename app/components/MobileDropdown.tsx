@@ -24,6 +24,7 @@ import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm, TransferForm } from "./index";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
+import WalletMigrationModal from "./WalletMigrationModal";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { clearUserSessionData } from "../lib/session-cleanup";
 
@@ -40,6 +41,7 @@ export const MobileDropdown = ({
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { user, linkEmail, updateEmail, exportWallet } = usePrivy();
@@ -292,6 +294,10 @@ export const MobileDropdown = ({
                                 onClose={onClose}
                                 showBackButton
                                 setCurrentView={setCurrentView}
+                                onOpenMigration={() => {
+                                  onClose();
+                                  setIsMigrationModalOpen(true);
+                                }}
                               />
                             </div>
                           )}
@@ -328,6 +334,11 @@ export const MobileDropdown = ({
         isOpen={isWarningModalOpen}
         onClose={() => setIsWarningModalOpen(false)}
         address={walletForCopy?.address ?? ""}
+      />
+
+      <WalletMigrationModal
+        isOpen={isMigrationModalOpen}
+        onClose={() => setIsMigrationModalOpen(false)}
       />
     </>
   );

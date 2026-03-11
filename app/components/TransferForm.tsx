@@ -40,7 +40,8 @@ export const TransferForm: React.FC<{
   onSuccess?: () => void;
   showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileView>>;
-}> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
+  onOpenMigration?: () => void;
+}> = ({ onClose, onSuccess, showBackButton = false, setCurrentView, onOpenMigration }) => {
   const searchParams = useSearchParams();
   const { selectedNetwork } = useNetwork();
   const { user, getAccessToken } = usePrivy();
@@ -123,7 +124,7 @@ export const TransferForm: React.FC<{
     supportedTokens: fetchedTokens,
     getAccessToken,
     refreshBalance,
-    onRequireMigration: () => setIsMigrationModalOpen(true),
+    onRequireMigration: onOpenMigration ?? (() => setIsMigrationModalOpen(true)),
   });
 
   useEffect(() => {
@@ -328,7 +329,11 @@ export const TransferForm: React.FC<{
 
   const onFormSubmit = (data: any) => {
     if (needsMigration || isMigrationMandatory) {
-      setIsMigrationModalOpen(true);
+      if (onOpenMigration) {
+        onOpenMigration();
+      } else {
+        setIsMigrationModalOpen(true);
+      }
       return;
     }
     transfer({ ...data, resetForm: reset });
@@ -635,10 +640,12 @@ export const TransferForm: React.FC<{
       </button>
     </form>
 
-    <WalletMigrationModal
-      isOpen={isMigrationModalOpen}
-      onClose={() => setIsMigrationModalOpen(false)}
-    />
+    {!onOpenMigration && (
+      <WalletMigrationModal
+        isOpen={isMigrationModalOpen}
+        onClose={() => setIsMigrationModalOpen(false)}
+      />
+    )}
     </>
   );
 };

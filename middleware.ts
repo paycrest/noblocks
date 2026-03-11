@@ -3,12 +3,32 @@ import { jwtVerify, createRemoteJWKSet } from "jose";
 
 // Inline lightweight edge-compatible helpers to avoid pulling in heavy SDKs
 
-const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID!;
-const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET!;
+const _appId = process.env.PRIVY_APP_ID;
+const _appSecret = process.env.PRIVY_APP_SECRET;
+
+if (!_appId || !_appSecret) {
+  throw new Error(
+    "Missing required env vars: PRIVY_APP_ID and PRIVY_APP_SECRET must be set",
+  );
+}
+
+const PRIVY_APP_ID: string = _appId;
+const PRIVY_APP_SECRET: string = _appSecret;
 
 const PRIVY_JWKS_URL = `https://auth.privy.io/api/v1/apps/${PRIVY_APP_ID}/jwks.json`;
 const PRIVY_JWT_ISSUER = "privy.io";
 const PRIVY_JWKS = createRemoteJWKSet(new URL(PRIVY_JWKS_URL));
+
+interface PrivyLinkedAccount {
+  type: string;
+  address?: string;
+  connector_type?: string;
+  chain_id?: string;
+}
+
+interface PrivyUserResponse {
+  linked_accounts?: PrivyLinkedAccount[];
+}
 
 async function verifyPrivyJWT(token: string) {
   const { payload } = await jwtVerify(token, PRIVY_JWKS, {
@@ -37,15 +57,15 @@ async function getWalletAddressFromPrivyUserId(
       throw new Error(`Privy API error: ${res.status}`);
     }
 
-    const user = await res.json();
+    const user = (await res.json()) as PrivyUserResponse;
     const accounts = user.linked_accounts || [];
 
     const wallet =
       accounts.find(
-        (a: any) => a.type === "wallet" && a.connector_type === "embedded",
+        (a) => a.type === "wallet" && a.connector_type === "embedded",
       ) ||
       accounts.find(
-        (a: any) => a.type === "wallet" && a.chain_id === "eip155:1",
+        (a) => a.type === "wallet" && a.chain_id === "eip155:1",
       );
 
     if (!wallet?.address) {

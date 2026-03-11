@@ -8,10 +8,10 @@ const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET!;
 
 const PRIVY_JWKS_URL = `https://auth.privy.io/api/v1/apps/${PRIVY_APP_ID}/jwks.json`;
 const PRIVY_JWT_ISSUER = "privy.io";
+const PRIVY_JWKS = createRemoteJWKSet(new URL(PRIVY_JWKS_URL));
 
 async function verifyPrivyJWT(token: string) {
-  const jwks = createRemoteJWKSet(new URL(PRIVY_JWKS_URL));
-  const { payload } = await jwtVerify(token, jwks, {
+  const { payload } = await jwtVerify(token, PRIVY_JWKS, {
     issuer: PRIVY_JWT_ISSUER,
     algorithms: ["ES256"],
   });
@@ -21,33 +21,41 @@ async function verifyPrivyJWT(token: string) {
 async function getWalletAddressFromPrivyUserId(
   userId: string,
 ): Promise<string> {
-  const res = await fetch(`https://auth.privy.io/api/v1/users/${userId}`, {
-    headers: {
-      Authorization: `Basic ${btoa(`${PRIVY_APP_ID}:${PRIVY_APP_SECRET}`)}`,
-      "privy-app-id": PRIVY_APP_ID,
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-  if (!res.ok) {
-    throw new Error(`Privy API error: ${res.status}`);
+  try {
+    const res = await fetch(`https://auth.privy.io/api/v1/users/${userId}`, {
+      headers: {
+        Authorization: `Basic ${btoa(`${PRIVY_APP_ID}:${PRIVY_APP_SECRET}`)}`,
+        "privy-app-id": PRIVY_APP_ID,
+      },
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`Privy API error: ${res.status}`);
+    }
+
+    const user = await res.json();
+    const accounts = user.linked_accounts || [];
+
+    const wallet =
+      accounts.find(
+        (a: any) => a.type === "wallet" && a.connector_type === "embedded",
+      ) ||
+      accounts.find(
+        (a: any) => a.type === "wallet" && a.chain_id === "eip155:1",
+      );
+
+    if (!wallet?.address) {
+      throw new Error("No embedded or Ethereum wallet found for Privy user");
+    }
+
+    return wallet.address.toLowerCase();
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const user = await res.json();
-  const accounts = user.linked_accounts || [];
-
-  const wallet =
-    accounts.find(
-      (a: any) => a.type === "wallet" && a.connector_type === "embedded",
-    ) ||
-    accounts.find(
-      (a: any) => a.type === "wallet" && a.chain_id === "eip155:1",
-    );
-
-  if (!wallet?.address) {
-    throw new Error("No embedded or Ethereum wallet found for Privy user");
-  }
-
-  return wallet.address.toLowerCase();
 }
 
 // Edge-safe analytics helper

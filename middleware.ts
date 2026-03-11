@@ -33,6 +33,7 @@ interface PrivyUserResponse {
 async function verifyPrivyJWT(token: string) {
   const { payload } = await jwtVerify(token, PRIVY_JWKS, {
     issuer: PRIVY_JWT_ISSUER,
+    audience: PRIVY_APP_ID,
     algorithms: ["ES256"],
   });
   return payload;

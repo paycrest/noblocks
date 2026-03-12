@@ -33,6 +33,7 @@ import {
 } from "../utils";
 import {
   fetchOrderDetails,
+  validateOrder,
   updateTransactionDetails,
   fetchSavedRecipients,
   saveRecipient,
@@ -51,6 +52,7 @@ import { pdf } from "@react-pdf/renderer";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { usePrivy } from "@privy-io/react-auth";
+import { PaymentConfirmationModal } from "../components/PaymentConfirmationModal";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
 import { BlockFestCashbackComponent } from "../components/blockfest";
@@ -136,6 +138,9 @@ export function TransactionStatus({
   const [hasShownConfetti, setHasShownConfetti] = useState(false);
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
+  const paymentConfirmationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const stuckInFulfillingSinceRef = useRef<number | null>(null);
   const [hasReindexed, setHasReindexed] = useState(false);
   const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
@@ -472,6 +477,130 @@ export function TransactionStatus({
     },
     [transactionStatus, hasReindexed, orderDetails, createdAt],
   );
+
+  useEffect(
+    function showPaymentConfirmationAfterDelay() {
+      const STUCK_STORAGE_KEY_PREFIX = "stuck_fulfilling_since_";
+      const getStuckStorageKey = () =>
+        orderId ? `${STUCK_STORAGE_KEY_PREFIX}${orderId}` : null;
+
+      const isStuckState = ["fulfilling", "fulfilled"].includes(transactionStatus);
+
+      if (!isStuckState) {
+        setShowPaymentConfirmation(false);
+        stuckInFulfillingSinceRef.current = null;
+        const key = getStuckStorageKey();
+        if (key && typeof window !== "undefined") {
+          try {
+            localStorage.removeItem(key);
+          } catch {
+            // ignore
+          }
+        }
+        if (paymentConfirmationTimerRef.current) {
+          clearTimeout(paymentConfirmationTimerRef.current);
+          paymentConfirmationTimerRef.current = null;
+        }
+        return;
+      }
+
+      const now = Date.now();
+      if (stuckInFulfillingSinceRef.current === null) {
+        const key = getStuckStorageKey();
+        if (key && typeof window !== "undefined") {
+          try {
+            const stored = localStorage.getItem(key);
+            const parsed = stored ? parseInt(stored, 10) : NaN;
+            if (Number.isFinite(parsed) && parsed <= now) {
+              stuckInFulfillingSinceRef.current = parsed;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (stuckInFulfillingSinceRef.current === null) {
+          stuckInFulfillingSinceRef.current = now;
+          const keyToWrite = getStuckStorageKey();
+          if (keyToWrite && typeof window !== "undefined") {
+            try {
+              localStorage.setItem(keyToWrite, String(now));
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+      const stuckSince = stuckInFulfillingSinceRef.current;
+      const elapsed = now - stuckSince;
+      const delayMs = 120_000;
+
+      if (elapsed >= delayMs) {
+        setShowPaymentConfirmation(true);
+      } else {
+        paymentConfirmationTimerRef.current = setTimeout(() => {
+          setShowPaymentConfirmation(true);
+        }, delayMs - elapsed);
+      }
+
+      return () => {
+        if (paymentConfirmationTimerRef.current) {
+          clearTimeout(paymentConfirmationTimerRef.current);
+          paymentConfirmationTimerRef.current = null;
+        }
+      };
+    },
+    [transactionStatus, orderId],
+  );
+
+  const handlePaymentConfirmed = async () => {
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken || !orderId) return;
+
+      const walletAddress = embeddedWallet?.address || "";
+      if (!walletAddress) return;
+
+      // Validate order on aggregator first (sender API)
+      const validateResult = await validateOrder({
+        orderId,
+        accessToken,
+        walletAddress,
+      });
+
+      if (!validateResult.success) {
+        toast.error(
+          validateResult.error ||
+          "Could not validate order. Please try again or contact support.",
+        );
+        return;
+      }
+
+      const transactionId = localStorage.getItem("currentTransactionId");
+      if (!transactionId) return;
+
+      await updateTransactionDetails({
+        transactionId,
+        status: "settled",
+        txHash: createdHash || orderDetails?.txHash,
+        timeSpent: calculateDuration(createdAt, new Date().toISOString()),
+        accessToken,
+        walletAddress,
+      });
+
+      setTransactionStatus("settled");
+      setShowPaymentConfirmation(false);
+      if (orderId && typeof window !== "undefined") {
+        try {
+          localStorage.removeItem(`stuck_fulfilling_since_${orderId}`);
+        } catch {
+          // ignore
+        }
+      }
+    } catch (error) {
+      console.error("Error confirming payment:", error);
+      toast.error("Failed to confirm payment. Please try again.");
+    }
+  };
 
   /**
    * Renders the appropriate status indicator based on transaction status
@@ -842,6 +971,21 @@ export function TransactionStatus({
                   fails."
           showAfterMs={60000}
           className="w-full space-y-4"
+        />
+
+        {/* Payment confirmation modal for long-running transactions (120s) */}
+        <PaymentConfirmationModal
+          isOpen={showPaymentConfirmation}
+          onClose={() => setShowPaymentConfirmation(false)}
+          onConfirm={handlePaymentConfirmed}
+          tokenAmount={String(amount)}
+          token={String(token)}
+          txHash={createdHash || orderDetails?.txHash}
+          explorerLink={
+            createdHash && orderDetails?.network
+              ? getExplorerLink(orderDetails.network, createdHash)
+              : undefined
+          }
         />
 
         <AnimatePresence>

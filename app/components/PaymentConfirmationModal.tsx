@@ -12,7 +12,6 @@ import { classNames } from "../utils";
 interface PaymentConfirmationModalProps {
     isOpen: boolean;
     onClose: () => void;
-    /** Caller should throw on failure so the modal can reset the slide and allow retry. */
     onConfirm: () => void | Promise<void>;
     tokenAmount: string | number;
     token: string;

@@ -554,10 +554,16 @@ export function TransactionStatus({
 
   const handlePaymentConfirmed = async () => {
     const accessToken = await getAccessToken();
-    if (!accessToken || !orderId) return;
+    if (!accessToken || !orderId) {
+      toast.error("Unable to confirm payment. Please try again.");
+      throw new Error("Missing access token or order ID");
+    }
 
     const walletAddress = embeddedWallet?.address || "";
-    if (!walletAddress) return;
+    if (!walletAddress) {
+      toast.error("Wallet not connected. Please reconnect and try again.");
+      throw new Error("Missing wallet address");
+    }
 
     try {
       // Validate order on aggregator first (sender API)

@@ -12,7 +12,8 @@ import { classNames } from "../utils";
 interface PaymentConfirmationModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: () => void;
+    /** Caller should throw on failure so the modal can reset the slide and allow retry. */
+    onConfirm: () => void | Promise<void>;
     tokenAmount: string | number;
     token: string;
     txHash?: string;
@@ -43,15 +44,30 @@ export const PaymentConfirmationModal = ({
     const currentX = useRef(0);
 
     const [confirmed, setConfirmed] = useState(false);
+    const [confirming, setConfirming] = useState(false);
     const [thumbOffset, setThumbOffset] = useState(0);
     const [dragging, setDragging] = useState(false);
 
     useEffect(() => {
         if (!isOpen) {
             setConfirmed(false);
+            setConfirming(false);
             setThumbOffset(0);
         }
     }, [isOpen]);
+
+    const runConfirm = useCallback(async () => {
+        if (confirming || confirmed) return;
+        setConfirming(true);
+        try {
+            await Promise.resolve(onConfirm());
+            setConfirmed(true);
+        } catch {
+            setThumbOffset(0);
+        } finally {
+            setConfirming(false);
+        }
+    }, [confirming, confirmed, onConfirm]);
 
     const getMaxDrag = useCallback(() => {
         if (!trackRef.current) return 0;
@@ -83,24 +99,23 @@ export const PaymentConfirmationModal = ({
     );
 
     const handlePointerUp = useCallback(() => {
-        if (!isDragging.current || confirmed) return;
+        if (!isDragging.current || confirmed || confirming) return;
         isDragging.current = false;
         setDragging(false);
 
         const maxDrag = getMaxDrag();
         if (maxDrag > 0 && currentX.current / maxDrag >= SLIDE_THRESHOLD) {
             setThumbOffset(maxDrag);
-            setConfirmed(true);
-            onConfirm();
+            runConfirm();
         } else {
             setThumbOffset(0);
         }
-    }, [confirmed, getMaxDrag, onConfirm]);
+    }, [confirmed, confirming, getMaxDrag, runConfirm]);
 
     return (
         <AnimatePresence>
             {isOpen && (
-                <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+                <Dialog open={isOpen} onClose={() => {}} className="relative z-50">
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -134,9 +149,10 @@ export const PaymentConfirmationModal = ({
                                         <button
                                             type="button"
                                             onClick={onClose}
-                                            className="rounded-full p-1 text-text-secondary transition-colors hover:bg-gray-100 hover:text-text-body dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white"
+                                            className="rounded-full px-2 py-1 text-sm text-text-secondary transition-colors hover:bg-gray-100 hover:text-text-body dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white"
+                                            aria-label="I'll check again"
                                         >
-                                            <Cancel01Icon className="size-5" />
+                                            I&apos;ll check again
                                         </button>
                                     </div>
 
@@ -207,20 +223,19 @@ export const PaymentConfirmationModal = ({
                                     <div
                                         ref={trackRef}
                                         role="button"
-                                        tabIndex={confirmed ? -1 : 0}
+                                        tabIndex={confirmed || confirming ? -1 : 0}
                                         aria-label="Slide to confirm payment received, or press Enter to confirm"
                                         className={classNames(
                                             "relative h-16 w-full select-none overflow-hidden rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                                            confirmed
+                                            confirmed || confirming
                                                 ? "bg-green-500 dark:bg-green-600"
                                                 : "bg-gray-200/60 dark:bg-white/10",
                                         )}
                                         onKeyDown={(e) => {
-                                            if (confirmed) return;
+                                            if (confirmed || confirming) return;
                                             if (e.key === "Enter" || e.key === " ") {
                                                 e.preventDefault();
-                                                setConfirmed(true);
-                                                onConfirm();
+                                                runConfirm();
                                             }
                                         }}
                                     >
@@ -232,6 +247,35 @@ export const PaymentConfirmationModal = ({
                                             >
                                                 <CheckmarkCircle02Icon className="size-5" />
                                                 Confirmed
+                                            </motion.div>
+                                        ) : confirming ? (
+                                            <motion.div
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                className="flex h-full items-center justify-center gap-2 text-sm font-medium text-white"
+                                            >
+                                                <svg
+                                                    className="size-5 animate-spin"
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    aria-hidden="true"
+                                                >
+                                                    <circle
+                                                        className="opacity-25"
+                                                        cx="12"
+                                                        cy="12"
+                                                        r="10"
+                                                        stroke="currentColor"
+                                                        strokeWidth="4"
+                                                    />
+                                                    <path
+                                                        className="opacity-75"
+                                                        fill="currentColor"
+                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                                    />
+                                                </svg>
+                                                Confirming…
                                             </motion.div>
                                         ) : (
                                             <>

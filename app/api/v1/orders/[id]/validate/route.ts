@@ -5,7 +5,8 @@ import {
   trackApiResponse,
   trackApiError,
 } from "@/app/lib/server-analytics";
-import config from "@/app/lib/config";
+import config, { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
+import { verifyJWT } from "@/app/lib/jwt";
 
 // Route handler for POST - validate order (user confirmed payment received)
 export const POST = withRateLimit(
@@ -17,6 +18,55 @@ export const POST = withRateLimit(
     let orderId: string | null = null;
 
     try {
+      const authHeader = request.headers.get("Authorization");
+      const token = authHeader?.replace(/^Bearer\s+/i, "");
+
+      if (!token) {
+        trackApiError(
+          request,
+          "/api/v1/orders/validate",
+          "POST",
+          new Error("Missing auth token"),
+          401,
+        );
+        return NextResponse.json(
+          { success: false, error: "Unauthorized" },
+          { status: 401 },
+        );
+      }
+
+      let authenticatedUserId: string;
+      try {
+        const jwtResult = await verifyJWT(token, DEFAULT_PRIVY_CONFIG);
+        authenticatedUserId = jwtResult.payload.sub ?? "";
+
+        if (!authenticatedUserId) {
+          trackApiError(
+            request,
+            "/api/v1/orders/validate",
+            "POST",
+            new Error("Invalid token"),
+            401,
+          );
+          return NextResponse.json(
+            { success: false, error: "Unauthorized" },
+            { status: 401 },
+          );
+        }
+      } catch (jwtError) {
+        trackApiError(
+          request,
+          "/api/v1/orders/validate",
+          "POST",
+          jwtError as Error,
+          401,
+        );
+        return NextResponse.json(
+          { success: false, error: "Invalid or expired token" },
+          { status: 401 },
+        );
+      }
+
       const walletAddress = request.headers
         .get("x-wallet-address")
         ?.toLowerCase();
@@ -26,7 +76,7 @@ export const POST = withRateLimit(
           request,
           "/api/v1/orders/validate",
           "POST",
-          new Error("Unauthorized"),
+          new Error("Missing wallet address"),
           401,
         );
         return NextResponse.json(
@@ -97,27 +147,26 @@ export const POST = withRateLimit(
       }
 
       const data = await res.json().catch(() => ({}));
-      const message =
+      const rawMessage =
         typeof data?.message === "string"
           ? data.message
-          : (data?.Message as string) ?? "Unknown error";
+          : (data?.Message as string) ?? "";
 
       if (!res.ok) {
         const status =
           res.status >= 400 && res.status < 600 ? res.status : 502;
+        const errorMessage =
+          rawMessage.trim() || "Failed to validate order";
         trackApiError(
           request,
           fullPath,
           "POST",
-          new Error(message || "Failed to validate order"),
+          new Error(errorMessage),
           status,
           { response_time_ms: Date.now() - startTime },
         );
         return NextResponse.json(
-          {
-            success: false,
-            error: message || "Failed to validate order",
-          },
+          { success: false, error: errorMessage },
           { status },
         );
       }
@@ -128,10 +177,13 @@ export const POST = withRateLimit(
         order_id: orderId,
       });
 
+      const successMessage =
+        rawMessage.trim() || "Order validated successfully";
+
       return NextResponse.json({
         success: true,
         data: {
-          message: message || "Order validated successfully",
+          message: successMessage,
           validatedAt: new Date().toISOString(),
         },
       });

@@ -553,13 +553,13 @@ export function TransactionStatus({
   );
 
   const handlePaymentConfirmed = async () => {
+    const accessToken = await getAccessToken();
+    if (!accessToken || !orderId) return;
+
+    const walletAddress = embeddedWallet?.address || "";
+    if (!walletAddress) return;
+
     try {
-      const accessToken = await getAccessToken();
-      if (!accessToken || !orderId) return;
-
-      const walletAddress = embeddedWallet?.address || "";
-      if (!walletAddress) return;
-
       // Validate order on aggregator first (sender API)
       const validateResult = await validateOrder({
         orderId,
@@ -572,11 +572,11 @@ export function TransactionStatus({
           validateResult.error ||
           "Could not validate order. Please try again or contact support.",
         );
-        return;
+        throw new Error(validateResult.error || "Validation failed");
       }
 
       const transactionId = localStorage.getItem("currentTransactionId");
-      if (!transactionId) return;
+      if (!transactionId) throw new Error("Transaction not found");
 
       await updateTransactionDetails({
         transactionId,
@@ -599,6 +599,7 @@ export function TransactionStatus({
     } catch (error) {
       console.error("Error confirming payment:", error);
       toast.error("Failed to confirm payment. Please try again.");
+      throw error;
     }
   };
 

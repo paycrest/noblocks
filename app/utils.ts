@@ -161,21 +161,22 @@ export const getExplorerLink = (network: string, txHash: string) => {
 
 // write function to get rpc url for a given network
 export function getRpcUrl(network: string) {
+  const rpcUrlKey = process.env.NEXT_PUBLIC_RPC_URL_KEY;
   switch (network) {
     case "Polygon":
-      return `https://137.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-polygon-mainnet-full.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "BNB Smart Chain":
-      return `https://56.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-bsc-mainnet-full.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Base":
-      return `https://8453.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-base-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Arbitrum One":
-      return `https://42161.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-arbitrum-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Celo":
-      return `https://42220.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-celo-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Lisk":
-      return `https://1135.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-lisk-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Ethereum":
-      return `https://1.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-ethereum-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     default:
       return undefined;
   }

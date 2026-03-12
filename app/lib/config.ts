@@ -2,6 +2,7 @@ import { Config, JWTProviderConfig } from "@/app/types";
 
 const config: Config = {
   aggregatorUrl: process.env.NEXT_PUBLIC_AGGREGATOR_URL || "",
+  aggregatorSenderApiKeyId: process.env.AGGREGATOR_SENDER_API_KEY_ID || "",
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || "",
   thirdwebClientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || "",
   mixpanelToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || "",

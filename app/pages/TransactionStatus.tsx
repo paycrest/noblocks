@@ -33,6 +33,7 @@ import {
 } from "../utils";
 import {
   fetchOrderDetails,
+  validateOrder,
   updateTransactionDetails,
   fetchSavedRecipients,
   saveRecipient,
@@ -140,6 +141,7 @@ export function TransactionStatus({
   const [hasReindexed, setHasReindexed] = useState(false);
   const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
   const paymentConfirmationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const stuckInFulfillingSinceRef = useRef<number | null>(null);
   const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
 
@@ -271,12 +273,12 @@ export function TransactionStatus({
             if (transactionStatus !== status) {
               setTransactionStatus(
                 status as
-                  | "fulfilling"
-                  | "validated"
-                  | "settling"
-                  | "settled"
-                  | "refunding"
-                  | "refunded",
+                | "fulfilling"
+                | "validated"
+                | "settling"
+                | "settled"
+                | "refunding"
+                | "refunded",
               );
             }
 
@@ -478,10 +480,23 @@ export function TransactionStatus({
 
   useEffect(
     function showPaymentConfirmationAfterDelay() {
-      if (
-        !["fulfilling", "fulfilled", "refunding"].includes(transactionStatus)
-      ) {
+      const STUCK_STORAGE_KEY_PREFIX = "stuck_fulfilling_since_";
+      const getStuckStorageKey = () =>
+        orderId ? `${STUCK_STORAGE_KEY_PREFIX}${orderId}` : null;
+
+      const isStuckState = ["fulfilling", "fulfilled"].includes(transactionStatus);
+
+      if (!isStuckState) {
         setShowPaymentConfirmation(false);
+        stuckInFulfillingSinceRef.current = null;
+        const key = getStuckStorageKey();
+        if (key && typeof window !== "undefined") {
+          try {
+            localStorage.removeItem(key);
+          } catch {
+            // ignore
+          }
+        }
         if (paymentConfirmationTimerRef.current) {
           clearTimeout(paymentConfirmationTimerRef.current);
           paymentConfirmationTimerRef.current = null;
@@ -489,8 +504,34 @@ export function TransactionStatus({
         return;
       }
 
-      const createdAtTime = new Date(createdAt).getTime();
-      const elapsed = Date.now() - createdAtTime;
+      const now = Date.now();
+      if (stuckInFulfillingSinceRef.current === null) {
+        const key = getStuckStorageKey();
+        if (key && typeof window !== "undefined") {
+          try {
+            const stored = localStorage.getItem(key);
+            const parsed = stored ? parseInt(stored, 10) : NaN;
+            if (Number.isFinite(parsed) && parsed <= now) {
+              stuckInFulfillingSinceRef.current = parsed;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (stuckInFulfillingSinceRef.current === null) {
+          stuckInFulfillingSinceRef.current = now;
+          const keyToWrite = getStuckStorageKey();
+          if (keyToWrite && typeof window !== "undefined") {
+            try {
+              localStorage.setItem(keyToWrite, String(now));
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+      const stuckSince = stuckInFulfillingSinceRef.current;
+      const elapsed = now - stuckSince;
       const delayMs = 120_000;
 
       if (elapsed >= delayMs) {
@@ -508,13 +549,31 @@ export function TransactionStatus({
         }
       };
     },
-    [transactionStatus, createdAt],
+    [transactionStatus, orderId],
   );
 
   const handlePaymentConfirmed = async () => {
     try {
       const accessToken = await getAccessToken();
       if (!accessToken || !orderId) return;
+
+      const walletAddress = embeddedWallet?.address || "";
+      if (!walletAddress) return;
+
+      // Validate order on aggregator first (sender API)
+      const validateResult = await validateOrder({
+        orderId,
+        accessToken,
+        walletAddress,
+      });
+
+      if (!validateResult.success) {
+        toast.error(
+          validateResult.error ||
+          "Could not validate order. Please try again or contact support.",
+        );
+        return;
+      }
 
       const transactionId = localStorage.getItem("currentTransactionId");
       if (!transactionId) return;
@@ -525,11 +584,18 @@ export function TransactionStatus({
         txHash: createdHash || orderDetails?.txHash,
         timeSpent: calculateDuration(createdAt, new Date().toISOString()),
         accessToken,
-        walletAddress: embeddedWallet?.address || "",
+        walletAddress,
       });
 
       setTransactionStatus("settled");
       setShowPaymentConfirmation(false);
+      if (orderId && typeof window !== "undefined") {
+        try {
+          localStorage.removeItem(`stuck_fulfilling_since_${orderId}`);
+        } catch {
+          // ignore
+        }
+      }
     } catch (error) {
       console.error("Error confirming payment:", error);
       toast.error("Failed to confirm payment. Please try again.");
@@ -554,8 +620,7 @@ export function TransactionStatus({
         <AnimatedComponent
           variant={fadeInOut}
           key="pending"
-          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${
-            transactionStatus === "pending"
+          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${transactionStatus === "pending"
               ? "bg-orange-50 text-orange-400"
               : transactionStatus === "fulfilling"
                 ? "bg-yellow-50 text-yellow-400"
@@ -564,7 +629,7 @@ export function TransactionStatus({
                   : transactionStatus === "refunding"
                     ? "bg-purple-50 text-purple-400"
                     : "bg-gray-50"
-          }`}
+            }`}
         >
           <ImSpinner className="animate-spin" />
           <p>
@@ -706,10 +771,10 @@ export function TransactionStatus({
   const getPaymentMessage = () => {
     const formattedRecipientName = recipientName
       ? recipientName
-          .toLowerCase()
-          .split(" ")
-          .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
-          .join(" ")
+        .toLowerCase()
+        .split(" ")
+        .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+        .join(" ")
       : "";
 
     if (transactionStatus === "refunded") {
@@ -931,17 +996,17 @@ export function TransactionStatus({
                 orderDetails,
                 orderId,
               ) && (
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.45}
-                  className="flex justify-center"
-                >
-                  <BlockFestCashbackComponent
-                    transactionId={orderId}
-                    cashbackPercentage="1%"
-                  />
-                </AnimatedComponent>
-              )}
+                  <AnimatedComponent
+                    variant={slideInOut}
+                    delay={0.45}
+                    className="flex justify-center"
+                  >
+                    <BlockFestCashbackComponent
+                      transactionId={orderId}
+                      cashbackPercentage="1%"
+                    />
+                  </AnimatedComponent>
+                )}
 
               <AnimatedComponent
                 variant={slideInOut}
@@ -1056,54 +1121,54 @@ export function TransactionStatus({
           {["validated", "settling", "settled", "refunded"].includes(
             transactionStatus,
           ) && (
-            <AnimatedComponent
-              variant={{
-                ...fadeInOut,
-                animate: { opacity: 1, height: "auto" },
-                initial: { opacity: 0, height: 0 },
-                exit: { opacity: 0, height: 0 },
-              }}
-              delay={0.7}
-              className="flex w-full flex-col gap-4 text-gray-500 dark:text-white/50"
-            >
-              <div className="flex items-center justify-between gap-1">
-                <p className="flex-1">Transaction status</p>
-                <div className="flex flex-1 items-center gap-1">
-                  <p
-                    className={classNames(
-                      transactionStatus === "refunded"
-                        ? "text-red-600"
-                        : "text-green-600",
-                    )}
-                  >
-                    {transactionStatus === "refunded" ? "Failed" : "Completed"}
+              <AnimatedComponent
+                variant={{
+                  ...fadeInOut,
+                  animate: { opacity: 1, height: "auto" },
+                  initial: { opacity: 0, height: 0 },
+                  exit: { opacity: 0, height: 0 },
+                }}
+                delay={0.7}
+                className="flex w-full flex-col gap-4 text-gray-500 dark:text-white/50"
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <p className="flex-1">Transaction status</p>
+                  <div className="flex flex-1 items-center gap-1">
+                    <p
+                      className={classNames(
+                        transactionStatus === "refunded"
+                          ? "text-red-600"
+                          : "text-green-600",
+                      )}
+                    >
+                      {transactionStatus === "refunded" ? "Failed" : "Completed"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-1">
+                  <p className="flex-1">Time spent</p>
+                  <p className="flex-1">
+                    {calculateDuration(createdAt, completedAt)}
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center justify-between gap-1">
-                <p className="flex-1">Time spent</p>
-                <p className="flex-1">
-                  {calculateDuration(createdAt, completedAt)}
-                </p>
-              </div>
-              <div className="flex items-center justify-between gap-1">
-                <p className="flex-1">Onchain receipt</p>
-                <p className="flex-1">
-                  <a
-                    href={getExplorerLink(
-                      selectedNetwork.chain.name,
-                      `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
-                    )}
-                    className="text-lavender-500 hover:underline dark:text-lavender-500"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View in explorer
-                  </a>
-                </p>
-              </div>
-            </AnimatedComponent>
-          )}
+                <div className="flex items-center justify-between gap-1">
+                  <p className="flex-1">Onchain receipt</p>
+                  <p className="flex-1">
+                    <a
+                      href={getExplorerLink(
+                        selectedNetwork.chain.name,
+                        `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
+                      )}
+                      className="text-lavender-500 hover:underline dark:text-lavender-500"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View in explorer
+                    </a>
+                  </p>
+                </div>
+              </AnimatedComponent>
+            )}
         </AnimatePresence>
 
         <AnimatePresence>

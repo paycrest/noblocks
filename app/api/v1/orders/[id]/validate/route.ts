@@ -14,6 +14,7 @@ export const POST = withRateLimit(
     context: { params: Promise<{ id: string }> },
   ) => {
     const startTime = Date.now();
+    let orderId: string | null = null;
 
     try {
       const walletAddress = request.headers
@@ -34,7 +35,8 @@ export const POST = withRateLimit(
         );
       }
 
-      const { id: orderId } = await context.params;
+      const params = await context.params;
+      orderId = params.id;
       if (!orderId) {
         trackApiError(
           request,
@@ -76,14 +78,23 @@ export const POST = withRateLimit(
       }
 
       const url = `${aggregatorUrl}/sender/orders/${orderId}/validate`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "API-Key": apiKeyId,
-        },
-        body: JSON.stringify({}),
-      });
+      const FETCH_TIMEOUT_MS = 30_000;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "API-Key": apiKeyId,
+          },
+          body: JSON.stringify({}),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       const data = await res.json().catch(() => ({}));
       const message =
@@ -127,17 +138,23 @@ export const POST = withRateLimit(
     } catch (error) {
       console.error("Validate order error:", error);
       const responseTime = Date.now() - startTime;
-      const orderId = (await context.params).id;
-      const fullPath = `/api/v1/orders/${orderId}/validate`;
-      trackApiError(request, fullPath, "POST", error as Error, 500, {
+      const fullPath = orderId
+        ? `/api/v1/orders/${orderId}/validate`
+        : "/api/v1/orders/validate";
+      const isTimeout =
+        error instanceof Error && error.name === "AbortError";
+      const status = isTimeout ? 504 : 500;
+      trackApiError(request, fullPath, "POST", error as Error, status, {
         response_time_ms: responseTime,
       });
       return NextResponse.json(
         {
           success: false,
-          error: "Failed to validate order. Please try again.",
+          error: isTimeout
+            ? "Validation request timed out. Please try again."
+            : "Failed to validate order. Please try again.",
         },
-        { status: 500 },
+        { status },
       );
     }
   },

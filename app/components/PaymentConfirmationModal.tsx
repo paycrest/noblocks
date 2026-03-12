@@ -122,13 +122,7 @@ export const PaymentConfirmationModal = ({
                             className="w-full"
                         >
                             <DialogPanel
-                                className="relative mx-auto w-full"
-                                style={{
-                                    maxWidth:
-                                        typeof window !== "undefined" && window.innerWidth > 640
-                                            ? "27.3125rem"
-                                            : "none",
-                                }}
+                                className="relative mx-auto w-full sm:max-w-[27.3125rem]"
                             >
                                 <div className="w-full space-y-5 rounded-t-[30px] border border-border-light bg-white p-6 dark:border-white/10 dark:bg-surface-overlay sm:rounded-3xl">
                                     {/* Header: Pending badge + Close button */}
@@ -209,15 +203,26 @@ export const PaymentConfirmationModal = ({
                                         we can finalize your status.
                                     </p>
 
-                                    {/* Slide to confirm */}
+                                    {/* Slide to confirm — keyboard: Enter/Space to confirm */}
                                     <div
                                         ref={trackRef}
+                                        role="button"
+                                        tabIndex={confirmed ? -1 : 0}
+                                        aria-label="Slide to confirm payment received, or press Enter to confirm"
                                         className={classNames(
-                                            "relative h-16 w-full select-none overflow-hidden rounded-2xl",
+                                            "relative h-16 w-full select-none overflow-hidden rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                                             confirmed
                                                 ? "bg-green-500 dark:bg-green-600"
                                                 : "bg-gray-200/60 dark:bg-white/10",
                                         )}
+                                        onKeyDown={(e) => {
+                                            if (confirmed) return;
+                                            if (e.key === "Enter" || e.key === " ") {
+                                                e.preventDefault();
+                                                setConfirmed(true);
+                                                onConfirm();
+                                            }
+                                        }}
                                     >
                                         {confirmed ? (
                                             <motion.div

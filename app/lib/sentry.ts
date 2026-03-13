@@ -51,9 +51,13 @@ function createEvent(
         tags?: Record<string, string>;
         extra?: Record<string, any>;
         user?: {
-            id?: string;
-            email?: string;
-            username?: string;
+function createEvent(
+    error: Error | string,
+    context: {
+        level?: "fatal" | "error" | "warning" | "info" | "debug";
+        tags?: Record<string, string>;
+        extra?: Record<string, any>;
+        user?: {
             ip_address?: string;
         };
         request?: {

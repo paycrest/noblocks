@@ -124,7 +124,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     });
 
     const body = await request.json();
-    const { name, institution, institutionCode, accountIdentifier, type } =
+    const { name, institution, institutionCode, accountIdentifier, type, currency } =
       body;
 
     // Validate request body
@@ -150,6 +150,34 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         },
         { status: 400 },
       );
+    }
+
+    const trimmedInstitutionCode = String(institutionCode).trim();
+    const sanitizedIdentifier = String(accountIdentifier).trim();
+
+    // Only enforce NUBAN digit-length validation for NGN recipients
+    if (currency === "NGN") {
+      const digits = sanitizedIdentifier.replace(/\D/g, "");
+      const requiredLen = trimmedInstitutionCode === "SAFAKEPC" ? 6 : 10;
+      if (digits.length !== requiredLen) {
+        trackApiError(
+          request,
+          "/api/v1/recipients",
+          "POST",
+          new Error("Invalid account identifier length"),
+          400,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              requiredLen === 10
+                ? "Please enter a valid 10-digit account number."
+                : "Please enter a valid 6-digit account number.",
+          },
+          { status: 400 },
+        );
+      }
     }
 
     // Validate type
@@ -199,7 +227,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       }
     }
 
-    // Insert recipient (upsert on unique constraint)
+    // Insert recipient (upsert on unique constraint) - store sanitized digits so DB has consistent format
     const { data, error } = await supabaseAdmin
       .from("saved_recipients")
       .upsert(
@@ -208,8 +236,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           normalized_wallet_address: walletAddress,
           name: name.trim(),
           institution: institution.trim(),
-          institution_code: institutionCode.trim(),
-          account_identifier: accountIdentifier.trim(),
+          institution_code: trimmedInstitutionCode,
+          account_identifier: currency === "NGN" ? sanitizedIdentifier.replace(/\D/g, "") : sanitizedIdentifier,
           type,
         },
         {
@@ -244,14 +272,14 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const responseTime = Date.now() - startTime;
     trackApiResponse("/api/v1/recipients", "POST", 200, responseTime, {
       wallet_address: walletAddress,
-      institution_code: institutionCode,
+      institution_code: trimmedInstitutionCode,
       type,
     });
 
     // Track business event
     trackBusinessEvent("Recipient Saved", {
       wallet_address: walletAddress,
-      institution_code: institutionCode,
+      institution_code: trimmedInstitutionCode,
       type,
     });
 

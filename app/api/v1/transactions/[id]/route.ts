@@ -7,6 +7,7 @@ import {
   trackApiResponse,
   trackApiError,
 } from "@/app/lib/server-analytics";
+import { getExplorerLink } from "@/app/utils";
 
 // Route handler for PUT requests
 export const PUT = withRateLimit(
@@ -64,6 +65,11 @@ export const PUT = withRateLimit(
         );
       }
 
+      const explorerLink =
+        txHash && existingTransaction.network
+          ? getExplorerLink(existingTransaction.network, txHash)
+          : undefined;
+
       // Update transaction
       const { data, error } = await supabaseAdmin
         .from("transactions")
@@ -71,6 +77,7 @@ export const PUT = withRateLimit(
           tx_hash: txHash,
           time_spent: timeSpent,
           status: status,
+          ...(explorerLink && { explorer_link: explorerLink }),
           updated_at: new Date().toISOString(),
         })
         .eq("id", id)

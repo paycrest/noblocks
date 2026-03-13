@@ -57,6 +57,7 @@ export type RecipientDetails = {
   institutionCode: string;
   accountIdentifier: string;
   type: "bank" | "mobile_money";
+  currency?: string;
 };
 
 export type FormMethods = {
@@ -74,10 +75,12 @@ export type FormMethods = {
 export type TransactionStatusType =
   | "idle"
   | "pending"
-  | "processing"
+  | "fulfilling"
   | "fulfilled"
   | "validated"
+  | "settling"
   | "settled"
+  | "refunding"
   | "refunded";
 
 export type TransactionStatusProps = {
@@ -91,6 +94,7 @@ export type TransactionStatusProps = {
   formMethods: FormMethods;
   supportedInstitutions: InstitutionProps[];
   setOrderId: (orderId: string) => void;
+  refetchRate?: () => void;
 };
 
 export type SelectFieldProps = {
@@ -117,6 +121,7 @@ export type RatePayload = {
   currency: string;
   providerId?: string;
   network?: string;
+  signal?: AbortSignal;
 };
 
 export type RateResponse = {
@@ -212,6 +217,7 @@ export type Token = {
   decimals: number;
   address: string;
   imageUrl?: string;
+  isNative?: boolean;
 };
 
 export type APIToken = {
@@ -257,6 +263,14 @@ export type Config = {
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
+  /** EIP-7702 delegation contract (ProviderBatchCallAndSponsor). */
+  delegationContractAddress: string;
+  // biconomyNexusV120: string;
+  /** Base URL of the v2→Nexus upgrade server (e.g. http://localhost:3000). */
+  bundlerServerUrl: string;
+  biconomyMeeApiKey: string;
+  maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
+  maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
 };
 
 export type SentryConfig = {
@@ -314,11 +328,11 @@ export interface SentryEvent {
 export type Network = {
   chain: any;
   imageUrl:
-  | string
-  | {
-    light: string;
-    dark: string;
-  };
+    | string
+    | {
+        light: string;
+        dark: string;
+      };
 };
 
 export interface TransactionResponse {
@@ -342,6 +356,7 @@ export type TransactionStatus =
   | "pending"
   | "processing"
   | "fulfilled"
+  | "refunding"
   | "refunded";
 export type TransactionHistoryType = "swap" | "transfer";
 
@@ -365,6 +380,7 @@ export interface TransactionHistory {
   status: TransactionStatus;
   network: string;
   tx_hash?: string;
+  explorer_link?: string;
   time_spent?: string;
   created_at: string;
   updated_at: string;
@@ -385,6 +401,7 @@ export interface TransactionCreateInput {
   txHash?: string;
   timeSpent?: string;
   orderId?: string;
+  email?: string;
 }
 
 export interface TransactionUpdateInput {

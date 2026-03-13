@@ -272,20 +272,19 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             // ✅ If tokens exist: (1) upgrade SCW to Nexus via upgrade-server, then (2) use MEE to transfer.
             if (hasTokens) {
                 const meeApiKey = config.biconomyMeeApiKey;
-                const bundlerServerUrl = config.bundlerServerUrl.trim().replace(/\/+$/, "");
+                const bundlerServerUrl = "/api/bundler";
                 if (!meeApiKey) {
                     throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
                 }
-                if (!bundlerServerUrl) {
-                    throw new Error("Upgrade server URL not configured. Set NEXT_PUBLIC_BUNDLER_SERVER_URL.");
-                }
-                try {
-                    const parsed = new URL(bundlerServerUrl);
-                    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-                        throw new Error("invalid protocol");
+                if (bundlerServerUrl) {
+                    try {
+                        const parsed = new URL(bundlerServerUrl);
+                        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+                            throw new Error("invalid protocol");
+                        }
+                    } catch {
+                        throw new Error("Invalid NEXT_PUBLIC_BUNDLER_SERVER_URL. Use a full URL");
                     }
-                } catch {
-                    throw new Error("Invalid NEXT_PUBLIC_BUNDLER_SERVER_URL. Use a full URL");
                 }
                 if (!embeddedWallet || !oldAddress) {
                     throw new Error("Wallet not available. Please ensure you are logged in.");

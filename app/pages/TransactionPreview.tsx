@@ -17,7 +17,7 @@ import {
   publicKeyEncrypt,
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
-import config, { getDelegationContractAddress } from "../lib/config";
+import { getDelegationContractAddress } from "../lib/config";
 import type {
   Token,
   TransactionPreviewProps,
@@ -337,10 +337,7 @@ export const TransactionPreview = ({
           );
         }
 
-        const bundlerUrl = (config.bundlerServerUrl || "").trim().replace(/\/+$/, "");
-        if (!bundlerUrl) {
-          throw new Error("Bundler server URL not configured. Set NEXT_PUBLIC_BUNDLER_SERVER_URL.");
-        }
+        const bundlerUrl = "/api/bundler";
 
         await embeddedWallet.switchChain(chainId);
         const provider = await embeddedWallet.getEthereumProvider();
@@ -369,7 +366,6 @@ export const TransactionPreview = ({
 
         let authorization: Awaited<ReturnType<typeof signDelegationAuthorization>> | undefined;
         if (needsDelegation) {
-          toast.info("Delegating to the contract, then creating order…");
           authorization = await signDelegationAuthorization(chainId);
         }
 
@@ -431,6 +427,7 @@ export const TransactionPreview = ({
             typeof value === "bigint" ? value.toString() : value,
           ),
         });
+        console.log("res", res);
         if (!res.ok) {
           const errBody = await res.text();
           let errMsg: string;
@@ -444,6 +441,7 @@ export const TransactionPreview = ({
         }
         const data = (await res.json()) as { transactionHash?: string };
         const hash = data.transactionHash;
+        console.log("hash", hash);
         if (!hash) throw new Error("No transaction hash returned");
 
         setIsGatewayApproved(true);

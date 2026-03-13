@@ -129,10 +129,7 @@ export function useSmartWalletTransfer({
           throw new Error("Embedded wallet not ready. Please reconnect and try again.");
         }
 
-        const bundlerUrl = (config.bundlerServerUrl || "").trim().replace(/\/+$/, "");
-        if (!bundlerUrl) {
-          throw new Error("Bundler server URL not configured. Set NEXT_PUBLIC_BUNDLER_SERVER_URL.");
-        }
+        const bundlerUrl = "/api/bundler";
 
         const chain = selectedNetwork.chain;
         const chainId = chain.id;

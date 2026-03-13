@@ -263,8 +263,6 @@ export type Config = {
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
-  /** EIP-7702 delegation contract (ProviderBatchCallAndSponsor). */
-  delegationContractAddress: string;
   // biconomyNexusV120: string;
   /** Base URL of the v2→Nexus upgrade server (e.g. http://localhost:3000). */
   bundlerServerUrl: string;

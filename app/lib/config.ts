@@ -13,15 +13,13 @@ export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
 
 /** Returns the delegation contract address for the given chainId. Uses NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS if set, else DELEGATION_CONTRACT_BY_CHAIN, else "". */
 export function getDelegationContractAddress(chainId: number): string {
-  const envOverride = (process.env.NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS ?? "").trim();
-  if (envOverride) return envOverride;
   return DELEGATION_CONTRACT_BY_CHAIN[chainId] ?? "";
 }
 
 const config: Config = {
   aggregatorUrl: process.env.NEXT_PUBLIC_AGGREGATOR_URL || "",
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || "",
-  thirdwebClientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || "",
+  rpcUrlKey: process.env.NEXT_PUBLIC_RPC_URL_KEY || "",
   mixpanelToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || "",
   hotjarSiteId: Number(process.env.NEXT_PUBLIC_HOTJAR_SITE_ID || ""),
   googleVerificationCode:
@@ -31,9 +29,6 @@ const config: Config = {
   brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
   blockfestEndDate:
     process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
-  /** @deprecated Use getDelegationContractAddress(chainId) - delegation contract is per chain. */
-  delegationContractAddress:
-    process.env.NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS || "",
   /** @deprecated Use delegationContractAddress. Kept for backward compatibility. */
   // biconomyNexusV120:
   //   process.env.NEXT_PUBLIC_BICONOMY_NEXUS_V120 || "0x000000004f43c49e93c970e84001853a70923b03",

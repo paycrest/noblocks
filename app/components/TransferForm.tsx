@@ -328,14 +328,14 @@ export const TransferForm: React.FC<{
   const showNetworkWarning = recipientNetwork && !networksMatch;
 
   const onFormSubmit = (data: any) => {
-    if (needsMigration || isMigrationMandatory) {
-      if (onOpenMigration) {
-        onOpenMigration();
-      } else {
-        setIsMigrationModalOpen(true);
-      }
-      return;
-    }
+    // if (!needsMigration || !isMigrationMandatory) {
+    //   if (onOpenMigration) {
+    //     onOpenMigration();
+    //   } else {
+    //     setIsMigrationModalOpen(true);
+    //   }
+    //   return;
+    // }
     transfer({ ...data, resetForm: reset });
   };
 

@@ -1,20 +1,24 @@
 import { useState, useCallback } from "react";
-import { erc20Abi, parseUnits, http } from "viem";
+import { erc20Abi, parseUnits, http, encodeFunctionData, createPublicClient } from "viem";
 import { toast } from "sonner";
 import { getExplorerLink, getRpcUrl } from "../utils";
 import { saveTransaction } from "../api/aggregator";
 import { trackEvent } from "./analytics/useMixpanel";
 import type { Token, Network } from "../types";
 import type { User } from "@privy-io/react-auth";
-import { useShouldUseEOA, useBiconomy7702Auth } from "./useEIP7702Account";
-import { useWallets } from "@privy-io/react-auth";
 import {
-  createMeeClient,
-  toMultichainNexusAccount,
-  getMEEVersion,
-  MEEVersion,
-} from "@biconomy/abstractjs";
-import config from "../lib/config";
+  useShouldUseEOA,
+  useDelegationContractAuth,
+  get7702AuthorizedImplementationForAddress,
+} from "./useEIP7702Account";
+import { useWallets } from "@privy-io/react-auth";
+import config, { getDelegationContractAddress } from "../lib/config";
+import {
+  buildBatchDigest,
+  encodeExecuteBatch,
+  readBatchNonce,
+  type BatchCall,
+} from "../lib/providerBatch";
 
 interface UseSmartWalletTransferParams {
   selectedNetwork: { chain: Network["chain"] };
@@ -60,7 +64,7 @@ export function useSmartWalletTransfer({
 }: UseSmartWalletTransferParams): UseSmartWalletTransferReturn {
   const shouldUseEOA = useShouldUseEOA();
   const { wallets } = useWallets();
-  const { signBiconomyAuthorization } = useBiconomy7702Auth();
+  const { signDelegationAuthorization } = useDelegationContractAuth();
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
 
   const [isLoading, setIsLoading] = useState(false);
@@ -86,7 +90,7 @@ export function useSmartWalletTransfer({
 
   const transfer = useCallback(
     async ({ amount, token, recipientAddress, resetForm }: TransferArgs) => {
-      const walletType = shouldUseEOA && embeddedWallet ? "EIP-7702 (MEE)" : "Smart wallet";
+      const walletType = shouldUseEOA && embeddedWallet ? "EIP-7702 (bundler)" : "Smart wallet";
       trackEvent("Transfer started", {
         Amount: amount,
         "Send token": token,
@@ -124,91 +128,139 @@ export function useSmartWalletTransfer({
         if (!embeddedWallet) {
           throw new Error("Embedded wallet not ready. Please reconnect and try again.");
         }
-        // EIP-7702 + Biconomy MEE path (migrated EOA or 0-balance SCW)
+
+        const bundlerUrl = (config.bundlerServerUrl || "").trim().replace(/\/+$/, "");
+        if (!bundlerUrl) {
+          throw new Error("Bundler server URL not configured. Set NEXT_PUBLIC_BUNDLER_SERVER_URL.");
+        }
+
         const chain = selectedNetwork.chain;
         const chainId = chain.id;
         await embeddedWallet.switchChain(chainId);
         const provider = await embeddedWallet.getEthereumProvider();
-        const authorization = await signBiconomyAuthorization(chainId);
-        const nexusAccount = await toMultichainNexusAccount({
-          chainConfigurations: [
-            {
-              chain,
-              transport: http(getRpcUrl(selectedNetwork.chain.name)),
-              version: getMEEVersion(MEEVersion.V2_1_0),
-              accountAddress: embeddedWallet.address as `0x${string}`,
-            },
-          ],
-          signer: provider,
-        });
-        const meeApiKey = config.biconomyMeeApiKey;
-        if (!meeApiKey) {
-          throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
+        const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
+        if (!rpcUrl) {
+          throw new Error(`RPC URL not configured for ${selectedNetwork.chain.name}.`);
         }
-        const meeClient = await createMeeClient({
-          account: nexusAccount,
-          apiKey: meeApiKey,
+
+        const accountAddress = embeddedWallet.address as `0x${string}`;
+
+        const delegationContractAddress = getDelegationContractAddress(chain.id);
+        if (!delegationContractAddress || delegationContractAddress === "") {
+          throw new Error(
+            `Delegation contract not configured for ${selectedNetwork.chain.name}. Set the contract for chain ${chainId}.`
+          );
+        }
+
+        const publicClient = createPublicClient({
+          chain,
+          transport: http(rpcUrl),
         });
 
-        const transferInstruction =
+        const expectedDelegation = delegationContractAddress.toLowerCase();
+        const currentImplementation = await get7702AuthorizedImplementationForAddress(
+          chain,
+          rpcUrl,
+          accountAddress,
+        );
+        // Only send authorization when EOA is not delegated, or delegated to a different contract.
+        const needsDelegation =
+          !currentImplementation ||
+          currentImplementation.toLowerCase() !== expectedDelegation;
+
+        let authorization: Awaited<ReturnType<typeof signDelegationAuthorization>> | undefined;
+        if (needsDelegation) {
+          toast.info("Delegating to the contract, then completing the transfer…");
+          authorization = await signDelegationAuthorization(chainId);
+        }
+
+        // 2) Build single transfer call
+        const call: BatchCall =
           tokenData?.isNative && tokenData?.address === ""
-            ? await nexusAccount.buildComposable({
-                type: "nativeTokenTransfer",
-                data: {
-                  chainId,
-                  to: recipientAddress as `0x${string}`,
-                  value: parseUnits(amount.toString(), 18),
-                },
-              })
-            : await (async () => {
+            ? {
+                to: recipientAddress as `0x${string}`,
+                value: parseUnits(amount.toString(), 18),
+                data: "0x",
+              }
+            : (() => {
                 const tokenAddress = tokenData?.address as `0x${string}` | undefined;
                 const tokenDecimals = tokenData?.decimals;
                 if (!tokenAddress || tokenDecimals === undefined) {
-                  const error = `Token data not found for ${token}.`;
-                  setError(error);
-                  trackEvent("Transfer failed", {
-                    Amount: amount,
-                    "Send token": token,
-                    "Recipient address": recipientAddress,
-                    Network: selectedNetwork.chain.name,
-                    "Reason for failure": error,
-                    "Transfer date": new Date().toISOString(),
-                  });
+                  const err = `Token data not found for ${token}.`;
+                  setError(err);
                   throw new Error(
-                    `Token data not found for ${token}. Available tokens: ${availableTokens.map((t) => t.symbol).join(", ")}`,
+                    `${err} Available: ${availableTokens.map((t) => t.symbol).join(", ")}`,
                   );
                 }
-                return nexusAccount.buildComposable({
-                  type: "default",
-                  data: {
+                return {
+                  to: tokenAddress,
+                  value: BigInt(0),
+                  data: encodeFunctionData({
                     abi: erc20Abi,
-                    chainId,
-                    to: tokenAddress,
                     functionName: "transfer",
                     args: [
                       recipientAddress as `0x${string}`,
                       parseUnits(amount.toString(), tokenDecimals),
                     ],
-                  },
-                });
+                  }),
+                };
               })();
 
-        const result = await meeClient.execute({
-          authorizations: [authorization],
-          delegate: true,
-          sponsorship: true,
-          instructions: [transferInstruction],
-        });
-        const receipt = await meeClient.waitForSupertransactionReceipt({
-          hash: result.hash,
-          waitForReceipts: true,
-        });
-        const onChainTxHash =
-          (receipt.receipts?.[0] as { transactionHash?: `0x${string}` } | undefined)
-            ?.transactionHash ??
-          (receipt.userOps?.[0] as { executionData?: `0x${string}` } | undefined)
-            ?.executionData;
-        hash = (onChainTxHash ?? result.hash) as `0x${string}`;
+        // 3) Read nonce (use 0 if account not yet delegated)
+        const nonce = await readBatchNonce(publicClient, accountAddress).catch(() => BigInt(0));
+
+        // 4) Sign batch digest (userOps) before sending to bundler
+        const digest = buildBatchDigest(nonce, [call]);
+        const rawSignature = (await provider.request({
+          method: "personal_sign",
+          params: [digest, accountAddress],
+        })) as string;
+        const signature = (rawSignature.startsWith("0x") ? rawSignature : `0x${rawSignature}`) as `0x${string}`;
+
+        // 5) Encode and send to bundler for sponsorship (7702: server validates auth targets delegationContractAddress)
+        const callData = encodeExecuteBatch([call], signature);
+        const payload = {
+          chainId,
+          rpcUrl,
+          accountAddress,
+          callData,
+          delegationContractAddress,
+          ...(authorization != null && { eip7702Authorization: authorization }),
+        };
+        let res: Response;
+        try {
+          res = await fetch(`${bundlerUrl}/execute-sponsored`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload, (_key, value) =>
+              typeof value === "bigint" ? value.toString() : value,
+            ),
+          });
+        } catch (fetchErr: unknown) {
+          const isNetworkErr =
+            (typeof (fetchErr as Error)?.message === "string" &&
+              (fetchErr as Error).message.toLowerCase().includes("fetch")) ||
+            (fetchErr as Error)?.name === "TypeError";
+          const chainName = selectedNetwork.chain.name;
+          throw new Error(
+            isNetworkErr
+              ? `Cannot reach the transaction server. Check that NEXT_PUBLIC_BUNDLER_SERVER_URL is set and the server is running. For ${chainName}, ensure the server has been restarted with support for this network.`
+              : (fetchErr as Error)?.message ?? "Network request failed",
+          );
+        }
+        if (!res.ok) {
+          const errBody = await res.text();
+          let errMsg: string;
+          try {
+            const j = JSON.parse(errBody) as { error?: string };
+            errMsg = (j?.error ?? errBody) || res.statusText;
+          } catch {
+            errMsg = errBody || res.statusText;
+          }
+          throw new Error(errMsg);
+        }
+        const data = (await res.json()) as { transactionHash?: string };
+        hash = (data.transactionHash ?? "") as `0x${string}`;
 
         if (!hash) throw new Error("No transaction hash returned");
         setTxHash(hash);
@@ -274,7 +326,7 @@ export function useSmartWalletTransfer({
       refreshBalance,
       shouldUseEOA,
       embeddedWallet,
-      signBiconomyAuthorization,
+      signDelegationAuthorization,
       onRequireMigration,
     ],
   );

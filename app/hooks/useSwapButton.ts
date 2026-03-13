@@ -91,7 +91,7 @@ export function useSwapButton({
 
   const buttonText = (() => {
     if (needsMigration && authenticated && !isInjectedWallet) {
-      return "swap";
+      return "Swap";
     }
 
     if (isInjectedWallet && hasInsufficientBalance) {

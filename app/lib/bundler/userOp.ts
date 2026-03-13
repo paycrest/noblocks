@@ -281,7 +281,7 @@ function generateUpgradeCalldata(
         },
       ],
       functionName: 'executeBatch',
-      args: [[smartAccountAddress], [0n], [updateImplementationCalldata]],
+      args: [[smartAccountAddress], [BigInt(0)], [updateImplementationCalldata]],
     });
     return executeCalldata;
   }
@@ -319,7 +319,7 @@ function generateUpgradeCalldata(
     functionName: 'executeBatch',
     args: [
       [smartAccountAddress, smartAccountAddress],
-      [0n, 0n],
+      [BigInt(0), BigInt(0)],
       [updateImplementationCalldata, initializeNexusCalldata],
     ],
   });
@@ -570,7 +570,7 @@ export async function generateUserOp(
       address: ENTRY_POINT_ADDRESS,
       abi: ENTRY_POINT_ABI,
       functionName: 'getNonce',
-      args: [sender, 0n],
+      args: [sender, BigInt(0)],
     }) as bigint;
   } else {
     // Not deployed: use client-provided initCode or derive from ownerAddress (factory + deployCounterFactualAccount).
@@ -586,14 +586,14 @@ export async function generateUserOp(
       initCode = deriveInitCode(ownerAddress, 0);
     }
     callData = generateUpgradeCalldata(sender, ownerAddress, { deploymentOnly: true });
-    nonce = 0n;
+    nonce = BigInt(0);
   }
 
   const dynamicGas = await resolveDynamicGasConfig(publicClient, sender, callData);
   // When initCode is present, verification runs factory (deploy) + validation; use much higher limit to avoid AA13 initCode failed or OOG.
   const verificationGasLimit =
     initCode && initCode !== '0x' && initCode.length > 2
-      ? 1000000n
+      ? BigInt(1000000)
       : dynamicGas.verificationGasLimit;
 
   // Construct UserOperation
@@ -630,7 +630,7 @@ export async function generateUserOp(
     address: ENTRY_POINT_ADDRESS,
     abi: ENTRY_POINT_ABI,
     functionName: 'getUserOpHash',
-    args: [userOp],
+    args: [userOp as Parameters<typeof publicClient.readContract>[0]['args'] extends readonly [infer T] ? T : never],
   });
 
   // Serialize bigints to strings for JSON transport
@@ -672,7 +672,7 @@ function generateTransferCalldata(
     throw new Error('At least one call is required for transfer');
   }
   const dest = calls.map((c) => getAddress(c.to));
-  const value = calls.map((c) => (typeof c.value === 'string' ? BigInt(c.value) : (c.value ?? 0n)));
+  const value = calls.map((c) => (typeof c.value === 'string' ? BigInt(c.value) : (c.value ?? BigInt(0))));
   const func = calls.map((c) => c.data);
   return encodeFunctionData({
     abi: [
@@ -715,7 +715,7 @@ export async function generateTransferUserOp(
     address: ENTRY_POINT_ADDRESS,
     abi: ENTRY_POINT_ABI,
     functionName: 'getNonce',
-    args: [smartAccountAddress, 0n],
+    args: [smartAccountAddress, BigInt(0)],
   }) as bigint;
 
   const dynamicGas = await resolveDynamicGasConfig(
@@ -742,7 +742,7 @@ export async function generateTransferUserOp(
     address: ENTRY_POINT_ADDRESS,
     abi: ENTRY_POINT_ABI,
     functionName: 'getUserOpHash',
-    args: [userOp],
+    args: [userOp as Parameters<typeof publicClient.readContract>[0]['args'] extends readonly [infer T] ? T : never],
   });
 
   const serializedUserOp: SerializedUserOperation = {
@@ -789,10 +789,10 @@ async function resolveDynamicGasConfig(
       account: ENTRY_POINT_ADDRESS,
       to: smartAccountAddress,
       data: callData,
-      value: 0n,
+      value: BigInt(0),
     });
     // Use estimate with safety margin and floor; do not cap with GAS_CONFIG so large legitimate estimates don't get forced down (avoids AA23/OOG).
-    callGasLimit = maxBigInt(multiplyByBps(estimatedCallGas, 10_500n), 50_000n);
+    callGasLimit = maxBigInt(multiplyByBps(estimatedCallGas, BigInt(10500)), BigInt(50000));
     usedCallGasEstimate = true;
   } catch {
     // Keep fallback callGasLimit (GAS_CONFIG.callGasLimit) when estimation fails.
@@ -800,15 +800,15 @@ async function resolveDynamicGasConfig(
 
   // Pre-verification cost depends mostly on calldata bytes + fixed overhead.
   const calldataBytes = BigInt((callData.length - 2) / 2);
-  const estimatedPreVerification = 35_000n + calldataBytes * 16n;
+  const estimatedPreVerification = BigInt(35000) + calldataBytes * BigInt(16);
   preVerificationGas = minBigInt(
-    maxBigInt(estimatedPreVerification, 45_000n),
+    maxBigInt(estimatedPreVerification, BigInt(45000)),
     GAS_CONFIG.preVerificationGas
   );
 
   // When we have an actual callGas estimate, derive verificationGasLimit from it without capping by config; use config only as fallback when estimation failed.
   if (usedCallGasEstimate) {
-    verificationGasLimit = maxBigInt(callGasLimit / 2n, 90_000n);
+    verificationGasLimit = maxBigInt(callGasLimit / BigInt(2), BigInt(90000));
   } else {
     verificationGasLimit = GAS_CONFIG.verificationGasLimit;
   }
@@ -816,21 +816,21 @@ async function resolveDynamicGasConfig(
   try {
     const fees = await publicClient.estimateFeesPerGas();
     if (typeof fees.maxFeePerGas === 'bigint' && typeof fees.maxPriorityFeePerGas === 'bigint') {
-      maxFeePerGas = multiplyByBps(fees.maxFeePerGas, 11_000n);
+      maxFeePerGas = multiplyByBps(fees.maxFeePerGas, BigInt(11000));
       maxPriorityFeePerGas = minBigInt(
         maxFeePerGas,
-        maxBigInt(maxFeePerGas / 10n, 1_000_000n)
+        maxBigInt(maxFeePerGas / BigInt(10), BigInt(1000000))
       );
     } else if (typeof fees.gasPrice === 'bigint') {
       const gasPrice = fees.gasPrice;
-      maxFeePerGas = multiplyByBps(gasPrice, 11_000n);
-      maxPriorityFeePerGas = minBigInt(maxFeePerGas, maxBigInt(maxFeePerGas / 10n, 1_000_000n));
+      maxFeePerGas = multiplyByBps(gasPrice, BigInt(11000));
+      maxPriorityFeePerGas = minBigInt(maxFeePerGas, maxBigInt(maxFeePerGas / BigInt(10), BigInt(1000000)));
     }
   } catch {
     try {
       const gasPrice = await publicClient.getGasPrice();
-      maxFeePerGas = multiplyByBps(gasPrice, 11_000n);
-      maxPriorityFeePerGas = minBigInt(maxFeePerGas, maxBigInt(maxFeePerGas / 10n, 1_000_000n));
+      maxFeePerGas = multiplyByBps(gasPrice, BigInt(11000));
+      maxPriorityFeePerGas = minBigInt(maxFeePerGas, maxBigInt(maxFeePerGas / BigInt(10), BigInt(1000000)));
     } catch {
       // Keep fallback fee values.
     }
@@ -908,7 +908,7 @@ function deserializeUserOp(serialized: SerializedUserOperation): UserOperation {
  */
 export function getRequiredPrefundWei(serialized: SerializedUserOperation): bigint {
   const userOp = deserializeUserOp(serialized);
-  const mul = hasPaymaster(userOp.paymasterAndData) ? 3n : 1n;
+  const mul = hasPaymaster(userOp.paymasterAndData) ? BigInt(3) : BigInt(1);
   const requiredGas =
     userOp.callGasLimit +
     userOp.verificationGasLimit * mul +
@@ -979,8 +979,8 @@ export async function executeUserOp(
   try {
     const hash = await sendEntryPointTransaction(publicClient, walletClient, useChain, {
       data: handleOpsCalldata,
-      value: 0n,
-      gas: 1_500_000n,
+      value: BigInt(0),
+      gas: BigInt(1500000),
     });
     await publicClient.waitForTransactionReceipt({ hash });
     return hash;
@@ -1030,7 +1030,7 @@ export async function ensurePrefundIfNeeded(
 
   // If paymaster is present, sender deposit is not required for prefund.
   if (userOp.paymasterAndData !== '0x') {
-    return { prefunded: false, depositBefore: 0n, depositAfter: 0n };
+    return { prefunded: false, depositBefore: BigInt(0), depositAfter: BigInt(0) };
   }
 
   const balanceOfAbi = parseAbi(['function balanceOf(address account) view returns (uint256)']);
@@ -1058,7 +1058,7 @@ export async function ensurePrefundIfNeeded(
   const txHash = await sendEntryPointTransaction(publicClient, walletClient, useChain, {
     data,
     value: topUpValue,
-    gas: 200_000n,
+    gas: BigInt(200000),
   });
   await publicClient.waitForTransactionReceipt({ hash: txHash });
 
@@ -1094,7 +1094,7 @@ async function sendEntryPointTransaction(
       value: params.value,
       gas: params.gas,
       nonce: pendingNonce,
-      gasPrice: multiplyByBps(gasPrice, 11_000n), // +10%
+      gasPrice: multiplyByBps(gasPrice, BigInt(11000)), // +10%
     });
   } catch (err: unknown) {
     if (!isReplacementUnderpricedError(err)) throw err;
@@ -1114,7 +1114,7 @@ async function sendEntryPointTransaction(
       value: params.value,
       gas: params.gas,
       nonce: retryNonce,
-      gasPrice: multiplyByBps(retryGasPrice, 13_000n), // +30%
+      gasPrice: multiplyByBps(retryGasPrice, BigInt(13000)), // +30%
     });
   }
 }
@@ -1126,7 +1126,7 @@ function isReplacementUnderpricedError(err: unknown): boolean {
 }
 
 function multiplyByBps(value: bigint, bps: bigint): bigint {
-  return (value * bps) / 10_000n;
+  return (value * bps) / BigInt(10000);
 }
 
 function maxBigInt(a: bigint, b: bigint): bigint {

@@ -141,6 +141,7 @@ export function TransactionStatus({
   const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
   const paymentConfirmationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const stuckInFulfillingSinceRef = useRef<number | null>(null);
+  const lastStuckOrderIdRef = useRef<string | null>(null);
   const [hasReindexed, setHasReindexed] = useState(false);
   const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
@@ -489,6 +490,7 @@ export function TransactionStatus({
       if (!isStuckState) {
         setShowPaymentConfirmation(false);
         stuckInFulfillingSinceRef.current = null;
+        lastStuckOrderIdRef.current = null;
         const key = getStuckStorageKey();
         if (key && typeof window !== "undefined") {
           try {
@@ -502,6 +504,11 @@ export function TransactionStatus({
           paymentConfirmationTimerRef.current = null;
         }
         return;
+      }
+
+      if (orderId !== lastStuckOrderIdRef.current) {
+        stuckInFulfillingSinceRef.current = null;
+        lastStuckOrderIdRef.current = orderId ?? null;
       }
 
       const now = Date.now();
@@ -609,7 +616,16 @@ export function TransactionStatus({
       }
     } catch (error) {
       console.error("Error confirming payment:", error);
-      toast.error("Failed to confirm payment. Please try again.");
+      const msg = error instanceof Error ? error.message : "";
+      const alreadyToasted =
+        msg === "Missing access token or order ID" ||
+        msg === "Missing wallet address" ||
+        msg === "Transaction not found" ||
+        msg === "Validation failed" ||
+        msg === "Transaction update failed";
+      if (!alreadyToasted) {
+        toast.error("Failed to confirm payment. Please try again.");
+      }
       throw error;
     }
   };

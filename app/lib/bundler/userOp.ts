@@ -818,18 +818,21 @@ async function resolveDynamicGasConfig(
   try {
     const fees = await publicClient.estimateFeesPerGas();
     if (typeof fees.maxFeePerGas === 'bigint' && typeof fees.maxPriorityFeePerGas === 'bigint') {
-      maxPriorityFeePerGas = multiplyByBps(fees.maxPriorityFeePerGas, 5_000n);
-      maxFeePerGas = multiplyByBps(fees.maxFeePerGas, 5_000n);
+      maxFeePerGas = multiplyByBps(fees.maxFeePerGas, 11_000n);
+      maxPriorityFeePerGas = minBigInt(
+        maxFeePerGas,
+        maxBigInt(maxFeePerGas / 10n, 1_000_000n)
+      );
     } else if (typeof fees.gasPrice === 'bigint') {
       const gasPrice = fees.gasPrice;
-      maxFeePerGas = multiplyByBps(gasPrice, 5_000n);
-      maxPriorityFeePerGas = maxBigInt(maxFeePerGas / 10n, 1_000_000n);
+      maxFeePerGas = multiplyByBps(gasPrice, 11_000n);
+      maxPriorityFeePerGas = minBigInt(maxFeePerGas, maxBigInt(maxFeePerGas / 10n, 1_000_000n));
     }
   } catch {
     try {
       const gasPrice = await publicClient.getGasPrice();
-      maxFeePerGas = multiplyByBps(gasPrice, 5_000n);
-      maxPriorityFeePerGas = maxBigInt(maxFeePerGas / 10n, 1_000_000n);
+      maxFeePerGas = multiplyByBps(gasPrice, 11_000n);
+      maxPriorityFeePerGas = minBigInt(maxFeePerGas, maxBigInt(maxFeePerGas / 10n, 1_000_000n));
     } catch {
       // Keep fallback fee values.
     }

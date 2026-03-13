@@ -913,6 +913,7 @@ export const TransactionForm = ({
                   ),
                 () => setIsKycModalOpen(true),
                 isUserVerified,
+                () => setIsMigrationModalOpen(true),
               )}
             >
               {buttonText}

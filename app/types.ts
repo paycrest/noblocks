@@ -255,7 +255,7 @@ export type KYCStatusResponse = {
 export type Config = {
   aggregatorUrl: string;
   privyAppId: string;
-  thirdwebClientId: string;
+  rpcUrlKey: string;
   mixpanelToken: string;
   hotjarSiteId: number;
   googleVerificationCode: string;

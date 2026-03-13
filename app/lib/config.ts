@@ -19,7 +19,7 @@ export function getDelegationContractAddress(chainId: number): string {
 const config: Config = {
   aggregatorUrl: process.env.NEXT_PUBLIC_AGGREGATOR_URL || "",
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || "",
-  thirdwebClientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || "",
+  rpcUrlKey: process.env.NEXT_PUBLIC_RPC_URL_KEY || "",
   mixpanelToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || "",
   hotjarSiteId: Number(process.env.NEXT_PUBLIC_HOTJAR_SITE_ID || ""),
   googleVerificationCode:

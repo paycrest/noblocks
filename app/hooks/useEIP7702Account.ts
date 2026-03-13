@@ -20,13 +20,6 @@ function hasMeaningfulBalance(value: number | null | undefined): boolean {
     return Number(value ?? 0) >= MIGRATION_DUST_USD_THRESHOLD;
 }
 
-// Treat tiny residual balances as zero for migration UX decisions.
-const MIGRATION_DUST_USD_THRESHOLD = 0.001;
-
-function hasMeaningfulBalance(value: number | null | undefined): boolean {
-    return Number(value ?? 0) >= MIGRATION_DUST_USD_THRESHOLD;
-}
-
 // ################################################
 // ########## EIP-7702 LIB HELPERS ################
 // ################################################

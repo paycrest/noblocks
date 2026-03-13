@@ -11,8 +11,10 @@ export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
   1: "0x25054a2b9D4544ed292DC1a74E8bF1f6F449d988",
 };
 
-/** Returns the delegation contract address for the given chainId, or env override / empty string if unknown. */
+/** Returns the delegation contract address for the given chainId. Uses NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS if set, else DELEGATION_CONTRACT_BY_CHAIN, else "". */
 export function getDelegationContractAddress(chainId: number): string {
+  const envOverride = (process.env.NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS ?? "").trim();
+  if (envOverride) return envOverride;
   return DELEGATION_CONTRACT_BY_CHAIN[chainId] ?? "";
 }
 

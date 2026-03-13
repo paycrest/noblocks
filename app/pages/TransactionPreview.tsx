@@ -111,6 +111,7 @@ export const TransactionPreview = ({
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0); // Used to trigger toast
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
+  const [isPollingOrderId, setIsPollingOrderId] = useState<boolean>(false);
   const [isOrderCreatedLogsFetched, setIsOrderCreatedLogsFetched] =
     useState<boolean>(false);
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
@@ -421,6 +422,8 @@ export const TransactionPreview = ({
           ...(authorization != null && { eip7702Authorization: authorization }),
         };
 
+        await captureSubmissionBlock();
+
         const res = await fetch(`${bundlerUrl}/execute-sponsored`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -443,7 +446,6 @@ export const TransactionPreview = ({
         const hash = data.transactionHash;
         if (!hash) throw new Error("No transaction hash returned");
 
-        await captureSubmissionBlock();
         setIsGatewayApproved(true);
         setIsOrderCreated(true);
 
@@ -454,7 +456,8 @@ export const TransactionPreview = ({
 
         toast.success("Order created successfully");
         refreshBalance();
-        void getOrderId().catch(() => {});
+        setIsPollingOrderId(true);
+        void getOrderId().finally(() => setIsPollingOrderId(false));
         return;
       } else {
         // Smart wallet (pre-migration)
@@ -804,7 +807,7 @@ export const TransactionPreview = ({
                 ) : (
                   <TbCircleDashed
                     className={classNames(
-                      isConfirming ? "animate-spin" : "",
+                      isConfirming || isPollingOrderId ? "animate-spin" : "",
                       "text-lg",
                     )}
                   />
@@ -834,7 +837,7 @@ export const TransactionPreview = ({
           type="button"
           onClick={handleBackButtonClick}
           className={classNames(secondaryBtnClasses)}
-          disabled={isConfirming}
+          disabled={isConfirming || isPollingOrderId}
         >
           Back
         </button>
@@ -842,9 +845,9 @@ export const TransactionPreview = ({
           type="submit"
           className={classNames(primaryBtnClasses, "w-full")}
           onClick={handlePaymentConfirmation}
-          disabled={isConfirming}
+          disabled={isConfirming || isPollingOrderId}
         >
-          {isConfirming ? (
+          {isConfirming || isPollingOrderId ? (
             <span className="flex items-center justify-center gap-2">
               <ImSpinner className="animate-spin text-lg" />
               Confirming...

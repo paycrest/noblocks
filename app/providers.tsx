@@ -23,6 +23,7 @@ import {
 import { useActualTheme } from "./hooks/useActualTheme";
 import { useMixpanel } from "./hooks/analytics/client";
 import { BlockFestClaimProvider } from "./context/BlockFestClaimContext";
+import { useSentry } from "./hooks/useSentry";
 
 function Providers({ children }: { children: ReactNode }) {
   const { privyAppId } = config;
@@ -71,6 +72,7 @@ function PrivyConfigWrapper({
 
 function ContextProviders({ children }: { children: ReactNode }) {
   useMixpanel(); // Initialize Mixpanel analytics
+  useSentry(); // Initialize Sentry error tracking
 
   return (
     <NetworkProvider>

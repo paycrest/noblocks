@@ -199,16 +199,14 @@ export async function getSenderAddressFromInitCode(
     });
   } catch (err: unknown) {
     const hex = getRevertData(err);
-    if (hex && hex.length >= 2 + 8 + 64) {
-      // Revert: 4-byte selector (0x6ca7b806) + 32-byte padded address
+    const SELECTOR = '6ca7b806'; // 4-byte revert selector for getSenderAddress
+    const MIN_RAW_LEN = 8 + 64; // selector (8 hex) + padded address (64 hex)
+    if (hex && hex.length >= 2 + MIN_RAW_LEN) {
       const raw = hex.slice(2);
-      const addrHex = raw.slice(-40);
-      return getAddress(('0x' + addrHex) as `0x${string}`) as `0x${string}`;
-    }
-    if (hex && hex.length >= 2 + 40) {
-      const raw = hex.slice(2);
-      const addrHex = raw.length >= 64 ? raw.slice(-40) : raw.slice(0, 40);
-      return getAddress(('0x' + addrHex) as `0x${string}`) as `0x${string}`;
+      if (raw.slice(0, 8).toLowerCase() === SELECTOR && raw.length >= MIN_RAW_LEN) {
+        const addrHex = raw.slice(-40);
+        return getAddress(('0x' + addrHex) as `0x${string}`) as `0x${string}`;
+      }
     }
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`getSenderAddress failed: ${msg}`);

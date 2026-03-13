@@ -3,8 +3,9 @@ import { getClients, parseChainId, parseRpcUrl } from "@/app/lib/bundler/chains"
 import { getNexusStatus } from "@/app/lib/bundler/userOp";
 
 /**
- * GET /api/bundler/nexus/status?smartAccountAddress=0x...&chainId=56&rpcUrl=...
+ * GET /api/bundler/nexus/status?smartAccountAddress=0x...&chainId=56
  * Returns whether the address is already a Nexus account.
+ * Query params: smartAccountAddress (0x + 40 hex), chainId. RPC URL is derived from chainId server-side.
  */
 export async function GET(request: NextRequest) {
   try {

@@ -49,6 +49,7 @@ export function useSwapButton({
   const hasInsufficientBalance = totalRequired > balance;
 
   const isEnabled = (() => {
+    if (needsMigration && authenticated && !isInjectedWallet) return true;
     if (isMigrationMandatory) return true;
     if (!rate) return false;
     if (isInjectedWallet && hasInsufficientBalance) {
@@ -89,6 +90,10 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
+    if (needsMigration && authenticated && !isInjectedWallet) {
+      return "Swap";
+    }
+
     if (isInjectedWallet && hasInsufficientBalance) {
       return "Insufficient balance";
     }
@@ -114,7 +119,11 @@ export function useSwapButton({
     handleFundWallet: () => void,
     setIsKycModalOpen: () => void,
     isUserVerified: boolean,
+    openMigrationModal?: () => void,
   ) => {
+    if (needsMigration && authenticated && !isInjectedWallet && openMigrationModal) {
+      return openMigrationModal;
+    }
     if (!authenticated && !isInjectedWallet) {
       return login;
     }

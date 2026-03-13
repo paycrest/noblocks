@@ -11,7 +11,14 @@ import {
 } from "viem";
 import { useBalance } from "../context/BalanceContext";
 import { useMigrationStatus, triggerMigrationStatusRefetch } from "../context/MigrationStatusContext";
-import config from "../lib/config";
+import config, { getDelegationContractAddress } from "../lib/config";
+
+// Treat tiny residual balances as zero for migration UX decisions.
+const MIGRATION_DUST_USD_THRESHOLD = 0.001;
+
+function hasMeaningfulBalance(value: number | null | undefined): boolean {
+    return Number(value ?? 0) >= MIGRATION_DUST_USD_THRESHOLD;
+}
 
 // Treat tiny residual balances as zero for migration UX decisions.
 const MIGRATION_DUST_USD_THRESHOLD = 0.001;
@@ -166,40 +173,31 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
     return { needsMigration, isChecking, showZeroBalanceMessage, isRemainingFundsMigration, refetchMigrationStatus: refetch };
 }
 
-/** Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation. */
-export const BICONOMY_NEXUS_V120 = config.biconomyNexusV120;
-
-// Warn about missing configuration but don't crash the app
-if (!BICONOMY_NEXUS_V120 || BICONOMY_NEXUS_V120 === "") {
-    console.warn("BICONOMY_NEXUS_V120 not configured - EIP-7702 migration features will be disabled. Please set NEXT_PUBLIC_BICONOMY_NEXUS_V120 in your environment.");
-}
-
 /**
- * Hook to sign EIP-7702 authorizations for Biconomy Nexus (MEE).
- * Sign with the execution chainId so MEE has authorization for that chain (e.g. 8453 for Base).
- *
- * @see https://docs.biconomy.io/new/integration-guides/wallets-and-signers/privy
+ * Hook to sign EIP-7702 authorizations for the delegation contract.
+ * Sign with the execution chainId so the account delegates to the contract on that chain.
  *
  * @example
- * const { signBiconomyAuthorization } = useBiconomy7702Auth();
- * const authorization = await signBiconomyAuthorization(chain.id);
+ * const { signDelegationAuthorization } = useDelegationContractAuth();
+ * const authorization = await signDelegationAuthorization(chain.id);
  */
-export function useBiconomy7702Auth() {
+export function useDelegationContractAuth() {
     const { signAuthorization } = useSign7702Authorization();
     const { wallets } = useWallets();
     const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
 
-    const signBiconomyAuthorization = useCallback(
+    const signDelegationAuthorization = useCallback(
         async (chainId: number): Promise<SignedAuthorization> => {
             if (!embeddedWallet?.address) {
                 throw new Error("Embedded wallet not ready for EIP-7702 signing");
             }
-            if (!BICONOMY_NEXUS_V120 || BICONOMY_NEXUS_V120 === "") {
-                throw new Error("Biconomy Nexus V1.2.0 address is not configured. Please set NEXT_PUBLIC_BICONOMY_NEXUS_V120 in your environment.");
+            const delegationAddress = getDelegationContractAddress(chainId);
+            if (!delegationAddress || delegationAddress === "") {
+                throw new Error(`Delegation contract not configured for chain ${chainId}. Add the contract for this chain or set NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS.`);
             }
             const signed = await signAuthorization(
                 {
-                    contractAddress: BICONOMY_NEXUS_V120 as `0x${string}`,
+                    contractAddress: delegationAddress as `0x${string}`,
                     chainId,
                 },
                 { address: embeddedWallet.address as Address }
@@ -209,5 +207,5 @@ export function useBiconomy7702Auth() {
         [signAuthorization, embeddedWallet?.address]
     );
 
-    return { signBiconomyAuthorization };
+    return { signDelegationAuthorization };
 }

@@ -225,8 +225,13 @@ export function useSmartWalletTransfer({
           ...(authorization != null && { eip7702Authorization: authorization }),
         };
         const accessToken = await getAccessToken();
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+        if (!accessToken) {
+          throw new Error("Authentication required. Please sign in to complete this transfer.");
+        }
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        };
         let res: Response;
         try {
           res = await fetch(`${bundlerUrl}/execute-sponsored`, {

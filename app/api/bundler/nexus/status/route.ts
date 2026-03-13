@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
         error:
           error instanceof Error ? error.message : "Failed to check nexus status",
       },
-      { status: 400 }
+      { status: 500 }
     );
   }
 }

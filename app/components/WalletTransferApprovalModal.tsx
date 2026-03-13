@@ -280,10 +280,8 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                     throw new Error("Wallet not available. Please ensure you are logged in.");
                 }
 
-                const accessToken = await getAccessToken();
-                const authHeaders: Record<string, string> = accessToken
-                    ? { Authorization: `Bearer ${accessToken}` }
-                    : {};
+                const accessToken = await getAccessTokenWithRetry();
+                const authHeaders: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
 
                 // --- For each chain: check nexus status, upgrade if needed, then transfer via MEE ---
                 for (let i = 0; i < chains.length; i++) {

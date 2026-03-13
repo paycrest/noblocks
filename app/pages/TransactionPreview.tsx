@@ -427,7 +427,6 @@ export const TransactionPreview = ({
             typeof value === "bigint" ? value.toString() : value,
           ),
         });
-        console.log("res", res);
         if (!res.ok) {
           const errBody = await res.text();
           let errMsg: string;
@@ -441,7 +440,6 @@ export const TransactionPreview = ({
         }
         const data = (await res.json()) as { transactionHash?: string };
         const hash = data.transactionHash;
-        console.log("hash", hash);
         if (!hash) throw new Error("No transaction hash returned");
 
         setIsGatewayApproved(true);

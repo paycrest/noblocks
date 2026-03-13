@@ -105,11 +105,6 @@ export async function POST(request: NextRequest) {
       signedUserOp,
       minDepositWei
     );
-    if (prefundResult.prefunded) {
-      console.log(
-        `[Execute] Auto-prefunded sender ${signedUserOp.sender}. tx=${prefundResult.transactionHash} required=${minDepositWei}`
-      );
-    }
 
     const transactionHash = await executeUserOp(
       publicClient,
@@ -125,7 +120,6 @@ export async function POST(request: NextRequest) {
       prefundTransactionHash: prefundResult.transactionHash,
     });
   } catch (error) {
-    console.error("Error executing userOp:", error);
     return NextResponse.json(
       {
         error:

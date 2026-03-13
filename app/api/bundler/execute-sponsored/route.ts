@@ -27,7 +27,6 @@ export async function POST(request: NextRequest) {
     if (!callData || typeof callData !== "string" || !callData.startsWith("0x")) {
       return NextResponse.json({ error: "callData (0x-prefixed hex string) is required" }, { status: 400 });
     }
-    console.log("delegationContractAddress", delegationContractAddress);
 
     if (eip7702Authorization) {
       if (!delegationContractAddress || typeof delegationContractAddress !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(delegationContractAddress)) {
@@ -56,7 +55,6 @@ export async function POST(request: NextRequest) {
       eip7702Authorization: eip7702Authorization ?? undefined,
     });
 
-    console.log("result", result);
     return NextResponse.json({
       transactionHash: result.transactionHash,
       ...(result.delegationTransactionHash != null && {

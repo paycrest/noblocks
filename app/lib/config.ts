@@ -1,5 +1,21 @@
 import { Config, JWTProviderConfig } from "@/app/types";
 
+/** EIP-7702 delegation contract (ProviderBatchCallAndSponsor) per chain. */
+export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
+  42220: "0x847dfdAa218F9137229CF8424378871A1DA8f625",
+  8453: "0xDb61aF57A7fD133C54F51ae4d95469af9F846F6e",
+  42161: "0x59288AC5c262B71b631Be6742967261526E00d59",
+  56: "0x59288AC5c262B71b631Be6742967261526E00d59",
+  137: "0x97b4e402db6DB09F067B6E085B84c95176499d16",
+  1135: "0x0a7aA9F8eab1665DD905288669447b66082E4B17",
+  1: "0x25054a2b9D4544ed292DC1a74E8bF1f6F449d988",
+};
+
+/** Returns the delegation contract address for the given chainId, or env override / empty string if unknown. */
+export function getDelegationContractAddress(chainId: number): string {
+  return DELEGATION_CONTRACT_BY_CHAIN[chainId] ?? "";
+}
+
 const config: Config = {
   aggregatorUrl: process.env.NEXT_PUBLIC_AGGREGATOR_URL || "",
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || "",
@@ -13,8 +29,12 @@ const config: Config = {
   brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
   blockfestEndDate:
     process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
-  biconomyNexusV120:
-    process.env.NEXT_PUBLIC_BICONOMY_NEXUS_V120 || "0x000000004f43c49e93c970e84001853a70923b03",
+  /** @deprecated Use getDelegationContractAddress(chainId) - delegation contract is per chain. */
+  delegationContractAddress:
+    process.env.NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS || "",
+  /** @deprecated Use delegationContractAddress. Kept for backward compatibility. */
+  // biconomyNexusV120:
+  //   process.env.NEXT_PUBLIC_BICONOMY_NEXUS_V120 || "0x000000004f43c49e93c970e84001853a70923b03",
   /** MEE API key for Biconomy Supertransaction API (sponsored execution). Replaces deprecated paymaster. */
   biconomyMeeApiKey:
     process.env.NEXT_PUBLIC_BICONOMY_MEE_API_KEY ||

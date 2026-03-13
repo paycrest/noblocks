@@ -12,12 +12,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const smartAccountAddress = body?.smartAccountAddress;
     const chainId = parseChainId(body?.chainId);
-    const rpcUrl = parseRpcUrl(body?.rpcUrl);
+    const rpcUrl = parseRpcUrl(chainId);
     const rawCalls = body?.calls;
 
-    if (!rpcUrl) {
-      return NextResponse.json({ error: "rpcUrl is required" }, { status: 400 });
-    }
     if (!smartAccountAddress || !/^0x[0-9a-fA-F]{40}$/.test(smartAccountAddress)) {
       return NextResponse.json(
         { error: "smartAccountAddress (0x + 40 hex) is required" },
@@ -48,7 +45,7 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    const { publicClient } = getClients(chainId, rpcUrl);
+    const { publicClient } = getClients(chainId, rpcUrl, false);
     const result = await generateTransferUserOp(
       publicClient,
       smartAccountAddress as `0x${string}`,

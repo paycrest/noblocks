@@ -276,19 +276,14 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                 if (!meeApiKey) {
                     throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
                 }
-                if (bundlerServerUrl) {
-                    try {
-                        const parsed = new URL(bundlerServerUrl);
-                        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-                            throw new Error("invalid protocol");
-                        }
-                    } catch {
-                        throw new Error("Invalid NEXT_PUBLIC_BUNDLER_SERVER_URL. Use a full URL");
-                    }
-                }
                 if (!embeddedWallet || !oldAddress) {
                     throw new Error("Wallet not available. Please ensure you are logged in.");
                 }
+
+                const accessToken = await getAccessToken();
+                const authHeaders: Record<string, string> = accessToken
+                    ? { Authorization: `Bearer ${accessToken}` }
+                    : {};
 
                 // --- For each chain: check nexus status, upgrade if needed, then transfer via MEE ---
                 for (let i = 0; i < chains.length; i++) {
@@ -311,7 +306,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
 
                         setProgress(`Checking wallet version on ${chainName}...`);
                         const statusUrl = `${bundlerServerUrl}/is-nexus?smartAccountAddress=${encodeURIComponent(oldAddress)}&chainId=${chain.id}${chainRpcUrl ? `&rpcUrl=${encodeURIComponent(chainRpcUrl)}` : ""}`;
-                        const statusRes = await fetch(statusUrl);
+                        const statusRes = await fetch(statusUrl, { headers: authHeaders });
                         if (!statusRes.ok) {
                             const errText = await statusRes.text();
                             throw new Error(`Nexus check failed on ${chainName}: ${errText || statusRes.statusText}`);
@@ -329,7 +324,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                             setProgress(`Upgrading wallet to Nexus on ${chainName}...`);
                             const genRes = await fetch(`${bundlerServerUrl}/generate-userop`, {
                                 method: "POST",
-                                headers: { "Content-Type": "application/json" },
+                                headers: { "Content-Type": "application/json", ...authHeaders },
                                 body: JSON.stringify({
                                     smartAccountAddress: oldAddress,
                                     ownerAddress: embeddedWallet.address,
@@ -370,7 +365,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                             setProgress(`Submitting upgrade on ${chainName}...`);
                             const execRes = await fetch(`${bundlerServerUrl}/execute`, {
                                 method: "POST",
-                                headers: { "Content-Type": "application/json" },
+                                headers: { "Content-Type": "application/json", ...authHeaders },
                                 body: JSON.stringify({
                                     userOp: signedUserOp,
                                     smartAccountAddress: oldAddress,

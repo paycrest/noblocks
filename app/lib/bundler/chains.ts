@@ -17,9 +17,13 @@ const SUPPORTED_CHAINS: Record<number, { chain: Chain; envKey: string }> = {
 };
 
 export function parseChainId(value: unknown): number {
-  if (value === undefined || value === null || value === '') return bsc.id;
-  const n = typeof value === 'string' ? Number(value) : Number(value);
-  if (!Number.isInteger(n)) throw new Error('chainId must be an integer');
+  if (value === undefined || value === null || value === '') {
+    throw new Error('Missing or empty chainId');
+  }
+  const n = Number(value);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
+    throw new Error('chainId must be a finite positive integer');
+  }
   if (!SUPPORTED_CHAINS[n]) {
     throw new Error(
       `Unsupported chainId: ${n}. Supported: ${Object.keys(SUPPORTED_CHAINS).join(', ')}`
@@ -28,11 +32,20 @@ export function parseChainId(value: unknown): number {
   return n;
 }
 
-export function parseRpcUrl(value: unknown): string | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
-  if (typeof value !== 'string') throw new Error('rpcUrl must be a string');
-  if (!/^https?:\/\//i.test(value)) throw new Error('rpcUrl must start with http:// or https://');
-  return value;
+/**
+ * Returns the RPC URL for the given chain from server-side config only.
+ * Callers must not pass client-supplied URLs; this prevents SSRF (arbitrary host proxying).
+ */
+export function parseRpcUrl(chainId: number): string {
+  const entry = SUPPORTED_CHAINS[chainId];
+  if (!entry) {
+    throw new Error(`Unsupported chainId: ${chainId}. Supported: ${Object.keys(SUPPORTED_CHAINS).join(', ')}`);
+  }
+  const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID?.trim();
+  if (!clientId) {
+    throw new Error('NEXT_PUBLIC_THIRDWEB_CLIENT_ID is required for bundler RPC');
+  }
+  return `https://${chainId}.rpc.thirdweb.com/${clientId}`;
 }
 
 function getSponsorPrivateKey(): `0x${string}` {
@@ -57,16 +70,20 @@ function getSponsorAccount() {
 
 export function getClients(
   chainId: number,
-  rpcUrl: string
-): { publicClient: PublicClient; walletClient: WalletClient; chain: Chain } {
+  rpcUrl: string,
+  includeWallet: boolean = true
+): { publicClient: PublicClient; walletClient: WalletClient | undefined; chain: Chain } {
   const entry = SUPPORTED_CHAINS[chainId];
   if (!entry) {
     throw new Error(`Unsupported chainId: ${chainId}`);
   }
   const { chain } = entry;
-  const account = getSponsorAccount();
   const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
-  const walletClient = createWalletClient({ account, chain, transport: http(rpcUrl) });
+  let walletClient: WalletClient | undefined;
+  if (includeWallet) {
+    const account = getSponsorAccount();
+    walletClient = createWalletClient({ account, chain, transport: http(rpcUrl) });
+  }
   return { publicClient, walletClient, chain };
 }
 

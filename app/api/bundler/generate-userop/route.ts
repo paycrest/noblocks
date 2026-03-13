@@ -19,11 +19,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const { smartAccountAddress, ownerAddress } = body;
     const chainId = parseChainId(body?.chainId);
-    const rpcUrl = parseRpcUrl(body?.rpcUrl);
+    const rpcUrl = parseRpcUrl(chainId);
 
-    if (!rpcUrl) {
-      return NextResponse.json({ error: "rpcUrl is required" }, { status: 400 });
-    }
     if (!smartAccountAddress || !ownerAddress) {
       return NextResponse.json(
         { error: "smartAccountAddress and ownerAddress are required" },
@@ -37,7 +34,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid ownerAddress format" }, { status: 400 });
     }
 
-    const { publicClient } = getClients(chainId, rpcUrl);
+    const { publicClient } = getClients(chainId, rpcUrl, false);
 
     const initCode = body.initCode as `0x${string}` | undefined;
     const hasValidInitCode =

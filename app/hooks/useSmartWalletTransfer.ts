@@ -224,11 +224,14 @@ export function useSmartWalletTransfer({
           delegationContractAddress,
           ...(authorization != null && { eip7702Authorization: authorization }),
         };
+        const accessToken = await getAccessToken();
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
         let res: Response;
         try {
           res = await fetch(`${bundlerUrl}/execute-sponsored`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify(payload, (_key, value) =>
               typeof value === "bigint" ? value.toString() : value,
             ),

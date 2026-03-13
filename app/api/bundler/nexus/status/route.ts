@@ -11,11 +11,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const smartAccountAddress = searchParams.get("smartAccountAddress");
     const chainIdRaw = searchParams.get("chainId");
-    const rpcUrl = parseRpcUrl(searchParams.get("rpcUrl"));
 
-    if (!rpcUrl) {
-      return NextResponse.json({ error: "rpcUrl is required" }, { status: 400 });
-    }
     if (!smartAccountAddress || !/^0x[0-9a-fA-F]{40}$/.test(smartAccountAddress)) {
       return NextResponse.json(
         { error: "Query param smartAccountAddress (0x + 40 hex) is required" },
@@ -24,7 +20,8 @@ export async function GET(request: NextRequest) {
     }
 
     const chainId = parseChainId(chainIdRaw);
-    const { publicClient } = getClients(chainId, rpcUrl);
+    const rpcUrl = parseRpcUrl(chainId);
+    const { publicClient } = getClients(chainId, rpcUrl, false);
     const status = await getNexusStatus(publicClient, smartAccountAddress as `0x${string}`);
 
     return NextResponse.json({

@@ -783,6 +783,7 @@ async function resolveDynamicGasConfig(
   let preVerificationGas: bigint = GAS_CONFIG.preVerificationGas;
   let maxFeePerGas: bigint = GAS_CONFIG.maxFeePerGas;
   let maxPriorityFeePerGas: bigint = GAS_CONFIG.maxPriorityFeePerGas;
+  let usedCallGasEstimate = false;
 
   try {
     // Approximate execution cost of the smart-account call.
@@ -792,11 +793,11 @@ async function resolveDynamicGasConfig(
       data: callData,
       value: 0n,
     });
-    // Keep a small safety margin and clamp with fallback ceiling.
-    callGasLimit = minBigInt(multiplyByBps(estimatedCallGas, 10_500n), GAS_CONFIG.callGasLimit);
-    callGasLimit = maxBigInt(callGasLimit, 50_000n);
+    // Use estimate with safety margin and floor; do not cap with GAS_CONFIG so large legitimate estimates don't get forced down (avoids AA23/OOG).
+    callGasLimit = maxBigInt(multiplyByBps(estimatedCallGas, 10_500n), 50_000n);
+    usedCallGasEstimate = true;
   } catch {
-    // Keep fallback callGasLimit when estimation fails.
+    // Keep fallback callGasLimit (GAS_CONFIG.callGasLimit) when estimation fails.
   }
 
   // Pre-verification cost depends mostly on calldata bytes + fixed overhead.
@@ -807,8 +808,12 @@ async function resolveDynamicGasConfig(
     GAS_CONFIG.preVerificationGas
   );
 
-  // Verification is account-validation heavy; retain a safer ceiling but avoid over-allocation.
-  verificationGasLimit = minBigInt(maxBigInt(callGasLimit / 2n, 90_000n), GAS_CONFIG.verificationGasLimit);
+  // When we have an actual callGas estimate, derive verificationGasLimit from it without capping by config; use config only as fallback when estimation failed.
+  if (usedCallGasEstimate) {
+    verificationGasLimit = maxBigInt(callGasLimit / 2n, 90_000n);
+  } else {
+    verificationGasLimit = GAS_CONFIG.verificationGasLimit;
+  }
 
   try {
     const fees = await publicClient.estimateFeesPerGas();

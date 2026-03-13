@@ -14,13 +14,10 @@ export async function POST(request: NextRequest) {
     const accountAddress = body?.accountAddress;
     const callData = body?.callData;
     const chainId = parseChainId(body?.chainId);
-    const rpcUrl = parseRpcUrl(body?.rpcUrl);
+    const rpcUrl = parseRpcUrl(chainId);
     const eip7702Authorization = body?.eip7702Authorization;
     const delegationContractAddress = body?.delegationContractAddress;
 
-    if (!rpcUrl) {
-      return NextResponse.json({ error: "rpcUrl is required" }, { status: 400 });
-    }
     if (!accountAddress || typeof accountAddress !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(accountAddress)) {
       return NextResponse.json({ error: "accountAddress (0x + 40 hex) is required" }, { status: 400 });
     }
@@ -48,6 +45,12 @@ export async function POST(request: NextRequest) {
     }
 
     const { publicClient, walletClient, chain } = getClients(chainId, rpcUrl);
+    if (!walletClient) {
+      return NextResponse.json(
+        { error: "Sponsor wallet is required for execute-sponsored" },
+        { status: 500 }
+      );
+    }
 
     const result = await executeSponsored(publicClient, walletClient, chain, {
       accountAddress: getAddress(accountAddress) as `0x${string}`,

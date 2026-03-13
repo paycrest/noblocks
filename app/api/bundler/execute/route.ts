@@ -21,14 +21,24 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const chainId = parseChainId(body?.chainId);
-    const rpcUrl = parseRpcUrl(body?.rpcUrl);
-
-    if (!rpcUrl) {
-      return NextResponse.json({ error: "rpcUrl is required" }, { status: 400 });
+    let chainId: number;
+    try {
+      chainId = parseChainId(body?.chainId);
+    } catch {
+      return NextResponse.json(
+        { error: "chainId is required or unsupported" },
+        { status: 400 }
+      );
     }
+    const rpcUrl = parseRpcUrl(chainId);
 
     const { publicClient, walletClient } = getClients(chainId, rpcUrl);
+    if (!walletClient) {
+      return NextResponse.json(
+        { error: "Sponsor wallet is required for execute" },
+        { status: 500 }
+      );
+    }
     const raw = body?.userOp;
     const smartAccountAddress = body?.smartAccountAddress;
 
@@ -63,16 +73,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const missingGasOrFee =
+      raw.callGasLimit == null ||
+      raw.callGasLimit === "" ||
+      raw.verificationGasLimit == null ||
+      raw.verificationGasLimit === "" ||
+      raw.preVerificationGas == null ||
+      raw.preVerificationGas === "" ||
+      raw.maxFeePerGas == null ||
+      raw.maxFeePerGas === "" ||
+      raw.maxPriorityFeePerGas == null ||
+      raw.maxPriorityFeePerGas === "";
+    if (missingGasOrFee) {
+      return NextResponse.json(
+        {
+          error:
+            "userOp must include callGasLimit, verificationGasLimit, preVerificationGas, maxFeePerGas, and maxPriorityFeePerGas",
+        },
+        { status: 400 }
+      );
+    }
+
     const signedUserOp: SerializedUserOperation = {
       sender: getAddress(sender) as `0x${string}`,
       nonce: String(raw.nonce ?? ""),
       initCode: (raw.initCode ?? "0x") as `0x${string}`,
       callData: (raw.callData ?? "0x") as `0x${string}`,
-      callGasLimit: String(raw.callGasLimit ?? "0"),
-      verificationGasLimit: String(raw.verificationGasLimit ?? "0"),
-      preVerificationGas: String(raw.preVerificationGas ?? "0"),
-      maxFeePerGas: String(raw.maxFeePerGas ?? "0"),
-      maxPriorityFeePerGas: String(raw.maxPriorityFeePerGas ?? "0"),
+      callGasLimit: String(raw.callGasLimit),
+      verificationGasLimit: String(raw.verificationGasLimit),
+      preVerificationGas: String(raw.preVerificationGas),
+      maxFeePerGas: String(raw.maxFeePerGas),
+      maxPriorityFeePerGas: String(raw.maxPriorityFeePerGas),
       paymasterAndData: "0x",
       signature: (raw.signature ?? "0x") as `0x${string}`,
     };
@@ -92,7 +123,7 @@ export async function POST(request: NextRequest) {
     const chain = SUPPORTED_CHAINS[chainId]?.chain as Chain | undefined;
     if (!chain) {
       return NextResponse.json(
-        { error: `Unsupported chainId: ${chainId}` },
+        { error: "chainId is required or unsupported" },
         { status: 400 }
       );
     }

@@ -584,7 +584,7 @@ export function TransactionStatus({
       const transactionId = localStorage.getItem("currentTransactionId");
       if (!transactionId) throw new Error("Transaction not found");
 
-      await updateTransactionDetails({
+      const updateResult = await updateTransactionDetails({
         transactionId,
         status: "settled",
         txHash: createdHash || orderDetails?.txHash,
@@ -592,6 +592,11 @@ export function TransactionStatus({
         accessToken,
         walletAddress,
       });
+
+      if (!updateResult?.success) {
+        toast.error("Could not update transaction status. Please try again.");
+        throw new Error("Transaction update failed");
+      }
 
       setTransactionStatus("settled");
       setShowPaymentConfirmation(false);
@@ -989,8 +994,11 @@ export function TransactionStatus({
           token={String(token)}
           txHash={createdHash || orderDetails?.txHash}
           explorerLink={
-            createdHash && orderDetails?.network
-              ? getExplorerLink(orderDetails.network, createdHash)
+            (createdHash || orderDetails?.txHash) && orderDetails?.network
+              ? getExplorerLink(
+                  orderDetails.network,
+                  (createdHash || orderDetails?.txHash) ?? "",
+                )
               : undefined
           }
         />

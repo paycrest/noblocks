@@ -1,6 +1,7 @@
 /**
  * Sponsored execution: bundler sends a direct tx to the user's account with callData.
  * When eip7702Authorization is provided, submits type 4 (delegation) first, then execute.
+ * If the EOA is already delegated to the expected contract, skips type-4 and sends execute-only (avoids repeated delegation txs).
  * Ported from upgrade-server.
  */
 import { getAddress, type Hash } from 'viem';
@@ -8,6 +9,20 @@ import type { PublicClient, WalletClient, Chain } from 'viem';
 
 const RE_DELEGATE_GAS = 120_000n;
 const GAS_LIMIT = 500_000n;
+const EIP7702_MAGIC_PREFIX = '0xef0100';
+
+/** Returns the EIP-7702 delegated implementation address from EOA bytecode, or null if not delegated / wrong format. */
+async function get7702ImplementationAddress(
+  publicClient: PublicClient,
+  address: `0x${string}`
+): Promise<string | null> {
+  const code = await publicClient.getCode({ address });
+  if (!code || code === '0x' || code === '0x0') return null;
+  const normalized = code.toLowerCase();
+  const idx = normalized.indexOf(EIP7702_MAGIC_PREFIX);
+  if (idx === -1) return null;
+  return `0x${normalized.slice(idx + EIP7702_MAGIC_PREFIX.length, idx + EIP7702_MAGIC_PREFIX.length + 40)}`;
+}
 
 function multiplyByBps(value: bigint, bps: bigint): bigint {
   return (value * bps) / 10_000n;
@@ -60,19 +75,27 @@ export async function executeSponsored(
 
   if (params.eip7702Authorization) {
     const auth = parseAuth(params.eip7702Authorization);
-    delegationTransactionHash = await walletClient.sendTransaction({
-      account: walletClient.account!,
-      chain,
-      type: 'eip7702',
-      authorizationList: [auth],
-      to: params.accountAddress,
-      value: 0n,
-      data: params.callData,
-      gas: RE_DELEGATE_GAS,
-      chainId: chain.id,
-    });
-    await publicClient.waitForTransactionReceipt({ hash: delegationTransactionHash });
-    return { transactionHash: delegationTransactionHash };
+    const expectedContract = auth.address.toLowerCase();
+    const currentImplementation = await get7702ImplementationAddress(publicClient, params.accountAddress);
+    const alreadyDelegated =
+      currentImplementation != null && currentImplementation.toLowerCase() === expectedContract;
+
+    if (!alreadyDelegated) {
+      delegationTransactionHash = await walletClient.sendTransaction({
+        account: walletClient.account!,
+        chain,
+        type: 'eip7702',
+        authorizationList: [auth],
+        to: params.accountAddress,
+        value: 0n,
+        data: params.callData,
+        gas: RE_DELEGATE_GAS,
+        chainId: chain.id,
+      });
+      await publicClient.waitForTransactionReceipt({ hash: delegationTransactionHash });
+      return { transactionHash: delegationTransactionHash, delegationTransactionHash };
+    }
+    // Already delegated to the expected contract: fall through to execute-only path (no type-4).
   }
 
   const account = walletClient.account!;

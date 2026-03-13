@@ -167,7 +167,6 @@ export function useSmartWalletTransfer({
 
         let authorization: Awaited<ReturnType<typeof signDelegationAuthorization>> | undefined;
         if (needsDelegation) {
-          toast.info("Delegating to the contract, then completing the transfer…");
           authorization = await signDelegationAuthorization(chainId);
         }
 

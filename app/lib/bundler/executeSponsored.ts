@@ -7,8 +7,8 @@
 import { getAddress, type Hash } from 'viem';
 import type { PublicClient, WalletClient, Chain } from 'viem';
 
-const RE_DELEGATE_GAS = 120_000n;
-const GAS_LIMIT = 500_000n;
+const RE_DELEGATE_GAS = BigInt(120000);
+const GAS_LIMIT = BigInt(500000);
 const EIP7702_MAGIC_PREFIX = '0xef0100';
 
 /** Returns the EIP-7702 delegated implementation address from EOA bytecode, or null if not delegated / wrong format. */
@@ -25,7 +25,7 @@ async function get7702ImplementationAddress(
 }
 
 function multiplyByBps(value: bigint, bps: bigint): bigint {
-  return (value * bps) / 10_000n;
+  return (value * bps) / BigInt(10000);
 }
 
 function isReplacementUnderpricedError(err: unknown): boolean {
@@ -87,7 +87,7 @@ export async function executeSponsored(
         type: 'eip7702',
         authorizationList: [auth],
         to: params.accountAddress,
-        value: 0n,
+        value: BigInt(0),
         data: params.callData,
         gas: RE_DELEGATE_GAS,
         chainId: chain.id,
@@ -106,12 +106,12 @@ export async function executeSponsored(
   const fees = await publicClient.estimateFeesPerGas();
   const maxFeePerGas =
     typeof fees.maxFeePerGas === 'bigint'
-      ? multiplyByBps(fees.maxFeePerGas, 11_000n)
-      : multiplyByBps(await publicClient.getGasPrice(), 11_000n);
+      ? multiplyByBps(fees.maxFeePerGas, BigInt(11000))
+      : multiplyByBps(await publicClient.getGasPrice(), BigInt(11000));
   const maxPriorityFeePerGas =
     typeof fees.maxPriorityFeePerGas === 'bigint'
-      ? multiplyByBps(fees.maxPriorityFeePerGas, 11_000n)
-      : maxFeePerGas / 10n;
+      ? multiplyByBps(fees.maxPriorityFeePerGas, BigInt(11000))
+      : maxFeePerGas / BigInt(10);
 
   const sendExecute = (nonce: number, maxFee: bigint, maxPri: bigint) =>
     walletClient.sendTransaction({
@@ -119,7 +119,7 @@ export async function executeSponsored(
       chain,
       to: params.accountAddress,
       data: params.callData,
-      value: 0n,
+      value: BigInt(0),
       gas: GAS_LIMIT,
       nonce,
       maxFeePerGas: maxFee,
@@ -138,12 +138,12 @@ export async function executeSponsored(
     const retryFees = await publicClient.estimateFeesPerGas();
     const retryMaxFee =
       typeof retryFees.maxFeePerGas === 'bigint'
-        ? multiplyByBps(retryFees.maxFeePerGas, 13_000n)
-        : multiplyByBps(await publicClient.getGasPrice(), 13_000n);
+        ? multiplyByBps(retryFees.maxFeePerGas, BigInt(13000))
+        : multiplyByBps(await publicClient.getGasPrice(), BigInt(13000));
     const retryMaxPri =
       typeof retryFees.maxPriorityFeePerGas === 'bigint'
-        ? multiplyByBps(retryFees.maxPriorityFeePerGas, 13_000n)
-        : retryMaxFee / 10n;
+        ? multiplyByBps(retryFees.maxPriorityFeePerGas, BigInt(13000))
+        : retryMaxFee / BigInt(10);
     hash = await sendExecute(Number(pendingNonce), retryMaxFee, retryMaxPri);
   }
 

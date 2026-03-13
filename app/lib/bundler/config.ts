@@ -15,9 +15,9 @@ export const deployFactoryConfig = {
 export const ENTRY_POINT_ADDRESS = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789' as const;
 
 export const GAS_CONFIG = {
-  callGasLimit: 80_000n,
-  verificationGasLimit: 100_000n,
-  preVerificationGas: 70_000n,
-  maxFeePerGas: 50_00_000n,
-  maxPriorityFeePerGas: 500_000n,
+  callGasLimit: BigInt(80000),
+  verificationGasLimit: BigInt(100000),
+  preVerificationGas: BigInt(70000),
+  maxFeePerGas: BigInt(5000000),
+  maxPriorityFeePerGas: BigInt(500000),
 } as const;

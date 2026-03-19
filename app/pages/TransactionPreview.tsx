@@ -528,10 +528,11 @@ export const TransactionPreview = ({
       });
     } catch (e) {
       const error = e as BaseError;
-      const rawReason = error.shortMessage || error.message;
+      const rawReason = error.shortMessage || error.message || "Unknown error";
       const userMsg = mapToUserMessage(e);
       if (!isSuppressed(userMsg)) {
         setErrorMessage(userMsg);
+        setErrorCount((prevCount: number) => prevCount + 1);
       }
       setIsConfirming(false);
       trackEvent("Swap Failed", {
@@ -574,12 +575,6 @@ export const TransactionPreview = ({
     try {
       setIsConfirming(true);
       await createOrder();
-    } catch (e) {
-      const userMsg = mapToUserMessage(e);
-      if (!isSuppressed(userMsg)) {
-        setErrorMessage(userMsg);
-        setErrorCount((prevCount: number) => prevCount + 1);
-      }
     } finally {
       setIsConfirming(false);
     }

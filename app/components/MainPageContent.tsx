@@ -21,6 +21,7 @@ import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
 import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
 import { normalizeNetworkForRateFetch } from "../utils";
+import { mapToUserMessage, isSuppressed } from "../lib/errorMessages";
 import {
   STEPS,
   type FormData,
@@ -271,9 +272,7 @@ export function MainPageContent() {
           setRate(rate.data);
           setRateError(null); // Clear error on success
         } catch (error) {
-          let errorMsg = "Unknown error";
           if (error instanceof Error) {
-            errorMsg = error.message;
             const lpParam =
               searchParams.get("provider") || searchParams.get("PROVIDER");
             if (
@@ -294,8 +293,11 @@ export function MainPageContent() {
               return;
             }
           }
-          setRateError(errorMsg);
-          toast.error("No available quote", { description: errorMsg });
+          const userMsg = mapToUserMessage(error);
+          if (!isSuppressed(userMsg)) {
+            setRateError(userMsg);
+            toast.error(userMsg);
+          }
         } finally {
           setIsFetchingRate(false);
         }

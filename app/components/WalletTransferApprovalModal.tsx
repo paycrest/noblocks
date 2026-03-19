@@ -9,6 +9,7 @@ import { useTokens } from "../context";
 import { useNetwork } from "../context/NetworksContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance, getRpcUrl } from "../utils";
+import { mapToUserMessage, isSuppressed } from "../lib/errorMessages";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { getCNGNRateForNetwork } from "../hooks/useCNGNRate";
 import WalletMigrationSuccessModal from "./WalletMigrationSuccessModal";
@@ -518,11 +519,13 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             setTimeout(() => setShowSuccessModal(true), 300);
 
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "Migration failed";
-            setError(errorMessage);
-            toast.error("Migration failed", {
-                description: errorMessage,
-            });
+            const userMsg = mapToUserMessage(err);
+            if (!isSuppressed(userMsg)) {
+              setError(userMsg);
+              toast.error("Migration failed", {
+                  description: userMsg,
+              });
+            }
         } finally {
             setIsProcessing(false);
             setProgress("");

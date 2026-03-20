@@ -3,6 +3,7 @@ import { erc20Abi, parseUnits, http, encodeFunctionData, createPublicClient } fr
 import { toast } from "sonner";
 import { getExplorerLink, getRpcUrl } from "../utils";
 import { saveTransaction } from "../api/aggregator";
+import { mapToUserMessage, isSuppressed } from "../lib/errorMessages";
 import { trackEvent } from "./analytics/useMixpanel";
 import type { Token, Network } from "../types";
 import type { User } from "@privy-io/react-auth";
@@ -296,12 +297,15 @@ export function useSmartWalletTransfer({
         if (resetForm) resetForm();
         if (refreshBalance) refreshBalance();
       } catch (e: unknown) {
-        const errorMessage =
+        const rawMessage =
           (e as { shortMessage?: string; message?: string }).shortMessage ||
           (e as { message?: string }).message ||
           "Transfer failed";
+        const userMsg = mapToUserMessage(e);
 
-        setError(errorMessage);
+        if (!isSuppressed(userMsg)) {
+          setError(userMsg);
+        }
         setIsLoading(false);
         setIsSuccess(false);
 
@@ -311,11 +315,11 @@ export function useSmartWalletTransfer({
           "Send token": token,
           "Recipient address": recipientAddress,
           Network: selectedNetwork.chain.name,
-          "Reason for failure": errorMessage,
+          "Reason for failure": rawMessage,
           "Transfer date": new Date().toISOString(),
-          "Error type": errorMessage.includes("429")
+          "Error type": rawMessage.includes("429")
             ? "RPC Rate Limited"
-            : errorMessage.includes("HTTP")
+            : rawMessage.toLowerCase().includes("http")
               ? "RPC Connection Error"
               : "Transaction Error",
         });

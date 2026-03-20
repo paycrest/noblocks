@@ -319,7 +319,7 @@ export function useSmartWalletTransfer({
           "Transfer date": new Date().toISOString(),
           "Error type": rawMessage.includes("429")
             ? "RPC Rate Limited"
-            : rawMessage.includes("HTTP")
+            : rawMessage.toLowerCase().includes("http")
               ? "RPC Connection Error"
               : "Transaction Error",
         });

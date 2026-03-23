@@ -14,7 +14,7 @@ import { STEPS } from "../types";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
-import { mapToUserMessage } from "../lib/errorMessages";
+import { mapToUserMessage, isSuppressed } from "../lib/errorMessages";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useSortedCrossChainBalances } from "../hooks/useSortedCrossChainBalances";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -152,9 +152,12 @@ export const MobileDropdown = ({
       },
       (error) => {
         console.error("Failed to switch network:", error);
-        toast.error("Error switching network", {
-          description: mapToUserMessage(error),
-        });
+        const userMsg = mapToUserMessage(error);
+        if (!isSuppressed(userMsg)) {
+          toast.error("Error switching network", {
+            description: userMsg,
+          });
+        }
       },
     );
 

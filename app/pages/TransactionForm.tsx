@@ -380,6 +380,8 @@ export const TransactionForm = ({
             const errorMessage = cngnRateError || "No available quote";
             setRateError(errorMessage);
           }
+        } else {
+          setRateError(null);
         }
 
         formMethods.register("amountSent", {

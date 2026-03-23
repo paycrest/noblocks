@@ -38,7 +38,6 @@ import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
-import { ERROR_MESSAGES } from "../lib/errorMessages";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
 import {
@@ -378,7 +377,7 @@ export const TransactionForm = ({
             minAmountSentValue = 0.5 * cngnRate;
             setRateError(null);
           } else {
-            const errorMessage = cngnRateError || ERROR_MESSAGES.LIQUIDITY;
+            const errorMessage = cngnRateError || "No available quote";
             setRateError(errorMessage);
           }
         }

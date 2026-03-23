@@ -39,13 +39,6 @@ const USER_REJECTED_PATTERNS = [
   "action_rejected",
 ];
 
-const LIQUIDITY_PATTERNS = [
-  "no provider",
-  "no available quote",
-  "liquidity",
-  "provider not found",
-];
-
 const HOTJAR_PATTERNS = [
   "hotjar",
   "_hjrecordingready",
@@ -63,8 +56,6 @@ export const ERROR_MESSAGES = {
     "We couldn't complete your request. Please try again.",
   BLOCKCHAIN:
     "Something went wrong while connecting to the blockchain. Please try again in a moment.",
-  LIQUIDITY:
-    "Liquidity Alert: We can't fulfill an order of this size right now. Please reduce the amount or try again in 5 minutes.",
   USER_REJECTED:
     "You declined the transaction.",
   FALLBACK:
@@ -112,10 +103,6 @@ function isUserRejected(message: string, code: string): boolean {
   );
 }
 
-function isLiquidityError(message: string): boolean {
-  return matchesAny(message, LIQUIDITY_PATTERNS);
-}
-
 function isRpcError(message: string, code: string): boolean {
   return matchesAny(message, RPC_ERROR_PATTERNS) || matchesAny(code, RPC_ERROR_PATTERNS);
 }
@@ -145,12 +132,7 @@ export function mapToUserMessage(error: unknown): string {
     return ERROR_MESSAGES.USER_REJECTED;
   }
 
-  // 3. Liquidity / no quote — check before HTTP since aggregator may return 404
-  if (isLiquidityError(message)) {
-    return ERROR_MESSAGES.LIQUIDITY;
-  }
-
-  // 4. HTTP / axios errors with status codes
+  // 3. HTTP / axios errors with status codes
   if (axios.isAxiosError(error)) {
     if (!error.response) {
       return ERROR_MESSAGES.NETWORK;
@@ -162,24 +144,27 @@ export function mapToUserMessage(error: unknown): string {
     if (status >= 400) {
       const serverMsg = error.response.data?.message;
       if (typeof serverMsg === "string" && serverMsg.length > 0 && serverMsg.length <= 120) {
-        if (isLiquidityError(serverMsg)) return ERROR_MESSAGES.LIQUIDITY;
         return serverMsg;
       }
       return ERROR_MESSAGES.CLIENT_REQUEST;
     }
   }
 
-  // 5. Client-side network failure (non-axios, e.g. fetch)
+  // 4. Client-side network failure (non-axios, e.g. fetch)
   if (isNetworkError(message, code)) {
     return ERROR_MESSAGES.NETWORK;
   }
 
-  // 6. RPC / blockchain connection errors (but not user-rejected)
+  // 5. RPC / blockchain connection errors (but not user-rejected)
   if (isRpcError(message, code)) {
     return ERROR_MESSAGES.BLOCKCHAIN;
   }
 
-  // 7. Fallback
+  // 6. Prefer backend / library message when nothing else matched (e.g. aggregator rate errors)
+  if (message.trim()) {
+    return message;
+  }
+
   return ERROR_MESSAGES.FALLBACK;
 }
 

@@ -339,6 +339,8 @@ export const config = {
     "/api/v1/account/:path*",
     "/api/v1/recipients",
     "/api/blockfest/cashback",
+    "/api/bundler",
+    "/api/bundler/:path*",
     // (optional) add other instrumented API routes:
     // '/api/v1/kyc/:path*', '/api/v1/rates', '/api/v1/rates/:path*'
   ],

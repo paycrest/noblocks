@@ -129,10 +129,7 @@ export function useSmartWalletTransfer({
           throw new Error("Embedded wallet not ready. Please reconnect and try again.");
         }
 
-        const bundlerUrl = (config.bundlerServerUrl || "").trim().replace(/\/+$/, "");
-        if (!bundlerUrl) {
-          throw new Error("Bundler server URL not configured. Set NEXT_PUBLIC_BUNDLER_SERVER_URL.");
-        }
+        const bundlerUrl = "/api/bundler";
 
         const chain = selectedNetwork.chain;
         const chainId = chain.id;
@@ -170,7 +167,6 @@ export function useSmartWalletTransfer({
 
         let authorization: Awaited<ReturnType<typeof signDelegationAuthorization>> | undefined;
         if (needsDelegation) {
-          toast.info("Delegating to the contract, then completing the transfer…");
           authorization = await signDelegationAuthorization(chainId);
         }
 
@@ -227,11 +223,19 @@ export function useSmartWalletTransfer({
           delegationContractAddress,
           ...(authorization != null && { eip7702Authorization: authorization }),
         };
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          throw new Error("Authentication required. Please sign in to complete this transfer.");
+        }
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        };
         let res: Response;
         try {
           res = await fetch(`${bundlerUrl}/execute-sponsored`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify(payload, (_key, value) =>
               typeof value === "bigint" ? value.toString() : value,
             ),

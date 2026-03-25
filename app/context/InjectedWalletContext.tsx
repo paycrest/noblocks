@@ -129,6 +129,9 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
       } catch (error) {
         console.error("Failed to initialize Privy external wallet:", error);
         setIsInjectedWallet(false);
+        setInjectedAddress(null);
+        setInjectedProvider(null);
+        setInjectedReady(false);
       }
     };
 

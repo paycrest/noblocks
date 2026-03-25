@@ -33,6 +33,7 @@ const Divider = () => (
 const STATUS_COLOR_MAP: Record<string, string> = {
   completed: "text-green-500",
   refunded: "text-red-500",
+  refunding: "text-red-300",
   fulfilled: "text-blue-500",
   pending: "text-orange-500",
   processing: "text-yellow-500",

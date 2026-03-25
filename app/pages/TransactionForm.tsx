@@ -19,6 +19,13 @@ import {
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
 import { acceptedCurrencies } from "../mocks";
+
+type CurrencyOption = {
+  name: string;
+  label: string;
+  disabled?: boolean;
+  imageUrl: string;
+};
 import {
   calculateSenderFee,
   classNames,
@@ -32,12 +39,14 @@ import { useSwapButton } from "../hooks/useSwapButton";
 import { fetchKYCStatus } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
+import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
 import {
   useBalance,
   useInjectedWallet,
   useNetwork,
   useTokens,
 } from "../context";
+import WalletMigrationModal from "../components/WalletMigrationModal";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -64,7 +73,9 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, injectedWalletBalance, isLoading } = useBalance();
+  const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
+  const shouldUseEOA = useShouldUseEOA();
+  const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
 
@@ -110,15 +121,35 @@ export const TransactionForm = ({
     dependencies: [selectedNetwork],
   });
 
+  // Determine active wallet based on migration status
+  // After migration: use EOA (new wallet with funds)
+  // Before migration: use SCW (old wallet)
+  const embeddedWallet = wallets.find(
+    (wallet) => wallet.walletClientType === "privy"
+  );
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet"
+  );
+
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : shouldUseEOA
+      ? (embeddedWallet ? { address: embeddedWallet.address } : undefined)
+      : smartWallet;
 
+  // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
   const activeBalance = isInjectedWallet
     ? injectedWalletBalance
-    : smartWalletBalance;
+    : shouldUseEOA
+      ? externalWalletBalance
+      : smartWalletBalance;
 
-  const balance = activeBalance?.balances[token] ?? 0;
+  // For CNGN, use raw balance instead of USD equivalent. If rawBalances doesn't contain
+  // the token, treat as zero rather than falling back to USD-denominated balance.
+  const balance =
+    token === "CNGN" || token === "cNGN"
+      ? (activeBalance?.rawBalances?.[token] ?? activeBalance?.balances[token] ?? 0)
+      : (activeBalance?.balances[token] ?? 0);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
@@ -229,7 +260,7 @@ export const TransactionForm = ({
     }
     if (currency) {
       const supported = currencies.find(
-        (c) => c.name === currency && !c.disabled,
+        (c: CurrencyOption) => c.name === currency && !c.disabled,
       );
 
       if (supported)
@@ -385,7 +416,7 @@ export const TransactionForm = ({
 
         if (normalizedToken === "CNGN") {
           // When cNGN is selected, only enable NGN
-          currencies.forEach((currency) => {
+          currencies.forEach((currency: CurrencyOption) => {
             currency.disabled = currency.name !== "NGN";
           });
           // If the selected currency is not NGN, set it to NGN
@@ -394,7 +425,7 @@ export const TransactionForm = ({
           }
         } else {
           // Reset currencies to their default state from mocks
-          currencies.forEach((currency) => {
+          currencies.forEach((currency: CurrencyOption) => {
             // Only GHS, BRL, ARS, and MWK are disabled by default
             currency.disabled = ["GHS", "BRL", "ARS", "MWK"].includes(
               currency.name,
@@ -403,7 +434,7 @@ export const TransactionForm = ({
         }
 
         // Sort currencies so enabled ones appear first
-        currencies.sort((a, b) => {
+        currencies.sort((a: CurrencyOption, b: CurrencyOption) => {
           if (a.disabled === b.disabled) return 0;
           return a.disabled ? 1 : -1;
         });
@@ -440,7 +471,7 @@ export const TransactionForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currencies]);
 
-  const { isEnabled, buttonText, buttonAction } = useSwapButton({
+  const { isEnabled, buttonText, buttonAction, isMigrationMandatory } = useSwapButton({
     watch,
     balance,
     isDirty,
@@ -448,9 +479,17 @@ export const TransactionForm = ({
     isUserVerified,
     rate,
     tokenDecimals,
+    needsMigration,
+    isRemainingFundsMigration,
   });
 
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+
   const handleSwap = () => {
+    if (isMigrationMandatory) {
+      setIsMigrationModalOpen(true);
+      return;
+    }
     setOrderId("");
     handleSubmit(onSubmit)();
   };
@@ -586,8 +625,13 @@ export const TransactionForm = ({
         className="grid gap-4 pb-20 text-sm text-text-body transition-all dark:text-white sm:gap-2"
         noValidate
       >
-        <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
-          <h3 className="px-2 py-1 text-base font-medium">Swap</h3>
+        <section
+          aria-labelledby="swap-heading"
+          className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5"
+        >
+          <h3 id="swap-heading" className="px-2 py-1 text-base font-medium">
+            Swap
+          </h3>
 
           <motion.div
             layout
@@ -601,7 +645,7 @@ export const TransactionForm = ({
                 Send
               </label>
               <AnimatePresence>
-                {token && activeBalance && (
+                {authenticated && token && activeBalance && (
                   <AnimatedComponent
                     variant={slideInOut}
                     className="flex items-center gap-2"
@@ -670,11 +714,10 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedSentAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                  authenticated && (amountSent > balance || errors.amountSent)
-                    ? "text-red-500 dark:text-red-500"
-                    : "text-neutral-900 dark:text-white/80"
-                }`}
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${authenticated && (amountSent > balance || errors.amountSent)
+                  ? "text-red-500 dark:text-red-500"
+                  : "text-neutral-900 dark:text-white/80"
+                  }`}
                 placeholder="0"
                 title="Enter amount to send"
               />
@@ -692,24 +735,28 @@ export const TransactionForm = ({
             </div>
             {(errors.amountSent ||
               (authenticated && totalRequired > balance)) && (
-              <AnimatedComponent
-                variant={slideInOut}
-                className="!mt-0 text-xs text-red-500"
-              >
-                {errors.amountSent?.message ||
-                  (authenticated && totalRequired > balance
-                    ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
-                    : null)}
-              </AnimatedComponent>
-            )}
+                <AnimatedComponent
+                  variant={slideInOut}
+                  className="!mt-0 text-xs text-red-500"
+                >
+                  {errors.amountSent?.message ||
+                    (authenticated && totalRequired > balance
+                      ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
+                      : null)}
+                </AnimatedComponent>
+              )}
 
             {/* Arrow showing swap direction */}
             <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas">
               <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
                 {isFetchingRate ? (
-                  <ImSpinner3 className="animate-spin text-xl text-outline-gray dark:text-white/50" />
+                  <span className="animate-spin text-xl text-outline-gray dark:text-white/50">
+                    <ImSpinner3 />
+                  </span>
                 ) : (
-                  <ArrowDown02Icon className="text-xl text-outline-gray dark:text-white/80" />
+                  <span className="text-xl text-outline-gray dark:text-white/80">
+                    <ArrowDown02Icon />
+                  </span>
                 )}
               </div>
             </div>
@@ -756,11 +803,10 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedReceivedAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                  errors.amountReceived
-                    ? "text-red-500 dark:text-red-500"
-                    : "text-neutral-900 dark:text-white/80"
-                }`}
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amountReceived
+                  ? "text-red-500 dark:text-red-500"
+                  : "text-neutral-900 dark:text-white/80"
+                  }`}
                 placeholder="0"
                 title="Enter amount to receive"
               />
@@ -782,7 +828,7 @@ export const TransactionForm = ({
               />
             </div>
           </div>
-        </div>
+        </section>
 
         {/* Recipient and memo */}
         <AnimatePresence>
@@ -809,11 +855,10 @@ export const TransactionForm = ({
                       formMethods.setValue("memo", e.target.value);
                     }}
                     value={formMethods.watch("memo")}
-                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
-                      errors.memo
-                        ? "text-red-500 dark:text-red-500"
-                        : "text-text-body dark:text-white/80"
-                    }`}
+                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${errors.memo
+                      ? "text-red-500 dark:text-red-500"
+                      : "text-text-body dark:text-white/80"
+                      }`}
                     placeholder="Add description (optional)"
                     maxLength={25}
                   />
@@ -844,7 +889,9 @@ export const TransactionForm = ({
             className={`${primaryBtnClasses} cursor-not-allowed`}
             disabled
           >
-            <ImSpinner className="mx-auto animate-spin text-xl" />
+            <span className="mx-auto inline-block animate-spin text-xl">
+              <ImSpinner />
+            </span>
           </button>
         )}
 
@@ -866,6 +913,7 @@ export const TransactionForm = ({
                   ),
                 () => setIsKycModalOpen(true),
                 isUserVerified,
+                () => setIsMigrationModalOpen(true),
               )}
             >
               {buttonText}
@@ -909,6 +957,11 @@ export const TransactionForm = ({
           <FundWalletForm onClose={() => setIsFundModalOpen(false)} />
         </AnimatedModal>
       )}
+
+      <WalletMigrationModal
+        isOpen={isMigrationModalOpen}
+        onClose={() => setIsMigrationModalOpen(false)}
+      />
     </div>
   );
 };

@@ -57,6 +57,7 @@ export type RecipientDetails = {
   institutionCode: string;
   accountIdentifier: string;
   type: "bank" | "mobile_money";
+  currency?: string;
 };
 
 export type FormMethods = {
@@ -74,10 +75,12 @@ export type FormMethods = {
 export type TransactionStatusType =
   | "idle"
   | "pending"
-  | "processing"
+  | "fulfilling"
   | "fulfilled"
   | "validated"
+  | "settling"
   | "settled"
+  | "refunding"
   | "refunded";
 
 export type TransactionStatusProps = {
@@ -91,6 +94,7 @@ export type TransactionStatusProps = {
   formMethods: FormMethods;
   supportedInstitutions: InstitutionProps[];
   setOrderId: (orderId: string) => void;
+  refetchRate?: () => void;
 };
 
 export type SelectFieldProps = {
@@ -117,6 +121,7 @@ export type RatePayload = {
   currency: string;
   providerId?: string;
   network?: string;
+  signal?: AbortSignal;
 };
 
 export type RateResponse = {
@@ -212,6 +217,7 @@ export type Token = {
   decimals: number;
   address: string;
   imageUrl?: string;
+  isNative?: boolean;
 };
 
 export type APIToken = {
@@ -249,13 +255,18 @@ export type KYCStatusResponse = {
 export type Config = {
   aggregatorUrl: string;
   privyAppId: string;
-  thirdwebClientId: string;
+  rpcUrlKey: string;
   mixpanelToken: string;
   hotjarSiteId: number;
   googleVerificationCode: string;
   noticeBannerText?: string; // Optional, for dynamic notice banner text
   brevoConversationsId: string; // Brevo chat widget ID
+  brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
+  bundlerServerUrl: string; // Optional, for external bundler server
+  biconomyMeeApiKey: string;
+  maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
+  maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
 };
 
 export type Network = {
@@ -289,6 +300,7 @@ export type TransactionStatus =
   | "pending"
   | "processing"
   | "fulfilled"
+  | "refunding"
   | "refunded";
 export type TransactionHistoryType = "swap" | "transfer";
 
@@ -312,6 +324,7 @@ export interface TransactionHistory {
   status: TransactionStatus;
   network: string;
   tx_hash?: string;
+  explorer_link?: string;
   time_spent?: string;
   created_at: string;
   updated_at: string;
@@ -332,6 +345,7 @@ export interface TransactionCreateInput {
   txHash?: string;
   timeSpent?: string;
   orderId?: string;
+  email?: string;
 }
 
 export interface TransactionUpdateInput {
@@ -399,4 +413,13 @@ export interface SavedRecipientsResponse {
 export interface SaveRecipientResponse {
   success: boolean;
   data: RecipientDetailsWithId;
+}
+
+declare global {
+  interface Window {
+    BrevoConversationsID?: string;
+    BrevoConversationsSetup?: {
+      groupId: string;
+    };
+  }
 }

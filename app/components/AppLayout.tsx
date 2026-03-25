@@ -1,3 +1,4 @@
+"use client";
 import React from "react";
 import Script from "next/script";
 import config from "../lib/config";
@@ -11,37 +12,50 @@ import {
   PWAInstall,
   NoticeBanner,
 } from "./index";
+import { MigrationBannerWrapper } from "../context";
+import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeModal";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+
   return (
     <Providers>
       <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-        <div className="relative">
+        <div className={`relative ${config.maintenanceEnabled ? 'mb-16' : ''}`}>
           <Navbar />
-          {config.noticeBannerText && (
-            <NoticeBanner textLines={config.noticeBannerText.split("|")} />
+          {config.maintenanceEnabled ? (
+            <MaintenanceBanner />
+          ) : (
+            config.noticeBannerText && (
+              <NoticeBanner textLines={config.noticeBannerText.split("|")} />
+            )
           )}
+          <MigrationBannerWrapper />
         </div>
         <LayoutWrapper footer={<Footer />}>
           <MainContent>{children}</MainContent>
         </LayoutWrapper>
 
         <PWAInstall />
+        <MaintenanceNoticeModal />
       </div>
-
       {/* Brevo Chat Widget */}
-      {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && (
+      {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && config.brevoConversationsGroupId && (
         <>
-          {" "}
           <Script id="brevo-chat-config" strategy="afterInteractive">
-            {" "}
-            {`window.BrevoConversationsID=${JSON.stringify(config.brevoConversationsId)};window.BrevoConversations=window.BrevoConversations||function(){(window.BrevoConversations.q=window.BrevoConversations.q||[]).push(arguments)};`}{" "}
-          </Script>{" "}
+            {`window.BrevoConversationsID=${JSON.stringify(config.brevoConversationsId)};
+            window.BrevoConversations=window.BrevoConversations||function(){
+            (window.BrevoConversations.q=window.BrevoConversations.q||[]).push(arguments)};
+            window.BrevoConversationsSetup=${config.brevoConversationsGroupId
+                ? `{groupId:${JSON.stringify(config.brevoConversationsGroupId)}}`
+                : '{}'
+              };
+            `}
+          </Script>
           <Script
             id="brevo-chat-widget"
             src="https://conversations-widget.brevo.com/brevo-conversations.js"
             strategy="afterInteractive"
-          />{" "}
+          />
         </>
       )}
     </Providers>

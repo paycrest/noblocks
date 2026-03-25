@@ -13,7 +13,7 @@ CREATE TABLE transactions ( id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
                                                                                                                                                                                                                                                                recipient JSONB NOT NULL, -- Changed to JSONB to store structured recipient data
  status TEXT NOT NULL CHECK (status IN ('pending',
                                         'completed',
-                                        'failed')), tx_hash TEXT, time_spent TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+                                        'failed')), tx_hash TEXT, time_spent TEXT, email TEXT, order_id TEXT, network TEXT, email_sent_at TIMESTAMP WITH TIME ZONE, explorer_link TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
                                                                                                                                                             updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL);
 
 -- Create indices

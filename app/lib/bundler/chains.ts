@@ -5,15 +5,16 @@
 import { createPublicClient, createWalletClient, http, type PublicClient, type WalletClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { bsc, base, arbitrum, polygon, mainnet, lisk, celo, type Chain } from 'viem/chains';
+import { getRpcUrl } from '@/app/utils';
 
-const SUPPORTED_CHAINS: Record<number, { chain: Chain; envKey: string }> = {
-  [bsc.id]: { chain: bsc, envKey: 'BSC' },
-  [base.id]: { chain: base, envKey: 'BASE' },
-  [arbitrum.id]: { chain: arbitrum, envKey: 'ARB' },
-  [polygon.id]: { chain: polygon, envKey: 'POLYGON' },
-  [mainnet.id]: { chain: mainnet, envKey: 'ETHEREUM' },
-  [lisk.id]: { chain: lisk, envKey: 'LISK' },
-  [celo.id]: { chain: celo, envKey: 'CELO' },
+const SUPPORTED_CHAINS: Record<number, { chain: Chain; envKey: string; networkName: string }> = {
+  [bsc.id]: { chain: bsc, envKey: 'BSC', networkName: 'BNB Smart Chain' },
+  [base.id]: { chain: base, envKey: 'BASE', networkName: 'Base' },
+  [arbitrum.id]: { chain: arbitrum, envKey: 'ARB', networkName: 'Arbitrum One' },
+  [polygon.id]: { chain: polygon, envKey: 'POLYGON', networkName: 'Polygon' },
+  [mainnet.id]: { chain: mainnet, envKey: 'ETHEREUM', networkName: 'Ethereum' },
+  [lisk.id]: { chain: lisk, envKey: 'LISK', networkName: 'Lisk' },
+  [celo.id]: { chain: celo, envKey: 'CELO', networkName: 'Celo' },
 };
 
 export function parseChainId(value: unknown): number {
@@ -41,11 +42,11 @@ export function parseRpcUrl(chainId: number): string {
   if (!entry) {
     throw new Error(`Unsupported chainId: ${chainId}. Supported: ${Object.keys(SUPPORTED_CHAINS).join(', ')}`);
   }
-  const clientId = process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID?.trim();
-  if (!clientId) {
-    throw new Error('NEXT_PUBLIC_THIRDWEB_CLIENT_ID is required for bundler RPC');
+  const rpcUrl = getRpcUrl(entry.networkName);
+  if (!rpcUrl) {
+    throw new Error(`No RPC URL configured for network: ${entry.networkName}`);
   }
-  return `https://${chainId}.rpc.thirdweb.com/${clientId}`;
+  return rpcUrl;
 }
 
 function getSponsorPrivateKey(): `0x${string}` {

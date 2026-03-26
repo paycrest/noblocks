@@ -108,7 +108,7 @@ export function MainPageContent() {
   const { currentStep, setCurrentStep } = useStep();
   const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
   const { crossChainBalances, isLoading: isBalanceLoading } = useBalance();
-  const { selectedNetwork, setSelectedNetwork } = useNetwork();
+  const { selectedNetwork, setDisplayedNetwork } = useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -238,7 +238,7 @@ export function MainPageContent() {
         preferredNetwork &&
         preferredNetwork.chain.name !== selectedNetwork.chain.name
       ) {
-        setSelectedNetwork(preferredNetwork);
+        setDisplayedNetwork(preferredNetwork);
       }
 
       autoSelectedNetworkSessionRef.current = sessionKey;
@@ -252,7 +252,7 @@ export function MainPageContent() {
       isInjectedWallet,
       ready,
       selectedNetwork.chain.name,
-      setSelectedNetwork,
+      setDisplayedNetwork,
       user?.id,
     ],
   );

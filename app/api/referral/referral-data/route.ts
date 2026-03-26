@@ -150,6 +150,27 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             throw referredError;
         }
 
+        // Fetch this user's own claim rows so we can show per-user status.
+        // referrals.status is shared (flips to "earned" when the first party
+        // claims) so we derive each user's personal status from referral_claims:
+        //   - completed claim row → "earned" for this user
+        //   - anything else       → "pending" for this user
+        const allReferralIds = [
+            ...(referralsAsReferrer || []).map((r) => r.id),
+            ...(referralsAsReferred || []).map((r) => r.id),
+        ];
+
+        const claimedReferralIds = new Set<string>();
+        if (allReferralIds.length > 0) {
+            const { data: myClaims } = await supabaseAdmin
+                .from("referral_claims")
+                .select("referral_id")
+                .in("referral_id", allReferralIds)
+                .eq("wallet_address", walletAddress)
+                .eq("status", "completed");
+            (myClaims || []).forEach((c) => claimedReferralIds.add(c.referral_id));
+        }
+
         // Combine both lists and format
         const allReferrals = [
             // When user is referrer: show who they referred
@@ -158,7 +179,8 @@ export const GET = withRateLimit(async (request: NextRequest) => {
                 role: "referrer" as const,
                 wallet_address: r.referred_wallet_address.toLowerCase(),
                 wallet_address_short: `${r.referred_wallet_address.slice(0, 6)}...${r.referred_wallet_address.slice(-4)}`,
-                status: r.status,
+                // Per-user status: "earned" only if THIS user has a completed claim
+                status: claimedReferralIds.has(r.id) ? "earned" : "pending",
                 amount: r.reward_amount ?? 1.0,
                 created_at: r.created_at,
                 completed_at: r.completed_at,
@@ -169,7 +191,8 @@ export const GET = withRateLimit(async (request: NextRequest) => {
                 role: "referred" as const,
                 wallet_address: r.referrer_wallet_address.toLowerCase(),
                 wallet_address_short: `${r.referrer_wallet_address.slice(0, 6)}...${r.referrer_wallet_address.slice(-4)}`,
-                status: r.status,
+                // Per-user status: "earned" only if THIS user has a completed claim
+                status: claimedReferralIds.has(r.id) ? "earned" : "pending",
                 amount: r.reward_amount ?? 1.0,
                 created_at: r.created_at,
                 completed_at: r.completed_at,
@@ -217,6 +240,27 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             total_referrals: referralList.length,
             newly_generated: isNewlyGenerated,
         });
+
+        // Fire-and-forget: attempt auto-claim for referrals that now meet KYC +
+        // volume requirements. Include "earned" referrals — the first party claiming
+        // flips status to "earned" but the second party may still be unpaid.
+        // Per-wallet idempotency is enforced in the claim route via referral_claims.
+        const claimableReferrals = allReferrals.filter(
+            (r) => r.status === "pending" || r.status === "earned"
+        );
+        if (claimableReferrals.length > 0) {
+            const authHeader = request.headers.get("Authorization");
+            const origin = request.headers.get("origin") || `https://${request.headers.get("host")}`;
+            fetch(`${origin}/api/referral/claim`, {
+                method: "GET",
+                headers: {
+                    ...(authHeader ? { Authorization: authHeader } : {}),
+                    "x-user-id": userId!,
+                },
+            }).catch((e) =>
+                console.error("Auto-claim background request failed:", e),
+            );
+        }
 
         return NextResponse.json(response);
     } catch (error) {

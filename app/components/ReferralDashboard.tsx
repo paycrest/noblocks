@@ -41,6 +41,11 @@ export const ReferralDashboard = ({
                     setReferralData(response.data);
                 } else if (mounted) {
                     setReferralData(null);
+                    if (!response.success) {
+                        toast.error(
+                            response.error || "Failed to load referral data",
+                        );
+                    }
                 }
             } catch (error) {
                 console.error("Failed to fetch referral data:", error);

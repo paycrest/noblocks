@@ -563,6 +563,7 @@ export interface ReferralData {
   pending_count?: number;
   referrals: Array<{
     id: string;
+    role?: "referrer" | "referred";
     wallet_address: string;
     wallet_address_short: string;
     status: string;

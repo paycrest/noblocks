@@ -1901,8 +1901,13 @@ export const handleCopyCode = (
 export const handleCopyLink = (referralCode: string | undefined): void => {
   if (referralCode) {
     const link = `${window.location.origin}?ref=${referralCode}`;
-    navigator.clipboard.writeText(link);
-    toast.success("Referral link copied!");
+    try {
+      navigator.clipboard.writeText(link);
+      toast.success("Referral link copied!");
+    } catch (error) {
+      console.error("Failed to copy referral link:", error);
+      toast.error("Failed to copy link");
+    }
   }
 };
 

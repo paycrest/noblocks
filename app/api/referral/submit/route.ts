@@ -8,7 +8,7 @@ import {
     trackBusinessEvent,
     trackAuthEvent,
 } from "@/app/lib/server-analytics";
-import { getSmartWalletAddressFromPrivyUserId } from "@/app/lib/privy";
+import { getWalletAddressFromPrivyUserId } from "@/app/lib/privy";
 
 export const POST = withRateLimit(async (request: NextRequest) => {
     const startTime = Date.now();
@@ -31,7 +31,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             );
         }
 
-        const walletAddress = await getSmartWalletAddressFromPrivyUserId(userId);
+        const walletAddress = await getWalletAddressFromPrivyUserId(userId);
 
         // Track API request
         trackApiRequest(request, "/api/referral/submit", "POST", {

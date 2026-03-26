@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { fetchKYCStatus } from "@/app/api/aggregator";
-import { getWalletAddressFromPrivyUserId } from "@/app/lib/privy";
+import {
+  getPrivyUserIdFromRequest,
+  getWalletAddressFromPrivyUserId,
+} from "@/app/lib/privy";
 import { getRpcUrl, FALLBACK_TOKENS } from "@/app/utils";
 import { createWalletClient, createPublicClient, http, parseUnits, formatUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -12,12 +15,23 @@ import { cashbackConfig } from "@/app/lib/server-config";
 
 // Referral program configuration
 const REWARD_AMOUNT_USD = 1;
-const MIN_TX_VOLUME_USD = 100;
+/** Minimum completed volume (USD) on the qualifying wallet (invitee when referrer claims). */
+const MIN_QUALIFYING_VOLUME_USD = Number(
+    process.env.REFERRAL_MIN_QUALIFYING_VOLUME_USD ?? "20",
+);
+
+function isUniqueViolation(error: { code?: string; message?: string } | null): boolean {
+    return (
+        error?.code === "23505" ||
+        Boolean(error?.message?.toLowerCase().includes("duplicate")) ||
+        Boolean(error?.message?.toLowerCase().includes("unique"))
+    );
+}
 
 export const POST = withRateLimit(async (request: NextRequest) => {
     const start = Date.now();
     try {
-        const userId = request.headers.get("x-user-id");
+        const userId = await getPrivyUserIdFromRequest(request);
         if (!userId) {
             return NextResponse.json(
                 {
@@ -86,7 +100,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 .from("referrals")
                 .select("*")
                 .eq("id", referralId)
-                .in("status", ["pending", "earned"])
+                .eq("status", "pending")
                 .single();
 
             if (error || !data) {
@@ -134,53 +148,65 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             );
         }
 
-        // Verify KYC and transaction volume for the caller only
-        // Each user must complete KYC + transaction volume before receiving funds
-        try {
-            // Check caller's KYC status
-            const callerKyc = await fetchKYCStatus(walletAddress);
-            const callerVerified = callerKyc?.data?.status === "verified";
+        const isReferrer =
+            referral.referrer_wallet_address.toLowerCase() ===
+            walletAddress.toLowerCase();
+        // Invitee must meet KYC + qualifying volume before either party can claim; referrer cannot qualify on their own volume alone.
+        const qualifyingWallet = isReferrer
+            ? referral.referred_wallet_address.toLowerCase()
+            : walletAddress.toLowerCase();
 
-            if (!callerVerified) {
+        // Verify KYC and transaction volume for the qualifying wallet (invitee when caller is referrer)
+        try {
+            const kyc = await fetchKYCStatus(qualifyingWallet);
+            const verified = kyc?.data?.status === "verified";
+
+            if (!verified) {
                 return NextResponse.json(
                     {
                         success: false,
                         error: "KYC verification required",
                         code: "KYC_REQUIRED",
-                        message: "You must complete KYC verification before claiming referral rewards.",
+                        message: isReferrer
+                            ? "The invited user must complete KYC before this referral can be claimed."
+                            : "You must complete KYC verification before claiming referral rewards.",
                         response_time_ms: Date.now() - start,
                     },
                     { status: 400 },
                 );
             }
 
-            // Check caller's transaction volume
-            const { data: callerTxs, error: callerTxError } = await supabaseAdmin
+            const { data: volTxs, error: volTxError } = await supabaseAdmin
                 .from("transactions")
                 .select("amount_usd, amount_received")
-                .eq("wallet_address", walletAddress)
+                .eq("wallet_address", qualifyingWallet)
                 .eq("status", "completed");
 
-            if (callerTxError) {
-                throw new Error(`Failed to fetch transactions: ${callerTxError.message}`);
+            if (volTxError) {
+                throw new Error(`Failed to fetch transactions: ${volTxError.message}`);
             }
 
-            const callerTotalUsd = (callerTxs || []).reduce(
-                (sum, tx) => sum + Number(tx.amount_usd || tx.amount_received || 0),
-                0
+            const totalUsd = (volTxs || []).reduce(
+                (sum, tx) =>
+                    sum +
+                    Number(tx.amount_usd ?? tx.amount_received ?? 0),
+                0,
             );
-            const callerMeetsVolume = callerTotalUsd >= MIN_TX_VOLUME_USD;
+            const meetsVolume = totalUsd >= MIN_QUALIFYING_VOLUME_USD;
 
-            if (!callerMeetsVolume) {
+            if (!meetsVolume) {
                 return NextResponse.json(
                     {
                         success: false,
                         error: "Insufficient transaction volume",
                         code: "VOLUME_NOT_MET",
-                        message: `Your transaction volume $${callerTotalUsd.toFixed(2)} is less than the required $${MIN_TX_VOLUME_USD}. Complete more transactions to claim.`,
+                        message: isReferrer
+                            ? `The invited user's volume $${totalUsd.toFixed(2)} is below the required $${MIN_QUALIFYING_VOLUME_USD}.`
+                            : `Your transaction volume $${totalUsd.toFixed(2)} is less than the required $${MIN_QUALIFYING_VOLUME_USD}.`,
                         details: {
-                            currentVolume: callerTotalUsd,
-                            required: MIN_TX_VOLUME_USD,
+                            currentVolume: totalUsd,
+                            required: MIN_QUALIFYING_VOLUME_USD,
+                            qualifyingWallet,
                         },
                         response_time_ms: Date.now() - start,
                     },
@@ -200,13 +226,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 { status: 500 },
             );
         }
-        //Check for existing claim by this caller (idempotency)
+        // Idempotency: only terminal "completed" short-circuits; pending/failed can retry
         const { data: existingClaim, error: existingClaimError } = await supabaseAdmin
             .from("referral_claims")
             .select("*")
             .eq("referral_id", referral.id)
             .eq("wallet_address", walletAddress)
-            .single();
+            .maybeSingle();
 
         if (existingClaimError && existingClaimError.code !== "PGRST116") {
             console.error("Failed to fetch existing referral claim:", existingClaimError);
@@ -222,10 +248,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             );
         }
 
-        if (existingClaim) {
+        if (existingClaim?.status === "completed") {
             return NextResponse.json({
-                success: existingClaim.status === "completed",
-                message: `Referral reward already ${existingClaim.status}`,
+                success: true,
+                message: "Referral reward already completed",
                 claim: {
                     amount: existingClaim.reward_amount,
                     status: existingClaim.status,
@@ -234,30 +260,126 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 response_time_ms: Date.now() - start,
             });
         }
-        // Create pending claim record
-        const { data: pendingClaim, error: claimError } = await supabaseAdmin
-            .from("referral_claims")
-            .insert({
-                referral_id: referral.id,
-                wallet_address: walletAddress,
-                reward_amount: REWARD_AMOUNT_USD,
-                status: "pending",
-            })
-            .select()
-            .single();
-        if (claimError || !pendingClaim) {
-            console.error("Failed to create claim record:", claimError);
-            return NextResponse.json(
-                {
-                    success: false,
-                    error: "Failed to create claim record",
-                    code: "CLAIM_CREATION_FAILED",
-                    message: "Unable to process your referral claim. Please try again.",
-                    response_time_ms: Date.now() - start,
-                },
-                { status: 500 },
-            );
+
+        let pendingClaimRow: typeof existingClaim;
+
+        if (existingClaim?.status === "pending") {
+            pendingClaimRow = existingClaim;
+        } else if (existingClaim?.status === "failed") {
+            const { data: retried, error: retryErr } = await supabaseAdmin
+                .from("referral_claims")
+                .update({
+                    status: "pending",
+                    tx_hash: null,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq("id", existingClaim.id)
+                .select()
+                .single();
+            if (retryErr || !retried) {
+                console.error("Failed to reset failed claim for retry:", retryErr);
+                return NextResponse.json(
+                    {
+                        success: false,
+                        error: "Failed to prepare claim retry",
+                        code: "CLAIM_RETRY_FAILED",
+                        message: "Unable to retry this claim. Please try again later.",
+                        response_time_ms: Date.now() - start,
+                    },
+                    { status: 500 },
+                );
+            }
+            pendingClaimRow = retried;
+        } else {
+            const { data: inserted, error: insertError } = await supabaseAdmin
+                .from("referral_claims")
+                .insert({
+                    referral_id: referral.id,
+                    wallet_address: walletAddress,
+                    reward_amount: REWARD_AMOUNT_USD,
+                    status: "pending",
+                })
+                .select()
+                .single();
+
+            if (insertError && isUniqueViolation(insertError)) {
+                const { data: raced, error: raceErr } = await supabaseAdmin
+                    .from("referral_claims")
+                    .select("*")
+                    .eq("referral_id", referral.id)
+                    .eq("wallet_address", walletAddress)
+                    .single();
+                if (raceErr || !raced) {
+                    return NextResponse.json(
+                        {
+                            success: false,
+                            error: "Claim conflict",
+                            code: "CLAIM_CONFLICT",
+                            message: "Unable to resolve claim row. Please try again.",
+                            response_time_ms: Date.now() - start,
+                        },
+                        { status: 409 },
+                    );
+                }
+                if (raced.status === "completed") {
+                    return NextResponse.json({
+                        success: true,
+                        message: "Referral reward already completed",
+                        claim: {
+                            amount: raced.reward_amount,
+                            status: raced.status,
+                            txHash: raced.tx_hash,
+                        },
+                        response_time_ms: Date.now() - start,
+                    });
+                }
+                if (raced.status === "failed") {
+                    const { data: reopened, error: reopenErr } =
+                        await supabaseAdmin
+                            .from("referral_claims")
+                            .update({
+                                status: "pending",
+                                tx_hash: null,
+                                updated_at: new Date().toISOString(),
+                            })
+                            .eq("id", raced.id)
+                            .select()
+                            .single();
+                    if (reopenErr || !reopened) {
+                        return NextResponse.json(
+                            {
+                                success: false,
+                                error: "Failed to prepare claim retry",
+                                code: "CLAIM_RETRY_FAILED",
+                                message:
+                                    "Unable to retry this claim. Please try again later.",
+                                response_time_ms: Date.now() - start,
+                            },
+                            { status: 500 },
+                        );
+                    }
+                    pendingClaimRow = reopened;
+                } else {
+                    pendingClaimRow = raced;
+                }
+            } else if (insertError || !inserted) {
+                console.error("Failed to create claim record:", insertError);
+                return NextResponse.json(
+                    {
+                        success: false,
+                        error: "Failed to create claim record",
+                        code: "CLAIM_CREATION_FAILED",
+                        message: "Unable to process your referral claim. Please try again.",
+                        response_time_ms: Date.now() - start,
+                    },
+                    { status: 500 },
+                );
+            } else {
+                pendingClaimRow = inserted;
+            }
         }
+
+        const pendingClaim = pendingClaimRow!;
         // Execute reward transfer
         try {
             // Validate private key format

@@ -266,6 +266,8 @@ export const config = {
     "/api/blockfest/cashback",
     "/api/bundler",
     "/api/bundler/:path*",
+    "/api/referral",
+    "/api/referral/:path*",
     // (optional) add other instrumented API routes:
     // '/api/v1/kyc/:path*', '/api/v1/rates', '/api/v1/rates/:path*'
   ],

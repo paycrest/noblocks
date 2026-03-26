@@ -26,6 +26,15 @@ export type FormData = {
   amountReceived: number;
 };
 
+/** Mobile wallet sheet / dropdown navigation (wallet, transfer, referrals, etc.) */
+export type MobileSheetView =
+  | "wallet"
+  | "settings"
+  | "transfer"
+  | "fund"
+  | "history"
+  | "referrals";
+
 export const STEPS = {
   FORM: "form",
   PREVIEW: "preview",
@@ -414,6 +423,34 @@ export interface SaveRecipientResponse {
   success: boolean;
   data: RecipientDetailsWithId;
 }
+
+export interface ReferralData {
+  referral_code: string;
+  total_earned: number;
+  total_pending: number;
+  total_referrals?: number;
+  earned_count?: number;
+  pending_count?: number;
+  referrals: Array<{
+    id: string;
+    wallet_address: string;
+    wallet_address_short: string;
+    status: string;
+    amount: number;
+    created_at: string;
+    completed_at?: string | null;
+  }>;
+  newly_generated?: boolean;
+}
+
+export type ApiResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error: string; status?: number; code?: string };
+
+export type SubmitReferralResult = {
+  referral_id?: string;
+  message?: string;
+};
 
 declare global {
   interface Window {

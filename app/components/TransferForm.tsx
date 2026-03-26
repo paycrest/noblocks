@@ -27,7 +27,7 @@ import {
   ArrowDown01Icon,
   InformationSquareIcon,
 } from "hugeicons-react";
-import { Token } from "../types";
+import { Token, type MobileSheetView } from "../types";
 import { networks } from "../mocks";
 import { getNetworkImageUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";

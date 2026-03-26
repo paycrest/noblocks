@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { fetchKYCStatus } from "@/app/api/aggregator";
-import { getSmartWalletAddressFromPrivyUserId } from "@/app/lib/privy";
+import { getWalletAddressFromPrivyUserId } from "@/app/lib/privy";
 import { getRpcUrl, FALLBACK_TOKENS } from "@/app/utils";
 import { createWalletClient, createPublicClient, http, parseUnits, formatUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -353,6 +353,32 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 functionName: "transfer",
                 args: [walletAddress as `0x${string}`, amountInWei],
             });
+
+            // Wait for on-chain confirmation before marking the claim completed
+            const receipt = await publicClient.waitForTransactionReceipt({
+                hash: txHash,
+                confirmations: 1,
+            });
+            if (receipt.status !== "success") {
+                await supabaseAdmin
+                    .from("referral_claims")
+                    .update({
+                        status: "failed",
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq("id", pendingClaim.id);
+                return NextResponse.json(
+                    {
+                        success: false,
+                        error: "Transfer reverted on-chain",
+                        code: "TRANSFER_REVERTED",
+                        message:
+                            "The USDC transfer was reverted. Please try again or contact support.",
+                        response_time_ms: Date.now() - start,
+                    },
+                    { status: 500 },
+                );
+            }
 
             const { error: updateError } = await supabaseAdmin
                 .from("referral_claims")

@@ -155,6 +155,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             // When user is referrer: show who they referred
             ...(referralsAsReferrer || []).map((r) => ({
                 id: r.id,
+                role: "referrer" as const,
                 wallet_address: r.referred_wallet_address.toLowerCase(),
                 wallet_address_short: `${r.referred_wallet_address.slice(0, 6)}...${r.referred_wallet_address.slice(-4)}`,
                 status: r.status,
@@ -165,6 +166,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             // When user is referred: show who referred them
             ...(referralsAsReferred || []).map((r) => ({
                 id: r.id,
+                role: "referred" as const,
                 wallet_address: r.referrer_wallet_address.toLowerCase(),
                 wallet_address_short: `${r.referrer_wallet_address.slice(0, 6)}...${r.referrer_wallet_address.slice(-4)}`,
                 status: r.status,

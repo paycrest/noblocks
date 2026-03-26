@@ -40,6 +40,11 @@ export const ReferralDashboardView = ({
                     setReferralData(response.data);
                 } else if (mounted) {
                     setReferralData(null);
+                    if (!response.success) {
+                        toast.error(
+                            response.error || "Failed to load referral data",
+                        );
+                    }
                 }
             } catch (error) {
                 console.error("Failed to fetch referral data:", error);
@@ -272,7 +277,7 @@ export const ReferralDashboardView = ({
                                                                         </div>
                                                                         {/* Amount */}
                                                                         <p className="text-sm font-medium text-text-secondary dark:text-white/60">
-                                                                            {referral.amount.toFixed(1)} USDC
+                                                                            {(referral.amount ?? 0).toFixed(1)} USDC
                                                                         </p>
                                                                     </div>
                                                                 ))

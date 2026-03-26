@@ -12,7 +12,11 @@ import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
-import { feeRecipientAddress } from "./lib/config";
+import {
+  feeRecipientAddress,
+  localTransferFeePercent,
+  localTransferFeeCap,
+} from "./lib/config";
 
 /**
  * Concatenates and returns a string of class names.
@@ -157,21 +161,22 @@ export const getExplorerLink = (network: string, txHash: string) => {
 
 // write function to get rpc url for a given network
 export function getRpcUrl(network: string) {
+  const rpcUrlKey = process.env.NEXT_PUBLIC_RPC_URL_KEY;
   switch (network) {
     case "Polygon":
-      return `https://137.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-polygon-mainnet-full.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "BNB Smart Chain":
-      return `https://56.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-bsc-mainnet-full.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Base":
-      return `https://8453.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-base-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Arbitrum One":
-      return `https://42161.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-arbitrum-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Celo":
-      return `https://42220.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-celo-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Lisk":
-      return `https://1135.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-lisk-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Ethereum":
-      return `https://1.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-ethereum-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     default:
       return undefined;
   }
@@ -484,12 +489,13 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
 export async function fetchWalletBalance(
   client: any,
   address: string,
-): Promise<{ total: number; balances: Record<string, number> }> {
+): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
   const supportedTokens = await getNetworkTokens(client.chain?.name);
-  if (!supportedTokens) return { total: 0, balances: {} };
+  if (!supportedTokens) return { total: 0, balances: {}, balancesInWei: {} };
 
   let totalBalance = 0;
   const balances: Record<string, number> = {};
+  const balancesInWei: Record<string, bigint> = {};
 
   try {
     // Fetch balances in parallel
@@ -498,6 +504,7 @@ export async function fetchWalletBalance(
         if (token.isNative && token.address === "") {
           // Native token balance (ETH, BNB, etc.)
           const balanceInWei = await client.getBalance({ address });
+          balancesInWei[token.symbol] = balanceInWei;
           const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
           balances[token.symbol] = isNaN(balance) ? 0 : balance;
           return balances[token.symbol];
@@ -509,14 +516,15 @@ export async function fetchWalletBalance(
             functionName: "balanceOf",
             args: [address as `0x${string}`],
           });
+          balancesInWei[token.symbol] = balanceInWei as bigint;
           const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-          // Ensure balance is a valid number
           balances[token.symbol] = isNaN(balance) ? 0 : balance;
           return balances[token.symbol];
         }
       } catch (error) {
         console.error(`Error fetching balance for ${token.symbol}:`, error);
         balances[token.symbol] = 0;
+        balancesInWei[token.symbol] = BigInt(0);
         return 0;
       }
     });
@@ -528,13 +536,13 @@ export async function fetchWalletBalance(
       0,
     );
   } catch (error) {
-    return { total: 0, balances: {} };
+    return { total: 0, balances: {}, balancesInWei: {} };
   }
 
-  // Ensure final total is a valid number
   return {
     total: isNaN(totalBalance) ? 0 : totalBalance,
     balances,
+    balancesInWei,
   };
 }
 
@@ -584,17 +592,14 @@ export function calculateCorrectedTotalBalance(
 export async function fetchBalanceForNetwork(
   network: { chain: any },
   walletAddress: string,
-): Promise<{ total: number; balances: Record<string, number> }> {
+): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
   const { createPublicClient, http } = await import("viem");
-  const { bsc } = await import("viem/chains");
+
+  const rpcUrl = getRpcUrl(network.chain.name);
 
   const publicClient = createPublicClient({
     chain: network.chain,
-    transport: http(
-      network.chain.id === bsc.id
-        ? "https://bsc-dataseed.bnbchain.org/"
-        : undefined,
-    ),
+    transport: http(rpcUrl),
   });
 
   return fetchWalletBalance(publicClient, walletAddress);
@@ -1235,15 +1240,13 @@ export function calculateSenderFee(
 ): { feeAmount: number; feeAmountInBaseUnits: bigint; feeRecipient: string } {
   const calculatedRate = Math.round(rate * 100);
   const isLocalTransfer = calculatedRate === 100;
-  const defaultFeePercent = 0.1; // 0.1% default fee for local transfers
-  const maxFeeCapInHumanReadable = 10000; // 10k CNGN cap in human-readable units
   const decimalsMultiplier = BigInt(10 ** tokenDecimals);
   const maxFeeCapInBaseUnits =
-    BigInt(maxFeeCapInHumanReadable) * decimalsMultiplier; // 10k CNGN in base units
+    BigInt(Math.floor(localTransferFeeCap)) * decimalsMultiplier;
 
   // Calculate fee in human-readable format
   const calculatedFee = isLocalTransfer
-    ? (amount * defaultFeePercent) / 100
+    ? (amount * localTransferFeePercent) / 100
     : 0;
 
   // Convert to base units

@@ -8,6 +8,7 @@ import {
   useMfaEnrollment,
 } from "@privy-io/react-auth";
 import { ImSpinner } from "react-icons/im";
+import { resetNetworkModalDismissed } from "../lib/networkModalStore";
 import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
 import { classNames, shortenAddress } from "../utils";
@@ -30,6 +31,7 @@ import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import ProfileDrawer from "./ProfileDrawer";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
+import { clearUserSessionData } from "../lib/session-cleanup";
 
 export const SettingsDropdown = () => {
   const { user, updateEmail, exportWallet } = usePrivy();
@@ -63,8 +65,8 @@ export const SettingsDropdown = () => {
   // Before migration: show SCW (old wallet)
   const walletAddress = isInjectedWallet
     ? injectedAddress
-    : shouldUseEOA && embeddedWallet
-      ? embeddedWallet.address
+    : shouldUseEOA
+      ? embeddedWallet?.address
       : smartWallet?.address;
 
   const handleCopyAddress = () => {
@@ -77,6 +79,7 @@ export const SettingsDropdown = () => {
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
+      resetNetworkModalDismissed();
     },
   });
 
@@ -148,14 +151,20 @@ export const SettingsDropdown = () => {
         }
       }
 
+      clearUserSessionData(user?.id, user?.wallet?.address);
       await logout();
+
       if (window.ethereum) {
-        await disconnectWallet();
+        try {
+          await disconnectWallet();
+        } catch (disconnectError) {
+          console.warn("Wallet disconnect failed:", disconnectError);
+        }
       }
     } catch (error) {
       console.error("Error during logout:", error);
-      // Still proceed with logout even if wallet disconnection fails
-      await logout();
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 

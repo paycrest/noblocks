@@ -20,6 +20,13 @@ import {
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
 import { acceptedCurrencies } from "../mocks";
+
+type CurrencyOption = {
+  name: string;
+  label: string;
+  disabled?: boolean;
+  imageUrl: string;
+};
 import {
   calculateSenderFee,
   classNames,
@@ -32,7 +39,7 @@ import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
-import { useShouldUseEOA } from "../hooks/useEIP7702Account";
+import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
 import {
   useBalance,
   useInjectedWallet,
@@ -40,6 +47,7 @@ import {
   useTokens,
   useKYC,
 } from "../context";
+import WalletMigrationModal from "../components/WalletMigrationModal";
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -68,6 +76,7 @@ export const TransactionForm = ({
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
+  const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
   const { canTransact, refreshStatus, isPhoneVerified, tier } = useKYC();
@@ -129,8 +138,8 @@ export const TransactionForm = ({
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : shouldUseEOA && embeddedWallet
-      ? { address: embeddedWallet.address }
+    : shouldUseEOA
+      ? (embeddedWallet ? { address: embeddedWallet.address } : undefined)
       : smartWallet;
 
   // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
@@ -256,7 +265,7 @@ export const TransactionForm = ({
     }
     if (currency) {
       const supported = currencies.find(
-        (c) => c.name === currency && !c.disabled,
+        (c: CurrencyOption) => c.name === currency && !c.disabled,
       );
 
       if (supported)
@@ -405,7 +414,7 @@ export const TransactionForm = ({
 
         if (normalizedToken === "CNGN") {
           // When cNGN is selected, only enable NGN
-          currencies.forEach((currency) => {
+          currencies.forEach((currency: CurrencyOption) => {
             currency.disabled = currency.name !== "NGN";
           });
           // If the selected currency is not NGN, set it to NGN
@@ -414,7 +423,7 @@ export const TransactionForm = ({
           }
         } else {
           // Reset currencies to their default state from mocks
-          currencies.forEach((currency) => {
+          currencies.forEach((currency: CurrencyOption) => {
             // Only GHS, BRL, ARS, and MWK are disabled by default
             currency.disabled = ["GHS", "BRL", "ARS", "MWK"].includes(
               currency.name,
@@ -423,7 +432,7 @@ export const TransactionForm = ({
         }
 
         // Sort currencies so enabled ones appear first
-        currencies.sort((a, b) => {
+        currencies.sort((a: CurrencyOption, b: CurrencyOption) => {
           if (a.disabled === b.disabled) return 0;
           return a.disabled ? 1 : -1;
         });
@@ -460,7 +469,7 @@ export const TransactionForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currencies]);
 
-  const { isEnabled, buttonText, buttonAction } = useSwapButton({
+  const { isEnabled, buttonText, buttonAction, isMigrationMandatory } = useSwapButton({
     watch,
     balance,
     isDirty,
@@ -468,9 +477,17 @@ export const TransactionForm = ({
     isUserVerified,
     rate,
     tokenDecimals,
+    needsMigration,
+    isRemainingFundsMigration,
   });
 
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+
   const handleSwap = () => {
+    if (isMigrationMandatory) {
+      setIsMigrationModalOpen(true);
+      return;
+    }
     setOrderId("");
 
     // Calculate the USD amount for transaction limit checking
@@ -636,7 +653,7 @@ export const TransactionForm = ({
                 Send
               </label>
               <AnimatePresence>
-                {token && activeBalance && (
+                {authenticated && token && activeBalance && (
                   <AnimatedComponent
                     variant={slideInOut}
                     className="flex items-center gap-2"
@@ -741,9 +758,13 @@ export const TransactionForm = ({
             <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas">
               <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
                 {isFetchingRate ? (
-                  <ImSpinner3 className="animate-spin text-xl text-outline-gray dark:text-white/50" />
+                  <span className="animate-spin text-xl text-outline-gray dark:text-white/50">
+                    <ImSpinner3 />
+                  </span>
                 ) : (
-                  <ArrowDown02Icon className="text-xl text-outline-gray dark:text-white/80" />
+                  <span className="text-xl text-outline-gray dark:text-white/80">
+                    <ArrowDown02Icon />
+                  </span>
                 )}
               </div>
             </div>
@@ -886,7 +907,9 @@ export const TransactionForm = ({
             className={`${primaryBtnClasses} cursor-not-allowed`}
             disabled
           >
-            <ImSpinner className="mx-auto animate-spin text-xl" />
+            <span className="mx-auto inline-block animate-spin text-xl">
+              <ImSpinner />
+            </span>
           </button>
         )}
 
@@ -908,6 +931,9 @@ export const TransactionForm = ({
                   ),
                 () => setIsLimitModalOpen(true),
                 isPhoneVerified,
+                () => setIsKycModalOpen(true),
+                isUserVerified,
+                () => setIsMigrationModalOpen(true),
               )}
             >
               {buttonText}
@@ -951,6 +977,11 @@ export const TransactionForm = ({
           <FundWalletForm onClose={() => setIsFundModalOpen(false)} />
         </AnimatedModal>
       )}
+
+      <WalletMigrationModal
+        isOpen={isMigrationModalOpen}
+        onClose={() => setIsMigrationModalOpen(false)}
+      />
     </div>
   );
 };

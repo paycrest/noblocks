@@ -57,6 +57,7 @@ export type RecipientDetails = {
   institutionCode: string;
   accountIdentifier: string;
   type: "bank" | "mobile_money";
+  currency?: string;
 };
 
 export type FormMethods = {
@@ -263,7 +264,7 @@ export type KYCStatusResponse = {
 export type Config = {
   aggregatorUrl: string;
   privyAppId: string;
-  thirdwebClientId: string;
+  rpcUrlKey: string;
   mixpanelToken: string;
   hotjarSiteId: number;
   googleVerificationCode: string;
@@ -271,8 +272,10 @@ export type Config = {
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
-  biconomyNexusV120: string; // Biconomy Nexus V1.2.0 contract address
-  biconomyPaymasterKey: string; // Biconomy MEE Paymaster API key
+  bundlerServerUrl: string; // Optional, for external bundler server
+  biconomyMeeApiKey: string;
+  maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
+  maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
 };
 
 export type Network = {
@@ -330,6 +333,7 @@ export interface TransactionHistory {
   status: TransactionStatus;
   network: string;
   tx_hash?: string;
+  explorer_link?: string;
   time_spent?: string;
   created_at: string;
   updated_at: string;
@@ -350,6 +354,7 @@ export interface TransactionCreateInput {
   txHash?: string;
   timeSpent?: string;
   orderId?: string;
+  email?: string;
 }
 
 export interface TransactionUpdateInput {

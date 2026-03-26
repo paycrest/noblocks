@@ -8,19 +8,47 @@ import { useBalance } from "../context/BalanceContext";
 import { useTokens } from "../context";
 import { useNetwork } from "../context/NetworksContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance } from "../utils";
+import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance, getRpcUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { getCNGNRateForNetwork } from "../hooks/useCNGNRate";
 import WalletMigrationSuccessModal from "./WalletMigrationSuccessModal";
-import { type Address, encodeFunctionData, parseAbi, createPublicClient, http, parseUnits } from "viem";
+import { type Address, type Chain, createPublicClient, http, fallback, erc20Abi, encodeAbiParameters } from "viem";
+import { bsc } from "viem/chains";
 import { toast } from "sonner";
 import { networks } from "../mocks";
+import config from "../lib/config";
+import {
+  createMeeClient,
+  toMultichainNexusAccount,
+  getMEEVersion,
+  MEEVersion,
+} from "@biconomy/abstractjs";
+
+function getTransportForChain(chain: Chain) {
+    if (chain.id === bsc.id) {
+        return fallback([
+            http(getRpcUrl(chain.name)),
+            http("https://bsc-dataseed.bnbchain.org/"),
+        ]);
+    }
+    return http(getRpcUrl(chain.name));
+}
 
 // Map network names to viem chains
 const CHAIN_MAP = Object.fromEntries(
     networks.map(n => [n.chain.name, n.chain])
 );
+
+// Biconomy v2 ECDSA module address (same across chains). Signature must be ABI-encoded as (bytes moduleSig, address moduleAddress) per blog.
+const BICONOMY_V2_ECDSA_MODULE = "0x0000001c5b32F37F5beA87BDD5374eB2aC54eA8e" as const;
+// Ignore tiny balances in UI and migration. 1e-6 token + $0.001 min value.
+const DUST_USD_THRESHOLD = 0.001;
+const DUST_TOKEN_DECIMALS = 6;
+
+function getDustRawThreshold(decimals: number): bigint {
+    if (decimals <= DUST_TOKEN_DECIMALS) return BigInt(1);
+    return BigInt(10) ** BigInt(decimals - DUST_TOKEN_DECIMALS);
+}
 
 interface WalletTransferApprovalModalProps {
     isOpen: boolean;
@@ -36,6 +64,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
     const [error, setError] = useState<string | null>(null);
     const [progress, setProgress] = useState<string>("");
     const [allChainBalances, setAllChainBalances] = useState<Record<string, Record<string, number>>>({});
+    const [allChainRawBalances, setAllChainRawBalances] = useState<Record<string, Record<string, bigint>>>({});
     const [isFetchingBalances, setIsFetchingBalances] = useState(false);
     const [chainRates, setChainRates] = useState<Record<string, number | null>>({});
 
@@ -44,7 +73,6 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
     const { selectedNetwork } = useNetwork();
     const { user, getAccessToken } = usePrivy();
     const { wallets } = useWallets();
-    const { client: smartWalletClient } = useSmartWallets();
     const isDark = useActualTheme();
 
     // Get wallet addresses
@@ -61,13 +89,14 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
         const fetchAllChainBalances = async () => {
             setIsFetchingBalances(true);
             const balancesByChain: Record<string, Record<string, number>> = {};
+            const rawByChain: Record<string, Record<string, bigint>> = {};
 
             // Fetch balances for each supported network
             for (const network of networks) {
                 try {
                     const publicClient = createPublicClient({
                         chain: network.chain,
-                        transport: http(),
+                        transport: getTransportForChain(network.chain),
                     });
 
                     const result = await fetchWalletBalance(
@@ -79,6 +108,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                     const hasBalance = Object.values(result.balances).some(b => b > 0);
                     if (hasBalance) {
                         balancesByChain[network.chain.name] = result.balances;
+                        rawByChain[network.chain.name] = result.balancesInWei;
                     }
                 } catch (error) {
                     console.error(`Error fetching balances for ${network.chain.name}:`, error);
@@ -86,6 +116,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             }
 
             setAllChainBalances(balancesByChain);
+            setAllChainRawBalances(rawByChain);
             setIsFetchingBalances(false);
         };
 
@@ -135,6 +166,12 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                 );
 
                 if (tokenMeta?.address) {
+                    const rawAmount = allChainRawBalances[chainName]?.[symbol] ?? BigInt(0);
+                    const decimals = tokenMeta.decimals || 18;
+                    const dustRawThreshold = getDustRawThreshold(decimals);
+                    // Hide tiny balances (dust) before showing migration modal.
+                    if (rawAmount > BigInt(0) && rawAmount < dustRawThreshold) continue;
+
                     // Get CNGN rate for this specific chain if needed
                     const isCNGN = symbol.toUpperCase() === "CNGN";
                     const chainRate = isCNGN ? chainRates[chainName] : undefined;
@@ -142,6 +179,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                     if (isCNGN && chainRate) {
                         usdValue = balanceNum / chainRate;
                     }
+                    if (usdValue < DUST_USD_THRESHOLD) continue;
 
                     const token = {
                         id: `${chainName}-${symbol}`,
@@ -149,11 +187,12 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                         name: tokenMeta.name || symbol,
                         symbol,
                         amount: balanceNum,
+                        rawAmount,
                         displayAmount: balanceNum.toFixed(2),
                         value: `${usdValue.toFixed(2)}`,
                         icon: `/logos/${symbol.toLowerCase()}-logo.svg`,
                         address: tokenMeta.address,
-                        decimals: tokenMeta.decimals || 18,
+                        decimals,
                     };
 
                     if (!grouped[chainName]) {
@@ -168,7 +207,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
         }
 
         return grouped;
-    }, [allChainBalances, allTokens, chainRates]);
+    }, [allChainBalances, allChainRawBalances, allTokens, chainRates]);
 
     // Flatten for display
     const tokens = useMemo(() => {
@@ -210,109 +249,243 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
         setProgress(hasTokens ? "Initializing migration..." : "Deprecating old wallet...");
 
         try {
-            const accessToken = await getAccessToken();
-            if (!accessToken) throw new Error("Failed to get access token");
+            const getAccessTokenWithRetry = async (): Promise<string> => {
+                // Token can be temporarily unavailable right after auth/wallet operations.
+                const tryGet = async () => (await getAccessToken()) ?? "";
+                let token = await tryGet();
+                if (token) return token;
+                await new Promise((resolve) => setTimeout(resolve, 400));
+                token = await tryGet();
+                if (token) return token;
+                await new Promise((resolve) => setTimeout(resolve, 700));
+                token = await tryGet();
+                if (!token) {
+                    throw new Error("Failed to get access token. Please re-login and try again.");
+                }
+                return token;
+            };
 
             const allTxHashes: string[] = [];
             const chains = Object.keys(tokensByChain);
             let totalTokensMigrated = 0;
 
-            // ✅ If tokens exist, process transfers
+            // ✅ If tokens exist: (1) upgrade SCW to Nexus via upgrade-server, then (2) use MEE to transfer.
             if (hasTokens) {
-                // ✅ Check if smart wallet client is available
-                if (!smartWalletClient) {
-                    throw new Error("Smart wallet client not available. Please ensure you have a smart wallet linked.");
+                const meeApiKey = config.biconomyMeeApiKey;
+                const bundlerServerUrl = "/api/bundler";
+                if (!meeApiKey) {
+                    throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
+                }
+                if (!embeddedWallet || !oldAddress) {
+                    throw new Error("Wallet not available. Please ensure you are logged in.");
                 }
 
+                const accessToken = await getAccessTokenWithRetry();
+                const authHeaders: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
+
+                // --- For each chain: check nexus status, upgrade if needed, then transfer via MEE ---
                 for (let i = 0; i < chains.length; i++) {
                     const chainName = chains[i];
                     const chainTokens = tokensByChain[chainName];
                     const chain = CHAIN_MAP[chainName];
 
-                    if (!chain) {
-                        console.warn(`Chain ${chainName} not supported, skipping...`);
+                    if (!chain || !newAddress || !oldAddress) {
+                        if (!chain) console.warn(`Chain ${chainName} not supported, skipping...`);
                         continue;
                     }
 
                     setProgress(`Processing ${chainName} (${i + 1}/${chains.length})...`);
 
                     try {
-                        // ✅ Switch to the correct chain using smart wallet client
-                        await smartWalletClient.switchChain({
-                            id: chain.id,
-                        });
+                        setProgress(`Preparing migration on ${chainName}...`);
+                        await embeddedWallet.switchChain(chain.id);
+                        const chainProvider = await embeddedWallet.getEthereumProvider();
+                        const chainRpcUrl = getRpcUrl(chain.name);
 
-                        // ✅ Create public client for waiting for receipts
-                        const publicClient = createPublicClient({
-                            chain,
-                            transport: http(),
-                        });
+                        setProgress(`Checking wallet version on ${chainName}...`);
+                        const statusUrl = `${bundlerServerUrl}/is-nexus?smartAccountAddress=${encodeURIComponent(oldAddress)}&chainId=${chain.id}${chainRpcUrl ? `&rpcUrl=${encodeURIComponent(chainRpcUrl)}` : ""}`;
+                        const statusRes = await fetch(statusUrl, { headers: authHeaders });
+                        if (!statusRes.ok) {
+                            const errText = await statusRes.text();
+                            throw new Error(`Nexus check failed on ${chainName}: ${errText || statusRes.statusText}`);
+                        }
+                        const statusData = (await statusRes.json()) as {
+                            isNexus?: boolean;
+                            deployed?: boolean;
+                            accountId?: string;
+                            reason?: string;
+                        };
+                        const alreadyNexus = Boolean(statusData?.isNexus);
 
-                        // ✅ Batch all token transfers into a single transaction for gasless execution
-                        // This uses Privy's smart wallet batch capability with Biconomy paymaster
-                        const calls = chainTokens.map((token) => {
-                            // Use parseUnits with fixed-point string to avoid scientific notation for very small amounts
-                            const amountString = token.amount.toFixed(token.decimals);
-                            const amountInWei = parseUnits(amountString, token.decimals);
-
-                            // ✅ Encode the transfer function call
-                            const transferData = encodeFunctionData({
-                                abi: parseAbi(["function transfer(address to, uint256 amount) returns (bool)"]),
-                                functionName: "transfer",
-                                args: [newAddress as Address, amountInWei],
+                        if (!alreadyNexus) {
+                            // When not deployed, server derives initCode from ownerAddress and does deploy+upgrade in one UserOp.
+                            setProgress(`Upgrading wallet to Nexus on ${chainName}...`);
+                            const genRes = await fetch(`${bundlerServerUrl}/generate-userop`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json", ...authHeaders },
+                                body: JSON.stringify({
+                                    smartAccountAddress: oldAddress,
+                                    ownerAddress: embeddedWallet.address,
+                                    chainId: chain.id,
+                                    rpcUrl: chainRpcUrl,
+                                }),
                             });
-
-                            return {
-                                to: token.address as `0x${string}`,
-                                data: transferData as `0x${string}`,
-                                value: BigInt(0),
+                            if (!genRes.ok) {
+                                const errText = await genRes.text();
+                                let msg = errText || genRes.statusText;
+                                try {
+                                    const j = JSON.parse(errText) as { error?: string };
+                                    if (j?.error) msg = j.error;
+                                } catch {
+                                    /* use errText as-is */
+                                }
+                                throw new Error(`Upgrade prepare failed on ${chainName}: ${msg}`);
+                            }
+                            const { userOp: unsignedUserOp, userOpHash } = (await genRes.json()) as {
+                                userOp: Record<string, unknown> & { signature?: string };
+                                userOpHash: string;
                             };
+                            if (!unsignedUserOp || !userOpHash) {
+                                throw new Error(`Invalid upgrade response on ${chainName} (missing userOp or userOpHash)`);
+                            }
+
+                            setProgress(`Signing upgrade on ${chainName}...`);
+                            const rawSignature = (await chainProvider.request({
+                                method: "personal_sign",
+                                params: [userOpHash, embeddedWallet.address],
+                            })) as string;
+                            const signature = encodeAbiParameters(
+                                [{ type: "bytes" }, { type: "address" }],
+                                [rawSignature as `0x${string}`, BICONOMY_V2_ECDSA_MODULE as Address]
+                            );
+                            const signedUserOp = { ...unsignedUserOp, signature };
+
+                            setProgress(`Submitting upgrade on ${chainName}...`);
+                            const execRes = await fetch(`${bundlerServerUrl}/execute`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json", ...authHeaders },
+                                body: JSON.stringify({
+                                    userOp: signedUserOp,
+                                    smartAccountAddress: oldAddress,
+                                    chainId: chain.id,
+                                    rpcUrl: chainRpcUrl,
+                                }),
+                            });
+                            if (!execRes.ok) {
+                                const errText = await execRes.text();
+                                throw new Error(`Upgrade execute failed on ${chainName}: ${errText || execRes.statusText}`);
+                            }
+                            const execData = (await execRes.json()) as { transactionHash?: string };
+                            if (execData.transactionHash) allTxHashes.push(execData.transactionHash);
+                            // toast.success(`Wallet upgraded to Nexus on ${chainName}`);
+                        }
+
+                        const nexusAccount = await toMultichainNexusAccount({
+                            chainConfigurations: [
+                                {
+                                    chain,
+                                    transport: http(chainRpcUrl),
+                                    version: getMEEVersion(MEEVersion.V2_1_0),
+                                    accountAddress: oldAddress as `0x${string}`,
+                                },
+                            ],
+                            signer: chainProvider,
                         });
 
-                        if (calls.length === 0) {
+                        const meeClient = await createMeeClient({
+                            account: nexusAccount,
+                            apiKey: meeApiKey,
+                        });
+
+                        // Transfer full raw balance so users don't lose meaningful dust (e.g. 50 -> 49.995).
+                        const instructions = await Promise.all(
+                            chainTokens.map((token) => {
+                                const raw = token.rawAmount as bigint;
+                                return nexusAccount.buildComposable({
+                                    type: "default",
+                                    data: {
+                                        abi: erc20Abi,
+                                        chainId: chain.id,
+                                        to: token.address as `0x${string}`,
+                                        functionName: "transfer",
+                                        args: [newAddress as Address, raw],
+                                    },
+                                });
+                            })
+                        );
+
+                        if (instructions.length === 0) {
                             console.warn(`No tokens to migrate on ${chainName}`);
                             continue;
                         }
 
-                        setProgress(`Transferring ${calls.length} token(s) on ${chainName} (gasless)...`);
+                        setProgress(`Submitting transfer on ${chainName}...`);
 
-                        // ✅ Send batched transaction from SCW
-                        const txHash = (await smartWalletClient.sendTransaction({
-                            calls,
-                        })) as `0x${string}`;
-
-                        allTxHashes.push(txHash);
-
-                        // ✅ Wait for transaction confirmation
-                        setProgress(`Confirming ${chainName} migration...`);
-
-                        const receipt = await publicClient.waitForTransactionReceipt({
-                            hash: txHash as `0x${string}`,
-                            confirmations: 1,
+                        const { hash: supertxHash } = await meeClient.execute({
+                            sponsorship: true,
+                            instructions,
                         });
 
-                        if (receipt.status === 'success') {
-                            totalTokensMigrated += calls.length;
-                            toast.success(`${chainName} migration complete!`, {
-                                description: `${calls.length} token(s) transferred to your EOA (gasless)`
-                            });
-                        } else {
-                            throw new Error(`Transaction failed for ${chainName}`);
+                        setProgress(`Confirming on ${chainName}... (may take 2–5 min)`);
+
+                        const MEE_WAIT_TIMEOUT_MS = 120_000; // 2 min max so we don't hang
+                        const receipt = await Promise.race([
+                            meeClient.waitForSupertransactionReceipt({
+                                hash: supertxHash,
+                                waitForReceipts: true,
+                                confirmations: 1,
+                            }),
+                            new Promise<never>((_, reject) =>
+                                setTimeout(
+                                    () =>
+                                        reject(
+                                            new Error(
+                                                `Confirmation is taking longer than expected. You can check status at https://meescan.biconomy.io/details/${supertxHash} or try again.`
+                                            )
+                                        ),
+                                    MEE_WAIT_TIMEOUT_MS
+                                )
+                            ),
+                        ]);
+
+                        // SDK throws on FAILED/MINED_FAIL; double-check receipt when we have it
+                        const status = (receipt as { transactionStatus?: string; message?: string }).transactionStatus;
+                        const statusMessage = (receipt as { message?: string }).message;
+                        if (status === "FAILED" || status === "MINED_FAIL") {
+                            throw new Error(statusMessage || "Transaction failed on chain");
                         }
 
+                        const onChainTxHash =
+                            (receipt.receipts?.[0] as { transactionHash?: `0x${string}` } | undefined)?.transactionHash ??
+                            (receipt.userOps?.[0] as { executionData?: `0x${string}` } | undefined)?.executionData ??
+                            supertxHash;
+                        allTxHashes.push(onChainTxHash as string);
+
+                        totalTokensMigrated += instructions.length;
+                        toast.success(`${chainName} migration complete!`, {
+                            description: `${instructions.length} token${instructions.length === 1 ? "" : "s"} transferred to your new wallet.`,
+                        });
                     } catch (chainError) {
-                        const errorMsg = chainError instanceof Error ? chainError.message : 'Unknown error';
+                        const rawMsg = chainError instanceof Error ? chainError.message : "Unknown error";
+                        const isDeadlineOrRevert =
+                            /deadline limit exceeded|revert|transaction failed/i.test(rawMsg);
+                        const description = isDeadlineOrRevert
+                            ? "Simulation reverted or timed out. Try again, or transfer a slightly smaller amount. You can also check status at meescan.biconomy.io."
+                            : rawMsg;
+                        setError(rawMsg);
                         toast.error(`Failed to migrate ${chainName}`, {
-                            description: errorMsg
+                            description,
                         });
                     }
                 }
             } // End of hasTokens block
 
-            // ✅ Update Backend - Deprecate old wallet
-            // This happens regardless of whether tokens were transferred
-            // (even if zero balance, we need to deprecate the old SCW)
+            if (hasTokens && totalTokensMigrated === 0) {
+                throw new Error("All token transfers failed. Please try again.");
+            }
+
             setProgress("Finalizing migration...");
+            const accessToken = await getAccessTokenWithRetry();
 
             const response = await fetch("/api/v1/wallets/deprecate", {
                 method: "POST",
@@ -330,12 +503,13 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             });
 
             if (!response.ok) {
-                throw new Error("Failed to update backend");
+                const errText = await response.text().catch(() => "");
+                throw new Error(`Failed to update backend${errText ? `: ${errText}` : ""}`);
             }
 
             toast.success("🎉 Migration Complete!", {
                 description: hasTokens
-                    ? `${totalTokensMigrated} token(s) successfully migrated to your EOA`
+                    ? `${totalTokensMigrated} token${totalTokensMigrated === 1 ? '' : 's'} successfully migrated to your new wallet`
                     : "Old wallet deprecated successfully",
                 duration: 5000,
             });
@@ -406,11 +580,11 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                         <div className="relative -mt-6 w-full overflow-y-auto rounded-t-[24px] bg-white p-5 text-text-body sm:max-h-[90vh] dark:bg-[#363636] dark:text-white">
                                             <div className="flex items-center justify-between">
                                                 <div>
-                                                    <span className="text-xl font-semibold">Wallet</span>
+                                                    <span className="text-base font-semibold">Wallet</span>
                                                     <div className="flex items-center gap-2 pt-2">
                                                         <Wallet01Icon className="h-5 w-5 text-text-secondary dark:text-white/60" strokeWidth={2} />
                                                         <span
-                                                            className="font-[Inter] text-sm font-medium leading-5 tracking-normal text-text-body align-middle dark:text-[#FFFFFF]"
+                                                            className="font-[Inter] text-sm font-light leading-5 tracking-normal text-text-body align-middle dark:text-[#FFFFFF]"
                                                         >
                                                             {displayOldAddress}
                                                         </span>
@@ -420,7 +594,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                                 {/* Old Wallet Balance Card */}
                                                 <div className="space-y-3  p-4 dark:border-white/10 text-right">
                                                     <span
-                                                        className="font-[Inter] text-sm font-normal leading-5 tracking-normal text-text-secondary dark:text-[#FFFFFF80]"
+                                                        className="font-[Inter] text-sm font-light leading-5 tracking-normal text-text-secondary dark:text-[#FFFFFF80]"
                                                     >
                                                         Total wallet balance
                                                     </span>
@@ -454,7 +628,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                                         <div key={chainName} className="rounded-3xl bg-background-neutral p-4 dark:bg-[#2C2C2C]">
                                                             {/* Network Title */}
                                                             <div className="mb-3">
-                                                                <h3 className="text-sm font-medium text-text-body dark:text-[#FFFFFFCC] capitalize">
+                                                                <h3 className="text-sm font-light text-text-body dark:text-[#FFFFFFCC] capitalize">
                                                                     {chainName}
                                                                 </h3>
                                                             </div>
@@ -491,7 +665,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                                                                 );
                                                                             })()}
                                                                         </div>
-                                                                        <span className="font-[Inter] text-sm font-medium text-text-body dark:text-white/90">
+                                                                        <span className="font-[Inter] text-sm font-light text-text-body dark:text-white/90">
                                                                             {token.displayAmount} {token.symbol}
                                                                         </span>
                                                                     </div>
@@ -511,7 +685,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                                 />
                                                 <p className="text-sm font-normal leading-5 tracking-normal text-text-secondary dark:text-white/50">
                                                     Your funds are safe, they are being transferred to your new secured wallet address{" "}
-                                                    <span className="font-semibold text-text-body dark:text-white/80">{displayNewAddress}</span>
+                                                    <span className="font-normal text-sm text-text-body dark:text-white/80">{displayNewAddress}</span>
                                                 </p>
                                             </div>
 
@@ -526,9 +700,11 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                                             <button
                                                 onClick={handleApproveTransfer}
                                                 disabled={isProcessing || isLoading || isFetchingBalances}
-                                                className="w-full rounded-xl bg-lavender-500 px-6 py-3.5 text-base font-semibold text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                                                className="w-full rounded-xl bg-lavender-500 px-4 py-3.5 text-center text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity sm:px-6"
                                             >
-                                                {isProcessing ? progress || "Processing migration..." : isFetchingBalances ? "Loading balances..." : tokens.length === 0 ? "Complete migration" : "Approve transfer"}
+                                                <span className="block truncate">
+                                                    {isProcessing ? progress || "Processing..." : isFetchingBalances ? "Loading balances..." : tokens.length === 0 ? "Complete migration" : "Approve transfer"}
+                                                </span>
                                             </button>
                                         </div>
                                     </motion.div>

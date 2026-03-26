@@ -270,6 +270,8 @@ export const config = {
     "/api/kyc/tier3-verify",
     "/api/phone/send-otp",
     "/api/phone/verify-otp",
+    "/api/bundler",
+    "/api/bundler/:path*",
     // (optional) add other instrumented API routes:
     // '/api/v1/kyc/:path*', '/api/v1/rates', '/api/v1/rates/:path*'
   ],

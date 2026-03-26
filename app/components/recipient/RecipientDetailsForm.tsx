@@ -243,20 +243,35 @@ export const RecipientDetailsForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedInstitution, isManualEntry]);
 
-  // Fetch recipient name based on institution and account identifier
+  // Fetch recipient name based on institution and account identifier (only enforce digit-length for NGN)
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     const getRecipientName = async () => {
       if (!isManualEntry) return;
 
-      if (
-        !institution ||
-        !accountIdentifier ||
-        accountIdentifier.toString().length <
-          (selectedInstitution?.code === "SAFAKEPC" ? 6 : 10)
-      )
-        return;
+      const isNGN = currency === "NGN";
+      const digits = String(accountIdentifier ?? "").replace(/\D/g, "");
+      const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
 
+      if (!institution || !accountIdentifier) {
+        setRecipientNameError("");
+        return;
+      }
+
+      if (isNGN && digits.length !== requiredLen) {
+        if (digits.length > 0) {
+          setRecipientNameError(
+            requiredLen === 10
+              ? "Please enter a valid 10-digit account Number."
+              : "Invalid account number. Please enter a 6-digit account number.",
+          );
+        } else {
+          setRecipientNameError("");
+        }
+        return;
+      }
+
+      setRecipientNameError("");
       setIsFetchingRecipientName(true);
       setValue("recipientName", "");
 
@@ -380,19 +395,28 @@ export const RecipientDetailsForm = ({
             </button>
           </div>
 
-          {/* Account number */}
+          {/* Account number - NUBAN is 10 digits; SAFAKEPC uses 6 digits */}
           <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               placeholder="Account number"
+              maxLength={currency === "NGN" ? (selectedInstitution?.code === "SAFAKEPC" ? 6 : 10) : undefined}
               {...register("accountIdentifier", {
                 required: {
                   value: true,
                   message: "Account number is required",
                 },
-                minLength: {
-                  value: selectedInstitution?.code === "SAFAKEPC" ? 6 : 10,
-                  message: "Account number is invalid",
+                validate: (value) => {
+                  if (currency !== "NGN") return true;
+                  const digits = String(value ?? "").replace(/\D/g, "");
+                  const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
+                  if (digits.length !== requiredLen) {
+                    return requiredLen === 10
+                      ? "Please enter a valid 10-digit account Number."
+                      : "Invalid account number. Please enter a 6-digit account number.";
+                  }
+                  return true;
                 },
                 onChange: () => setIsManualEntry(true),
               })}

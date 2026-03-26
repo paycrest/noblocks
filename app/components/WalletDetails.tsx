@@ -38,6 +38,7 @@ import { useSortedCrossChainBalances } from "../hooks/useSortedCrossChainBalance
 import TransactionList from "./transaction/TransactionList";
 import { FundWalletForm, TransferForm } from "./index";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
+import WalletMigrationModal from "./WalletMigrationModal";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 
 const Divider = () => (
@@ -47,6 +48,7 @@ const Divider = () => (
 export const WalletDetails = () => {
   const [isTransferModalOpen, setIsTransferModalOpen] =
     useState<boolean>(false);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"balances" | "transactions">(
     "balances",
@@ -92,13 +94,10 @@ export const WalletDetails = () => {
     (account) => account.type === "smart_wallet"
   );
 
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
-  // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : shouldUseEOA && embeddedWallet
-      ? { address: embeddedWallet.address }
+    : shouldUseEOA
+      ? (embeddedWallet ? { address: embeddedWallet.address } : undefined)
       : smartWallet;
 
   // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
@@ -493,8 +492,19 @@ export const WalletDetails = () => {
             isOpen={isTransferModalOpen}
             onClose={() => setIsTransferModalOpen(false)}
           >
-            <TransferForm onClose={() => setIsTransferModalOpen(false)} />
+            <TransferForm
+              onClose={() => setIsTransferModalOpen(false)}
+              onOpenMigration={() => {
+                setIsTransferModalOpen(false);
+                setIsMigrationModalOpen(true);
+              }}
+            />
           </AnimatedModal>
+
+          <WalletMigrationModal
+            isOpen={isMigrationModalOpen}
+            onClose={() => setIsMigrationModalOpen(false)}
+          />
 
           <AnimatedModal
             isOpen={isFundModalOpen}

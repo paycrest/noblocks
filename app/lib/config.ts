@@ -1,9 +1,25 @@
 import { Config, JWTProviderConfig } from "@/app/types";
 
+/** EIP-7702 delegation contract (ProviderBatchCallAndSponsor) per chain. */
+export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
+  42220: "0x847dfdAa218F9137229CF8424378871A1DA8f625",
+  8453: "0xDb61aF57A7fD133C54F51ae4d95469af9F846F6e",
+  42161: "0x59288AC5c262B71b631Be6742967261526E00d59",
+  56: "0x59288AC5c262B71b631Be6742967261526E00d59",
+  137: "0x97b4e402db6DB09F067B6E085B84c95176499d16",
+  1135: "0x0a7aA9F8eab1665DD905288669447b66082E4B17",
+  1: "0x25054a2b9D4544ed292DC1a74E8bF1f6F449d988",
+};
+
+/** Returns the delegation contract address for the given chainId. Uses NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS if set, else DELEGATION_CONTRACT_BY_CHAIN, else "". */
+export function getDelegationContractAddress(chainId: number): string {
+  return DELEGATION_CONTRACT_BY_CHAIN[chainId] ?? "";
+}
+
 const config: Config = {
   aggregatorUrl: process.env.NEXT_PUBLIC_AGGREGATOR_URL || "",
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || "",
-  thirdwebClientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || "",
+  rpcUrlKey: process.env.NEXT_PUBLIC_RPC_URL_KEY || "",
   mixpanelToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || "",
   hotjarSiteId: Number(process.env.NEXT_PUBLIC_HOTJAR_SITE_ID || ""),
   googleVerificationCode:
@@ -13,10 +29,21 @@ const config: Config = {
   brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
   blockfestEndDate:
     process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
-  biconomyNexusV120:
-    process.env.NEXT_PUBLIC_BICONOMY_NEXUS_V120 || "0x000000004f43c49e93c970e84001853a70923b03",
-  biconomyPaymasterKey:
-    process.env.NEXT_PUBLIC_BICONOMY_PAYMASTER_KEY || "",
+  /** @deprecated Use delegationContractAddress. Kept for backward compatibility. */
+  // biconomyNexusV120:
+  //   process.env.NEXT_PUBLIC_BICONOMY_NEXUS_V120 || "0x000000004f43c49e93c970e84001853a70923b03",
+  /** MEE API key for Biconomy Supertransaction API (sponsored execution). Replaces deprecated paymaster. */
+  biconomyMeeApiKey:
+    process.env.NEXT_PUBLIC_BICONOMY_MEE_API_KEY ||
+    "",
+  /** Base URL of the Biconomy v2→Nexus upgrade server (mini bundler). e.g. http://localhost:3000 when running locally. */
+  bundlerServerUrl:
+    process.env.NEXT_PUBLIC_BUNDLER_SERVER_URL || "",
+  maintenanceEnabled:
+    process.env.NEXT_PUBLIC_MAINTENANCE_NOTICE_ENABLED === "true" &&
+    !!(process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "").trim(),
+  maintenanceSchedule:
+    process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "",
 };
 
 export default config;
@@ -29,6 +56,18 @@ if (!feeRecipientAddressEnv) {
   );
 }
 export const feeRecipientAddress: string = feeRecipientAddressEnv;
+
+// Local transfer fee (e.g. cNGN -> NGN): percentage and cap in human-readable units
+const parsedFeePercent = parseFloat(process.env.NEXT_PUBLIC_LOCAL_TRANSFER_FEE_PERCENT ?? "");
+export const localTransferFeePercent: number = Number.isFinite(parsedFeePercent)
+  ? parsedFeePercent
+  : 0.3;
+
+const parsedFeeCap = parseFloat(process.env.NEXT_PUBLIC_LOCAL_TRANSFER_FEE_CAP ?? "");
+export const localTransferFeeCap: number =
+  Number.isFinite(parsedFeeCap) && Number.isInteger(parsedFeeCap)
+    ? parsedFeeCap
+    : 10000;
 
 export const DEFAULT_PRIVY_CONFIG: JWTProviderConfig = {
   provider: "privy",

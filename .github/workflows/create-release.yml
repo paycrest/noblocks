@@ -27,10 +27,10 @@ jobs:
       - name: Get latest tag
         id: get_latest_tag
         run: |
-          # Try to get the latest tag, if none exists, start with v0.0.0
+          # Try to get the latest tag, if none exists, start with 0.0.0
           if ! latest_tag=$(git describe --tags --abbrev=0 2>/dev/null); then
-            echo "No existing tags found. Starting with v0.0.0"
-            latest_tag="v0.0.0"
+            echo "No existing tags found. Starting with 0.0.0"
+            latest_tag="0.0.0"
           fi
           echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
 
@@ -42,7 +42,7 @@ jobs:
           latest_tag="${{ steps.get_latest_tag.outputs.latest_tag }}"
 
           # Get all PRs since last tag
-          if [ "$latest_tag" = "v0.0.0" ]; then
+          if [ "$latest_tag" = "0.0.0" ]; then
             # For first release, get all PRs
             gh pr list --state merged --json number,title,body,labels --jq '.[] | "\(.number)|\(.title)|\(.body)|\(.labels[].name)"' > prs.txt
             # Get all commits for first release - only first line (subject) for pattern matching
@@ -140,15 +140,15 @@ jobs:
         run: |
           latest_tag="${{ steps.get_latest_tag.outputs.latest_tag }}"
 
-          # For first release, start with v1.0.0
-          if [ "$latest_tag" = "v0.0.0" ]; then
-            new_version="v1.0.0"
+          # For first release, start with 1.0.0
+          if [ "$latest_tag" = "0.0.0" ]; then
+            new_version="1.0.0"
             echo "new_version=$new_version" >> $GITHUB_OUTPUT
             echo "version_type=major" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # Remove 'v' prefix and split into major.minor.patch
+          # Strip optional leading 'v' from latest tag, then split into major.minor.patch
           version=${latest_tag#v}
           IFS='.' read -r major minor patch <<< "$version"
 
@@ -166,7 +166,7 @@ jobs:
             patch=$((patch + 1))
           fi
 
-          new_version="v$major.$minor.$patch"
+          new_version="$major.$minor.$patch"
           echo "new_version=$new_version" >> $GITHUB_OUTPUT
 
       - name: Create Release

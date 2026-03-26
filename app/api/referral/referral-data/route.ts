@@ -7,15 +7,17 @@ import {
     trackApiError,
     trackBusinessEvent,
 } from "@/app/lib/server-analytics";
-import { getSmartWalletAddressFromPrivyUserId } from "@/app/lib/privy";
+import {
+  getPrivyUserIdFromRequest,
+  getWalletAddressFromPrivyUserId,
+} from "@/app/lib/privy";
 import { generateReferralCode } from "@/app/utils";
 
 export const GET = withRateLimit(async (request: NextRequest) => {
     const startTime = Date.now();
 
     try {
-        // Get user ID from middleware
-        const userId = request.headers.get("x-user-id");
+        const userId = await getPrivyUserIdFromRequest(request);
 
         if (!userId) {
             return NextResponse.json(
@@ -30,7 +32,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             );
         }
 
-        const walletAddress = await getSmartWalletAddressFromPrivyUserId(userId);
+        const walletAddress = await getWalletAddressFromPrivyUserId(userId);
 
         // Track API request
         trackApiRequest(request, "/api/referral/data", "GET", {
@@ -52,56 +54,54 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         let referralCode = userData?.referral_code;
         let isNewlyGenerated = false;
         if (!referralCode || referralCode.trim() === "") {
-            // Generate unique code
-            let code: string | null = null;
-            let attempts = 0;
             const maxAttempts = 10;
+            let generated: string | null = null;
 
-            while (!code && attempts < maxAttempts) {
+            for (let attempt = 0; attempt < maxAttempts && !generated; attempt++) {
                 const candidate = generateReferralCode();
-                attempts++;
-
-                const { data: existing, error: existingError } = await supabaseAdmin
+                const { data: upsertData, error: upsertError } = await supabaseAdmin
                     .from("users")
-                    .select("wallet_address")
-                    .eq("referral_code", candidate)
+                    .upsert(
+                        {
+                            wallet_address: walletAddress,
+                            referral_code: candidate,
+                            updated_at: new Date().toISOString(),
+                        },
+                        { onConflict: "wallet_address" }
+                    )
+                    .select("referral_code")
                     .single();
 
-                if (existingError && existingError.code !== "PGRST116") {
-                    throw existingError;
+                if (!upsertError && upsertData?.referral_code) {
+                    generated = upsertData.referral_code;
+                    break;
                 }
 
-                if (!existing) {
-                    code = candidate;
+                if (
+                    upsertError &&
+                    (upsertError.code === "23505" ||
+                        upsertError.message
+                            ?.toLowerCase()
+                            .includes("duplicate") ||
+                        upsertError.message
+                            ?.toLowerCase()
+                            .includes("unique"))
+                ) {
+                    continue;
+                }
+
+                if (upsertError) {
+                    throw upsertError;
                 }
             }
 
-            if (!code) {
+            if (!generated) {
                 throw new Error("Failed to generate unique referral code");
             }
 
-            // Upsert user with code
-            const { data: upsertData, error: upsertError } = await supabaseAdmin
-                .from("users")
-                .upsert(
-                    {
-                        wallet_address: walletAddress,
-                        referral_code: code,
-                        updated_at: new Date().toISOString(),
-                    },
-                    { onConflict: "wallet_address" }
-                )
-                .select("referral_code")
-                .single();
-
-            if (upsertError) {
-                throw upsertError;
-            }
-
-            referralCode = upsertData.referral_code;
+            referralCode = generated;
             isNewlyGenerated = true;
 
-            // Track generation
             trackBusinessEvent("Referral Code Auto-Generated", {
                 wallet_address: walletAddress,
                 referral_code: referralCode,
@@ -159,7 +159,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
                 wallet_address: r.referred_wallet_address.toLowerCase(),
                 wallet_address_short: `${r.referred_wallet_address.slice(0, 6)}...${r.referred_wallet_address.slice(-4)}`,
                 status: r.status,
-                amount: r.reward_amount || 1.0,
+                amount: r.reward_amount ?? 1.0,
                 created_at: r.created_at,
                 completed_at: r.completed_at,
             })),
@@ -170,7 +170,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
                 wallet_address: r.referrer_wallet_address.toLowerCase(),
                 wallet_address_short: `${r.referrer_wallet_address.slice(0, 6)}...${r.referrer_wallet_address.slice(-4)}`,
                 status: r.status,
-                amount: r.reward_amount || 1.0,
+                amount: r.reward_amount ?? 1.0,
                 created_at: r.created_at,
                 completed_at: r.completed_at,
             })),
@@ -181,11 +181,11 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         const pendingReferrals = allReferrals.filter((r) => r.status === "pending");
 
         const totalEarned = earnedReferrals.reduce(
-            (sum, r) => sum + (r.amount || 0),
+            (sum, r) => sum + (r.amount ?? 0),
             0
         );
         const totalPending = pendingReferrals.reduce(
-            (sum, r) => sum + (r.amount || 0),
+            (sum, r) => sum + (r.amount ?? 0),
             0
         );
 

@@ -34,7 +34,13 @@ export const ReferralDashboardView = ({
             try {
                 setIsLoading(true);
                 const token = await getAccessToken();
-                if (!token) return;
+                if (!token) {
+                    if (mounted) {
+                        setReferralData(null);
+                        toast.error("Please sign in again to load referral data");
+                    }
+                    return;
+                }
                 const response = await getReferralData(token);
                 if (mounted && response.success) {
                     setReferralData(response.data);

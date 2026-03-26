@@ -45,6 +45,8 @@ import { TransferForm } from "./TransferForm";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import WalletMigrationModal from "./WalletMigrationModal";
 import { useCNGNRate } from "../hooks/useCNGNRate";
+import { ReferralCTA } from "./ReferralCTA";
+import { ReferralDashboard } from "./ReferralDashboard";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -63,6 +65,7 @@ export const WalletDetails = () => {
     useState<TransactionHistory | null>(null);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [isReferralOpen, setIsReferralOpen] = useState(false);
 
   const { selectedNetwork } = useNetwork();
   const {
@@ -374,6 +377,15 @@ export const WalletDetails = () => {
                       )}
                     </div>
 
+                    <div className="mt-8">
+                      <ReferralCTA
+                        onViewReferrals={() => {
+                          handleSidebarClose();
+                          setTimeout(() => setIsReferralOpen(true), 260);
+                        }}
+                      />
+                    </div>
+
                     {/* Tab navigation */}
                     <div className="mt-6 flex items-center gap-6">
                       <button
@@ -572,6 +584,11 @@ export const WalletDetails = () => {
           </Dialog>
         )}
       </AnimatePresence>
+
+      <ReferralDashboard
+        isOpen={isReferralOpen}
+        onClose={() => setIsReferralOpen(false)}
+      />
 
       {/* Transfer and Fund modals */}
       {!isInjectedWallet && (

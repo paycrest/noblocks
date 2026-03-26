@@ -346,6 +346,8 @@ export const config = {
     "/api/bundler/:path*",
     "/api/starknet/transfer",
     "/api/starknet/create-order",
+    "/api/referral",
+    "/api/referral/:path*",
     // (optional) add other instrumented API routes:
     // '/api/v1/kyc/:path*', '/api/v1/rates', '/api/v1/rates/:path*'
   ],

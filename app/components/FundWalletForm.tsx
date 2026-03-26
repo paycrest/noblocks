@@ -19,10 +19,16 @@ import {
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
-import { Token } from "../types";
+import { Token, type MobileSheetView } from "../types";
 import Image from "next/image";
 
-type MobileView = "wallet" | "settings" | "transfer" | "fund" | "history";
+type MobileView =
+  | "wallet"
+  | "settings"
+  | "transfer"
+  | "fund"
+  | "history"
+  | "referrals";
 
 export const FundWalletForm: React.FC<{
   onClose: () => void;

@@ -54,6 +54,8 @@ export { PausedNetworkNotice } from "./transaction/PausedNetworkNotice";
 
 export { FundWalletForm } from "./FundWalletForm";
 export { TransferForm } from "./TransferForm";
+export { ReferralInputModal } from "./ReferralModal";
+export { ReferralCTA } from "./ReferralCTA";
 
 export { default as NoticeBanner } from "./NoticeBanner";
 export { WalletMigrationBanner } from "./WalletMigrationBanner";

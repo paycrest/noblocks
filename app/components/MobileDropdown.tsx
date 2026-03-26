@@ -14,7 +14,7 @@ import { useLogout } from "@privy-io/react-auth";
 import { resetNetworkModalDismissed } from "../lib/networkModalStore";
 import { toast } from "sonner";
 import { useStep } from "../context/StepContext";
-import { STEPS } from "../types";
+import { STEPS, type MobileSheetView } from "../types";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
@@ -26,7 +26,7 @@ import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useTransactions } from "../context/TransactionsContext";
 import { networks } from "../mocks";
 import { Network, Token, TransactionHistory } from "../types";
-import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
+import { WalletView, HistoryView, SettingsView, ReferralDashboardView } from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm } from "./FundWalletForm";
 import { TransferForm } from "./TransferForm";
@@ -43,9 +43,7 @@ export const MobileDropdown = ({
   isOpen: boolean;
   onClose: () => void;
 }) => {
-  const [currentView, setCurrentView] = useState<
-    "wallet" | "settings" | "transfer" | "fund" | "history"
-  >("wallet");
+  const [currentView, setCurrentView] = useState<MobileSheetView>("wallet");
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
@@ -291,6 +289,13 @@ export const MobileDropdown = ({
                               setSelectedNetwork={setSelectedNetwork}
                               onRefreshBalance={refreshBalance}
                               isRefreshing={isRefreshing}
+                              onViewReferrals={() => setCurrentView("referrals")}
+                            />
+                          )}
+
+                          {currentView === "referrals" && (
+                            <ReferralDashboardView
+                              onBack={() => setCurrentView("wallet")}
                             />
                           )}
 

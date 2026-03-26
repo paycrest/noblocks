@@ -1862,6 +1862,63 @@ export const getAvatarImage = (index: number): string => {
 };
 
 /**
+ * Get avatar image path based on wallet address.
+ * Loops through 8 avatars (Avatar.png, Avatar1.png through Avatar7.png).
+ */
+export const getAvatarImageFromAddress = (address: string): string => {
+  const avatarCount = 8;
+  const index = parseInt(address.slice(2, 4), 16) % avatarCount;
+
+  if (index === 0) {
+    return "/images/avatar/Avatar.png";
+  }
+  return `/images/avatar/Avatar${index}.png`;
+};
+
+/**
+ * Copy referral code to clipboard
+ */
+export const handleCopyCode = (
+  referralCode: string | undefined,
+  onCopied?: (value: boolean) => void,
+): void => {
+  if (referralCode) {
+    try {
+      navigator.clipboard.writeText(referralCode);
+      if (onCopied) {
+        onCopied(true);
+        setTimeout(() => onCopied(false), 2000);
+      }
+    } catch (error) {
+      console.error("Failed to copy referral code:", error);
+    }
+  }
+};
+
+/**
+ * Copy referral invite link to clipboard
+ */
+export const handleCopyLink = (referralCode: string | undefined): void => {
+  if (referralCode) {
+    const link = `${window.location.origin}?ref=${referralCode}`;
+    navigator.clipboard.writeText(link);
+    toast.success("Referral link copied!");
+  }
+};
+
+/**
+ * Generate a unique 6-character referral code (NB + 4 alphanumeric)
+ */
+export function generateReferralCode(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let code = "NB";
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+/**
  * Copies text to clipboard and shows a toast notification.
  * Uses `navigator.clipboard` when available; falls back to `execCommand` when the API is
  * unavailable, non-secure context, or when `writeText` rejects.
@@ -2011,3 +2068,4 @@ export function OnrampPendingNotificationDot(): ReactElement {
     }),
   );
 }
+

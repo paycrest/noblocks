@@ -27,6 +27,9 @@ import type {
   V2PaymentOrderGetData,
   AggregatorEnvelope,
   RefundAccountDetails,
+  ReferralData,
+  ApiResponse,
+  SubmitReferralResult,
 } from "../types";
 import {
   trackServerEvent,
@@ -1055,4 +1058,109 @@ export async function fetchV2SenderPaymentOrderById(
     },
   );
   return response.data;
+}
+
+/**
+ * Submit a referral code for a new user
+ */
+export async function submitReferralCode(
+  code: string,
+  accessToken?: string,
+): Promise<ApiResponse<SubmitReferralResult>> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  try {
+    const response = await axios.post(
+      `/api/referral/submit`,
+      { referral_code: code },
+      { headers },
+    );
+
+    if (!response.data?.success) {
+      return {
+        success: false,
+        error:
+          response.data?.error ||
+          response.data?.message ||
+          "Failed to submit referral code",
+        status: response.status,
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data?.data || response.data,
+    } as ApiResponse<SubmitReferralResult>;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to submit referral code";
+      return { success: false, error: message, status: error.response?.status };
+    }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Get user's referral data (code, earnings, referral list)
+ */
+export async function getReferralData(
+  accessToken: string,
+  walletAddress?: string,
+): Promise<ApiResponse<ReferralData>> {
+  if (!accessToken) {
+    return {
+      success: false,
+      error: "Authentication token is required",
+    };
+  }
+
+  const url = walletAddress
+    ? `/api/referral/referral-data?wallet_address=${encodeURIComponent(walletAddress)}`
+    : `/api/referral/referral-data`;
+
+  try {
+    const response = await axios.get<ApiResponse<ReferralData>>(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.data?.success) {
+      return {
+        success: false,
+        error: response.data?.error || "Failed to fetch referral data",
+        status: response.status,
+      };
+    }
+
+    return { success: true, data: response.data.data };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to fetch referral data";
+      return {
+        success: false,
+        error: message,
+        status: error.response?.status,
+      };
+    }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
 }

@@ -27,19 +27,17 @@ import {
   ArrowDown01Icon,
   InformationSquareIcon,
 } from "hugeicons-react";
-import { Token } from "../types";
+import { Token, type MobileSheetView } from "../types";
 import { networks } from "../mocks";
 import { getNetworkImageUrl } from "../utils";
 import { useActualTheme } from "../hooks/useActualTheme";
 import Image from "next/image";
 
-type MobileView = "wallet" | "settings" | "transfer" | "fund" | "history";
-
 export const TransferForm: React.FC<{
   onClose: () => void;
   onSuccess?: () => void;
   showBackButton?: boolean;
-  setCurrentView?: React.Dispatch<React.SetStateAction<MobileView>>;
+  setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
   onOpenMigration?: () => void;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView, onOpenMigration }) => {
   const searchParams = useSearchParams();

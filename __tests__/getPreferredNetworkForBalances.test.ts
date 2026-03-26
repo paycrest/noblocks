@@ -22,6 +22,10 @@ const makeEntry = (
 });
 
 describe("getPreferredNetworkForBalances", () => {
+  it("returns null for an empty balance list", () => {
+    expect(getPreferredNetworkForBalances([])).toBeNull();
+  });
+
   it("returns null when there are no positive balances", () => {
     expect(
       getPreferredNetworkForBalances([
@@ -41,6 +45,15 @@ describe("getPreferredNetworkForBalances", () => {
     ).toBe("Base");
   });
 
+  it("ignores negative token balances", () => {
+    expect(
+      getPreferredNetworkForBalances([
+        makeEntry("Arbitrum One", { USDC: -50 }),
+        makeEntry("Base", { USDT: 10 }),
+      ])?.chain.name,
+    ).toBe("Base");
+  });
+
   it("prefers the current network when the highest-value token ties", () => {
     expect(
       getPreferredNetworkForBalances(
@@ -51,5 +64,14 @@ describe("getPreferredNetworkForBalances", () => {
         "Base",
       )?.chain.name,
     ).toBe("Base");
+  });
+
+  it("keeps the first encountered network when ties have no current network", () => {
+    expect(
+      getPreferredNetworkForBalances([
+        makeEntry("Arbitrum One", { USDC: 50 }),
+        makeEntry("Base", { USDT: 50 }),
+      ])?.chain.name,
+    ).toBe("Arbitrum One");
   });
 });

@@ -52,7 +52,17 @@ async function tryClaimOne(
   const qualifyingWallet = walletAddress.toLowerCase();
 
   // ── KYC check (caller's own KYC) ───────────────────────────────────────────
-  const kyc = await fetchKYCStatus(qualifyingWallet);
+  let kyc;
+  try {
+    kyc = await fetchKYCStatus(qualifyingWallet);
+  } catch {
+    return {
+      success: false,
+      code: "KYC_CHECK_FAILED",
+      message: "Unable to verify KYC status. Please try again later.",
+    };
+  }
+
   if (kyc?.data?.status !== "verified") {
     return {
       success: false,

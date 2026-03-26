@@ -44,10 +44,14 @@ const config: Config = {
     !!(process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "").trim(),
   maintenanceSchedule:
     process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "",
-  referralMinQualifyingVolumeUsd:
-    Number(process.env.NEXT_PUBLIC_REFERRAL_MIN_QUALIFYING_VOLUME_USD || "0"),
-  referralRewardAmountUsd:
-    Number(process.env.NEXT_PUBLIC_REFERRAL_REWARD_AMOUNT_USD || "0"),
+  referralMinQualifyingVolumeUsd: (() => {
+    const parsed = parseFloat(process.env.NEXT_PUBLIC_REFERRAL_MIN_QUALIFYING_VOLUME_USD ?? "");
+    return Number.isFinite(parsed) ? parsed : 0;
+  })(),
+  referralRewardAmountUsd: (() => {
+    const parsed = parseFloat(process.env.NEXT_PUBLIC_REFERRAL_REWARD_AMOUNT_USD ?? "");
+    return Number.isFinite(parsed) ? parsed : 0;
+  })(),
 };
 
 export default config;

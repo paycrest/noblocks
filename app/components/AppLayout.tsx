@@ -5,13 +5,11 @@ import config from "../lib/config";
 
 import Providers from "../providers";
 import MainContent from "../mainContent";
-import {
-  Footer,
-  Navbar,
-  LayoutWrapper,
-  PWAInstall,
-  NoticeBanner,
-} from "./index";
+import { Footer } from "./Footer";
+import { Navbar } from "./Navbar";
+import { LayoutWrapper } from "./LayoutWrapper";
+import PWAInstall from "./PWAInstallManager";
+import NoticeBanner from "./NoticeBanner";
 import { MigrationBannerWrapper } from "../context";
 import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeModal";
 

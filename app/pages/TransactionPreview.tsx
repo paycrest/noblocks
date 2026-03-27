@@ -24,7 +24,7 @@ import type {
   TransactionPreviewProps,
   TransactionCreateInput,
 } from "../types";
-import { primaryBtnClasses, secondaryBtnClasses } from "../components";
+import { primaryBtnClasses, secondaryBtnClasses } from "../components/Styles";
 import { gatewayAbi } from "../api/abi";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";

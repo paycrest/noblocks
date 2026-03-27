@@ -21,10 +21,10 @@ export interface TransactionLimits {
   unlimited?: boolean;
 }
 
-export type KYCTierLevel = 0 | 1 | 2 | 3 | 4;
+export type KYCTierLevel = 0 | 1 | 2 | 3;
 
 export interface KYCTier {
-  level: 0 | 1 | 2 | 3 | 4;
+  level: 0 | 1 | 2 | 3;
   name: string;
   limits: TransactionLimits;
   requirements: string[];
@@ -54,12 +54,6 @@ export const KYC_TIERS: Record<number, KYCTier> = {
     name: "Tier 3",
     limits: { monthly: 50000 },
     requirements: ["Address verification"],
-  },
-  4: {
-    level: 4,
-    name: "Tier 4",
-    limits: { monthly: 0, unlimited: true },
-    requirements: ["Business verification"],
   },
 };
 
@@ -188,7 +182,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       if (!response.ok) return;
       const data = await response.json();
       if (data.success) {
-        setTier(data.tier);
+        setTier(Math.min(Number(data.tier) || 0, 3) as KYCTierLevel);
         setIsPhoneVerified(data.isPhoneVerified);
         setPhoneNumber(data.phoneNumber);
       }

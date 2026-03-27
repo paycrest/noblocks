@@ -170,7 +170,7 @@ export default function TransactionLimitModal({
       </div>
 
       {/* Action Button */}
-      {tier < 4 && (
+      {tier < 3 && (
         <button
           onClick={() => {
             if (tier < 1) {
@@ -186,7 +186,7 @@ export default function TransactionLimitModal({
       )}
 
       {/* Already at max tier */}
-      {tier >= 4 && (
+      {tier >= 3 && (
         <button onClick={onClose} className={`${secondaryBtnClasses} w-full`}>
           Got it
         </button>
@@ -245,7 +245,7 @@ export default function TransactionLimitModal({
                 setIsKycModalOpen(false);
                 onClose();
               }}
-              targetTier={tier === 3 ? 4 : tier === 2 ? 3 : 2}
+              targetTier={tier === 2 ? 3 : 2}
             />
           </AnimatedModal>
         )}

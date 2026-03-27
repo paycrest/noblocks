@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 declare global {
   namespace JSX {
     interface IntrinsicElements {
@@ -70,8 +70,6 @@ export const STEPS = {
   TIER3_PROMPT: "tier3_prompt",
   TIER3_COUNTRY: "tier3_country",
   TIER3_UPLOAD: "tier3_upload",
-  // Tier 4 (business verification) flow
-  TIER4_TYPEFORM: "tier4_typeform",
 } as const;
 
 type Step =
@@ -84,7 +82,6 @@ type Step =
   | typeof STEPS.TIER3_PROMPT
   | typeof STEPS.TIER3_COUNTRY
   | typeof STEPS.TIER3_UPLOAD
-  | typeof STEPS.TIER4_TYPEFORM;
 
 // Types for ID types JSON
 type IdType = {
@@ -120,7 +117,7 @@ export const KycModal = ({
 }: {
   setIsUserVerified: (value: boolean) => void;
   setIsKycModalOpen: (value: boolean) => void;
-  targetTier?: 2 | 3 | 4;
+  targetTier?: 2 | 3;
 }) => {
   const { getAccessToken, user } = usePrivy();
   const { wallets } = useWallets();
@@ -134,11 +131,7 @@ export const KycModal = ({
     : embeddedWallet?.address;
 
   const [step, setStep] = useState<Step>(() =>
-    targetTier === 4
-      ? STEPS.TIER4_TYPEFORM
-      : targetTier === 3
-        ? STEPS.TIER3_PROMPT
-        : STEPS.LOADING,
+    targetTier === 3 ? STEPS.TIER3_PROMPT : STEPS.LOADING,
   );
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -193,7 +186,7 @@ export const KycModal = ({
 
   useEffect(() => {
     // Only load SmileID components for Tier 2 verification flow
-    if (targetTier === 3 || targetTier === 4) return;
+    if (targetTier === 3) return;
     if (typeof window !== "undefined" && !smileIdLoaded) {
       import("@smileid/web-components/smart-camera-web")
         .then(() => {
@@ -1101,88 +1094,8 @@ export const KycModal = ({
     setIsRefreshing(false);
   };
 
-  // Tier 4: Typeform live embed
-  const typeformContainerRef = useRef<HTMLDivElement>(null);
-  const typeformScriptLoaded = useRef(false);
-  const [isTypeformReady, setIsTypeformReady] = useState(false);
-
-  useEffect(() => {
-    if (step !== STEPS.TIER4_TYPEFORM) return;
-    setIsTypeformReady(false);
-
-    const loadScript = () => {
-      if (typeformScriptLoaded.current && window.tf) {
-        window.tf.load();
-        return;
-      }
-
-      const existing = document.querySelector(
-        'script[src*="embed.typeform.com/next/embed.js"]',
-      );
-      if (existing) {
-        typeformScriptLoaded.current = true;
-        window.tf?.load();
-        return;
-      }
-
-      const script = document.createElement("script");
-      script.src = "//embed.typeform.com/next/embed.js";
-      script.async = true;
-      script.onload = () => {
-        typeformScriptLoaded.current = true;
-      };
-      document.head.appendChild(script);
-    };
-
-    const scriptTimer = setTimeout(loadScript, 100);
-    const spinnerTimer = setTimeout(() => setIsTypeformReady(true), 2000);
-
-    return () => {
-      clearTimeout(scriptTimer);
-      clearTimeout(spinnerTimer);
-    };
-  }, [step]);
-
-  const renderTier4Typeform = () => (
-    <motion.div key="tier4_typeform" {...fadeInOut} className="space-y-4">
-      <div className="space-y-3">
-        <UserDetailsIcon />
-        <div>
-          <h2 className="text-lg font-medium dark:text-white">
-            Business verification
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-white/50">
-            Complete this form to apply for unlimited transaction limits.
-          </p>
-        </div>
-      </div>
-
-      {!isTypeformReady && (
-        <div className="flex items-center justify-center py-10">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-lavender-500 border-t-white"></div>
-        </div>
-      )}
-
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          onClick={() => setIsKycModalOpen(false)}
-          className={`${secondaryBtnClasses} w-2/3`}
-        >
-          Close
-        </button>
-        <div
-          ref={typeformContainerRef}
-          data-tf-live="01KH3NC0M1G4MNHBCWM320WBP9"
-          style={{ width: "", minHeight: "11px" }}
-          className=""
-        />
-      </div>
-    </motion.div>
-  );
-
   const fetchStatus = async () => {
-    if (!walletAddress || targetTier === 3 || targetTier === 4) return;
+    if (!walletAddress || targetTier === 3) return;
 
     try {
       const response = await fetchKYCStatus(walletAddress);
@@ -1402,7 +1315,6 @@ export const KycModal = ({
             [STEPS.TIER3_PROMPT]: renderTier3Prompt(),
             [STEPS.TIER3_COUNTRY]: renderTier3Country(),
             [STEPS.TIER3_UPLOAD]: renderTier3Upload(),
-            [STEPS.TIER4_TYPEFORM]: renderTier4Typeform(),
           }[step]
         }
       </AnimatePresence>

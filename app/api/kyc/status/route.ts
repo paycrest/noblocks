@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
       .eq("wallet_address", walletAddress)
       .single();
 
-    const tier: 0 | 1 | 2 | 3 | 4 =
-      (kycProfile?.tier as 0 | 1 | 2 | 3 | 4) || 0;
+    const rawTier = Number(kycProfile?.tier ?? 0);
+    const tier: 0 | 1 | 2 | 3 = Math.min(Math.max(rawTier, 0), 3) as 0 | 1 | 2 | 3;
     const phoneNumber = kycProfile?.phone_number || null;
     const phoneVerified = kycProfile?.verified && phoneNumber ? true : false;
 

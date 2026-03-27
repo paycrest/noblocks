@@ -11,7 +11,6 @@ import {
   InformationCircleIcon,
   FaceIdIcon,
   CallingIcon,
-  WorkAlertIcon,
   MapPinpoint01Icon,
 } from "hugeicons-react";
 import { usePrivy, useLinkAccount } from "@privy-io/react-auth";
@@ -195,8 +194,6 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                           <FaceIdIcon className="size-4 text-outline-gray dark:text-white/70" />
                         ) : req.includes("Address verification") ? (
                           <MapPinpoint01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                        ) : req.includes("Business verification") ? (
-                          <WorkAlertIcon className="size-4 text-outline-gray dark:text-white/50" />
                         ) : (
                           req.includes("ID") && (
                             <TbIdBadge className="size-4 text-outline-gray dark:text-white/50" />
@@ -385,7 +382,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                             </div>
 
                             {/* Upgrade Button */}
-                            {tier < 4 && (
+                            {tier < 3 && (
                               <button
                                 type="button"
                                 onClick={() => {

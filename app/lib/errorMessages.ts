@@ -170,7 +170,8 @@ export function mapToUserMessage(error: unknown): string {
 
 /**
  * Check if a mapped message is the suppress sentinel.
- * Usage: `const msg = mapToUserMessage(err); if (!isSuppressed(msg)) toast.error(msg);`
+ * Prefer `toastMappedError` / `mapReportAndAct` from `toastMappedError.ts` so failures
+ * are also reported to GlitchTip (Sentry) with the mapped user-facing message in context.
  */
 export function isSuppressed(message: string): boolean {
   return message === SUPPRESS;

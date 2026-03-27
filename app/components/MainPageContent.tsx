@@ -21,7 +21,8 @@ import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
 import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
 import { normalizeNetworkForRateFetch } from "../utils";
-import { mapToUserMessage, isSuppressed } from "../lib/errorMessages";
+import { mapReportAndAct } from "../lib/toastMappedError";
+import { reportClientError } from "../lib/sentry.client";
 import {
   STEPS,
   type FormData,
@@ -280,6 +281,11 @@ export function MainPageContent() {
               lpParam &&
               !failedProviders.current.has(lpParam)
             ) {
+              reportClientError(error, {
+                feature: "cngn-rate",
+                phase: "provider-fallback",
+                provider: lpParam,
+              });
               toast.error(`${error.message} - defaulting to public rate`);
               // Track failed provider
               if (lpParam) {
@@ -293,11 +299,13 @@ export function MainPageContent() {
               return;
             }
           }
-          const userMsg = mapToUserMessage(error);
-          if (!isSuppressed(userMsg)) {
-            setRateError(userMsg);
-            toast.error(userMsg);
-          }
+          mapReportAndAct(error, {
+            feature: "cngn-rate",
+            onUserMessage: (userMsg) => {
+              setRateError(userMsg);
+              toast.error(userMsg);
+            },
+          });
         } finally {
           setIsFetchingRate(false);
         }

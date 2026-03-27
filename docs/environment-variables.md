@@ -36,6 +36,21 @@ MIXPANEL_INCLUDE_ERROR_STACKS=false
 NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS=false
 ```
 
+### Client error reporting (optional)
+
+Sentry-compatible ingest (e.g. [GlitchTip](https://glitchtip.com/)). Browser-only; no `@sentry/nextjs` plugin.
+
+```bash
+NEXT_PUBLIC_SENTRY_DSN=
+# Optional
+NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+NEXT_PUBLIC_SENTRY_RELEASE=
+# 0–1; default 0 (no performance traces)
+NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=0
+# Set to true to send events while running `next dev`
+NEXT_PUBLIC_SENTRY_ENABLE_IN_DEV=false
+```
+
 ### Security
 
 ```bash

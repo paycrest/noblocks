@@ -1,9 +1,11 @@
+"use client";
+
 import { useState, useCallback } from "react";
 import { erc20Abi, parseUnits, http, encodeFunctionData, createPublicClient } from "viem";
 import { toast } from "sonner";
 import { getExplorerLink, getRpcUrl } from "../utils";
 import { saveTransaction } from "../api/aggregator";
-import { mapToUserMessage, isSuppressed } from "../lib/errorMessages";
+import { mapReportAndAct } from "../lib/toastMappedError";
 import { trackEvent } from "./analytics/useMixpanel";
 import type { Token, Network } from "../types";
 import type { User } from "@privy-io/react-auth";
@@ -301,11 +303,10 @@ export function useSmartWalletTransfer({
           (e as { shortMessage?: string; message?: string }).shortMessage ||
           (e as { message?: string }).message ||
           "Transfer failed";
-        const userMsg = mapToUserMessage(e);
-
-        if (!isSuppressed(userMsg)) {
-          setError(userMsg);
-        }
+        mapReportAndAct(e, {
+          feature: "smart-wallet-transfer",
+          onUserMessage: (userMsg) => setError(userMsg),
+        });
         setIsLoading(false);
         setIsSuccess(false);
 

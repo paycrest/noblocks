@@ -23,12 +23,14 @@ import {
   FaceIdIcon,
   Download01Icon,
   AccessIcon,
+  ColorsIcon,
 } from "hugeicons-react";
 import { toast } from "sonner";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import ProfileDrawer from "./ProfileDrawer";
+import { ThemeSwitch } from "./ThemeSwitch";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { clearUserSessionData } from "../lib/session-cleanup";
@@ -329,6 +331,13 @@ export const SettingsDropdown = () => {
                 </li>
               )}
             </ul>
+            <div className="-mx-2 mt-0 flex items-center justify-between gap-3 border-t border-border-light pb-2 pl-6 pr-4 pt-4 dark:border-white/10">
+              <div className="flex items-center gap-2.5">
+                <ColorsIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                <p>Theme</p>
+              </div>
+              <ThemeSwitch />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

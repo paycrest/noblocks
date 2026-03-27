@@ -12,6 +12,7 @@ import {
   FaceIdIcon,
   CallingIcon,
   MapPinpoint01Icon,
+  WorkAlertIcon,
 } from "hugeicons-react";
 import { usePrivy, useLinkAccount } from "@privy-io/react-auth";
 import { useKYC } from "../context";
@@ -188,17 +189,36 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                       className="flex items-center gap-2 text-xs text-text-secondary dark:text-white/60"
                     >
                       <div className="rounded-lg bg-white/10 p-0.5">
-                        {req.includes("number") ? (
-                          <CallingIcon className="size-4 text-outline-gray dark:text-white/50" />
-                        ) : req.includes("Selfie verification") ? (
-                          <FaceIdIcon className="size-4 text-outline-gray dark:text-white/70" />
-                        ) : req.includes("Address verification") ? (
-                          <MapPinpoint01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                        ) : (
-                          req.includes("ID") && (
-                            <TbIdBadge className="size-4 text-outline-gray dark:text-white/50" />
-                          )
-                        )}
+                        {(() => {
+                          if (req.includes("number")) {
+                            return (
+                              <CallingIcon className="size-4 text-outline-gray dark:text-white/50" />
+                            );
+                          }
+                          if (req.includes("Selfie verification")) {
+                            return (
+                              <FaceIdIcon className="size-4 text-outline-gray dark:text-white/70" />
+                            );
+                          }
+                          if (req.includes("Address verification")) {
+                            return (
+                              <MapPinpoint01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                            );
+                          }
+                          if (req.includes("Business verification")) {
+                            return (
+                              <WorkAlertIcon className="size-4 text-outline-gray dark:text-white/50" />
+                            );
+                          }
+                          if (req.includes("ID")) {
+                            return (
+                              <TbIdBadge className="size-4 text-outline-gray dark:text-white/50" />
+                            );
+                          }
+                          return (
+                            <InformationCircleIcon className="size-4 text-outline-gray dark:text-white/50" />
+                          );
+                        })()}
                       </div>
                       <span>{req}</span>
                     </li>

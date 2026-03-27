@@ -9,11 +9,21 @@ import { rateLimit } from "@/app/lib/rate-limit";
 const KYC_BUCKET = process.env.KYC_DOCUMENTS_BUCKET || "kyc-documents";
 const SIGNED_URL_EXPIRY_SEC = 3600;
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
-const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+const ALLOWED_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+] as const;
 const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
 };
 
 export async function POST(request: NextRequest) {
@@ -67,14 +77,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Invalid file type; allowed: image/jpeg, image/png, image/webp",
+          error:
+            "Invalid file type; allowed: image/jpeg, image/png, image/webp, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         },
         { status: 400 }
       );
     }
 
     const nameExt = file.name?.split(".").pop();
-    const ext = (nameExt && nameExt.length <= 4 ? nameExt : MIME_TO_EXT[mime]) || "jpg";
+    const ext = (nameExt && nameExt.length <= 4 ? nameExt : MIME_TO_EXT[mime]) || "bin";
     const path = `tier3/${walletAddress}/${Date.now()}.${ext}`;
 
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -82,7 +93,7 @@ export async function POST(request: NextRequest) {
     const { error: uploadError } = await supabaseAdmin.storage
       .from(KYC_BUCKET)
       .upload(path, buffer, {
-        contentType: file.type || "image/jpeg",
+        contentType: file.type || "application/octet-stream",
         upsert: false,
       });
 

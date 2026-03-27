@@ -466,9 +466,16 @@ export const KycModal = ({
           disabled={
             !selectedCountry ||
             !selectedIdType ||
-            (!needsDocCapture && !idNumber)
+            (!needsDocCapture && !idNumber) ||
+            !smileIdLoaded
           }
-          onClick={() => setStep(STEPS.CAPTURE)}
+          onClick={() => {
+            if (!smileIdLoaded) {
+              toast.error("Verification component is still loading. Please wait.");
+              return;
+            }
+            setStep(STEPS.CAPTURE);
+          }}
         >
           Continue
         </button>
@@ -1050,9 +1057,11 @@ export const KycModal = ({
               try {
                 const accessToken = await getAccessToken();
                 if (!accessToken) {
+                  setTier3Submitting(false);
                   toast.error("Session expired. Please sign in again.");
                   return;
                 }
+
                 const formData = new FormData();
                 formData.append("file", tier3UploadedFile);
                 formData.append("countryCode", tier3CountryCode);
@@ -1061,20 +1070,49 @@ export const KycModal = ({
                 formData.append("streetAddress", tier3StreetAddress);
                 formData.append("county", tier3County);
                 formData.append("postalCode", tier3PostalCode);
+
                 const res = await fetch("/api/kyc/tier3-verify", {
                   method: "POST",
                   headers: { Authorization: `Bearer ${accessToken}` },
                   body: formData,
                 });
+
+                if (!res.ok) {
+                  let errorDetail = "Unable to submit Tier 3 verification.";
+                  try {
+                    const errJson = await res.json();
+                    errorDetail =
+                      errJson?.error || errJson?.message || errJson?.details || errorDetail;
+                  } catch {
+                    try {
+                      const errText = await res.text();
+                      if (errText) errorDetail = errText;
+                    } catch {
+                      // keep default
+                    }
+                  }
+
+                  console.error("Tier 3 verification request failed:", errorDetail);
+                  toast.error("Tier 3 verification failed", { description: errorDetail });
+                  setStep(STEPS.STATUS.FAILED);
+                  setTier3Submitting(false);
+                  return;
+                }
+
                 const data = await res.json();
-                if (data.success) {
+                if (data?.success) {
                   await refreshStatus();
                   setIsUserVerified(true);
                   setStep(STEPS.STATUS.SUCCESS);
                 } else {
+                  const errorDetail =
+                    data?.error || data?.message || "Tier 3 verification failed.";
+                  toast.error("Tier 3 verification failed", { description: errorDetail });
                   setStep(STEPS.STATUS.FAILED);
                 }
               } catch (e) {
+                console.error("Tier 3 verification error:", e);
+                toast.error("Tier 3 verification failed. Please try again.");
                 setStep(STEPS.STATUS.FAILED);
               } finally {
                 setTier3Submitting(false);

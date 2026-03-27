@@ -195,14 +195,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (verification.otp_code !== hashOTP(otpCode)) {
-      // Atomic increment with boundary check to prevent race conditions
-      const { data: updated, error: attemptsError } = await supabaseAdmin
-        .from("user_kyc_profiles")
-        .update({ attempts: verification.attempts + 1 })
-        .eq("wallet_address", walletAddress)
-        .lt("attempts", MAX_ATTEMPTS)
-        .select("attempts")
-        .single();
+      const { data: updatedAttempts, error: attemptsError } = await supabaseAdmin
+        .rpc("increment_kyc_attempts", {
+          p_wallet_address: walletAddress,
+          p_max_attempts: MAX_ATTEMPTS,
+        });
 
       if (attemptsError) {
         trackApiError(
@@ -218,8 +215,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // If no rows updated, attempts limit was hit mid-flight (race condition)
-      if (!updated) {
+      // Null means attempts limit was already reached mid-flight
+      if (updatedAttempts === null || updatedAttempts === undefined) {
         return NextResponse.json(
           {
             success: false,
@@ -234,7 +231,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: "Invalid OTP code",
-          attemptsRemaining: MAX_ATTEMPTS - updated.attempts,
+          attemptsRemaining: Math.max(0, MAX_ATTEMPTS - Number(updatedAttempts)),
         },
         { status: 400 },
       );

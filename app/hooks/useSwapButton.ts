@@ -117,7 +117,7 @@ export function useSwapButton({
     handleSwap: () => void,
     login: () => void,
     handleFundWallet: () => void,
-    setIsKycModalOpen: () => void,
+    setIsLimitModalOpen: () => void,
     isUserVerified: boolean,
     openMigrationModal?: () => void,
   ) => {
@@ -130,8 +130,8 @@ export function useSwapButton({
     if (hasInsufficientBalance && !isInjectedWallet && authenticated) {
       return handleFundWallet;
     }
-    if (!isUserVerified && (authenticated || isInjectedWallet)) {
-      return setIsKycModalOpen;
+    if (!hasInsufficientBalance && !isUserVerified && (authenticated || isInjectedWallet)) {
+      return setIsLimitModalOpen;
     }
     return handleSwap;
   };

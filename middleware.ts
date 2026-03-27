@@ -339,6 +339,12 @@ export const config = {
     "/api/v1/account/:path*",
     "/api/v1/recipients",
     "/api/blockfest/cashback",
+    "/api/kyc/smile-id",
+    "/api/kyc/status",
+    "/api/kyc/transaction-summary",
+    "/api/kyc/tier3-verify",
+    "/api/phone/send-otp",
+    "/api/phone/verify-otp",
     "/api/bundler",
     "/api/bundler/:path*",
     // (optional) add other instrumented API routes:

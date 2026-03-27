@@ -119,6 +119,9 @@ export const TransactionPreview = ({
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
   const orderSubmissionBlock = useRef<bigint | null>(null);
 
+  // Ref to prevent duplicate transaction saves
+  const isSavingTransactionRef = useRef(false);
+
   const searchParams = useSearchParams();
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
@@ -636,6 +639,14 @@ export const TransactionPreview = ({
   const getOrderId = () => {
     const MAX_POLL_DURATION_MS = 120_000;
 
+    if (
+      !activeWallet?.address ||
+      isOrderCreatedLogsFetched ||
+      isSavingTransactionRef.current
+    ) {
+      return Promise.resolve();
+    }
+
     return new Promise<void>((resolve, reject) => {
       let intervalId: NodeJS.Timeout;
       let timeoutId: NodeJS.Timeout;
@@ -686,9 +697,6 @@ export const TransactionPreview = ({
           });
 
           if (logs.length > 0 && !settled) {
-            settled = true;
-            cleanup();
-
             try {
               const decodedLog = decodeEventLog({
                 abi: gatewayAbi,
@@ -697,7 +705,11 @@ export const TransactionPreview = ({
                 topics: logs[0].topics,
               });
 
+              settled = true;
+              cleanup();
+
               setIsOrderCreatedLogsFetched(true);
+              isSavingTransactionRef.current = true;
               setOrderId(decodedLog.args.orderId);
 
               await saveTransactionData({
@@ -710,6 +722,10 @@ export const TransactionPreview = ({
               setCurrentStep("status");
               resolve();
             } catch (err) {
+              if (!settled) {
+                settled = true;
+                cleanup();
+              }
               reject(err);
             }
           }
@@ -718,8 +734,10 @@ export const TransactionPreview = ({
         }
       };
 
-      poll();
-      intervalId = setInterval(poll, 2_000);
+      void poll();
+      intervalId = setInterval(() => {
+        void poll();
+      }, 2_000);
     });
   };
 

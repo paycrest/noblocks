@@ -130,15 +130,15 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     [getRemainingLimits],
   );
 
-  const fetchTransactionSummary = useCallback(async () => {
-    if (!walletAddress) return;
+  const fetchTransactionSummary = useCallback(async (): Promise<boolean> => {
+    if (!walletAddress) return false;
     const guards = fetchGuardsRef.current;
     const key = `${guardKey}_tx`;
-    if (guards[key] === "fetching") return;
+    if (guards[key] === "fetching") return false;
     guards[key] = "fetching";
     try {
       const accessToken = await getAccessToken();
-      if (!accessToken) return;
+      if (!accessToken) return false;
 
       const response = await fetch(
         `/api/kyc/transaction-summary`,
@@ -148,7 +148,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
           },
         },
       );
-      if (!response.ok) return;
+      if (!response.ok) return true;
       const data = await response.json();
       if (data.success) {
         setTransactionSummary({
@@ -157,37 +157,41 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
           lastTransactionDate: data.lastTransactionDate,
         });
       }
+      return true;
     } catch {
       // Silently fail — analytics tracked server-side
+      return true;
     } finally {
       guards[key] = "done";
     }
   }, [walletAddress, guardKey, getAccessToken]);
 
-  const fetchKYCStatus = useCallback(async () => {
-    if (!walletAddress) return;
+  const fetchKYCStatus = useCallback(async (): Promise<boolean> => {
+    if (!walletAddress) return false;
     const guards = fetchGuardsRef.current;
     const key = `${guardKey}_kyc`;
-    if (guards[key] === "fetching") return;
+    if (guards[key] === "fetching") return false;
     guards[key] = "fetching";
     try {
       const accessToken = await getAccessToken();
-      if (!accessToken) return;
+      if (!accessToken) return false;
 
       const response = await fetch(`/api/kyc/status`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       });
-      if (!response.ok) return;
+      if (!response.ok) return true;
       const data = await response.json();
       if (data.success) {
         setTier(Math.min(Number(data.tier) || 0, 3) as KYCTierLevel);
         setIsPhoneVerified(data.isPhoneVerified);
         setPhoneNumber(data.phoneNumber);
       }
+      return true;
     } catch {
       // Silently fail — analytics tracked server-side
+      return true;
     } finally {
       guards[key] = "done";
     }
@@ -202,8 +206,13 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     const guards = fetchGuardsRef.current;
     delete guards[`${guardKey}_kyc`];
     delete guards[`${guardKey}_tx`];
-    await Promise.all([fetchKYCStatus(), fetchTransactionSummary()]);
-    lastFetchTimeRef.current = Date.now();
+    const [kycFetched, txFetched] = await Promise.all([
+      fetchKYCStatus(),
+      fetchTransactionSummary(),
+    ]);
+    if (kycFetched || txFetched) {
+      lastFetchTimeRef.current = Date.now();
+    }
   }, [fetchKYCStatus, fetchTransactionSummary, guardKey]);
 
   // Initial load and wallet address change

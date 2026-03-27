@@ -30,11 +30,25 @@ export async function GET(request: NextRequest) {
     }
 
     // Check KYC profile for phone and SmileID verification status
-    const { data: kycProfile } = await supabaseAdmin
+    const { data: kycProfile, error: kycProfileError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .select("verified, phone_number, tier")
       .eq("wallet_address", walletAddress)
-      .single();
+      .maybeSingle();
+
+    if (kycProfileError) {
+      trackApiError(
+        request,
+        "/api/kyc/status",
+        "GET",
+        kycProfileError as Error,
+        500,
+      );
+      return NextResponse.json(
+        { success: false, error: "Failed to load KYC profile" },
+        { status: 500 },
+      );
+    }
 
     const rawTier = Number(kycProfile?.tier ?? 0);
     const tier: 0 | 1 | 2 | 3 = Math.min(Math.max(rawTier, 0), 3) as 0 | 1 | 2 | 3;

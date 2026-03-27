@@ -133,9 +133,10 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    // Prevent tier downgrade — only upgrade to 2 if current tier is lower
+    // Tier 2 (ID) only after Tier 1 (phone): do not promote from tier 0 straight to 2
     const currentTier = Number(existingProfile?.tier) || 0;
-    const newTier = Math.max(currentTier, 2);
+    const newTier =
+      currentTier >= 1 ? Math.max(currentTier, 2) : currentTier;
 
     const { data: updatedProfile, error: supabaseError } = await supabaseAdmin
       .from("user_kyc_profiles")

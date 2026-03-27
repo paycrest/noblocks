@@ -10,6 +10,7 @@ import {
   validatePhoneNumber,
   checkTwilioVerifyCode,
 } from "@/app/lib/phone-verification";
+import { rateLimit } from "@/app/lib/rate-limit";
 
 const MAX_ATTEMPTS = 3;
 
@@ -21,6 +22,14 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
+    const rateLimitResult = await rateLimit(request);
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { success: false, error: "Too many requests. Please try again later." },
+        { status: 429 },
+      );
+    }
+
     trackApiRequest(request, "/api/phone/verify-otp", "POST");
 
     const body = await request.json();

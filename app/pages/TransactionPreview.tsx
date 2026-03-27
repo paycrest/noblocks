@@ -639,18 +639,19 @@ export const TransactionPreview = ({
   const getOrderId = () => {
     const MAX_POLL_DURATION_MS = 120_000;
 
+    if (
+      !activeWallet?.address ||
+      isOrderCreatedLogsFetched ||
+      isSavingTransactionRef.current
+    ) {
+      return Promise.resolve();
+    }
+
     return new Promise<void>((resolve, reject) => {
       let intervalId: NodeJS.Timeout;
       let timeoutId: NodeJS.Timeout;
       let settled = false;
 
-      if (
-        !publicClient ||
-        !activeWallet?.address ||
-        isOrderCreatedLogsFetched ||
-        isSavingTransactionRef.current
-      )
-        return;
       const cleanup = () => {
         clearInterval(intervalId);
         clearTimeout(timeoutId);
@@ -676,10 +677,6 @@ export const TransactionPreview = ({
             transport: http(getRpcUrl(selectedNetwork.chain.name)),
           });
 
-          setIsOrderCreatedLogsFetched(true);
-          isSavingTransactionRef.current = true; // Set ref immediately to prevent race condition
-          clearInterval(intervalId);
-          setOrderId(decodedLog.args.orderId);
           const toBlock = await publicClient.getBlockNumber();
           const fromBlock =
             orderSubmissionBlock.current ?? toBlock - BigInt(10);
@@ -700,9 +697,6 @@ export const TransactionPreview = ({
           });
 
           if (logs.length > 0 && !settled) {
-            settled = true;
-            cleanup();
-
             try {
               const decodedLog = decodeEventLog({
                 abi: gatewayAbi,
@@ -711,7 +705,11 @@ export const TransactionPreview = ({
                 topics: logs[0].topics,
               });
 
+              settled = true;
+              cleanup();
+
               setIsOrderCreatedLogsFetched(true);
+              isSavingTransactionRef.current = true;
               setOrderId(decodedLog.args.orderId);
 
               await saveTransactionData({
@@ -724,6 +722,10 @@ export const TransactionPreview = ({
               setCurrentStep("status");
               resolve();
             } catch (err) {
+              if (!settled) {
+                settled = true;
+                cleanup();
+              }
               reject(err);
             }
           }
@@ -732,8 +734,10 @@ export const TransactionPreview = ({
         }
       };
 
-      poll();
-      intervalId = setInterval(poll, 2_000);
+      void poll();
+      intervalId = setInterval(() => {
+        void poll();
+      }, 2_000);
     });
   };
 

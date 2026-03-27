@@ -47,11 +47,25 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const countryCode = formData.get("countryCode") as string | null;
-    const documentType = formData.get("documentType") as string | null;
+    const documentTypeRaw = formData.get("documentType");
+    const documentType =
+      typeof documentTypeRaw === "string"
+        ? documentTypeRaw
+        : documentTypeRaw != null
+          ? String(documentTypeRaw)
+          : "";
     const houseNumber = formData.get("houseNumber") as string | null;
     const streetAddress = formData.get("streetAddress") as string | null;
     const county = formData.get("county") as string | null;
     const postalCode = formData.get("postalCode") as string | null;
+
+    const validatedDocumentType = documentType.trim();
+    if (!validatedDocumentType) {
+      return NextResponse.json(
+        { success: false, error: "Document type is required" },
+        { status: 400 }
+      );
+    }
 
     if (!file || file.size === 0) {
       return NextResponse.json(
@@ -63,6 +77,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Country is required" },
         { status: 400 }
+      );
+    }
+
+    const { data: currentProfile, error: fetchError } = await supabaseAdmin
+      .from("user_kyc_profiles")
+      .select("tier, platform")
+      .eq("wallet_address", walletAddress)
+      .maybeSingle();
+
+    if (fetchError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to load KYC profile",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!currentProfile) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "No KYC profile found. Complete phone and ID verification first.",
+        },
+        { status: 404 }
+      );
+    }
+
+    const currentTier = Number(currentProfile.tier) ?? 0;
+    if (currentTier !== 2) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Complete Tier 1 (phone) and Tier 2 (ID) verification before upgrading to Tier 3.",
+        },
+        { status: 403 }
       );
     }
 
@@ -136,35 +189,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: currentProfile, error: fetchError } = await supabaseAdmin
-      .from("user_kyc_profiles")
-      .select("tier, platform")
-      .eq("wallet_address", walletAddress)
-      .single();
-
-    if (fetchError || !currentProfile) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "No KYC profile found. Complete phone and ID verification first.",
-        },
-        { status: 404 }
-      );
-    }
-
-    const currentTier = Number(currentProfile.tier) ?? 0;
-    if (currentTier < 2) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Complete Tier 1 (phone) and Tier 2 (ID) verification before upgrading to Tier 3.",
-        },
-        { status: 400 }
-      );
-    }
-
     const existingPlatform = Array.isArray(currentProfile?.platform)
       ? currentProfile.platform
       : [];
@@ -177,6 +201,7 @@ export async function POST(request: NextRequest) {
         type: "address",
         identifier: "dojah",
         verified: true,
+        documentType: validatedDocumentType,
       },
     ];
 

@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     const { data: existingProfile } = await supabaseAdmin
       .from("user_kyc_profiles")
       .select(
-        "tier, verified, verified_at, id_country, id_type, platform, full_name",
+        "tier, verified, verified_at, id_country, id_type, platform, full_name, phone_number",
       )
       .eq("wallet_address", walletAddress)
       .single();
@@ -102,6 +102,10 @@ export async function POST(request: NextRequest) {
     // Nigerian: we generate OTP, hash it, and store the hash. Non-Nigerian: Twilio Verify sends its own code.
     const otp = isNigerian ? generateOTP() : null;
     const otpHash = otp ? hashOTP(otp) : null;
+
+    const phoneNumberChanged =
+      existingProfile?.phone_number != null &&
+      existingProfile.phone_number !== validation.e164Format;
 
     // Store verification record (otp_code hash only for Nigerian/KudiSMS path)
     const { error: dbError } = await supabaseAdmin
@@ -114,8 +118,12 @@ export async function POST(request: NextRequest) {
           phone_number: validation.e164Format,
           otp_code: otpHash,
           expires_at: expiresAt.toISOString(),
-          verified: existingProfile?.verified || false,
-          verified_at: existingProfile?.verified_at || null,
+          verified: phoneNumberChanged
+            ? false
+            : existingProfile?.verified || false,
+          verified_at: phoneNumberChanged
+            ? null
+            : existingProfile?.verified_at || null,
           tier: existingProfile?.tier || 0,
           id_country: existingProfile?.id_country || null,
           id_type: existingProfile?.id_type || null,

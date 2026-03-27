@@ -57,7 +57,8 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
       setIsLoading(true);
       refreshStatus().finally(() => setIsLoading(false));
     }
-  }, [isOpen]); // Remove refreshStatus from deps to prevent infinite loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: omit refreshStatus to avoid refetch loop
+  }, [isOpen]);
 
   const walletAddress = user?.linkedAccounts.find(
     (account) => account.type === "smart_wallet",
@@ -74,12 +75,21 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
     },
   });
 
-  const handleCopyAddress = () => {
-    if (walletAddress) {
-      navigator.clipboard.writeText(walletAddress);
+  const handleCopyAddress = async () => {
+    if (!walletAddress) {
+      setIsAddressCopied(false);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(walletAddress);
       setIsAddressCopied(true);
       toast.success("Address copied to clipboard");
       setTimeout(() => setIsAddressCopied(false), 2000);
+    } catch {
+      setIsAddressCopied(false);
+      toast.error("Could not copy address", {
+        description: "Clipboard access was denied or is unavailable.",
+      });
     }
   };
 
@@ -317,6 +327,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                           <div className="flex items-center gap-4">
                             <img
                               src="/icons/placeholder.png"
+                              alt=""
                               className="object-fit h-[44px] w-[44px] rounded-full"
                             />
                             <div className="flex w-full flex-col items-start">
@@ -336,23 +347,25 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                               )}
 
                               {/* Wallet Address */}
-                              <div className="flex w-full items-center justify-between">
-                                <p className="text-sm font-light text-text-body dark:text-white/70">
-                                  {shortenAddress(walletAddress ?? "", 10)}
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={handleCopyAddress}
-                                  title="Copy wallet address"
-                                  className="rounded-lg p-2 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
-                                >
-                                  {isAddressCopied ? (
-                                    <PiCheck className="size-4 text-green-500" />
-                                  ) : (
-                                    <Copy01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                                  )}
-                                </button>
-                              </div>
+                              {walletAddress ? (
+                                <div className="flex w-full items-center justify-between">
+                                  <p className="text-sm font-light text-text-body dark:text-white/70">
+                                    {shortenAddress(walletAddress, 10)}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleCopyAddress()}
+                                    title="Copy wallet address"
+                                    className="rounded-lg p-2 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
+                                  >
+                                    {isAddressCopied ? (
+                                      <PiCheck className="size-4 text-green-500" />
+                                    ) : (
+                                      <Copy01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                                    )}
+                                  </button>
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         </div>

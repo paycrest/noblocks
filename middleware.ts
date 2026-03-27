@@ -3,12 +3,12 @@ import { jwtVerify, createRemoteJWKSet } from "jose";
 
 // Inline lightweight edge-compatible helpers to avoid pulling in heavy SDKs
 
-const _appId = process.env.PRIVY_APP_ID;
+const _appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 const _appSecret = process.env.PRIVY_APP_SECRET;
 
 if (!_appId || !_appSecret) {
   throw new Error(
-    "Missing required env vars: PRIVY_APP_ID and PRIVY_APP_SECRET must be set",
+    "Missing required env vars: NEXT_PUBLIC_PRIVY_APP_ID and PRIVY_APP_SECRET must be set",
   );
 }
 

@@ -16,6 +16,7 @@ import {
 } from "../utils";
 import { useSearchParams } from "next/navigation";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { markNetworkModalDismissed } from "../lib/networkModalStore";
 
 export const NetworkSelectionModal = () => {
   const searchParams = useSearchParams();
@@ -27,9 +28,14 @@ export const NetworkSelectionModal = () => {
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
+  // Reset when user changes (including logout → login as different user)
+  useEffect(() => {
+    setHasCheckedStorage(false);
+  }, [user?.wallet?.address]);
+
   useEffect(() => {
     if (!hasCheckedStorage && authenticated && user?.wallet?.address) {
-      const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
+      const storageKey = `hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`;
       const hasSeenModal = localStorage.getItem(storageKey);
 
       if (!hasSeenModal) {
@@ -41,8 +47,9 @@ export const NetworkSelectionModal = () => {
 
   const handleClose = () => {
     if (user?.wallet?.address) {
-      const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
+      const storageKey = `hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`;
       localStorage.setItem(storageKey, "true");
+      markNetworkModalDismissed();
     }
     setIsOpen(false);
   };
@@ -105,7 +112,7 @@ export const NetworkSelectionModal = () => {
                 {networks
                   .filter((network) => {
                     if (useInjectedWallet) return true;
-                    return network.chain.name !== "Celo" && network.chain.name !== "Hedera Mainnet";
+                    return network.chain.name !== "Celo";
                   })
                   .map((network) => (
                     <button

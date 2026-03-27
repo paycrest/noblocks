@@ -1,10 +1,11 @@
 "use client";
 import React, { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
+import WalletMigrationModal from "./WalletMigrationModal";
 import {
   classNames,
   formatDecimalPrecision,
@@ -39,15 +40,22 @@ export const TransferForm: React.FC<{
   onSuccess?: () => void;
   showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileView>>;
-}> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
+  onOpenMigration?: () => void;
+}> = ({ onClose, onSuccess, showBackButton = false, setCurrentView, onOpenMigration }) => {
   const searchParams = useSearchParams();
   const { selectedNetwork } = useNetwork();
-  const { client } = useSmartWallets();
   const { user, getAccessToken } = usePrivy();
+  const { wallets } = useWallets();
+  const shouldUseEOA = useShouldUseEOA();
+  const { isChecking: isMigrationChecking, needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
+
+  const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
+  const isMigrationMandatory = needsMigration && !isRemainingFundsMigration && new Date() >= MIGRATION_DEADLINE;
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
 
   // State for network dropdown
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
@@ -89,12 +97,12 @@ export const TransferForm: React.FC<{
   const tokenBalance = Number(transferNetworkBalance?.balances?.[token]) || 0;
 
   // Networks for recipient network selection
-  // Filter out Celo and Hedera Mainnet for non-injected wallets (smart wallets)
+  // Filter out Celo for non-injected wallets (smart wallets)
   const recipientNetworks = networks
     .filter((network) => {
       if (useInjectedWallet) return true;
       return (
-        network.chain.name !== "Celo" && network.chain.name !== "Hedera Mainnet"
+        network.chain.name !== "Celo"
       );
     })
     .map((network) => ({
@@ -111,11 +119,12 @@ export const TransferForm: React.FC<{
     getTxExplorerLink,
     error,
   } = useSmartWalletTransfer({
-    client: client ?? null,
-    selectedNetwork: transferNetwork,  // Use the recipient's network, not global
+    selectedNetwork: transferNetwork,
     user,
     supportedTokens: fetchedTokens,
     getAccessToken,
+    refreshBalance,
+    onRequireMigration: onOpenMigration ?? (() => setIsMigrationModalOpen(true)),
   });
 
   useEffect(() => {
@@ -140,14 +149,38 @@ export const TransferForm: React.FC<{
   }, [isTransferSuccess, onSuccess]);
 
   // Fetch balance for the selected transfer network
+  // After migration: use EOA; before: use SCW. Wait for migration status so we don't show SCW (0) while loading.
   useEffect(() => {
     const fetchBalance = async () => {
       const smartWalletAccount = user?.linkedAccounts.find(
         (account) => account.type === "smart_wallet",
       );
+      const embeddedWallet = wallets.find(
+        (w) => w.walletClientType === "privy",
+      );
 
-      // No smart wallet account - set empty balance state (not loading, not error)
-      if (!smartWalletAccount?.address) {
+      if (isMigrationChecking) {
+        setIsBalanceLoading(true);
+        return;
+      }
+
+      if (shouldUseEOA && !embeddedWallet) {
+        setIsBalanceLoading(true);
+
+        const timeout = setTimeout(() => {
+          setTransferNetworkBalance({ total: 0, balances: {} });
+          setBalanceError("Wallet unavailable");
+          setIsBalanceLoading(false);
+        }, 10_000);
+
+        return () => clearTimeout(timeout);
+      }
+
+      const activeAddress = shouldUseEOA
+        ? embeddedWallet?.address
+        : smartWalletAccount?.address;
+
+      if (!activeAddress) {
         setTransferNetworkBalance({ total: 0, balances: {} });
         setIsBalanceLoading(false);
         setBalanceError(null);
@@ -161,7 +194,7 @@ export const TransferForm: React.FC<{
       try {
         const balance = await fetchBalanceForNetwork(
           transferNetwork,
-          smartWalletAccount.address,
+          activeAddress,
         );
         setTransferNetworkBalance(balance);
         setBalanceError(null);
@@ -177,7 +210,7 @@ export const TransferForm: React.FC<{
     };
 
     fetchBalance();
-  }, [transferNetwork, user?.linkedAccounts]);
+  }, [transferNetwork, user?.linkedAccounts, wallets, shouldUseEOA, isMigrationChecking]);
 
   // Close dropdown when clicking outside or pressing Escape
   useEffect(() => {
@@ -294,9 +327,22 @@ export const TransferForm: React.FC<{
   const networksMatch = selectedNetwork.chain.name === recipientNetwork;
   const showNetworkWarning = recipientNetwork && !networksMatch;
 
+  const onFormSubmit = (data: any) => {
+    // if (!needsMigration || !isMigrationMandatory) {
+    //   if (onOpenMigration) {
+    //     onOpenMigration();
+    //   } else {
+    //     setIsMigrationModalOpen(true);
+    //   }
+    //   return;
+    // }
+    transfer({ ...data, resetForm: reset });
+  };
+
   return (
+    <>
     <form
-      onSubmit={handleSubmit((data) => transfer({ ...data, resetForm: reset }))}
+      onSubmit={handleSubmit(onFormSubmit)}
       className="z-50 w-full max-w-full space-y-4 overflow-x-hidden text-neutral-900 transition-all dark:text-white"
       noValidate
     >
@@ -406,11 +452,10 @@ export const TransferForm: React.FC<{
             aria-controls="recipient-network-listbox"
           >
             <span
-              className={`flex items-center gap-3 ${
-                recipientNetwork
+              className={`flex items-center gap-3 ${recipientNetwork
                   ? "text-neutral-900 dark:text-white"
                   : "text-gray-400 dark:text-white/30"
-              }`}
+                }`}
             >
               <img
                 src={recipientNetworkImageUrl}
@@ -420,9 +465,8 @@ export const TransferForm: React.FC<{
               {recipientNetwork || "Select network"}
             </span>
             <ArrowDown01Icon
-              className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 text-outline-gray transition-transform dark:text-white/50 ${
-                isNetworkDropdownOpen ? "rotate-180" : ""
-              }`}
+              className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 text-outline-gray transition-transform dark:text-white/50 ${isNetworkDropdownOpen ? "rotate-180" : ""
+                }`}
             />
           </button>
 
@@ -529,11 +573,10 @@ export const TransferForm: React.FC<{
                   message: "Invalid amount",
                 },
               })}
-              className={`w-full bg-transparent text-3xl font-medium outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                errors.amount
+              className={`w-full bg-transparent text-3xl font-medium outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amount
                   ? "text-red-500 dark:text-red-500"
                   : "text-neutral-900 dark:text-white"
-              }`}
+                }`}
               placeholder="0"
               title="Enter amount to send"
             />
@@ -596,5 +639,13 @@ export const TransferForm: React.FC<{
         {isConfirming ? "Confirming..." : "Continue"}
       </button>
     </form>
+
+    {!onOpenMigration && (
+      <WalletMigrationModal
+        isOpen={isMigrationModalOpen}
+        onClose={() => setIsMigrationModalOpen(false)}
+      />
+    )}
+    </>
   );
 };

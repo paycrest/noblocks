@@ -3,6 +3,8 @@ import { UseFormWatch } from "react-hook-form";
 import { useInjectedWallet } from "../context";
 import { calculateSenderFee } from "../utils";
 
+const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
+
 interface UseSwapButtonProps {
   watch: UseFormWatch<any>;
   balance?: number;
@@ -12,6 +14,8 @@ interface UseSwapButtonProps {
   rate?: number | null;
   tokenDecimals?: number;
   isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
+  needsMigration?: boolean;
+  isRemainingFundsMigration?: boolean;
 }
 
 export function useSwapButton({
@@ -23,6 +27,8 @@ export function useSwapButton({
   rate,
   tokenDecimals = 18,
   isSwapped = false,
+  needsMigration = false,
+  isRemainingFundsMigration = false,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
@@ -30,6 +36,9 @@ export function useSwapButton({
 
   const isAmountValid = Number(amountSent) >= 0.5;
   const isCurrencySelected = Boolean(currency);
+
+  const isMigrationMandatory =
+    needsMigration && !isRemainingFundsMigration && new Date() >= MIGRATION_DEADLINE;
 
   // Calculate sender fee and include in balance check
   const { feeAmount: senderFeeAmount } = calculateSenderFee(
@@ -46,6 +55,8 @@ export function useSwapButton({
   const hasRecipient = isSwapped ? Boolean(walletAddress) : Boolean(recipientName);
 
   const isEnabled = (() => {
+    if (needsMigration && authenticated && !isInjectedWallet) return true;
+    if (isMigrationMandatory) return true;
     if (!rate) return false;
     if (isInjectedWallet && hasInsufficientBalance) {
       return false;
@@ -85,6 +96,10 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
+    if (needsMigration && authenticated && !isInjectedWallet) {
+      return "Swap";
+    }
+
     if (isInjectedWallet && hasInsufficientBalance) {
       return "Insufficient balance";
     }
@@ -110,7 +125,11 @@ export function useSwapButton({
     handleFundWallet: () => void,
     setIsKycModalOpen: () => void,
     isUserVerified: boolean,
+    openMigrationModal?: () => void,
   ) => {
+    if (needsMigration && authenticated && !isInjectedWallet && openMigrationModal) {
+      return openMigrationModal;
+    }
     if (!authenticated && !isInjectedWallet) {
       return login;
     }
@@ -128,5 +147,6 @@ export function useSwapButton({
     buttonText,
     buttonAction,
     hasInsufficientBalance,
+    isMigrationMandatory,
   };
 }

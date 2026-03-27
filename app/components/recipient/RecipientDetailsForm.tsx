@@ -282,20 +282,42 @@ export const RecipientDetailsForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedInstitution, isManualEntry]);
 
-  // Fetch recipient name based on institution and account identifier
+  // Fetch recipient name based on institution and account identifier (only enforce digit-length for NGN)
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     const getRecipientName = async () => {
       if (!isManualEntry) return;
 
-      if (
-        !institution ||
-        !accountIdentifier ||
-        accountIdentifier.toString().length <
-        (selectedInstitution?.code === "SAFAKEPC" ? 6 : 10)
-      )
-        return;
+const isNGN = currency === "NGN";
+const digits = String(accountIdentifier ?? "").replace(/\D/g, "");
+const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
 
+if (
+  !institution ||
+  !accountIdentifier ||
+  accountIdentifier.toString().length <
+    (selectedInstitution?.code === "SAFAKEPC" ? 6 : 10)
+) {
+  if (!institution || !accountIdentifier) {
+    setRecipientNameError("");
+  }
+  return;
+}
+
+      if (isNGN && digits.length !== requiredLen) {
+        if (digits.length > 0) {
+          setRecipientNameError(
+            requiredLen === 10
+              ? "Please enter a valid 10-digit account Number."
+              : "Invalid account number. Please enter a 6-digit account number.",
+          );
+        } else {
+          setRecipientNameError("");
+        }
+        return;
+      }
+
+      setRecipientNameError("");
       setIsFetchingRecipientName(true);
       setValue("recipientName", "");
 
@@ -417,52 +439,54 @@ export const RecipientDetailsForm = ({
           )}
         </div>
 
-        {isSwapped ? (
-          /* Wallet address input for onramp */
-          <div className="space-y-3">
-            <input
-              type="text"
-              placeholder={`Enter ${token || "stablecoin"} wallet address`}
-              {...register("walletAddress", {
-                required: {
-                  value: true,
-                  message: "Wallet address is required",
-                },
-                validate: (value) => {
-                  if (!value) return true;
-                  if (!isValidEvmAddressCaseInsensitive(value)) {
-                    return "Invalid wallet address format";
-                  }
-                  return true;
-                },
-              })}
-              className={classNames(
-                "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
-                errors.walletAddress
-                  ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
-                  : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
-              )}
+     {isSwapped ? (
+    <div className="space-y-3">
+      <input
+        type="text"
+        placeholder={`Enter ${token || "stablecoin"} wallet address`}
+        {...register("walletAddress", {
+          required: {
+            value: true,
+            message: "Wallet address is required",
+          },
+          validate: (value) => {
+            if (!value) return true;
+            if (!isValidEvmAddressCaseInsensitive(value)) {
+              return "Invalid wallet address format";
+            }
+            return true;
+          },
+        })}
+        className={classNames(
+          "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
+          errors.walletAddress
+            ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
+            : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
+        )}
+      />
+      {errors.walletAddress && (
+        <InputError message={errors.walletAddress.message} />
+      )}
+      {networkName && (
+        <div className="flex items-center gap-2 text-xs text-text-disabled dark:text-white/30">
+          <div className="flex size-5 items-center justify-center">
+            <Image
+              src={getNetworkImageUrl(selectedNetwork, isDark)}
+              alt={selectedNetwork.chain.name}
+              width={20}
+              height={20}
+              className="size-5 rounded-full"
             />
-            {errors.walletAddress && (
-              <InputError message={errors.walletAddress.message} />
-            )}
-            {networkName && (
-              <div className="flex items-center gap-2 text-xs text-text-disabled dark:text-white/30">
-                <div className="flex size-5 items-center justify-center">
-                  <Image
-                    src={getNetworkImageUrl(selectedNetwork, isDark)}
-                    alt={selectedNetwork.chain.name}
-                    width={20}
-                    height={20}
-                    className="size-5 rounded-full"
-                  />
-                </div>
-                <span className="text-xs font-normal leading-4 tracking-normal" style={{ fontFamily: 'Inter' }}>
-                  You are on {formatNetworkName(networkName)} network
-                </span>
-              </div>
-            )}
           </div>
+          <span
+            className="text-xs font-normal leading-4 tracking-normal"
+            style={{ fontFamily: "Inter" }}
+          >
+            You are on {formatNetworkName(networkName)} network
+          </span>
+        </div>
+      )}
+    </div>
         ) : (
           /* Bank/Mobile Money fields for offramp */
           <>

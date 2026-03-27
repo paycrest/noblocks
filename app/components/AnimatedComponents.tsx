@@ -339,7 +339,7 @@ export const AnimatedModal = ({
 }: AnimatedModalProps) => (
   <AnimatePresence>
     {isOpen && (
-      <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+      <Dialog open={isOpen} onClose={onClose} className="relative z-[55]">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

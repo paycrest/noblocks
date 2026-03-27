@@ -73,7 +73,7 @@ const isBlockFestEligible = (
   orderId: string | null,
 ) => {
   const isCampaignActive = isBlockFestActive();
-  const isTransactionComplete = ["validated", "settled"].includes(
+  const isTransactionComplete = ["validated", "settling", "settled"].includes(
     transactionStatus,
   );
   const isUserClaimed = claimed === true;
@@ -115,6 +115,7 @@ export function TransactionStatus({
   formMethods,
   supportedInstitutions,
   setOrderId,
+  refetchRate,
 }: TransactionStatusProps) {
   const { claimed } = useBlockFestClaim();
   const { resolvedTheme } = useTheme();
@@ -208,11 +209,6 @@ export function TransactionStatus({
     checkRecipientExists();
   }, [accountIdentifier, institution, walletAddress, isOnramp, getAccessToken]);
 
-  // Scroll to top on mount
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
-
   /**
    * Updates transaction status in the backend
    * Uses a request ID system to handle race conditions when multiple updates are triggered
@@ -274,7 +270,7 @@ export function TransactionStatus({
   /**
    * Polls the order details endpoint every 5 seconds to check transaction status
    * Updates local state when status changes
-   * Saves transaction data when status is final (validated/settled/refunded)
+   * Saves transaction data when status is final (validated/settling/settled/refunded)
    */
   useEffect(
     function pollOrderDetails() {
@@ -295,16 +291,19 @@ export function TransactionStatus({
             if (transactionStatus !== status) {
               setTransactionStatus(
                 status as
-                | "processing"
-                | "fulfilled"
-                | "validated"
-                | "settled"
-                | "refunded",
+                  | "fulfilling"
+                  | "validated"
+                  | "settling"
+                  | "settled"
+                  | "refunding"
+                  | "refunded",
               );
             }
 
             // Handle final statuses
-            if (["validated", "settled", "refunded"].includes(status)) {
+            if (
+              ["validated", "settling", "settled", "refunded"].includes(status)
+            ) {
               setCompletedAt(orderDetailsResponse.data.updatedAt);
 
               if (status === "refunded") {
@@ -324,16 +323,14 @@ export function TransactionStatus({
             }
 
             // Handle processing status
-            if (status === "processing") {
+            if (status === "fulfilling") {
               const createdReceipt = orderDetailsResponse.data.txReceipts.find(
                 (txReceipt) => txReceipt.status === "pending",
               );
-
               if (createdReceipt) {
                 setCreatedHash(createdReceipt.txHash);
                 saveTransactionData();
               }
-
               setRocketStatus("processing");
               return;
             }
@@ -388,7 +385,7 @@ export function TransactionStatus({
           "Wallet type": isInjectedWallet ? "Injected" : "Smart wallet",
         };
 
-        if (["validated", "settled"].includes(transactionStatus)) {
+        if (["validated", "settling", "settled"].includes(transactionStatus)) {
           trackEvent("Swap completed", eventData);
           setIsTracked(true);
         } else if (transactionStatus === "refunded") {
@@ -411,7 +408,7 @@ export function TransactionStatus({
   useEffect(
     function fireConfettiOnSuccess() {
       if (
-        ["validated", "settled"].includes(transactionStatus) &&
+        ["validated", "settling", "settled"].includes(transactionStatus) &&
         !hasShownConfetti
       ) {
         fireConfetti();
@@ -505,7 +502,7 @@ export function TransactionStatus({
    */
   const StatusIndicator = () => (
     <AnimatePresence mode="wait">
-      {["validated", "settled"].includes(transactionStatus) ? (
+      {["validated", "settling", "settled"].includes(transactionStatus) ? (
         <AnimatedComponent variant={scaleInOut} key="settled">
           <CheckmarkCircle01Icon className="size-10" color="#39C65D" />
         </AnimatedComponent>
@@ -517,17 +514,24 @@ export function TransactionStatus({
         <AnimatedComponent
           variant={fadeInOut}
           key="pending"
-          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${transactionStatus === "pending"
-            ? "bg-orange-50 text-orange-400"
-            : transactionStatus === "processing"
-              ? "bg-yellow-50 text-yellow-400"
-              : transactionStatus === "fulfilled"
-                ? "bg-green-50 text-green-400"
-                : "bg-gray-50"
-            }`}
+          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${
+            transactionStatus === "pending"
+              ? "bg-orange-50 text-orange-400"
+              : transactionStatus === "fulfilling"
+                ? "bg-yellow-50 text-yellow-400"
+                : transactionStatus === "fulfilled"
+                  ? "bg-green-50 text-green-400"
+                  : transactionStatus === "refunding"
+                    ? "bg-purple-50 text-purple-400"
+                    : "bg-gray-50"
+          }`}
         >
           <ImSpinner className="animate-spin" />
-          <p>{transactionStatus}</p>
+          <p>
+            {transactionStatus === "fulfilling"
+              ? "processing"
+              : transactionStatus}
+          </p>
         </AnimatedComponent>
       )}
     </AnimatePresence>
@@ -539,6 +543,7 @@ export function TransactionStatus({
    */
   const handleBackButtonClick = () => {
     if (transactionStatus === "refunded") {
+      refetchRate?.();
       clearTransactionStatus();
       setCurrentStep(STEPS.FORM);
     } else {
@@ -582,6 +587,7 @@ export function TransactionStatus({
       accountIdentifier: String(formMethods.watch("accountIdentifier") || ""),
       type:
         (formMethods.watch("accountType") as "bank" | "mobile_money") || "bank",
+      currency: String(formMethods.watch("currency") || ""),
     };
   };
 
@@ -768,10 +774,10 @@ export function TransactionStatus({
       );
     }
 
-    if (!["validated", "settled"].includes(transactionStatus)) {
+    if (!["validated", "settling", "settled"].includes(transactionStatus)) {
       return (
         <>
-          Processing payment of{" "}
+          {transactionStatus === "refunding" ? "Refunding" : "Processing"} payment of{" "}
           <span className="text-text-body dark:text-white">
             {formatNumberWithCommas(amount)} {token} (
             {getCurrencySymbol(currency)}{" "}
@@ -797,7 +803,7 @@ export function TransactionStatus({
   };
 
   const getImageSrc = () => {
-    const base = !["validated", "settled", "refunded"].includes(
+    const base = !["validated", "settling", "settled", "refunded"].includes(
       transactionStatus,
     )
       ? "/images/stepper"
@@ -884,13 +890,15 @@ export function TransactionStatus({
           className="text-xl font-medium text-neutral-900 dark:text-white/80"
         >
           {transactionStatus === "refunded"
-            ? isOnramp
-              ? "Oops! Deposit failed"
-              : "Oops! Transaction failed"
-            : !["validated", "settled"].includes(transactionStatus)
-              ? isOnramp
-                ? "Indexing by aggregator..."
-                : "Processing payment..."
+{transactionStatus === "refunded"
+  ? isOnramp
+    ? "Oops! Deposit failed"
+    : "Oops! Transaction failed"
+  : !["validated", "settling", "settled"].includes(transactionStatus)
+    ? isOnramp
+      ? "Indexing by aggregator..."
+      : "Processing payment..."
+    : "Transaction successful"}
               : "Transaction successful"}
         </AnimatedComponent>
 
@@ -940,7 +948,9 @@ export function TransactionStatus({
 
         {/* Helper text for long-running transactions */}
         <TransactionHelperText
-          isVisible={["processing", "fulfilled"].includes(transactionStatus)}
+          isVisible={["fulfilling", "fulfilled", "refunding"].includes(
+            transactionStatus,
+          )}
           title="Taking longer than expected?"
           message="Your transaction is still processing. You can safely
                   refresh or leave this page - your funds will either be
@@ -951,9 +961,9 @@ export function TransactionStatus({
         />
 
         <AnimatePresence>
-          {["validated", "settled", "refunded"].includes(transactionStatus) && (
+          {["validated", "settling", "settled", "refunded"].includes(transactionStatus) && (
             <>
-              {/* BlockFest Cashback Component - only when validated/settled and claimed and on Base network */}
+              {/* BlockFest Cashback Component - only when validated/settling/settled and claimed and on Base network */}
               {isBlockFestEligible(
                 transactionStatus,
                 claimed,
@@ -977,17 +987,16 @@ export function TransactionStatus({
                 delay={0.5}
                 className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
               >
-                {["validated", "settled"].includes(transactionStatus) &&
-                  !isOnramp && (
-                    <button
-                      type="button"
-                      onClick={handleGetReceipt}
-                      className={`w-fit ${secondaryBtnClasses}`}
-                      disabled={isGettingReceipt}
-                    >
-                      {isGettingReceipt ? "Generating..." : "Get receipt"}
-                    </button>
-                  )}
+               {["validated", "settling", "settled"].includes(transactionStatus) && !isOnramp && (
+  <button
+    type="button"
+    onClick={handleGetReceipt}
+    className={`w-fit ${secondaryBtnClasses}`}
+    disabled={isGettingReceipt}
+  >
+    {isGettingReceipt ? "Generating..." : "Get receipt"}
+  </button>
+)}
 
                 <button
                   type="button"
@@ -1000,7 +1009,7 @@ export function TransactionStatus({
                 </button>
               </AnimatedComponent>
 
-              {["validated", "settled"].includes(transactionStatus) &&
+              {["validated", "settling", "settled"].includes(transactionStatus) &&
                 !isRecipientInBeneficiaries && (
                   <AnimatePresence mode="wait">
                     {isSavingRecipient ? (
@@ -1080,12 +1089,14 @@ export function TransactionStatus({
           )}
         </AnimatePresence>
 
-        {["validated", "settled", "refunded"].includes(transactionStatus) && (
+        {["validated", "settling", "settled", "refunded"].includes(transactionStatus) && (
           <hr className="w-full border-dashed border-border-light dark:border-white/10" />
         )}
 
         <AnimatePresence>
-          {["validated", "settled", "refunded"].includes(transactionStatus) && (
+          {["validated", "settling", "settled", "refunded"].includes(
+            transactionStatus,
+          ) && (
             <AnimatedComponent
               variant={{
                 ...fadeInOut,
@@ -1143,7 +1154,7 @@ export function TransactionStatus({
         </AnimatePresence>
 
         <AnimatePresence>
-          {["validated", "settled"].includes(transactionStatus) &&
+          {["validated", "settling", "settled"].includes(transactionStatus) &&
             !isBlockFestEligible(
               transactionStatus,
               claimed,

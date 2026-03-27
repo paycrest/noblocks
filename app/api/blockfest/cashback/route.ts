@@ -135,17 +135,17 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     // Step 5: Verify transaction status
-    if (!["validated", "settled"].includes(orderDetails.status)) {
+    if (!["validated", "settling", "settled"].includes(orderDetails.status)) {
       return NextResponse.json(
         {
           success: false,
           error: "Transaction not eligible",
           code: "TRANSACTION_NOT_COMPLETE",
-          message: `Transaction must be validated or settled to claim cashback. Current status: ${orderDetails.status}`,
+          message: `Transaction must be validated, settling, or settled to claim cashback. Current status: ${orderDetails.status}`,
           details: {
             transactionId,
             currentStatus: orderDetails.status,
-            requiredStatus: "validated or settled",
+            requiredStatus: "validated, settling, settled",
           },
           response_time_ms: Date.now() - start,
         },

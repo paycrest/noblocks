@@ -33,6 +33,7 @@ const Divider = () => (
 const STATUS_COLOR_MAP: Record<string, string> = {
   completed: "text-green-500",
   refunded: "text-red-500",
+  refunding: "text-red-300",
   fulfilled: "text-blue-500",
   pending: "text-orange-500",
   processing: "text-yellow-500",
@@ -186,11 +187,8 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             label="Amount"
             value={
               <span className="text-text-accent-gray dark:text-white/80">
-                {formatCurrency(
-                  transaction.amount_received ?? 0,
-                  transaction.to_currency,
-                  `en-${transaction.to_currency.slice(0, 2)}`,
-                )}
+                {formatNumberWithCommas(transaction.amount_received ?? 0)}{" "}
+                {transaction.to_currency}
               </span>
             }
           />

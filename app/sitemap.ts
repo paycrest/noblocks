@@ -3,9 +3,14 @@ import { getCachedPosts } from "./lib/sanity-data";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://noblocks.xyz";
-  
-  // Get blog posts for sitemap
-  const posts = await getCachedPosts();
+
+  // Get blog posts when Sanity is configured; otherwise use empty list so build succeeds
+  let posts: Awaited<ReturnType<typeof getCachedPosts>> = [];
+  try {
+    posts = await getCachedPosts();
+  } catch {
+    // Sanity client not configured (missing env vars) — sitemap still serves static pages
+  }
   
   // Static pages
   const staticPages = [

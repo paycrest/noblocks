@@ -56,7 +56,7 @@ const nextConfig = {
   ],
   experimental: {
     optimizeCss: true,
-    optimizePackageImports: ["@headlessui/react", "framer-motion"],
+    optimizePackageImports: ["@headlessui/react", "framer-motion", "hugeicons-react", "react-icons"],
   },
   serverExternalPackages: ['mixpanel', 'https-proxy-agent'],
   webpack: (config, { isServer }) => {

@@ -8,15 +8,15 @@ import { toast } from "sonner";
 
 import {
   AnimatedComponent,
-  primaryBtnClasses,
-  slideInOut,
-  FormDropdown,
-  RecipientDetailsForm,
-  KycModal,
-  FundWalletForm,
   AnimatedModal,
-  TransactionLimitModal,
-} from "../components";
+  slideInOut,
+} from "../components/AnimatedComponents";
+import {  TransactionLimitModal } from "../components";
+import { primaryBtnClasses } from "../components/Styles";
+import { FormDropdown } from "../components/FormDropdown";
+import { RecipientDetailsForm } from "../components/recipient/RecipientDetailsForm";
+import { KycModal } from "../components/KycModal";
+import { FundWalletForm } from "../components/FundWalletForm";
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
 import { acceptedCurrencies } from "../mocks";

@@ -41,6 +41,7 @@ export { SearchInput } from "./recipient/SearchInput";
 export { RecipientListItem } from "./recipient/RecipientListItem";
 export { SavedBeneficiariesModal } from "./recipient/SavedBeneficiariesModal";
 export { TransactionHelperText } from "./TransactionHelperText";
+export { PaymentConfirmationModal } from "./PaymentConfirmationModal";
 export {
   inputClasses,
   primaryBtnClasses,

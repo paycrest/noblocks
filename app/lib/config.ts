@@ -18,6 +18,7 @@ export function getDelegationContractAddress(chainId: number): string {
 
 const config: Config = {
   aggregatorUrl: process.env.NEXT_PUBLIC_AGGREGATOR_URL || "",
+  aggregatorSenderApiKeyId: process.env.AGGREGATOR_SENDER_API_KEY_ID || "",
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || "",
   rpcUrlKey: process.env.NEXT_PUBLIC_RPC_URL_KEY || "",
   mixpanelToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || "",

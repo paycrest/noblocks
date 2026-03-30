@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    const trimmedCountry = countryCode.trim();
 
     const { data: currentProfile, error: fetchError } = await supabaseAdmin
       .from("user_kyc_profiles")
@@ -224,7 +225,7 @@ export async function POST(request: NextRequest) {
       verified: true,
       verified_at: new Date().toISOString(),
       platform: updatedPlatform,
-      address_country: countryCode,
+      address_country: trimmedCountry,
       address_postal_code: postalCode?.trim() || null,
       updated_at: new Date().toISOString(),
     };

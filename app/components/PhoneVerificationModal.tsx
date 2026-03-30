@@ -179,6 +179,8 @@ export default function PhoneVerificationModal({
       if (data.success) {
         setFormattedPhone(data.phoneNumber);
         setProvider(data.provider);
+        setOtpCode("");
+        setAttemptsRemaining(3);
         setStep(STEPS.ENTER_OTP);
         const providerName =
           data.provider === "kudisms"
@@ -267,6 +269,9 @@ export default function PhoneVerificationModal({
   }, [formattedPhone, getAccessToken]);
 
   const handleClose = () => {
+    if (step === STEPS.VERIFIED && formattedPhone) {
+      onVerified(formattedPhone);
+    }
     onClose();
     // Reset state when modal is closed
     setStep(STEPS.ENTER_PHONE);
@@ -571,18 +576,7 @@ export default function PhoneVerificationModal({
 
       <button
         type="button"
-        onClick={() => {
-          onVerified(formattedPhone);
-          onClose();
-          // Reset state for next use
-          setStep(STEPS.ENTER_PHONE);
-          setPhoneNumber("");
-          setFormattedPhone("");
-          setOtpCode("");
-          setAttemptsRemaining(3);
-          setIsCountryDropdownOpen(false);
-          setCountrySearch("");
-        }}
+        onClick={() => handleClose()}
         className={`${primaryBtnClasses} w-full`}
       >
         Let&apos;s go!

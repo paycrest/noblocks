@@ -111,11 +111,33 @@ export async function POST(request: NextRequest) {
     // Extract ID info from Smile ID response if available
     const smileIdInfo = smileIdResult?.id_info || {};
 
-    const { data: existingProfile } = await supabaseAdmin
-      .from("user_kyc_profiles")
-      .select("platform, tier")
-      .eq("wallet_address", walletAddress)
-      .single();
+    const { data: existingProfile, error: profileFetchError } =
+      await supabaseAdmin
+        .from("user_kyc_profiles")
+        .select("platform, tier")
+        .eq("wallet_address", walletAddress)
+        .maybeSingle();
+
+    if (profileFetchError) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message: "Failed to load KYC profile",
+        },
+        { status: 500 },
+      );
+    }
+
+    if (!existingProfile) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message:
+            "No KYC profile exists. Please complete phone verification first.",
+        },
+        { status: 404 },
+      );
+    }
 
     const existingPlatform = Array.isArray(existingProfile?.platform)
       ? existingProfile.platform

@@ -188,6 +188,15 @@ export async function POST(request: NextRequest) {
         resultMessage: dojahResult?.entity?.result?.message,
         providerName: dojahResult?.entity?.provider_name,
       });
+      const { error: removeError } = await supabaseAdmin.storage
+        .from(KYC_BUCKET)
+        .remove([path]);
+      if (removeError) {
+        console.warn(
+          "[tier3-verify] failed to remove uploaded doc after Dojah failure",
+          removeError.message,
+        );
+      }
       return NextResponse.json(
         { success: false, error: msg },
         { status: 400 }

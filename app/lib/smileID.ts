@@ -44,9 +44,10 @@ export async function submitSmileIDJob({ images, partner_params, walletAddress, 
     );
   }
 
-  // Validate id_info for Job Type 1
   if (!id_info?.country || !id_info?.id_type) {
-    throw new Error("id_info with country and id_type is required for Biometric KYC");
+    throw new Error(
+      "id_info with country and id_type is required for KYC",
+    );
   }
 
   const jobType = getJobTypeForIdType(id_info.id_type);
@@ -60,9 +61,10 @@ export async function submitSmileIDJob({ images, partner_params, walletAddress, 
     serverUrl,
   );
 
-  // Generate unique IDs
-  const timestamp = Date.now();
-  const job_id = `job-${timestamp}-${walletAddress.slice(0, 8)}`;
+  const job_id =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? `job-${crypto.randomUUID()}`
+      : `job-${Date.now()}-${walletAddress.slice(0, 8)}-${Math.random().toString(36).slice(2, 12)}`;
   const user_id = `user-${walletAddress}`;
   const smileIdPartnerParams = {
     ...partner_params,

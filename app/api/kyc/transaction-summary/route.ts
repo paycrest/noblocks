@@ -30,8 +30,12 @@ export async function GET(request: NextRequest) {
     }
 
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const today = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+    );
+    const monthStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    );
 
     // Sum raw `amount_sent` from stored rows (token/numeric units as persisted — not USD unless the column stores USD).
     const { data: transactions, error } = await supabaseAdmin

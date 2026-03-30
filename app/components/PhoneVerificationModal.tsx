@@ -270,6 +270,7 @@ export default function PhoneVerificationModal({
     onClose();
     // Reset state when modal is closed
     setStep(STEPS.ENTER_PHONE);
+    setName("");
     setPhoneNumber("");
     setFormattedPhone("");
     setOtpCode("");

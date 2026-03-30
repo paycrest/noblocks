@@ -79,7 +79,7 @@ describe("getPreferredNetworkForBalances", () => {
     expect(
       getPreferredNetworkForBalances(
         [
-          makeEntry("Arbitrum One", { USDC: 50 }),
+          makeEntry("Arbitrum One", { DAI: 11, USDC: 50 }),
           makeEntry("Base", { DAI: 10, USDT: 50 }),
         ],
         "Base",

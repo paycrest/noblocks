@@ -34,12 +34,14 @@ export async function submitSmileIDJob({ images, partner_params, walletAddress, 
 }) {
   // Validate required env vars
   const partnerId = process.env.SMILE_IDENTITY_PARTNER_ID;
-  const callbackUrl = process.env.SMILE_ID_CALLBACK_URL || "";
+  const callbackUrl = process.env.SMILE_ID_CALLBACK_URL?.trim() ?? "";
   const apiKey = process.env.SMILE_IDENTITY_API_KEY;
   const serverUrl = process.env.SMILE_IDENTITY_SERVER;
 
-  if (!partnerId || !apiKey || !serverUrl) {
-    throw new Error("Missing SmileID environment variables");
+  if (!partnerId || !apiKey || !serverUrl || !callbackUrl) {
+    throw new Error(
+      "Missing SmileID environment variables (SMILE_IDENTITY_PARTNER_ID, SMILE_IDENTITY_API_KEY, SMILE_IDENTITY_SERVER, SMILE_ID_CALLBACK_URL)",
+    );
   }
 
   // Validate id_info for Job Type 1
@@ -81,13 +83,37 @@ export async function submitSmileIDJob({ images, partner_params, walletAddress, 
     );
 
     return { smileIdResult, job_id, user_id };
-  } catch (error: any) {
-    console.error('SmileID API Error:', {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message,
-    });
+  } catch (error: unknown) {
+    const err = error as {
+      message?: string;
+      response?: {
+        status?: number;
+        statusText?: string;
+        data?: Record<string, unknown>;
+      };
+    };
+    const data = err.response?.data;
+    const safeMeta: Record<string, unknown> = {
+      status: err.response?.status,
+      statusText: err.response?.statusText,
+      message: err.message,
+    };
+    if (data && typeof data === "object") {
+      const jobId = data.jobId ?? data.job_id;
+      if (typeof jobId === "string" || typeof jobId === "number") {
+        safeMeta.jobId = jobId;
+      }
+      const errObj = data.error;
+      if (errObj && typeof errObj === "object") {
+        const code = (errObj as { code?: unknown }).code;
+        const msg = (errObj as { message?: unknown }).message;
+        if (typeof code === "string" || typeof code === "number") {
+          safeMeta.providerErrorCode = code;
+        }
+        if (typeof msg === "string") safeMeta.providerErrorMessage = msg.slice(0, 200);
+      }
+    }
+    console.error("SmileID API Error:", safeMeta);
     throw error;
   }
 }

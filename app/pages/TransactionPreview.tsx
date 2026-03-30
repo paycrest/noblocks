@@ -651,6 +651,7 @@ export const TransactionPreview = ({
       let intervalId: NodeJS.Timeout;
       let timeoutId: NodeJS.Timeout;
       let settled = false;
+      let pollInFlight = false;
 
       const cleanup = () => {
         clearInterval(intervalId);
@@ -669,8 +670,8 @@ export const TransactionPreview = ({
       }, MAX_POLL_DURATION_MS);
 
       const poll = async () => {
-        if (settled || !activeWallet?.address) return;
-
+        if (settled || !activeWallet?.address || pollInFlight) return;
+        pollInFlight = true;
         try {
           const publicClient = createPublicClient({
             chain: selectedNetwork.chain,
@@ -731,6 +732,8 @@ export const TransactionPreview = ({
           }
         } catch (error) {
           console.error("Error fetching OrderCreated logs:", error);
+        } finally {
+          pollInFlight = false;
         }
       };
 

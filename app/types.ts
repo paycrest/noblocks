@@ -309,8 +309,10 @@ export type TransactionStatus =
   | "pending"
   | "processing"
   | "fulfilled"
+  | "fulfilling"
   | "refunding"
-  | "refunded";
+  | "refunded"
+  | "failed";
 export type TransactionHistoryType = "swap" | "transfer";
 
 export interface Recipient {

@@ -9,13 +9,6 @@ import React, {
 } from "react";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
 
-// Extend the Window interface for our in-memory fetch guard
-declare global {
-  interface Window {
-    __KYC_FETCH_GUARDS__?: Record<string, string>;
-  }
-}
-
 export interface TransactionLimits {
   monthly: number;
   unlimited?: boolean;
@@ -206,10 +199,14 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     const guards = fetchGuardsRef.current;
     delete guards[`${guardKey}_kyc`];
     delete guards[`${guardKey}_tx`];
-    const [kycFetched, txFetched] = await Promise.all([
+    const [kycSettled, txSettled] = await Promise.allSettled([
       fetchKYCStatus(),
       fetchTransactionSummary(),
     ]);
+    const kycFetched =
+      kycSettled.status === "fulfilled" && kycSettled.value === true;
+    const txFetched =
+      txSettled.status === "fulfilled" && txSettled.value === true;
     if (kycFetched || txFetched) {
       lastFetchTimeRef.current = Date.now();
     }

@@ -427,14 +427,14 @@ export default function PhoneVerificationModal({
       <div className="flex items-start gap-2 rounded-xl bg-background-neutral p-3 dark:bg-white/5">
         <InformationSquareIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-white/40" />
         <p className="text-sm font-light leading-[20px] text-text-secondary dark:text-white/50">
-          By clicking &quot;Verify and start&quot;, you consent to recieving
+          By clicking &quot;Verify and start&quot;, you consent to receiving
           transactional text messages for notifications and alerts from
-          Noblocks. Reply STOP to opt out. you agree to our{" "}
+          Noblocks. Reply STOP to opt out. You agree to our{" "}
           <a
             href="https://paycrest.io/privacy-policy"
             className="text-lavender-600"
           >
-            Privacy Policy and terms & conditions.
+            Privacy Policy and terms &amp; conditions
           </a>
           .
         </p>

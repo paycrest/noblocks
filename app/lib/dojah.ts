@@ -7,6 +7,9 @@ const DOJAH_BASE_URL =
   process.env.DOJAH_BASE_URL || "https://api.dojah.io";
 const DOJAH_APP_ID = process.env.DOJAH_APP_ID;
 const DOJAH_SECRET_KEY = process.env.DOJAH_SECRET_KEY;
+const DOJAH_TIMEOUT_MS = Number(
+  process.env.DOJAH_TIMEOUT_MS || "25000",
+);
 
 export interface DojahUtilityBillResponse {
   entity?: {
@@ -34,21 +37,38 @@ export async function verifyUtilityBill(
     throw new Error("Dojah is not configured: DOJAH_APP_ID and DOJAH_SECRET_KEY are required");
   }
 
-  const res = await fetch(
-    `${DOJAH_BASE_URL}/api/v1/document/analysis/utility_bill`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        AppId: DOJAH_APP_ID,
-        Authorization: DOJAH_SECRET_KEY,
+  const controller = new AbortController();
+  const timeoutMs = Number.isFinite(DOJAH_TIMEOUT_MS) && DOJAH_TIMEOUT_MS > 0
+    ? DOJAH_TIMEOUT_MS
+    : 25_000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res: Response;
+  try {
+    res = await fetch(
+      `${DOJAH_BASE_URL}/api/v1/document/analysis/utility_bill`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          AppId: DOJAH_APP_ID,
+          Authorization: DOJAH_SECRET_KEY,
+        },
+        body: JSON.stringify({
+          input_type: "url",
+          input_value: imageUrl,
+        }),
+        signal: controller.signal,
       },
-      body: JSON.stringify({
-        input_type: "url",
-        input_value: imageUrl,
-      }),
+    );
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error(`Dojah request timed out after ${timeoutMs}ms`);
     }
-  );
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const data = (await res.json()) as DojahUtilityBillResponse & { message?: string };
 

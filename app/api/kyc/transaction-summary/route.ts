@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Fetch transactions for the current month
+    // Sum raw `amount_sent` from stored rows (token/numeric units as persisted — not USD unless the column stores USD).
     const { data: transactions, error } = await supabaseAdmin
       .from("transactions")
       .select("amount_sent, created_at")

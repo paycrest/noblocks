@@ -1,12 +1,22 @@
 import { parsePhoneNumber, CountryCode } from "libphonenumber-js";
 import { randomInt } from "crypto";
-import twilio from "twilio";
+import twilio, { type Twilio } from "twilio";
 
-// Initialize Twilio client
-const twilioClient = twilio(
-  process.env.TWILIO_ACCOUNT_SID!,
-  process.env.TWILIO_AUTH_TOKEN!,
-);
+let twilioClientSingleton: Twilio | null = null;
+
+function getTwilioClient(): Twilio {
+  const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
+  const token = process.env.TWILIO_AUTH_TOKEN?.trim();
+  if (!sid || !token) {
+    throw new Error(
+      "Twilio is not configured: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required",
+    );
+  }
+  if (!twilioClientSingleton) {
+    twilioClientSingleton = twilio(sid, token);
+  }
+  return twilioClientSingleton;
+}
 
 export interface PhoneVerificationResult {
   success: boolean;
@@ -74,20 +84,40 @@ export async function sendKudiSMSOTP(
   code: string,
 ): Promise<PhoneVerificationResult> {
   try {
-    const response = await fetch("https://my.kudisms.net/api/otp", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        recipients: phoneNumber,
-        senderID: process.env.KUDISMS_SENDER_ID || "Noblocks",
-        otp: code,
-        appnamecode: process.env.KUDISMS_APP_NAME_CODE,
-        templatecode: process.env.KUDISMS_TEMPLATE_CODE,
-        token: process.env.KUDISMS_API_KEY,
-      }),
-    });
+    const timeoutMs = Number(process.env.KUDISMS_TIMEOUT_MS || "10000");
+    const ms = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 10_000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ms);
+
+    let response: Response;
+    try {
+      response = await fetch("https://my.kudisms.net/api/otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recipients: phoneNumber,
+          senderID: process.env.KUDISMS_SENDER_ID || "Noblocks",
+          otp: code,
+          appnamecode: process.env.KUDISMS_APP_NAME_CODE,
+          templatecode: process.env.KUDISMS_TEMPLATE_CODE,
+          token: process.env.KUDISMS_API_KEY,
+        }),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") {
+        return {
+          success: false,
+          message: "Failed to send OTP via KudiSMS",
+          error: `Request timed out after ${ms}ms`,
+        };
+      }
+      throw e;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const data = await response.json();
 
@@ -131,8 +161,20 @@ export async function sendTwilioVerifyOTP(
     };
   }
 
+  let client: Twilio;
   try {
-    const verification = await twilioClient.verify.v2
+    client = getTwilioClient();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Twilio is not configured";
+    return {
+      success: false,
+      message: "Twilio Verify is not configured",
+      error: msg,
+    };
+  }
+
+  try {
+    const verification = await client.verify.v2
       .services(serviceSid)
       .verifications.create({
         to: phoneE164,
@@ -169,8 +211,18 @@ export async function checkTwilioVerifyCode(
     return { success: false, error: "Twilio Verify is not configured" };
   }
 
+  let client: Twilio;
   try {
-    const check = await twilioClient.verify.v2
+    client = getTwilioClient();
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Twilio is not configured",
+    };
+  }
+
+  try {
+    const check = await client.verify.v2
       .services(serviceSid)
       .verificationChecks.create({
         to: phoneE164,

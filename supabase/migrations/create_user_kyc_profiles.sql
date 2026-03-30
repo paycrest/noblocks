@@ -21,7 +21,7 @@ create table public.user_kyc_profiles (
     expires_at timestamp with time zone null,
     provider text null,
     attempts integer null default 0,
-    tier integer null default 0,
+    tier integer not null default 0,
     verified boolean null default false,
     verified_at timestamp with time zone null,
     created_at timestamp with time zone null default now(),

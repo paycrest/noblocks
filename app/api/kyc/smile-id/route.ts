@@ -56,9 +56,9 @@ export async function POST(request: NextRequest) {
       [key: string]: any;
     };
 
-    let smileIdResult: SmileIdResultType = { job_complete: false },
-      job_id: string,
-      user_id: string;
+    let smileIdResult: SmileIdResultType = { job_complete: false };
+    let job_id = "";
+    let user_id = "";
     try {
       const result = await submitSmileIDJob({
         images,

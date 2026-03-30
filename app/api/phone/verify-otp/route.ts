@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       .select("verified, provider, tier, expires_at, attempts, otp_code")
       .eq("wallet_address", walletAddress)
       .eq("phone_number", validation.e164Format)
-      .single();
+      .maybeSingle();
 
     if (fetchError) {
       trackApiError(request, "/api/phone/verify-otp", "POST", fetchError, 500);

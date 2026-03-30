@@ -371,7 +371,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                         </div>
 
                         {/* Current Tier Status */}
-                        {tier >= 1 && tier !== undefined && (
+                        {tier !== undefined && tier !== null && (
                           <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
                             {/* Current Tier Badge */}
 

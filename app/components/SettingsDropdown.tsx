@@ -21,7 +21,6 @@ import {
   Wallet01Icon,
   Key01Icon,
   FaceIdIcon,
-  Download01Icon,
   AccessIcon,
   ColorsIcon,
 } from "hugeicons-react";

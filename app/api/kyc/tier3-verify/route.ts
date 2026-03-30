@@ -14,16 +14,12 @@ const ALLOWED_MIME_TYPES = [
   "image/png",
   "image/webp",
   "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ] as const;
 const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
   "application/pdf": "pdf",
-  "application/msword": "doc",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
 };
 
 export async function POST(request: NextRequest) {
@@ -131,7 +127,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error:
-            "Invalid file type; allowed: image/jpeg, image/png, image/webp, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "Invalid file type; allowed: image/jpeg, image/png, image/webp, application/pdf",
         },
         { status: 400 }
       );
@@ -139,7 +135,11 @@ export async function POST(request: NextRequest) {
 
     const nameExt = file.name?.split(".").pop();
     const ext = (nameExt && nameExt.length <= 4 ? nameExt : MIME_TO_EXT[mime]) || "bin";
-    const path = `tier3/${walletAddress}/${Date.now()}.${ext}`;
+    const unique =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+    const path = `tier3/${walletAddress}/${Date.now()}-${unique}.${ext}`;
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -183,6 +183,11 @@ export async function POST(request: NextRequest) {
       const msg =
         dojahResult?.entity?.result?.message ||
         "Document could not be verified as a valid proof of address.";
+      console.error("[tier3-verify] Dojah verification failed", {
+        resultStatus: dojahResult?.entity?.result?.status,
+        resultMessage: dojahResult?.entity?.result?.message,
+        providerName: dojahResult?.entity?.provider_name,
+      });
       return NextResponse.json(
         { success: false, error: msg },
         { status: 400 }

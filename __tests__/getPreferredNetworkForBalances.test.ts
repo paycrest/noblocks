@@ -74,4 +74,16 @@ describe("getPreferredNetworkForBalances", () => {
       ])?.chain.name,
     ).toBe("Arbitrum One");
   });
+
+  it("compares ties using each network's highest positive token", () => {
+    expect(
+      getPreferredNetworkForBalances(
+        [
+          makeEntry("Arbitrum One", { USDC: 50 }),
+          makeEntry("Base", { DAI: 10, USDT: 50 }),
+        ],
+        "Base",
+      )?.chain.name,
+    ).toBe("Base");
+  });
 });

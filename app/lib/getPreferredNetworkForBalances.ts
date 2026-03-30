@@ -14,21 +14,27 @@ export function getPreferredNetworkForBalances(
   let highestTokenBalance = 0;
 
   for (const entry of crossChainBalances) {
-    for (const tokenBalance of Object.values(entry.balances.balances || {})) {
-      if (tokenBalance <= 0) continue;
+    const highestBalanceForNetwork = Object.values(
+      entry.balances.balances || {},
+    ).reduce(
+      (highestBalance, tokenBalance) =>
+        tokenBalance > highestBalance ? tokenBalance : highestBalance,
+      0,
+    );
 
-      if (tokenBalance > highestTokenBalance) {
-        highestTokenBalance = tokenBalance;
-        preferredNetwork = entry.network;
-        continue;
-      }
+    if (highestBalanceForNetwork <= 0) continue;
 
-      if (
-        tokenBalance === highestTokenBalance &&
-        entry.network.chain.name === currentNetworkName
-      ) {
-        preferredNetwork = entry.network;
-      }
+    if (highestBalanceForNetwork > highestTokenBalance) {
+      highestTokenBalance = highestBalanceForNetwork;
+      preferredNetwork = entry.network;
+      continue;
+    }
+
+    if (
+      highestBalanceForNetwork === highestTokenBalance &&
+      entry.network.chain.name === currentNetworkName
+    ) {
+      preferredNetwork = entry.network;
     }
   }
 

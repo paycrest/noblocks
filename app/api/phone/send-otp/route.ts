@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
           id_country: existingProfile?.id_country || null,
           id_type: existingProfile?.id_type || null,
           platform: existingProfile?.platform || null,
-          attempts: 0,
+          otp_attempts: 0, // reset OTP counter on each new OTP send; leave `attempts` (SmileID) untouched
           provider: validation.provider,
         },
         {

@@ -129,6 +129,9 @@ export const KycModal = ({
   const [step, setStep] = useState<Step>(() =>
     targetTier === 3 ? STEPS.TIER3_PROMPT : STEPS.LOADING,
   );
+  // Tracks where the retry button in renderFailedStatus should navigate back to.
+  // Tier 3 failures retry at TIER3_UPLOAD; SmileID (Tier 2) failures retry at TERMS.
+  const [failedRetryStep, setFailedRetryStep] = useState<Step>(STEPS.TERMS);
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cameraElement, setCameraElement] = useState<HTMLElement | null>(null);
@@ -597,7 +600,7 @@ export const KycModal = ({
       <button
         type="button"
         className={`${primaryBtnClasses} w-full`}
-        onClick={() => setStep(STEPS.TERMS)}
+        onClick={() => setStep(failedRetryStep)}
       >
         Retry verification
       </button>
@@ -1088,6 +1091,7 @@ export const KycModal = ({
 
                   console.error("Tier 3 verification request failed:", errorDetail);
                   toast.error("Tier 3 verification failed", { description: errorDetail });
+                  setFailedRetryStep(STEPS.TIER3_UPLOAD);
                   setStep(STEPS.STATUS.FAILED);
                   setTier3Submitting(false);
                   return;
@@ -1102,11 +1106,13 @@ export const KycModal = ({
                   const errorDetail =
                     data?.error || data?.message || "Tier 3 verification failed.";
                   toast.error("Tier 3 verification failed", { description: errorDetail });
+                  setFailedRetryStep(STEPS.TIER3_UPLOAD);
                   setStep(STEPS.STATUS.FAILED);
                 }
               } catch (e) {
                 console.error("Tier 3 verification error:", e);
                 toast.error("Tier 3 verification failed. Please try again.");
+                setFailedRetryStep(STEPS.TIER3_UPLOAD);
                 setStep(STEPS.STATUS.FAILED);
               } finally {
                 setTier3Submitting(false);
@@ -1211,7 +1217,7 @@ export const KycModal = ({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletAddress]);
+  }, [walletAddress, step]);
 
   // Handle Smile ID publish event
   useEffect(() => {
@@ -1277,10 +1283,12 @@ export const KycModal = ({
             "Verification status": "Submitted",
           });
         } else {
+          setFailedRetryStep(STEPS.TERMS);
           setStep(STEPS.STATUS.FAILED);
         }
       } catch (error) {
         toast.error("Failed to submit verification data");
+        setFailedRetryStep(STEPS.TERMS);
         setStep(STEPS.STATUS.FAILED);
       }
     };

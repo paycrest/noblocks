@@ -65,7 +65,7 @@ interface KYCContextType {
   canTransact: (amount: number) => { allowed: boolean; reason?: string };
   getCurrentLimits: () => TransactionLimits;
   getRemainingLimits: () => TransactionLimits;
-  refreshStatus: () => Promise<void>;
+  refreshStatus: (force?: boolean) => Promise<void>;
 }
 
 const KYCContext = createContext<KYCContextType | undefined>(undefined);
@@ -142,7 +142,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
           },
         },
       );
-      if (!response.ok) return true;
+      if (!response.ok) return false;
       const data = await response.json();
       if (data.success) {
         setTransactionSummary({
@@ -154,7 +154,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       return true;
     } catch {
       // Silently fail — analytics tracked server-side
-      return true;
+      return false;
     } finally {
       guards[key] = "done";
     }
@@ -175,7 +175,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
           Authorization: `Bearer ${accessToken}`,
         },
       });
-      if (!response.ok) return true;
+      if (!response.ok) return false;
       const data = await response.json();
       if (data.success) {
         setTier(Math.min(Number(data.tier) || 0, 3) as KYCTierLevel);
@@ -185,7 +185,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       return true;
     } catch {
       // Silently fail — analytics tracked server-side
-      return true;
+      return false;
     } finally {
       guards[key] = "done";
     }
@@ -213,10 +213,14 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     }
   }, [fetchKYCStatus, fetchTransactionSummary, guardKey]);
 
-  // Initial load and wallet address change
+  // Initial load and wallet address change — reset all KYC state before re-fetching
+  // so stale data from a previous wallet is never shown to the new wallet's session
   useEffect(() => {
     if (walletAddress) {
-      // Reset guards when wallet changes
+      setTier(0);
+      setIsPhoneVerified(false);
+      setPhoneNumber(null);
+      setTransactionSummary({ dailySpent: 0, monthlySpent: 0, lastTransactionDate: null });
       fetchGuardsRef.current = {};
       lastFetchTimeRef.current = 0;
       refreshStatus(true);

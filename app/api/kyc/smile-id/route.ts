@@ -90,11 +90,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Tier 2 allows up to 3 attempts
-    const { data: newAttemptCount } = await supabaseAdmin.rpc(
+    const { data: newAttemptCount, error: rpcError } = await supabaseAdmin.rpc(
       "increment_kyc_attempts",
       { p_wallet_address: walletAddress, p_max_attempts: 3 },
     );
-    if (newAttemptCount === null) {
+    if (rpcError) {
+      return NextResponse.json(
+        { status: "error", message: "Failed to process verification attempt." },
+        { status: 500 },
+      );
+    }
+    if (newAttemptCount === null || newAttemptCount === undefined) {
       return NextResponse.json(
         {
           status: "error",
@@ -187,6 +193,13 @@ export async function POST(request: NextRequest) {
     const newTier =
       currentTier >= 1 ? Math.max(currentTier, 2) : currentTier;
 
+    const derivedFullName =
+      smileIdInfo.full_name ||
+      (smileIdInfo.first_name && smileIdInfo.last_name
+        ? `${smileIdInfo.first_name} ${smileIdInfo.last_name}`
+        : null) ||
+      null;
+
     const { data: updatedProfile, error: supabaseError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .update({
@@ -196,12 +209,8 @@ export async function POST(request: NextRequest) {
         id_type: id_info.id_type,
         id_number: smileIdInfo.id_number || id_info.id_number,
         id_country: id_info.country,
-        // Personal info from Smile ID response
-        full_name:
-          smileIdInfo.full_name ||
-          (smileIdInfo.first_name && smileIdInfo.last_name
-            ? `${smileIdInfo.first_name} ${smileIdInfo.last_name}`
-            : null),
+        // Personal info from Smile ID response — only overwrite if SmileID returned a name
+        ...(derivedFullName ? { full_name: derivedFullName } : {}),
         date_of_birth: smileIdInfo.dob || id_info.dob || null,
         platform: updatedPlatform,
         verified: true,

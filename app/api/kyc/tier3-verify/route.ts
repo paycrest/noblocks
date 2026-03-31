@@ -8,6 +8,9 @@ import {
 import { rateLimit } from "@/app/lib/rate-limit";
 
 const KYC_BUCKET = process.env.KYC_DOCUMENTS_BUCKET || "kyc-documents";
+// Countries where a street address cannot be meaningfully validated (PO Box culture,
+// no formal street addressing, etc.). Expand as needed.
+const STREET_ADDRESS_OPTIONAL_COUNTRIES = new Set(["AE", "QA", "OM", "BH", "KW"]);
 const SIGNED_URL_EXPIRY_SEC = 3600;
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_MIME_TYPES = [
@@ -117,22 +120,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Tier 3 allows up to 5 attempts (document issues are more common than ID issues)
-    const { data: newAttemptCount } = await supabaseAdmin.rpc(
-      "increment_kyc_attempts",
-      { p_wallet_address: walletAddress, p_max_attempts: 5 },
-    );
-    if (newAttemptCount === null) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "Maximum verification attempts reached. Please contact support.",
-        },
-        { status: 429 }
-      );
-    }
-
+    // Validate file and address fields before consuming an attempt — cheap checks first
     if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json(
         { success: false, error: "File too large; maximum 5 MB" },
@@ -148,6 +136,38 @@ export async function POST(request: NextRequest) {
             "Invalid file type; allowed: image/jpeg, image/png, image/webp, application/pdf",
         },
         { status: 400 }
+      );
+    }
+
+    if (
+      !STREET_ADDRESS_OPTIONAL_COUNTRIES.has(trimmedCountry.toUpperCase()) &&
+      !streetAddress?.trim()
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Street address is required" },
+        { status: 400 }
+      );
+    }
+
+    // Tier 3 allows up to 5 attempts (document issues are more common than ID issues)
+    const { data: newAttemptCount, error: rpcError } = await supabaseAdmin.rpc(
+      "increment_kyc_attempts",
+      { p_wallet_address: walletAddress, p_max_attempts: 5 },
+    );
+    if (rpcError) {
+      return NextResponse.json(
+        { success: false, error: "Failed to process verification attempt." },
+        { status: 500 }
+      );
+    }
+    if (newAttemptCount === null || newAttemptCount === undefined) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Maximum verification attempts reached. Please contact support.",
+        },
+        { status: 429 }
       );
     }
 
@@ -187,6 +207,7 @@ export async function POST(request: NextRequest) {
 
     const signedUrl = signedUrlData?.signedUrl;
     if (signError || !signedUrl) {
+      await supabaseAdmin.storage.from(KYC_BUCKET).remove([path]);
       return NextResponse.json(
         {
           success: false,
@@ -268,6 +289,7 @@ export async function POST(request: NextRequest) {
       .select("wallet_address");
 
     if (supabaseError) {
+      await supabaseAdmin.storage.from(KYC_BUCKET).remove([path]);
       return NextResponse.json(
         {
           success: false,
@@ -278,6 +300,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!updatedProfile || updatedProfile.length === 0) {
+      await supabaseAdmin.storage.from(KYC_BUCKET).remove([path]);
       return NextResponse.json(
         {
           success: false,

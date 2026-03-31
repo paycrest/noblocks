@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     trackApiRequest(request, "/api/kyc/transaction-summary", "GET");
 
     // Get the wallet address from the header set by the middleware
-    const walletAddress = request.headers.get("x-wallet-address");
+    const walletAddress = request.headers.get("x-wallet-address")?.trim().toLowerCase();
 
     if (!walletAddress) {
       trackApiError(

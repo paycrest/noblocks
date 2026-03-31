@@ -1,14 +1,16 @@
 "use client";
 import React, { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
+import WalletMigrationModal from "./WalletMigrationModal";
 import {
   classNames,
   formatDecimalPrecision,
   shouldUseInjectedWallet,
+  fetchBalanceForNetwork,
 } from "../utils";
 import { useSearchParams } from "next/navigation";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
@@ -38,19 +40,34 @@ export const TransferForm: React.FC<{
   onSuccess?: () => void;
   showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileView>>;
-}> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
+  onOpenMigration?: () => void;
+}> = ({ onClose, onSuccess, showBackButton = false, setCurrentView, onOpenMigration }) => {
   const searchParams = useSearchParams();
   const { selectedNetwork } = useNetwork();
-  const { client } = useSmartWallets();
   const { user, getAccessToken } = usePrivy();
-  const { smartWalletBalance, refreshBalance, isLoading } = useBalance();
+  const { wallets } = useWallets();
+  const shouldUseEOA = useShouldUseEOA();
+  const { isChecking: isMigrationChecking, needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
+  const { refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
+  const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
+  const isMigrationMandatory = needsMigration && !isRemainingFundsMigration && new Date() >= MIGRATION_DEADLINE;
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+
   // State for network dropdown
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
   const networkDropdownRef = useRef<HTMLDivElement>(null);
+
+  // State for transfer network balance (fetched based on selected recipient network)
+  const [transferNetworkBalance, setTransferNetworkBalance] = useState<{
+    total: number;
+    balances: Record<string, number>;
+  } | null>(null);
+  const [isBalanceLoading, setIsBalanceLoading] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
 
   const formMethods = useForm<{
     amount: number;
@@ -69,20 +86,23 @@ export const TransferForm: React.FC<{
   } = formMethods;
   const { token, amount, recipientNetwork, recipientNetworkImageUrl } = watch();
 
-  const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
+  // Get the Network object for the selected recipient network
+  const transferNetwork = networks.find(n => n.chain.name === recipientNetwork) || selectedNetwork;
+
+  const fetchedTokens: Token[] = allTokens[transferNetwork.chain.name] || [];
   const tokens = fetchedTokens.map((token) => ({
     name: token.symbol,
     imageUrl: token.imageUrl,
   }));
-  const tokenBalance = Number(smartWalletBalance?.balances?.[token]) || 0;
+  const tokenBalance = Number(transferNetworkBalance?.balances?.[token]) || 0;
 
   // Networks for recipient network selection
-  // Filter out Celo and Hedera Mainnet for non-injected wallets (smart wallets)
+  // Filter out Celo for non-injected wallets (smart wallets)
   const recipientNetworks = networks
     .filter((network) => {
       if (useInjectedWallet) return true;
       return (
-        network.chain.name !== "Celo" && network.chain.name !== "Hedera Mainnet"
+        network.chain.name !== "Celo"
       );
     })
     .map((network) => ({
@@ -99,11 +119,12 @@ export const TransferForm: React.FC<{
     getTxExplorerLink,
     error,
   } = useSmartWalletTransfer({
-    client: client ?? null,
-    selectedNetwork,
+    selectedNetwork: transferNetwork,
     user,
     supportedTokens: fetchedTokens,
     getAccessToken,
+    refreshBalance,
+    onRequireMigration: onOpenMigration ?? (() => setIsMigrationModalOpen(true)),
   });
 
   useEffect(() => {
@@ -126,6 +147,70 @@ export const TransferForm: React.FC<{
       onSuccess();
     }
   }, [isTransferSuccess, onSuccess]);
+
+  // Fetch balance for the selected transfer network
+  // After migration: use EOA; before: use SCW. Wait for migration status so we don't show SCW (0) while loading.
+  useEffect(() => {
+    const fetchBalance = async () => {
+      const smartWalletAccount = user?.linkedAccounts.find(
+        (account) => account.type === "smart_wallet",
+      );
+      const embeddedWallet = wallets.find(
+        (w) => w.walletClientType === "privy",
+      );
+
+      if (isMigrationChecking) {
+        setIsBalanceLoading(true);
+        return;
+      }
+
+      if (shouldUseEOA && !embeddedWallet) {
+        setIsBalanceLoading(true);
+
+        const timeout = setTimeout(() => {
+          setTransferNetworkBalance({ total: 0, balances: {} });
+          setBalanceError("Wallet unavailable");
+          setIsBalanceLoading(false);
+        }, 10_000);
+
+        return () => clearTimeout(timeout);
+      }
+
+      const activeAddress = shouldUseEOA
+        ? embeddedWallet?.address
+        : smartWalletAccount?.address;
+
+      if (!activeAddress) {
+        setTransferNetworkBalance({ total: 0, balances: {} });
+        setIsBalanceLoading(false);
+        setBalanceError(null);
+        return;
+      }
+
+      if (!transferNetwork) return;
+
+      setIsBalanceLoading(true);
+      setBalanceError(null);
+      try {
+        const balance = await fetchBalanceForNetwork(
+          transferNetwork,
+          activeAddress,
+        );
+        setTransferNetworkBalance(balance);
+        setBalanceError(null);
+      } catch (error) {
+        console.error("Error fetching transfer network balance:", error);
+        // Set empty balance on error so UI doesn't show perpetual skeleton
+        setTransferNetworkBalance({ total: 0, balances: {} });
+        setBalanceError("Failed to fetch balance");
+        toast.error("Failed to fetch balance for selected network");
+      } finally {
+        setIsBalanceLoading(false);
+      }
+    };
+
+    fetchBalance();
+  }, [transferNetwork, user?.linkedAccounts, wallets, shouldUseEOA, isMigrationChecking]);
 
   // Close dropdown when clicking outside or pressing Escape
   useEffect(() => {
@@ -195,8 +280,8 @@ export const TransferForm: React.FC<{
           type="button"
           className={`${primaryBtnClasses} w-full`}
           onClick={() => {
-            handleFormClose();
             refreshBalance();
+            handleFormClose();
           }}
         >
           Close
@@ -209,7 +294,7 @@ export const TransferForm: React.FC<{
     <div className="flex w-full items-center justify-between rounded-xl bg-accent-gray px-4 py-2.5 dark:bg-white/5">
       <p className="text-text-secondary dark:text-white/50">Balance</p>
       <div className="flex items-center gap-3">
-        {isLoading || smartWalletBalance === null ? (
+        {isBalanceLoading || transferNetworkBalance === null ? (
           <BalanceSkeleton className="w-24" />
         ) : Number(amount) >= tokenBalance ? (
           <p className="dark:text-white/50">Maxed out</p>
@@ -224,7 +309,7 @@ export const TransferForm: React.FC<{
         )}
         <p className="text-[10px] text-gray-300 dark:text-white/10">|</p>
         <p className="font-medium text-neutral-900 dark:text-white/80">
-          {isLoading || smartWalletBalance === null ? (
+          {isBalanceLoading || transferNetworkBalance === null ? (
             <BalanceSkeleton className="w-12" />
           ) : (
             `${tokenBalance} ${token}`
@@ -242,9 +327,22 @@ export const TransferForm: React.FC<{
   const networksMatch = selectedNetwork.chain.name === recipientNetwork;
   const showNetworkWarning = recipientNetwork && !networksMatch;
 
+  const onFormSubmit = (data: any) => {
+    // if (!needsMigration || !isMigrationMandatory) {
+    //   if (onOpenMigration) {
+    //     onOpenMigration();
+    //   } else {
+    //     setIsMigrationModalOpen(true);
+    //   }
+    //   return;
+    // }
+    transfer({ ...data, resetForm: reset });
+  };
+
   return (
+    <>
     <form
-      onSubmit={handleSubmit((data) => transfer({ ...data, resetForm: reset }))}
+      onSubmit={handleSubmit(onFormSubmit)}
       className="z-50 w-full max-w-full space-y-4 overflow-x-hidden text-neutral-900 transition-all dark:text-white"
       noValidate
     >
@@ -354,11 +452,10 @@ export const TransferForm: React.FC<{
             aria-controls="recipient-network-listbox"
           >
             <span
-              className={`flex items-center gap-3 ${
-                recipientNetwork
+              className={`flex items-center gap-3 ${recipientNetwork
                   ? "text-neutral-900 dark:text-white"
                   : "text-gray-400 dark:text-white/30"
-              }`}
+                }`}
             >
               <img
                 src={recipientNetworkImageUrl}
@@ -368,9 +465,8 @@ export const TransferForm: React.FC<{
               {recipientNetwork || "Select network"}
             </span>
             <ArrowDown01Icon
-              className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 text-outline-gray transition-transform dark:text-white/50 ${
-                isNetworkDropdownOpen ? "rotate-180" : ""
-              }`}
+              className={`absolute right-3 top-1/2 size-4 -translate-y-1/2 text-outline-gray transition-transform dark:text-white/50 ${isNetworkDropdownOpen ? "rotate-180" : ""
+                }`}
             />
           </button>
 
@@ -436,7 +532,7 @@ export const TransferForm: React.FC<{
                   className="text-icon-outline-secondary dark:text-white/50"
                 />
                 <span className="text-sm font-normal text-neutral-900 dark:text-white">
-                  {isLoading || smartWalletBalance === null ? (
+                  {isBalanceLoading || transferNetworkBalance === null ? (
                     <BalanceSkeleton className="w-12" />
                   ) : (
                     `${tokenBalance} ${token}`
@@ -477,11 +573,10 @@ export const TransferForm: React.FC<{
                   message: "Invalid amount",
                 },
               })}
-              className={`w-full bg-transparent text-3xl font-medium outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                errors.amount
+              className={`w-full bg-transparent text-3xl font-medium outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amount
                   ? "text-red-500 dark:text-red-500"
                   : "text-neutral-900 dark:text-white"
-              }`}
+                }`}
               placeholder="0"
               title="Enter amount to send"
             />
@@ -505,6 +600,14 @@ export const TransferForm: React.FC<{
             className="relative left-2 top-1 text-xs text-red-500"
           >
             {errors.amount.message}
+          </AnimatedComponent>
+        )}
+        {balanceError && (
+          <AnimatedComponent
+            variant={slideInOut}
+            className="relative left-2 top-1 text-xs text-red-500"
+          >
+            {balanceError}
           </AnimatedComponent>
         )}
       </div>
@@ -536,5 +639,13 @@ export const TransferForm: React.FC<{
         {isConfirming ? "Confirming..." : "Continue"}
       </button>
     </form>
+
+    {!onOpenMigration && (
+      <WalletMigrationModal
+        isOpen={isMigrationModalOpen}
+        onClose={() => setIsMigrationModalOpen(false)}
+      />
+    )}
+    </>
   );
 };

@@ -12,6 +12,8 @@ import config from "./lib/config";
 import {
   BalanceProvider,
   InjectedWalletProvider,
+  KYCProvider,
+  MigrationStatusProvider,
   NetworkProvider,
   RocketStatusProvider,
   StepProvider,
@@ -52,22 +54,8 @@ function PrivyConfigWrapper({
       appId={privyAppId}
       config={isDark ? darkModeConfig : lightModeConfig}
     >
-      <SmartWalletsProvider
-        config={{
-          paymasterContext: {
-            mode: "SPONSORED",
-            calculateGasLimits: true,
-            expiryDuration: 300,
-            sponsorshipInfo: {
-              webhookData: {},
-              smartAccountInfo: {
-                name: "BICONOMY",
-                version: "2.0.0",
-              },
-            },
-          },
-        }}
-      >
+      {/* Sponsorship is handled via Biconomy MEE (Supertransaction API). */}
+      <SmartWalletsProvider config={{}}>
         <ContextProviders>{children}</ContextProviders>
         <Toaster
           position={
@@ -88,19 +76,23 @@ function ContextProviders({ children }: { children: ReactNode }) {
   return (
     <NetworkProvider>
       <InjectedWalletProvider>
-        <TokensProvider>
-          <StepProvider>
-            <BalanceProvider>
-              <TransactionsProvider>
-                <BlockFestClaimProvider>
-                  <BlockFestModalProvider>
-                    <RocketStatusProvider>{children}</RocketStatusProvider>
-                  </BlockFestModalProvider>
-                </BlockFestClaimProvider>
+        <MigrationStatusProvider>
+          <TokensProvider>
+            <StepProvider>
+              <BalanceProvider>
+                <TransactionsProvider>
+                  <KYCProvider>
+                  <BlockFestClaimProvider>
+                    <BlockFestModalProvider>
+                      <RocketStatusProvider>{children}</RocketStatusProvider>
+                    </BlockFestModalProvider>
+                  </BlockFestClaimProvider>
+                </KYCProvider>
               </TransactionsProvider>
             </BalanceProvider>
           </StepProvider>
         </TokensProvider>
+       </MigrationStatusProvider>
       </InjectedWalletProvider>
     </NetworkProvider>
   );

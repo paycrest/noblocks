@@ -33,6 +33,7 @@ const Divider = () => (
 const STATUS_COLOR_MAP: Record<string, string> = {
   completed: "text-green-500",
   refunded: "text-red-500",
+  refunding: "text-red-300",
   fulfilled: "text-blue-500",
   pending: "text-orange-500",
   processing: "text-yellow-500",
@@ -50,9 +51,10 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
   const isDark = useActualTheme();
   if (!transaction) return null;
 
+  // Use the transaction's stored network, not the globally selected network
   const explorerUrl =
-    transaction.tx_hash && selectedNetwork?.chain?.name
-      ? getExplorerLink(selectedNetwork.chain.name, transaction.tx_hash)
+    transaction.tx_hash && transaction.network
+      ? getExplorerLink(transaction.network, transaction.tx_hash)
       : undefined;
 
   const handleGetReceipt = async () => {
@@ -62,7 +64,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         orderId: transaction.order_id || "",
         amount: transaction.amount_sent.toString(),
         token: transaction.from_currency,
-        network: selectedNetwork?.chain?.name || "",
+        network: transaction.network || "",
         settlePercent: "100",
         status: transaction.status,
         txHash: transaction.tx_hash || "",
@@ -185,11 +187,8 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             label="Amount"
             value={
               <span className="text-text-accent-gray dark:text-white/80">
-                {formatCurrency(
-                  transaction.amount_received ?? 0,
-                  transaction.to_currency,
-                  `en-${transaction.to_currency.slice(0, 2)}`,
-                )}
+                {formatNumberWithCommas(transaction.amount_received ?? 0)}{" "}
+                {transaction.to_currency}
               </span>
             }
           />

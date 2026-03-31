@@ -12,7 +12,11 @@ import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
-import { feeRecipientAddress } from "./lib/config";
+import {
+  feeRecipientAddress,
+  localTransferFeePercent,
+  localTransferFeeCap,
+} from "./lib/config";
 
 /**
  * Concatenates and returns a string of class names.
@@ -148,8 +152,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://celoscan.io/tx/${txHash}`;
     case "Lisk":
       return `https://blockscout.lisk.com/tx/${txHash}`;
-    case "Hedera Mainnet":
-      return `https://hashscan.io/mainnet/transaction/${txHash}`;
+    case "Ethereum":
+      return `https://etherscan.io/tx/${txHash}`;
     default:
       return "";
   }
@@ -157,21 +161,22 @@ export const getExplorerLink = (network: string, txHash: string) => {
 
 // write function to get rpc url for a given network
 export function getRpcUrl(network: string) {
+  const rpcUrlKey = process.env.NEXT_PUBLIC_RPC_URL_KEY;
   switch (network) {
     case "Polygon":
-      return `https://137.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-polygon-mainnet-full.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "BNB Smart Chain":
-      return `https://56.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-bsc-mainnet-full.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Base":
-      return `https://8453.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-base-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Arbitrum One":
-      return `https://42161.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-arbitrum-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Celo":
-      return `https://42220.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
+      return `https://api-celo-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Lisk":
-      return `https://1135.rpc.thirdweb.com/${process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID}`;
-    case "Hedera Mainnet":
-      return "https://mainnet.hashio.io/api";
+      return `https://api-lisk-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
+    case "Ethereum":
+      return `https://api-ethereum-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     default:
       return undefined;
   }
@@ -255,6 +260,14 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
       imageUrl: "/logos/cngn-logo.svg",
     },
+    {
+      name: "Ethereum",
+      symbol: "ETH",
+      decimals: 18,
+      address: "", // Native token has no contract address
+      imageUrl: "/logos/eth-logo.svg",
+      isNative: true,
+    },
   ],
   "Arbitrum One": [
     {
@@ -334,15 +347,6 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/cusd-logo.svg",
     },
   ],
-  "Hedera Mainnet": [
-    {
-      name: "USD Coin",
-      symbol: "USDC",
-      decimals: 6,
-      address: "0x000000000000000000000000000000000006f89a",
-      imageUrl: "/logos/usdc-logo.svg",
-    },
-  ],
   Lisk: [
     {
       name: "Tether USD",
@@ -350,6 +354,29 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       decimals: 6,
       address: "0x05D032ac25d322df992303dCa074EE7392C117b9",
       imageUrl: "/logos/usdt-logo.svg",
+    },
+  ],
+  Ethereum: [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
+      name: "cNGN",
+      symbol: "cNGN",
+      decimals: 6,
+      address: "0x17CDB2a01e7a34CbB3DD4b83260B05d0274C8dab",
+      imageUrl: "/logos/cngn-logo.svg",
     },
   ],
 };
@@ -414,6 +441,22 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
           if (!hasUSDT) {
             tokens["Base"].push(usdtBase);
           }
+
+          // Ensure native ETH is present in the target network
+          // const nativeETH = {
+          //   name: "Ethereum",
+          //   symbol: "ETH",
+          //   decimals: 18,
+          //   address: "", // Native token has no contract address
+          //   imageUrl: "/logos/eth-logo.svg",
+          //   isNative: true,
+          // };
+          // const hasNativeETH = tokens["Ethereum"].some(
+          //   (token) => token.symbol === "ETH" && token.isNative,
+          // );
+          // if (!hasNativeETH) {
+          //   tokens["Ethereum"].push(nativeETH);
+          // }
         }
         // Merge fallback tokens for any networks missing from API response
         Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
@@ -446,30 +489,42 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
 export async function fetchWalletBalance(
   client: any,
   address: string,
-): Promise<{ total: number; balances: Record<string, number> }> {
+): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
   const supportedTokens = await getNetworkTokens(client.chain?.name);
-  if (!supportedTokens) return { total: 0, balances: {} };
+  if (!supportedTokens) return { total: 0, balances: {}, balancesInWei: {} };
 
   let totalBalance = 0;
   const balances: Record<string, number> = {};
+  const balancesInWei: Record<string, bigint> = {};
 
   try {
     // Fetch balances in parallel
     const balancePromises = supportedTokens.map(async (token: Token) => {
       try {
-        const balanceInWei = await client.readContract({
-          address: token.address as `0x${string}`,
-          abi: erc20Abi,
-          functionName: "balanceOf",
-          args: [address as `0x${string}`],
-        });
-        const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-        // Ensure balance is a valid number
-        balances[token.symbol] = isNaN(balance) ? 0 : balance;
-        return balances[token.symbol];
+        if (token.isNative && token.address === "") {
+          // Native token balance (ETH, BNB, etc.)
+          const balanceInWei = await client.getBalance({ address });
+          balancesInWei[token.symbol] = balanceInWei;
+          const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+          balances[token.symbol] = isNaN(balance) ? 0 : balance;
+          return balances[token.symbol];
+        } else {
+          // ERC-20 token balance
+          const balanceInWei = await client.readContract({
+            address: token.address as `0x${string}`,
+            abi: erc20Abi,
+            functionName: "balanceOf",
+            args: [address as `0x${string}`],
+          });
+          balancesInWei[token.symbol] = balanceInWei as bigint;
+          const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+          balances[token.symbol] = isNaN(balance) ? 0 : balance;
+          return balances[token.symbol];
+        }
       } catch (error) {
         console.error(`Error fetching balance for ${token.symbol}:`, error);
         balances[token.symbol] = 0;
+        balancesInWei[token.symbol] = BigInt(0);
         return 0;
       }
     });
@@ -481,13 +536,13 @@ export async function fetchWalletBalance(
       0,
     );
   } catch (error) {
-    return { total: 0, balances: {} };
+    return { total: 0, balances: {}, balancesInWei: {} };
   }
 
-  // Ensure final total is a valid number
   return {
     total: isNaN(totalBalance) ? 0 : totalBalance,
     balances,
+    balancesInWei,
   };
 }
 
@@ -504,26 +559,50 @@ export function calculateCorrectedTotalBalance(
 ): number {
   let correctedTotal = rawBalance.total;
 
-  // Check for both "cNGN" and "CNGN" keys (case sensitivity issue)
-  const cngnBalance =
-    rawBalance.balances["cNGN"] ?? rawBalance.balances["CNGN"];
+  // Handle both "cNGN" and "CNGN" keys consistently.
+  const cngnBalance = ["cNGN", "CNGN"].reduce((sum, symbol) => {
+    const value = rawBalance.balances[symbol];
+    if (typeof value === "number" && !isNaN(value) && value > 0) {
+      return sum + value;
+    }
+    return sum;
+  }, 0);
 
-  // If there's cNGN balance and we have a rate, convert it
-  if (
-    typeof cngnBalance === "number" &&
-    !isNaN(cngnBalance) &&
-    cngnBalance > 0 &&
-    cngnRate &&
-    cngnRate > 0
-  ) {
-    // Remove the raw cNGN value (which was counted as 1:1 USD)
+  // Remove the raw cNGN value (which was counted as 1:1 USD).
+  if (cngnBalance > 0) {
     correctedTotal -= cngnBalance;
-    // Add back the USD equivalent
-    const usdEquivalent = cngnBalance / cngnRate;
-    correctedTotal += usdEquivalent;
+
+    // Add back USD equivalent only when a valid positive rate is available.
+    if (cngnRate && cngnRate > 0) {
+      correctedTotal += cngnBalance / cngnRate;
+    }
   }
 
   return isNaN(correctedTotal) ? 0 : correctedTotal;
+}
+
+/**
+ * Fetches wallet balance for a specific network.
+ * Creates the appropriate publicClient internally based on the network chain.
+ *
+ * @param network - The Network object containing chain info
+ * @param walletAddress - The wallet address to fetch balance for
+ * @returns Promise with total balance and individual token balances
+ */
+export async function fetchBalanceForNetwork(
+  network: { chain: any },
+  walletAddress: string,
+): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
+  const { createPublicClient, http } = await import("viem");
+
+  const rpcUrl = getRpcUrl(network.chain.name);
+
+  const publicClient = createPublicClient({
+    chain: network.chain,
+    transport: http(rpcUrl),
+  });
+
+  return fetchWalletBalance(publicClient, walletAddress);
 }
 
 /**
@@ -546,15 +625,10 @@ export function shortenAddress(
 
 /**
  * Normalizes network name for rate fetching API.
- * Maps "Hedera Mainnet" to "hedera" instead of "hedera-mainnet".
  * @param network - The network name to normalize.
  * @returns The normalized network name for rate fetching.
  */
 export function normalizeNetworkForRateFetch(network: string): string {
-  // Special case: Hedera Mainnet should be "hedera" not "hedera-mainnet"
-  if (network.toLowerCase() === "hedera mainnet") {
-    return "hedera";
-  }
   return network.toLowerCase().replace(/\s+/g, "-");
 }
 
@@ -573,7 +647,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Optimism: "0xd293fcd3dbc025603911853d893a4724cf9f70a0",
     Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
     Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
-    "Hedera Mainnet": "0x17d13B7032944af8B420Ac5bedb12a7D92270478",
+    Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5",
   }[network];
 }
 
@@ -1166,13 +1240,13 @@ export function calculateSenderFee(
 ): { feeAmount: number; feeAmountInBaseUnits: bigint; feeRecipient: string } {
   const calculatedRate = Math.round(rate * 100);
   const isLocalTransfer = calculatedRate === 100;
-  const defaultFeePercent = 0.1; // 0.1% default fee for local transfers
-  const maxFeeCapInBaseUnits = BigInt(10000); // 10k in token base units
   const decimalsMultiplier = BigInt(10 ** tokenDecimals);
+  const maxFeeCapInBaseUnits =
+    BigInt(Math.floor(localTransferFeeCap)) * decimalsMultiplier;
 
   // Calculate fee in human-readable format
   const calculatedFee = isLocalTransfer
-    ? (amount * defaultFeePercent) / 100
+    ? (amount * localTransferFeePercent) / 100
     : 0;
 
   // Convert to base units

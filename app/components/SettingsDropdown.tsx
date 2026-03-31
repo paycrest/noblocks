@@ -8,6 +8,7 @@ import {
   useMfaEnrollment,
 } from "@privy-io/react-auth";
 import { ImSpinner } from "react-icons/im";
+import { resetNetworkModalDismissed } from "../lib/networkModalStore";
 import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
 import { classNames, shortenAddress } from "../utils";
@@ -19,21 +20,32 @@ import {
   Setting07Icon,
   Wallet01Icon,
   Key01Icon,
+  FaceIdIcon,
+  AccessIcon,
+  ColorsIcon,
 } from "hugeicons-react";
 import { toast } from "sonner";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
+import ProfileDrawer from "./ProfileDrawer";
+import { ThemeSwitch } from "./ThemeSwitch";
+import { useWallets } from "@privy-io/react-auth";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
+import { clearUserSessionData } from "../lib/session-cleanup";
 
 export const SettingsDropdown = () => {
-  const { user, updateEmail } = usePrivy();
+  const { user, updateEmail, exportWallet } = usePrivy();
+  const { wallets } = useWallets();
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const shouldUseEOA = useShouldUseEOA();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({
@@ -41,10 +53,22 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
+  // Get embedded wallet (EOA) and smart wallet (SCW)
+  const embeddedWallet = wallets.find(
+    (wallet) => wallet.walletClientType === "privy",
+  );
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet",
+  );
+
+  // Determine active wallet based on migration status
+  // After migration: show EOA (new wallet with funds)
+  // Before migration: show SCW (old wallet)
   const walletAddress = isInjectedWallet
     ? injectedAddress
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-        ?.address;
+    : shouldUseEOA
+      ? embeddedWallet?.address
+      : smartWallet?.address;
 
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(walletAddress ?? "");
@@ -56,6 +80,7 @@ export const SettingsDropdown = () => {
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
+      resetNetworkModalDismissed();
     },
   });
 
@@ -127,14 +152,20 @@ export const SettingsDropdown = () => {
         }
       }
 
+      clearUserSessionData(user?.id, user?.wallet?.address);
       await logout();
+
       if (window.ethereum) {
-        await disconnectWallet();
+        try {
+          await disconnectWallet();
+        } catch (disconnectError) {
+          console.warn("Wallet disconnect failed:", disconnectError);
+        }
       }
     } catch (error) {
       console.error("Error during logout:", error);
-      // Still proceed with logout even if wallet disconnection fails
-      await logout();
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -257,7 +288,7 @@ export const SettingsDropdown = () => {
                     </button>
                   </li>
                 ))}
-              {/* {!isInjectedWallet && (
+              {!isInjectedWallet && (
                 <li
                   role="menuitem"
                   className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
@@ -266,7 +297,24 @@ export const SettingsDropdown = () => {
                   <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                   <p>Export wallet</p>
                 </li>
-              )} */}
+              )}
+              <li
+                role="menuitem"
+                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+              >
+                <button
+                  type="button"
+                  className="group flex w-full items-center gap-2.5"
+                  onClick={() => {
+                    setIsProfileDrawerOpen(true);
+                    setIsOpen(false);
+                  }}
+                >
+                  <FaceIdIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                  <p>Profile</p>
+                </button>
+              </li>
+
               {!isInjectedWallet && (
                 <li
                   role="menuitem"
@@ -282,6 +330,13 @@ export const SettingsDropdown = () => {
                 </li>
               )}
             </ul>
+            <div className="-mx-2 mt-0 flex items-center justify-between gap-3 border-t border-border-light pb-2 pl-6 pr-4 pt-4 dark:border-white/10">
+              <div className="flex items-center gap-2.5">
+                <ColorsIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                <p>Theme</p>
+              </div>
+              <ThemeSwitch />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -290,6 +345,11 @@ export const SettingsDropdown = () => {
         isOpen={isWarningModalOpen}
         onClose={() => setIsWarningModalOpen(false)}
         address={walletAddress ?? ""}
+      />
+
+      <ProfileDrawer
+        isOpen={isProfileDrawerOpen}
+        onClose={() => setIsProfileDrawerOpen(false)}
       />
     </div>
   );

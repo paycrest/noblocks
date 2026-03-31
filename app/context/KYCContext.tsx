@@ -60,6 +60,7 @@ interface KYCContextType {
   tier: KYCTierLevel;
   isPhoneVerified: boolean;
   phoneNumber: string | null;
+  walletAddress: string | undefined;
   transactionSummary: UserTransactionSummary;
   canTransact: (amount: number) => { allowed: boolean; reason?: string };
   getCurrentLimits: () => TransactionLimits;
@@ -228,6 +229,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         tier,
         isPhoneVerified,
         phoneNumber,
+        walletAddress,
         transactionSummary,
         canTransact,
         getCurrentLimits,

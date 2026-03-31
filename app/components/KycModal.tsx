@@ -5,12 +5,8 @@ import { toast } from "sonner";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
+// smart-camera-web JSX types are declared in app/types/smart-camera-web.d.ts
 declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      "smart-camera-web": any;
-    }
-  }
   interface Window {
     tf?: {
       load: () => void;
@@ -501,14 +497,12 @@ export const KycModal = ({
 
       <div className="flex justify-center">
         {needsDocCapture ? (
-          /* @ts-expect-error - SmileID web component */
           <smart-camera-web
             ref={(el: HTMLElement | null) => setCameraElement(el)}
             theme-color="#8B85F4"
             capture-id
           />
         ) : (
-          /* @ts-expect-error - SmileID web component */
           <smart-camera-web
             ref={(el: HTMLElement | null) => setCameraElement(el)}
             theme-color="#8B85F4"
@@ -1154,15 +1148,8 @@ export const KycModal = ({
       const data = await res.json();
       const tier: number = data.tier ?? 0;
 
-      // Map Supabase tier to modal step
-      let newStatus: Step;
-      if (tier >= 2) {
-        newStatus = STEPS.STATUS.SUCCESS;
-      } else if (tier === 1) {
-        newStatus = STEPS.STATUS.PENDING;
-      } else {
-        newStatus = STEPS.TERMS;
-      }
+      // Map Supabase tier to modal step.
+      const newStatus: Step = tier >= 2 ? STEPS.STATUS.SUCCESS : STEPS.TERMS;
 
       setStep(newStatus);
 
@@ -1170,9 +1157,6 @@ export const KycModal = ({
         trackEvent("Account verification", {
           "Verification status": "Success",
         });
-      }
-      if (newStatus === STEPS.STATUS.PENDING) {
-        return;
       }
 
       setIsKycModalOpen(true);

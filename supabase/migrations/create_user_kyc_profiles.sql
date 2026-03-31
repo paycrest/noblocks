@@ -59,6 +59,25 @@ create index IF not exists idx_user_kyc_profiles_email on public.user_kyc_profil
 
 create index IF not exists idx_user_kyc_profiles_verified on public.user_kyc_profiles using btree (verified) TABLESPACE pg_default;
 
-create trigger update_user_kyc_profiles_updated_at BEFORE
-update on user_kyc_profiles for EACH row
-execute FUNCTION update_user_kyc_profiles_updated_at ();
+-- Trigger function to keep updated_at current (mirrors update_wallets_updated_at pattern)
+CREATE OR REPLACE FUNCTION update_user_kyc_profiles_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER update_user_kyc_profiles_updated_at
+  BEFORE UPDATE ON user_kyc_profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION update_user_kyc_profiles_updated_at();
+
+-- Enable row-level security; deny all direct client access.
+-- Backend operations use supabaseAdmin (service_role) which bypasses RLS.
+ALTER TABLE public.user_kyc_profiles ENABLE ROW LEVEL SECURITY;
+
+-- Deny all access for anon and authenticated roles by default (no permissive policies).
+-- If per-user self-read access is needed in future, add a narrowly-scoped policy here.

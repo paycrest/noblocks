@@ -78,6 +78,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (existingProfile.tier < 1) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message:
+            "Phone verification required before ID verification.",
+        },
+        { status: 403 },
+      );
+    }
+
     // Tier 2 allows up to 3 attempts
     const { data: newAttemptCount } = await supabaseAdmin.rpc(
       "increment_kyc_attempts",

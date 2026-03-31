@@ -53,7 +53,8 @@ export async function GET(request: NextRequest) {
     const rawTier = Number(kycProfile?.tier ?? 0);
     const tier: 0 | 1 | 2 | 3 = Math.min(Math.max(rawTier, 0), 3) as 0 | 1 | 2 | 3;
     const phoneNumber = kycProfile?.phone_number || null;
-    const phoneVerified = kycProfile?.verified && phoneNumber ? true : false;
+    // tier >= 1 means phone OTP was verified; do not rely on the generic `verified` flag
+    const phoneVerified = tier >= 1 && !!phoneNumber;
 
     const responseTime = Date.now() - startTime;
     trackApiResponse("/api/kyc/status", "GET", 200, responseTime);

@@ -47,10 +47,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Grant permissions
+-- Grant permissions — only service_role (backend) may set the wallet address.
+-- Granting this to anon/authenticated would allow clients to impersonate any
+-- wallet and bypass the RLS policies that rely on current_setting().
 GRANT EXECUTE ON FUNCTION set_current_wallet_address(TEXT) TO service_role;
-GRANT EXECUTE ON FUNCTION set_current_wallet_address(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION set_current_wallet_address(TEXT) TO anon;
 
 -- RLS policies
 CREATE POLICY "Users can read own transactions" ON transactions

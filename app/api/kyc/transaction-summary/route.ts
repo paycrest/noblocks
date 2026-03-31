@@ -75,6 +75,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // If any cNGN transactions exist but we have no rate, we cannot produce accurate
+    // compliance totals — return a partial-state indicator so callers know not to trust
+    // the numbers for limit enforcement.
+    const hasCngnTxs = transactions?.some((tx) => tx.from_currency === "cNGN");
+    if (hasCngnTxs && cngnToUsdRate === null) {
+      trackApiError(
+        request,
+        "/api/kyc/transaction-summary",
+        "GET",
+        new Error("cNGN rate unavailable"),
+        503,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          partial: true,
+          error:
+            "Transaction summary is incomplete: cNGN exchange rate is temporarily unavailable. Please try again shortly.",
+        },
+        { status: 503 },
+      );
+    }
+
     let dailySpent = 0;
     let monthlySpent = 0;
     let lastTransactionDate: string | null = null;
@@ -85,8 +108,8 @@ export async function GET(request: NextRequest) {
 
       let usdAmount: number;
       if (tx.from_currency === "cNGN") {
-        if (cngnToUsdRate === null) return; // rate unavailable — skip to avoid bad totals
-        usdAmount = rawAmount / cngnToUsdRate;
+        // cngnToUsdRate is guaranteed non-null here (checked above)
+        usdAmount = rawAmount / cngnToUsdRate!;
       } else {
         usdAmount = rawAmount; // USDC, USDT, cUSD are 1:1 with USD
       }

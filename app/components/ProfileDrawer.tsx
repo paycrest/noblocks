@@ -35,6 +35,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
     transactionSummary,
     getCurrentLimits,
     refreshStatus,
+    walletAddress,
   } = useKYC();
 
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
@@ -60,9 +61,9 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: omit refreshStatus to avoid refetch loop
   }, [isOpen]);
 
-  const walletAddress = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  )?.address;
+  // Use the same embedded (privy) wallet that KYCContext uses for tier/limit data,
+  // so the displayed address matches the account KYC is bound to.
+  // walletAddress is sourced from useKYC() above.
 
   const { linkEmail } = useLinkAccount({
     onSuccess: ({ user }) => {

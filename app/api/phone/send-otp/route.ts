@@ -88,13 +88,28 @@ export async function POST(request: NextRequest) {
     }
 
     // Get existing profile to preserve important fields
-    const { data: existingProfile } = await supabaseAdmin
-      .from("user_kyc_profiles")
-      .select(
-        "tier, verified, verified_at, id_country, id_type, platform, full_name, phone_number",
-      )
-      .eq("wallet_address", walletAddress)
-      .single();
+    const { data: existingProfile, error: profileFetchError } =
+      await supabaseAdmin
+        .from("user_kyc_profiles")
+        .select(
+          "tier, verified, verified_at, id_country, id_type, platform, full_name, phone_number",
+        )
+        .eq("wallet_address", walletAddress)
+        .maybeSingle();
+
+    if (profileFetchError) {
+      trackApiError(
+        request,
+        "/api/phone/send-otp",
+        "POST",
+        profileFetchError,
+        500,
+      );
+      return NextResponse.json(
+        { success: false, error: "Failed to load profile" },
+        { status: 500 },
+      );
+    }
 
     const isNigerian = validation.isNigerian;
     const expiresAt = new Date(Date.now() + (isNigerian ? 5 : 10) * 60 * 1000); // 5 min KudiSMS, 10 min Twilio Verify
@@ -107,7 +122,33 @@ export async function POST(request: NextRequest) {
       existingProfile?.phone_number != null &&
       existingProfile.phone_number !== validation.e164Format;
 
-    // Store verification record (otp_code hash only for Nigerian/KudiSMS path)
+    // Send OTP via provider BEFORE persisting — do not de-verify or overwrite active
+    // phone state if the provider call fails.
+    let result;
+    if (isNigerian) {
+      result = await sendKudiSMSOTP(validation.digitsOnly!, otp!);
+    } else {
+      result = await sendTwilioVerifyOTP(validation.e164Format!);
+    }
+
+    if (!result.success) {
+      const responseTime = Date.now() - startTime;
+      trackApiResponse(
+        "/api/phone/send-otp",
+        "POST",
+        400,
+        responseTime,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.error || result.message,
+        },
+        { status: 400 },
+      );
+    }
+
+    // Provider confirmed: now persist the pending OTP state.
     const { error: dbError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .upsert(
@@ -144,31 +185,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Nigerian: KudiSMS with our OTP. Non-Nigerian: Twilio Verify (Twilio sends its own code).
-    let result;
-    if (isNigerian) {
-      result = await sendKudiSMSOTP(validation.digitsOnly!, otp!);
-    } else {
-      result = await sendTwilioVerifyOTP(validation.e164Format!);
-    }
-
     const responseTime = Date.now() - startTime;
-    trackApiResponse(
-      "/api/phone/send-otp",
-      "POST",
-      result.success ? 200 : 400,
-      responseTime,
-    );
-
-    if (!result.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: result.error || result.message,
-        },
-        { status: 400 },
-      );
-    }
+    trackApiResponse("/api/phone/send-otp", "POST", 200, responseTime);
 
     return NextResponse.json({
       success: result.success,

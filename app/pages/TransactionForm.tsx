@@ -490,9 +490,14 @@ export const TransactionForm = ({
     }
     setOrderId("");
 
-    // Calculate the USD amount for transaction limit checking
+    // Calculate the USD equivalent for transaction limit checking.
+    // cNGN is not 1:1 with USD — convert using the live rate.
+    // USDC, USDT, and cUSD are treated as 1:1 with USD.
     const formData = getValues();
-    const usdAmount = formData.amountSent || 0;
+    const rawAmount = formData.amountSent || 0;
+    const isCngn = formData.token === "cNGN" || formData.token === "CNGN";
+    const usdAmount =
+      isCngn && cngnRate && cngnRate > 0 ? rawAmount / cngnRate : rawAmount;
 
     // Check transaction limits based on KYC tier
     const limitCheck = canTransact(usdAmount);

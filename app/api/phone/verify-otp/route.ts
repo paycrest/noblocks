@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     // Get verification record using normalized E.164 format
     const { data: verification, error: fetchError } = await supabaseAdmin
       .from("user_kyc_profiles")
-      .select("verified, provider, tier, expires_at, attempts, otp_code")
+      .select("verified, provider, tier, expires_at, otp_attempts, otp_code")
       .eq("wallet_address", walletAddress)
       .eq("phone_number", validation.e164Format)
       .maybeSingle();
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
         verified: true,
         verified_at: new Date().toISOString(),
         otp_code: null,
-        attempts: 0,
+        otp_attempts: 0,
       };
       if (verification.tier === 0) {
         updateData.tier = 1;
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (verification.attempts >= MAX_ATTEMPTS) {
+    if (verification.otp_attempts >= MAX_ATTEMPTS) {
       return NextResponse.json(
         {
           success: false,
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
 
     if (verification.otp_code !== hashOTP(otpCode)) {
       const { data: updatedAttempts, error: attemptsError } = await supabaseAdmin
-        .rpc("increment_kyc_attempts", {
+        .rpc("increment_otp_attempts", {
           p_wallet_address: walletAddress,
           p_max_attempts: MAX_ATTEMPTS,
         });
@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: "Invalid OTP code",
-          attemptsRemaining: Math.max(0, MAX_ATTEMPTS - Number(updatedAttempts)),
+          attemptsRemaining: Math.max(0, MAX_ATTEMPTS - Number(updatedAttempts)), // otp_attempts-scoped counter
         },
         { status: 400 },
       );
@@ -251,7 +251,7 @@ export async function POST(request: NextRequest) {
       verified: true,
       verified_at: new Date().toISOString(),
       otp_code: null, // Clear OTP hash after successful verification
-      attempts: 0,
+      otp_attempts: 0,
     };
 
     // Only set tier to 1 if current tier is 0 (unverified)

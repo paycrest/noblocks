@@ -639,19 +639,10 @@ export const TransactionPreview = ({
   const getOrderId = () => {
     const MAX_POLL_DURATION_MS = 120_000;
 
-    if (
-      !activeWallet?.address ||
-      isOrderCreatedLogsFetched ||
-      isSavingTransactionRef.current
-    ) {
-      return Promise.resolve();
-    }
-
     return new Promise<void>((resolve, reject) => {
       let intervalId: NodeJS.Timeout;
       let timeoutId: NodeJS.Timeout;
       let settled = false;
-      let pollInFlight = false;
 
       const cleanup = () => {
         clearInterval(intervalId);
@@ -670,8 +661,8 @@ export const TransactionPreview = ({
       }, MAX_POLL_DURATION_MS);
 
       const poll = async () => {
-        if (settled || !activeWallet?.address || pollInFlight) return;
-        pollInFlight = true;
+        if (settled || !activeWallet?.address) return;
+
         try {
           const publicClient = createPublicClient({
             chain: selectedNetwork.chain,
@@ -698,6 +689,9 @@ export const TransactionPreview = ({
           });
 
           if (logs.length > 0 && !settled) {
+            settled = true;
+            cleanup();
+
             try {
               const decodedLog = decodeEventLog({
                 abi: gatewayAbi,
@@ -706,11 +700,7 @@ export const TransactionPreview = ({
                 topics: logs[0].topics,
               });
 
-              settled = true;
-              cleanup();
-
               setIsOrderCreatedLogsFetched(true);
-              isSavingTransactionRef.current = true;
               setOrderId(decodedLog.args.orderId);
 
               await saveTransactionData({
@@ -723,24 +713,16 @@ export const TransactionPreview = ({
               setCurrentStep("status");
               resolve();
             } catch (err) {
-              if (!settled) {
-                settled = true;
-                cleanup();
-              }
               reject(err);
             }
           }
         } catch (error) {
           console.error("Error fetching OrderCreated logs:", error);
-        } finally {
-          pollInFlight = false;
         }
       };
 
-      void poll();
-      intervalId = setInterval(() => {
-        void poll();
-      }, 2_000);
+      poll();
+      intervalId = setInterval(poll, 2_000);
     });
   };
 

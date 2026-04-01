@@ -5,44 +5,44 @@ import config from "../lib/config";
 
 import Providers from "../providers";
 import MainContent from "../mainContent";
-import {
-  Footer,
-  Navbar,
-  LayoutWrapper,
-  PWAInstall,
-  NoticeBanner,
-} from "./index";
+import { Footer } from "./Footer";
+import { Navbar } from "./Navbar";
+import { LayoutWrapper } from "./LayoutWrapper";
+import PWAInstall from "./PWAInstallManager";
+import NoticeBanner from "./NoticeBanner";
 import { MigrationBannerWrapper } from "../context";
 import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeModal";
+import SentryClientProvider from "./SentryClientProvider";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
-    <Providers>
-      <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-        <div className={`relative ${config.maintenanceEnabled ? 'mb-16' : ''}`}>
-          <Navbar />
-          {config.maintenanceEnabled ? (
-            <MaintenanceBanner />
-          ) : (
-            config.noticeBannerText && (
-              <NoticeBanner textLines={config.noticeBannerText.split("|")} />
-            )
-          )}
-          <MigrationBannerWrapper />
-        </div>
-        <LayoutWrapper footer={<Footer />}>
-          <MainContent>{children}</MainContent>
-        </LayoutWrapper>
+    <SentryClientProvider>
+      <Providers>
+        <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
+          <div className={`relative ${config.maintenanceEnabled ? 'mb-16' : ''}`}>
+            <Navbar />
+            {config.maintenanceEnabled ? (
+              <MaintenanceBanner />
+            ) : (
+              config.noticeBannerText && (
+                <NoticeBanner textLines={config.noticeBannerText.split("|")} />
+              )
+            )}
+            <MigrationBannerWrapper />
+          </div>
+          <LayoutWrapper footer={<Footer />}>
+            <MainContent>{children}</MainContent>
+          </LayoutWrapper>
 
-        <PWAInstall />
-        <MaintenanceNoticeModal />
-      </div>
-      {/* Brevo Chat Widget */}
-      {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && config.brevoConversationsGroupId && (
-        <>
-          <Script id="brevo-chat-config" strategy="afterInteractive">
-            {`window.BrevoConversationsID=${JSON.stringify(config.brevoConversationsId)};
+          <PWAInstall />
+          <MaintenanceNoticeModal />
+        </div>
+        {/* Brevo Chat Widget */}
+        {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && config.brevoConversationsGroupId && (
+          <>
+            <Script id="brevo-chat-config" strategy="afterInteractive">
+              {`window.BrevoConversationsID=${JSON.stringify(config.brevoConversationsId)};
             window.BrevoConversations=window.BrevoConversations||function(){
             (window.BrevoConversations.q=window.BrevoConversations.q||[]).push(arguments)};
             window.BrevoConversationsSetup=${config.brevoConversationsGroupId
@@ -50,14 +50,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 : '{}'
               };
             `}
-          </Script>
-          <Script
-            id="brevo-chat-widget"
-            src="https://conversations-widget.brevo.com/brevo-conversations.js"
-            strategy="afterInteractive"
-          />
-        </>
-      )}
-    </Providers>
+            </Script>
+            <Script
+              id="brevo-chat-widget"
+              src="https://conversations-widget.brevo.com/brevo-conversations.js"
+              strategy="afterInteractive"
+            />
+          </>
+        )}
+      </Providers>
+    </SentryClientProvider>
   );
 }

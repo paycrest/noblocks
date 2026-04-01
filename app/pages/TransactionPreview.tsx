@@ -17,13 +17,14 @@ import {
   publicKeyEncrypt,
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
-import config from "../lib/config";
+import { getDelegationContractAddress } from "../lib/config";
+import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
   Token,
   TransactionPreviewProps,
   TransactionCreateInput,
 } from "../types";
-import { primaryBtnClasses, secondaryBtnClasses } from "../components";
+import { primaryBtnClasses, secondaryBtnClasses } from "../components/Styles";
 import { gatewayAbi } from "../api/abi";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -40,16 +41,16 @@ import {
 import { useBalance, useInjectedWallet, useStep } from "../context";
 import {
   useShouldUseEOA,
-  useBiconomy7702Auth,
+  useDelegationContractAuth,
   useMigrationStatus,
   get7702AuthorizedImplementationForAddress,
 } from "../hooks/useEIP7702Account";
 import {
-  createMeeClient,
-  toMultichainNexusAccount,
-  getMEEVersion,
-  MEEVersion,
-} from "@biconomy/abstractjs";
+  buildBatchDigest,
+  encodeExecuteBatch,
+  readBatchNonce,
+  type BatchCall,
+} from "../lib/providerBatch";
 
 import { fetchAggregatorPublicKey, saveTransaction } from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics/client";
@@ -78,7 +79,7 @@ export const TransactionPreview = ({
     useInjectedWallet();
   const shouldUseEOA = useShouldUseEOA();
   const { isLoading: isMigrationLoading } = useMigrationStatus();
-  const { signBiconomyAuthorization } = useBiconomy7702Auth();
+  const { signDelegationAuthorization } = useDelegationContractAuth();
 
 
   const { selectedNetwork } = useNetwork();
@@ -111,6 +112,7 @@ export const TransactionPreview = ({
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0); // Used to trigger toast
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
+  const [isPollingOrderId, setIsPollingOrderId] = useState<boolean>(false);
   const [isOrderCreatedLogsFetched, setIsOrderCreatedLogsFetched] =
     useState<boolean>(false);
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
@@ -321,7 +323,7 @@ export const TransactionPreview = ({
           "Wallet type": "Injected wallet",
         });
       } else if (shouldUseEOA && embeddedWallet) {
-        // EIP-7702 + Biconomy MEE path (migrated EOA or 0-balance SCW)
+        // EIP-7702 + bundler (execute-sponsored): check delegationContractAddress, attach delegation with signature if needed
         const chain = selectedNetwork?.chain;
         if (!chain) throw new Error("Network not ready");
         const chainId = chain.id;
@@ -329,99 +331,63 @@ export const TransactionPreview = ({
           selectedNetwork.chain.name,
         ) as `0x${string}`;
 
-        await embeddedWallet.switchChain(chainId);
+        const delegationContractAddress = getDelegationContractAddress(chainId);
+        if (!delegationContractAddress || delegationContractAddress === "") {
+          throw new Error(
+            `Delegation contract not configured for ${selectedNetwork.chain.name}. Set the contract for chain ${chainId}.`
+          );
+        }
 
+        const bundlerUrl = "/api/bundler";
+
+        await embeddedWallet.switchChain(chainId);
         const provider = await embeddedWallet.getEthereumProvider();
 
-        // Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation
-        const biconomyNexusV120 = config.biconomyNexusV120 as `0x${string}`;
-
-        // Check if already authorized to the correct implementation to avoid unnecessary signatures
         const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
         if (!rpcUrl) {
           throw new Error(`RPC URL not configured for network: ${selectedNetwork.chain.name}`);
         }
 
+        const accountAddress = embeddedWallet.address as `0x${string}`;
+        const publicClient = createPublicClient({
+          chain,
+          transport: http(rpcUrl),
+        });
+
+        const expectedDelegation = delegationContractAddress.toLowerCase();
         const currentImplementation = await get7702AuthorizedImplementationForAddress(
           chain,
           rpcUrl,
-          embeddedWallet.address as `0x${string}`
+          accountAddress,
         );
-        let authorization;
-        if (currentImplementation === biconomyNexusV120) {
-          authorization = null; // MEE will handle existing authorization
-        } else {
-          // Need new authorization
-          authorization = await signBiconomyAuthorization(chainId);
+        // Only send authorization when EOA is not delegated, or delegated to a different contract.
+        const needsDelegation =
+          !currentImplementation ||
+          currentImplementation.toLowerCase() !== expectedDelegation;
 
-          // Wait for authorization to propagate on the network
-          await new Promise(resolve => setTimeout(resolve, 2000));
-
-          // Verify authorization worked (optional validation)
-          try {
-            const newImplementation = await get7702AuthorizedImplementationForAddress(
-              chain,
-              rpcUrl,
-              embeddedWallet.address as `0x${string}`
-            );
-
-            if (newImplementation !== biconomyNexusV120) {
-              console.warn(`EIP-7702 authorization verification failed. Expected: ${biconomyNexusV120}, Got: ${newImplementation}`);
-              console.warn("Proceeding with authorization anyway - MEE will handle validation");
-              // Don't throw error, let MEE handle the validation
-            }
-          } catch (verificationError) {
-            console.warn("EIP-7702 verification failed, but proceeding:", verificationError);
-            // Don't throw error, let MEE handle the validation
-          }
+        let authorization: Awaited<ReturnType<typeof signDelegationAuthorization>> | undefined;
+        if (needsDelegation) {
+          authorization = await signDelegationAuthorization(chainId);
         }
-
-        // Match Biconomy example: signer is EIP-1193 provider so SDK uses eth_requestAccounts (no getAddresses)
-        const nexusAccount = await toMultichainNexusAccount({
-          chainConfigurations: [
-            {
-              chain,
-              transport: http(getRpcUrl(selectedNetwork.chain.name)),
-              version: getMEEVersion(MEEVersion.V2_1_0),
-              accountAddress: embeddedWallet.address as `0x${string}`,
-            },
-          ],
-          signer: provider,
-        });
-
-
-        const biconomyApiKey = config.biconomyMeeApiKey;
-        if (!biconomyApiKey) {
-          throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
-        }
-
-        const meeClient = await createMeeClient({
-          account: nexusAccount,
-          apiKey: biconomyApiKey,
-        });
 
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
-
         const totalAmountToApprove = params.amount + params.senderFee;
 
-        const approveInstruction = await nexusAccount.buildComposable({
-          type: "default",
-          data: {
+        const approveCall: BatchCall = {
+          to: tokenAddress as `0x${string}`,
+          value: BigInt(0),
+          data: encodeFunctionData({
             abi: erc20Abi,
-            chainId,
-            to: tokenAddress,
             functionName: "approve",
             args: [gatewayAddress, totalAmountToApprove],
-          },
-        });
-
-        const createOrderInstruction = await nexusAccount.buildComposable({
-          type: "default",
-          data: {
+          }),
+        };
+        const createOrderCall: BatchCall = {
+          to: gatewayAddress,
+          value: BigInt(0),
+          data: encodeFunctionData({
             abi: gatewayAbi,
-            chainId,
-            to: gatewayAddress,
             functionName: "createOrder",
             args: [
               params.token,
@@ -432,26 +398,68 @@ export const TransactionPreview = ({
               params.refundAddress ?? "",
               params.messageHash,
             ],
-          },
-        });
+          }),
+        };
+
+        const nonce = await readBatchNonce(publicClient, accountAddress).catch(() => BigInt(0));
+        const digest = buildBatchDigest(nonce, [approveCall, createOrderCall]);
+        const rawSignature = (await provider.request({
+          method: "personal_sign",
+          params: [digest, accountAddress],
+        })) as string;
+        const signature = (rawSignature.startsWith("0x") ? rawSignature : `0x${rawSignature}`) as `0x${string}`;
+
+        const callData = encodeExecuteBatch([approveCall, createOrderCall], signature);
+        const payload = {
+          chainId,
+          rpcUrl,
+          accountAddress,
+          callData,
+          delegationContractAddress,
+          ...(authorization != null && { eip7702Authorization: authorization }),
+        };
 
         await captureSubmissionBlock();
-        const { hash } = await meeClient.execute({
-          authorizations: authorization ? [authorization] : [],
-          delegate: true,
-          sponsorship: true,
-          instructions: [approveInstruction, createOrderInstruction],
-        });
-        await meeClient.waitForSupertransactionReceipt({ hash });
 
-        // Set success state only after transaction is confirmed
+        const accessToken = await getAccessToken();
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+        const res = await fetch(`${bundlerUrl}/execute-sponsored`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload, (_key, value) =>
+            typeof value === "bigint" ? value.toString() : value,
+          ),
+        });
+        if (!res.ok) {
+          const errBody = await res.text();
+          let errMsg: string;
+          try {
+            const j = JSON.parse(errBody) as { error?: string };
+            errMsg = (j?.error ?? errBody) || res.statusText;
+          } catch {
+            errMsg = errBody || res.statusText;
+          }
+          throw new Error(errMsg);
+        }
+        const data = (await res.json()) as { transactionHash?: string };
+        const hash = data.transactionHash;
+        if (!hash) throw new Error("No transaction hash returned");
+
         setIsGatewayApproved(true);
         setIsOrderCreated(true);
 
         trackEvent("Swap started", {
           "Entry point": "Transaction preview",
-          "Wallet type": "EIP-7702 (MEE)",
+          "Wallet type": "EIP-7702 (bundler)",
         });
+
+        toast.success("Order created successfully");
+        refreshBalance();
+        setIsPollingOrderId(true);
+        void getOrderId().finally(() => setIsPollingOrderId(false));
+        return;
       } else {
         // Smart wallet (pre-migration)
         if (!client) {
@@ -520,7 +528,14 @@ export const TransactionPreview = ({
       });
     } catch (e) {
       const error = e as BaseError;
-      setErrorMessage(error.shortMessage || error.message);
+      const rawReason = error.shortMessage || error.message || "Unknown error";
+      mapReportAndAct(e, {
+        feature: "transaction-preview",
+        onUserMessage: (userMsg) => {
+          setErrorMessage(userMsg);
+          setErrorCount((prevCount: number) => prevCount + 1);
+        },
+      });
       setIsConfirming(false);
       trackEvent("Swap Failed", {
         Amount: amountSent,
@@ -532,7 +547,7 @@ export const TransactionPreview = ({
         ),
         "Wallet balance": balance,
         "Swap date": createdAt,
-        "Reason for failure": error.shortMessage || error.message,
+        "Reason for failure": rawReason,
         "Transaction duration": calculateDuration(
           createdAt,
           new Date().toISOString(),
@@ -562,10 +577,7 @@ export const TransactionPreview = ({
     try {
       setIsConfirming(true);
       await createOrder();
-    } catch (e) {
-      const error = e as BaseError;
-      setErrorMessage(error.shortMessage || error.message);
-      setErrorCount((prevCount: number) => prevCount + 1);
+    } finally {
       setIsConfirming(false);
     }
   };
@@ -799,7 +811,7 @@ export const TransactionPreview = ({
                 ) : (
                   <TbCircleDashed
                     className={classNames(
-                      isConfirming ? "animate-spin" : "",
+                      isConfirming || isPollingOrderId ? "animate-spin" : "",
                       "text-lg",
                     )}
                   />
@@ -829,7 +841,7 @@ export const TransactionPreview = ({
           type="button"
           onClick={handleBackButtonClick}
           className={classNames(secondaryBtnClasses)}
-          disabled={isConfirming}
+          disabled={isConfirming || isPollingOrderId}
         >
           Back
         </button>
@@ -837,9 +849,9 @@ export const TransactionPreview = ({
           type="submit"
           className={classNames(primaryBtnClasses, "w-full")}
           onClick={handlePaymentConfirmation}
-          disabled={isConfirming}
+          disabled={isConfirming || isPollingOrderId}
         >
-          {isConfirming ? (
+          {isConfirming || isPollingOrderId ? (
             <span className="flex items-center justify-center gap-2">
               <ImSpinner className="animate-spin text-lg" />
               Confirming...

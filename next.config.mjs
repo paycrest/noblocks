@@ -1,5 +1,11 @@
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  outputFileTracingRoot: path.join(__dirname),
   headers: async () => [
     {
       source: "/:path*",
@@ -50,7 +56,7 @@ const nextConfig = {
   ],
   experimental: {
     optimizeCss: true,
-    optimizePackageImports: ["@headlessui/react", "framer-motion"],
+    optimizePackageImports: ["@headlessui/react", "framer-motion", "hugeicons-react", "react-icons"],
   },
   serverExternalPackages: ['mixpanel', 'https-proxy-agent'],
   webpack: (config, { isServer }) => {

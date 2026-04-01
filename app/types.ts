@@ -256,7 +256,7 @@ export type Config = {
   aggregatorUrl: string;
   aggregatorSenderApiKeyId: string;
   privyAppId: string;
-  thirdwebClientId: string;
+  rpcUrlKey: string;
   mixpanelToken: string;
   hotjarSiteId: number;
   googleVerificationCode: string;
@@ -264,9 +264,7 @@ export type Config = {
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
-  biconomyNexusV120: string; // Biconomy Nexus V1.2.0 contract address
-  /** Base URL of the v2→Nexus upgrade server (e.g. http://localhost:3000). */
-  bundlerServerUrl: string;
+  bundlerServerUrl: string; // Optional, for external bundler server
   biconomyMeeApiKey: string;
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"

@@ -8,8 +8,9 @@ import { useBalance } from "../context/BalanceContext";
 import { useTokens } from "../context";
 import { useNetwork } from "../context/NetworksContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance, getRpcUrl } from "../utils";
+import { mapReportAndAct } from "../lib/toastMappedError";
+import { reportClientError } from "../lib/sentry.client";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { getCNGNRateForNetwork } from "../hooks/useCNGNRate";
 import WalletMigrationSuccessModal from "./WalletMigrationSuccessModal";
@@ -74,7 +75,6 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
     const { selectedNetwork } = useNetwork();
     const { user, getAccessToken } = usePrivy();
     const { wallets } = useWallets();
-    const { client: smartWalletClient } = useSmartWallets();
     const isDark = useActualTheme();
 
     // Get wallet addresses
@@ -274,24 +274,16 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             // ✅ If tokens exist: (1) upgrade SCW to Nexus via upgrade-server, then (2) use MEE to transfer.
             if (hasTokens) {
                 const meeApiKey = config.biconomyMeeApiKey;
-                const bundlerServerUrl = config.bundlerServerUrl.trim().replace(/\/+$/, "");
+                const bundlerServerUrl = "/api/bundler";
                 if (!meeApiKey) {
                     throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
-                }
-                if (!bundlerServerUrl) {
-                    throw new Error("Upgrade server URL not configured. Set NEXT_PUBLIC_BUNDLER_SERVER_URL.");
-                }
-                try {
-                    const parsed = new URL(bundlerServerUrl);
-                    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-                        throw new Error("invalid protocol");
-                    }
-                } catch {
-                    throw new Error("Invalid NEXT_PUBLIC_BUNDLER_SERVER_URL. Use a full URL");
                 }
                 if (!embeddedWallet || !oldAddress) {
                     throw new Error("Wallet not available. Please ensure you are logged in.");
                 }
+
+                const accessToken = await getAccessTokenWithRetry();
+                const authHeaders: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
 
                 // --- For each chain: check nexus status, upgrade if needed, then transfer via MEE ---
                 for (let i = 0; i < chains.length; i++) {
@@ -314,7 +306,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
 
                         setProgress(`Checking wallet version on ${chainName}...`);
                         const statusUrl = `${bundlerServerUrl}/is-nexus?smartAccountAddress=${encodeURIComponent(oldAddress)}&chainId=${chain.id}${chainRpcUrl ? `&rpcUrl=${encodeURIComponent(chainRpcUrl)}` : ""}`;
-                        const statusRes = await fetch(statusUrl);
+                        const statusRes = await fetch(statusUrl, { headers: authHeaders });
                         if (!statusRes.ok) {
                             const errText = await statusRes.text();
                             throw new Error(`Nexus check failed on ${chainName}: ${errText || statusRes.statusText}`);
@@ -326,30 +318,13 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                             reason?: string;
                         };
                         const alreadyNexus = Boolean(statusData?.isNexus);
-                        const isDeployed = statusData?.deployed !== false;
 
                         if (!alreadyNexus) {
-                            // If account is not deployed on this chain, deploy via Privy first (Privy's initCode). Then our Nexus upgrade will see a deployed account and use initCode '0x'.
-                            if (!isDeployed && smartWalletClient) {
-                                setProgress(`Deploying wallet on ${chainName} ...`);
-                                try {
-                                    await smartWalletClient.switchChain({ id: chain.id });
-                                    const deployHash = await smartWalletClient.sendTransaction({
-                                        to: oldAddress as Address,
-                                        value: BigInt(0),
-                                        data: "0x",
-                                    });
-                                    if (deployHash) allTxHashes.push(deployHash);
-                                } catch (deployErr) {
-                                    const msg = deployErr instanceof Error ? deployErr.message : String(deployErr);
-                                    throw new Error(`Deploy wallet on ${chainName} failed: ${msg}`);
-                                }
-                            }
-
+                            // When not deployed, server derives initCode from ownerAddress and does deploy+upgrade in one UserOp.
                             setProgress(`Upgrading wallet to Nexus on ${chainName}...`);
                             const genRes = await fetch(`${bundlerServerUrl}/generate-userop`, {
                                 method: "POST",
-                                headers: { "Content-Type": "application/json" },
+                                headers: { "Content-Type": "application/json", ...authHeaders },
                                 body: JSON.stringify({
                                     smartAccountAddress: oldAddress,
                                     ownerAddress: embeddedWallet.address,
@@ -390,7 +365,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                             setProgress(`Submitting upgrade on ${chainName}...`);
                             const execRes = await fetch(`${bundlerServerUrl}/execute`, {
                                 method: "POST",
-                                headers: { "Content-Type": "application/json" },
+                                headers: { "Content-Type": "application/json", ...authHeaders },
                                 body: JSON.stringify({
                                     userOp: signedUserOp,
                                     smartAccountAddress: oldAddress,
@@ -493,6 +468,11 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                             description: `${instructions.length} token${instructions.length === 1 ? "" : "s"} transferred to your new wallet.`,
                         });
                     } catch (chainError) {
+                        reportClientError(chainError, {
+                            feature: "wallet-migration",
+                            phase: "chain-transfer",
+                            chain: chainName,
+                        });
                         const rawMsg = chainError instanceof Error ? chainError.message : "Unknown error";
                         const isDeadlineOrRevert =
                             /deadline limit exceeded|revert|transaction failed/i.test(rawMsg);
@@ -545,10 +525,14 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             setTimeout(() => setShowSuccessModal(true), 300);
 
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "Migration failed";
-            setError(errorMessage);
-            toast.error("Migration failed", {
-                description: errorMessage,
+            mapReportAndAct(err, {
+                feature: "wallet-migration",
+                onUserMessage: (userMsg) => {
+                    setError(userMsg);
+                    toast.error("Migration failed", {
+                        description: userMsg,
+                    });
+                },
             });
         } finally {
             setIsProcessing(false);

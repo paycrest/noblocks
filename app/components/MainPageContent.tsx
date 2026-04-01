@@ -38,7 +38,8 @@ import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
-import { useInjectedWallet } from "../context";
+import { useBalance, useInjectedWallet } from "../context";
+import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
 
 const PageLayout = ({
   authenticated,
@@ -105,10 +106,11 @@ const PageLayout = ({
 
 export function MainPageContent() {
   const searchParams = useSearchParams();
-  const { authenticated, ready, getAccessToken } = usePrivy();
+  const { authenticated, ready, getAccessToken, user } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
-  const { isInjectedWallet, injectedReady } = useInjectedWallet();
-  const { selectedNetwork } = useNetwork();
+  const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
+  const { crossChainBalances, isLoading: isBalanceLoading } = useBalance();
+  const { selectedNetwork, setDisplayedNetwork } = useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -128,6 +130,7 @@ export function MainPageContent() {
 
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
+  const autoSelectedNetworkSessionRef = useRef<string | null>(null);
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
@@ -204,6 +207,57 @@ export function MainPageContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(
+    function autoSelectLargestBalanceNetwork() {
+      const sessionKey = isInjectedWallet
+        ? injectedAddress
+          ? `injected:${injectedAddress}`
+          : null
+        : authenticated && user?.id
+          ? `privy:${user.id}`
+          : null;
+
+      if (!sessionKey) {
+        autoSelectedNetworkSessionRef.current = null;
+        return;
+      }
+
+      if (!ready || (isInjectedWallet && !injectedReady) || isBalanceLoading) {
+        return;
+      }
+
+      if (autoSelectedNetworkSessionRef.current === sessionKey) {
+        return;
+      }
+
+      const preferredNetwork = getPreferredNetworkForBalances(
+        crossChainBalances,
+        selectedNetwork.chain.name,
+      );
+
+      if (
+        preferredNetwork &&
+        preferredNetwork.chain.name !== selectedNetwork.chain.name
+      ) {
+        setDisplayedNetwork(preferredNetwork);
+      }
+
+      autoSelectedNetworkSessionRef.current = sessionKey;
+    },
+    [
+      authenticated,
+      crossChainBalances,
+      injectedAddress,
+      injectedReady,
+      isBalanceLoading,
+      isInjectedWallet,
+      ready,
+      selectedNetwork.chain.name,
+      setDisplayedNetwork,
+      user?.id,
+    ],
+  );
 
   useEffect(
     function resetProviderErrorOnChange() {

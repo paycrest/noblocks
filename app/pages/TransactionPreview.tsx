@@ -18,6 +18,7 @@ import {
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
 import { getDelegationContractAddress } from "../lib/config";
+import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
   Token,
   TransactionPreviewProps,
@@ -527,7 +528,14 @@ export const TransactionPreview = ({
       });
     } catch (e) {
       const error = e as BaseError;
-      setErrorMessage(error.shortMessage || error.message);
+      const rawReason = error.shortMessage || error.message || "Unknown error";
+      mapReportAndAct(e, {
+        feature: "transaction-preview",
+        onUserMessage: (userMsg) => {
+          setErrorMessage(userMsg);
+          setErrorCount((prevCount: number) => prevCount + 1);
+        },
+      });
       setIsConfirming(false);
       trackEvent("Swap Failed", {
         Amount: amountSent,
@@ -539,7 +547,7 @@ export const TransactionPreview = ({
         ),
         "Wallet balance": balance,
         "Swap date": createdAt,
-        "Reason for failure": error.shortMessage || error.message,
+        "Reason for failure": rawReason,
         "Transaction duration": calculateDuration(
           createdAt,
           new Date().toISOString(),
@@ -569,10 +577,6 @@ export const TransactionPreview = ({
     try {
       setIsConfirming(true);
       await createOrder();
-    } catch (e) {
-      const error = e as BaseError;
-      setErrorMessage(error.shortMessage || error.message);
-      setErrorCount((prevCount: number) => prevCount + 1);
     } finally {
       setIsConfirming(false);
     }

@@ -21,6 +21,8 @@ import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
 import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
 import { normalizeNetworkForRateFetch } from "../utils";
+import { mapReportAndAct } from "../lib/toastMappedError";
+import { reportClientError } from "../lib/sentry.client";
 import {
   STEPS,
   type FormData,
@@ -325,9 +327,7 @@ export function MainPageContent() {
           setRate(rate.data);
           setRateError(null); // Clear error on success
         } catch (error) {
-          let errorMsg = "Unknown error";
           if (error instanceof Error) {
-            errorMsg = error.message;
             const lpParam =
               searchParams.get("provider") || searchParams.get("PROVIDER");
             if (
@@ -335,6 +335,11 @@ export function MainPageContent() {
               lpParam &&
               !failedProviders.current.has(lpParam)
             ) {
+              reportClientError(error, {
+                feature: "cngn-rate",
+                phase: "provider-fallback",
+                provider: lpParam,
+              });
               toast.error(`${error.message} - defaulting to public rate`);
               // Track failed provider
               if (lpParam) {
@@ -348,8 +353,13 @@ export function MainPageContent() {
               return;
             }
           }
-          setRateError(errorMsg);
-          toast.error("No available quote", { description: errorMsg });
+          mapReportAndAct(error, {
+            feature: "cngn-rate",
+            onUserMessage: (userMsg) => {
+              setRateError(userMsg);
+              toast.error(userMsg);
+            },
+          });
         } finally {
           setIsFetchingRate(false);
         }

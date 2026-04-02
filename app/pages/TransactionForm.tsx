@@ -375,10 +375,11 @@ export const TransactionForm = ({
             minAmountSentValue = 0.5 * cngnRate;
             setRateError(null);
           } else {
-            // cNGN selected but no valid rate - set error
             const errorMessage = cngnRateError || "No available quote";
             setRateError(errorMessage);
           }
+        } else {
+          setRateError(null);
         }
 
         formMethods.register("amountSent", {
@@ -957,9 +958,9 @@ export const TransactionForm = ({
               variant={slideInOut}
               className="flex w-full flex-col justify-between gap-2 py-3 text-xs text-text-disabled transition-all dark:text-white/30 xsm:flex-row xsm:items-center"
             >
-              <div className="min-w-fit">
+              <div className={rateError ? "" : "min-w-fit"}>
                 {rateError ? (
-                  <>No available quote</>
+                  <span className="text-orange-500 dark:text-orange-400">{rateError}</span>
                 ) : rate > 0 ? (
                   <>
                     1 {token} ~{" "}

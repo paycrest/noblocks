@@ -41,6 +41,7 @@
     "@sanity/client": "^7.8.1",
     "@sanity/image-url": "^1.1.0",
     "@smileid/web-components": "^11.0.2",
+    "@sentry/react": "^8.55.0",
     "@supabase/supabase-js": "^2.50.0",
     "@tanstack/react-query": "^5.80.7",
     "@thirdweb-dev/auth": "^4.1.97",

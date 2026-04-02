@@ -47,6 +47,9 @@ importers:
       '@smileid/web-components':
         specifier: ^11.0.2
         version: 11.0.3
+      '@sentry/react':
+        specifier: ^8.55.0
+        version: 8.55.0(react@19.2.1)
       '@supabase/supabase-js':
         specifier: ^2.50.0
         version: 2.50.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)

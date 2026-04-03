@@ -29,6 +29,7 @@ import {
   type RecipientDetails,
   type StateProps,
   type TransactionStatusType,
+  type V2FiatProviderAccountDTO,
 } from "../types";
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "../context/StepContext";
@@ -124,6 +125,8 @@ export function MainPageContent() {
     useState<TransactionStatusType>("idle");
   const [createdAt, setCreatedAt] = useState<string>("");
   const [orderId, setOrderId] = useState<string>("");
+  const [onrampPaymentAccount, setOnrampPaymentAccount] =
+    useState<V2FiatProviderAccountDTO | null>(null);
 
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
@@ -177,10 +180,14 @@ export function MainPageContent() {
     setOrderId,
     setCreatedAt,
     setTransactionStatus,
-  }
+
+    onrampPaymentAccount,
+    setOnrampPaymentAccount,
+  };
 
   useEffect(function setPageLoadingState() {
     setOrderId("");
+    setOnrampPaymentAccount(null);
     setIsPageLoading(false);
   }, []);
 
@@ -190,6 +197,7 @@ export function MainPageContent() {
       if (!authenticated && !isInjectedWallet) {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
+        setOnrampPaymentAccount(null);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -420,6 +428,7 @@ export function MainPageContent() {
             transactionStatus={transactionStatus}
             createdAt={createdAt}
             orderId={orderId}
+            isOnramp={!!onrampPaymentAccount}
             clearForm={() => {
               clearFormState(formMethods);
               setSelectedRecipient(null);

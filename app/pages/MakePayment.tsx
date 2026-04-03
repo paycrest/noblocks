@@ -3,17 +3,17 @@ import { useEffect, useState, useRef } from "react";
 import { Copy01Icon } from "hugeicons-react";
 import { PiCheck } from "react-icons/pi";
 import { ImSpinner } from "react-icons/im";
+import { usePrivy } from "@privy-io/react-auth";
 import {
     classNames,
-    formatCurrency,
     formatNumberWithCommas,
     copyToClipboard,
     getCurrencySymbol,
 } from "../utils";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components";
-import type { TransactionPreviewProps } from "../types";
+import type { TransactionPreviewProps, V2FiatProviderAccountDTO } from "../types";
 import { useStep, useNetwork } from "../context";
-import { fetchOrderDetails } from "../api/aggregator";
+import { fetchOrderDetails, fetchV2SenderPaymentOrderById } from "../api/aggregator";
 
 interface PaymentAccountDetails {
     provider: string;
@@ -23,6 +23,24 @@ interface PaymentAccountDetails {
     expiresAt: Date;
 }
 
+function mapProviderAccountToDetails(
+    a: V2FiatProviderAccountDTO,
+    fallbackCurrency: string,
+    fallbackAmount: number,
+): PaymentAccountDetails {
+    const raw = a.amountToTransfer?.replace(/,/g, "") ?? "";
+    const parsed = raw ? parseFloat(raw) : fallbackAmount;
+    return {
+        provider: a.institution && a.accountName
+            ? `${a.institution} | ${a.accountName}`
+            : a.institution || a.accountName,
+        accountNumber: a.accountIdentifier,
+        amount: Number.isFinite(parsed) ? parsed : fallbackAmount,
+        currency: a.currency || fallbackCurrency,
+        expiresAt: new Date(a.validUntil),
+    };
+}
+
 export const MakePayment = ({
     stateProps,
     handleBackButtonClick,
@@ -30,19 +48,20 @@ export const MakePayment = ({
     stateProps: TransactionPreviewProps["stateProps"];
     handleBackButtonClick: () => void;
 }) => {
-    const { formValues, rate, setTransactionStatus, setCreatedAt, orderId } = stateProps;
+    const {
+        formValues,
+        setTransactionStatus,
+        setCreatedAt,
+        orderId,
+        onrampPaymentAccount,
+    } = stateProps;
+    const { getAccessToken } = usePrivy();
     const { setCurrentStep } = useStep();
     const { selectedNetwork } = useNetwork();
-    const { amountSent, currency, token, amountReceived } = formValues;
+    const { amountSent, currency } = formValues;
 
-    // Mock payment account details - will be replaced with actual API call
-    const [paymentDetails, setPaymentDetails] = useState<PaymentAccountDetails>({
-        provider: "(4Bay7 Enterprise)",
-        accountNumber: "952157815",
-        amount: amountSent || 29000,
-        currency: currency || "KES",
-        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 minutes from now
-    });
+    const [paymentDetails, setPaymentDetails] = useState<PaymentAccountDetails | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const [timeRemaining, setTimeRemaining] = useState<string>("");
     const [isPaymentSent, setIsPaymentSent] = useState(false);
@@ -52,8 +71,68 @@ export const MakePayment = ({
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    useEffect(() => {
+        let cancelled = false;
+        const load = async () => {
+            setLoadError(null);
+            const fallbackAmount = Number(amountSent) || 0;
+            const fallbackCurrency = currency || "NGN";
+
+            if (onrampPaymentAccount) {
+                if (cancelled) return;
+                setPaymentDetails(
+                    mapProviderAccountToDetails(
+                        onrampPaymentAccount,
+                        fallbackCurrency,
+                        fallbackAmount,
+                    ),
+                );
+                return;
+            }
+
+            if (!orderId) {
+                setLoadError("Missing order. Go back and confirm your payment again.");
+                return;
+            }
+
+            try {
+                const accessToken = await getAccessToken();
+                if (!accessToken) {
+                    setLoadError("Please sign in to load payment details.");
+                    return;
+                }
+                const res = await fetchV2SenderPaymentOrderById(orderId, accessToken);
+                if (cancelled) return;
+                if (res.status !== "success" || !res.data?.providerAccount) {
+                    throw new Error(res.message || "Could not load payment instructions");
+                }
+                setPaymentDetails(
+                    mapProviderAccountToDetails(
+                        res.data.providerAccount,
+                        fallbackCurrency,
+                        fallbackAmount,
+                    ),
+                );
+            } catch (e) {
+                if (!cancelled) {
+                    setLoadError(
+                        e instanceof Error ? e.message : "Failed to load payment details",
+                    );
+                }
+            }
+        };
+        void load();
+        return () => {
+            cancelled = true;
+        };
+    }, [orderId, onrampPaymentAccount, amountSent, currency, getAccessToken]);
+
     // Calculate time remaining
     useEffect(() => {
+        if (!paymentDetails?.expiresAt) {
+            setTimeRemaining("--:--");
+            return;
+        }
         const updateTimer = () => {
             const now = new Date();
             const diff = paymentDetails.expiresAt.getTime() - now.getTime();
@@ -74,7 +153,7 @@ export const MakePayment = ({
         const interval = setInterval(updateTimer, 1000);
 
         return () => clearInterval(interval);
-    }, [paymentDetails.expiresAt]);
+    }, [paymentDetails]);
 
     const handlePaymentSent = async () => {
         setIsPaymentSent(true);
@@ -94,12 +173,22 @@ export const MakePayment = ({
         // Poll backend to check if payment has been detected
         const checkPaymentStatus = async () => {
             try {
-                const orderDetailsResponse = await fetchOrderDetails(
-                    selectedNetwork.chain.id,
-                    orderId,
-                );
+                let status: string;
 
-                const status = orderDetailsResponse.data.status;
+                if (onrampPaymentAccount) {
+                    // Onramp: use v2 endpoint
+                    const accessToken = await getAccessToken();
+                    if (!accessToken) throw new Error("No access token");
+                    const res = await fetchV2SenderPaymentOrderById(orderId, accessToken);
+                    status = res.data?.status;
+                } else {
+                    // Offramp: use v1 endpoint
+                    const orderDetailsResponse = await fetchOrderDetails(
+                        selectedNetwork.chain.id,
+                        orderId,
+                    );
+                    status = orderDetailsResponse.data.status;
+                }
 
                 // If status is no longer "pending", payment has been detected
                 if (status !== "pending") {
@@ -127,10 +216,11 @@ export const MakePayment = ({
                     // Update status and navigate
                     setTransactionStatus(
                         status as
-                        | "processing"
-                        | "fulfilled"
+                        | "fulfilling"
                         | "validated"
+                        | "settling"
                         | "settled"
+                        | "refunding"
                         | "refunded",
                     );
                     setIsCheckingPayment(false);
@@ -171,8 +261,41 @@ export const MakePayment = ({
         };
     }, []);
 
-    const currencySymbol = getCurrencySymbol(paymentDetails.currency);
-    const formattedAmount = `${currencySymbol} ${formatNumberWithCommas(paymentDetails.amount)}`;
+    const currencySymbol = paymentDetails
+        ? getCurrencySymbol(paymentDetails.currency)
+        : getCurrencySymbol(currency || "NGN");
+    const formattedAmount = paymentDetails
+        ? `${currencySymbol}${formatNumberWithCommas(paymentDetails.amount)}`
+        : "—";
+
+    if (loadError) {
+        return (
+            <div className="mx-auto grid max-w-[26.0625rem] gap-6 py-10 text-sm">
+                <div className="grid gap-4">
+                    <h2 className="text-xl font-medium text-text-body dark:text-white/80">
+                        Make payment
+                    </h2>
+                    <p className="text-red-600 dark:text-red-400">{loadError}</p>
+                    <button
+                        type="button"
+                        onClick={handleBackButtonClick}
+                        className={classNames(secondaryBtnClasses, "w-full")}
+                    >
+                        Back
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (!paymentDetails) {
+        return (
+            <div className="mx-auto flex min-h-[12rem] max-w-[26.0625rem] flex-col items-center justify-center gap-3 py-10 text-sm">
+                <ImSpinner className="animate-spin text-2xl text-lavender-500" />
+                <p className="text-text-secondary dark:text-white/50">Loading payment details…</p>
+            </div>
+        );
+    }
 
     return (
         <div className="mx-auto grid max-w-[26.0625rem] gap-6 py-10 text-sm">
@@ -194,7 +317,7 @@ export const MakePayment = ({
                     </h3>
 
                     <p className="text-sm font-normal text-text-secondary dark:text-white/50">
-                        Send to {formattedAmount} to the account below
+                        Send {formattedAmount} to the account below
                     </p>
                 </div>
 
@@ -203,10 +326,10 @@ export const MakePayment = ({
                     {/* Provider */}
                     <div className="grid gap-2 px-4 pb-4 pt-4">
                         <label className="text-sm font-normal text-text-secondary dark:text-white/50">
-                            Provider
+                            Provider Bank
                         </label>
                         <p className="text-sm font-medium text-text-body dark:text-white/80">
-                            Provider Bank {paymentDetails.provider}
+                            {paymentDetails.provider}
                         </p>
                     </div>
                     <div className="border-b border-gray-100 dark:border-white/10" />

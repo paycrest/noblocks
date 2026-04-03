@@ -44,6 +44,7 @@ const config: Config = {
     !!(process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "").trim(),
   maintenanceSchedule:
     process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "",
+  aggregatorSenderApiKey: process.env.AGGREGATOR_SENDER_API_KEY_ID || "",
 };
 
 export default config;

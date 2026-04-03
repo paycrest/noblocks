@@ -1010,7 +1010,7 @@ export const TransactionForm = ({
               )}
             </div>
           </div>
-        </section>
+        </div>
 
         {/* Recipient and memo */}
         <AnimatePresence>

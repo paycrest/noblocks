@@ -153,7 +153,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     });
 
     const body = await request.json();
-    const { name, institution, institutionCode, accountIdentifier, type, currency walletAddress: walletAddressFromBody } =
+    const { name, institution, institutionCode, accountIdentifier, type, currency, walletAddress: walletAddressFromBody } =
       body;
 
     // Handle wallet recipients (onramp)

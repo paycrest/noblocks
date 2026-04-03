@@ -15,6 +15,7 @@ import {
   getInstitutionNameByCode,
   getNetworkImageUrl,
   getRpcUrl,
+  normalizeNetworkName,
   publicKeyEncrypt,
   shortenAddress,
 } from "../utils";
@@ -24,6 +25,7 @@ import type {
   Token,
   TransactionPreviewProps,
   TransactionCreateInput,
+  RefundAccountDetails,
 } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components";
 import { gatewayAbi } from "../api/abi";
@@ -53,13 +55,25 @@ import {
   type BatchCall,
 } from "../lib/providerBatch";
 
-import { fetchAggregatorPublicKey, saveTransaction } from "../api/aggregator";
+import {
+  fetchAggregatorPublicKey,
+  fetchTokens,
+  saveTransaction,
+  createV2SenderPaymentOrder,
+  fetchRefundAccount,
+  saveRefundAccount,
+} from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics/client";
 import { ImSpinner } from "react-icons/im";
+import { BiEdit } from "react-icons/bi";
+import { IoAdd } from "react-icons/io5";
 import { InformationSquareIcon } from "hugeicons-react";
+import { AddRefundAccountModal } from "../components/AddRefundAccountModal";
+import { RefundAccountSuccessModal } from "../components/RefundAccountSuccessModal";
 import { PiCheckCircleFill } from "react-icons/pi";
 import { TbCircleDashed } from "react-icons/tb";
 import { useActualTheme } from "../hooks/useActualTheme";
+import axios from "axios";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -93,10 +107,12 @@ export const TransactionPreview = ({
     rate,
     formValues,
     institutions: supportedInstitutions,
+    isFetchingInstitutions,
     orderId,
     setOrderId,
     setCreatedAt,
     setTransactionStatus,
+    setOnrampPaymentAccount,
   } = stateProps;
 
   const {
@@ -111,8 +127,8 @@ export const TransactionPreview = ({
     walletAddress,
   } = formValues;
 
-  // Detect onramp mode: if walletAddress exists, it's an onramp transaction
   const isOnramp = !!walletAddress;
+  const currencySymbol = currency ? getCurrencySymbol(currency) : "";
 
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0); // Used to trigger toast
@@ -123,9 +139,36 @@ export const TransactionPreview = ({
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
+  const [refundAccountModalOpen, setRefundAccountModalOpen] = useState(false);
+  const [refundAccountSuccessOpen, setRefundAccountSuccessOpen] =
+    useState(false);
+  const [refundAccountWasEdited, setRefundAccountWasEdited] = useState(false);
+  const [refundAccount, setRefundAccount] = useState<RefundAccountDetails | null>(
+    null,
+  );
   const orderSubmissionBlock = useRef<bigint | null>(null);
 
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (!isOnramp) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token || cancelled) return;
+        const saved = await fetchRefundAccount(token);
+        if (!cancelled && saved) {
+          setRefundAccount(saved);
+        }
+      } catch {
+        // No saved row or fetch failed — user can add in modal
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOnramp, getAccessToken]);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
@@ -179,60 +222,52 @@ export const TransactionPreview = ({
     feeRecipient: senderFeeRecipientAddress,
   } = calculateSenderFee(amountSent, rate, tokenDecimals ?? 18);
 
-  // Rendered tsx info - different for onramp vs offramp
-  const currencySymbol = getCurrencySymbol(currency);
+  // Rendered tsx info
   const renderedInfo = isOnramp
     ? {
-      // For onramp: You send fiat currency, receive token
-      amount: `${currencySymbol} ${formatNumberWithCommas(amountSent ?? 0)}`,
-      totalValue: `${formatNumberWithCommas(amountReceived ?? 0)} ${token}`,
-      rate: `${formatNumberWithCommas(rate)} ${currencySymbol} ~ 1 ${token}`,
-      network: selectedNetwork.chain.name,
-      recipient: walletAddress ? shortenAddress(walletAddress, 6, 4) : "",
-      ...(senderFeeAmount > 0 && {
-        fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
-      }),
-    }
+        amount: `${currencySymbol}${formatNumberWithCommas(amountSent ?? 0)}`,
+        totalValue: `${formatNumberWithCommas(amountReceived ?? 0)} ${token}`,
+        rate: `${currencySymbol}${formatNumberWithCommas(rate)} ~ 1 ${token}`,
+        recipient: walletAddress ? shortenAddress(walletAddress) : "",
+        network: selectedNetwork.chain.name,
+      }
     : {
-      // For offramp: You send token, receive fiat currency
-      amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
-      totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
-      recipient: recipientName
-        .toLowerCase()
-        .split(" ")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" "),
-      account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
-      ...(memo && { description: memo }),
-      ...(senderFeeAmount > 0 && {
-        fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
-      }),
-      network: selectedNetwork.chain.name,
-    };
+        amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
+        totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
+        recipient: recipientName
+          .toLowerCase()
+          .split(" ")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" "),
+        account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
+        ...(memo && { description: memo }),
+        ...(senderFeeAmount > 0 && {
+          fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
+        }),
+        network: selectedNetwork.chain.name,
+      };
 
   const prepareCreateOrderParams = async () => {
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
 
-    // Prepare recipient data - different for onramp vs offramp
+    // Prepare recipient data
     const recipient = isOnramp
       ? {
-        // For onramp: wallet address is the recipient
-        accountIdentifier: walletAddress || "",
-        accountName: recipientName || walletAddress || "",
-        institution: "Wallet",
-        ...(providerId && { providerId }),
-        nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
-      }
+          accountIdentifier: walletAddress || "",
+          accountName: recipientName || walletAddress || "",
+          institution: "Wallet",
+          ...(providerId && { providerId }),
+          nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+        }
       : {
-        // For offramp: bank/mobile money details
-        accountIdentifier: formValues.accountIdentifier,
-        accountName: recipientName,
-        institution: formValues.institution,
-        memo: formValues.memo,
-        ...(providerId && { providerId }),
-        nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
-      };
+          accountIdentifier: formValues.accountIdentifier,
+          accountName: recipientName,
+          institution: formValues.institution,
+          memo: formValues.memo,
+          ...(providerId && { providerId }),
+          nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+        };
 
     // Fetch aggregator public key
     const publicKey = await fetchAggregatorPublicKey();
@@ -579,20 +614,117 @@ export const TransactionPreview = ({
   };
 
   const handlePaymentConfirmation = async () => {
-    // For onramp, go to Make Payment instead of creating an order here
-if (isOnramp) {
-  setCurrentStep("make_payment");
-  return;
-}
+    if (!activeWallet?.address) {
+      toast.error("Wallet not ready", {
+        description: "Please wait for your wallet to load before confirming.",
+      });
+      return;
+    }
 
-if (!activeWallet?.address) {
-  toast.error("Wallet not ready", {
-    description: "Please wait for your wallet to load before confirming.",
-  });
-  return;
-}
+    if (isOnramp) {
+      if (!refundAccount) {
+        toast.error("Add a refund account to continue");
+        return;
+      }
+      if (!walletAddress) {
+        toast.error("Recipient wallet is required");
+        return;
+      }
+      try {
+        setIsConfirming(true);
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          toast.error("Please sign in to continue");
+          return;
+        }
 
-    // Check balance including sender fee
+        const apiTokens = await fetchTokens();
+        const networkLabel = selectedNetwork.chain.name;
+        const match = apiTokens.find(
+          (t) =>
+            t.symbol.toUpperCase() === token.toUpperCase() &&
+            normalizeNetworkName(t.network) === networkLabel,
+        );
+        if (!match?.network) {
+          throw new Error(
+            "This token is not supported on the selected network for onramp.",
+          );
+        }
+        const aggregatorNetwork = match.network;
+        const providerId =
+          searchParams.get("provider") || searchParams.get("PROVIDER") || undefined;
+
+        const payload = {
+          amount: String(amountSent),
+          amountIn: "fiat" as const,
+          source: {
+            type: "fiat" as const,
+            currency,
+            refundAccount: {
+              institution: refundAccount.institutionCode,
+              accountIdentifier: refundAccount.accountNumber,
+              accountName: refundAccount.accountName,
+            },
+          },
+          destination: {
+            type: "crypto" as const,
+            currency: token,
+            network: aggregatorNetwork,
+            ...(providerId ? { providerId } : {}),
+            recipient: {
+              address: walletAddress,
+              network: aggregatorNetwork,
+            },
+          },
+        };
+
+        // DEBUG: remove — onramp v2 payload (dev only)
+        if (process.env.NODE_ENV === "development") {
+          console.log("[onramp] v2 payload →", JSON.stringify(payload, null, 2));
+        }
+
+        const res = await createV2SenderPaymentOrder(payload, accessToken);
+        if (res.status !== "success" || !res.data) {
+          const msg =
+            typeof res.message === "string"
+              ? res.message
+              : "Failed to create payment order";
+          throw new Error(msg);
+        }
+
+        const created = res.data;
+        const orderIdStr =
+          typeof created.id === "string" ? created.id : String(created.id);
+        setOrderId(orderIdStr);
+        setOnrampPaymentAccount(created.providerAccount);
+        setCreatedAt(new Date().toISOString());
+        setTransactionStatus("pending");
+
+        await saveTransactionData({
+          orderId: orderIdStr,
+          txHash: undefined,
+        });
+
+        toast.success("Payment instructions ready");
+        setCurrentStep("make_payment");
+      } catch (e) {
+        let msg: string;
+        if (axios.isAxiosError(e)) {
+          const data = e.response?.data as { message?: string } | undefined;
+          msg = data?.message || e.message;
+        } else {
+          const error = e as BaseError;
+          msg = error.shortMessage || error.message;
+        }
+        setErrorMessage(msg);
+        setErrorCount((prevCount: number) => prevCount + 1);
+      } finally {
+        setIsConfirming(false);
+      }
+      return;
+    }
+
+    // Offramp: require token balance for amount + sender fee
     const totalRequired = amountSent + senderFeeAmount;
 
     if (totalRequired > balance) {
@@ -619,7 +751,7 @@ if (!activeWallet?.address) {
     txHash,
   }: {
     orderId: string;
-    txHash: `0x${string}`;
+    txHash?: `0x${string}`;
   }) => {
     if (!activeWallet?.address || isSavingTransaction) return;
     setIsSavingTransaction(true);
@@ -640,23 +772,23 @@ if (!activeWallet?.address) {
         fee: Number(rate),
         recipient: isOnramp
           ? {
-            account_name: recipientName || walletAddress || "",
-            institution: "Wallet",
-            account_identifier: walletAddress || "",
-          }
+              account_name: recipientName || walletAddress || "",
+              institution: "Wallet",
+              account_identifier: walletAddress || "",
+            }
           : {
-            account_name: recipientName,
-            institution: getInstitutionNameByCode(
-              institution,
-              supportedInstitutions,
-            ) as string,
-            account_identifier: accountIdentifier,
-            ...(memo && { memo }),
-          },
+              account_name: recipientName,
+              institution: getInstitutionNameByCode(
+                institution,
+                supportedInstitutions,
+              ) as string,
+              account_identifier: accountIdentifier,
+              ...(memo && { memo }),
+            },
         status: "pending",
         network: selectedNetwork.chain.name,
         orderId: orderId,
-        txHash: txHash,
+        ...(txHash ? { txHash } : {}),
         email: user?.email?.address ?? undefined,
       };
 
@@ -787,59 +919,45 @@ if (!activeWallet?.address) {
 
       <div className="grid gap-4">
         {Object.entries(renderedInfo).map(([key, value]) => {
-          // For onramp, show token logo next to totalValue (which is the token amount)
           const showTokenLogo =
             (isOnramp && key === "totalValue") ||
             (!isOnramp && (key === "amount" || key === "fee"));
 
           return (
             <div key={key} className="flex items-start justify-between gap-2">
-              <h3 className="flex items-center gap-1.5 w-full max-w-28 text-text-secondary dark:text-white/50 sm:max-w-40">
+              <h3 className="w-full max-w-28 text-text-secondary dark:text-white/50 sm:max-w-40">
                 {key === "totalValue"
                   ? isOnramp
                     ? "Receive amount"
                     : "Total value"
                   : key === "amount"
-                    ? "You send"
+                    ? isOnramp
+                      ? "You send"
+                      : "Amount"
                     : key.charAt(0).toUpperCase() + key.slice(1)}
-                {key === "rate" && (
-                  <div className="group relative inline-flex items-center">
-                    <InformationSquareIcon className="size-3.5 text-icon-outline-secondary dark:text-white/50 cursor-help hover:text-icon-outline-primary dark:hover:text-white/70 transition-colors" />
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                      <div className="bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap shadow-lg">
-                        Rate changes dynamically after 5 minutes
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
-                          <div className="border-4 border-transparent border-t-gray-900 dark:border-t-gray-800"></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </h3>
 
-              <div className="flex flex-grow flex-col items-start gap-1">
-                <p className="flex items-center gap-1 font-medium text-text-body dark:text-white/80">
-                  {showTokenLogo && (
-                    <Image
-                      src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
-                      alt={`${token} logo`}
-                      width={14}
-                      height={14}
-                    />
-                  )}
+              <p className="flex flex-grow items-center gap-1 font-medium text-text-body dark:text-white/80">
+                {showTokenLogo && (
+                  <Image
+                    src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
+                    alt={`${token} logo`}
+                    width={14}
+                    height={14}
+                  />
+                )}
 
-                  {key === "network" && (
-                    <Image
-                      src={getNetworkImageUrl(selectedNetwork, isDark)}
-                      alt={selectedNetwork.chain.name}
-                      width={14}
-                      height={14}
-                    />
-                  )}
+                {key === "network" && (
+                  <Image
+                    src={getNetworkImageUrl(selectedNetwork, isDark)}
+                    alt={selectedNetwork.chain.name}
+                    width={14}
+                    height={14}
+                  />
+                )}
 
-                  {value}
-                </p>
-              </div>
+                {value}
+              </p>
             </div>
           );
         })}
@@ -849,14 +967,71 @@ if (!activeWallet?.address) {
       <div className="flex gap-2.5 rounded-xl border border-border-light bg-background-neutral p-3 text-text-secondary dark:border-white/5 dark:bg-white/5 dark:text-white/50">
         <InformationSquareIcon className="mt-1 size-4 flex-shrink-0" />
         <p>
-          {isOnramp
-            ? "Ensure the details above is correct. Lost funds due to incorrect wallet details cannot be recovered."
-            : "Ensure the details above are correct. Failed transaction due to wrong details may attract a refund fee"}
+          Ensure the details above are correct. Failed transaction due to wrong
+          details may attract a refund fee
         </p>
       </div>
 
-      {/* Transaction Steps Indicator - Only show for injected wallet */}
-      {isInjectedWallet && (
+      {isOnramp && (
+        <>
+          <div className="space-y-2">
+            <p className="text-sm text-neutral-500 dark:text-white/50">
+              Refund account
+            </p>
+            <div className="flex w-full items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-transparent px-3 py-3 transition-colors focus-within:border-lavender-400 focus-within:ring-2 focus-within:ring-lavender-400/25 dark:border-white/[0.12] dark:focus-within:border-lavender-500/70 dark:focus-within:ring-lavender-500/20">
+              <span className="text-sm text-text-body dark:text-white">
+                {refundAccount ? (
+                  <>
+                    <span>{refundAccount.accountName} </span>
+                    <span className="font-semibold">{refundAccount.accountNumber} | {refundAccount.institutionName}</span>
+                  </>
+                ) : (
+                  "Add Refund Account"
+                )}
+              </span>
+              <button
+                type="button"
+                onClick={() => setRefundAccountModalOpen(true)}
+                aria-label={refundAccount ? "Edit refund account" : "Add refund account"}
+                className="shrink-0 rounded-lg p-0.5 text-text-body transition-colors hover:text-neutral-900 dark:text-white/70 dark:hover:text-white"
+              >
+                {refundAccount ? (
+                  <BiEdit className="size-5" aria-hidden />
+                ) : (
+                  <IoAdd className="size-5" aria-hidden />
+                )}
+              </button>
+            </div>
+          </div>
+          <AddRefundAccountModal
+            isOpen={refundAccountModalOpen}
+            onClose={() => setRefundAccountModalOpen(false)}
+            institutions={supportedInstitutions}
+            isFetchingInstitutions={isFetchingInstitutions}
+            currency={currency}
+            initial={refundAccount}
+            onSave={async (data: RefundAccountDetails) => {
+              const token = await getAccessToken();
+              if (!token) {
+                throw new Error("Please sign in to save your refund account.");
+              }
+              const isEdit = refundAccount !== null;
+              const saved = await saveRefundAccount(data, token);
+              setRefundAccount(saved);
+              setRefundAccountWasEdited(isEdit);
+            }}
+            onSaved={() => setRefundAccountSuccessOpen(true)}
+          />
+          <RefundAccountSuccessModal
+            isOpen={refundAccountSuccessOpen}
+            onClose={() => setRefundAccountSuccessOpen(false)}
+            isEditing={refundAccountWasEdited}
+          />
+        </>
+      )}
+
+      {/* Transaction Steps Indicator - Only for offramp + injected wallet */}
+      {isInjectedWallet && !isOnramp && (
         <>
           <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
 
@@ -914,7 +1089,11 @@ if (!activeWallet?.address) {
           type="submit"
           className={classNames(primaryBtnClasses, "w-full")}
           onClick={handlePaymentConfirmation}
-          disabled={isConfirming || isPollingOrderId}
+          disabled={
+            isConfirming ||
+            isPollingOrderId ||
+            (isOnramp && !refundAccount)
+          }
         >
           {isConfirming || isPollingOrderId ? (
             <span className="flex items-center justify-center gap-2">

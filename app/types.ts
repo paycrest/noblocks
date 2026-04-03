@@ -13,6 +13,14 @@ export type InstitutionProps = {
   type: "bank" | "mobile_money";
 };
 
+/** Onramp refund bank account (persisted per wallet; v2 order source.refundAccount). */
+export type RefundAccountDetails = {
+  institutionCode: string;
+  institutionName: string;
+  accountName: string;
+  accountNumber: string;
+};
+
 export type FormData = {
   network: string;
   token: string;
@@ -107,6 +115,7 @@ export type TransactionStatusProps = {
   supportedInstitutions: InstitutionProps[];
   setOrderId: (orderId: string) => void;
   refetchRate?: () => void;
+  isOnramp?: boolean;
 };
 
 export type SelectFieldProps = {
@@ -180,6 +189,57 @@ type TxReceipt = {
   timestamp: string;
 };
 
+/** Fiat virtual account returned by aggregator v2 onramp (create / get order). */
+export type V2FiatProviderAccountDTO = {
+  institution: string;
+  accountIdentifier: string;
+  accountName: string;
+  validUntil: string;
+  amountToTransfer?: string;
+  currency?: string;
+};
+
+export type V2PaymentOrderCreateData = {
+  id: string;
+  status: string;
+  timestamp: string;
+  amount: string;
+  rate?: string;
+  senderFee: string;
+  senderFeePercent: string;
+  transactionFee: string;
+  reference: string;
+  providerAccount: V2FiatProviderAccountDTO;
+  source: unknown;
+  destination: unknown;
+};
+
+/** Single order GET /v2/sender/orders/:id — fields used by Noblocks; rest optional. */
+export type V2PaymentOrderGetData = {
+  id: string;
+  status: string;
+  providerAccount: V2FiatProviderAccountDTO;
+  direction?: string;
+  [key: string]: unknown;
+};
+
+export type V2CreatePaymentOrderPayload = {
+  amount: string;
+  rate?: string;
+  amountIn?: "fiat" | "crypto";
+  senderFee?: string;
+  senderFeePercent?: string;
+  reference?: string;
+  source: Record<string, unknown>;
+  destination: Record<string, unknown>;
+};
+
+export type AggregatorEnvelope<T> = {
+  status: string;
+  message: string;
+  data: T;
+};
+
 export type StateProps = {
   formValues: FormData;
   setFormValues: (values: FormData) => void;
@@ -199,6 +259,8 @@ export type StateProps = {
   setTransactionStatus: (status: TransactionStatusType) => void;
   rateError: string | null;
   setRateError: (error: string | null) => void;
+  onrampPaymentAccount: V2FiatProviderAccountDTO | null;
+  setOnrampPaymentAccount: (account: V2FiatProviderAccountDTO | null) => void;
 };
 
 export type NetworkButtonProps = {
@@ -279,6 +341,7 @@ export type Config = {
   biconomyMeeApiKey: string;
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
+  aggregatorSenderApiKey: string;
 };
 
 export type Network = {

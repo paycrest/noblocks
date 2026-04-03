@@ -339,6 +339,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           }
         } else if (embeddedWalletAccount) {
           // New user: has embedded wallet — use EOA directly
+          primaryIsEOA = true;
           setSmartWalletBalance(null);
 
           const eoaEntries =

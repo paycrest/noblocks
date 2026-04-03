@@ -337,6 +337,42 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             setExternalWalletBalance(null);
             setCrossChainBalances(scwCrossChainEntries);
           }
+        } else if (embeddedWalletAccount) {
+          // New user: has embedded wallet — use EOA directly
+          primaryIsEOA = true;
+          setSmartWalletBalance(null);
+
+          const eoaEntries =
+            await fetchCrossChainEntriesForAddress(embeddedWalletAccount.address);
+
+          setCrossChainBalances(eoaEntries);
+          setSmartWalletRemainingTotal(0);
+
+          const selectedEntry = eoaEntries.find(
+            (e) => e.network.chain.id === selectedNetwork.chain.id,
+          );
+          if (selectedEntry) {
+            setExternalWalletBalance(selectedEntry.balances);
+          } else {
+            const result = await fetchWalletBalance(
+              publicClient,
+              embeddedWalletAccount.address,
+            );
+            const rawBalances = { ...result.balances };
+            const correctedTotal = calculateCorrectedTotalBalance(
+              result,
+              resolvedCngnRate,
+            );
+            const correctedBalances = applyCNGNBalanceConversion(
+              result.balances,
+              resolvedCngnRate,
+            );
+            setExternalWalletBalance({
+              total: correctedTotal,
+              balances: correctedBalances,
+              rawBalances,
+            });
+          }
         } else {
           clearAllWalletBalances();
         }

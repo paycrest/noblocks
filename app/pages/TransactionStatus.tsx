@@ -263,7 +263,11 @@ export function TransactionStatus({
 
           if (isOnramp) {
             const accessToken = await getAccessToken();
-            if (!accessToken) return;
+            if (!accessToken) {
+              toast.error("Session expired. Please refresh to continue tracking your transaction.");
+              clearInterval(intervalId);
+              return;
+            }
             const res = await fetchV2SenderPaymentOrderById(orderId, accessToken);
             responseData = res.data as unknown as OrderDetailsData;
           } else {

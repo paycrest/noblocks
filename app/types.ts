@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+export type MobileSheetView = "wallet" | "settings" | "transfer" | "fund" | "history";
+
 import type {
   FieldErrors,
   UseFormRegister,

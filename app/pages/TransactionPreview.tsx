@@ -152,6 +152,8 @@ export const TransactionPreview = ({
 
   useEffect(() => {
     if (!isOnramp) return;
+    // Reset on every currency change so a cached NGN account isn't submitted for KES/TZS/UGX orders.
+    setRefundAccount(null);
     let cancelled = false;
     void (async () => {
       try {
@@ -168,7 +170,7 @@ export const TransactionPreview = ({
     return () => {
       cancelled = true;
     };
-  }, [isOnramp, getAccessToken]);
+  }, [isOnramp, currency, getAccessToken]);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 

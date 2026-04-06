@@ -2,7 +2,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchRate } from "../api/aggregator";
 import { getPreferredRateToken, normalizeNetworkForRateFetch } from "../utils";
-import { ERROR_MESSAGES } from "../lib/errorMessages";
 
 // Constants for rate fetching configuration
 const CNGN_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
@@ -201,7 +200,7 @@ export function useCNGNRate({
       setRate(result.rate);
       if (result.source === "expired-cache") {
         setError(
-          "Rate may be outdated due to connection issues. Please refresh when possible.",
+          "Using outdated cached rate (network issues - please refresh)",
         );
       } else {
         setError(null);
@@ -211,7 +210,9 @@ export function useCNGNRate({
     }
 
     setRate(null);
-    setError(ERROR_MESSAGES.NETWORK);
+    setError(
+      "Unable to fetch CNGN rate - please check your internet connection",
+    );
     setIsLoading(false);
   }, [network]);
 

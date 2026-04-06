@@ -16,12 +16,8 @@ export const useHotjar = () => {
 
       if (consent && JSON.parse(consent).analytics) {
         if (hotjarSiteId && !hotjarInitialized) {
-          try {
-            Hotjar.init(hotjarSiteId, hotjarVersion);
-            hotjarInitialized = true;
-          } catch {
-            // Hotjar/iframe errors are intentionally suppressed — never surface to users
-          }
+          Hotjar.init(hotjarSiteId, hotjarVersion);
+          hotjarInitialized = true;
         }
       }
     };

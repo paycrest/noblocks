@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { TermsOfService } from "../components/TermsOfService";
 import { ArrowMoveUpLeftIcon } from "hugeicons-react";
-import { CookieConsent } from "../components/CookieConsent";
+import { CookieConsent } from "../components";
 import { getBannerPadding } from "../utils";
 import { useScrollFade } from "../hooks/useScrollFade";
 

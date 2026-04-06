@@ -8,14 +8,14 @@ import { toast } from "sonner";
 
 import {
   AnimatedComponent,
-  AnimatedModal,
+  primaryBtnClasses,
   slideInOut,
-} from "../components/AnimatedComponents";
-import { primaryBtnClasses } from "../components/Styles";
-import { FormDropdown } from "../components/FormDropdown";
-import { RecipientDetailsForm } from "../components/recipient/RecipientDetailsForm";
-import { KycModal } from "../components/KycModal";
-import { FundWalletForm } from "../components/FundWalletForm";
+  FormDropdown,
+  RecipientDetailsForm,
+  KycModal,
+  FundWalletForm,
+  AnimatedModal,
+} from "../components";
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
 import { acceptedCurrencies } from "../mocks";
@@ -377,11 +377,10 @@ export const TransactionForm = ({
             minAmountSentValue = 0.5 * cngnRate;
             setRateError(null);
           } else {
+            // cNGN selected but no valid rate - set error
             const errorMessage = cngnRateError || "No available quote";
             setRateError(errorMessage);
           }
-        } else {
-          setRateError(null);
         }
 
         formMethods.register("amountSent", {
@@ -928,9 +927,9 @@ export const TransactionForm = ({
               variant={slideInOut}
               className="flex w-full flex-col justify-between gap-2 py-3 text-xs text-text-disabled transition-all dark:text-white/30 xsm:flex-row xsm:items-center"
             >
-              <div className={rateError ? "" : "min-w-fit"}>
+              <div className="min-w-fit">
                 {rateError ? (
-                  <span className="text-orange-500 dark:text-orange-400">{rateError}</span>
+                  <>No available quote</>
                 ) : rate > 0 ? (
                   <>
                     1 {token} ~{" "}

@@ -14,7 +14,6 @@ import { STEPS } from "../types";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
-import { toastMappedError } from "../lib/toastMappedError";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useSortedCrossChainBalances } from "../hooks/useSortedCrossChainBalances";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -23,8 +22,7 @@ import { networks } from "../mocks";
 import { Network, Token, TransactionHistory } from "../types";
 import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
-import { FundWalletForm } from "./FundWalletForm";
-import { TransferForm } from "./TransferForm";
+import { FundWalletForm, TransferForm } from "./index";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import WalletMigrationModal from "./WalletMigrationModal";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
@@ -153,9 +151,8 @@ export const MobileDropdown = ({
       },
       (error) => {
         console.error("Failed to switch network:", error);
-        toastMappedError(error, {
-          feature: "network-switch",
-          title: "Error switching network",
+        toast.error("Error switching network", {
+          description: error.message,
         });
       },
     );

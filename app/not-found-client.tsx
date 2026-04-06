@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { primaryBtnClasses, secondaryBtnClasses } from "./components/Styles";
+import { primaryBtnClasses, secondaryBtnClasses } from "./components";
 
 export default function NotFoundClient() {
   return (

@@ -33,8 +33,7 @@ export const MigrationBannerWrapper = () => {
     // Fallback: covers page-reload when localStorage already has the key
     const dismissedViaStorage = hasSeenNetworkModal(walletAddress);
 
-    const canShowMigrationModal =
-        !isInjectedWallet && (dismissedViaStore || dismissedViaStorage);
+    const canShowMigrationModal = isInjectedWallet || dismissedViaStore || dismissedViaStorage;
 
     // Keep the last stable visibility while loading to avoid unmounting migration modals mid-flow.
     useEffect(() => {

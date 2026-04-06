@@ -295,7 +295,7 @@ export const SettingsDropdown = () => {
                   <p>Export wallet</p>
                 </li>
               )}
-              {!isInjectedWallet && (
+              {user && (
                 <li
                   role="menuitem"
                   className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"

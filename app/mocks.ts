@@ -25,7 +25,7 @@ export const acceptedCurrencies = [
   {
     name: "GHS",
     label: "Ghanaian Cedi (GHS)",
-    disabled: true,
+    disabled: false,
   },
 
   {

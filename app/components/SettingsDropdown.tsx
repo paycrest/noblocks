@@ -20,13 +20,14 @@ import {
   Setting07Icon,
   Wallet01Icon,
   Key01Icon,
-  Download01Icon,
   AccessIcon,
+  ColorsIcon,
 } from "hugeicons-react";
 import { toast } from "sonner";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
+import { ThemeSwitch } from "./ThemeSwitch";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { clearUserSessionData } from "../lib/session-cleanup";
@@ -51,10 +52,10 @@ export const SettingsDropdown = () => {
 
   // Get embedded wallet (EOA) and smart wallet (SCW)
   const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
+    (wallet) => wallet.walletClientType === "privy",
   );
   const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet"
+    (account) => account.type === "smart_wallet",
   );
 
   // Determine active wallet based on migration status
@@ -309,6 +310,13 @@ export const SettingsDropdown = () => {
                 </li>
               )}
             </ul>
+            <div className="-mx-2 mt-0 flex items-center justify-between gap-3 border-t border-border-light pb-2 pl-6 pr-4 pt-4 dark:border-white/10">
+              <div className="flex items-center gap-2.5">
+                <ColorsIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                <p>Theme</p>
+              </div>
+              <ThemeSwitch />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

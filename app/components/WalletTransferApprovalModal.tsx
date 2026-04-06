@@ -9,6 +9,8 @@ import { useTokens } from "../context";
 import { useNetwork } from "../context/NetworksContext";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { formatCurrency, shortenAddress, getNetworkImageUrl, fetchWalletBalance, getRpcUrl } from "../utils";
+import { mapReportAndAct } from "../lib/toastMappedError";
+import { reportClientError } from "../lib/sentry.client";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { getCNGNRateForNetwork } from "../hooks/useCNGNRate";
 import WalletMigrationSuccessModal from "./WalletMigrationSuccessModal";
@@ -466,6 +468,11 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
                             description: `${instructions.length} token${instructions.length === 1 ? "" : "s"} transferred to your new wallet.`,
                         });
                     } catch (chainError) {
+                        reportClientError(chainError, {
+                            feature: "wallet-migration",
+                            phase: "chain-transfer",
+                            chain: chainName,
+                        });
                         const rawMsg = chainError instanceof Error ? chainError.message : "Unknown error";
                         const isDeadlineOrRevert =
                             /deadline limit exceeded|revert|transaction failed/i.test(rawMsg);
@@ -518,10 +525,14 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             setTimeout(() => setShowSuccessModal(true), 300);
 
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "Migration failed";
-            setError(errorMessage);
-            toast.error("Migration failed", {
-                description: errorMessage,
+            mapReportAndAct(err, {
+                feature: "wallet-migration",
+                onUserMessage: (userMsg) => {
+                    setError(userMsg);
+                    toast.error("Migration failed", {
+                        description: userMsg,
+                    });
+                },
             });
         } finally {
             setIsProcessing(false);

@@ -6,7 +6,6 @@ import { useInjectedWallet } from "./InjectedWalletContext";
 type NetworkContextType = {
   selectedNetwork: Network;
   setSelectedNetwork: (network: Network) => void;
-  setDisplayedNetwork: (network: Network) => void;
 };
 
 const STORAGE_KEY = "selectedNetwork";
@@ -43,26 +42,20 @@ const switchNetwork = async (network: Network) => {
 };
 
 export function NetworkProvider({ children }: { children: React.ReactNode }) {
-  const [selectedNetwork, setSelectedNetworkState] = useState<Network>(
-    networks[0],
-  );
+  const [selectedNetwork, setSelectedNetwork] = useState<Network>(networks[0]);
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
 
   const handleNetworkChange = async (network: Network) => {
     if (isInjectedWallet && injectedReady) {
       const switched = await switchNetwork(network);
       if (switched) {
-        setSelectedNetworkState(network);
+        setSelectedNetwork(network);
         setStoredNetwork(network);
       }
     } else {
-      setSelectedNetworkState(network);
+      setSelectedNetwork(network);
       setStoredNetwork(network);
     }
-  };
-
-  const handleDisplayedNetworkChange = (network: Network) => {
-    setSelectedNetworkState(network);
   };
 
   useEffect(() => {
@@ -93,11 +86,7 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <NetworkContext.Provider
-      value={{
-        selectedNetwork,
-        setSelectedNetwork: handleNetworkChange,
-        setDisplayedNetwork: handleDisplayedNetworkChange,
-      }}
+      value={{ selectedNetwork, setSelectedNetwork: handleNetworkChange }}
     >
       {children}
     </NetworkContext.Provider>

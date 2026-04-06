@@ -11,7 +11,6 @@ import {
   handleNetworkSwitch,
   getNetworkImageUrl,
 } from "../utils";
-import { toastMappedError } from "../lib/toastMappedError";
 import { FlexibleDropdown } from "./FlexibleDropdown";
 import { ArrowDown01Icon } from "hugeicons-react";
 import { useNetwork, useStep } from "../context";
@@ -53,9 +52,8 @@ export const NetworksDropdown = ({
         },
         (error) => {
           console.error("Failed to switch network:", error);
-          toastMappedError(error, {
-            feature: "network-switch",
-            title: "Error switching network",
+          toast.error("Error switching network", {
+            description: error.message,
           });
         },
       );

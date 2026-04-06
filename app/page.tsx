@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import { Preloader } from "./components/Preloader";
+import { Preloader } from "./components";
 import dynamic from "next/dynamic";
 
 // Use dynamic import to avoid SSR issues

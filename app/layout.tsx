@@ -3,7 +3,7 @@ import React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
-import AppLayout from "./components/AppLayout";
+import { AppLayout } from "./components";
 
 export const dynamic = "force-static";
 

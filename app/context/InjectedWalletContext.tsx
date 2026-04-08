@@ -105,10 +105,14 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (!ready || !user || wallets.length === 0) return;
+    if (!ready || !user) return;
 
-    const hasEmbeddedWallet = wallets.some(
-      (wallet) => wallet.walletClientType === "privy",
+    // Check linkedAccounts (not wallets) — useWallets() only returns currently
+    // connected wallets. A returning user's embedded wallet may not be connected
+    // in a session started via MetaMask, so it wouldn't appear in wallets even
+    // though it exists. linkedAccounts reflects the full persistent account state.
+    const hasEmbeddedWallet = user.linkedAccounts.some(
+      (account) => account.type === "wallet" && account.connectorType === "embedded",
     );
     const externalWallet = wallets.find(
       (wallet) => wallet.walletClientType !== "privy",

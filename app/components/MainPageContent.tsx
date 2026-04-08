@@ -250,6 +250,7 @@ export function MainPageContent() {
       crossChainBalances,
       injectedAddress,
       injectedReady,
+      embeddedWalletReady,
       isBalanceLoading,
       isInjectedWallet,
       ready,

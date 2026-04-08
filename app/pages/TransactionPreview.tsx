@@ -237,10 +237,17 @@ export const TransactionPreview = ({
     }
   };
 
+  // Privy external wallet (Flow 2 in InjectedWalletContext) vs raw ?injected=true URL param.
+  // External Privy wallets are authenticated and can use the EIP-7702 bundler flow.
+  // URL param injected wallets use raw eth_sendTransaction (unauthenticated / no bundler).
+  const isUrlParamInjected = searchParams.get("injected") === "true";
+  const isPrivyExternalWallet =
+    isInjectedWallet && !isUrlParamInjected && !!injectedProvider && !!injectedAddress;
+
   const createOrder = async () => {
     try {
-      if (isInjectedWallet && injectedProvider) {
-        // Injected wallet
+      if (isInjectedWallet && isUrlParamInjected && injectedProvider) {
+        // URL param ?injected=true — raw eth_sendTransaction (user pays gas)
         if (!injectedReady) {
           throw new Error("Injected wallet not ready");
         }
@@ -322,8 +329,10 @@ export const TransactionPreview = ({
           "Entry point": "Transaction preview",
           "Wallet type": "Injected wallet",
         });
-      } else if (shouldUseEOA && embeddedWallet) {
-        // EIP-7702 + bundler (execute-sponsored): check delegationContractAddress, attach delegation with signature if needed
+      } else if (shouldUseEOA && (embeddedWallet || isPrivyExternalWallet)) {
+        // EIP-7702 + bundler (execute-sponsored).
+        // Works for both embedded wallets (Privy manages key) and Privy external wallets
+        // (MetaMask etc.) — the only difference is how we get the provider and address.
         const chain = selectedNetwork?.chain;
         if (!chain) throw new Error("Network not ready");
         const chainId = chain.id;
@@ -340,15 +349,28 @@ export const TransactionPreview = ({
 
         const bundlerUrl = "/api/bundler";
 
-        await embeddedWallet.switchChain(chainId);
-        const provider = await embeddedWallet.getEthereumProvider();
+        // Normalize provider and address across embedded vs external wallet
+        let provider: any;
+        let accountAddress: `0x${string}`;
+        if (embeddedWallet) {
+          await embeddedWallet.switchChain(chainId);
+          provider = await embeddedWallet.getEthereumProvider();
+          accountAddress = embeddedWallet.address as `0x${string}`;
+        } else {
+          // Privy external wallet — injectedProvider is already the wallet's provider
+          await (injectedProvider as any).request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: `0x${chainId.toString(16)}` }],
+          });
+          provider = injectedProvider;
+          accountAddress = injectedAddress as `0x${string}`;
+        }
 
         const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
         if (!rpcUrl) {
           throw new Error(`RPC URL not configured for network: ${selectedNetwork.chain.name}`);
         }
 
-        const accountAddress = embeddedWallet.address as `0x${string}`;
         const publicClient = createPublicClient({
           chain,
           transport: http(rpcUrl),
@@ -367,7 +389,7 @@ export const TransactionPreview = ({
 
         let authorization: Awaited<ReturnType<typeof signDelegationAuthorization>> | undefined;
         if (needsDelegation) {
-          authorization = await signDelegationAuthorization(chainId);
+          authorization = await signDelegationAuthorization(chainId, chain);
         }
 
         const params = await prepareCreateOrderParams();
@@ -452,7 +474,7 @@ export const TransactionPreview = ({
 
         trackEvent("Swap started", {
           "Entry point": "Transaction preview",
-          "Wallet type": "EIP-7702 (bundler)",
+          "Wallet type": embeddedWallet ? "EIP-7702 (bundler)" : "EIP-7702 (external wallet)",
         });
 
         toast.success("Order created successfully");

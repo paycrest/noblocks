@@ -170,7 +170,7 @@ export function useSmartWalletTransfer({
 
         let authorization: Awaited<ReturnType<typeof signDelegationAuthorization>> | undefined;
         if (needsDelegation) {
-          authorization = await signDelegationAuthorization(chainId);
+          authorization = await signDelegationAuthorization(chainId, chain);
         }
 
         // 2) Build single transfer call

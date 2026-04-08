@@ -7,6 +7,8 @@ import {
     type PublicClient,
     SignedAuthorization,
     createPublicClient,
+    createWalletClient,
+    custom,
     http,
 } from "viem";
 import { useBalance } from "../context/BalanceContext";
@@ -178,26 +180,44 @@ export function useDelegationContractAuth() {
     const { signAuthorization } = useSign7702Authorization();
     const { wallets } = useWallets();
     const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
+    const externalWallet = wallets.find((w) => w.walletClientType !== "privy");
 
     const signDelegationAuthorization = useCallback(
-        async (chainId: number): Promise<SignedAuthorization> => {
-            if (!embeddedWallet?.address) {
-                throw new Error("Embedded wallet not ready for EIP-7702 signing");
-            }
+        async (chainId: number, chain: Chain): Promise<SignedAuthorization> => {
             const delegationAddress = getDelegationContractAddress(chainId);
             if (!delegationAddress || delegationAddress === "") {
                 throw new Error(`Delegation contract not configured for chain ${chainId}. Add the contract for this chain or set NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS.`);
             }
-            const signed = await signAuthorization(
-                {
+
+            if (embeddedWallet?.address) {
+                // Embedded wallet: Privy manages the key — use its hook (no wallet popup)
+                const signed = await signAuthorization(
+                    { contractAddress: delegationAddress as `0x${string}`, chainId },
+                    { address: embeddedWallet.address as Address }
+                );
+                return signed as SignedAuthorization;
+            }
+
+            if (externalWallet) {
+                // External wallet via Privy (e.g. MetaMask): bypass Privy's signAuthorization
+                // which only works for embedded wallets. Use viem's walletClient.signAuthorization
+                // directly against the external wallet's provider — EIP-7702 authorization signing
+                // ultimately calls eth_sign on a specific hash, which any wallet supports.
+                const provider = await externalWallet.getEthereumProvider();
+                const walletClient = createWalletClient({
+                    account: externalWallet.address as Address,
+                    chain,
+                    transport: custom(provider),
+                });
+                return await walletClient.signAuthorization({
                     contractAddress: delegationAddress as `0x${string}`,
                     chainId,
-                },
-                { address: embeddedWallet.address as Address }
-            );
-            return signed as SignedAuthorization;
+                });
+            }
+
+            throw new Error("No wallet available for EIP-7702 signing");
         },
-        [signAuthorization, embeddedWallet?.address]
+        [signAuthorization, embeddedWallet, externalWallet]
     );
 
     return { signDelegationAuthorization };

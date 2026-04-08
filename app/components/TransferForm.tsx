@@ -9,10 +9,8 @@ import WalletMigrationModal from "./WalletMigrationModal";
 import {
   classNames,
   formatDecimalPrecision,
-  shouldUseInjectedWallet,
   fetchBalanceForNetwork,
 } from "../utils";
-import { useSearchParams } from "next/navigation";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
@@ -42,7 +40,6 @@ export const TransferForm: React.FC<{
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileView>>;
   onOpenMigration?: () => void;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView, onOpenMigration }) => {
-  const searchParams = useSearchParams();
   const { selectedNetwork } = useNetwork();
   const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
@@ -50,7 +47,6 @@ export const TransferForm: React.FC<{
   const { isChecking: isMigrationChecking, needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { refreshBalance } = useBalance();
   const { allTokens } = useTokens();
-  const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
   const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
@@ -96,19 +92,10 @@ export const TransferForm: React.FC<{
   }));
   const tokenBalance = Number(transferNetworkBalance?.balances?.[token]) || 0;
 
-  // Networks for recipient network selection
-  // Filter out Celo for non-injected wallets (smart wallets)
-  const recipientNetworks = networks
-    .filter((network) => {
-      if (useInjectedWallet) return true;
-      return (
-        network.chain.name !== "Celo"
-      );
-    })
-    .map((network) => ({
-      name: network.chain.name,
-      imageUrl: getNetworkImageUrl(network, isDark),
-    }));
+  const recipientNetworks = networks.map((network) => ({
+    name: network.chain.name,
+    imageUrl: getNetworkImageUrl(network, isDark),
+  }));
 
   const {
     isLoading: isConfirming,

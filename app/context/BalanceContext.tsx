@@ -19,11 +19,16 @@ import { useNetwork } from "./NetworksContext";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createPublicClient, fallback, http } from "viem";
 import { useInjectedWallet } from "./InjectedWalletContext";
-import { networks } from "../mocks";
+import { migrationChecklistNetworks, networks } from "../mocks";
 import type { Network } from "../types";
 import { bsc } from "viem/chains";
 
 // All networks are fetched in parallel — no artificial concurrency limit
+
+/** Chain IDs included in wallet migration UX (Celo and any future exclusions omitted). */
+const MIGRATION_RELEVANT_CHAIN_IDS = new Set(
+  migrationChecklistNetworks.map((n) => n.chain.id),
+);
 
 interface WalletBalances {
   total: number;
@@ -35,6 +40,20 @@ interface WalletBalances {
 export interface CrossChainBalanceEntry {
   network: Network;
   balances: WalletBalances;
+}
+
+function sumMigrationRelevantTotals(entries: CrossChainBalanceEntry[]): number {
+  return entries.reduce((sum, entry) => {
+    if (!MIGRATION_RELEVANT_CHAIN_IDS.has(entry.network.chain.id)) return sum;
+    return sum + (entry.balances.total || 0);
+  }, 0);
+}
+
+function sumAllChainTotals(entries: CrossChainBalanceEntry[]): number {
+  return entries.reduce(
+    (sum, entry) => sum + (entry.balances.total || 0),
+    0,
+  );
 }
 
 /**
@@ -84,6 +103,16 @@ interface BalanceContextProps {
   };
   crossChainBalances: CrossChainBalanceEntry[];
   crossChainTotal: number;
+  /** Same as crossChainTotal but excludes chains omitted from migration (e.g. Celo). For migration/banner logic only. */
+  crossChainTotalMigrationRelevant: number;
+  /**
+   * Last SCW cross-chain totals (all networks vs migration-eligible only).
+   * Used when the UI shows EOA balances but migration logic must still see SCW state (e.g. funds only on Celo).
+   */
+  smartWalletCrossChainTotals: {
+    totalAll: number;
+    totalMigrationRelevant: number;
+  } | null;
   smartWalletRemainingTotal: number;
   refreshBalance: () => void;
   isLoading: boolean;
@@ -112,6 +141,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   >([]);
   const [smartWalletRemainingTotal, setSmartWalletRemainingTotal] =
     useState(0);
+  const [smartWalletCrossChainTotals, setSmartWalletCrossChainTotals] =
+    useState<{
+      totalAll: number;
+      totalMigrationRelevant: number;
+    } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Hook for CNGN rate to correct total balances
@@ -182,6 +216,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       setInjectedWalletBalance(null);
       setCrossChainBalances([]);
       setSmartWalletRemainingTotal(0);
+      setSmartWalletCrossChainTotals(null);
     };
 
     /** Clear only per-network balances so migration banner stays correct on fetch error (keeps cross-chain state). */
@@ -243,17 +278,14 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         if (isMigrationComplete && embeddedWalletAccount) {
           primaryIsEOA = true;
           setSmartWalletBalance(null);
+          setSmartWalletCrossChainTotals(null);
 
           // Fetch EOA cross-chain and SCW remaining in parallel
           const eoaCrossChainPromise =
             fetchCrossChainEntriesForAddress(embeddedWalletAccount.address);
           const scwRemainingPromise = smartWalletAccount
             ? fetchCrossChainEntriesForAddress(smartWalletAccount.address).then(
-                (entries) =>
-                  entries.reduce(
-                    (sum, e) => sum + (e.balances.total || 0),
-                    0,
-                  ),
+                (entries) => sumMigrationRelevantTotals(entries),
               )
             : Promise.resolve(0);
 
@@ -286,10 +318,13 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           // Not migrated: fetch SCW cross-chain first to determine total and selected-network balance
           const scwCrossChainEntries =
             await fetchCrossChainEntriesForAddress(smartWalletAccount.address);
-          const scwCrossChainTotal = scwCrossChainEntries.reduce(
-            (sum, entry) => sum + (entry.balances.total || 0),
-            0,
-          );
+          const scwCrossChainTotalMigrationRelevant =
+            sumMigrationRelevantTotals(scwCrossChainEntries);
+          const scwTotalAll = sumAllChainTotals(scwCrossChainEntries);
+          setSmartWalletCrossChainTotals({
+            totalAll: scwTotalAll,
+            totalMigrationRelevant: scwCrossChainTotalMigrationRelevant,
+          });
 
           // Extract selected-network balance from cross-chain entries
           const selectedEntry = scwCrossChainEntries.find(
@@ -312,7 +347,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             });
           }
 
-          if (scwCrossChainTotal === 0 && embeddedWalletAccount) {
+          if (scwCrossChainTotalMigrationRelevant === 0 && embeddedWalletAccount) {
             primaryIsEOA = true;
             const eoaEntries =
               await fetchCrossChainEntriesForAddress(embeddedWalletAccount.address);
@@ -339,6 +374,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           // New user: has embedded wallet — use EOA directly
           primaryIsEOA = true;
           setSmartWalletBalance(null);
+          setSmartWalletCrossChainTotals(null);
 
           const eoaEntries =
             await fetchCrossChainEntriesForAddress(embeddedWalletAccount.address);
@@ -449,6 +485,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
           setSmartWalletBalance(null);
           setExternalWalletBalance(null);
+          setSmartWalletCrossChainTotals(null);
         } catch (error) {
           console.error("Error fetching injected wallet balance:", error);
           clearAllWalletBalances();
@@ -490,6 +527,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const crossChainTotal = crossChainBalances.reduce((total, entry) => {
     return total + (entry.balances.total || 0);
   }, 0);
+  const crossChainTotalMigrationRelevant =
+    sumMigrationRelevantTotals(crossChainBalances);
 
   return (
     <BalanceContext.Provider
@@ -500,6 +539,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         allBalances,
         crossChainBalances,
         crossChainTotal,
+        crossChainTotalMigrationRelevant,
+        smartWalletCrossChainTotals,
         smartWalletRemainingTotal,
         refreshBalance: fetchBalances,
         isLoading,

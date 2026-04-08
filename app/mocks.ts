@@ -29,7 +29,6 @@ export const acceptedCurrencies = [
   {
     name: "MWK",
     label: "Malawian Kwacha (MWK)",
-    disabled: true,
   },
   {
     name: "GHS",

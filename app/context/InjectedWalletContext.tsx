@@ -19,6 +19,7 @@ interface InjectedWalletContextType {
   injectedAddress: string | null;
   injectedProvider: any | null;
   injectedReady: boolean;
+  embeddedWalletReady: boolean;
 }
 
 const InjectedWalletContext = createContext<InjectedWalletContextType>({
@@ -26,6 +27,7 @@ const InjectedWalletContext = createContext<InjectedWalletContextType>({
   injectedAddress: null,
   injectedProvider: null,
   injectedReady: false,
+  embeddedWalletReady: false,
 });
 
 function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
@@ -36,6 +38,7 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   const [injectedAddress, setInjectedAddress] = useState<string | null>(null);
   const [injectedProvider, setInjectedProvider] = useState<any | null>(null);
   const [injectedReady, setInjectedReady] = useState(false);
+  const [embeddedWalletReady, setEmbeddedWalletReady] = useState(false);
 
   // Track whether the URL param flow is active so the Privy detection doesn't conflict
   const urlParamActive = useRef(false);
@@ -102,6 +105,7 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
       setInjectedAddress(null);
       setInjectedProvider(null);
       setInjectedReady(false);
+      setEmbeddedWalletReady(false);
       return;
     }
 
@@ -118,10 +122,24 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
       (wallet) => wallet.walletClientType !== "privy",
     );
 
-    // Only activate if user has an external wallet but no embedded wallet
-    if (hasEmbeddedWallet || !externalWallet) {
+    if (hasEmbeddedWallet) {
+      // User has an embedded wallet — wait for Privy to connect it into useWallets()
+      // before declaring the wallet layer ready. This prevents the app from rendering
+      // wallet-dependent UI before embeddedWallet is available.
+      const embeddedInWallets = wallets.some(
+        (w) => w.walletClientType === "privy",
+      );
+      setEmbeddedWalletReady(embeddedInWallets);
       return;
     }
+
+    if (!externalWallet) {
+      // Authenticated but no wallets yet — still waiting
+      return;
+    }
+
+    // External-wallet-only user (no embedded wallet ever created) — nothing to wait for
+    setEmbeddedWalletReady(true);
 
     const initPrivyExternalWallet = async () => {
       try {
@@ -149,6 +167,7 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
         injectedAddress,
         injectedProvider,
         injectedReady,
+        embeddedWalletReady,
       }}
     >
       {children}

@@ -108,7 +108,7 @@ export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready, getAccessToken, user } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
-  const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
+  const { isInjectedWallet, injectedAddress, injectedReady, embeddedWalletReady } = useInjectedWallet();
   const { crossChainBalances, isLoading: isBalanceLoading } = useBalance();
   const { selectedNetwork, setDisplayedNetwork } = useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
@@ -223,7 +223,7 @@ export function MainPageContent() {
         return;
       }
 
-      if (!ready || (isInjectedWallet && !injectedReady) || isBalanceLoading) {
+      if (!ready || (isInjectedWallet && !injectedReady) || (!isInjectedWallet && authenticated && !embeddedWalletReady) || isBalanceLoading) {
         return;
       }
 
@@ -444,7 +444,8 @@ export function MainPageContent() {
   const showLoading =
     isPageLoading ||
     (!ready && !isInjectedWallet) ||
-    (isInjectedWallet && !injectedReady);
+    (isInjectedWallet && !injectedReady) ||
+    (!isInjectedWallet && authenticated && !embeddedWalletReady);
 
   const isRecipientFormOpen =
     !!currency && (authenticated || isInjectedWallet) && isUserVerified;

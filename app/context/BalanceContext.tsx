@@ -123,9 +123,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   // Cannot use useShouldUseEOA here (it uses useBalance and would create a circular dependency)
   const { isMigrationComplete, isLoading: isMigrationLoading } = useMigrationStatus();
 
-  const applicableNetworks = isInjectedWallet
-    ? networks
-    : networks.filter((n) => n.chain.name !== "Celo");
+  const applicableNetworks = networks;
 
   /**
    * Shared helper: fetches cross-chain balance entries for an address.

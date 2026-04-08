@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     default: "Noblocks Blog - Decentralized Payments News",
     template: "%s | Noblocks Blog",
   },
-  description: "Noblocks Blog - Your source for decentralized payments insights, stablecoin news, crypto remittance guides, and Web3 financial technology updates. Learn about USDC, USDT, DAI transfers, cross-border payments, and the future of digital finance.",
+  description: "Noblocks Blog - Your source for decentralized payments insights, stablecoin news, crypto remittance guides, and Web3 financial technology updates. Learn about USDC, USDT, cNGN transfers, cross-border payments, and the future of digital finance.",
   keywords: [
     // Primary Blog Keywords
     "Noblocks blog",
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     // Stablecoin Blog Keywords
     "USDC news and updates",
     "USDT market insights",
-    "DAI stablecoin analysis",
+    "cNGN stablecoin analysis",
     "stablecoin adoption trends",
     "crypto to bank transfer guide",
     "stablecoin to fiat conversion",
@@ -134,7 +134,7 @@ const jsonLd = {
       name: "Web3 Finance",
     },
   ],
-  keywords: "decentralized payments, stablecoin news, crypto remittance, web3 finance, blockchain payments, USDC, USDT, DAI, cross-border payments, fintech blog",
+  keywords: "decentralized payments, stablecoin news, crypto remittance, web3 finance, blockchain payments, USDC, USDT, cNGN, cross-border payments, fintech blog",
   blogPost: [], // Will be populated dynamically per post page
 };
 

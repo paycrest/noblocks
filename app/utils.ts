@@ -173,6 +173,8 @@ export function getRpcUrl(network: string) {
       return `https://api-arbitrum-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Celo":
       return `https://api-celo-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
+    case "Scroll":
+      return `https://api-scroll-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Lisk":
       return `https://api-lisk-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Ethereum":
@@ -254,7 +256,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
     {
-      name: "cNGN",
+      name: "Compliant Naira",
       symbol: "cNGN",
       decimals: 6,
       address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
@@ -301,7 +303,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
     {
-      name: "cNGN",
+      name: "Compliant Naira",
       symbol: "cNGN",
       decimals: 6,
       address: "0x52828daa48c1a9a06f37500882b42daf0be04c3b",
@@ -324,7 +326,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdc-logo.svg",
     },
     {
-      name: "cNGN",
+      name: "Compliant Naira",
       symbol: "cNGN",
       decimals: 6,
       address: "0xa8aea66b361a8d53e8865c62d142167af28af058",
@@ -340,11 +342,34 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdc-logo.svg",
     },
     {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
       name: "Celo Dollar",
       symbol: "cUSD",
       decimals: 18,
       address: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
       imageUrl: "/logos/cusd-logo.svg",
+    },
+  ],
+  Scroll: [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0xf55BEC9cafDbE8730f096Aa55dad6D22d44099Df",
+      imageUrl: "/logos/usdt-logo.svg",
     },
   ],
   Lisk: [
@@ -354,6 +379,13 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       decimals: 6,
       address: "0x05D032ac25d322df992303dCa074EE7392C117b9",
       imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
+      name: "Compliant Naira",
+      symbol: "cNGN",
+      decimals: 6,
+      address: "0xC7aB2C35Ea37236e644C24A4E4a1911c082887c0",
+      imageUrl: "/logos/cngn-logo.svg",
     },
   ],
   Ethereum: [
@@ -372,7 +404,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
     {
-      name: "cNGN",
+      name: "Compliant Naira",
       symbol: "cNGN",
       decimals: 6,
       address: "0x17CDB2a01e7a34CbB3DD4b83260B05d0274C8dab",
@@ -423,41 +455,6 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
           }
           tokens[networkName].push(transformToken(apiToken));
         });
-        // Update cache with all networks
-        // Temporarily add USDT on Base for user withdrawal
-        if (tokens["Base"]) {
-          const usdtBase = {
-            name: "Tether USD",
-            symbol: "USDT",
-            decimals: 6,
-            address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
-            imageUrl: "/logos/usdt-logo.svg",
-          };
-
-          // Check if USDT is not already in the list
-          const hasUSDT = tokens["Base"].some(
-            (token) => token.symbol === "USDT",
-          );
-          if (!hasUSDT) {
-            tokens["Base"].push(usdtBase);
-          }
-
-          // Ensure native ETH is present in the target network
-          // const nativeETH = {
-          //   name: "Ethereum",
-          //   symbol: "ETH",
-          //   decimals: 18,
-          //   address: "", // Native token has no contract address
-          //   imageUrl: "/logos/eth-logo.svg",
-          //   isNative: true,
-          // };
-          // const hasNativeETH = tokens["Ethereum"].some(
-          //   (token) => token.symbol === "ETH" && token.isNative,
-          // );
-          // if (!hasNativeETH) {
-          //   tokens["Ethereum"].push(nativeETH);
-          // }
-        }
         // Merge fallback tokens for any networks missing from API response
         Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
           if (!tokens[networkName] || tokens[networkName].length === 0) {

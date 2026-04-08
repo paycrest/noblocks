@@ -656,7 +656,7 @@ export const TransactionPreview = ({
         cleanup();
         reject(
           new Error(
-            "Unable to confirm order on-chain, but your transaction may still be processing. Please check your transaction history before retrying.",
+            "Unable to confirm order onchain, but your transaction may still be processing. Please check your transaction history before retrying.",
           ),
         );
       }, MAX_POLL_DURATION_MS);

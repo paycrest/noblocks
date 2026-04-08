@@ -1,4 +1,13 @@
-import { arbitrum, base, bsc, polygon, lisk, celo, mainnet } from "viem/chains";
+import {
+  arbitrum,
+  base,
+  bsc,
+  polygon,
+  lisk,
+  celo,
+  scroll,
+  mainnet,
+} from "viem/chains";
 
 export const acceptedCurrencies = [
   {
@@ -72,14 +81,14 @@ export const networks = [
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
   },
+  {
+    chain: scroll,
+    imageUrl: "/logos/scroll-logo.svg",
+  },
   //   {
   //     chain: hedera,
   //     imageUrl: "/logos/hedera-logo.svg",
   //   },
-  // {
-  //   chain: scroll,
-  //   imageUrl: "/logos/scroll-logo.svg",
-  // },
   // {
   //   chain: optimism,
   //   imageUrl: "/logos/op-mainnet-logo.svg",

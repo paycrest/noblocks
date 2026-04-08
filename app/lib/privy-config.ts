@@ -32,10 +32,7 @@ const scrollOverride = addRpcUrlOverrideToChain(
 const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
   embeddedWallets: {
     ethereum: {
-      // External-wallet signup: do not auto-create embedded if user already has a wallet
-      // (e.g. MetaMask / Rainbow via Privy login). Email/social users still get embedded.
-      // See https://docs.privy.io/wallets/connectors/usage/connect-or-create
-      createOnLogin: "users-without-wallets",
+      createOnLogin: "all-users",
     },
   },
   externalWallets: {

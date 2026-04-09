@@ -94,8 +94,13 @@ export const networks = [
   // },
 ];
 
-/** Networks scanned and shown in the wallet migration modal; Celo is excluded from migration UX. */
-export const migrationChecklistNetworks = networks.filter((n) => n.chain.id !== celo.id);
+/** Chain IDs excluded from wallet migration (popup math + transfer modal). */
+export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number>([celo.id, scroll.id]);
+
+/** Networks scanned and shown in the wallet migration modal (excludes Celo and Scroll). */
+export const migrationChecklistNetworks = networks.filter(
+  (n) => !MIGRATION_EXCLUDED_CHAIN_IDS.has(n.chain.id),
+);
 
 export const colors = [
   "bg-blue-600",

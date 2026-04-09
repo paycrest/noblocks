@@ -165,7 +165,7 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
             const all = smartWalletCrossChainTotals?.totalAll ?? 0;
             const hasMigrationBalance = hasMeaningfulBalance(migr);
             setNeedsMigration(hasMigrationBalance);
-            // No banner/modal if SCW only has funds on excluded chains (e.g. Celo).
+            // No banner/modal if SCW only has funds on excluded chains (e.g. Celo, Scroll).
             setShowZeroBalanceMessage(
                 !hasMigrationBalance && !hasMeaningfulBalance(all),
             );

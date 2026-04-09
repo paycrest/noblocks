@@ -36,7 +36,7 @@ function getTransportForChain(chain: Chain) {
     return http(getRpcUrl(chain.name));
 }
 
-// Map network names to viem chains (migration flow only; excludes Celo — see migrationChecklistNetworks)
+// Map network names to viem chains (migration flow only; see migrationChecklistNetworks)
 const CHAIN_MAP = Object.fromEntries(
     migrationChecklistNetworks.map(n => [n.chain.name, n.chain])
 );
@@ -93,7 +93,7 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             const balancesByChain: Record<string, Record<string, number>> = {};
             const rawByChain: Record<string, Record<string, bigint>> = {};
 
-            // Fetch balances for each network in the migration checklist (Celo excluded)
+            // Fetch balances for each network in the migration checklist (excluded chains omitted)
             for (const network of migrationChecklistNetworks) {
                 try {
                     const publicClient = createPublicClient({

@@ -25,7 +25,7 @@ import { bsc } from "viem/chains";
 
 // All networks are fetched in parallel — no artificial concurrency limit
 
-/** Chain IDs included in wallet migration UX (Celo and any future exclusions omitted). */
+/** Chain IDs included in wallet migration UX (see MIGRATION_EXCLUDED_CHAIN_IDS in mocks). */
 const MIGRATION_RELEVANT_CHAIN_IDS = new Set(
   migrationChecklistNetworks.map((n) => n.chain.id),
 );
@@ -103,11 +103,11 @@ interface BalanceContextProps {
   };
   crossChainBalances: CrossChainBalanceEntry[];
   crossChainTotal: number;
-  /** Same as crossChainTotal but excludes chains omitted from migration (e.g. Celo). For migration/banner logic only. */
+  /** Same as crossChainTotal but excludes chains omitted from migration (e.g. Celo, Scroll). For migration/banner logic only. */
   crossChainTotalMigrationRelevant: number;
   /**
    * Last SCW cross-chain totals (all networks vs migration-eligible only).
-   * Used when the UI shows EOA balances but migration logic must still see SCW state (e.g. funds only on Celo).
+   * Used when the UI shows EOA balances but migration logic must still see SCW state (e.g. funds only on excluded chains).
    */
   smartWalletCrossChainTotals: {
     totalAll: number;

@@ -21,13 +21,14 @@ import {
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
 import { getDelegationContractAddress } from "../lib/config";
+import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
   Token,
   TransactionPreviewProps,
   TransactionCreateInput,
   RefundAccountDetails,
 } from "../types";
-import { primaryBtnClasses, secondaryBtnClasses } from "../components";
+import { primaryBtnClasses, secondaryBtnClasses } from "../components/Styles";
 import { gatewayAbi } from "../api/abi";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -594,7 +595,14 @@ export const TransactionPreview = ({
       });
     } catch (e) {
       const error = e as BaseError;
-      setErrorMessage(error.shortMessage || error.message);
+      const rawReason = error.shortMessage || error.message || "Unknown error";
+      mapReportAndAct(e, {
+        feature: "transaction-preview",
+        onUserMessage: (userMsg) => {
+          setErrorMessage(userMsg);
+          setErrorCount((prevCount: number) => prevCount + 1);
+        },
+      });
       setIsConfirming(false);
       trackEvent("Swap Failed", {
         Amount: amountSent,
@@ -606,7 +614,7 @@ export const TransactionPreview = ({
         ),
         "Wallet balance": balance,
         "Swap date": createdAt,
-        "Reason for failure": error.shortMessage || error.message,
+        "Reason for failure": rawReason,
         "Transaction duration": calculateDuration(
           createdAt,
           new Date().toISOString(),
@@ -739,10 +747,6 @@ export const TransactionPreview = ({
     try {
       setIsConfirming(true);
       await createOrder();
-    } catch (e) {
-      const error = e as BaseError;
-      setErrorMessage(error.shortMessage || error.message);
-      setErrorCount((prevCount: number) => prevCount + 1);
     } finally {
       setIsConfirming(false);
     }
@@ -828,7 +832,7 @@ export const TransactionPreview = ({
         cleanup();
         reject(
           new Error(
-            "Unable to confirm order on-chain, but your transaction may still be processing. Please check your transaction history before retrying.",
+            "Unable to confirm order onchain, but your transaction may still be processing. Please check your transaction history before retrying.",
           ),
         );
       }, MAX_POLL_DURATION_MS);

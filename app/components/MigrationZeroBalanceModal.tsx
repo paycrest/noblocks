@@ -161,7 +161,7 @@ export const MigrationZeroBalanceModal = ({
                                                     className="font-[Inter] text-sm font-light leading-5 tracking-normal text-text-body dark:text-[#FFFFFFCC]"
 
                                                 >
-                                                    Your wallet has been successfully set up and is compatible with other on-chain apps.
+                                                    Your wallet has been successfully set up and is compatible with other onchain apps.
                                                 </p>
                                             </div>
                                             <div className="rounded-[20px] bg-accent-gray p-4 dark:bg-[#2C2C2C]">

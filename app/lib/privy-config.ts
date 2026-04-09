@@ -1,4 +1,13 @@
-import { arbitrum, base, bsc, polygon, lisk, mainnet } from "viem/chains";
+import {
+  arbitrum,
+  base,
+  bsc,
+  polygon,
+  lisk,
+  celo,
+  scroll,
+  mainnet,
+} from "viem/chains";
 import {
   addRpcUrlOverrideToChain,
   type PrivyClientConfig,
@@ -8,6 +17,16 @@ import { getRpcUrl } from "../utils";
 const bscOverride = addRpcUrlOverrideToChain(
   bsc,
   getRpcUrl(bsc.name) ?? "https://bsc-dataseed.bnbchain.org/",
+);
+
+const celoOverride = addRpcUrlOverrideToChain(
+  celo,
+  getRpcUrl(celo.name) ?? "https://forno.celo.org",
+);
+
+const scrollOverride = addRpcUrlOverrideToChain(
+  scroll,
+  getRpcUrl(scroll.name) ?? "https://rpc.scroll.io",
 );
 
 const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
@@ -25,7 +44,16 @@ const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
       },
     },
   },
-  supportedChains: [mainnet, base, bscOverride, arbitrum, polygon, lisk],
+  supportedChains: [
+    mainnet,
+    base,
+    bscOverride,
+    arbitrum,
+    polygon,
+    lisk,
+    celoOverride,
+    scrollOverride,
+  ],
 };
 
 export const lightModeConfig: PrivyClientConfig = {

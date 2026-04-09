@@ -1,4 +1,13 @@
-import { arbitrum, base, bsc, polygon, lisk, celo, mainnet } from "viem/chains";
+import {
+  arbitrum,
+  base,
+  bsc,
+  polygon,
+  lisk,
+  celo,
+  scroll,
+  mainnet,
+} from "viem/chains";
 
 export const acceptedCurrencies = [
   {
@@ -20,7 +29,6 @@ export const acceptedCurrencies = [
   {
     name: "MWK",
     label: "Malawian Kwacha (MWK)",
-    disabled: true,
   },
   {
     name: "GHS",
@@ -72,19 +80,27 @@ export const networks = [
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
   },
+  {
+    chain: scroll,
+    imageUrl: "/logos/scroll-logo.svg",
+  },
   //   {
   //     chain: hedera,
   //     imageUrl: "/logos/hedera-logo.svg",
   //   },
   // {
-  //   chain: scroll,
-  //   imageUrl: "/logos/scroll-logo.svg",
-  // },
-  // {
   //   chain: optimism,
   //   imageUrl: "/logos/op-mainnet-logo.svg",
   // },
 ];
+
+/** Chain IDs excluded from wallet migration (popup math + transfer modal). */
+export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number>([celo.id, scroll.id]);
+
+/** Networks scanned and shown in the wallet migration modal (excludes Celo and Scroll). */
+export const migrationChecklistNetworks = networks.filter(
+  (n) => !MIGRATION_EXCLUDED_CHAIN_IDS.has(n.chain.id),
+);
 
 export const colors = [
   "bg-blue-600",

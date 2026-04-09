@@ -8,14 +8,14 @@ import { toast } from "sonner";
 
 import {
   AnimatedComponent,
-  primaryBtnClasses,
-  slideInOut,
-  FormDropdown,
-  RecipientDetailsForm,
-  KycModal,
-  FundWalletForm,
   AnimatedModal,
-} from "../components";
+  slideInOut,
+} from "../components/AnimatedComponents";
+import { primaryBtnClasses } from "../components/Styles";
+import { FormDropdown } from "../components/FormDropdown";
+import { RecipientDetailsForm } from "../components/recipient/RecipientDetailsForm";
+import { KycModal } from "../components/KycModal";
+import { FundWalletForm } from "../components/FundWalletForm";
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
 import { acceptedCurrencies } from "../mocks";
@@ -411,10 +411,11 @@ export const TransactionForm = ({
             minAmountSentValue = 0.5 * cngnRate;
             setRateError(null);
           } else {
-            // cNGN selected but no valid rate - set error
             const errorMessage = cngnRateError || "No available quote";
             setRateError(errorMessage);
           }
+        } else {
+          setRateError(null);
         }
 
         formMethods.register("amountSent", {
@@ -460,8 +461,8 @@ export const TransactionForm = ({
         } else {
           // Reset currencies to their default state from mocks
           currencies.forEach((currency: CurrencyOption) => {
-            // Only GHS, BRL, ARS, and MWK are disabled by default
-            currency.disabled = ["GHS", "BRL", "ARS", "MWK"].includes(
+            // Only GHS, BRL, and ARS are disabled by default
+            currency.disabled = ["GHS", "BRL", "ARS"].includes(
               currency.name,
             );
           });
@@ -1114,9 +1115,9 @@ export const TransactionForm = ({
               variant={slideInOut}
               className="flex w-full flex-col justify-between gap-2 py-3 text-xs text-text-disabled transition-all dark:text-white/30 xsm:flex-row xsm:items-center"
             >
-              <div className="min-w-fit">
+              <div className={rateError ? "" : "min-w-fit"}>
                 {rateError ? (
-                  <>No available quote</>
+                  <span className="text-orange-500 dark:text-orange-400">{rateError}</span>
                 ) : rate > 0 ? (
                   <>
                     {isSwapped ? (

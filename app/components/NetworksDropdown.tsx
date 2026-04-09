@@ -11,6 +11,7 @@ import {
   handleNetworkSwitch,
   getNetworkImageUrl,
 } from "../utils";
+import { toastMappedError } from "../lib/toastMappedError";
 import { FlexibleDropdown } from "./FlexibleDropdown";
 import { ArrowDown01Icon } from "hugeicons-react";
 import { useNetwork, useStep } from "../context";
@@ -52,23 +53,19 @@ export const NetworksDropdown = ({
         },
         (error) => {
           console.error("Failed to switch network:", error);
-          toast.error("Error switching network", {
-            description: error.message,
+          toastMappedError(error, {
+            feature: "network-switch",
+            title: "Error switching network",
           });
         },
       );
     }
   };
 
-  const dropdownNetworks = networks
-    .filter((network) => {
-      if (useInjectedWallet) return true;
-      return network.chain.name !== "Celo";
-    })
-    .map((network) => ({
-      name: network.chain.name,
-      imageUrl: getNetworkImageUrl(network, isDark),
-    }));
+  const dropdownNetworks = networks.map((network) => ({
+    name: network.chain.name,
+    imageUrl: getNetworkImageUrl(network, isDark),
+  }));
 
   return (
     <FlexibleDropdown

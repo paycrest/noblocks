@@ -22,6 +22,8 @@ import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
 import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
 import { normalizeNetworkForRateFetch } from "../utils";
+import { mapReportAndAct } from "../lib/toastMappedError";
+import { reportClientError } from "../lib/sentry.client";
 import {
   STEPS,
   type FormData,
@@ -38,7 +40,8 @@ import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
-import { useInjectedWallet } from "../context";
+import { useBalance, useInjectedWallet } from "../context";
+import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
 
 const PageLayout = ({
   authenticated,
@@ -105,10 +108,11 @@ const PageLayout = ({
 
 export function MainPageContent() {
   const searchParams = useSearchParams();
-  const { authenticated, ready, getAccessToken } = usePrivy();
+  const { authenticated, ready, getAccessToken, user } = usePrivy();
   const { currentStep, setCurrentStep } = useStep();
-  const { isInjectedWallet, injectedReady } = useInjectedWallet();
-  const { selectedNetwork } = useNetwork();
+  const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
+  const { crossChainBalances, isLoading: isBalanceLoading } = useBalance();
+  const { selectedNetwork, setDisplayedNetwork } = useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -130,6 +134,7 @@ export function MainPageContent() {
 
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
+  const autoSelectedNetworkSessionRef = useRef<string | null>(null);
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
@@ -213,6 +218,57 @@ export function MainPageContent() {
   }, []);
 
   useEffect(
+    function autoSelectLargestBalanceNetwork() {
+      const sessionKey = isInjectedWallet
+        ? injectedAddress
+          ? `injected:${injectedAddress}`
+          : null
+        : authenticated && user?.id
+          ? `privy:${user.id}`
+          : null;
+
+      if (!sessionKey) {
+        autoSelectedNetworkSessionRef.current = null;
+        return;
+      }
+
+      if (!ready || (isInjectedWallet && !injectedReady) || isBalanceLoading) {
+        return;
+      }
+
+      if (autoSelectedNetworkSessionRef.current === sessionKey) {
+        return;
+      }
+
+      const preferredNetwork = getPreferredNetworkForBalances(
+        crossChainBalances,
+        selectedNetwork.chain.name,
+      );
+
+      if (
+        preferredNetwork &&
+        preferredNetwork.chain.name !== selectedNetwork.chain.name
+      ) {
+        setDisplayedNetwork(preferredNetwork);
+      }
+
+      autoSelectedNetworkSessionRef.current = sessionKey;
+    },
+    [
+      authenticated,
+      crossChainBalances,
+      injectedAddress,
+      injectedReady,
+      isBalanceLoading,
+      isInjectedWallet,
+      ready,
+      selectedNetwork.chain.name,
+      setDisplayedNetwork,
+      user?.id,
+    ],
+  );
+
+  useEffect(
     function resetProviderErrorOnChange() {
       // Reset error flag when switching providers
       const newProvider =
@@ -280,9 +336,7 @@ export function MainPageContent() {
           setRate(rate.data);
           setRateError(null); // Clear error on success
         } catch (error) {
-          let errorMsg = "Unknown error";
           if (error instanceof Error) {
-            errorMsg = error.message;
             const lpParam =
               searchParams.get("provider") || searchParams.get("PROVIDER");
             if (
@@ -290,6 +344,11 @@ export function MainPageContent() {
               lpParam &&
               !failedProviders.current.has(lpParam)
             ) {
+              reportClientError(error, {
+                feature: "cngn-rate",
+                phase: "provider-fallback",
+                provider: lpParam,
+              });
               toast.error(`${error.message} - defaulting to public rate`);
               // Track failed provider
               if (lpParam) {
@@ -303,8 +362,13 @@ export function MainPageContent() {
               return;
             }
           }
-          setRateError(errorMsg);
-          toast.error("No available quote", { description: errorMsg });
+          mapReportAndAct(error, {
+            feature: "cngn-rate",
+            onUserMessage: (userMsg) => {
+              setRateError(userMsg);
+              toast.error(userMsg);
+            },
+          });
         } finally {
           setIsFetchingRate(false);
         }

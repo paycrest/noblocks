@@ -91,6 +91,7 @@ async function fetchRateWithTimeout(
       amount: 100,
       currency: "NGN",
       network: normalizeNetworkForRateFetch(network),
+      side: "sell",
       signal: controller.signal,
     });
 

@@ -9,7 +9,12 @@ import { usePrivy } from "@privy-io/react-auth";
 import { pdf } from "@react-pdf/renderer";
 import { PDFReceipt } from "../PDFReceipt";
 import { CopyAddressWarningModal } from "../CopyAddressWarningModal";
-import type { TransactionHistory, Network, V2FiatProviderAccountDTO } from "../../types";
+import type {
+  OnrampPaymentInstructions,
+  TransactionHistory,
+  Network,
+  V2FiatProviderAccountDTO,
+} from "../../types";
 import {
   getExplorerLink,
   formatNumberWithCommas,
@@ -20,15 +25,12 @@ import {
   getNetworkImageUrl,
   shortenAddress,
   copyToClipboard,
+  mapProviderAccountToInstructions,
 } from "../../utils";
 import {
   fetchV2SenderPaymentOrderById,
   unwrapV2SenderOrderEnvelope,
 } from "../../api/aggregator";
-import {
-  mapProviderAccountToInstructions,
-  type OnrampPaymentInstructions,
-} from "../../lib/onrampPaymentInstructions";
 import { useNetwork } from "../../context/NetworksContext";
 import { useActualTheme } from "../../hooks/useActualTheme";
 import { networks } from "../../mocks";

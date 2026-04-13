@@ -6,6 +6,8 @@ import type {
   Currency,
   APIToken,
   RecipientDetails,
+  V2FiatProviderAccountDTO,
+  OnrampPaymentInstructions,
 } from "./types";
 import type { SanityPost, SanityCategory } from "./blog/types";
 import { erc20Abi, createPublicClient, http } from "viem";
@@ -1398,3 +1400,22 @@ export const copyToClipboard = async (
     toast.error("Failed to copy");
   }
 };
+
+export function mapProviderAccountToInstructions(
+  a: V2FiatProviderAccountDTO,
+  fallbackCurrency: string,
+  fallbackAmount: number,
+): OnrampPaymentInstructions {
+  const raw = a.amountToTransfer?.replace(/,/g, "") ?? "";
+  const parsed = raw ? parseFloat(raw) : fallbackAmount;
+  return {
+    provider:
+      a.institution && a.accountName
+        ? `${a.institution} | ${a.accountName}`
+        : a.institution || a.accountName,
+    accountNumber: a.accountIdentifier,
+    amount: Number.isFinite(parsed) ? parsed : fallbackAmount,
+    currency: a.currency || fallbackCurrency,
+    expiresAt: new Date(a.validUntil),
+  };
+}

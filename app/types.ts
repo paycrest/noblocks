@@ -204,6 +204,15 @@ export type V2FiatProviderAccountDTO = {
   currency?: string;
 };
 
+/** Display shape for virtual account / bank transfer instructions (mirrors provider/types OnrampPaymentInstructions). */
+export type OnrampPaymentInstructions = {
+  provider: string;
+  accountNumber: string;
+  amount: number;
+  currency: string;
+  expiresAt: Date;
+};
+
 export type V2PaymentOrderCreateData = {
   id: string;
   status: string;

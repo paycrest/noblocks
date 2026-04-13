@@ -9,20 +9,15 @@ import {
     formatNumberWithCommas,
     copyToClipboard,
     getCurrencySymbol,
+    mapProviderAccountToInstructions,
 } from "../utils";
 import { secondaryBtnClasses } from "../components";
-import type { TransactionPreviewProps } from "../types";
+import type { OnrampPaymentInstructions, TransactionPreviewProps } from "../types";
 import { useStep } from "../context";
 import {
     fetchV2SenderPaymentOrderById,
     resolveOnrampOrderStatusFromV2Response,
 } from "../api/aggregator";
-import {
-    mapProviderAccountToInstructions,
-    type OnrampPaymentInstructions,
-} from "../lib/onrampPaymentInstructions";
-
-
 function getOrderStatusFromFetchPayload(body: unknown): string | undefined {
     if (!body || typeof body !== "object") return undefined;
     const o = body as Record<string, unknown>;

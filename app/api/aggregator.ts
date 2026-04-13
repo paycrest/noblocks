@@ -36,7 +36,23 @@ function aggregatorOriginForV2(): string {
   if (!raw) {
     throw new Error("NEXT_PUBLIC_AGGREGATOR_URL is not configured");
   }
-  return raw.replace(/\/v1\/?$/i, "").replace(/\/$/, "") || raw;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error(
+      "NEXT_PUBLIC_AGGREGATOR_URL must be a valid absolute URL (e.g. https://api.example.com/v1)",
+    );
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(
+      "NEXT_PUBLIC_AGGREGATOR_URL must use http: or https:",
+    );
+  }
+  const basePath = parsed.pathname
+    .replace(/\/v1\/?$/i, "")
+    .replace(/\/$/, "");
+  return `${parsed.origin}${basePath}`;
 }
 
 function pickV2RateQuote(

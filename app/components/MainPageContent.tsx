@@ -331,6 +331,7 @@ export function MainPageContent() {
             currency,
             providerId,
             network: normalizeNetworkForRateFetch(selectedNetwork.chain.name),
+            side: "sell",
           });
           setRate(rate.data);
           setRateError(null); // Clear error on success

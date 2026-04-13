@@ -141,12 +141,20 @@ export type VerifyAccountPayload = {
   accountIdentifier: string;
 };
 
+/** Paycrest v2 rates: onramp uses `buy`, offramp uses `sell`. */
+export type RateSide = "buy" | "sell";
+
 export type RatePayload = {
   token: string;
+  /**
+   * Token amount used in the aggregator path (provider min/max are in token).
+   * For onramp UIs where the user types fiat first, convert to token before quoting.
+   */
   amount?: number;
   currency: string;
+  network: string;
+  side: RateSide;
   providerId?: string;
-  network?: string;
   signal?: AbortSignal;
 };
 
@@ -154,6 +162,19 @@ export type RateResponse = {
   status: string;
   data: number;
   message: string;
+};
+
+/** Aggregator v2 `data` for GET /v2/rates/... */
+export type V2RateQuoteSide = {
+  rate: string;
+  providerIds?: string[];
+  orderType?: string;
+  refundTimeoutMinutes?: number;
+};
+
+export type V2RateQuoteResponse = {
+  buy?: V2RateQuoteSide;
+  sell?: V2RateQuoteSide;
 };
 
 export type PubkeyResponse = {

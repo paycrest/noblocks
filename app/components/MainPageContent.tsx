@@ -155,10 +155,13 @@ export function MainPageContent() {
       institution: "",
       accountIdentifier: "",
       accountType: "bank",
+      isSwapped: false,
     },
   });
   const { watch } = formMethods;
-  const { currency, amountSent, amountReceived, token } = watch();
+  const { currency, amountSent, amountReceived, token, isSwapped } = watch();
+  /** On-ramp (fiat→crypto): same as TransactionForm `isSwapped` / v2 `buy` side. */
+  const isOnrampRate = Boolean(isSwapped);
 
   // State props for child components
   const stateProps: StateProps = {
@@ -331,7 +334,7 @@ export function MainPageContent() {
             currency,
             providerId,
             network: normalizeNetworkForRateFetch(selectedNetwork.chain.name),
-            side: "sell",
+            side: isOnrampRate ? "buy" : "sell",
           });
           setRate(rate.data);
           setRateError(null); // Clear error on success
@@ -394,6 +397,7 @@ export function MainPageContent() {
       amountReceived,
       currency,
       token,
+      isSwapped,
       searchParams,
       selectedNetwork,
       rateRefetchTrigger,

@@ -93,7 +93,6 @@ export const TransactionForm = ({
   const isFirstRender = useRef(true);
   const hasRestoredStateRef = useRef(false);
   const [rateError, setRateError] = useState<string | null>(null);
-  const [isSwapped, setIsSwapped] = useState(false); // Track if swap mode is active (onramp)
 
   const currencies = useMemo(
     () =>
@@ -114,9 +113,11 @@ export const TransactionForm = ({
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { amountSent, amountReceived, token, currency, walletAddress } = watch();
+  const { amountSent, amountReceived, token, currency, walletAddress, isSwapped } =
+    watch();
 
   // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
   const { rate: cngnRate, error: cngnRateError } = useCNGNRate({
@@ -531,16 +532,18 @@ export const TransactionForm = ({
   };
 
   useEffect(() => {
-    // Only run once to restore state
+    // Only run once to align on-ramp mode with persisted recipient (e.g. deep link / refresh)
     if (hasRestoredStateRef.current) {
       return;
     }
 
-    const shouldBeSwapped = Boolean(walletAddress);
-    if (shouldBeSwapped !== isSwapped) {
-      setIsSwapped(shouldBeSwapped);
-      hasRestoredStateRef.current = true;
+    const w = getValues("walletAddress");
+    const hasWallet = typeof w === "string" && w.trim().length > 0;
+    // Only enable on-ramp from pre-filled wallet; do not force off-ramp (avoids clobbering toggle before this runs)
+    if (hasWallet) {
+      setValue("isSwapped", true, { shouldDirty: false });
     }
+    hasRestoredStateRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -550,8 +553,8 @@ export const TransactionForm = ({
     const currentAmountReceived = amountReceived;
     const willBeSwapped = !isSwapped;
 
-    // Toggle swap mode FIRST
-    setIsSwapped(willBeSwapped);
+    // Toggle swap mode FIRST (persisted on form so parent rate fetch uses correct side)
+    setValue("isSwapped", willBeSwapped, { shouldDirty: true });
 
     // Swap amounts
     setValue("amountSent", currentAmountReceived || 0, { shouldDirty: true });
@@ -1029,7 +1032,7 @@ export const TransactionForm = ({
                   isSwapped={isSwapped}
                   token={token}
                   networkName={selectedNetwork.chain.name}
-                  connectedWalletAddress={activeWallet?.address}
+                  connectedWalletAddress={activeWallet?.address ?? undefined}
                 />
 
                 {/* Memo - Only show for offramp (not swapped) */}

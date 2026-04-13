@@ -35,6 +35,7 @@ export type FormData = {
   memo: string;
   amountSent: number;
   amountReceived: number;
+  isSwapped: boolean;
 };
 
 export const STEPS = {

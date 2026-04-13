@@ -345,13 +345,13 @@ export function TransactionStatus({
 
           setTransactionStatus(
             status as
-              | "fulfilling"
-              | "validated"
-              | "settling"
-              | "settled"
-              | "refunding"
-              | "refunded"
-              | "expired",
+            | "fulfilling"
+            | "validated"
+            | "settling"
+            | "settled"
+            | "refunding"
+            | "refunded"
+            | "expired",
           );
 
           if (status === "refunded") {
@@ -641,19 +641,23 @@ export function TransactionStatus({
   const handleAddToBeneficiariesChange = async (checked: boolean) => {
     setAddToBeneficiaries(checked);
     if (checked) {
-      await addBeneficiary();
+      const saved = await addBeneficiary();
+      if (!saved) {
+        setAddToBeneficiaries(false);
+      }
     } else {
       await removeRecipient();
     }
   };
 
-  const addBeneficiary = async () => {
+  /** @returns true when recipient was saved and success UI is shown; false on early exit, API failure, or missing auth. */
+  const addBeneficiary = async (): Promise<boolean> => {
     setIsSavingRecipient(true);
 
     const institutionCode = formMethods.watch("institution");
     if (!institutionCode) {
       setIsSavingRecipient(false);
-      return;
+      return false;
     }
 
     const institutionName = getInstitutionNameByCode(
@@ -664,7 +668,7 @@ export function TransactionStatus({
     if (!institutionName) {
       console.error("Institution name not found");
       setIsSavingRecipient(false);
-      return;
+      return false;
     }
 
     const newRecipient = {
@@ -677,33 +681,32 @@ export function TransactionStatus({
       currency: String(formMethods.watch("currency") || ""),
     };
 
-    // Save recipient via API
     const accessToken = await getAccessToken();
-    if (accessToken) {
-      try {
-        const success = await saveRecipient(newRecipient, accessToken);
-        if (success) {
-          // Show success state
-          setIsSavingRecipient(false);
-          setShowSaveSuccess(true);
-
-          // Hide after 2 seconds with fade out animation
-          setTimeout(() => {
-            setShowSaveSuccess(false);
-            // Add a small delay to allow fade out animation to complete
-            setTimeout(() => {
-              setIsRecipientInBeneficiaries(true);
-            }, 300);
-          }, 2000);
-        } else {
-          setIsSavingRecipient(false);
-        }
-      } catch (error) {
-        console.error("Error saving recipient:", error);
-        setIsSavingRecipient(false);
-      }
-    } else {
+    if (!accessToken) {
       setIsSavingRecipient(false);
+      return false;
+    }
+
+    try {
+      const success = await saveRecipient(newRecipient, accessToken);
+      if (success) {
+        setIsSavingRecipient(false);
+        setShowSaveSuccess(true);
+
+        setTimeout(() => {
+          setShowSaveSuccess(false);
+          setTimeout(() => {
+            setIsRecipientInBeneficiaries(true);
+          }, 300);
+        }, 2000);
+        return true;
+      }
+      setIsSavingRecipient(false);
+      return false;
+    } catch (error) {
+      console.error("Error saving recipient:", error);
+      setIsSavingRecipient(false);
+      return false;
     }
   };
 
@@ -921,8 +924,8 @@ export function TransactionStatus({
             : transactionStatus === "expired"
               ? "Payment window expired"
               : !["validated", "settling", "settled"].includes(
-                    transactionStatus,
-                  )
+                transactionStatus,
+              )
                 ? "Processing payment..."
                 : "Transaction successful"}
         </AnimatedComponent>
@@ -997,130 +1000,130 @@ export function TransactionStatus({
             "refunded",
             "expired",
           ].includes(transactionStatus) && (
-            <>
-              {/* BlockFest Cashback Component - only when validated/settling/settled and claimed and on Base network */}
-              {isBlockFestEligible(
-                transactionStatus,
-                claimed,
-                orderDetails,
-                orderId,
-              ) && (
-                  <AnimatedComponent
-                    variant={slideInOut}
-                    delay={0.45}
-                    className="flex justify-center"
-                  >
-                    <BlockFestCashbackComponent
-                      transactionId={orderId}
-                      cashbackPercentage="1%"
-                    />
-                  </AnimatedComponent>
-                )}
+              <>
+                {/* BlockFest Cashback Component - only when validated/settling/settled and claimed and on Base network */}
+                {isBlockFestEligible(
+                  transactionStatus,
+                  claimed,
+                  orderDetails,
+                  orderId,
+                ) && (
+                    <AnimatedComponent
+                      variant={slideInOut}
+                      delay={0.45}
+                      className="flex justify-center"
+                    >
+                      <BlockFestCashbackComponent
+                        transactionId={orderId}
+                        cashbackPercentage="1%"
+                      />
+                    </AnimatedComponent>
+                  )}
 
-              <AnimatedComponent
-                variant={slideInOut}
-                delay={0.5}
-                className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
-              >
-                {["validated", "settling", "settled"].includes(transactionStatus) && (
+                <AnimatedComponent
+                  variant={slideInOut}
+                  delay={0.5}
+                  className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
+                >
+                  {["validated", "settling", "settled"].includes(transactionStatus) && (
+                    <button
+                      type="button"
+                      onClick={handleGetReceipt}
+                      className={`w-fit ${secondaryBtnClasses}`}
+                      disabled={isGettingReceipt}
+                    >
+                      {isGettingReceipt ? "Generating..." : "Get receipt"}
+                    </button>
+                  )}
+
                   <button
                     type="button"
-                    onClick={handleGetReceipt}
-                    className={`w-fit ${secondaryBtnClasses}`}
-                    disabled={isGettingReceipt}
+                    onClick={handleBackButtonClick}
+                    className={`w-fit ${primaryBtnClasses}`}
                   >
-                    {isGettingReceipt ? "Generating..." : "Get receipt"}
+                    {transactionStatus === "refunded" ||
+                      transactionStatus === "expired"
+                      ? "Retry transaction"
+                      : "New payment"}
                   </button>
-                )}
+                </AnimatedComponent>
 
-                <button
-                  type="button"
-                  onClick={handleBackButtonClick}
-                  className={`w-fit ${primaryBtnClasses}`}
-                >
-                  {transactionStatus === "refunded" ||
-                  transactionStatus === "expired"
-                    ? "Retry transaction"
-                    : "New payment"}
-                </button>
-              </AnimatedComponent>
-
-              {!isOnramp && ["validated", "settling", "settled"].includes(transactionStatus) &&
-                !isRecipientInBeneficiaries && (
-                  <AnimatePresence mode="wait">
-                    {isSavingRecipient ? (
-                      <AnimatedComponent
-                        key="saving"
-                        variant={fadeUpAnimation}
-                        className="flex items-center gap-2"
-                      >
-                        <div className="mt-1 flex h-4 w-4 items-center justify-center">
-                          <ImSpinner className="h-4 w-4 animate-spin text-text-body dark:text-white/80" />
-                        </div>
-                        <span className="text-text-body dark:text-white/80">
-                          Saving to beneficiaries...
-                        </span>
-                      </AnimatedComponent>
-                    ) : showSaveSuccess ? (
-                      <AnimatedComponent
-                        key="success"
-                        variant={slideInOut}
-                        className="flex items-center gap-2"
-                      >
-                        <div className="mt-1 flex h-4 w-4 items-center justify-center">
-                          <CheckmarkCircle01Icon className="h-4 w-4 text-green-500" />
-                        </div>
-                        <span className="text-green-600 dark:text-green-400">
-                          Saved to beneficiaries!
-                        </span>
-                      </AnimatedComponent>
-                    ) : (
-                      <AnimatedComponent
-                        key="checkbox"
-                        variant={fadeUpAnimation}
-                        className="flex gap-2"
-                      >
-                        <Checkbox
-                          checked={addToBeneficiaries}
-                          onChange={handleAddToBeneficiariesChange}
-                          className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
+                {!isOnramp && ["validated", "settling", "settled"].includes(transactionStatus) &&
+                  !isRecipientInBeneficiaries && (
+                    <AnimatePresence mode="wait">
+                      {isSavingRecipient ? (
+                        <AnimatedComponent
+                          key="saving"
+                          variant={fadeUpAnimation}
+                          className="flex items-center gap-2"
                         >
-                          <svg
-                            className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
-                            viewBox="0 0 14 14"
-                            fill="none"
+                          <div className="mt-1 flex h-4 w-4 items-center justify-center">
+                            <ImSpinner className="h-4 w-4 animate-spin text-text-body dark:text-white/80" />
+                          </div>
+                          <span className="text-text-body dark:text-white/80">
+                            Saving to beneficiaries...
+                          </span>
+                        </AnimatedComponent>
+                      ) : showSaveSuccess ? (
+                        <AnimatedComponent
+                          key="success"
+                          variant={slideInOut}
+                          className="flex items-center gap-2"
+                        >
+                          <div className="mt-1 flex h-4 w-4 items-center justify-center">
+                            <CheckmarkCircle01Icon className="h-4 w-4 text-green-500" />
+                          </div>
+                          <span className="text-green-600 dark:text-green-400">
+                            Saved to beneficiaries!
+                          </span>
+                        </AnimatedComponent>
+                      ) : (
+                        <AnimatedComponent
+                          key="checkbox"
+                          variant={fadeUpAnimation}
+                          className="flex gap-2"
+                        >
+                          <Checkbox
+                            checked={addToBeneficiaries}
+                            onChange={handleAddToBeneficiariesChange}
+                            className="group mt-1 block size-4 flex-shrink-0 cursor-pointer rounded border-2 border-gray-300 bg-transparent data-[checked]:border-lavender-500 data-[checked]:bg-lavender-500 dark:border-white/30 dark:data-[checked]:border-lavender-500"
                           >
-                            <title>
-                              {addToBeneficiaries
-                                ? "Remove from beneficiaries"
-                                : "Add to your beneficiaries"}
-                            </title>
-                            <path
-                              d="M3 8L6 11L11 3.5"
-                              strokeWidth={2}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </Checkbox>
-                        <label className="text-text-body dark:text-white/80">
-                          Add{" "}
-                          {(recipientName ?? "")
-                            .split(" ")[0]
-                            .charAt(0)
-                            .toUpperCase() +
-                            (recipientName ?? "")
-                              .toLowerCase()
+                            <svg
+                              className="stroke-white/50 opacity-0 group-data-[checked]:opacity-100 dark:stroke-neutral-800"
+                              viewBox="0 0 14 14"
+                              fill="none"
+                            >
+                              <title>
+                                {addToBeneficiaries
+                                  ? "Remove from beneficiaries"
+                                  : "Add to your beneficiaries"}
+                              </title>
+                              <path
+                                d="M3 8L6 11L11 3.5"
+                                strokeWidth={2}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </Checkbox>
+                          <label className="text-text-body dark:text-white/80">
+                            Add{" "}
+                            {(recipientName ?? "")
                               .split(" ")[0]
-                              .slice(1)}{" "}
-                          to beneficiaries
-                        </label>
-                      </AnimatedComponent>
-                    )}
-                  </AnimatePresence>
-                )}
-            </>
-          )}
+                              .charAt(0)
+                              .toUpperCase() +
+                              (recipientName ?? "")
+                                .toLowerCase()
+                                .split(" ")[0]
+                                .slice(1)}{" "}
+                            to beneficiaries
+                          </label>
+                        </AnimatedComponent>
+                      )}
+                    </AnimatePresence>
+                  )}
+              </>
+            )}
         </AnimatePresence>
 
         {[
@@ -1130,8 +1133,8 @@ export function TransactionStatus({
           "refunded",
           "expired",
         ].includes(transactionStatus) && (
-          <hr className="w-full border-dashed border-border-light dark:border-white/10" />
-        )}
+            <hr className="w-full border-dashed border-border-light dark:border-white/10" />
+          )}
 
         <AnimatePresence>
           {[

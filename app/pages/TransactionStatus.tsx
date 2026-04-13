@@ -70,11 +70,12 @@ const isBlockFestEligible = (
   claimed: boolean | null,
   orderDetails: any,
   orderId: string | null,
+  isOnrampFlow = false,
 ) => {
   const isCampaignActive = isBlockFestActive();
-  const isTransactionComplete = ["validated", "settling", "settled"].includes(
-    transactionStatus,
-  );
+  const isTransactionComplete = isOnrampFlow
+    ? transactionStatus === "settled"
+    : ["validated", "settling", "settled"].includes(transactionStatus);
   const isUserClaimed = claimed === true;
   const isBaseNetwork = orderDetails?.network?.toLowerCase() === "base";
   const hasValidOrder = Boolean(orderId && orderDetails?.token);
@@ -133,6 +134,8 @@ export function TransactionStatus({
 
   const [orderDetails, setOrderDetails] = useState<OrderDetailsData>();
   const [completedAt, setCompletedAt] = useState<string>("");
+  /** On-ramp: set once when status leaves `pending` so "Time spent" measures from processing start. */
+  const [processingStartedAt, setProcessingStartedAt] = useState<string>("");
   const [createdHash, setCreatedHash] = useState("");
   const [isGettingReceipt, setIsGettingReceipt] = useState(false);
   const [addToBeneficiaries, setAddToBeneficiaries] = useState(false);
@@ -151,7 +154,21 @@ export function TransactionStatus({
   useEffect(() => {
     lastPersistedOrderStatusRef.current = null;
     lastFulfillPersistKeyRef.current = null;
+    setProcessingStartedAt("");
   }, [orderId]);
+
+  useEffect(
+    function recordOnrampProcessingStart() {
+      if (!isOnramp || processingStartedAt) return;
+      const isProcessing =
+        transactionStatus === "fulfilling" ||
+        transactionStatus === "fulfilled" ||
+        ["validated", "settling"].includes(transactionStatus);
+      if (!isProcessing) return;
+      setProcessingStartedAt(new Date().toISOString());
+    },
+    [isOnramp, transactionStatus, processingStartedAt],
+  );
 
   const { watch } = formMethods;
   const token = watch("token") || "";
@@ -162,6 +179,39 @@ export function TransactionStatus({
   const accountIdentifier = watch("accountIdentifier") || "";
   const institution = watch("institution") || "";
   const recipientWalletAddress = String(watch("walletAddress") || "");
+
+  /** Off-ramp: success visuals for validated | settling | settled. On-ramp: only `settled` (loading/processing until then). */
+  const showSuccessVisual =
+    (!isOnramp &&
+      ["validated", "settling", "settled"].includes(transactionStatus)) ||
+    (isOnramp && transactionStatus === "settled");
+
+  /** Order meta / dashed hr: off-ramp unchanged; on-ramp only after final or terminal failure. */
+  const showOrderMetaSection =
+    (!isOnramp &&
+      ["validated", "settling", "settled", "refunded", "expired"].includes(
+        transactionStatus,
+      )) ||
+    (isOnramp &&
+      ["settled", "refunded", "expired"].includes(transactionStatus));
+
+  /** Off-ramp: show during validated|settling|settled. On-ramp: only after order is done or terminal failure. */
+  const showNewPaymentButton =
+    !isOnramp ||
+    ["settled", "refunded", "expired"].includes(transactionStatus);
+
+  const showGetReceiptButton =
+    !isOnramp &&
+    ["validated", "settling", "settled"].includes(transactionStatus);
+
+  /** Off-ramp: same as always — order created → completed. */
+  const offRampTimeSpentLabel = calculateDuration(createdAt, completedAt);
+  /** On-ramp only — from first processing status (fulfilling / fulfilled / validated / settling). */
+  const onRampTimeSpentLabel = calculateDuration(
+    processingStartedAt || createdAt,
+    completedAt,
+  );
+  const timeSpentLabel = isOnramp ? onRampTimeSpentLabel : offRampTimeSpentLabel;
 
   // Check if recipient is already saved in the database
   const [isRecipientInBeneficiaries, setIsRecipientInBeneficiaries] =
@@ -465,11 +515,17 @@ export function TransactionStatus({
           "Recipient bank": bankName,
           "Wallet balance": balance,
           "Swap date": createdAt,
-          "Transaction duration": calculateDuration(createdAt, completedAt),
+          "Transaction duration": isOnramp
+            ? calculateDuration(processingStartedAt || createdAt, completedAt)
+            : calculateDuration(createdAt, completedAt),
           "Wallet type": isInjectedWallet ? "Injected" : "Smart wallet",
         };
 
-        if (["validated", "settling", "settled"].includes(transactionStatus)) {
+        if (
+          (!isOnramp &&
+            ["validated", "settling", "settled"].includes(transactionStatus)) ||
+          (isOnramp && transactionStatus === "settled")
+        ) {
           trackEvent("Swap completed", eventData);
           setIsTracked(true);
         } else if (transactionStatus === "refunded") {
@@ -491,15 +547,16 @@ export function TransactionStatus({
    */
   useEffect(
     function fireConfettiOnSuccess() {
-      if (
-        ["validated", "settling", "settled"].includes(transactionStatus) &&
-        !hasShownConfetti
-      ) {
+      const shouldCelebrate =
+        (!isOnramp &&
+          ["validated", "settling", "settled"].includes(transactionStatus)) ||
+        (isOnramp && transactionStatus === "settled");
+      if (shouldCelebrate && !hasShownConfetti) {
         fireConfetti();
         setHasShownConfetti(true);
       }
     },
-    [transactionStatus, fireConfetti, hasShownConfetti],
+    [transactionStatus, fireConfetti, hasShownConfetti, isOnramp],
   );
 
   /**
@@ -586,7 +643,7 @@ export function TransactionStatus({
    */
   const StatusIndicator = () => (
     <AnimatePresence mode="wait">
-      {["validated", "settling", "settled"].includes(transactionStatus) ? (
+      {showSuccessVisual ? (
         <AnimatedComponent variant={scaleInOut} key="settled">
           <CheckmarkCircle01Icon className="size-10" color="#39C65D" />
         </AnimatedComponent>
@@ -604,7 +661,11 @@ export function TransactionStatus({
           key="pending"
           className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${transactionStatus === "pending"
             ? "bg-orange-50 text-orange-400"
-            : transactionStatus === "fulfilling"
+            : transactionStatus === "fulfilling" ||
+                (isOnramp &&
+                  ["fulfilled", "validated", "settling"].includes(
+                    transactionStatus,
+                  ))
               ? "bg-yellow-50 text-yellow-400"
               : transactionStatus === "fulfilled"
                 ? "bg-green-50 text-green-400"
@@ -615,9 +676,15 @@ export function TransactionStatus({
         >
           <ImSpinner className="animate-spin" />
           <p>
-            {transactionStatus === "fulfilling"
+            {transactionStatus === "fulfilling" ||
+            (isOnramp && transactionStatus === "fulfilled")
               ? "processing"
-              : transactionStatus}
+              : isOnramp && transactionStatus === "pending"
+                ? "awaiting payment"
+                : isOnramp &&
+                    ["validated", "settling"].includes(transactionStatus)
+                  ? "processing"
+                  : transactionStatus}
           </p>
         </AnimatedComponent>
       )}
@@ -799,41 +866,104 @@ export function TransactionStatus({
       );
     }
 
-    if (!["validated", "settling", "settled"].includes(transactionStatus)) {
+    // On-ramp: waiting for fiat — show with provider / VA details (not "processing" yet)
+    if (isOnramp && transactionStatus === "pending") {
+      return (
+        <>
+          Send{" "}
+          <span className="text-text-body dark:text-white">{amountDisplay}</span>{" "}
+          using the payment details below. This order stays pending until we receive
+          your bank transfer.
+        </>
+      );
+    }
+
+    // On-ramp: backend moved past pending (fulfilling, fulfilled, validated, settling, etc.)
+    if (
+      isOnramp &&
+      !["validated", "settling", "settled", "refunded", "expired", "pending"].includes(
+        transactionStatus,
+      )
+    ) {
+      return (
+        <>
+          {transactionStatus === "refunding" ? "Refunding" : "Processing"} your
+          on-ramp payment of{" "}
+          <span className="text-text-body dark:text-white">{amountDisplay}</span>
+          {transactionStatus === "refunding"
+            ? "."
+            : ". We're confirming your transfer and sending crypto to your wallet."}
+        </>
+      );
+    }
+
+    // On-ramp: validated / settling = still processing (loading), not completion copy
+    if (
+      isOnramp &&
+      ["validated", "settling"].includes(transactionStatus)
+    ) {
+      return (
+        <>
+          Processing payment of{" "}
+          <span className="text-text-body dark:text-white">
+            {amountDisplay}
+          </span>
+          . Hang on, this will only take a few seconds.
+        </>
+      );
+    }
+
+    // Off-ramp only: original non-success copy
+    if (
+      !isOnramp &&
+      !["validated", "settling", "settled"].includes(transactionStatus)
+    ) {
       return (
         <>
           {transactionStatus === "refunding" ? "Refunding" : "Processing"} payment of{" "}
           <span className="text-text-body dark:text-white">
             {amountDisplay}
           </span>{" "}
-          {isOnramp ? ". Hang on, this will only take a few seconds" : `to ${formattedRecipientName}. Hang on, this will only take a few seconds`}
+          {`to ${formattedRecipientName}. Hang on, this will only take a few seconds`}
         </>
       );
     }
 
-    return (
-      <>
-        Your transfer of{" "}
-        <span className="text-text-body dark:text-white">
-          {amountDisplay}
-        </span>{" "}
-        {isOnramp
-          ? "has been completed successfully."
-          : `to ${formattedRecipientName} has been completed successfully.`}
-      </>
-    );
+    if (showSuccessVisual) {
+      return (
+        <>
+          Your transfer of{" "}
+          <span className="text-text-body dark:text-white">
+            {amountDisplay}
+          </span>{" "}
+          {isOnramp
+            ? "has been completed successfully."
+            : `to ${formattedRecipientName} has been completed successfully.`}
+        </>
+      );
+    }
+
+    // On-ramp: unexpected non-terminal status
+    if (isOnramp) {
+      return (
+        <>
+          Processing your on-ramp payment of{" "}
+          <span className="text-text-body dark:text-white">{amountDisplay}</span>
+          . Hang on, this will only take a few seconds.
+        </>
+      );
+    }
+
+    return null;
   };
 
   const getImageSrc = () => {
-    const base = ![
-      "validated",
-      "settling",
-      "settled",
-      "refunded",
-      "expired",
-    ].includes(transactionStatus)
-      ? "/images/stepper"
-      : "/images/stepper-long";
+    const useLongStepper = !isOnramp
+      ? ["validated", "settling", "settled", "refunded", "expired"].includes(
+          transactionStatus,
+        )
+      : ["settled", "refunded", "expired"].includes(transactionStatus);
+    const base = useLongStepper ? "/images/stepper-long" : "/images/stepper";
     const themeSuffix = resolvedTheme === "dark" ? "-dark.svg" : ".svg";
     return base + themeSuffix;
   };
@@ -923,11 +1053,17 @@ export function TransactionStatus({
             ? "Oops! Transaction failed"
             : transactionStatus === "expired"
               ? "Payment window expired"
-              : !["validated", "settling", "settled"].includes(
-                transactionStatus,
-              )
-                ? "Processing payment..."
-                : "Transaction successful"}
+              : !isOnramp
+                ? !["validated", "settling", "settled"].includes(
+                    transactionStatus,
+                  )
+                  ? "Processing payment..."
+                  : "Transaction successful"
+                : transactionStatus === "pending"
+                  ? "Complete your payment"
+                  : transactionStatus === "settled"
+                    ? "Transaction successful"
+                    : "Processing payment..."}
         </AnimatedComponent>
 
         <div className="flex w-full items-center gap-2 text-neutral-900 dark:text-white/80 sm:hidden">
@@ -1007,6 +1143,7 @@ export function TransactionStatus({
                   claimed,
                   orderDetails,
                   orderId,
+                  isOnramp,
                 ) && (
                     <AnimatedComponent
                       variant={slideInOut}
@@ -1020,15 +1157,13 @@ export function TransactionStatus({
                     </AnimatedComponent>
                   )}
 
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.5}
-                  className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
-                >
-                  {!isOnramp &&
-                    ["validated", "settling", "settled"].includes(
-                      transactionStatus,
-                    ) && (
+                {(showGetReceiptButton || showNewPaymentButton) && (
+                  <AnimatedComponent
+                    variant={slideInOut}
+                    delay={0.5}
+                    className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
+                  >
+                    {showGetReceiptButton && (
                       <button
                         type="button"
                         onClick={handleGetReceipt}
@@ -1039,17 +1174,20 @@ export function TransactionStatus({
                       </button>
                     )}
 
-                  <button
-                    type="button"
-                    onClick={handleBackButtonClick}
-                    className={`w-fit ${primaryBtnClasses}`}
-                  >
-                    {transactionStatus === "refunded" ||
-                      transactionStatus === "expired"
-                      ? "Retry transaction"
-                      : "New payment"}
-                  </button>
-                </AnimatedComponent>
+                    {showNewPaymentButton && (
+                      <button
+                        type="button"
+                        onClick={handleBackButtonClick}
+                        className={`w-fit ${primaryBtnClasses}`}
+                      >
+                        {transactionStatus === "refunded" ||
+                        transactionStatus === "expired"
+                          ? "Retry transaction"
+                          : "New payment"}
+                      </button>
+                    )}
+                  </AnimatedComponent>
+                )}
 
                 {!isOnramp && ["validated", "settling", "settled"].includes(transactionStatus) &&
                   !isRecipientInBeneficiaries && (
@@ -1129,24 +1267,12 @@ export function TransactionStatus({
             )}
         </AnimatePresence>
 
-        {[
-          "validated",
-          "settling",
-          "settled",
-          "refunded",
-          "expired",
-        ].includes(transactionStatus) && (
+        {showOrderMetaSection && (
             <hr className="w-full border-dashed border-border-light dark:border-white/10" />
           )}
 
         <AnimatePresence>
-          {[
-            "validated",
-            "settling",
-            "settled",
-            "refunded",
-            "expired",
-          ].includes(transactionStatus) && (
+          {showOrderMetaSection && (
               <AnimatedComponent
                 variant={{
                   ...fadeInOut,
@@ -1179,9 +1305,7 @@ export function TransactionStatus({
                 </div>
                 <div className="flex items-center justify-between gap-1">
                   <p className="flex-1">Time spent</p>
-                  <p className="flex-1">
-                    {calculateDuration(createdAt, completedAt)}
-                  </p>
+                  <p className="flex-1">{timeSpentLabel}</p>
                 </div>
                 <div className="flex items-center justify-between gap-1">
                   <p className="flex-1">Onchain receipt</p>
@@ -1210,12 +1334,13 @@ export function TransactionStatus({
         </AnimatePresence>
 
         <AnimatePresence>
-          {["validated", "settling", "settled"].includes(transactionStatus) &&
+          {showSuccessVisual &&
             !isBlockFestEligible(
               transactionStatus,
               claimed,
               orderDetails,
               orderId,
+              isOnramp,
             ) && (
               <AnimatedComponent
                 variant={slideInOut}
@@ -1230,7 +1355,7 @@ export function TransactionStatus({
                   <YellowHeart className="size-8 flex-shrink-0" />
                   <p>
                     Yay! I just swapped {isOnramp ? `${currency} for ${token}` : `${token} for ${currency}`} in{" "}
-                    {calculateDuration(createdAt, completedAt)} on noblocks.xyz
+                    {timeSpentLabel} on noblocks.xyz
                   </p>
                   <QuotesBgIcon className="absolute -bottom-1 right-4 size-6" />
                 </div>
@@ -1240,7 +1365,7 @@ export function TransactionStatus({
                     aria-label="Share on Twitter"
                     rel="noopener noreferrer"
                     target="_blank"
-                    href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${isOnramp ? `${currency}%20for%20${token}` : `${token}%20for%20${currency}`}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
+                    href={`https://x.com/intent/tweet?text=I%20just%20swapped%20${isOnramp ? `${currency}%20for%20${token}` : `${token}%20for%20${currency}`}%20in%20${isOnramp ? encodeURIComponent(onRampTimeSpentLabel) : offRampTimeSpentLabel}%20on%20noblocks.xyz`}
                     className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                   >
                     {resolvedTheme === "dark" ? (
@@ -1254,7 +1379,7 @@ export function TransactionStatus({
                     aria-label="Share on Warpcast"
                     rel="noopener noreferrer"
                     target="_blank"
-                    href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${isOnramp ? `${currency}%20for%20${token}` : `${token}%20for%20${currency}`}%20in%20${calculateDuration(createdAt, completedAt)}%20on%20noblocks.xyz`}
+                    href={`https://warpcast.com/~/compose?text=Yay%21%20I%20just%20swapped%20${isOnramp ? `${currency}%20for%20${token}` : `${token}%20for%20${currency}`}%20in%20${isOnramp ? encodeURIComponent(onRampTimeSpentLabel) : encodeURIComponent(offRampTimeSpentLabel)}%20on%20noblocks.xyz`}
                     className={`min-h-9 !rounded-full ${secondaryBtnClasses} flex gap-2 text-neutral-900 dark:text-white/80`}
                   >
                     {resolvedTheme === "dark" ? (

@@ -20,13 +20,17 @@ import {
   shortenAddress,
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
-import { getDelegationContractAddress } from "../lib/config";
+import {
+  getDelegationContractAddress,
+  localTransferFeePercent,
+} from "../lib/config";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
   Token,
   TransactionPreviewProps,
   TransactionCreateInput,
   RefundAccountDetails,
+  V2FiatProviderAccountDTO,
 } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components/Styles";
 import { gatewayAbi } from "../api/abi";
@@ -113,6 +117,7 @@ export const TransactionPreview = ({
     setOrderId,
     setCreatedAt,
     setTransactionStatus,
+    onrampPaymentAccount,
     setOnrampPaymentAccount,
   } = stateProps;
 
@@ -129,6 +134,7 @@ export const TransactionPreview = ({
   } = formValues;
 
   const isOnramp = !!walletAddress;
+  const isCNGNOnramp = isOnramp && token?.toUpperCase() === "CNGN";
   const currencySymbol = currency ? getCurrencySymbol(currency) : "";
 
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -228,27 +234,32 @@ export const TransactionPreview = ({
   // Rendered tsx info
   const renderedInfo = isOnramp
     ? {
-        amount: `${currencySymbol}${formatNumberWithCommas(amountSent ?? 0)}`,
-        totalValue: `${formatNumberWithCommas(amountReceived ?? 0)} ${token}`,
-        rate: `${currencySymbol}${formatNumberWithCommas(rate)} ~ 1 ${token}`,
-        recipient: walletAddress ? shortenAddress(walletAddress) : "",
-        network: selectedNetwork.chain.name,
-      }
+      amount: `${currencySymbol}${formatNumberWithCommas(amountSent ?? 0)}`,
+      totalValue: `${formatNumberWithCommas(amountReceived ?? 0)} ${token}`,
+      rate: `${currencySymbol}${formatNumberWithCommas(rate)} ~ 1 ${token}`,
+      ...(isCNGNOnramp && localTransferFeePercent > 0
+        ? {
+          fee: `${localTransferFeePercent}%`,
+        }
+        : {}),
+      recipient: walletAddress ? shortenAddress(walletAddress) : "",
+      network: selectedNetwork.chain.name,
+    }
     : {
-        amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
-        totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
-        recipient: recipientName
-          .toLowerCase()
-          .split(" ")
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(" "),
-        account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
-        ...(memo && { description: memo }),
-        ...(senderFeeAmount > 0 && {
-          fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
-        }),
-        network: selectedNetwork.chain.name,
-      };
+      amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
+      totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
+      recipient: recipientName
+        .toLowerCase()
+        .split(" ")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+      account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
+      ...(memo && { description: memo }),
+      ...(senderFeeAmount > 0 && {
+        fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
+      }),
+      network: selectedNetwork.chain.name,
+    };
 
   const prepareCreateOrderParams = async () => {
     const providerId =
@@ -257,20 +268,20 @@ export const TransactionPreview = ({
     // Prepare recipient data
     const recipient = isOnramp
       ? {
-          accountIdentifier: walletAddress || "",
-          accountName: recipientName || walletAddress || "",
-          institution: "Wallet",
-          ...(providerId && { providerId }),
-          nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
-        }
+        accountIdentifier: walletAddress || "",
+        accountName: recipientName || walletAddress || "",
+        institution: "Wallet",
+        ...(providerId && { providerId }),
+        nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+      }
       : {
-          accountIdentifier: formValues.accountIdentifier,
-          accountName: recipientName,
-          institution: formValues.institution,
-          memo: formValues.memo,
-          ...(providerId && { providerId }),
-          nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
-        };
+        accountIdentifier: formValues.accountIdentifier,
+        accountName: recipientName,
+        institution: formValues.institution,
+        memo: formValues.memo,
+        ...(providerId && { providerId }),
+        nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+      };
 
     // Fetch aggregator public key
     const publicKey = await fetchAggregatorPublicKey();
@@ -667,6 +678,9 @@ export const TransactionPreview = ({
         const payload = {
           amount: String(amountSent),
           amountIn: "fiat" as const,
+          ...(isCNGNOnramp && localTransferFeePercent > 0
+            ? { senderFeePercent: String(localTransferFeePercent) }
+            : {}),
           source: {
             type: "fiat" as const,
             currency,
@@ -688,10 +702,6 @@ export const TransactionPreview = ({
           },
         };
 
-        // DEBUG: remove — onramp v2 payload (dev only)
-        if (process.env.NODE_ENV === "development") {
-          console.log("[onramp] v2 payload →", JSON.stringify(payload, null, 2));
-        }
 
         const res = await createV2SenderPaymentOrder(payload, accessToken);
         if (res.status !== "success" || !res.data) {
@@ -713,6 +723,7 @@ export const TransactionPreview = ({
         await saveTransactionData({
           orderId: orderIdStr,
           txHash: undefined,
+          providerAccount: created.providerAccount,
         });
 
         toast.success("Payment instructions ready");
@@ -755,9 +766,12 @@ export const TransactionPreview = ({
   const saveTransactionData = async ({
     orderId,
     txHash,
+    providerAccount,
   }: {
     orderId: string;
     txHash?: `0x${string}`;
+    /** Pass from create-order response so bank name is saved before React state updates. */
+    providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {
     if (!activeWallet?.address || isSavingTransaction) return;
     setIsSavingTransaction(true);
@@ -778,19 +792,22 @@ export const TransactionPreview = ({
         fee: Number(rate),
         recipient: isOnramp
           ? {
-              account_name: recipientName || walletAddress || "",
-              institution: "Wallet",
-              account_identifier: walletAddress || "",
-            }
+            account_name: recipientName || walletAddress || "",
+            institution:
+              providerAccount?.institution?.trim() ||
+              onrampPaymentAccount?.institution?.trim() ||
+              "Wallet",
+            account_identifier: walletAddress || "",
+          }
           : {
-              account_name: recipientName,
-              institution: getInstitutionNameByCode(
-                institution,
-                supportedInstitutions,
-              ) as string,
-              account_identifier: accountIdentifier,
-              ...(memo && { memo }),
-            },
+            account_name: recipientName,
+            institution: getInstitutionNameByCode(
+              institution,
+              supportedInstitutions,
+            ) as string,
+            account_identifier: accountIdentifier,
+            ...(memo && { memo }),
+          },
         status: "pending",
         network: selectedNetwork.chain.name,
         orderId: orderId,

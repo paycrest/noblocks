@@ -39,6 +39,7 @@ export const RecipientDetailsForm = ({
   isSwapped = false,
   token,
   networkName,
+  connectedWalletAddress,
 }: RecipientDetailsFormProps) => {
   const {
     watch,
@@ -288,21 +289,21 @@ export const RecipientDetailsForm = ({
     const getRecipientName = async () => {
       if (!isManualEntry) return;
 
-const isNGN = currency === "NGN";
-const digits = String(accountIdentifier ?? "").replace(/\D/g, "");
-const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
+      const isNGN = currency === "NGN";
+      const digits = String(accountIdentifier ?? "").replace(/\D/g, "");
+      const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
 
-if (
-  !institution ||
-  !accountIdentifier ||
-  accountIdentifier.toString().length <
-    (selectedInstitution?.code === "SAFAKEPC" ? 6 : 10)
-) {
-  if (!institution || !accountIdentifier) {
-    setRecipientNameError("");
-  }
-  return;
-}
+      if (
+        !institution ||
+        !accountIdentifier ||
+        accountIdentifier.toString().length <
+        (selectedInstitution?.code === "SAFAKEPC" ? 6 : 10)
+      ) {
+        if (!institution || !accountIdentifier) {
+          setRecipientNameError("");
+        }
+        return;
+      }
 
       if (isNGN && digits.length !== requiredLen) {
         if (digits.length > 0) {
@@ -422,71 +423,104 @@ if (
     [savedRecipients],
   );
 
+  const showMyWalletButton = Boolean(isSwapped && connectedWalletAddress);
+  const showSelectBeneficiaryButton =
+    (isSwapped && walletRecipients.length > 0) ||
+    (!isSwapped && bankRecipients.length > 0);
+
   return (
     <>
       <div className="space-y-4 rounded-2xl bg-white p-4 text-sm dark:bg-surface-canvas">
-        <div className="flex items-center justify-between *:font-medium">
-          <p className="text-base text-text-body dark:text-white">Recipient</p>
-          {/* Show Select beneficiary button when there are saved recipients */}
-          {((isSwapped && walletRecipients.length > 0) || (!isSwapped && bankRecipients.length > 0)) && (
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(true)}
-              className="text-lavender-500 dark:text-lavender-500"
-            >
-              Select beneficiary
-            </button>
+        <div className="flex items-center justify-between">
+          <p className="text-base font-medium text-text-body dark:text-white">
+            Recipient
+          </p>
+          {(showMyWalletButton || showSelectBeneficiaryButton) && (
+            <div className="flex items-center gap-3 font-medium">
+              {showMyWalletButton && (
+                <div className="flex items-center gap-2">
+                  <span
+                    className="font-mono text-xs text-text-disabled dark:text-white/45"
+                    aria-label={`Connected wallet starts with ${connectedWalletAddress!.slice(0, 5)}`}
+                  >
+                    {connectedWalletAddress!.slice(0, 5)}...
+                  </span>
+                  <button
+                    type="button"
+                    title="Fill with your connected wallet address"
+                    onClick={() =>
+                      setValue("walletAddress", connectedWalletAddress!, {
+                        shouldValidate: true,
+                        shouldDirty: true,
+                      })
+                    }
+                    className="text-sm text-lavender-500 transition-colors hover:text-lavender-400 dark:text-lavender-500 dark:hover:text-lavender-400"
+                  >
+                    My wallet
+                  </button>
+                </div>
+              )}
+              {showSelectBeneficiaryButton && (
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(true)}
+                  className="text-sm text-lavender-500 dark:text-lavender-500"
+                >
+                  Select beneficiary
+                </button>
+              )}
+            </div>
           )}
         </div>
 
-     {isSwapped ? (
-    <div className="space-y-3">
-      <input
-        type="text"
-        placeholder={`Enter ${token || "stablecoin"} wallet address`}
-        {...register("walletAddress", {
-          required: {
-            value: true,
-            message: "Wallet address is required",
-          },
-          validate: (value) => {
-            if (!value) return true;
-            if (!isValidEvmAddressCaseInsensitive(value)) {
-              return "Invalid wallet address format";
-            }
-            return true;
-          },
-        })}
-        className={classNames(
-          "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
-          errors.walletAddress
-            ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
-            : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
-        )}
-      />
-      {errors.walletAddress && (
-        <InputError message={errors.walletAddress.message} />
-      )}
-      {networkName && (
-        <div className="flex items-center gap-2 text-xs text-text-disabled dark:text-white/30">
-          <div className="flex size-5 items-center justify-center">
-            <Image
-              src={getNetworkImageUrl(selectedNetwork, isDark)}
-              alt={selectedNetwork.chain.name}
-              width={20}
-              height={20}
-              className="size-5 rounded-full"
+        {isSwapped ? (
+          <div className="space-y-3">
+            <input
+              type="text"
+              placeholder={`Enter ${token || "stablecoin"} wallet address`}
+              {...register("walletAddress", {
+                required: {
+                  value: true,
+                  message: "Wallet address is required",
+                },
+                validate: (value) => {
+                  if (!value) return true;
+                  if (!isValidEvmAddressCaseInsensitive(value)) {
+                    return "Invalid wallet address format";
+                  }
+                  return true;
+                },
+              })}
+              className={classNames(
+                "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
+                errors.walletAddress
+                  ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
+                  : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
+              )}
             />
+            {errors.walletAddress && (
+              <InputError message={errors.walletAddress.message} />
+            )}
+            {networkName && (
+              <div className="flex items-center gap-2 text-xs text-text-disabled dark:text-white/30">
+                <div className="flex size-5 items-center justify-center">
+                  <Image
+                    src={getNetworkImageUrl(selectedNetwork, isDark)}
+                    alt={selectedNetwork.chain.name}
+                    width={20}
+                    height={20}
+                    className="size-5 rounded-full"
+                  />
+                </div>
+                <span
+                  className="text-xs font-normal leading-4 tracking-normal"
+                  style={{ fontFamily: "Inter" }}
+                >
+                  You are on {formatNetworkName(networkName)} network
+                </span>
+              </div>
+            )}
           </div>
-          <span
-            className="text-xs font-normal leading-4 tracking-normal"
-            style={{ fontFamily: "Inter" }}
-          >
-            You are on {formatNetworkName(networkName)} network
-          </span>
-        </div>
-      )}
-    </div>
         ) : (
           /* Bank/Mobile Money fields for offramp */
           <>

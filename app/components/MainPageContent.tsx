@@ -42,7 +42,6 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
 import { useBalance, useInjectedWallet } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
-
 const PageLayout = ({
   authenticated,
   ready,

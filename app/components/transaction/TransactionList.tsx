@@ -37,6 +37,7 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   fulfilled: "text-blue-500",
   pending: "text-orange-500",
   processing: "text-yellow-500",
+  expired: "text-amber-600 dark:text-amber-500",
 };
 
 // Individual transaction list item component
@@ -88,7 +89,7 @@ export const TransactionListItem = ({
             <span
               className={classNames(
                 STATUS_COLOR_MAP[transaction.status] ||
-                  "text-text-secondary dark:text-white/50",
+                "text-text-secondary dark:text-white/50",
               )}
             >
               {transaction.status}
@@ -307,7 +308,7 @@ export default function TransactionList({
                               <span
                                 className={classNames(
                                   STATUS_COLOR_MAP[transaction.status] ||
-                                    "text-text-secondary dark:text-white/50",
+                                  "text-text-secondary dark:text-white/50",
                                 )}
                               >
                                 {transaction.status}

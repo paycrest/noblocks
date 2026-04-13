@@ -9,6 +9,8 @@ import type {
   InitiateKYCResponse,
   KYCStatusResponse,
   OrderDetailsResponse,
+  OrderDetailsData,
+  TransactionStatus,
   TransactionResponse,
   TransactionCreateInput,
   SaveTransactionResponse,
@@ -33,6 +35,54 @@ import {
 import config from "../lib/config";
 
 const AGGREGATOR_URL = config.aggregatorUrl;
+
+/** Maps aggregator order status → Supabase `transactions.status`. Swap keeps validated→completed; on-ramp keeps pending until settled. */
+export function mapAggregatorStatusToDbStatus(
+  status: string,
+  opts?: { onramp?: boolean },
+): TransactionStatus {
+  const s = String(status || "").toLowerCase();
+  const onramp = opts?.onramp === true;
+  if (s === "settled") return "completed";
+  if (s === "refunded") return "refunded";
+  if (s === "refunding") return "refunding";
+  if (s === "fulfilled") return "fulfilled";
+  if (s === "expired") return "expired";
+  if (s === "validated") return onramp ? "pending" : "completed";
+  if (["settling", "fulfilling", "pending"].includes(s)) return "pending";
+  return "pending";
+}
+
+/**
+ * On-ramp: aggregator may still return `pending` after the VA window; if `validUntil` is in the past
+ * and no later status arrived, treat as expired (matches product expectation for unfunded orders).
+ */
+export function resolveOnrampOrderStatusFromV2Response(
+  res: AggregatorEnvelope<V2PaymentOrderGetData>,
+): string | undefined {
+  const data = res?.data;
+  if (!data || typeof data !== "object") return undefined;
+  const status = String(data.status ?? "");
+  const s = status.toLowerCase();
+  if (s !== "pending") return status;
+  const validUntil = data.providerAccount?.validUntil;
+  if (!validUntil) return status;
+  const end = new Date(validUntil).getTime();
+  if (Number.isNaN(end) || Date.now() <= end) return status;
+  return "expired";
+}
+
+export function unwrapV2SenderOrderEnvelope(
+  raw: unknown,
+): OrderDetailsData | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const inner = o.data;
+  if (inner && typeof inner === "object" && inner !== null) {
+    return inner as OrderDetailsData;
+  }
+  return o as unknown as OrderDetailsData;
+}
 
 /**
  * Fetches the current exchange rate for a given token and currency pair
@@ -434,9 +484,7 @@ export async function updateTransactionStatus({
   accessToken,
   walletAddress,
 }: UpdateTransactionStatusPayload): Promise<SaveTransactionResponse> {
-  const finalStatus = ["validated", "settled"].includes(status)
-    ? "completed"
-    : status;
+  const finalStatus = mapAggregatorStatusToDbStatus(status, { onramp: false });
 
   const response = await axios.put(
     `/api/v1/transactions/status/${transactionId}`,
@@ -470,10 +518,11 @@ export async function updateTransactionDetails({
   timeSpent,
   accessToken,
   walletAddress,
+  isOnramp,
 }: UpdateTransactionDetailsPayload): Promise<SaveTransactionResponse> {
-  const finalStatus = ["validated", "settled"].includes(status)
-    ? "completed"
-    : status;
+  const finalStatus = mapAggregatorStatusToDbStatus(status, {
+    onramp: isOnramp === true,
+  });
 
   // Build the data object dynamically
   const data: Record<string, any> = { status: finalStatus };

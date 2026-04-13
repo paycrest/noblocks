@@ -749,7 +749,7 @@ export const TransactionForm = ({
             <h3 className="text-base font-medium">Swap</h3>
 
             <div className="flex items-center gap-1">
-              {/* Onramp button */}
+              {/* On-ramp button */}
               <button
                 type="button"
                 onClick={() => {
@@ -765,10 +765,10 @@ export const TransactionForm = ({
                     : "border border-transparent text-neutral-400 dark:text-[#FFFFFF80]",
                 ].join(" ")}
               >
-                Onramp
+                On-ramp
               </button>
 
-              {/* Offramp button */}
+              {/* Off-ramp button */}
               <button
                 type="button"
                 onClick={() => {
@@ -784,7 +784,7 @@ export const TransactionForm = ({
                     : "border border-transparent text-neutral-400 dark:text-[#FFFFFF80]",
                 ].join(" ")}
               >
-                Offramp
+                Off-ramp
               </button>
             </div>
           </div>
@@ -1029,6 +1029,7 @@ export const TransactionForm = ({
                   isSwapped={isSwapped}
                   token={token}
                   networkName={selectedNetwork.chain.name}
+                  connectedWalletAddress={activeWallet?.address}
                 />
 
                 {/* Memo - Only show for offramp (not swapped) */}

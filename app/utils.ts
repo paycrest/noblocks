@@ -106,14 +106,14 @@ export const formatCurrency = (
   currency = "NGN",
   locale = "en-NG",
 ) => {
-  // Create a new instance of Intl.NumberFormat with the 'en-US' locale and currency set to 'NGN'.
-  // This object provides methods to format numbers based on the specified locale and options.
-  return new Intl.NumberFormat(locale, {
-    // Set the style to 'currency' to format the number as a currency value.
-    style: "currency",
-    // Set the currency to 'NGN' to format the number as Nigerian Naira.
-    currency,
-  }).format(value); // Format the provided value as a currency string.
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+    }).format(value);
+  } catch {
+    return `${formatNumberWithCommas(value)} ${currency.toUpperCase()}`;
+  }
 };
 
 /**

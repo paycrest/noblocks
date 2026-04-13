@@ -10,35 +10,34 @@ import {
     copyToClipboard,
     getCurrencySymbol,
 } from "../utils";
-import { primaryBtnClasses, secondaryBtnClasses } from "../components";
-import type { TransactionPreviewProps, V2FiatProviderAccountDTO } from "../types";
-import { useStep, useNetwork } from "../context";
-import { fetchOrderDetails, fetchV2SenderPaymentOrderById } from "../api/aggregator";
+import { secondaryBtnClasses } from "../components";
+import type { TransactionPreviewProps } from "../types";
+import { useStep } from "../context";
+import {
+    fetchV2SenderPaymentOrderById,
+    resolveOnrampOrderStatusFromV2Response,
+} from "../api/aggregator";
+import {
+    mapProviderAccountToInstructions,
+    type OnrampPaymentInstructions,
+} from "../lib/onrampPaymentInstructions";
 
-interface PaymentAccountDetails {
-    provider: string;
-    accountNumber: string;
-    amount: number;
-    currency: string;
-    expiresAt: Date;
-}
 
-function mapProviderAccountToDetails(
-    a: V2FiatProviderAccountDTO,
-    fallbackCurrency: string,
-    fallbackAmount: number,
-): PaymentAccountDetails {
-    const raw = a.amountToTransfer?.replace(/,/g, "") ?? "";
-    const parsed = raw ? parseFloat(raw) : fallbackAmount;
-    return {
-        provider: a.institution && a.accountName
-            ? `${a.institution} | ${a.accountName}`
-            : a.institution || a.accountName,
-        accountNumber: a.accountIdentifier,
-        amount: Number.isFinite(parsed) ? parsed : fallbackAmount,
-        currency: a.currency || fallbackCurrency,
-        expiresAt: new Date(a.validUntil),
-    };
+function getOrderStatusFromFetchPayload(body: unknown): string | undefined {
+    if (!body || typeof body !== "object") return undefined;
+    const o = body as Record<string, unknown>;
+    const inner = o.data;
+    if (inner && typeof inner === "object" && inner !== null) {
+        const st = (inner as { status?: unknown }).status;
+        if (typeof st === "string" && st.length > 0) return st;
+    }
+    if (typeof o.status === "string" && o.status.length > 0) {
+        if (o.status === "success" || o.status === "error") {
+            return undefined;
+        }
+        return o.status;
+    }
+    return undefined;
 }
 
 export const MakePayment = ({
@@ -57,19 +56,16 @@ export const MakePayment = ({
     } = stateProps;
     const { getAccessToken } = usePrivy();
     const { setCurrentStep } = useStep();
-    const { selectedNetwork } = useNetwork();
     const { amountSent, currency } = formValues;
 
-    const [paymentDetails, setPaymentDetails] = useState<PaymentAccountDetails | null>(null);
+    const [paymentDetails, setPaymentDetails] =
+        useState<OnrampPaymentInstructions | null>(null);
     const [loadError, setLoadError] = useState<string | null>(null);
 
     const [timeRemaining, setTimeRemaining] = useState<string>("");
-    const [isPaymentSent, setIsPaymentSent] = useState(false);
-    const [isCheckingPayment, setIsCheckingPayment] = useState(false);
     const [isAccountNumberCopied, setIsAccountNumberCopied] = useState(false);
     const [isAmountCopied, setIsAmountCopied] = useState(false);
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -81,7 +77,7 @@ export const MakePayment = ({
             if (onrampPaymentAccount) {
                 if (cancelled) return;
                 setPaymentDetails(
-                    mapProviderAccountToDetails(
+                    mapProviderAccountToInstructions(
                         onrampPaymentAccount,
                         fallbackCurrency,
                         fallbackAmount,
@@ -107,7 +103,7 @@ export const MakePayment = ({
                     throw new Error(res.message || "Could not load payment instructions");
                 }
                 setPaymentDetails(
-                    mapProviderAccountToDetails(
+                    mapProviderAccountToInstructions(
                         res.data.providerAccount,
                         fallbackCurrency,
                         fallbackAmount,
@@ -155,65 +151,44 @@ export const MakePayment = ({
         return () => clearInterval(interval);
     }, [paymentDetails]);
 
-    const handlePaymentSent = async () => {
-        setIsPaymentSent(true);
-        setIsCheckingPayment(true);
-
-        // Mark the transaction as pending while the aggregator indexes the deposit
-        setTransactionStatus("pending");
-        setCreatedAt(new Date().toISOString());
-
-        // If no orderId, navigate immediately (shouldn't happen, but safety check)
+    // Auto-start: poll aggregator for payment detection (no manual "I sent funds" click)
+    useEffect(() => {
+        if (!paymentDetails) return;
         if (!orderId) {
-            setCurrentStep("status");
-            setIsCheckingPayment(false);
+            console.warn("[MakePayment] Missing orderId; staying on bank-details step");
             return;
         }
 
-        // Poll backend to check if payment has been detected
+        setTransactionStatus("pending");
+        setCreatedAt(new Date().toISOString());
+
+        let cancelled = false;
+
+        const clearPolling = () => {
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+            }
+        };
+
         const checkPaymentStatus = async () => {
+            if (cancelled) return;
             try {
-                let status: string;
+                const accessToken = await getAccessToken();
+                if (!accessToken) throw new Error("No access token");
+                const res = await fetchV2SenderPaymentOrderById(orderId, accessToken);
+                const status =
+                    resolveOnrampOrderStatusFromV2Response(res) ??
+                    getOrderStatusFromFetchPayload(res);
 
-                if (onrampPaymentAccount) {
-                    // Onramp: use v2 endpoint
-                    const accessToken = await getAccessToken();
-                    if (!accessToken) throw new Error("No access token");
-                    const res = await fetchV2SenderPaymentOrderById(orderId, accessToken);
-                    status = res.data?.status;
-                } else {
-                    // Offramp: use v1 endpoint
-                    const orderDetailsResponse = await fetchOrderDetails(
-                        selectedNetwork.chain.id,
-                        orderId,
-                    );
-                    status = orderDetailsResponse.data.status;
-                }
-
-                // If status is no longer "pending", payment has been detected
-                if (status !== "pending") {
-                    // TODO: Validate amount - compare UI input with backend amount
-                    // Once backend response structure is known, add validation here:
-                    // - Extract fiat amount from orderDetailsResponse.data (check which field contains it)
-                    // - Compare with amountSent from UI (Number(amountSent))
-                    // Example structure (to be updated based on actual backend response):
-                    // const backendAmount = /* extract from backend response */;
-                    // const uiAmount = Number(amountSent) || 0;
-                    // if (Math.abs(backendAmount - uiAmount) > tolerance) {
-                    //     // Handle mismatch
-                    // }
-
-                    // Clear polling
-                    if (pollingIntervalRef.current) {
-                        clearInterval(pollingIntervalRef.current);
-                        pollingIntervalRef.current = null;
-                    }
-                    if (pollingTimeoutRef.current) {
-                        clearTimeout(pollingTimeoutRef.current);
-                        pollingTimeoutRef.current = null;
-                    }
-
-                    // Update status and navigate
+                // Only advance when we have a real order status (not undefined) and fiat is indexed
+                if (
+                    typeof status === "string" &&
+                    status.length > 0 &&
+                    status.toLowerCase() !== "pending"
+                ) {
+                    clearPolling();
+                    if (cancelled) return;
                     setTransactionStatus(
                         status as
                         | "fulfilling"
@@ -221,45 +196,26 @@ export const MakePayment = ({
                         | "settling"
                         | "settled"
                         | "refunding"
-                        | "refunded",
+                        | "refunded"
+                        | "expired",
                     );
-                    setIsCheckingPayment(false);
                     setCurrentStep("status");
                 }
             } catch (error) {
                 console.error("Error checking payment status:", error);
-                // On error, still navigate to status page (it will handle polling there)
-                setIsCheckingPayment(false);
-                setCurrentStep("status");
+                // Keep polling — do not leave Make payment on transient errors
             }
         };
 
-        // Start polling every 3 seconds
-        checkPaymentStatus(); // Check immediately
+        void checkPaymentStatus();
         pollingIntervalRef.current = setInterval(checkPaymentStatus, 3000);
 
-        // Set a timeout to stop polling after 30 seconds and navigate anyway
-        pollingTimeoutRef.current = setTimeout(() => {
-            if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
-            }
-            setIsCheckingPayment(false);
-            setCurrentStep("status");
-        }, 30000);
-    };
-
-    // Cleanup polling on unmount
-    useEffect(() => {
         return () => {
-            if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-            }
-            if (pollingTimeoutRef.current) {
-                clearTimeout(pollingTimeoutRef.current);
-            }
+            cancelled = true;
+            clearPolling();
         };
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- stable polling for one order load
+    }, [paymentDetails, orderId, getAccessToken]);
 
     const currencySymbol = paymentDetails
         ? getCurrencySymbol(paymentDetails.currency)
@@ -409,37 +365,9 @@ export const MakePayment = ({
                 </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-4 xsm:gap-6">
-                <button
-                    type="button"
-                    disabled
-                    className={classNames(
-                        secondaryBtnClasses,
-                        "w-full cursor-not-allowed text-sm font-normal !bg-yellow-50 !text-yellow-600 opacity-100 dark:!bg-white/10 dark:!text-yellow-500",
-                    )}
-                >
-                    Awaiting payment
-                </button>
-                <button
-                    type="button"
-                    onClick={handlePaymentSent}
-                    disabled={isPaymentSent}
-                    className={classNames(
-                        primaryBtnClasses,
-                        "w-full",
-                        isPaymentSent ? "cursor-not-allowed opacity-50" : "",
-                    )}
-                >
-                    {isPaymentSent ? (
-                        <span className="flex items-center justify-center gap-2">
-                            <ImSpinner className="animate-spin text-lg" />
-                            {isCheckingPayment ? "Checking payment..." : "Processing..."}
-                        </span>
-                    ) : (
-                        "I have sent the money"
-                    )}
-                </button>
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-border-light bg-background-neutral px-4 py-3 text-text-secondary dark:border-white/10 dark:bg-white/5 dark:text-white/50">
+                <ImSpinner className="size-4 shrink-0 animate-spin text-lavender-500" />
+                <p className="text-sm">Checking for your payment automatically…</p>
             </div>
         </div>
     );

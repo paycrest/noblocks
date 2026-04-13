@@ -1,22 +1,34 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { ImSpinner } from "react-icons/im";
+import { PiCheck } from "react-icons/pi";
 import { toast } from "sonner";
+import { usePrivy } from "@privy-io/react-auth";
 import { pdf } from "@react-pdf/renderer";
 import { PDFReceipt } from "../PDFReceipt";
 import { CopyAddressWarningModal } from "../CopyAddressWarningModal";
-import type { TransactionHistory, Network } from "../../types";
+import type { TransactionHistory, Network, V2FiatProviderAccountDTO } from "../../types";
 import {
   getExplorerLink,
   formatNumberWithCommas,
   getTokenLogoIdentifier,
   currencyToCountryCode,
   formatCurrency,
+  getCurrencySymbol,
   getNetworkImageUrl,
   shortenAddress,
+  copyToClipboard,
 } from "../../utils";
+import {
+  fetchV2SenderPaymentOrderById,
+  unwrapV2SenderOrderEnvelope,
+} from "../../api/aggregator";
+import {
+  mapProviderAccountToInstructions,
+  type OnrampPaymentInstructions,
+} from "../../lib/onrampPaymentInstructions";
 import { useNetwork } from "../../context/NetworksContext";
 import { useActualTheme } from "../../hooks/useActualTheme";
 import { networks } from "../../mocks";
@@ -37,6 +49,7 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   fulfilled: "text-blue-500",
   pending: "text-orange-500",
   processing: "text-yellow-500",
+  expired: "text-amber-600 dark:text-amber-500",
 };
 
 // Helper function to get network object from network name
@@ -129,6 +142,42 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                   </>
                 );
               }
+              if (transaction.transaction_type === "onramp") {
+                const fromId = getTokenLogoIdentifier(
+                  transaction.from_currency,
+                );
+                const toId = getTokenLogoIdentifier(transaction.to_currency);
+                return (
+                  <>
+                    <Image
+                      src={
+                        fromId === "lisk"
+                          ? isDark
+                            ? "/logos/lisk-logo-dark.svg"
+                            : "/logos/lisk-logo-light.svg"
+                          : `/logos/${fromId}-logo.svg`
+                      }
+                      alt={transaction.from_currency}
+                      width={20}
+                      height={20}
+                      className="rounded-full border border-white dark:border-surface-canvas"
+                    />
+                    <Image
+                      src={
+                        toId === "lisk"
+                          ? isDark
+                            ? "/logos/lisk-logo-dark.svg"
+                            : "/logos/lisk-logo-light.svg"
+                          : `/logos/${toId}-logo.svg`
+                      }
+                      alt={transaction.to_currency}
+                      width={20}
+                      height={20}
+                      className="rounded-full border border-white dark:border-surface-canvas"
+                    />
+                  </>
+                );
+              }
               const fromLogo = getTokenLogoIdentifier(transaction.from_currency);
               const toCountryCode = currencyToCountryCode(
                 transaction.to_currency,
@@ -166,8 +215,17 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                 ? "Swapped"
                 : transaction.transaction_type}{" "}
             <span className="font-semibold text-text-body dark:text-white">
-              {formatNumberWithCommas(transaction.amount_sent)}{" "}
-              {transaction.from_currency}
+              {transaction.transaction_type === "onramp" ? (
+                <>
+                  {formatNumberWithCommas(transaction.amount_received ?? 0)}{" "}
+                  {transaction.to_currency}
+                </>
+              ) : (
+                <>
+                  {formatNumberWithCommas(transaction.amount_sent)}{" "}
+                  {transaction.from_currency}
+                </>
+              )}
             </span>
           </div>
         </div>
@@ -252,6 +310,102 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
               </span>
             }
           />
+        </div>
+      ) : transaction.transaction_type === "onramp" ? (
+        <div className="flex flex-col gap-5 px-1 pb-1">
+          <OnrampPendingPaymentInstructions transaction={transaction} />
+          <DetailRow
+            label="Amount"
+            value={
+              <span className="text-text-accent-gray dark:text-white/80">
+                {formatCurrency(
+                  transaction.amount_received ?? 0,
+                  transaction.to_currency,
+                  `en-${transaction.to_currency.slice(0, 2)}`,
+                )}
+              </span>
+            }
+          />
+          <DetailRow
+            label="Rate"
+            value={
+              <span className="text-text-accent-gray dark:text-white/80">
+                {getCurrencySymbol(transaction.from_currency)}
+                {formatNumberWithCommas(transaction.fee ?? 0)} ~ 1{" "}
+                {transaction.to_currency}
+              </span>
+            }
+          />
+          {transaction.network && (
+            <DetailRow
+              label="Network"
+              value={
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const networkObj = getNetworkFromName(transaction.network);
+                    if (networkObj) {
+                      return (
+                        <>
+                          {getNetworkImageUrl(networkObj, isDark) && (
+                            <Image
+                              src={getNetworkImageUrl(networkObj, isDark)}
+                              alt={transaction.network}
+                              width={16}
+                              height={16}
+                              className="rounded-full"
+                            />
+                          )}
+                          <span className="text-text-accent-gray dark:text-white/80">
+                            {transaction.network}
+                          </span>
+                        </>
+                      );
+                    }
+                    return (
+                      <span className="text-text-accent-gray dark:text-white/80">
+                        {transaction.network}
+                      </span>
+                    );
+                  })()}
+                </div>
+              }
+            />
+          )}
+          <DetailRow
+            label="Recipient"
+            value={
+              <span className="flex items-center gap-2 text-text-accent-gray dark:text-white/80">
+                {shortenAddress(transaction.recipient.account_identifier)}
+                <button
+                  type="button"
+                  title="Copy address"
+                  className="rounded-lg p-1 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      transaction.recipient.account_identifier,
+                    );
+                    toast.success("Address copied");
+                    setIsWarningModalOpen(true);
+                  }}
+                >
+                  <Copy01Icon
+                    className="size-4 text-outline-gray dark:text-white/50"
+                    strokeWidth={2}
+                  />
+                </button>
+              </span>
+            }
+          />
+          {transaction.recipient.memo && (
+            <DetailRow
+              label="Memo"
+              value={
+                <span className="text-text-accent-gray dark:text-white/80">
+                  {transaction.recipient.memo}
+                </span>
+              }
+            />
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-5 px-1 pb-1">
@@ -430,6 +584,183 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             address={transaction.recipient.account_identifier ?? ""}
         />
     </motion.div>
+  );
+}
+
+/** Fetches virtual account from aggregator for pending/processing on-ramp orders (history modal). */
+function OnrampPendingPaymentInstructions({
+  transaction,
+}: {
+  transaction: TransactionHistory;
+}) {
+  const { getAccessToken } = usePrivy();
+  const [instructions, setInstructions] = useState<OnrampPaymentInstructions | null>(
+    null,
+  );
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [copiedAcct, setCopiedAcct] = useState(false);
+  const [copiedAmt, setCopiedAmt] = useState(false);
+
+  const shouldFetch =
+    Boolean(transaction.order_id) &&
+    (transaction.status === "pending" || transaction.status === "processing");
+
+  useEffect(() => {
+    if (!shouldFetch || !transaction.order_id) return;
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    setInstructions(null);
+
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) throw new Error("Sign in to load payment details");
+        const res = await fetchV2SenderPaymentOrderById(
+          transaction.order_id!,
+          token,
+        );
+        const data =
+          unwrapV2SenderOrderEnvelope(res) ??
+          (res as unknown as { data?: { providerAccount?: V2FiatProviderAccountDTO } })
+            .data;
+        const pa =
+          data && "providerAccount" in data
+            ? (data as { providerAccount?: V2FiatProviderAccountDTO }).providerAccount
+            : undefined;
+        if (cancelled) return;
+        if (!pa) {
+          setLoadError("Payment instructions are no longer available.");
+          return;
+        }
+        setInstructions(
+          mapProviderAccountToInstructions(
+            pa,
+            transaction.from_currency,
+            Number(transaction.amount_sent) || 0,
+          ),
+        );
+      } catch (e) {
+        if (!cancelled) {
+          setLoadError(
+            e instanceof Error ? e.message : "Could not load payment instructions",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    shouldFetch,
+    transaction.order_id,
+    transaction.status,
+    transaction.from_currency,
+    transaction.amount_sent,
+    getAccessToken,
+  ]);
+
+  if (!shouldFetch) return null;
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-border-light bg-background-neutral px-3 py-3 dark:border-white/10 dark:bg-white/5">
+        <ImSpinner className="size-4 shrink-0 animate-spin text-lavender-500" />
+        <span className="text-sm text-text-secondary dark:text-white/50">
+          Loading payment instructions…
+        </span>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <p className="text-sm text-text-secondary dark:text-white/50">{loadError}</p>
+    );
+  }
+
+  if (!instructions) return null;
+
+  const sym = getCurrencySymbol(instructions.currency);
+  const formattedAmount = `${sym}${formatNumberWithCommas(instructions.amount)}`;
+
+  return (
+    <div className="grid gap-3 rounded-2xl border border-border-light bg-background-neutral p-4 dark:border-white/10 dark:bg-[#202121]">
+      <p className="text-sm font-medium text-text-body dark:text-white/80">
+        Pay with bank transfer
+      </p>
+      <p className="text-xs text-text-secondary dark:text-white/50">
+        Send {formattedAmount} to the account below
+      </p>
+      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white dark:border-white/10 dark:bg-surface-canvas">
+        <div className="grid gap-1.5 px-3 py-3">
+          <span className="text-xs text-text-secondary dark:text-white/50">
+            Provider / Bank
+          </span>
+          <span className="text-sm font-medium text-text-body dark:text-white/80">
+            {instructions.provider}
+          </span>
+        </div>
+        <div className="border-b border-gray-100 dark:border-white/10" />
+        <div className="flex items-center justify-between gap-2 px-3 py-3">
+          <div className="grid min-w-0 flex-1 gap-1">
+            <span className="text-xs text-text-secondary dark:text-white/50">
+              Account number
+            </span>
+            <span className="truncate font-mono text-sm font-medium text-text-body dark:text-white/80">
+              {instructions.accountNumber}
+            </span>
+          </div>
+          <button
+            type="button"
+            title="Copy account number"
+            className="shrink-0 rounded-lg p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-white/10"
+            onClick={() => {
+              void copyToClipboard(instructions.accountNumber, "Account number");
+              setCopiedAcct(true);
+              setTimeout(() => setCopiedAcct(false), 2000);
+            }}
+          >
+            {copiedAcct ? (
+              <PiCheck className="size-4 text-icon-outline-secondary dark:text-white/50" />
+            ) : (
+              <Copy01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
+            )}
+          </button>
+        </div>
+        <div className="border-b border-gray-100 dark:border-white/10" />
+        <div className="flex items-center justify-between gap-2 px-3 py-3">
+          <div className="grid gap-1">
+            <span className="text-xs text-text-secondary dark:text-white/50">
+              Amount to pay
+            </span>
+            <span className="text-sm font-medium text-text-body dark:text-white/80">
+              {formattedAmount}
+            </span>
+          </div>
+          <button
+            type="button"
+            title="Copy amount"
+            className="shrink-0 rounded-lg p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-white/10"
+            onClick={() => {
+              void copyToClipboard(String(instructions.amount), "Amount");
+              setCopiedAmt(true);
+              setTimeout(() => setCopiedAmt(false), 2000);
+            }}
+          >
+            {copiedAmt ? (
+              <PiCheck className="size-4 text-icon-outline-secondary dark:text-white/50" />
+            ) : (
+              <Copy01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

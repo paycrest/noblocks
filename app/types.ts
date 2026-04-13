@@ -64,23 +64,25 @@ export type RecipientDetailsFormProps = {
   isSwapped?: boolean; // For onramp mode detection
   token?: string; // Token symbol for onramp
   networkName?: string; // Network name for display
+  /** On-ramp: address to fill when user taps "My wallet" (same as active signing wallet). */
+  connectedWalletAddress?: string;
 };
 
 export type RecipientDetails =
   | {
-      type: "wallet";
-      walletAddress: string;
-      name: string;
-    }
+    type: "wallet";
+    walletAddress: string;
+    name: string;
+  }
   | {
-      type: "bank" | "mobile_money";
-      name: string;
-      institution: string;
-      institutionCode: string;
-      accountIdentifier: string;
-      currency?: string;
-      walletAddress?: never;
-    };
+    type: "bank" | "mobile_money";
+    name: string;
+    institution: string;
+    institutionCode: string;
+    accountIdentifier: string;
+    currency?: string;
+    walletAddress?: never;
+  };
 
 export type FormMethods = {
   handleSubmit: UseFormHandleSubmit<FormData, undefined>;
@@ -103,7 +105,8 @@ export type TransactionStatusType =
   | "settling"
   | "settled"
   | "refunding"
-  | "refunded";
+  | "refunded"
+  | "expired";
 
 export type TransactionStatusProps = {
   transactionStatus: TransactionStatusType;
@@ -378,7 +381,8 @@ export type TransactionStatus =
   | "processing"
   | "fulfilled"
   | "refunding"
-  | "refunded";
+  | "refunded"
+  | "expired";
 export type TransactionHistoryType = "swap" | "transfer" | "onramp";
 
 export interface Recipient {
@@ -467,6 +471,7 @@ export interface UpdateTransactionDetailsPayload
   extends UpdateTransactionStatusPayload {
   txHash?: string;
   timeSpent?: string;
+  isOnramp?: boolean;
 }
 
 export type Currency = {

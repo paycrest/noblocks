@@ -34,7 +34,9 @@ import {
 import {
   fetchOrderDetails,
   fetchV2SenderPaymentOrderById,
+  resolveOnrampOrderStatusFromV2Response,
   updateTransactionDetails,
+  unwrapV2SenderOrderEnvelope,
   fetchSavedRecipients,
   saveRecipient,
   deleteSavedRecipient,
@@ -141,8 +143,15 @@ export function TransactionStatus({
   const [hasReindexed, setHasReindexed] = useState(false);
   const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
+  const lastPersistedOrderStatusRef = useRef<string | null>(null);
+  const lastFulfillPersistKeyRef = useRef<string | null>(null);
 
   const fireConfetti = useConfetti();
+
+  useEffect(() => {
+    lastPersistedOrderStatusRef.current = null;
+    lastFulfillPersistKeyRef.current = null;
+  }, [orderId]);
 
   const { watch } = formMethods;
   const token = watch("token") || "";
@@ -195,8 +204,21 @@ export function TransactionStatus({
    * Uses a request ID system to handle race conditions when multiple updates are triggered
    * Only the latest update attempt will complete, older ones will be skipped
    */
-  const saveTransactionData = async () => {
+  const saveTransactionData = async (
+    statusOverride?: string,
+    txHashOverride?: string,
+  ) => {
     if (!embeddedWallet?.address) return;
+
+    const effectiveAggregatorStatus = statusOverride ?? transactionStatus;
+    const effectiveTxHash =
+      txHashOverride !== undefined
+        ? txHashOverride
+        : effectiveAggregatorStatus === "refunded"
+          ? orderDetails?.txHash
+          : effectiveAggregatorStatus === "expired"
+            ? undefined
+            : createdHash;
 
     // Increment request ID to mark this as the latest request
     const requestId = ++latestRequestIdRef.current;
@@ -229,12 +251,12 @@ export function TransactionStatus({
 
       const response = await updateTransactionDetails({
         transactionId,
-        status: transactionStatus,
-        txHash:
-          transactionStatus !== "refunded" ? createdHash : orderDetails?.txHash,
+        status: effectiveAggregatorStatus,
+        txHash: effectiveTxHash,
         timeSpent,
         accessToken,
         walletAddress: embeddedWallet.address,
+        isOnramp: isOnramp === true,
       });
 
       if (!response.success) {
@@ -257,6 +279,19 @@ export function TransactionStatus({
     function pollOrderDetails() {
       let intervalId: NodeJS.Timeout;
 
+      const persistIfStatusChanged = (s: string) => {
+        if (lastPersistedOrderStatusRef.current === s) return;
+        lastPersistedOrderStatusRef.current = s;
+        void saveTransactionData(s);
+      };
+
+      const persistFulfillment = (h?: string) => {
+        const key = `fulfilling:${h ?? ""}`;
+        if (lastFulfillPersistKeyRef.current === key) return;
+        lastFulfillPersistKeyRef.current = key;
+        void saveTransactionData("fulfilling", h);
+      };
+
       const getOrderDetails = async () => {
         try {
           let responseData: OrderDetailsData;
@@ -264,12 +299,21 @@ export function TransactionStatus({
           if (isOnramp) {
             const accessToken = await getAccessToken();
             if (!accessToken) {
-              toast.error("Session expired. Please refresh to continue tracking your transaction.");
+              toast.error(
+                "Session expired. Please refresh to continue tracking your transaction.",
+              );
               clearInterval(intervalId);
               return;
             }
             const res = await fetchV2SenderPaymentOrderById(orderId, accessToken);
-            responseData = res.data as unknown as OrderDetailsData;
+            const resolvedStatus = resolveOnrampOrderStatusFromV2Response(res);
+            responseData =
+              unwrapV2SenderOrderEnvelope(res) ??
+              (res as unknown as { data?: OrderDetailsData }).data ??
+              (res as unknown as OrderDetailsData);
+            if (resolvedStatus !== undefined && responseData) {
+              responseData = { ...responseData, status: resolvedStatus };
+            }
           } else {
             const orderDetailsResponse = await fetchOrderDetails(
               selectedNetwork.chain.id,
@@ -280,62 +324,106 @@ export function TransactionStatus({
 
           setOrderDetails(responseData);
 
-          if (responseData.status !== "pending") {
-            const status = responseData.status;
+          if (responseData.status === "pending") {
+            return;
+          }
 
-            // Update transaction status if changed
-            if (transactionStatus !== status) {
-              setTransactionStatus(
-                status as
-                  | "fulfilling"
-                  | "validated"
-                  | "settling"
-                  | "settled"
-                  | "refunding"
-                  | "refunded",
+          const status = responseData.status;
+
+          if (status === "expired") {
+            const doneAt =
+              responseData.updatedAt ||
+              String(
+                (responseData as Record<string, unknown>).timestamp ?? "",
               );
+            setCompletedAt(doneAt);
+            setTransactionStatus("expired");
+            clearInterval(intervalId);
+            persistIfStatusChanged("expired");
+            return;
+          }
+
+          setTransactionStatus(
+            status as
+              | "fulfilling"
+              | "validated"
+              | "settling"
+              | "settled"
+              | "refunding"
+              | "refunded"
+              | "expired",
+          );
+
+          if (status === "refunded") {
+            setCompletedAt(
+              responseData.updatedAt ||
+              String(
+                (responseData as Record<string, unknown>).timestamp ?? "",
+              ),
+            );
+            refreshBalance();
+            setRocketStatus("pending");
+            clearInterval(intervalId);
+            persistIfStatusChanged(status);
+            return;
+          }
+
+          if (status === "fulfilling") {
+            const createdReceipt = responseData.txReceipts?.find(
+              (txReceipt) => txReceipt.status === "pending",
+            );
+            const h = createdReceipt?.txHash;
+            if (h) {
+              setCreatedHash(h);
+            }
+            persistFulfillment(h);
+            setRocketStatus("processing");
+            return;
+          }
+
+          if (status === "fulfilled") {
+            setRocketStatus("fulfilled");
+            return;
+          }
+
+          if (["validated", "settling", "settled"].includes(status)) {
+            const doneAt =
+              responseData.updatedAt ||
+              String((responseData as Record<string, unknown>).timestamp ?? "");
+            if (!isOnramp) {
+              setCompletedAt(doneAt);
+            } else if (status === "settled") {
+              setCompletedAt(doneAt);
             }
 
-            // Handle final statuses
-            if (
-              ["validated", "settling", "settled", "refunded"].includes(status)
-            ) {
-              setCompletedAt(responseData.updatedAt);
-
-              if (status === "refunded") {
-                refreshBalance();
-                setRocketStatus("pending");
-              } else {
-                setRocketStatus("settled");
-              }
-
-              clearInterval(intervalId);
-
-              // Save transaction data only once on validation or refund
-              if (["validated", "refunded"].includes(transactionStatus)) {
-                saveTransactionData();
-              }
-              return; // No need to check further statuses
-            }
-
-            // Handle processing status
-            if (status === "fulfilling") {
-              const createdReceipt = responseData.txReceipts?.find(
-                (txReceipt) => txReceipt.status === "pending",
-              );
-              if (createdReceipt) {
-                setCreatedHash(createdReceipt.txHash);
-                saveTransactionData();
-              }
+            if (isOnramp && ["validated", "settling"].includes(status)) {
               setRocketStatus("processing");
-              return;
+            } else {
+              setRocketStatus("settled");
             }
 
-            // Handle fulfilled status
-            if (status === "fulfilled") {
-              setRocketStatus("fulfilled");
-              return;
+            const stopPolling =
+              (!isOnramp &&
+                ["validated", "settling", "settled"].includes(status)) ||
+              (isOnramp && status === "settled");
+
+            const hashFromOrder =
+              responseData.txHash ||
+              responseData.txReceipts?.find((r) => r.txHash)?.txHash ||
+              responseData.txReceipts?.[0]?.txHash;
+
+            if (stopPolling) {
+              clearInterval(intervalId);
+              if (hashFromOrder) {
+                setCreatedHash(hashFromOrder);
+              }
             }
+
+            if (lastPersistedOrderStatusRef.current !== status) {
+              lastPersistedOrderStatusRef.current = status;
+              void saveTransactionData(status, hashFromOrder);
+            }
+            return;
           }
         } catch (error) {
           // fail silently
@@ -506,21 +594,24 @@ export function TransactionStatus({
         <AnimatedComponent variant={scaleInOut} key="refunded">
           <CancelCircleIcon className="size-10" color="#F53D6B" />
         </AnimatedComponent>
+      ) : transactionStatus === "expired" ? (
+        <AnimatedComponent variant={scaleInOut} key="expired">
+          <CancelCircleIcon className="size-10" color="#D97706" />
+        </AnimatedComponent>
       ) : (
         <AnimatedComponent
           variant={fadeInOut}
           key="pending"
-          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${
-            transactionStatus === "pending"
-              ? "bg-orange-50 text-orange-400"
-              : transactionStatus === "fulfilling"
-                ? "bg-yellow-50 text-yellow-400"
-                : transactionStatus === "fulfilled"
-                  ? "bg-green-50 text-green-400"
-                  : transactionStatus === "refunding"
-                    ? "bg-purple-50 text-purple-400"
-                    : "bg-gray-50"
-          }`}
+          className={`flex items-center gap-1 rounded-full px-2 py-1 dark:bg-white/10 ${transactionStatus === "pending"
+            ? "bg-orange-50 text-orange-400"
+            : transactionStatus === "fulfilling"
+              ? "bg-yellow-50 text-yellow-400"
+              : transactionStatus === "fulfilled"
+                ? "bg-green-50 text-green-400"
+                : transactionStatus === "refunding"
+                  ? "bg-purple-50 text-purple-400"
+                  : "bg-gray-50"
+            }`}
         >
           <ImSpinner className="animate-spin" />
           <p>
@@ -538,7 +629,7 @@ export function TransactionStatus({
    * Clears the transaction status if it's refunded, otherwise clears the form and transaction status.
    */
   const handleBackButtonClick = () => {
-    if (transactionStatus === "refunded") {
+    if (transactionStatus === "refunded" || transactionStatus === "expired") {
       refetchRate?.();
       clearTransactionStatus();
       setCurrentStep(STEPS.FORM);
@@ -664,10 +755,10 @@ export function TransactionStatus({
   const getPaymentMessage = () => {
     const formattedRecipientName = recipientName
       ? recipientName
-          .toLowerCase()
-          .split(" ")
-          .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
-          .join(" ")
+        .toLowerCase()
+        .split(" ")
+        .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+        .join(" ")
       : "";
 
     const amountDisplay = isOnramp
@@ -687,6 +778,20 @@ export function TransactionStatus({
           {isOnramp
             ? "The fiat payment could not be processed."
             : "The stablecoin has been refunded to your account."}
+        </>
+      );
+    }
+
+    if (transactionStatus === "expired") {
+      return (
+        <>
+          The time to pay for{" "}
+          <span className="text-text-body dark:text-white">
+            {amountDisplay}
+          </span>{" "}
+          {isOnramp
+            ? " has passed. This order is no longer active."
+            : " has expired."}
         </>
       );
     }
@@ -717,9 +822,13 @@ export function TransactionStatus({
   };
 
   const getImageSrc = () => {
-    const base = !["validated", "settling", "settled", "refunded"].includes(
-      transactionStatus,
-    )
+    const base = ![
+      "validated",
+      "settling",
+      "settled",
+      "refunded",
+      "expired",
+    ].includes(transactionStatus)
       ? "/images/stepper"
       : "/images/stepper-long";
     const themeSuffix = resolvedTheme === "dark" ? "-dark.svg" : ".svg";
@@ -809,9 +918,13 @@ export function TransactionStatus({
         >
           {transactionStatus === "refunded"
             ? "Oops! Transaction failed"
-            : !["validated", "settling", "settled"].includes(transactionStatus)
-              ? "Processing payment..."
-              : "Transaction successful"}
+            : transactionStatus === "expired"
+              ? "Payment window expired"
+              : !["validated", "settling", "settled"].includes(
+                    transactionStatus,
+                  )
+                ? "Processing payment..."
+                : "Transaction successful"}
         </AnimatedComponent>
 
         <div className="flex w-full items-center gap-2 text-neutral-900 dark:text-white/80 sm:hidden">
@@ -877,7 +990,13 @@ export function TransactionStatus({
         />
 
         <AnimatePresence>
-          {["validated", "settling", "settled", "refunded"].includes(transactionStatus) && (
+          {[
+            "validated",
+            "settling",
+            "settled",
+            "refunded",
+            "expired",
+          ].includes(transactionStatus) && (
             <>
               {/* BlockFest Cashback Component - only when validated/settling/settled and claimed and on Base network */}
               {isBlockFestEligible(
@@ -886,17 +1005,17 @@ export function TransactionStatus({
                 orderDetails,
                 orderId,
               ) && (
-                <AnimatedComponent
-                  variant={slideInOut}
-                  delay={0.45}
-                  className="flex justify-center"
-                >
-                  <BlockFestCashbackComponent
-                    transactionId={orderId}
-                    cashbackPercentage="1%"
-                  />
-                </AnimatedComponent>
-              )}
+                  <AnimatedComponent
+                    variant={slideInOut}
+                    delay={0.45}
+                    className="flex justify-center"
+                  >
+                    <BlockFestCashbackComponent
+                      transactionId={orderId}
+                      cashbackPercentage="1%"
+                    />
+                  </AnimatedComponent>
+                )}
 
               <AnimatedComponent
                 variant={slideInOut}
@@ -919,7 +1038,8 @@ export function TransactionStatus({
                   onClick={handleBackButtonClick}
                   className={`w-fit ${primaryBtnClasses}`}
                 >
-                  {transactionStatus === "refunded"
+                  {transactionStatus === "refunded" ||
+                  transactionStatus === "expired"
                     ? "Retry transaction"
                     : "New payment"}
                 </button>
@@ -1003,64 +1123,84 @@ export function TransactionStatus({
           )}
         </AnimatePresence>
 
-        {["validated", "settling", "settled", "refunded"].includes(transactionStatus) && (
+        {[
+          "validated",
+          "settling",
+          "settled",
+          "refunded",
+          "expired",
+        ].includes(transactionStatus) && (
           <hr className="w-full border-dashed border-border-light dark:border-white/10" />
         )}
 
         <AnimatePresence>
-          {["validated", "settling", "settled", "refunded"].includes(
-            transactionStatus,
-          ) && (
-            <AnimatedComponent
-              variant={{
-                ...fadeInOut,
-                animate: { opacity: 1, height: "auto" },
-                initial: { opacity: 0, height: 0 },
-                exit: { opacity: 0, height: 0 },
-              }}
-              delay={0.7}
-              className="flex w-full flex-col gap-4 text-gray-500 dark:text-white/50"
-            >
-              <div className="flex items-center justify-between gap-1">
-                <p className="flex-1">Transaction status</p>
-                <div className="flex flex-1 items-center gap-1">
-                  <p
-                    className={classNames(
-                      transactionStatus === "refunded"
-                        ? "text-red-600"
-                        : "text-green-600",
-                    )}
-                  >
-                    {transactionStatus === "refunded" ? "Failed" : "Completed"}
+          {[
+            "validated",
+            "settling",
+            "settled",
+            "refunded",
+            "expired",
+          ].includes(transactionStatus) && (
+              <AnimatedComponent
+                variant={{
+                  ...fadeInOut,
+                  animate: { opacity: 1, height: "auto" },
+                  initial: { opacity: 0, height: 0 },
+                  exit: { opacity: 0, height: 0 },
+                }}
+                delay={0.7}
+                className="flex w-full flex-col gap-4 text-gray-500 dark:text-white/50"
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <p className="flex-1">Transaction status</p>
+                  <div className="flex flex-1 items-center gap-1">
+                    <p
+                      className={classNames(
+                        transactionStatus === "refunded"
+                          ? "text-red-600"
+                          : transactionStatus === "expired"
+                            ? "text-amber-600 dark:text-amber-500"
+                            : "text-green-600",
+                      )}
+                    >
+                      {transactionStatus === "refunded"
+                        ? "Failed"
+                        : transactionStatus === "expired"
+                          ? "Expired"
+                          : "Completed"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-1">
+                  <p className="flex-1">Time spent</p>
+                  <p className="flex-1">
+                    {calculateDuration(createdAt, completedAt)}
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center justify-between gap-1">
-                <p className="flex-1">Time spent</p>
-                <p className="flex-1">
-                  {calculateDuration(createdAt, completedAt)}
-                </p>
-              </div>
-              {!isOnramp && (
                 <div className="flex items-center justify-between gap-1">
                   <p className="flex-1">Onchain receipt</p>
                   <p className="flex-1">
-                    <a
-                      href={getExplorerLink(
-                        selectedNetwork.chain.name,
-                        `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
-                      )}
-                      className="text-lavender-500 hover:underline dark:text-lavender-500"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      View in explorer
-                    </a>
+                    {transactionStatus === "expired" ? (
+                      <span className="text-text-secondary dark:text-white/40">
+                        Not available
+                      </span>
+                    ) : (
+                      <a
+                        href={getExplorerLink(
+                          selectedNetwork.chain.name,
+                          `${orderDetails?.status === "refunded" ? orderDetails?.txHash : createdHash}`,
+                        )}
+                        className="text-lavender-500 hover:underline dark:text-lavender-500"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View in explorer
+                      </a>
+                    )}
                   </p>
                 </div>
-              )}
-            </AnimatedComponent>
-          )}
+              </AnimatedComponent>
+            )}
         </AnimatePresence>
 
         <AnimatePresence>

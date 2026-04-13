@@ -6,11 +6,15 @@ import React, {
   useEffect,
   useRef,
 } from "react";
-import type { TransactionHistory, TransactionStatus } from "../types";
+import type { TransactionHistory, OrderDetailsData } from "../types";
 import {
   fetchTransactions,
   fetchOrderDetails,
+  fetchV2SenderPaymentOrderById,
   updateTransactionDetails,
+  mapAggregatorStatusToDbStatus,
+  resolveOnrampOrderStatusFromV2Response,
+  unwrapV2SenderOrderEnvelope,
 } from "../api/aggregator";
 import { useNetwork } from "./NetworksContext";
 import { usePrivy } from "@privy-io/react-auth";
@@ -75,33 +79,59 @@ export function TransactionsProvider({
     ) => {
       const nonFinalTxs = txs.filter(
         (tx) =>
-          tx.order_id && tx.status !== "completed" && tx.status !== "refunded",
+          tx.order_id &&
+          tx.status !== "completed" &&
+          tx.status !== "refunded" &&
+          tx.status !== "expired",
       );
       if (nonFinalTxs.length === 0) return;
 
       await Promise.all(
         nonFinalTxs.map(async (tx) => {
           try {
-            // fetch order details
-            const res = await fetchOrderDetails(
-              selectedNetwork.chain.id,
-              tx.order_id!,
-            );
+            const isOnrampTx = tx.transaction_type === "onramp";
+            let orderData: OrderDetailsData | null = null;
 
-            // Determine new txHash
+            if (isOnrampTx) {
+              const res = await fetchV2SenderPaymentOrderById(
+                tx.order_id!,
+                accessToken,
+              );
+              const resolvedStatus = resolveOnrampOrderStatusFromV2Response(res);
+              orderData =
+                unwrapV2SenderOrderEnvelope(res) ??
+                (res as unknown as { data?: OrderDetailsData }).data ??
+                null;
+              if (orderData && resolvedStatus !== undefined) {
+                orderData = { ...orderData, status: resolvedStatus };
+              }
+            } else {
+              const res = await fetchOrderDetails(
+                selectedNetwork.chain.id,
+                tx.order_id!,
+              );
+              orderData = res.data;
+            }
+
+            if (!orderData) {
+              return;
+            }
+
             let newTxHash: string | undefined;
-            const orderData = res.data;
             if (orderData.status === "refunded") {
               newTxHash = orderData.txHash;
             } else if (Array.isArray(orderData.txReceipts)) {
-              // Prefer validated, settled, then pending
               const relevantReceipt = orderData.txReceipts.find(
                 (r: { status: string }) => r.status === "pending",
               );
               newTxHash = relevantReceipt?.txHash;
             }
+            newTxHash =
+              newTxHash ||
+              orderData.txHash ||
+              orderData.txReceipts?.find((r) => r.txHash)?.txHash ||
+              orderData.txReceipts?.[0]?.txHash;
 
-            // Reindex pending transactions older than 30 seconds to sync with blockchain state
             if (
               orderData.status === "pending" &&
               tx.tx_hash &&
@@ -115,39 +145,39 @@ export function TransactionsProvider({
                 const txHash = tx.tx_hash;
                 const network = tx.network;
 
-                // Track reindexed transactions to prevent duplicate API calls
                 reindexedTxHashesRef.current.add(txHash);
 
-                // Reindex in background without blocking reconciliation
                 reindexSingleTransaction(txHash, network).catch((error) => {
                   console.error(
                     `Failed to reindex transaction ${txHash}:`,
                     error,
                   );
-                  // Allow retry in next polling cycle
                   reindexedTxHashesRef.current.delete(txHash);
                 });
               }
             }
 
-            // update transaction status or txHash if changed
-            const statusChanged = orderData.status !== tx.status;
-            const hashChanged = newTxHash && newTxHash !== tx.tx_hash;
+            const nextDbStatus = mapAggregatorStatusToDbStatus(
+              orderData.status,
+              { onramp: isOnrampTx },
+            );
+            const statusChanged = nextDbStatus !== tx.status;
+            const hashChanged = Boolean(
+              newTxHash && newTxHash !== tx.tx_hash,
+            );
             if (statusChanged || hashChanged) {
-              // Update backend
               await updateTransactionDetails({
                 transactionId: tx.id,
                 status: orderData.status,
                 txHash: newTxHash,
                 accessToken,
                 walletAddress,
+                isOnramp: isOnrampTx,
               });
 
               const updatedTransaction = {
                 ...tx,
-                status: ["validated", "settled"].includes(orderData.status)
-                  ? "completed"
-                  : (orderData.status as TransactionStatus),
+                status: nextDbStatus,
                 tx_hash: newTxHash ?? tx.tx_hash,
               };
 
@@ -266,7 +296,10 @@ export function TransactionsProvider({
     // Get incomplete transactions (pending, processing, fulfilled)
     const incompleteTransactions = transactions.filter(
       (tx) =>
-        tx.status !== "completed" && tx.status !== "refunded" && tx.order_id,
+        tx.status !== "completed" &&
+        tx.status !== "refunded" &&
+        tx.status !== "expired" &&
+        tx.order_id,
     );
 
     if (incompleteTransactions.length === 0) {
@@ -298,6 +331,7 @@ export function TransactionsProvider({
           (tx) =>
             tx.status !== "completed" &&
             tx.status !== "refunded" &&
+            tx.status !== "expired" &&
             tx.order_id,
         );
 

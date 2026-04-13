@@ -1025,16 +1025,19 @@ export function TransactionStatus({
                   delay={0.5}
                   className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
                 >
-                  {["validated", "settling", "settled"].includes(transactionStatus) && (
-                    <button
-                      type="button"
-                      onClick={handleGetReceipt}
-                      className={`w-fit ${secondaryBtnClasses}`}
-                      disabled={isGettingReceipt}
-                    >
-                      {isGettingReceipt ? "Generating..." : "Get receipt"}
-                    </button>
-                  )}
+                  {!isOnramp &&
+                    ["validated", "settling", "settled"].includes(
+                      transactionStatus,
+                    ) && (
+                      <button
+                        type="button"
+                        onClick={handleGetReceipt}
+                        className={`w-fit ${secondaryBtnClasses}`}
+                        disabled={isGettingReceipt}
+                      >
+                        {isGettingReceipt ? "Generating..." : "Get receipt"}
+                      </button>
+                    )}
 
                   <button
                     type="button"

@@ -14,15 +14,8 @@ import type {
   SaveRecipientResponse,
 } from "@/app/types";
 
-/** PostgREST PGRST205: relation missing from schema (e.g. migration not applied). */
-function isMissingSavedWalletRecipientsTable(error: {
-  code?: string;
-  message?: string;
-}): boolean {
-  return (
-    error.code === "PGRST205" ||
-    String(error.message ?? "").includes("saved_wallet_recipients")
-  );
+function isMissingSavedWalletRecipientsTable(error: { code?: string }): boolean {
+  return error.code === "PGRST205";
 }
 
 // Route handler for GET requests - Fetch saved recipients

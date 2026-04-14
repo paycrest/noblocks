@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { ImSpinner } from "react-icons/im";
@@ -26,6 +26,8 @@ import {
   shortenAddress,
   copyToClipboard,
   mapProviderAccountToInstructions,
+  ONRAMP_CLIENT_PAYMENT_SESSION_MS,
+  isOnrampClientPaymentSessionExpired,
 } from "../../utils";
 import {
   fetchV2SenderPaymentOrderById,
@@ -35,7 +37,6 @@ import { useNetwork } from "../../context/NetworksContext";
 import { useActualTheme } from "../../hooks/useActualTheme";
 import { networks } from "../../mocks";
 import { Copy01Icon } from "hugeicons-react";
-
 interface TransactionDetailsProps {
   transaction: TransactionHistory | null;
 }
@@ -43,6 +44,55 @@ interface TransactionDetailsProps {
 const Divider = () => (
   <div className="my-4 w-full border-t border-dashed border-border-light dark:border-white/10" />
 );
+
+function useOnrampClientPaymentSession(
+  createdAt: string | undefined,
+  transactionType: TransactionHistory["transaction_type"] | undefined,
+  status: TransactionHistory["status"] | undefined,
+) {
+  const applies =
+    transactionType === "onramp" &&
+    (status === "pending" || status === "processing");
+
+  const deadlineMs = useMemo(() => {
+    if (!applies || !createdAt) return null;
+    const t = new Date(createdAt).getTime();
+    if (Number.isNaN(t)) return null;
+    return t + ONRAMP_CLIENT_PAYMENT_SESSION_MS;
+  }, [applies, createdAt]);
+
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (deadlineMs === null) return;
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [deadlineMs]);
+
+  let timeRemainingLabel = "--:--";
+  if (deadlineMs !== null) {
+    if (Date.now() >= deadlineMs) {
+      timeRemainingLabel = "00:00";
+    } else {
+      const diff = deadlineMs - Date.now();
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+      timeRemainingLabel = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+    }
+  }
+  const expired =
+    applies &&
+    !!createdAt &&
+    !!transactionType &&
+    !!status &&
+    isOnrampClientPaymentSessionExpired({
+      created_at: createdAt,
+      transaction_type: transactionType,
+      status,
+    });
+  void tick;
+
+  return { applies, expired, timeRemainingLabel, deadlineMs };
+}
 
 const STATUS_COLOR_MAP: Record<string, string> = {
   completed: "text-green-500",
@@ -64,6 +114,11 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const { selectedNetwork } = useNetwork();
   const isDark = useActualTheme();
+  const onrampClientSession = useOnrampClientPaymentSession(
+    transaction?.created_at,
+    transaction?.transaction_type,
+    transaction?.status,
+  );
   if (!transaction) return null;
 
   // Use the transaction's stored network, not the globally selected network
@@ -233,9 +288,16 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         </div>
         <div className="flex items-center gap-2">
           <span
-            className={`${STATUS_COLOR_MAP[transaction.status] || "text-text-secondary dark:text-white/50"} text-sm`}
+            className={`${
+              onrampClientSession.applies && onrampClientSession.expired
+                ? STATUS_COLOR_MAP.expired
+                : STATUS_COLOR_MAP[transaction.status] ||
+                  "text-text-secondary dark:text-white/50"
+            } text-sm`}
           >
-            {transaction.status}
+            {onrampClientSession.applies && onrampClientSession.expired
+              ? "expired"
+              : transaction.status}
           </span>
         </div>
       </div>
@@ -315,7 +377,11 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         </div>
       ) : transaction.transaction_type === "onramp" ? (
         <div className="flex flex-col gap-5 px-1 pb-1">
-          <OnrampPendingPaymentInstructions transaction={transaction} />
+          <OnrampPendingPaymentInstructions
+            transaction={transaction}
+            clientSessionExpired={onrampClientSession.expired}
+            clientTimeRemainingLabel={onrampClientSession.timeRemainingLabel}
+          />
           <DetailRow
             label="Amount"
             value={
@@ -529,8 +595,16 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         <DetailRow
           label="Transaction status"
           value={
-            <span className="text-text-secondary dark:text-white/50">
-              {transaction.status}
+            <span
+              className={
+                onrampClientSession.applies && onrampClientSession.expired
+                  ? STATUS_COLOR_MAP.expired
+                  : "text-text-secondary dark:text-white/50"
+              }
+            >
+              {onrampClientSession.applies && onrampClientSession.expired
+                ? "expired"
+                : transaction.status}
             </span>
           }
         />
@@ -592,8 +666,12 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
 /** Fetches virtual account from aggregator for pending/processing on-ramp orders (history modal). */
 function OnrampPendingPaymentInstructions({
   transaction,
+  clientSessionExpired,
+  clientTimeRemainingLabel,
 }: {
   transaction: TransactionHistory;
+  clientSessionExpired: boolean;
+  clientTimeRemainingLabel: string;
 }) {
   const { getAccessToken } = usePrivy();
   const [instructions, setInstructions] = useState<OnrampPaymentInstructions | null>(
@@ -609,7 +687,7 @@ function OnrampPendingPaymentInstructions({
     (transaction.status === "pending" || transaction.status === "processing");
 
   useEffect(() => {
-    if (!shouldFetch || !transaction.order_id) return;
+    if (!shouldFetch || !transaction.order_id || clientSessionExpired) return;
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
@@ -664,9 +742,14 @@ function OnrampPendingPaymentInstructions({
     transaction.from_currency,
     transaction.amount_sent,
     getAccessToken,
+    clientSessionExpired,
   ]);
 
   if (!shouldFetch) return null;
+
+  if (clientSessionExpired) {
+    return null;
+  }
 
   if (loading) {
     return (
@@ -762,6 +845,14 @@ function OnrampPendingPaymentInstructions({
           </button>
         </div>
       </div>
+      <p className="text-xs text-text-secondary dark:text-white/50">
+        <span className="text-text-body dark:text-white/70">
+          This account is only for this payment. Expires in{" "}
+        </span>
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-lavender-500 dark:bg-surface-canvas dark:text-lavender-500">
+          {clientTimeRemainingLabel}
+        </span>
+      </p>
     </div>
   );
 }

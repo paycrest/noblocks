@@ -10,6 +10,7 @@ import {
     copyToClipboard,
     getCurrencySymbol,
     mapProviderAccountToInstructions,
+    ONRAMP_CLIENT_PAYMENT_SESSION_MS,
 } from "../utils";
 import { secondaryBtnClasses } from "../components";
 import type { OnrampPaymentInstructions, TransactionPreviewProps } from "../types";
@@ -58,11 +59,17 @@ export const MakePayment = ({
     const [loadError, setLoadError] = useState<string | null>(null);
 
     const [timeRemaining, setTimeRemaining] = useState<string>("");
+    const [sessionExpired, setSessionExpired] = useState(false);
     const [isAccountNumberCopied, setIsAccountNumberCopied] = useState(false);
     const [isAmountCopied, setIsAmountCopied] = useState(false);
     const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    /** Wall-clock deadline (ms) for the 30‑minute session; set when payment details first load. */
+    const sessionDeadlineMsRef = useRef<number | null>(null);
 
     useEffect(() => {
+        sessionDeadlineMsRef.current = null;
+        setSessionExpired(false);
+
         let cancelled = false;
         const load = async () => {
             setLoadError(null);
@@ -71,6 +78,7 @@ export const MakePayment = ({
 
             if (onrampPaymentAccount) {
                 if (cancelled) return;
+                sessionDeadlineMsRef.current = Date.now() + ONRAMP_CLIENT_PAYMENT_SESSION_MS;
                 setPaymentDetails(
                     mapProviderAccountToInstructions(
                         onrampPaymentAccount,
@@ -97,6 +105,7 @@ export const MakePayment = ({
                 if (res.status !== "success" || !res.data?.providerAccount) {
                     throw new Error(res.message || "Could not load payment instructions");
                 }
+                sessionDeadlineMsRef.current = Date.now() + ONRAMP_CLIENT_PAYMENT_SESSION_MS;
                 setPaymentDetails(
                     mapProviderAccountToInstructions(
                         res.data.providerAccount,
@@ -118,18 +127,22 @@ export const MakePayment = ({
         };
     }, [orderId, onrampPaymentAccount, amountSent, currency, getAccessToken]);
 
-    // Calculate time remaining
+    // Countdown from client session deadline (not API expiresAt)
     useEffect(() => {
-        if (!paymentDetails?.expiresAt) {
+        if (!paymentDetails || sessionExpired) return;
+        const deadline = sessionDeadlineMsRef.current;
+        if (deadline === null) {
             setTimeRemaining("--:--");
             return;
         }
+
         const updateTimer = () => {
-            const now = new Date();
-            const diff = paymentDetails.expiresAt.getTime() - now.getTime();
+            const diff = deadline - Date.now();
 
             if (diff <= 0) {
                 setTimeRemaining("00:00");
+                setSessionExpired(true);
+                setTransactionStatus("expired");
                 return;
             }
 
@@ -144,10 +157,11 @@ export const MakePayment = ({
         const interval = setInterval(updateTimer, 1000);
 
         return () => clearInterval(interval);
-    }, [paymentDetails]);
+    }, [paymentDetails, sessionExpired, setTransactionStatus]);
 
     // Auto-start: poll aggregator for payment detection (no manual "I sent funds" click)
     useEffect(() => {
+        if (sessionExpired) return;
         if (!paymentDetails) return;
         if (!orderId) {
             console.warn("[MakePayment] Missing orderId; staying on bank-details step");
@@ -210,7 +224,7 @@ export const MakePayment = ({
             clearPolling();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- stable polling for one order load
-    }, [paymentDetails, orderId, getAccessToken]);
+    }, [paymentDetails, orderId, getAccessToken, sessionExpired]);
 
     const currencySymbol = paymentDetails
         ? getCurrencySymbol(paymentDetails.currency)
@@ -244,6 +258,28 @@ export const MakePayment = ({
             <div className="mx-auto flex min-h-[12rem] max-w-[26.0625rem] flex-col items-center justify-center gap-3 py-10 text-sm">
                 <ImSpinner className="animate-spin text-2xl text-lavender-500" />
                 <p className="text-text-secondary dark:text-white/50">Loading payment details…</p>
+            </div>
+        );
+    }
+
+    if (sessionExpired) {
+        return (
+            <div className="mx-auto grid max-w-[26.0625rem] gap-6 py-10 text-sm">
+                <div className="grid gap-4 rounded-[20px] bg-background-neutral p-6 dark:bg-[#202121]">
+                    <h2 className="text-xl font-medium text-text-body dark:text-white/80">
+                        Session expired
+                    </h2>
+                    <p className="text-text-secondary dark:text-white/50">
+                        This payment window has closed. Start again to get new account details.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={handleBackButtonClick}
+                        className={classNames(secondaryBtnClasses, "w-full")}
+                    >
+                        Go home
+                    </button>
+                </div>
             </div>
         );
     }

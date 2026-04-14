@@ -8,6 +8,7 @@ import type {
   RecipientDetails,
   V2FiatProviderAccountDTO,
   OnrampPaymentInstructions,
+  TransactionHistory,
 } from "./types";
 import type { SanityPost, SanityCategory } from "./blog/types";
 import { erc20Abi, createPublicClient, http } from "viem";
@@ -1418,4 +1419,28 @@ export function mapProviderAccountToInstructions(
     currency: a.currency || fallbackCurrency,
     expiresAt: new Date(a.validUntil),
   };
+}
+
+/** Same window as Make payment: not API `validUntil` until backend aligns. */
+export const ONRAMP_CLIENT_PAYMENT_SESSION_MS = 30 * 60 * 1000;
+
+/**
+ * True when an on-ramp order is still pending/processing in the API but the
+ * client payment window (30 minutes from `created_at`) has ended.
+ */
+export function isOnrampClientPaymentSessionExpired(
+  transaction: Pick<
+    TransactionHistory,
+    "created_at" | "transaction_type" | "status"
+  >,
+): boolean {
+  if (
+    transaction.transaction_type !== "onramp" ||
+    (transaction.status !== "pending" && transaction.status !== "processing")
+  ) {
+    return false;
+  }
+  const t = new Date(transaction.created_at).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() >= t + ONRAMP_CLIENT_PAYMENT_SESSION_MS;
 }

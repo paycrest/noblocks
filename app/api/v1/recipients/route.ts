@@ -14,6 +14,17 @@ import type {
   SaveRecipientResponse,
 } from "@/app/types";
 
+/** PostgREST PGRST205: relation missing from schema (e.g. migration not applied). */
+function isMissingSavedWalletRecipientsTable(error: {
+  code?: string;
+  message?: string;
+}): boolean {
+  return (
+    error.code === "PGRST205" ||
+    String(error.message ?? "").includes("saved_wallet_recipients")
+  );
+}
+
 // Route handler for GET requests - Fetch saved recipients
 export const GET = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
@@ -62,9 +73,18 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       .eq("normalized_wallet_address", walletAddress)
       .order("created_at", { ascending: false });
 
+    let walletRows = walletRecipients ?? [];
     if (walletError) {
-      console.error("Supabase query error:", walletError);
-      throw walletError;
+      if (isMissingSavedWalletRecipientsTable(walletError)) {
+        console.warn(
+          "saved_wallet_recipients unavailable; returning bank/mobile_money recipients only:",
+          walletError,
+        );
+        walletRows = [];
+      } else {
+        console.error("Supabase query error:", walletError);
+        throw walletError;
+      }
     }
 
     // Transform bank/mobile_money recipients
@@ -80,7 +100,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 
     // Transform wallet recipients
     const transformedWalletRecipients: RecipientDetailsWithId[] =
-      walletRecipients?.map((recipient) => ({
+      walletRows.map((recipient) => ({
         id: recipient.id,
         type: "wallet" as const,
         walletAddress: recipient.recipient_wallet_address,

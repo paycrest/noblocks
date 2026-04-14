@@ -79,9 +79,10 @@ export const SavedBeneficiariesModal = ({
             .includes(beneficiarySearchTerm.toLowerCase()) ||
           recipient.accountIdentifier.includes(beneficiarySearchTerm),
       )
-      .filter((recipient) =>
-        currentBankCodes.includes(recipient.institutionCode),
-      );
+      .filter((recipient) => {
+        if (currentBankCodes.length === 0) return true;
+        return currentBankCodes.includes(recipient.institutionCode);
+      });
   }, [savedRecipients, beneficiarySearchTerm, currency, institutions, isSwapped]);
 
   return (

@@ -10,6 +10,7 @@ import {
   Preloader,
   TransactionForm,
   TransactionPreview,
+  MakePayment,
   TransactionStatus,
   NetworkSelectionModal,
   CookieConsent,
@@ -30,6 +31,7 @@ import {
   type RecipientDetails,
   type StateProps,
   type TransactionStatusType,
+  type V2FiatProviderAccountDTO,
 } from "../types";
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "../context/StepContext";
@@ -40,7 +42,6 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
 import { useBalance, useInjectedWallet } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
-
 const PageLayout = ({
   authenticated,
   ready,
@@ -71,7 +72,7 @@ const PageLayout = ({
   const walletAddress = isInjectedWallet
     ? injectedAddress
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-        ?.address;
+      ?.address;
 
   return (
     <>
@@ -127,6 +128,8 @@ export function MainPageContent() {
     useState<TransactionStatusType>("idle");
   const [createdAt, setCreatedAt] = useState<string>("");
   const [orderId, setOrderId] = useState<string>("");
+  const [onrampPaymentAccount, setOnrampPaymentAccount] =
+    useState<V2FiatProviderAccountDTO | null>(null);
 
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
@@ -152,39 +155,46 @@ export function MainPageContent() {
       institution: "",
       accountIdentifier: "",
       accountType: "bank",
+      isSwapped: false,
     },
   });
   const { watch } = formMethods;
-  const { currency, amountSent, amountReceived, token } = watch();
+  const { currency, amountSent, amountReceived, token, isSwapped } = watch();
+  /** On-ramp (fiat→crypto): same as TransactionForm `isSwapped` / v2 `buy` side. */
+  const isOnrampRate = Boolean(isSwapped);
 
   // State props for child components
   const stateProps: StateProps = {
-      formValues,
-      setFormValues,
+    formValues,
+    setFormValues,
 
-      rate,
-      setRate,
-      isFetchingRate,
-      setIsFetchingRate,
-      rateError,
-      setRateError,
+    rate,
+    setRate,
+    isFetchingRate,
+    setIsFetchingRate,
+    rateError,
+    setRateError,
 
-      institutions,
-      setInstitutions,
-      isFetchingInstitutions,
-      setIsFetchingInstitutions,
+    institutions,
+    setInstitutions,
+    isFetchingInstitutions,
+    setIsFetchingInstitutions,
 
-      selectedRecipient,
-      setSelectedRecipient,
+    selectedRecipient,
+    setSelectedRecipient,
 
-      orderId,
-      setOrderId,
-      setCreatedAt,
-      setTransactionStatus,
-    };
+    orderId,
+    setOrderId,
+    setCreatedAt,
+    setTransactionStatus,
+
+    onrampPaymentAccount,
+    setOnrampPaymentAccount,
+  };
 
   useEffect(function setPageLoadingState() {
     setOrderId("");
+    setOnrampPaymentAccount(null);
     setIsPageLoading(false);
   }, []);
 
@@ -194,6 +204,7 @@ export function MainPageContent() {
       if (!authenticated && !isInjectedWallet) {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
+        setOnrampPaymentAccount(null);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -323,7 +334,7 @@ export function MainPageContent() {
             currency,
             providerId,
             network: normalizeNetworkForRateFetch(selectedNetwork.chain.name),
-            side: "sell",
+            side: isOnrampRate ? "buy" : "sell",
           });
           setRate(rate.data);
           setRateError(null); // Clear error on success
@@ -386,6 +397,7 @@ export function MainPageContent() {
       amountReceived,
       currency,
       token,
+      isSwapped,
       searchParams,
       selectedNetwork,
       rateRefetchTrigger,
@@ -470,6 +482,13 @@ export function MainPageContent() {
             createdAt={createdAt}
           />
         );
+      case STEPS.MAKE_PAYMENT:
+        return (
+          <MakePayment
+            handleBackButtonClick={handleBackToForm}
+            stateProps={stateProps}
+          />
+        );
       case STEPS.STATUS:
         return (
           <TransactionStatus
@@ -477,6 +496,7 @@ export function MainPageContent() {
             transactionStatus={transactionStatus}
             createdAt={createdAt}
             orderId={orderId}
+            isOnramp={!!onrampPaymentAccount}
             clearForm={() => {
               clearFormState(formMethods);
               setSelectedRecipient(null);

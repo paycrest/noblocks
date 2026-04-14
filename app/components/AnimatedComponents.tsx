@@ -410,7 +410,7 @@ export const AnimatedModal = ({
                   className={classNames(
                     "w-full overflow-y-auto bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl",
                     showGradientHeader ? "-mt-10" : "",
-                    contentClassName,
+                    contentClassName ?? "",
                   )}
                 >
                   <motion.div layout="position">{children}</motion.div>

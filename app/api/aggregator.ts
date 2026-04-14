@@ -2,6 +2,8 @@ import axios from "axios";
 import type {
   RatePayload,
   RateResponse,
+  RateSide,
+  V2RateQuoteResponse,
   InstitutionProps,
   PubkeyResponse,
   VerifyAccountPayload,
@@ -29,16 +31,42 @@ import {
 
 const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
 
+/** Base URL without trailing `/v1` so v2 paths are `{origin}/v2/...` not `{origin}/v1/v2/...`. */
+function aggregatorOriginForV2(): string {
+  const raw = (AGGREGATOR_URL || "").trim();
+  if (!raw) {
+    throw new Error("NEXT_PUBLIC_AGGREGATOR_URL is not configured");
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error(
+      "NEXT_PUBLIC_AGGREGATOR_URL must be a valid absolute URL (e.g. https://api.example.com/v1)",
+    );
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(
+      "NEXT_PUBLIC_AGGREGATOR_URL must use http: or https:",
+    );
+  }
+  const basePath = parsed.pathname
+    .replace(/\/v1\/?$/i, "")
+    .replace(/\/$/, "");
+  return `${parsed.origin}${basePath}`;
+}
+
+function pickV2RateQuote(
+  quotes: V2RateQuoteResponse,
+  side: RateSide,
+): { rate: string } | undefined {
+  return side === "buy" ? quotes.buy : quotes.sell;
+}
+
 /**
- * Fetches the current exchange rate for a given token and currency pair
- * @param {RatePayload} params - The rate request parameters
- * @param {string} params.token - The token symbol
- * @param {number} [params.amount=1] - The amount to convert
- * @param {string} params.currency - The target currency
- * @param {string} [params.providerId] - Optional provider ID
- * @param {string} [params.network] - Optional network identifier (e.g., "arbitrum-one", "polygon")
- * @returns {Promise<RateResponse>} The rate response containing exchange rate and fees
- * @throws {Error} If the API request fails or returns an error
+ * Fetches the current exchange rate via aggregator **v2** (buy = onramp, sell = offramp).
+ * @param params.network - Required; sent as path segment (e.g. "arbitrum-one").
+ * @param params.side - `"buy"` or `"sell"`.
  */
 export const fetchRate = async ({
   token,
@@ -46,77 +74,104 @@ export const fetchRate = async ({
   currency,
   providerId,
   network,
+  side,
   signal,
 }: RatePayload): Promise<RateResponse> => {
   const startTime = Date.now();
+  const analyticsEndpoint = "/v2/rates";
+  const net = (network || "").trim().toLowerCase();
+
+  if (!net) {
+    throw new Error("network is required for rate quotes");
+  }
+
+  const origin = aggregatorOriginForV2();
+  const endpoint = `${origin}/v2/rates/${encodeURIComponent(net)}/${encodeURIComponent(token)}/${amount}/${encodeURIComponent(currency)}`;
+  const params: Record<string, string> = {
+    side,
+  };
+  if (providerId) {
+    params.provider_id = providerId;
+  }
 
   try {
-    // Track external API request
     trackServerEvent("External API Request", {
       service: "aggregator",
-      endpoint: "/rates",
+      endpoint: analyticsEndpoint,
       method: "GET",
       token,
       amount,
       currency,
       provider_id: providerId,
-      network,
+      network: net,
+      side,
     });
 
-    const endpoint = `${AGGREGATOR_URL}/rates/${token}/${amount}/${currency}`;
-    const params: Record<string, string> = {};
-
-    if (providerId) {
-      params.provider_id = providerId;
-    }
-    if (network) {
-      params.network = network;
-    }
-
     const response = await axios.get(endpoint, { params, signal });
-    const { data } = response;
+    const payload = response.data as {
+      status: string;
+      message: string;
+      data: V2RateQuoteResponse;
+    };
 
-    // Track successful response
+    if (payload.status === "error") {
+      throw new Error(payload.message || "Rate request failed");
+    }
+
+    const sideQuote = pickV2RateQuote(payload.data ?? {}, side);
+    if (!sideQuote?.rate) {
+      throw new Error(
+        payload.message || `No ${side} rate returned for this pair`,
+      );
+    }
+
+    const numericRate = Number(sideQuote.rate);
+    if (!Number.isFinite(numericRate)) {
+      throw new Error("Invalid rate value from aggregator");
+    }
+
+    const normalized: RateResponse = {
+      status: payload.status,
+      message: payload.message,
+      data: numericRate,
+    };
+
     const responseTime = Date.now() - startTime;
-    trackApiResponse("/rates", "GET", 200, responseTime, {
+    trackApiResponse(analyticsEndpoint, "GET", 200, responseTime, {
       service: "aggregator",
       token,
       amount,
       currency,
       provider_id: providerId,
-      network,
-      rate: data.data,
+      network: net,
+      side,
+      rate: numericRate,
     });
 
-    // Track business event
     trackBusinessEvent("Rate Fetched", {
       token,
       amount,
       currency,
       provider_id: providerId,
-      network,
-      rate: data.data,
+      network: net,
+      side,
+      rate: numericRate,
     });
 
-    // Check the API response status first
-    if (data.status === "error") {
-      throw new Error(data.message || "Provider not found");
-    }
-
-    return data;
+    return normalized;
   } catch (error) {
     const responseTime = Date.now() - startTime;
 
-    // Track API error
     trackServerEvent("External API Error", {
       service: "aggregator",
-      endpoint: "/rates",
+      endpoint: analyticsEndpoint,
       method: "GET",
       token,
       amount,
       currency,
       provider_id: providerId,
-      network,
+      network: net,
+      side,
       error_message: error instanceof Error ? error.message : "Unknown error",
       response_time_ms: responseTime,
     });

@@ -51,40 +51,6 @@ export function TokensProvider({ children }: { children: ReactNode }) {
         },
         {},
       );
-      // Temporarily add USDT on Base for user withdrawal
-      if (newTokens["Base"]) {
-        const usdtBase = {
-          name: "Tether USD",
-          symbol: "USDT",
-          decimals: 6,
-          address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
-          imageUrl: "/logos/usdt-logo.svg",
-        };
-
-        // Check if USDT is not already in the list
-        const hasUSDT = newTokens["Base"].some(
-          (token) => token.symbol === "USDT",
-        );
-        if (!hasUSDT) {
-          newTokens["Base"].push(usdtBase);
-        }
-
-        // Ensure native ETH is present in the target network
-        // const nativeETH = {
-        //   name: "Ethereum",
-        //   symbol: "ETH",
-        //   decimals: 18,
-        //   address: "", // Native token has no contract address
-        //   imageUrl: "/logos/eth-logo.svg",
-        //   isNative: true,
-        // };
-        // const hasNativeETH = newTokens["Ethereum"].some(
-        //   (token) => token.symbol === "ETH" && token.isNative,
-        // );
-        // if (!hasNativeETH) {
-        //   newTokens["Ethereum"].push(nativeETH);
-        // }
-      }
 
       // Merge fallback tokens for any networks missing from API response
       Object.keys(FALLBACK_TOKENS).forEach((networkName) => {

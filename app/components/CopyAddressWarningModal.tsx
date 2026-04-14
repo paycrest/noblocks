@@ -14,14 +14,12 @@ import { networks } from "../mocks";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { shouldUseInjectedWallet, getNetworkImageUrl } from "../utils";
+import { getNetworkImageUrl } from "../utils";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/useMixpanel";
 import { PiCheck } from "react-icons/pi";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { Token } from "../types";
-import { useSearchParams } from "next/navigation";
-
 interface CopyAddressWarningModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -32,20 +30,12 @@ export const CopyAddressWarningModal: React.FC<
   CopyAddressWarningModalProps
 > = ({ isOpen, onClose, address }) => {
   const { selectedNetwork } = useNetwork();
-  const searchParams = useSearchParams();
-  const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const { allTokens } = useTokens();
   const isDark = useActualTheme();
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
-  // Filter networks based on wallet type (same logic as NetworksDropdown):
-  // - If isInjectedWallet is true: show all networks (including Celo)
-  // - If isInjectedWallet is false: filter out Celo  (smart wallet only)
-  const supportedNetworks = networks.filter((network) => {
-    if (useInjectedWallet) return true;
-    return network.chain.name !== "Celo";
-  });
+  const supportedNetworks = networks;
 
   // Check localStorage on mount to see if user has opted out
   useEffect(() => {

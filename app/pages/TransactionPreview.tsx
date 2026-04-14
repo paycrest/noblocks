@@ -120,6 +120,9 @@ export const TransactionPreview = ({
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
   const orderSubmissionBlock = useRef<bigint | null>(null);
 
+  // Ref to prevent duplicate transaction saves
+  const isSavingTransactionRef = useRef(false);
+
   const searchParams = useSearchParams();
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];

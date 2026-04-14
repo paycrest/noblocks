@@ -143,13 +143,143 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     const normalizedEmail =
       typeof body.email === "string" ? body.email.trim() || null : null;
-
     const explorerLink =
       body.network && body.txHash
         ? getExplorerLink(body.network, body.txHash)
         : "";
 
-    // Insert transaction
+    // KYC tier enforcement — only applies to swap transactions
+    // Uses an atomic stored procedure to prevent race conditions where two concurrent
+    // requests both pass the limit check before either insert is committed.
+    if (body.transactionType === "swap") {
+      const KYC_MONTHLY_LIMITS: Record<number, number> = {
+        0: 0,
+        1: 100,
+        2: 15000,
+        3: 50000,
+      };
+
+      const { data: kycProfile, error: kycError } = await supabaseAdmin
+        .from("user_kyc_profiles")
+        .select("tier")
+        .eq("wallet_address", walletAddress)
+        .maybeSingle();
+
+      if (kycError) {
+        return NextResponse.json(
+          { success: false, error: "Unable to verify transaction limits. Please try again." },
+          { status: 503 },
+        );
+      }
+
+      const tier = Math.min(Math.max(Number(kycProfile?.tier ?? 0), 0), 3);
+      const monthlyLimit = KYC_MONTHLY_LIMITS[tier] ?? 0;
+
+      if (monthlyLimit === 0) {
+        trackApiError(request, '/api/v1/transactions', 'POST', new Error('KYC required'), 403);
+        return NextResponse.json(
+          { success: false, error: "Identity verification required to make transactions." },
+          { status: 403 },
+        );
+      }
+
+      // Always fetch the cNGN rate — the stored procedure needs it if historical
+      // cNGN transactions exist, even if the current transaction is non-cNGN.
+      let cngnToUsdRate = 0;
+      try {
+        const aggregatorUrl = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
+        if (aggregatorUrl) {
+          const rateRes = await fetch(`${aggregatorUrl}/rates/USDC/1/NGN`, {
+            signal: AbortSignal.timeout(5000),
+          });
+          if (rateRes.ok) {
+            const rateData = await rateRes.json();
+            const rate = Number(rateData?.data);
+            if (rate > 0) cngnToUsdRate = rate;
+          }
+        }
+      } catch {
+        // Rate unavailable — stored procedure will return rate_unavailable if cNGN is involved
+      }
+
+      // Atomic spend-check + insert (advisory lock prevents concurrent limit bypass)
+      const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc(
+        "insert_swap_transaction_if_within_limit",
+        {
+          p_wallet_address:    normalizedBodyWalletAddress,
+          p_monthly_limit:     monthlyLimit,
+          p_cngn_to_usd_rate:  cngnToUsdRate,
+          p_transaction_type:  body.transactionType,
+          p_from_currency:     body.fromCurrency,
+          p_to_currency:       body.toCurrency,
+          p_amount_sent:       parseFloat(body.amountSent) || 0,
+          p_amount_received:   parseFloat(body.amountReceived) || 0,
+          p_fee:               parseFloat(body.fee) || 0,
+          p_recipient:         body.recipient,
+          p_status:            body.status,
+          p_network:           body.network || null,
+          p_time_spent:        body.time_spent || null,
+          p_tx_hash:           body.txHash || null,
+          p_order_id:          body.orderId || null,
+          p_email:             normalizedEmail,
+          p_explorer_link:     explorerLink || null,
+        },
+      );
+
+      if (rpcError) {
+        throw rpcError;
+      }
+
+      const rpcData = rpcResult as {
+        id?: string;
+        error?: string;
+        monthly_limit?: number;
+      };
+
+      if (rpcData.error === "rate_unavailable") {
+        return NextResponse.json(
+          { success: false, error: "Unable to verify transaction amount. Please try again." },
+          { status: 503 },
+        );
+      }
+
+      if (rpcData.error === "limit_exceeded") {
+        trackApiError(request, '/api/v1/transactions', 'POST', new Error('Monthly KYC limit exceeded'), 403);
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Monthly transaction limit of $${monthlyLimit.toLocaleString()} reached. Upgrade your verification tier to continue.`,
+          },
+          { status: 403 },
+        );
+      }
+
+      if (!rpcData.id) {
+        throw new Error("Unexpected RPC response from insert_swap_transaction_if_within_limit");
+      }
+
+      const responseTime = Date.now() - startTime;
+      trackApiResponse('/api/v1/transactions', 'POST', 201, responseTime, {
+        wallet_address: normalizedBodyWalletAddress,
+        transaction_id: rpcData.id,
+      });
+      trackTransactionEvent('Transaction Created', normalizedBodyWalletAddress, {
+        transaction_id: rpcData.id,
+        transaction_type: body.transactionType,
+        from_currency: body.fromCurrency,
+        to_currency: body.toCurrency,
+        amount_sent: body.amountSent,
+        amount_received: body.amountReceived,
+        fee: body.fee,
+        status: body.status,
+        network: body.network,
+        order_id: body.orderId,
+      });
+
+      return NextResponse.json({ success: true, data: { id: rpcData.id } }, { status: 201 });
+    }
+
+    // Non-swap transactions: direct insert (no KYC limit enforcement)
     const { data, error } = await supabaseAdmin
       .from("transactions")
       .insert({
@@ -176,14 +306,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       throw error;
     }
 
-    // Track successful transaction creation
     const responseTime = Date.now() - startTime;
     trackApiResponse('/api/v1/transactions', 'POST', 201, responseTime, {
       wallet_address: normalizedBodyWalletAddress,
       transaction_id: data.id,
     });
-
-    // Track transaction event
     trackTransactionEvent('Transaction Created', normalizedBodyWalletAddress, {
       transaction_id: data.id,
       transaction_type: body.transactionType,

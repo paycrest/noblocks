@@ -11,6 +11,7 @@ import {
   AnimatedModal,
   slideInOut,
 } from "../components/AnimatedComponents";
+import {  TransactionLimitModal } from "../components";
 import { primaryBtnClasses } from "../components/Styles";
 import { FormDropdown } from "../components/FormDropdown";
 import { RecipientDetailsForm } from "../components/recipient/RecipientDetailsForm";
@@ -36,7 +37,6 @@ import {
 } from "../utils";
 import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
-import { fetchKYCStatus } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
@@ -45,6 +45,7 @@ import {
   useInjectedWallet,
   useNetwork,
   useTokens,
+  useKYC,
 } from "../context";
 import WalletMigrationModal from "../components/WalletMigrationModal";
 
@@ -78,6 +79,7 @@ export const TransactionForm = ({
   const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
+  const { canTransact, refreshStatus, isPhoneVerified, tier } = useKYC();
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -90,6 +92,8 @@ export const TransactionForm = ({
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
   const isFirstRender = useRef(true);
   const [rateError, setRateError] = useState<string | null>(null);
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
+  const [blockedTransactionAmount, setBlockedTransactionAmount] = useState(0);
 
   const currencies = useMemo(
     () =>
@@ -110,6 +114,7 @@ export const TransactionForm = ({
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors, isValid, isDirty },
   } = formMethods;
   const { amountSent, amountReceived, token, currency } = watch();
@@ -295,33 +300,13 @@ export const TransactionForm = ({
   );
 
   useEffect(
-    function checkKycStatus() {
+    function refreshKycStatus() {
       const walletAddressToCheck = isInjectedWallet
         ? injectedAddress
         : embeddedWalletAddress;
       if (!walletAddressToCheck) return;
 
-      const fetchStatus = async () => {
-        try {
-          const response = await fetchKYCStatus(walletAddressToCheck);
-          if (response.data.status === "pending") {
-            setIsKycModalOpen(true);
-          } else if (response.data.status === "success") {
-            setIsUserVerified(true);
-          }
-        } catch (error) {
-          if (
-            error instanceof Error &&
-            (error as any).response?.status === 404
-          ) {
-            // silently fail if user is not found/verified
-          } else {
-            console.log("error", error);
-          }
-        }
-      };
-
-      fetchStatus();
+      refreshStatus();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [embeddedWalletAddress, injectedAddress, isInjectedWallet],
@@ -359,6 +344,19 @@ export const TransactionForm = ({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [amountSent, amountReceived, rate],
+  );
+
+  // Update isUserVerified based on tier changes and current amount
+  useEffect(
+    function updateVerificationStatus() {
+      if (tier > 0 && amountSent) {
+        const canUserTransact = canTransact(Number(amountSent)).allowed;
+        setIsUserVerified(canUserTransact);
+      } else if (tier === 0) {
+        setIsUserVerified(false);
+      }
+    },
+    [tier, amountSent, canTransact, setIsUserVerified],
   );
 
   // Register form fields
@@ -492,6 +490,26 @@ export const TransactionForm = ({
       return;
     }
     setOrderId("");
+
+    // Calculate the USD equivalent for transaction limit checking.
+    // cNGN is not 1:1 with USD — convert using the live rate.
+    // USDC, USDT, and cUSD are treated as 1:1 with USD.
+    const formData = getValues();
+    const rawAmount = formData.amountSent || 0;
+    const isCngn = formData.token === "cNGN" || formData.token === "CNGN";
+    const usdAmount =
+      isCngn && cngnRate && cngnRate > 0 ? rawAmount / cngnRate : rawAmount;
+
+    // Check transaction limits based on KYC tier
+    const limitCheck = canTransact(usdAmount);
+
+    if (!limitCheck.allowed) {
+      setBlockedTransactionAmount(usdAmount);
+      setIsLimitModalOpen(true);
+      return;
+    }
+
+    // If limits are okay, proceed with transaction
     handleSubmit(onSubmit)();
   };
 
@@ -877,10 +895,20 @@ export const TransactionForm = ({
               <KycModal
                 setIsKycModalOpen={setIsKycModalOpen}
                 setIsUserVerified={setIsUserVerified}
+                targetTier={tier === 2 ? 3 : 2}
               />
             </AnimatedModal>
           )}
         </AnimatePresence>
+
+        <TransactionLimitModal
+          isOpen={isLimitModalOpen}
+          onClose={async () => {
+            setIsLimitModalOpen(false);
+            await refreshStatus();
+          }}
+          transactionAmount={blockedTransactionAmount}
+        />
 
         {/* Loading and Submit buttons */}
         {!ready && (
@@ -912,6 +940,8 @@ export const TransactionForm = ({
                     (fetchedTokens.find((t) => t.symbol === token)
                       ?.address as `0x${string}`) ?? "",
                   ),
+                () => setIsLimitModalOpen(true),
+                isPhoneVerified,
                 () => setIsKycModalOpen(true),
                 isUserVerified,
                 () => setIsMigrationModalOpen(true),

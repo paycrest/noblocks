@@ -12,6 +12,7 @@ import config from "./lib/config";
 import {
   BalanceProvider,
   InjectedWalletProvider,
+  KYCProvider,
   MigrationStatusProvider,
   NetworkProvider,
   RocketStatusProvider,
@@ -80,16 +81,18 @@ function ContextProviders({ children }: { children: ReactNode }) {
             <StepProvider>
               <BalanceProvider>
                 <TransactionsProvider>
+                  <KYCProvider>
                   <BlockFestClaimProvider>
                     <BlockFestModalProvider>
                       <RocketStatusProvider>{children}</RocketStatusProvider>
                     </BlockFestModalProvider>
                   </BlockFestClaimProvider>
-                </TransactionsProvider>
-              </BalanceProvider>
-            </StepProvider>
-          </TokensProvider>
-        </MigrationStatusProvider>
+                </KYCProvider>
+              </TransactionsProvider>
+            </BalanceProvider>
+          </StepProvider>
+        </TokensProvider>
+       </MigrationStatusProvider>
       </InjectedWalletProvider>
     </NetworkProvider>
   );

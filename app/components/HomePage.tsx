@@ -90,12 +90,12 @@ function HomePageComponent({
               transition={{ duration: 0.7, ease: "easeInOut" }}
             >
               <span className="text-3xl text-text-secondary dark:text-white/80 sm:text-[2.5rem] md:text-[3.5rem] lg:text-[4rem]">
-                Change stablecoins
+                Move between stablecoins
               </span>
               <span
                 className={`${crimsonPro.className} text-[2.5rem] italic sm:text-[3.45rem] md:text-[4.75rem] lg:text-[5.25rem]`}
               >
-                to cash in seconds
+                and cash in seconds
               </span>
             </motion.h1>
           </motion.section>

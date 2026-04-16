@@ -1,12 +1,13 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useMemo, useReducer } from "react";
 import {
   classNames,
   formatCurrency,
   getNetworkImageUrl,
   shortenAddress,
+  hasOnrampAwaitingBankTransfer,
 } from "../utils";
-import { useBalance } from "../context";
+import { useBalance, useTransactions } from "../context";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
@@ -41,6 +42,7 @@ import { TransferForm } from "./TransferForm";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import WalletMigrationModal from "./WalletMigrationModal";
 import { useCNGNRate } from "../hooks/useCNGNRate";
+import { OnrampPendingNotificationDot } from "./OnrampPendingNotificationDot";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -69,8 +71,9 @@ export const WalletDetails = () => {
     refreshBalance,
   } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const { user } = usePrivy();
+  const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
+  const { transactions, fetchTransactions } = useTransactions();
   const isDark = useActualTheme();
   const shouldUseEOA = useShouldUseEOA();
 
@@ -113,6 +116,31 @@ export const WalletDetails = () => {
   const sortedCrossChainBalances = useSortedCrossChainBalances(
     crossChainBalances,
     selectedNetwork.chain.name,
+  );
+
+  /** Re-evaluate on-ramp pending dot when client payment window elapses (same cadence as transaction list). */
+  const [onrampDotRevision, bumpOnrampDot] = useReducer(
+    (n: number) => n + 1,
+    0,
+  );
+  useEffect(() => {
+    const id = setInterval(() => bumpOnrampDot(), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const addr = activeWallet?.address;
+    if (!addr) return;
+    void getAccessToken().then((token) => {
+      if (token) {
+        void fetchTransactions(addr, token, 1, 30);
+      }
+    });
+  }, [activeWallet?.address, fetchTransactions, getAccessToken]);
+
+  const showOnrampAwaitingDot = useMemo(
+    () => hasOnrampAwaitingBankTransfer(transactions),
+    [transactions, onrampDotRevision],
   );
 
   // Handler for funding wallet with specified amount and token
@@ -168,6 +196,7 @@ export const WalletDetails = () => {
           ) : (
             <p>{formatCurrency(crossChainTotal, "USD", "en-US")}</p>
           )}
+          {showOnrampAwaitingDot ? <OnrampPendingNotificationDot /> : null}
           <ArrowDown01Icon
             aria-label="Caret down"
             className={classNames(
@@ -331,13 +360,16 @@ export const WalletDetails = () => {
                         onClick={() => setActiveTab("transactions")}
                         title="View transactions"
                         className={classNames(
-                          "text-sm font-medium transition-colors",
+                          "inline-flex items-center gap-2 text-sm font-medium transition-colors",
                           activeTab === "transactions"
                             ? "text-text-body dark:text-white"
                             : "text-text-disabled dark:text-white/30",
                         )}
                       >
                         Transactions
+                        {showOnrampAwaitingDot ? (
+                          <OnrampPendingNotificationDot />
+                        ) : null}
                       </button>
                     </div>
 

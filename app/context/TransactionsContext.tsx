@@ -132,6 +132,7 @@ export function TransactionsProvider({
               orderData.txReceipts?.find((r) => r.txHash)?.txHash ||
               orderData.txReceipts?.[0]?.txHash;
 
+            // Reindex pending transactions older than 30 seconds to sync with blockchain state
             if (
               orderData.status === "pending" &&
               tx.tx_hash &&
@@ -145,13 +146,16 @@ export function TransactionsProvider({
                 const txHash = tx.tx_hash;
                 const network = tx.network;
 
+                // Track reindexed transactions to prevent duplicate API calls
                 reindexedTxHashesRef.current.add(txHash);
 
+                // Reindex in background without blocking reconciliation
                 reindexSingleTransaction(txHash, network).catch((error) => {
                   console.error(
                     `Failed to reindex transaction ${txHash}:`,
                     error,
                   );
+                  // Allow retry in next polling cycle
                   reindexedTxHashesRef.current.delete(txHash);
                 });
               }
@@ -166,6 +170,7 @@ export function TransactionsProvider({
               newTxHash && newTxHash !== tx.tx_hash,
             );
             if (statusChanged || hashChanged) {
+              // Update backend
               await updateTransactionDetails({
                 transactionId: tx.id,
                 status: orderData.status,

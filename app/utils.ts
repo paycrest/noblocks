@@ -1444,3 +1444,38 @@ export function isOnrampClientPaymentSessionExpired(
   if (Number.isNaN(t)) return false;
   return Date.now() >= t + ONRAMP_CLIENT_PAYMENT_SESSION_MS;
 }
+
+/**
+ * True when an on-ramp order is in aggregator "waiting for bank transfer" territory:
+ * pending/processing with an order id and the client payment window (from `created_at`) has not elapsed.
+ */
+export function isOnrampAwaitingUserBankTransfer(
+  transaction: Pick<
+    TransactionHistory,
+    "transaction_type" | "status" | "order_id" | "created_at"
+  >,
+): boolean {
+  if (transaction.transaction_type !== "onramp" || !transaction.order_id) {
+    return false;
+  }
+  const s = String(transaction.status ?? "").toLowerCase();
+  if (s !== "pending" && s !== "processing") return false;
+  const created = new Date(transaction.created_at).getTime();
+  if (
+    !Number.isNaN(created) &&
+    Date.now() >= created + ONRAMP_CLIENT_PAYMENT_SESSION_MS
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/** Whether any history row needs the user to complete a bank transfer for an on-ramp order. */
+export function hasOnrampAwaitingBankTransfer(
+  transactions: Pick<
+    TransactionHistory,
+    "transaction_type" | "status" | "order_id" | "created_at"
+  >[],
+): boolean {
+  return transactions.some(isOnrampAwaitingUserBankTransfer);
+}

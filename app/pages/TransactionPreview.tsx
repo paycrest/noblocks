@@ -1001,7 +1001,12 @@ export const TransactionPreview = ({
             <p className="text-sm text-neutral-500 dark:text-white/50">
               Refund account
             </p>
-            <div className="flex w-full items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-transparent px-3 py-3 transition-colors focus-within:border-lavender-400 focus-within:ring-2 focus-within:ring-lavender-400/25 dark:border-white/[0.12] dark:focus-within:border-lavender-500/70 dark:focus-within:ring-lavender-500/20">
+            <button
+              type="button"
+              onClick={() => setRefundAccountModalOpen(true)}
+              aria-label={refundAccount ? "Edit refund account" : "Add refund account"}
+              className="flex w-full items-center justify-between gap-3 rounded-xl border-[3.3px] border-lavender-500 bg-transparent px-3 py-3 text-left transition-colors hover:border-lavender-400 hover:bg-lavender-500/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500/35 dark:hover:border-lavender-400 dark:hover:bg-lavender-400/10 dark:focus-visible:ring-lavender-400/30"
+            >
               <span className="text-sm text-text-body dark:text-white">
                 {refundAccount ? (
                   <>
@@ -1012,19 +1017,17 @@ export const TransactionPreview = ({
                   "Add Refund Account"
                 )}
               </span>
-              <button
-                type="button"
-                onClick={() => setRefundAccountModalOpen(true)}
-                aria-label={refundAccount ? "Edit refund account" : "Add refund account"}
-                className="shrink-0 rounded-lg p-0.5 text-text-body transition-colors hover:text-neutral-900 dark:text-white/70 dark:hover:text-white"
+              <span
+                className="shrink-0 text-text-body dark:text-white/90"
+                aria-hidden
               >
                 {refundAccount ? (
-                  <BiEdit className="size-5" aria-hidden />
+                  <BiEdit className="size-5" />
                 ) : (
-                  <IoAdd className="size-5" aria-hidden />
+                  <IoAdd className="size-5" />
                 )}
-              </button>
-            </div>
+              </span>
+            </button>
           </div>
           <AddRefundAccountModal
             isOpen={refundAccountModalOpen}

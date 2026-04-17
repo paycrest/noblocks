@@ -567,9 +567,9 @@ export const TransferForm: React.FC<{
               />
 
               <FormDropdown
-                defaultTitle="Select currency"
+                defaultTitle="Select token"
                 data={tokens}
-                defaultSelectedItem={"Select currency"}
+                defaultSelectedItem={token || undefined}
                 isCTA={true}
                 onSelect={(selectedToken: string) =>
                   setValue("token", selectedToken)

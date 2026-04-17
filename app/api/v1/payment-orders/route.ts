@@ -45,31 +45,16 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     const body = await request.json();
 
-    // Detect flow: onramp has source.type = "fiat", offramp has source.type = "crypto"
-    const sourceType = (body as { source?: { type?: string } })?.source?.type;
-    const isOnramp = sourceType === "fiat";
-
-    const baseUrl = config.aggregatorUrl.replace(/\/+$/, "").replace(/\/v1$/i, "");
-    const url = isOnramp
-      ? `${baseUrl}/v2/sender/orders`
-      : `${baseUrl}/v1/sender/orders`;
-
-    if (process.env.NODE_ENV === "development") {
-      console.log(`[payment-orders] ${isOnramp ? "onramp→v2" : "offramp→v1"} url →`, url);
-      console.log("[payment-orders] POST payload →", JSON.stringify(body, null, 2));
-    }
+    const baseUrl = config.aggregatorUrl.replace(/\/+$/, "");
+    const url = `${baseUrl}/sender/orders`;
 
     const { data, status } = await axios.post(url, body, {
-      headers: {
+      headers: {  
         "Content-Type": "application/json",
         "API-Key": config.aggregatorSenderApiKey.trim(),
       },
       validateStatus: () => true,
     });
-
-    if (process.env.NODE_ENV === "development" && status >= 400) {
-      console.log("[payment-orders] aggregator response →", status, JSON.stringify(data, null, 2));
-    }
 
     const responseTime = Date.now() - startTime;
     trackApiResponse("/api/v1/payment-orders", "POST", status, responseTime, {

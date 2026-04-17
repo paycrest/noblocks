@@ -10,6 +10,7 @@ import type {
   V2FiatProviderAccountDTO,
   OnrampPaymentInstructions,
   TransactionHistory,
+  TransactionHistoryType,
 } from "./types";
 import type { SanityPost, SanityCategory } from "./blog/types";
 import { erc20Abi, createPublicClient, http } from "viem";
@@ -144,6 +145,51 @@ export const getCurrencySymbol = (currency: string): string => {
 
   return currencySymbols[currency.toUpperCase()] || currency;
 };
+
+/** Fiat codes supported in Noblocks swap (matches `mocks.acceptedCurrencies` names). */
+const NOBLOCKS_FIAT_CURRENCY_CODES = new Set([
+  "NGN",
+  "KES",
+  "UGX",
+  "TZS",
+  "MWK",
+  "GHS",
+  "BRL",
+  "ARS",
+]);
+
+export function isNoblocksFiatCurrencyCode(code: string): boolean {
+  return NOBLOCKS_FIAT_CURRENCY_CODES.has(code.toUpperCase());
+}
+
+/**
+ * List / details: fiat uses symbol prefix (e.g. ₦1,000.5); crypto uses "1.23 USDC".
+ */
+export function formatTransactionAmountDisplay(
+  amount: number,
+  currencyCode: string,
+): string {
+  if (isNoblocksFiatCurrencyCode(currencyCode)) {
+    return `${getCurrencySymbol(currencyCode)}${formatNumberWithCommas(amount)}`;
+  }
+  return `${formatNumberWithCommas(amount)} ${currencyCode}`;
+}
+
+/** User-facing label for transaction history rows (API still uses `onramp`). */
+export function getTransactionHistoryTypeLabel(
+  type: TransactionHistoryType,
+): string {
+  switch (type) {
+    case "transfer":
+      return "Transferred";
+    case "swap":
+      return "Swapped";
+    case "onramp":
+      return "Swapped";
+    default:
+      return type;
+  }
+}
 
 /**
  * Encrypts data using the provided public key.

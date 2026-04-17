@@ -27,6 +27,8 @@ const crimsonPro = Crimson_Pro({
 interface HomePageProps {
   transactionFormComponent: ReactNode;
   isRecipientFormOpen: boolean;
+  /** On-ramp tab: cash → stablecoins hero copy. */
+  isOnramp: boolean;
   showBlockFestBanner?: boolean;
 }
 
@@ -47,6 +49,7 @@ const heroLineVariants = {
 function HomePageComponent({
   transactionFormComponent,
   isRecipientFormOpen,
+  isOnramp,
   showBlockFestBanner = false,
 }: HomePageProps) {
   const handleScrollToForm = () => {
@@ -90,12 +93,12 @@ function HomePageComponent({
               transition={{ duration: 0.7, ease: "easeInOut" }}
             >
               <span className="text-3xl text-text-secondary dark:text-white/80 sm:text-[2.5rem] md:text-[3.5rem] lg:text-[4rem]">
-                Move between stablecoins
+                {isOnramp ? "Change cash" : "Change stablecoins"}
               </span>
               <span
                 className={`${crimsonPro.className} text-[2.5rem] italic sm:text-[3.45rem] md:text-[4.75rem] lg:text-[5.25rem]`}
               >
-                and cash in seconds
+                {isOnramp ? "to stablecoins in seconds" : "to cash in seconds"}
               </span>
             </motion.h1>
           </motion.section>

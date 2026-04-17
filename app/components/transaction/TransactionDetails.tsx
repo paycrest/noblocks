@@ -20,7 +20,6 @@ import {
   formatNumberWithCommas,
   getTokenLogoIdentifier,
   currencyToCountryCode,
-  formatCurrency,
   getCurrencySymbol,
   getNetworkImageUrl,
   shortenAddress,
@@ -28,6 +27,8 @@ import {
   mapProviderAccountToInstructions,
   ONRAMP_CLIENT_PAYMENT_SESSION_MS,
   isOnrampClientPaymentSessionExpired,
+  getTransactionHistoryTypeLabel,
+  formatTransactionAmountDisplay,
 } from "../../utils";
 import {
   fetchV2SenderPaymentOrderById,
@@ -265,22 +266,22 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
               );
             })()}
           </div>
-          <div className="ml-2 text-lg font-medium capitalize leading-6 text-text-body dark:text-white/80">
-            {transaction.transaction_type === "transfer"
-              ? "Transferred"
-              : transaction.transaction_type === "swap"
-                ? "Swapped"
-                : transaction.transaction_type}{" "}
+          <div className="ml-2 text-lg font-medium leading-6 text-text-body dark:text-white/80">
+            {getTransactionHistoryTypeLabel(transaction.transaction_type)}{" "}
             <span className="font-semibold text-text-body dark:text-white">
               {transaction.transaction_type === "onramp" ? (
                 <>
-                  {formatNumberWithCommas(transaction.amount_received ?? 0)}{" "}
-                  {transaction.to_currency}
+                  {formatTransactionAmountDisplay(
+                    transaction.amount_received ?? 0,
+                    transaction.to_currency,
+                  )}
                 </>
               ) : (
                 <>
-                  {formatNumberWithCommas(transaction.amount_sent)}{" "}
-                  {transaction.from_currency}
+                  {formatTransactionAmountDisplay(
+                    transaction.amount_sent,
+                    transaction.from_currency,
+                  )}
                 </>
               )}
             </span>
@@ -309,8 +310,10 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             label="Amount"
             value={
               <span className="text-text-accent-gray dark:text-white/80">
-                {formatNumberWithCommas(transaction.amount_received ?? 0)}{" "}
-                {transaction.to_currency}
+                {formatTransactionAmountDisplay(
+                  transaction.amount_received ?? 0,
+                  transaction.to_currency,
+                )}
               </span>
             }
           />
@@ -386,10 +389,9 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             label="Amount"
             value={
               <span className="text-text-accent-gray dark:text-white/80">
-                {formatCurrency(
+                {formatTransactionAmountDisplay(
                   transaction.amount_received ?? 0,
                   transaction.to_currency,
-                  `en-${transaction.to_currency.slice(0, 2)}`,
                 )}
               </span>
             }
@@ -398,9 +400,11 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             label="Rate"
             value={
               <span className="text-text-accent-gray dark:text-white/80">
-                {getCurrencySymbol(transaction.from_currency)}
-                {formatNumberWithCommas(transaction.fee ?? 0)} ~ 1{" "}
-                {transaction.to_currency}
+                {formatTransactionAmountDisplay(
+                  transaction.fee ?? 0,
+                  transaction.from_currency,
+                )}{" "}
+                ~ 1 {transaction.to_currency}
               </span>
             }
           />
@@ -481,10 +485,9 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             label="Amount"
             value={
               <span className="text-text-accent-gray dark:text-white/80">
-                {formatCurrency(
+                {formatTransactionAmountDisplay(
                   transaction.amount_received ?? 0,
                   transaction.to_currency,
-                  `en-${transaction.to_currency.slice(0, 2)}`,
                 )}
               </span>
             }
@@ -493,10 +496,9 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             label="Rate"
             value={
               <span className="text-text-accent-gray dark:text-white/80">
-                {formatCurrency(
+                {formatTransactionAmountDisplay(
                   transaction.fee ?? 0,
                   transaction.to_currency,
-                  `en-${transaction.to_currency.slice(0, 2)}`,
                 )}
               </span>
             }

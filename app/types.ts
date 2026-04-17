@@ -36,6 +36,8 @@ export type FormData = {
   amountSent: number;
   amountReceived: number;
   isSwapped: boolean;
+  /** True after user picks the Receive row asset (fiat off-ramp, token on-ramp). */
+  receiveDestinationExplicitlySelected: boolean;
 };
 
 export const STEPS = {

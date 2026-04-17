@@ -6,8 +6,9 @@ import {
   getNetworkImageUrl,
   shortenAddress,
   hasOnrampAwaitingBankTransfer,
+  OnrampPendingNotificationDot,
 } from "../utils";
-import { useBalance, useTransactions } from "../context";
+import { useBalance, useTransactions, useStep } from "../context";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
@@ -42,7 +43,6 @@ import { TransferForm } from "./TransferForm";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import WalletMigrationModal from "./WalletMigrationModal";
 import { useCNGNRate } from "../hooks/useCNGNRate";
-import { OnrampPendingNotificationDot } from "./OnrampPendingNotificationDot";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -74,6 +74,7 @@ export const WalletDetails = () => {
   const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const { transactions, fetchTransactions } = useTransactions();
+  const { isOnrampProviderDetailsOpen } = useStep();
   const isDark = useActualTheme();
   const shouldUseEOA = useShouldUseEOA();
 
@@ -182,7 +183,11 @@ export const WalletDetails = () => {
       {/* Wallet balance button in header */}
       <button
         type="button"
-        title="Wallet balance"
+        title={
+          showOnrampAwaitingDot
+            ? "Wallet balance — complete on-ramp payment"
+            : "Wallet balance"
+        }
         onClick={() => {
           setIsSidebarOpen(!isSidebarOpen);
         }}

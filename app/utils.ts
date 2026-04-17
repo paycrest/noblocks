@@ -1,3 +1,4 @@
+import { createElement, type ReactElement } from "react";
 import JSEncrypt from "jsencrypt";
 import type {
   InstitutionProps,
@@ -1446,8 +1447,8 @@ export function isOnrampClientPaymentSessionExpired(
 }
 
 /**
- * True when an on-ramp order is in aggregator "waiting for bank transfer" territory:
- * pending/processing with an order id and the client payment window (from `created_at`) has not elapsed.
+ * True when an on-ramp order is still **pending** (awaiting bank transfer), not yet **processing**.
+ * Dot hides once history shows `processing` or terminal statuses.
  */
 export function isOnrampAwaitingUserBankTransfer(
   transaction: Pick<
@@ -1459,7 +1460,7 @@ export function isOnrampAwaitingUserBankTransfer(
     return false;
   }
   const s = String(transaction.status ?? "").toLowerCase();
-  if (s !== "pending" && s !== "processing") return false;
+  if (s !== "pending") return false;
   const created = new Date(transaction.created_at).getTime();
   if (
     !Number.isNaN(created) &&
@@ -1478,4 +1479,27 @@ export function hasOnrampAwaitingBankTransfer(
   >[],
 ): boolean {
   return transactions.some(isOnrampAwaitingUserBankTransfer);
+}
+
+/**
+ * Animated pending indicator (orange): expanding ping ripple + solid core.
+ * Navbar wallet pill and Transactions tab (client components only).
+ */
+export function OnrampPendingNotificationDot(): ReactElement {
+  return createElement(
+    "span",
+    {
+      className:
+        "relative inline-flex h-3 w-3 shrink-0 items-center justify-center",
+      "aria-hidden": true,
+    },
+    createElement("span", {
+      className:
+        "absolute inline-flex h-full w-full rounded-full bg-orange-500/50 motion-safe:animate-ping",
+    }),
+    createElement("span", {
+      className:
+        "relative z-[1] h-2 w-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.75)]",
+    }),
+  );
 }

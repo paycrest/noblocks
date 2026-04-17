@@ -1,3 +1,4 @@
+import { createElement, type ReactElement } from "react";
 import JSEncrypt from "jsencrypt";
 import type {
   InstitutionProps,
@@ -1443,4 +1444,62 @@ export function isOnrampClientPaymentSessionExpired(
   const t = new Date(transaction.created_at).getTime();
   if (Number.isNaN(t)) return false;
   return Date.now() >= t + ONRAMP_CLIENT_PAYMENT_SESSION_MS;
+}
+
+/**
+ * True when an on-ramp order is still **pending** (awaiting bank transfer), not yet **processing**.
+ * Dot hides once history shows `processing` or terminal statuses.
+ */
+export function isOnrampAwaitingUserBankTransfer(
+  transaction: Pick<
+    TransactionHistory,
+    "transaction_type" | "status" | "order_id" | "created_at"
+  >,
+): boolean {
+  if (transaction.transaction_type !== "onramp" || !transaction.order_id) {
+    return false;
+  }
+  const s = String(transaction.status ?? "").toLowerCase();
+  if (s !== "pending") return false;
+  const created = new Date(transaction.created_at).getTime();
+  if (
+    !Number.isNaN(created) &&
+    Date.now() >= created + ONRAMP_CLIENT_PAYMENT_SESSION_MS
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/** Whether any history row needs the user to complete a bank transfer for an on-ramp order. */
+export function hasOnrampAwaitingBankTransfer(
+  transactions: Pick<
+    TransactionHistory,
+    "transaction_type" | "status" | "order_id" | "created_at"
+  >[],
+): boolean {
+  return transactions.some(isOnrampAwaitingUserBankTransfer);
+}
+
+/**
+ * Animated pending indicator (orange): expanding ping ripple + solid core.
+ * Navbar wallet pill and Transactions tab (client components only).
+ */
+export function OnrampPendingNotificationDot(): ReactElement {
+  return createElement(
+    "span",
+    {
+      className:
+        "relative inline-flex h-3 w-3 shrink-0 items-center justify-center",
+      "aria-hidden": true,
+    },
+    createElement("span", {
+      className:
+        "absolute inline-flex h-full w-full rounded-full bg-orange-500/50 motion-safe:animate-ping",
+    }),
+    createElement("span", {
+      className:
+        "relative z-[1] h-2 w-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.75)]",
+    }),
+  );
 }

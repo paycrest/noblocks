@@ -765,7 +765,7 @@ export const TransactionForm = ({
                   "bg-neutral-100 dark:bg-[#141414]",
                   isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
-                    : "border border-transparent text-neutral-400 dark:text-[#FFFFFF80]",
+                    : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
                 ].join(" ")}
               >
                 On-ramp
@@ -784,7 +784,7 @@ export const TransactionForm = ({
                   "bg-neutral-100 dark:bg-[#141414]",
                   !isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
-                    : "border border-transparent text-neutral-400 dark:text-[#FFFFFF80]",
+                    : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
                 ].join(" ")}
               >
                 Off-ramp

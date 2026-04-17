@@ -108,7 +108,11 @@ const PageLayout = ({
 export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready, getAccessToken, user } = usePrivy();
-  const { currentStep, setCurrentStep } = useStep();
+  const {
+    currentStep,
+    setCurrentStep,
+    setIsOnrampProviderDetailsOpen,
+  } = useStep();
   const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
   const { crossChainBalances, isLoading: isBalanceLoading } = useBalance();
   const { selectedNetwork, setDisplayedNetwork } = useNetwork();
@@ -191,6 +195,19 @@ export function MainPageContent() {
     onrampPaymentAccount,
     setOnrampPaymentAccount,
   };
+
+  useEffect(() => {
+    const show =
+      currentStep === STEPS.MAKE_PAYMENT &&
+      Boolean(orderId) &&
+      Boolean(onrampPaymentAccount);
+    setIsOnrampProviderDetailsOpen(show);
+  }, [
+    currentStep,
+    orderId,
+    onrampPaymentAccount,
+    setIsOnrampProviderDetailsOpen,
+  ]);
 
   useEffect(function setPageLoadingState() {
     setOrderId("");

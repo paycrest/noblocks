@@ -7,6 +7,8 @@ import {
   generatePaginationItems,
   getRelativeDate,
   isOnrampClientPaymentSessionExpired,
+  getTransactionHistoryTypeLabel,
+  formatTransactionAmountDisplay,
 } from "../../utils";
 import type { TransactionHistory } from "../../types";
 import { useEffect, useMemo, useReducer } from "react";
@@ -91,9 +93,12 @@ export const TransactionListItem = ({
               height={16}
               quality={90}
             />
-            <span className="capitalize dark:text-white/80">
-              {transaction.transaction_type} {transaction.amount_sent}{" "}
-              {transaction.from_currency}
+            <span className="dark:text-white/80">
+              {getTransactionHistoryTypeLabel(transaction.transaction_type)}{" "}
+              {formatTransactionAmountDisplay(
+                transaction.amount_sent,
+                transaction.from_currency,
+              )}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -116,7 +121,10 @@ export const TransactionListItem = ({
         whileHover={{ x: -4 }}
         transition={{ duration: 0.2 }}
       >
-        {transaction.amount_received.toLocaleString()} {transaction.to_currency}
+        {formatTransactionAmountDisplay(
+          transaction.amount_received,
+          transaction.to_currency,
+        )}
       </motion.span>
     </div>
   );
@@ -305,14 +313,14 @@ export default function TransactionList({
                                 quality={90}
                                 className="rounded-full"
                               />
-                              <span className="capitalize dark:text-white/80">
-                                {transaction.transaction_type === "transfer"
-                                  ? "Transferred"
-                                  : transaction.transaction_type === "swap"
-                                    ? "Swapped"
-                                    : transaction.transaction_type}{" "}
-                                {transaction.amount_sent.toLocaleString()}{" "}
-                                {transaction.from_currency}
+                              <span className="dark:text-white/80">
+                                {getTransactionHistoryTypeLabel(
+                                  transaction.transaction_type,
+                                )}{" "}
+                                {formatTransactionAmountDisplay(
+                                  transaction.amount_sent,
+                                  transaction.from_currency,
+                                )}
                               </span>
                             </div>
                             <div className="flex items-center gap-x-2">
@@ -337,8 +345,10 @@ export default function TransactionList({
                         </div>
 
                         <span className="text-sm text-text-secondary dark:text-white/50">
-                          {transaction.amount_received.toLocaleString()}{" "}
-                          {transaction.to_currency}
+                          {formatTransactionAmountDisplay(
+                            transaction.amount_received,
+                            transaction.to_currency,
+                          )}
                         </span>
                       </motion.div>
                     );

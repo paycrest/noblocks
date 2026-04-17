@@ -50,11 +50,17 @@ function aggregatorBaseUrlV1(): string {
   if (!raw) {
     throw new Error("NEXT_PUBLIC_AGGREGATOR_URL is not configured");
   }
-  if (/\/v1$/i.test(raw)) {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new Error("NEXT_PUBLIC_AGGREGATOR_URL must be a valid absolute URL");
+  }
+  const pathNorm = u.pathname.replace(/\/+$/, "");
+  if (/\/v1$/i.test(pathNorm)) {
     return raw;
   }
   const withoutV2 = raw.replace(/\/v2$/i, "");
-  let u: URL;
   try {
     u = new URL(withoutV2);
   } catch {
@@ -144,8 +150,7 @@ export const fetchRate = async ({
     throw new Error("network is required for rate quotes");
   }
 
-  const base = (AGGREGATOR_URL || "").trim().replace(/\/+$/, "");
-  const endpoint = `${base}/rates/${encodeURIComponent(net)}/${encodeURIComponent(token)}/${amount}/${encodeURIComponent(currency)}`;
+  const endpoint = `${AGGREGATOR_URL}/rates/${encodeURIComponent(net)}/${encodeURIComponent(token)}/${amount}/${encodeURIComponent(currency)}`;
   const params: Record<string, string> = {
     side,
   };

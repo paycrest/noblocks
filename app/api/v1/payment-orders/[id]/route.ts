@@ -56,8 +56,7 @@ export const GET = withRateLimit(
         );
       }
 
-      const baseUrl = config.aggregatorUrl.replace(/\/+$/, "");
-      const url = `${baseUrl}/sender/orders/${encodeURIComponent(id)}`;
+      const url = `${config.aggregatorUrl}/sender/orders/${encodeURIComponent(id)}`;
 
       const { data, status } = await axios.get(url, {
         headers: {

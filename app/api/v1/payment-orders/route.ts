@@ -45,8 +45,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     const body = await request.json();
 
-    const baseUrl = config.aggregatorUrl.replace(/\/+$/, "");
-    const url = `${baseUrl}/sender/orders`;
+    const url = `${config.aggregatorUrl}/sender/orders`;
 
     const { data, status } = await axios.post(url, body, {
       headers: {  

@@ -34,6 +34,7 @@ interface TransactionsContextType {
     accessToken: string,
     page: number,
     limit: number,
+    forceRefresh?: boolean,
   ) => Promise<void>;
   clearTransactions: () => void;
   setPage: (page: number) => void;
@@ -223,6 +224,7 @@ export function TransactionsProvider({
       accessToken: string,
       page: number,
       limit: number,
+      forceRefresh?: boolean,
     ) => {
       const cacheKey = `${walletAddress}-${page}-${limit}`;
       const cachedData = cache[cacheKey];
@@ -230,7 +232,11 @@ export function TransactionsProvider({
       const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
       // Return cached data if it exists and is not expired
-      if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
+      if (
+        !forceRefresh &&
+        cachedData &&
+        now - cachedData.timestamp < CACHE_DURATION
+      ) {
         setTransactions(cachedData.data);
         setTotal(cachedData.total);
 

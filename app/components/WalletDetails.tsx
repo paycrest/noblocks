@@ -140,8 +140,10 @@ export const WalletDetails = () => {
   }, [activeWallet?.address, fetchTransactions, getAccessToken]);
 
   const showOnrampAwaitingDot = useMemo(
-    () => hasOnrampAwaitingBankTransfer(transactions),
-    [transactions, onrampDotRevision],
+    () =>
+      isOnrampProviderDetailsOpen ||
+      hasOnrampAwaitingBankTransfer(transactions),
+    [isOnrampProviderDetailsOpen, transactions, onrampDotRevision],
   );
 
   // Handler for funding wallet with specified amount and token

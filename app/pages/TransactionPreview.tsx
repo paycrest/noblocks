@@ -25,13 +25,12 @@ import {
   localTransferFeePercent,
 } from "../lib/config";
 import { mapReportAndAct } from "../lib/toastMappedError";
-import {
-  STEPS,
-  type Token,
-  type TransactionPreviewProps,
-  type TransactionCreateInput,
-  type RefundAccountDetails,
-  type V2FiatProviderAccountDTO,
+import type {
+  Token,
+  TransactionPreviewProps,
+  TransactionCreateInput,
+  RefundAccountDetails,
+  V2FiatProviderAccountDTO,
 } from "../types";
 import { primaryBtnClasses, secondaryBtnClasses } from "../components/Styles";
 import { gatewayAbi } from "../api/abi";
@@ -105,11 +104,7 @@ export const TransactionPreview = ({
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();
-  const {
-    currentStep,
-    setCurrentStep,
-    setIsOnrampProviderDetailsOpen,
-  } = useStep();
+  const { setCurrentStep } = useStep();
   const { fetchTransactions } = useTransactions();
   const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance } =
     useBalance();
@@ -142,17 +137,6 @@ export const TransactionPreview = ({
   const isOnramp = !!walletAddress;
   const isCNGNOnramp = isOnramp && token?.toUpperCase() === "CNGN";
   const currencySymbol = currency ? getCurrencySymbol(currency) : "";
-
-  useEffect(() => {
-    const open =
-      currentStep === STEPS.MAKE_PAYMENT && isOnramp && Boolean(orderId);
-    setIsOnrampProviderDetailsOpen(open);
-  }, [
-    currentStep,
-    isOnramp,
-    orderId,
-    setIsOnrampProviderDetailsOpen,
-  ]);
 
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0); // Used to trigger toast
@@ -745,7 +729,13 @@ export const TransactionPreview = ({
 
         const refreshTok = await getAccessToken();
         if (refreshTok && activeWallet?.address) {
-          void fetchTransactions(activeWallet.address, refreshTok, 1, 30);
+          void fetchTransactions(
+            activeWallet.address,
+            refreshTok,
+            1,
+            30,
+            true,
+          );
         }
 
         toast.success("Payment instructions ready");

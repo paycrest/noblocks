@@ -2,6 +2,7 @@
 import { useState } from "react";
 import {
   classNames,
+  copyToClipboard,
   formatCurrency,
   getNetworkImageUrl,
   shortenAddress,
@@ -21,7 +22,6 @@ import {
 import Image from "next/image";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
-import { toast } from "sonner";
 import { Dialog } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -136,11 +136,11 @@ export const WalletDetails = () => {
   };
 
   // Copy wallet address to clipboard with feedback
-  const handleCopyAddress = () => {
-    navigator.clipboard.writeText(activeWallet?.address ?? "");
+  const handleCopyAddress = async () => {
+    const ok = await copyToClipboard(activeWallet?.address ?? "", "Address");
+    if (!ok) return;
     setIsWarningModalOpen(true);
     setIsAddressCopied(true);
-    toast.success("Address copied to clipboard");
     setTimeout(() => setIsAddressCopied(false), 2000);
   };
 

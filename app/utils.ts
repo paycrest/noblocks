@@ -1385,22 +1385,41 @@ export const getAvatarImage = (index: number): string => {
 };
 
 /**
- * Copies text to clipboard and shows a toast notification
- * @param text - The text to copy to clipboard
- * @param label - Optional label for the toast message (e.g., "Account number", "Amount")
- * @returns Promise that resolves when copy is complete
+ * Copies text to clipboard and shows a toast notification.
+ * Uses `navigator.clipboard` when available; falls back to `execCommand` for non-secure contexts.
+ * @param label - Optional label for the toast (e.g. "Address", "Link") → "{label} copied to clipboard"
+ * @returns Whether the copy succeeded
  */
-export const copyToClipboard = async (
+export async function copyToClipboard(
   text: string,
   label?: string,
-): Promise<void> => {
+): Promise<boolean> {
   try {
-    await navigator.clipboard.writeText(text);
-    toast.success(label ? `${label} copied to clipboard` : "Copied to clipboard");
-  } catch (error) {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      if (!ok) {
+        throw new Error("execCommand copy failed");
+      }
+    }
+    toast.success(
+      label ? `${label} copied to clipboard` : "Copied to clipboard",
+    );
+    return true;
+  } catch {
     toast.error("Failed to copy");
+    return false;
   }
-};
+}
 
 export function mapProviderAccountToInstructions(
   a: V2FiatProviderAccountDTO,

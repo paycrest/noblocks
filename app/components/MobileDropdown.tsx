@@ -5,7 +5,11 @@ import { useState, useEffect } from "react";
 import { usePrivy, useMfaEnrollment, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
-import { handleNetworkSwitch, detectWalletProvider } from "../utils";
+import {
+  copyToClipboard,
+  detectWalletProvider,
+  handleNetworkSwitch,
+} from "../utils";
 import { useLogout } from "@privy-io/react-auth";
 import { resetNetworkModalDismissed } from "../lib/networkModalStore";
 import { toast } from "sonner";
@@ -87,10 +91,10 @@ export const MobileDropdown = ({
 
   const { showMfaEnrollmentModal } = useMfaEnrollment();
 
-  const handleCopyAddress = () => {
+  const handleCopyAddress = async () => {
     if (!walletForCopy?.address) return;
-    navigator.clipboard.writeText(walletForCopy.address);
-    toast.success("Address copied to clipboard");
+    const ok = await copyToClipboard(walletForCopy.address, "Address");
+    if (!ok) return;
     setIsWarningModalOpen(true);
   };
 

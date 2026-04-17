@@ -623,7 +623,8 @@ export const TransactionForm = ({
         setValue("walletAddress", "", { shouldDirty: true });
       }
     } else {
-      // Switching back to offramp mode
+      // Switching back to offramp mode — clear fiat so it matches initial load (no selection until user picks)
+      setValue("currency", "", { shouldDirty: true });
       if (!token && fetchedTokens.length > 0) {
         const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
         const defaultToken = usdcToken?.symbol || fetchedTokens[0]?.symbol;

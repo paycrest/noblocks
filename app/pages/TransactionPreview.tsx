@@ -20,7 +20,7 @@ import {
   shortenAddress,
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
-import {
+import config, {
   getDelegationContractAddress,
   localTransferFeePercent,
 } from "../lib/config";
@@ -263,10 +263,18 @@ export const TransactionPreview = ({
     };
 
   const prepareCreateOrderParams = async () => {
+    const senderApiKeyId = config.aggregatorSenderApiKey?.trim();
+    if (!senderApiKeyId) {
+      throw new Error(
+        "Sender API key is not configured (set NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID)",
+      );
+    }
+    const metadata = { apiKey: senderApiKeyId };
+
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
 
-    // Prepare recipient data
+    // Prepare recipient data (metadata.apiKey matches aggregator OrderEVM.CreateOrder + indexer)
     const recipient = isOnramp
       ? {
         accountIdentifier: walletAddress || "",
@@ -274,6 +282,7 @@ export const TransactionPreview = ({
         institution: "Wallet",
         ...(providerId && { providerId }),
         nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+        metadata,
       }
       : {
         accountIdentifier: formValues.accountIdentifier,
@@ -282,6 +291,7 @@ export const TransactionPreview = ({
         memo: formValues.memo,
         ...(providerId && { providerId }),
         nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+        metadata,
       };
 
     // Fetch aggregator public key

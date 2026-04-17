@@ -10,6 +10,9 @@ This document lists all environment variables required for the Noblocks applicat
 # URL of an aggregator service
 NEXT_PUBLIC_AGGREGATOR_URL=https://api.paycrest.io/v1
 
+# Sender API key UUID (aggregator dashboard). Used by the payment-orders proxy and the client for encrypted gateway.createOrder messageHash.
+NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID=
+
 # Auth services
 NEXT_PUBLIC_PRIVY_APP_ID=
 NEXT_PUBLIC_THIRDWEB_CLIENT_ID=

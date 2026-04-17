@@ -459,7 +459,8 @@ export const TransactionForm = ({
             },
             onrampFiatMin: (value: number) => {
               if (!isSwapped) return true;
-              if (!rate || rate <= 0) return "Loading exchange rate…";
+              // Min fiat depends on rate; only enforce once receive token is chosen and rate exists.
+              if (!token || !rate || rate <= 0) return true;
               const n = Number(value);
               const floor = 0.5 * rate;
               if (n >= floor) return true;
@@ -598,42 +599,63 @@ export const TransactionForm = ({
     const currentAmountReceived = amountReceived;
     const willBeSwapped = !isSwapped;
 
-    setValue("receiveDestinationExplicitlySelected", false, {
+    const hasToken = typeof token === "string" && token.trim().length > 0;
+    const hasCurrency = typeof currency === "string" && currency.trim().length > 0;
+    const hasBothAmounts =
+      Number(amountSent) > 0 && Number(amountReceived) > 0;
+    /** User picked receive asset + both fiat/crypto assets + both amount fields — keep values when toggling direction. */
+    const isCompleteFlow =
+      receiveDestinationExplicitlySelected &&
+      hasToken &&
+      hasCurrency &&
+      hasBothAmounts;
+
+    setValue("receiveDestinationExplicitlySelected", isCompleteFlow, {
       shouldDirty: true,
     });
 
     // Toggle swap mode FIRST (persisted on form so parent rate fetch uses correct side)
     setValue("isSwapped", willBeSwapped, { shouldDirty: true });
 
-    // Swap amounts
-    setValue("amountSent", currentAmountReceived || 0, { shouldDirty: true });
-    setValue("amountReceived", currentAmountSent || 0, { shouldDirty: true });
+    if (isCompleteFlow) {
+      // Swap send/receive numbers and formatting; keep token & currency (and wallet) across the flip
+      setValue("amountSent", currentAmountReceived || 0, { shouldDirty: true });
+      setValue("amountReceived", currentAmountSent || 0, { shouldDirty: true });
+      setFormattedSentAmount(formattedReceivedAmount);
+      setFormattedReceivedAmount(formattedSentAmount);
 
-    // Swap formatted amounts
-    setFormattedSentAmount(formattedReceivedAmount);
-    setFormattedReceivedAmount(formattedSentAmount);
-
-    // Set defaults only if not already selected
-    if (willBeSwapped) {
-      // On-ramp: fiat send is NGN-only for now. Receive token chosen on the Receive row.
-      setValue("currency", "NGN", { shouldDirty: true });
-      setValue("token", "", { shouldDirty: true });
-      // Clear walletAddress when switching to onramp mode
-      if (!walletAddress) {
-        setValue("walletAddress", "", { shouldDirty: true });
-      }
-    } else {
-      // Switching back to offramp mode — clear fiat so it matches initial load (no selection until user picks)
-      setValue("currency", "", { shouldDirty: true });
-      if (!token && fetchedTokens.length > 0) {
-        const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
-        const defaultToken = usdcToken?.symbol || fetchedTokens[0]?.symbol;
-        if (defaultToken) {
-          setValue("token", defaultToken, { shouldDirty: true });
+      if (willBeSwapped) {
+        // On-ramp send fiat is NGN-only — normalize if coming from another receive fiat
+        if (currency !== "NGN") {
+          setValue("currency", "NGN", { shouldDirty: true });
         }
       }
-      // Clear walletAddress when switching to offramp mode
-      setValue("walletAddress", "", { shouldDirty: true });
+    } else {
+      // Partial entry: clear amounts so off-ramp does not inherit lone on-ramp fiat (etc.)
+      setValue("amountSent", 0, { shouldDirty: true });
+      setValue("amountReceived", 0, { shouldDirty: true });
+      setFormattedSentAmount("");
+      setFormattedReceivedAmount("");
+
+      if (willBeSwapped) {
+        // On-ramp: fiat send is NGN-only for now. Receive token chosen on the Receive row.
+        setValue("currency", "NGN", { shouldDirty: true });
+        setValue("token", "", { shouldDirty: true });
+        if (!walletAddress) {
+          setValue("walletAddress", "", { shouldDirty: true });
+        }
+      } else {
+        // Off-ramp — clear fiat so it matches initial load (no selection until user picks)
+        setValue("currency", "", { shouldDirty: true });
+        if (!token && fetchedTokens.length > 0) {
+          const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
+          const defaultToken = usdcToken?.symbol || fetchedTokens[0]?.symbol;
+          if (defaultToken) {
+            setValue("token", defaultToken, { shouldDirty: true });
+          }
+        }
+        setValue("walletAddress", "", { shouldDirty: true });
+      }
     }
 
     // Reset rate to trigger recalculation
@@ -1009,11 +1031,7 @@ export const TransactionForm = ({
                   defaultTitle="Select token"
                   data={tokens}
                   defaultSelectedItem={token || undefined}
-                  isCTA={
-                    !token &&
-                    (!authenticated ||
-                      (authenticated && !(totalRequired > balance)))
-                  }
+                  isCTA={!token}
                   onSelect={(selectedToken) => {
                     setValue("token", selectedToken, { shouldDirty: true });
                     setValue("receiveDestinationExplicitlySelected", true, {

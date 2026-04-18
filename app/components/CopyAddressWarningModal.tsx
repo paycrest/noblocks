@@ -14,8 +14,7 @@ import { networks } from "../mocks";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { getNetworkImageUrl } from "../utils";
-import { toast } from "sonner";
+import { copyToClipboard, getNetworkImageUrl } from "../utils";
 import { trackEvent } from "../hooks/analytics/useMixpanel";
 import { PiCheck } from "react-icons/pi";
 import { slideUpAnimation } from "./AnimatedComponents";
@@ -91,11 +90,11 @@ export const CopyAddressWarningModal: React.FC<
   }, [isOpen, onClose]);
 
   // Copy wallet address to clipboard with feedback
-  const handleCopyAddress = () => {
-    navigator.clipboard.writeText(address ?? "");
+  const handleCopyAddress = async () => {
+    const ok = await copyToClipboard(address ?? "", "Address");
+    if (!ok) return;
     setIsAddressCopied(true);
     setTimeout(() => setIsAddressCopied(false), 2000);
-    toast.success("Address copied to clipboard");
   };
 
   return (

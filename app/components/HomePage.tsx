@@ -388,12 +388,15 @@ function HomePageComponent({
                 Mobile App
               </span>
             </h3>
-            <p className="pt-2 text-base font-normal leading-7 lg:text-lg lg:leading-[1.875rem]">
-              Your no. 1 app to change stablecoins to cash in less than{" "}
-              <span
-                className={`${crimsonPro.className} text-lg italic lg:text-xl`}
-              >
-                30s
+            <p className="flex flex-col pt-2 text-base font-normal leading-7 lg:text-lg lg:leading-[1.875rem]">
+              <span>Your no. 1 app to move between</span>
+              <span>
+                stablecoins and cash in less than{" "}
+                <span
+                  className={`${crimsonPro.className} text-lg italic lg:text-xl`}
+                >
+                  30s
+                </span>
               </span>
             </p>
           </div>

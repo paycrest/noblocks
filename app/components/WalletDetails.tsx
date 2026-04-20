@@ -1,13 +1,15 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useMemo, useReducer } from "react";
 import {
   classNames,
   copyToClipboard,
   formatCurrency,
   getNetworkImageUrl,
   shortenAddress,
+  hasOnrampAwaitingBankTransfer,
+  OnrampPendingNotificationDot,
 } from "../utils";
-import { useBalance } from "../context";
+import { useBalance, useTransactions, useStep } from "../context";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
@@ -69,8 +71,10 @@ export const WalletDetails = () => {
     refreshBalance,
   } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const { user } = usePrivy();
+  const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
+  const { transactions, fetchTransactions } = useTransactions();
+  const { isOnrampProviderDetailsOpen } = useStep();
   const isDark = useActualTheme();
   const shouldUseEOA = useShouldUseEOA();
 
@@ -115,6 +119,33 @@ export const WalletDetails = () => {
     selectedNetwork.chain.name,
   );
 
+  /** Re-evaluate on-ramp pending dot when client payment window elapses (same cadence as transaction list). */
+  const [onrampDotRevision, bumpOnrampDot] = useReducer(
+    (n: number) => n + 1,
+    0,
+  );
+  useEffect(() => {
+    const id = setInterval(() => bumpOnrampDot(), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const addr = activeWallet?.address;
+    if (!addr) return;
+    void getAccessToken().then((token) => {
+      if (token) {
+        void fetchTransactions(addr, token, 1, 30);
+      }
+    });
+  }, [activeWallet?.address, fetchTransactions, getAccessToken]);
+
+  const showOnrampAwaitingDot = useMemo(
+    () =>
+      isOnrampProviderDetailsOpen ||
+      hasOnrampAwaitingBankTransfer(transactions),
+    [isOnrampProviderDetailsOpen, transactions, onrampDotRevision],
+  );
+
   // Handler for funding wallet with specified amount and token
   const handleFundWalletClick = async (
     amount: string,
@@ -154,7 +185,11 @@ export const WalletDetails = () => {
       {/* Wallet balance button in header */}
       <button
         type="button"
-        title="Wallet balance"
+        title={
+          showOnrampAwaitingDot
+            ? "Wallet balance — complete on-ramp payment"
+            : "Wallet balance"
+        }
         onClick={() => {
           setIsSidebarOpen(!isSidebarOpen);
         }}
@@ -168,6 +203,7 @@ export const WalletDetails = () => {
           ) : (
             <p>{formatCurrency(crossChainTotal, "USD", "en-US")}</p>
           )}
+          {showOnrampAwaitingDot ? <OnrampPendingNotificationDot /> : null}
           <ArrowDown01Icon
             aria-label="Caret down"
             className={classNames(
@@ -331,13 +367,16 @@ export const WalletDetails = () => {
                         onClick={() => setActiveTab("transactions")}
                         title="View transactions"
                         className={classNames(
-                          "text-sm font-medium transition-colors",
+                          "inline-flex items-center gap-2 text-sm font-medium transition-colors",
                           activeTab === "transactions"
                             ? "text-text-body dark:text-white"
                             : "text-text-disabled dark:text-white/30",
                         )}
                       >
                         Transactions
+                        {showOnrampAwaitingDot ? (
+                          <OnrampPendingNotificationDot />
+                        ) : null}
                       </button>
                     </div>
 

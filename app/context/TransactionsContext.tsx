@@ -34,6 +34,7 @@ interface TransactionsContextType {
     accessToken: string,
     page: number,
     limit: number,
+    forceRefresh?: boolean,
   ) => Promise<void>;
   clearTransactions: () => void;
   setPage: (page: number) => void;
@@ -132,6 +133,7 @@ export function TransactionsProvider({
               orderData.txReceipts?.find((r) => r.txHash)?.txHash ||
               orderData.txReceipts?.[0]?.txHash;
 
+            // Reindex pending transactions older than 30 seconds to sync with blockchain state
             if (
               orderData.status === "pending" &&
               tx.tx_hash &&
@@ -145,13 +147,16 @@ export function TransactionsProvider({
                 const txHash = tx.tx_hash;
                 const network = tx.network;
 
+                // Track reindexed transactions to prevent duplicate API calls
                 reindexedTxHashesRef.current.add(txHash);
 
+                // Reindex in background without blocking reconciliation
                 reindexSingleTransaction(txHash, network).catch((error) => {
                   console.error(
                     `Failed to reindex transaction ${txHash}:`,
                     error,
                   );
+                  // Allow retry in next polling cycle
                   reindexedTxHashesRef.current.delete(txHash);
                 });
               }
@@ -166,6 +171,7 @@ export function TransactionsProvider({
               newTxHash && newTxHash !== tx.tx_hash,
             );
             if (statusChanged || hashChanged) {
+              // Update backend
               await updateTransactionDetails({
                 transactionId: tx.id,
                 status: orderData.status,
@@ -218,6 +224,7 @@ export function TransactionsProvider({
       accessToken: string,
       page: number,
       limit: number,
+      forceRefresh?: boolean,
     ) => {
       const cacheKey = `${walletAddress}-${page}-${limit}`;
       const cachedData = cache[cacheKey];
@@ -225,7 +232,11 @@ export function TransactionsProvider({
       const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
       // Return cached data if it exists and is not expired
-      if (cachedData && now - cachedData.timestamp < CACHE_DURATION) {
+      if (
+        !forceRefresh &&
+        cachedData &&
+        now - cachedData.timestamp < CACHE_DURATION
+      ) {
         setTransactions(cachedData.data);
         setTotal(cachedData.total);
 

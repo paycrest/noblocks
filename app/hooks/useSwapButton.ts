@@ -32,9 +32,20 @@ export function useSwapButton({
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
-  const { amountSent, currency, recipientName, walletAddress } = watch();
+  const {
+    amountSent,
+    currency,
+    recipientName,
+    walletAddress,
+    receiveDestinationExplicitlySelected,
+    token,
+  } = watch();
 
-  const isAmountValid = Number(amountSent) >= 0.5;
+  // Off-ramp: min 0.5 token. On-ramp: min fiat 0.5×rate only after receive token + rate (same as onrampFiatMin).
+  const isAmountValid = isSwapped
+    ? !token ||
+      (Number(rate) > 0 && Number(amountSent) >= 0.5 * Number(rate))
+    : Number(amountSent) >= 0.5;
   const isCurrencySelected = Boolean(currency);
 
   const isMigrationMandatory =
@@ -57,6 +68,7 @@ export function useSwapButton({
   const isEnabled = (() => {
     if (needsMigration && authenticated && !isInjectedWallet) return true;
     if (isMigrationMandatory) return true;
+    if (!receiveDestinationExplicitlySelected) return false;
     if (!rate) return false;
     if (isInjectedWallet && hasInsufficientBalance) {
       return false;

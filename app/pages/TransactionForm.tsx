@@ -33,8 +33,6 @@ import {
   formatDecimalPrecision,
   currencyToCountryCode,
   reorderCurrenciesByLocation,
-  fetchUserCountryCode,
-  mapCountryToCurrency,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -116,8 +114,15 @@ export const TransactionForm = ({
     getValues,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { amountSent, amountReceived, token, currency, walletAddress, isSwapped } =
-    watch();
+  const {
+    amountSent,
+    amountReceived,
+    token,
+    currency,
+    walletAddress,
+    isSwapped,
+    receiveDestinationExplicitlySelected,
+  } = watch();
 
   // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
   const { rate: cngnRate, error: cngnRateError } = useCNGNRate({
@@ -268,8 +273,12 @@ export const TransactionForm = ({
         (c: CurrencyOption) => c.name === currency && !c.disabled,
       );
 
-      if (supported)
+      if (supported) {
         formMethods.setValue("currency", currency, { shouldDirty: true });
+        formMethods.setValue("receiveDestinationExplicitlySelected", true, {
+          shouldDirty: true,
+        });
+      }
     }
     if (tokenAmount && fiatAmount) {
       formMethods.setValue("amountReceived", fiatAmount, { shouldDirty: true });
@@ -288,6 +297,7 @@ export const TransactionForm = ({
 
   useEffect(
     function initSelectedToken() {
+      if (getValues("isSwapped")) return;
       if (
         !fetchedTokens.find((t) => t.symbol === token) &&
         fetchedTokens.length > 0
@@ -405,7 +415,11 @@ export const TransactionForm = ({
 
         const normalizedToken = token?.toUpperCase();
 
-        if (normalizedToken === "CNGN") {
+        if (isSwapped) {
+          // On-ramp: send NGN; min in validate.onrampFiatMin, max 2.3M NGN product cap.
+          maxAmountSentValue = 2_300_000;
+          setRateError(null);
+        } else if (normalizedToken === "CNGN") {
           if (cngnRate && cngnRate > 0) {
             // Valid rate available - calculate limits and clear errors
             maxAmountSentValue = 50000000;
@@ -421,11 +435,15 @@ export const TransactionForm = ({
 
         formMethods.register("amountSent", {
           required: { value: true, message: "Amount is required" },
-          disabled: !token,
-          min: {
-            value: minAmountSentValue,
-            message: `Minimum amount is ${formatNumberWithCommas(minAmountSentValue)}`,
-          },
+          disabled: isSwapped ? !currency : !token,
+          ...(!isSwapped
+            ? {
+                min: {
+                  value: minAmountSentValue,
+                  message: `Minimum amount is ${formatNumberWithCommas(minAmountSentValue)}`,
+                },
+              }
+            : {}),
           max: {
             value: maxAmountSentValue,
             message: `Maximum amount is ${formatNumberWithCommas(maxAmountSentValue)}`,
@@ -439,6 +457,15 @@ export const TransactionForm = ({
                 "Maximum 4 decimal places allowed"
               );
             },
+            onrampFiatMin: (value: number) => {
+              if (!isSwapped) return true;
+              // Min fiat depends on rate; only enforce once receive token is chosen and rate exists.
+              if (!token || !rate || rate <= 0) return true;
+              const n = Number(value);
+              const floor = 0.5 * rate;
+              if (n >= floor) return true;
+              return `Minimum amount is ${formatNumberWithCommas(floor)} NGN`;
+            },
           },
         });
 
@@ -450,7 +477,15 @@ export const TransactionForm = ({
           required: { value: false, message: "Add description" },
         });
 
-        if (normalizedToken === "CNGN") {
+        if (isSwapped) {
+          // On-ramp is NGN-only for now (send side).
+          currencies.forEach((c: CurrencyOption) => {
+            c.disabled = c.name !== "NGN";
+          });
+          if (currency !== "NGN") {
+            formMethods.setValue("currency", "NGN", { shouldDirty: true });
+          }
+        } else if (normalizedToken === "CNGN") {
           // When cNGN is selected, only enable NGN
           currencies.forEach((currency: CurrencyOption) => {
             currency.disabled = currency.name !== "NGN";
@@ -459,6 +494,9 @@ export const TransactionForm = ({
           if (currency !== "NGN") {
             formMethods.setValue("currency", "NGN", { shouldDirty: true });
           }
+          formMethods.setValue("receiveDestinationExplicitlySelected", true, {
+            shouldDirty: true,
+          });
         } else {
           // Reset currencies to their default state from mocks
           currencies.forEach((currency: CurrencyOption) => {
@@ -486,6 +524,8 @@ export const TransactionForm = ({
       selectedNetwork,
       cngnRate,
       cngnRateError,
+      isSwapped,
+      rate,
     ],
   );
 
@@ -542,73 +582,80 @@ export const TransactionForm = ({
     // Only enable on-ramp from pre-filled wallet; do not force off-ramp (avoids clobbering toggle before this runs)
     if (hasWallet) {
       setValue("isSwapped", true, { shouldDirty: false });
+      const t = getValues("token");
+      if (typeof t === "string" && t.trim().length > 0) {
+        setValue("receiveDestinationExplicitlySelected", true, {
+          shouldDirty: false,
+        });
+      }
     }
     hasRestoredStateRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle swap button click to switch between token/currency dropdowns
-  const handleSwapFields = async () => {
+  const handleSwapFields = () => {
     const currentAmountSent = amountSent;
     const currentAmountReceived = amountReceived;
     const willBeSwapped = !isSwapped;
 
+    const hasToken = typeof token === "string" && token.trim().length > 0;
+    const hasCurrency = typeof currency === "string" && currency.trim().length > 0;
+    const hasBothAmounts =
+      Number(amountSent) > 0 && Number(amountReceived) > 0;
+    /** User picked receive asset + both fiat/crypto assets + both amount fields — keep values when toggling direction. */
+    const isCompleteFlow =
+      receiveDestinationExplicitlySelected &&
+      hasToken &&
+      hasCurrency &&
+      hasBothAmounts;
+
+    setValue("receiveDestinationExplicitlySelected", isCompleteFlow, {
+      shouldDirty: true,
+    });
+
     // Toggle swap mode FIRST (persisted on form so parent rate fetch uses correct side)
     setValue("isSwapped", willBeSwapped, { shouldDirty: true });
 
-    // Swap amounts
-    setValue("amountSent", currentAmountReceived || 0, { shouldDirty: true });
-    setValue("amountReceived", currentAmountSent || 0, { shouldDirty: true });
+    if (isCompleteFlow) {
+      // Swap send/receive numbers and formatting; keep token & currency (and wallet) across the flip
+      setValue("amountSent", currentAmountReceived || 0, { shouldDirty: true });
+      setValue("amountReceived", currentAmountSent || 0, { shouldDirty: true });
+      setFormattedSentAmount(formattedReceivedAmount);
+      setFormattedReceivedAmount(formattedSentAmount);
 
-    // Swap formatted amounts
-    setFormattedSentAmount(formattedReceivedAmount);
-    setFormattedReceivedAmount(formattedSentAmount);
-
-    // Set defaults only if not already selected
-    if (willBeSwapped) {
-      // Switching to onramp mode: Set currency based on user location
-      if (!currency) {
-        try {
-          const countryCode = await fetchUserCountryCode();
-          const locationCurrency = countryCode
-            ? mapCountryToCurrency(countryCode)
-            : null;
-
-          // Use location-based currency if available and supported, otherwise default to NGN
-          const defaultCurrency = locationCurrency &&
-            currencies.find(c => c.name === locationCurrency && !c.disabled)
-            ? locationCurrency
-            : "NGN";
-
-          setValue("currency", defaultCurrency, { shouldDirty: true });
-        } catch {
-          // Fallback to NGN if location detection fails
+      if (willBeSwapped) {
+        // On-ramp send fiat is NGN-only — normalize if coming from another receive fiat
+        if (currency !== "NGN") {
           setValue("currency", "NGN", { shouldDirty: true });
         }
       }
-      // Only set default token if not already selected
-      if (!token && fetchedTokens.length > 0) {
-        const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
-        const defaultToken = usdcToken?.symbol || fetchedTokens[0]?.symbol;
-        if (defaultToken) {
-          setValue("token", defaultToken, { shouldDirty: true });
+    } else {
+      // Partial entry: clear amounts so off-ramp does not inherit lone on-ramp fiat (etc.)
+      setValue("amountSent", 0, { shouldDirty: true });
+      setValue("amountReceived", 0, { shouldDirty: true });
+      setFormattedSentAmount("");
+      setFormattedReceivedAmount("");
+
+      if (willBeSwapped) {
+        // On-ramp: fiat send is NGN-only for now. Receive token chosen on the Receive row.
+        setValue("currency", "NGN", { shouldDirty: true });
+        setValue("token", "", { shouldDirty: true });
+        if (!walletAddress) {
+          setValue("walletAddress", "", { shouldDirty: true });
         }
-      }
-      // Clear walletAddress when switching to onramp mode
-      if (!walletAddress) {
+      } else {
+        // Off-ramp — clear fiat so it matches initial load (no selection until user picks)
+        setValue("currency", "", { shouldDirty: true });
+        if (!token && fetchedTokens.length > 0) {
+          const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
+          const defaultToken = usdcToken?.symbol || fetchedTokens[0]?.symbol;
+          if (defaultToken) {
+            setValue("token", defaultToken, { shouldDirty: true });
+          }
+        }
         setValue("walletAddress", "", { shouldDirty: true });
       }
-    } else {
-      // Switching back to offramp mode
-      if (!token && fetchedTokens.length > 0) {
-        const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
-        const defaultToken = usdcToken?.symbol || fetchedTokens[0]?.symbol;
-        if (defaultToken) {
-          setValue("token", defaultToken, { shouldDirty: true });
-        }
-      }
-      // Clear walletAddress when switching to offramp mode
-      setValue("walletAddress", "", { shouldDirty: true });
     }
 
     // Reset rate to trigger recalculation
@@ -765,7 +812,7 @@ export const TransactionForm = ({
                   "bg-neutral-100 dark:bg-[#141414]",
                   isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
-                    : "border border-transparent text-neutral-400 dark:text-[#FFFFFF80]",
+                    : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
                 ].join(" ")}
               >
                 On-ramp
@@ -784,7 +831,7 @@ export const TransactionForm = ({
                   "bg-neutral-100 dark:bg-[#141414]",
                   !isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
-                    : "border border-transparent text-neutral-400 dark:text-[#FFFFFF80]",
+                    : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
                 ].join(" ")}
               >
                 Off-ramp
@@ -984,14 +1031,13 @@ export const TransactionForm = ({
                   defaultTitle="Select token"
                   data={tokens}
                   defaultSelectedItem={token || undefined}
-                  isCTA={
-                    !token &&
-                    (!authenticated ||
-                      (authenticated && !(totalRequired > balance)))
-                  }
-                  onSelect={(selectedToken) =>
-                    setValue("token", selectedToken, { shouldDirty: true })
-                  }
+                  isCTA={!token}
+                  onSelect={(selectedToken) => {
+                    setValue("token", selectedToken, { shouldDirty: true });
+                    setValue("receiveDestinationExplicitlySelected", true, {
+                      shouldDirty: true,
+                    });
+                  }}
                   className="min-w-32"
                   dropdownWidth={160}
                 />
@@ -1000,9 +1046,14 @@ export const TransactionForm = ({
                   defaultTitle="Select currency"
                   data={orderedCurrencies}
                   defaultSelectedItem={currency}
-                  onSelect={(selectedCurrency) =>
-                    setValue("currency", selectedCurrency, { shouldDirty: true })
-                  }
+                  onSelect={(selectedCurrency) => {
+                    setValue("currency", selectedCurrency, {
+                      shouldDirty: true,
+                    });
+                    setValue("receiveDestinationExplicitlySelected", true, {
+                      shouldDirty: true,
+                    });
+                  }}
                   className="min-w-80"
                   isCTA={
                     !currency &&
@@ -1018,7 +1069,8 @@ export const TransactionForm = ({
 
         {/* Recipient and memo */}
         <AnimatePresence>
-          {currency &&
+          {receiveDestinationExplicitlySelected &&
+            currency &&
             (authenticated || isInjectedWallet) &&
             isUserVerified && (
               <AnimatedComponent
@@ -1114,7 +1166,7 @@ export const TransactionForm = ({
         )}
 
         <AnimatePresence>
-          {currency && (
+          {receiveDestinationExplicitlySelected && currency && (
             <AnimatedComponent
               variant={slideInOut}
               className="flex w-full flex-col justify-between gap-2 py-3 text-xs text-text-disabled transition-all dark:text-white/30 xsm:flex-row xsm:items-center"

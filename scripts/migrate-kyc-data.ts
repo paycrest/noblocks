@@ -6,7 +6,8 @@
  *   - wallet_address  ← User ID (lowercased)
  *   - id_country      ← Country
  *   - id_type         ← ID Type
- *   - verified=true, verified_at=now (optional; remove if not desired)
+ *   - verified=true, verified_at from CSV Timestamp/Date/Job Time when valid (else null)
+ *   - tier=2 (full KYC / Smile-approved migration)
  *
  * Usage:
  *   npx ts-node scripts/migrate-kyc-data.ts --dry-run
@@ -65,7 +66,34 @@ type CsvRow = {
   country?: string | null;
   id_type?: string | null;
   result: string;
+  /** First non-empty of Timestamp, Date, or Job Time — used for verified_at when Approved */
+  timestampRaw: string | null;
 };
+
+/** Payload shape for upsert into public.user_kyc_profiles (partial row). */
+type KycProfileUpsertRow = {
+  wallet_address: string;
+  id_country: string | null;
+  id_type: string | null;
+  platform: Array<{
+    type: 'id';
+    identifier: 'smile_id';
+    reference?: string;
+  }>;
+  verified: boolean;
+  verified_at: string | null;
+  /** Full document KYC (Smile-approved export) */
+  tier: 2;
+  updated_at: string;
+};
+
+/** Parse CSV date/time string to ISO; returns null if missing or invalid. */
+function parseCsvTimestampToIso(raw: string | null | undefined): string | null {
+  if (raw == null || !String(raw).trim()) return null;
+  const d = new Date(String(raw).trim());
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
 
 // Read + normalize CSV
 function readCsv(): CsvRow[] {
@@ -83,13 +111,21 @@ function readCsv(): CsvRow[] {
 
   console.log(`Found ${raw.length} records in CSV file.`);
 
-  const rows: CsvRow[] = raw.map((r) => ({
-    job_id: (r['Job ID'] || '').trim(),
-    user_id: (r['User ID'] || '').trim(),
-    country: r['Country'] ? r['Country'].trim() : null,
-    id_type: r['ID Type'] ? r['ID Type'].trim() : null,
-    result: (r['Result'] || '').trim(),
-  }));
+  const rows: CsvRow[] = raw.map((r) => {
+    const ts =
+      (r['Timestamp'] && r['Timestamp'].trim()) ||
+      (r['Date'] && r['Date'].trim()) ||
+      (r['Job Time'] && r['Job Time'].trim()) ||
+      '';
+    return {
+      job_id: (r['Job ID'] || '').trim(),
+      user_id: (r['User ID'] || '').trim(),
+      country: r['Country'] ? r['Country'].trim() : null,
+      id_type: r['ID Type'] ? r['ID Type'].trim() : null,
+      result: (r['Result'] || '').trim(),
+      timestampRaw: ts || null,
+    };
+  });
 
   const valid = rows.filter((r) => r.job_id && r.user_id && r.result);
   const skipped = rows.length - valid.length;
@@ -100,29 +136,39 @@ function readCsv(): CsvRow[] {
 }
 
 
-function buildRow(r: CsvRow) {
+function buildRow(r: CsvRow): KycProfileUpsertRow {
   const isApproved = r.result === 'Approved';
   const nowISO = new Date().toISOString();
+
+  const smilePlatform: {
+    type: 'id';
+    identifier: 'smile_id';
+    reference?: string;
+  } = {
+    type: 'id',
+    identifier: 'smile_id',
+  };
+  if (r.job_id) {
+    smilePlatform.reference = r.job_id;
+  }
+
+  const verifiedAtIso =
+    isApproved ? parseCsvTimestampToIso(r.timestampRaw) : null;
 
   return {
     wallet_address: r.user_id.toLowerCase(),
     id_country: r.country || null,
     id_type: r.id_type || null,
-    platform: [
-      {
-        type: 'id',
-        identifier: 'smile_id',
-        reference: '',
-      }
-    ],
+    platform: [smilePlatform],
     verified: isApproved,
-    verified_at: isApproved ? nowISO : null,
+    verified_at: verifiedAtIso,
+    tier: 2,
     updated_at: nowISO,
   };
 }
 
 // Upsert — conflict target: wallet_address (PK)
-async function upsertRows(rows: any[]) {
+async function upsertRows(rows: KycProfileUpsertRow[]) {
   console.log(`\nUpserting ${rows.length} records into public.user_kyc_profiles...`);
   let ok = 0, failed = 0;
 

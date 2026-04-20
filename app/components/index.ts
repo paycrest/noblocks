@@ -33,6 +33,7 @@ export { default as TransactionLimitModal } from "./TransactionLimitModal";
 
 export { TransactionForm } from "../pages/TransactionForm";
 export { TransactionPreview } from "../pages/TransactionPreview";
+export { MakePayment } from "../pages/MakePayment";
 export { TransactionStatus } from "../pages/TransactionStatus";
 
 export { InputError } from "./InputError";

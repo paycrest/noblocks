@@ -13,6 +13,7 @@ interface UseSwapButtonProps {
   isUserVerified: boolean;
   rate?: number | null;
   tokenDecimals?: number;
+  isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
   needsMigration?: boolean;
   isRemainingFundsMigration?: boolean;
 }
@@ -25,14 +26,26 @@ export function useSwapButton({
   isUserVerified,
   rate,
   tokenDecimals = 18,
+  isSwapped = false,
   needsMigration = false,
   isRemainingFundsMigration = false,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
-  const { amountSent, currency, recipientName } = watch();
+  const {
+    amountSent,
+    currency,
+    recipientName,
+    walletAddress,
+    receiveDestinationExplicitlySelected,
+    token,
+  } = watch();
 
-  const isAmountValid = Number(amountSent) >= 0.5;
+  // Off-ramp: min 0.5 token. On-ramp: min fiat 0.5×rate only after receive token + rate (same as onrampFiatMin).
+  const isAmountValid = isSwapped
+    ? !token ||
+      (Number(rate) > 0 && Number(amountSent) >= 0.5 * Number(rate))
+    : Number(amountSent) >= 0.5;
   const isCurrencySelected = Boolean(currency);
 
   const isMigrationMandatory =
@@ -46,11 +59,16 @@ export function useSwapButton({
   );
   const totalRequired = (Number(amountSent) || 0) + senderFeeAmount;
 
-  const hasInsufficientBalance = totalRequired > balance;
+  // Skip balance check in onramp mode (isSwapped = true)
+  const hasInsufficientBalance = isSwapped ? false : totalRequired > balance;
+
+  // Check recipient based on mode: walletAddress for onramp, recipientName for offramp
+  const hasRecipient = isSwapped ? Boolean(walletAddress) : Boolean(recipientName);
 
   const isEnabled = (() => {
     if (needsMigration && authenticated && !isInjectedWallet) return true;
     if (isMigrationMandatory) return true;
+    if (!receiveDestinationExplicitlySelected) return false;
     if (!rate) return false;
     if (isInjectedWallet && hasInsufficientBalance) {
       return false;
@@ -75,7 +93,7 @@ export function useSwapButton({
       if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
         return false;
       }
-      return Boolean(recipientName);
+      return hasRecipient;
     }
 
     if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
@@ -86,7 +104,7 @@ export function useSwapButton({
       return true; // Enable for login if amount and currency are valid
     }
 
-    return Boolean(recipientName); // Additional check for authenticated users
+    return hasRecipient; // Check walletAddress for onramp, recipientName for offramp
   })();
 
   const buttonText = (() => {

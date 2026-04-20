@@ -12,6 +12,8 @@ import type {
   SmileIDSubmissionResponse,
   KYCStatusResponse,
   OrderDetailsResponse,
+  OrderDetailsData,
+  TransactionStatus,
   TransactionResponse,
   TransactionCreateInput,
   SaveTransactionResponse,
@@ -21,6 +23,11 @@ import type {
   RecipientDetails,
   RecipientDetailsWithId,
   SavedRecipientsResponse,
+  V2CreatePaymentOrderPayload,
+  V2PaymentOrderCreateData,
+  V2PaymentOrderGetData,
+  AggregatorEnvelope,
+  RefundAccountDetails,
 } from "../types";
 import {
   trackServerEvent,
@@ -28,8 +35,57 @@ import {
   trackApiRequest,
   trackApiResponse,
 } from "../lib/server-analytics";
+import config from "../lib/config";
 
-const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
+const AGGREGATOR_URL = config.aggregatorUrl;
+
+/** Maps aggregator order status → Supabase `transactions.status`. Swap keeps validated→completed; on-ramp keeps pending until settled. */
+export function mapAggregatorStatusToDbStatus(
+  status: string,
+  opts?: { onramp?: boolean },
+): TransactionStatus {
+  const s = String(status || "").toLowerCase();
+  const onramp = opts?.onramp === true;
+  if (s === "settled") return "completed";
+  if (s === "refunded") return "refunded";
+  if (s === "refunding") return "refunding";
+  if (s === "fulfilled") return "fulfilled";
+  if (s === "expired") return "expired";
+  if (s === "validated") return onramp ? "pending" : "completed";
+  if (["settling", "fulfilling", "pending"].includes(s)) return "pending";
+  return "pending";
+}
+
+/**
+ * On-ramp: aggregator may still return `pending` after the VA window; if `validUntil` is in the past
+ * and no later status arrived, treat as expired (matches product expectation for unfunded orders).
+ */
+export function resolveOnrampOrderStatusFromV2Response(
+  res: AggregatorEnvelope<V2PaymentOrderGetData>,
+): string | undefined {
+  const data = res?.data;
+  if (!data || typeof data !== "object") return undefined;
+  const status = String(data.status ?? "");
+  const s = status.toLowerCase();
+  if (s !== "pending") return status;
+  const validUntil = data.providerAccount?.validUntil;
+  if (!validUntil) return status;
+  const end = new Date(validUntil).getTime();
+  if (Number.isNaN(end) || Date.now() <= end) return status;
+  return "expired";
+}
+
+export function unwrapV2SenderOrderEnvelope(
+  raw: unknown,
+): OrderDetailsData | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const inner = o.data;
+  if (inner && typeof inner === "object" && inner !== null) {
+    return inner as OrderDetailsData;
+  }
+  return o as unknown as OrderDetailsData;
+}
 
 /** Base URL without trailing `/v1` so v2 paths are `{origin}/v2/...` not `{origin}/v1/v2/...`. */
 function aggregatorOriginForV2(): string {
@@ -484,9 +540,7 @@ export async function updateTransactionStatus({
   accessToken,
   walletAddress,
 }: UpdateTransactionStatusPayload): Promise<SaveTransactionResponse> {
-  const finalStatus = ["validated", "settled"].includes(status)
-    ? "completed"
-    : status;
+  const finalStatus = mapAggregatorStatusToDbStatus(status, { onramp: false });
 
   const response = await axios.put(
     `/api/v1/transactions/status/${transactionId}`,
@@ -520,10 +574,11 @@ export async function updateTransactionDetails({
   timeSpent,
   accessToken,
   walletAddress,
+  isOnramp,
 }: UpdateTransactionDetailsPayload): Promise<SaveTransactionResponse> {
-  const finalStatus = ["validated", "settled"].includes(status)
-    ? "completed"
-    : status;
+  const finalStatus = mapAggregatorStatusToDbStatus(status, {
+    onramp: isOnramp === true,
+  });
 
   // Build the data object dynamically
   const data: Record<string, any> = { status: finalStatus };
@@ -672,6 +727,69 @@ export const fetchTokens = async (): Promise<APIToken[]> => {
  * @returns {Promise<RecipientDetailsWithId[]>} Array of saved recipients
  * @throws {Error} If the API request fails
  */
+type RefundAccountApiEnvelope = {
+  success: boolean;
+  data: RefundAccountDetails | null;
+  error?: string;
+};
+
+type RefundAccountSaveEnvelope = {
+  success: boolean;
+  data?: RefundAccountDetails;
+  error?: string;
+};
+
+/**
+ * Loads the saved refund account for the authenticated wallet, if any.
+ */
+export async function fetchRefundAccount(
+  accessToken: string,
+): Promise<RefundAccountDetails | null> {
+  const response = await axios.get<RefundAccountApiEnvelope>(
+    "/api/v1/refund-account",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+
+  if (!response.data.success) {
+    throw new Error(response.data.error || "Failed to load refund account");
+  }
+
+  return response.data.data;
+}
+
+/**
+ * Upserts refund account details for the authenticated wallet.
+ */
+export async function saveRefundAccount(
+  detail: RefundAccountDetails,
+  accessToken: string,
+): Promise<RefundAccountDetails> {
+  const response = await axios.put<RefundAccountSaveEnvelope>(
+    "/api/v1/refund-account",
+    {
+      institution: detail.institutionName,
+      institutionCode: detail.institutionCode,
+      accountIdentifier: detail.accountNumber,
+      accountName: detail.accountName,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+
+  if (!response.data.success || !response.data.data) {
+    throw new Error(response.data.error || "Failed to save refund account");
+  }
+
+  return response.data.data;
+}
+
 export async function fetchSavedRecipients(
   accessToken: string,
 ): Promise<RecipientDetailsWithId[]> {
@@ -779,14 +897,28 @@ export async function migrateLocalStorageRecipients(
     // First, fetch existing recipients from DB to check for duplicates
     const existingRecipients = await fetchSavedRecipients(accessToken);
     const existingKeys = new Set(
-      existingRecipients.map(
-        (r) => `${r.institutionCode}-${r.accountIdentifier}`,
-      ),
+      existingRecipients.map((r) => {
+        if (r.type === "wallet") {
+          if (!r.walletAddress) {
+            console.warn("Wallet recipient missing walletAddress", r);
+            return `wallet-invalid-${r.id}`;
+          }
+          return `wallet-${r.walletAddress}`;
+        } else {
+          if (!r.institutionCode || !r.accountIdentifier) {
+            console.warn("Bank/mobile_money recipient missing required fields", r);
+            return `${r.type}-invalid-${r.id}`;
+          }
+          return `${r.institutionCode}-${r.accountIdentifier}`;
+        }
+      }),
     );
 
     // Filter out duplicates - only migrate recipients that don't exist in DB
     const recipientsToMigrate = recipients.filter((recipient) => {
-      const key = `${recipient.institutionCode}-${recipient.accountIdentifier}`;
+      const key = recipient.type === "wallet"
+        ? `wallet-${recipient.walletAddress}`
+        : `${recipient.institutionCode}-${recipient.accountIdentifier}`;
       return !existingKeys.has(key);
     });
 
@@ -803,7 +935,10 @@ export async function migrateLocalStorageRecipients(
         await saveRecipient(recipient, accessToken);
         return { success: true, recipient };
       } catch (error) {
-        console.error(`Failed to migrate recipient ${recipient.name}:`, error);
+        const recipientName = recipient.type === "wallet"
+          ? recipient.walletAddress
+          : recipient.name;
+        console.error(`Failed to migrate recipient ${recipientName}:`, error);
         return { success: false, recipient, error };
       }
     });
@@ -884,3 +1019,44 @@ export const submitSmileIDData = async (
     throw error;
   }
 };
+}
+
+/**
+ * Creates a v2 on-ramp payment order (fiat source) via the server proxy to aggregator.
+ * POST /api/v1/payment-orders (on-ramp only) → aggregator POST /v2/sender/orders.
+ * Off-ramp orders are created on-chain (gateway.createOrder), not through this proxy.
+ */
+export async function createV2SenderPaymentOrder(
+  payload: V2CreatePaymentOrderPayload,
+  accessToken: string,
+): Promise<AggregatorEnvelope<V2PaymentOrderCreateData>> {
+  const response = await axios.post<AggregatorEnvelope<V2PaymentOrderCreateData>>(
+    "/api/v1/payment-orders",
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+  return response.data;
+}
+
+/**
+ * Fetches a single v2 sender order (e.g. to refresh fiat virtual account details).
+ */
+export async function fetchV2SenderPaymentOrderById(
+  orderId: string,
+  accessToken: string,
+): Promise<AggregatorEnvelope<V2PaymentOrderGetData>> {
+  const response = await axios.get<AggregatorEnvelope<V2PaymentOrderGetData>>(
+    `/api/v1/payment-orders/${encodeURIComponent(orderId)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+  return response.data;
+}

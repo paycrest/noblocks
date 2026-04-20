@@ -29,7 +29,10 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     const amount = rawAmount === null ? 1 : Number(rawAmount);
     const currency = searchParams.get("currency")?.trim();
     const providerId = searchParams.get("providerId");
-    const network = searchParams.get("network");
+    const network = searchParams.get("network")?.trim();
+    const rawSide = searchParams.get("side")?.trim().toLowerCase();
+    const side =
+      rawSide === "buy" || rawSide === "sell" ? rawSide : ("sell" as const);
 
     const invalidAmount = Number.isNaN(amount) || amount <= 0;
     if (!token || !currency || invalidAmount) {
@@ -50,13 +53,53 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       );
     }
 
+    if (!network) {
+      trackApiError(
+        request,
+        "/api/v1/rates",
+        "GET",
+        new Error("network query parameter is required"),
+        400,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: "network is required for rate quotes",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (
+      rawSide !== undefined &&
+      rawSide !== "" &&
+      rawSide !== "buy" &&
+      rawSide !== "sell"
+    ) {
+      trackApiError(
+        request,
+        "/api/v1/rates",
+        "GET",
+        new Error("Invalid side parameter"),
+        400,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'side must be "buy" or "sell" when provided',
+        },
+        { status: 400 },
+      );
+    }
+
     // Call the aggregator service to fetch rate
     const rateData = await fetchRate({
       token,
       amount,
       currency,
       providerId: providerId || undefined,
-      network: network || undefined,
+      network,
+      side,
     });
 
     const response = {
@@ -67,6 +110,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         currency,
         providerId,
         network,
+        side,
         rate: rateData.data,
         fetchedAt: new Date().toISOString(),
       },
@@ -81,6 +125,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       currency,
       provider_id: providerId,
       network,
+      side,
       rate: rateData.data,
     });
 
@@ -92,6 +137,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       currency,
       provider_id: providerId,
       network,
+      side,
       rate: rateData.data,
     });
 

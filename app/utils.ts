@@ -1,3 +1,4 @@
+import { createElement, type ReactElement } from "react";
 import JSEncrypt from "jsencrypt";
 import type {
   InstitutionProps,
@@ -5,9 +6,17 @@ import type {
   Token,
   Currency,
   APIToken,
+  RecipientDetails,
+  V2FiatProviderAccountDTO,
+  OnrampPaymentInstructions,
+  TransactionHistory,
+  TransactionHistoryType,
 } from "./types";
 import type { SanityPost, SanityCategory } from "./blog/types";
-import { erc20Abi } from "viem";
+import { erc20Abi, createPublicClient, http } from "viem";
+import { mainnet } from "viem/chains";
+import { getEnsName } from "viem/actions";
+import { isValidEvmAddressCaseInsensitive } from "./lib/validation";
 import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
@@ -17,6 +26,32 @@ import {
   localTransferFeePercent,
   localTransferFeeCap,
 } from "./lib/config";
+
+/**
+ * Type predicate to narrow RecipientDetails to bank/mobile_money types.
+ * Used for type-safe filtering and property access.
+ *
+ * @param recipient - The recipient to check.
+ * @returns True if recipient is bank or mobile_money type.
+ */
+export function isBankOrMobileMoneyRecipient(
+  recipient: RecipientDetails,
+): recipient is Extract<RecipientDetails, { type: "bank" | "mobile_money" }> {
+  return recipient.type !== "wallet";
+}
+
+/**
+ * Type predicate to narrow RecipientDetails to wallet type.
+ * Used for type-safe filtering and property access.
+ *
+ * @param recipient - The recipient to check.
+ * @returns True if recipient is wallet type.
+ */
+export function isWalletRecipient(
+  recipient: RecipientDetails,
+): recipient is Extract<RecipientDetails, { type: "wallet" }> {
+  return recipient.type === "wallet";
+}
 
 /**
  * Concatenates and returns a string of class names.
@@ -76,15 +111,85 @@ export const formatCurrency = (
   currency = "NGN",
   locale = "en-NG",
 ) => {
-  // Create a new instance of Intl.NumberFormat with the 'en-US' locale and currency set to 'NGN'.
-  // This object provides methods to format numbers based on the specified locale and options.
-  return new Intl.NumberFormat(locale, {
-    // Set the style to 'currency' to format the number as a currency value.
-    style: "currency",
-    // Set the currency to 'NGN' to format the number as Nigerian Naira.
-    currency,
-  }).format(value); // Format the provided value as a currency string.
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+    }).format(value);
+  } catch {
+    return `${formatNumberWithCommas(value)} ${currency.toUpperCase()}`;
+  }
 };
+
+/**
+ * Gets the currency symbol for a given currency code.
+ * @param currency - The currency code (e.g., "NGN", "KES", "USD")
+ * @returns The currency symbol (e.g., "₦", "KSh", "$")
+ */
+export const getCurrencySymbol = (currency: string): string => {
+  const currencySymbols: Record<string, string> = {
+    NGN: "₦",
+    KES: "KSh",
+    UGX: "USh",
+    TZS: "TSh",
+    GHS: "₵",
+    BRL: "R$",
+    ARS: "$",
+    USD: "$",
+    GBP: "£",
+    EUR: "€",
+    MWK: "MK",
+    XOF: "CFA",
+    XAF: "FCFA",
+  };
+
+  return currencySymbols[currency.toUpperCase()] || currency;
+};
+
+/** Fiat codes supported in Noblocks swap (matches `mocks.acceptedCurrencies` names). */
+const NOBLOCKS_FIAT_CURRENCY_CODES = new Set([
+  "NGN",
+  "KES",
+  "UGX",
+  "TZS",
+  "MWK",
+  "GHS",
+  "BRL",
+  "ARS",
+]);
+
+export function isNoblocksFiatCurrencyCode(code: string): boolean {
+  return NOBLOCKS_FIAT_CURRENCY_CODES.has(code.toUpperCase());
+}
+
+/**
+ * List / details: fiat uses symbol prefix (e.g. ₦1,000.5); crypto uses "1.23 USDC".
+ */
+export function formatTransactionAmountDisplay(
+  amount: number,
+  currencyCode: string,
+): string {
+  if (isNoblocksFiatCurrencyCode(currencyCode)) {
+    return `${getCurrencySymbol(currencyCode)}${formatNumberWithCommas(amount)}`;
+  }
+  return `${formatNumberWithCommas(amount)} ${currencyCode}`;
+}
+
+/** User-facing label for transaction history rows (API still uses `onramp`). */
+export function getTransactionHistoryTypeLabel(
+  type: TransactionHistoryType,
+): string {
+  switch (type) {
+    case "transfer":
+      return "Transferred";
+    case "swap":
+      return "Swapped";
+    case "onramp":
+      return "Swapped";
+    default:
+      return type;
+  }
+}
 
 /**
  * Encrypts data using the provided public key.
@@ -173,6 +278,8 @@ export function getRpcUrl(network: string) {
       return `https://api-arbitrum-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Celo":
       return `https://api-celo-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
+    case "Scroll":
+      return `https://api-scroll-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Lisk":
       return `https://api-lisk-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Ethereum":
@@ -254,7 +361,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
     {
-      name: "cNGN",
+      name: "Compliant Naira",
       symbol: "cNGN",
       decimals: 6,
       address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
@@ -301,7 +408,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
     {
-      name: "cNGN",
+      name: "Compliant Naira",
       symbol: "cNGN",
       decimals: 6,
       address: "0x52828daa48c1a9a06f37500882b42daf0be04c3b",
@@ -324,7 +431,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdc-logo.svg",
     },
     {
-      name: "cNGN",
+      name: "Compliant Naira",
       symbol: "cNGN",
       decimals: 6,
       address: "0xa8aea66b361a8d53e8865c62d142167af28af058",
@@ -340,11 +447,34 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdc-logo.svg",
     },
     {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
       name: "Celo Dollar",
       symbol: "cUSD",
       decimals: 18,
       address: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
       imageUrl: "/logos/cusd-logo.svg",
+    },
+  ],
+  Scroll: [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0xf55BEC9cafDbE8730f096Aa55dad6D22d44099Df",
+      imageUrl: "/logos/usdt-logo.svg",
     },
   ],
   Lisk: [
@@ -354,6 +484,13 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       decimals: 6,
       address: "0x05D032ac25d322df992303dCa074EE7392C117b9",
       imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
+      name: "Compliant Naira",
+      symbol: "cNGN",
+      decimals: 6,
+      address: "0xC7aB2C35Ea37236e644C24A4E4a1911c082887c0",
+      imageUrl: "/logos/cngn-logo.svg",
     },
   ],
   Ethereum: [
@@ -372,7 +509,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
     {
-      name: "cNGN",
+      name: "Compliant Naira",
       symbol: "cNGN",
       decimals: 6,
       address: "0x17CDB2a01e7a34CbB3DD4b83260B05d0274C8dab",
@@ -423,41 +560,6 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
           }
           tokens[networkName].push(transformToken(apiToken));
         });
-        // Update cache with all networks
-        // Temporarily add USDT on Base for user withdrawal
-        if (tokens["Base"]) {
-          const usdtBase = {
-            name: "Tether USD",
-            symbol: "USDT",
-            decimals: 6,
-            address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
-            imageUrl: "/logos/usdt-logo.svg",
-          };
-
-          // Check if USDT is not already in the list
-          const hasUSDT = tokens["Base"].some(
-            (token) => token.symbol === "USDT",
-          );
-          if (!hasUSDT) {
-            tokens["Base"].push(usdtBase);
-          }
-
-          // Ensure native ETH is present in the target network
-          // const nativeETH = {
-          //   name: "Ethereum",
-          //   symbol: "ETH",
-          //   decimals: 18,
-          //   address: "", // Native token has no contract address
-          //   imageUrl: "/logos/eth-logo.svg",
-          //   isNative: true,
-          // };
-          // const hasNativeETH = tokens["Ethereum"].some(
-          //   (token) => token.symbol === "ETH" && token.isNative,
-          // );
-          // if (!hasNativeETH) {
-          //   tokens["Ethereum"].push(nativeETH);
-          // }
-        }
         // Merge fallback tokens for any networks missing from API response
         Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
           if (!tokens[networkName] || tokens[networkName].length === 0) {
@@ -621,6 +723,56 @@ export function shortenAddress(
     return address;
   }
   return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
+}
+
+/**
+ * Resolves ENS name from wallet address for supported networks
+ * Falls back to first 5 chars if no ENS name found
+ * @param address - The wallet address to resolve
+ * @param networkName - Optional network name (Lisk doesn't support ENS)
+ * @returns Promise<string> - ENS name or shortened address (first 5 chars after 0x)
+ */
+export async function resolveEnsNameOrShorten(
+  address: string,
+  networkName?: string,
+): Promise<string> {
+  if (!address) {
+    return "";
+  }
+
+  if (!isValidEvmAddressCaseInsensitive(address)) {
+    return address.slice(0, 5);
+  }
+
+  // Lisk doesn't support ENS, return shortened address immediately
+  if (networkName === "Lisk") {
+    return address.slice(2, 7); // First 5 chars (skip 0x)
+  }
+
+  try {
+
+    // ENS reverse resolution works on Ethereum mainnet
+    // But names can resolve to addresses on L2 networks (Base, Arbitrum, Polygon)
+    const publicClient = createPublicClient({
+      chain: mainnet,
+      transport: http("https://eth.llamarpc.com"), // Public Ethereum RPC
+    });
+
+    const ensName = await getEnsName(publicClient, {
+      address: address.toLowerCase() as `0x${string}`,
+    });
+
+    if (ensName) {
+      return ensName;
+    }
+
+    // Fallback to first 5 chars (skip 0x)
+    return address.slice(2, 7);
+  } catch (error) {
+    console.error("Error resolving ENS name:", error);
+    // Fallback to first 5 chars (skip 0x)
+    return address.slice(2, 7);
+  }
 }
 
 /**
@@ -1269,4 +1421,131 @@ export function calculateSenderFee(
     : "0x0000000000000000000000000000000000000000";
 
   return { feeAmount, feeAmountInBaseUnits, feeRecipient };
+}
+
+/**
+ * Gets the avatar image path based on index, cycling through 1-4
+ */
+export const getAvatarImage = (index: number): string => {
+  const avatarNumber = (index % 4) + 1;
+  return `/images/onramp-avatar/avatar${avatarNumber}.png`;
+};
+
+/**
+ * Copies text to clipboard and shows a toast notification
+ * @param text - The text to copy to clipboard
+ * @param label - Optional label for the toast message (e.g., "Account number", "Amount")
+ * @returns Promise that resolves when copy is complete
+ */
+export const copyToClipboard = async (
+  text: string,
+  label?: string,
+): Promise<void> => {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(label ? `${label} copied to clipboard` : "Copied to clipboard");
+  } catch (error) {
+    toast.error("Failed to copy");
+  }
+};
+
+export function mapProviderAccountToInstructions(
+  a: V2FiatProviderAccountDTO,
+  fallbackCurrency: string,
+  fallbackAmount: number,
+): OnrampPaymentInstructions {
+  const raw = a.amountToTransfer?.replace(/,/g, "") ?? "";
+  const parsed = raw ? parseFloat(raw) : fallbackAmount;
+  return {
+    provider:
+      a.institution && a.accountName
+        ? `${a.institution} | ${a.accountName}`
+        : a.institution || a.accountName,
+    accountNumber: a.accountIdentifier,
+    amount: Number.isFinite(parsed) ? parsed : fallbackAmount,
+    currency: a.currency || fallbackCurrency,
+    expiresAt: new Date(a.validUntil),
+  };
+}
+
+/** Same window as Make payment: not API `validUntil` until backend aligns. */
+export const ONRAMP_CLIENT_PAYMENT_SESSION_MS = 30 * 60 * 1000;
+
+/**
+ * True when an on-ramp order is still pending/processing in the API but the
+ * client payment window (30 minutes from `created_at`) has ended.
+ */
+export function isOnrampClientPaymentSessionExpired(
+  transaction: Pick<
+    TransactionHistory,
+    "created_at" | "transaction_type" | "status"
+  >,
+): boolean {
+  if (
+    transaction.transaction_type !== "onramp" ||
+    (transaction.status !== "pending" && transaction.status !== "processing")
+  ) {
+    return false;
+  }
+  const t = new Date(transaction.created_at).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() >= t + ONRAMP_CLIENT_PAYMENT_SESSION_MS;
+}
+
+/**
+ * True when an on-ramp order is still **pending** (awaiting bank transfer), not yet **processing**.
+ * Dot hides once history shows `processing` or terminal statuses.
+ */
+export function isOnrampAwaitingUserBankTransfer(
+  transaction: Pick<
+    TransactionHistory,
+    "transaction_type" | "status" | "order_id" | "created_at"
+  >,
+): boolean {
+  if (transaction.transaction_type !== "onramp" || !transaction.order_id) {
+    return false;
+  }
+  const s = String(transaction.status ?? "").toLowerCase();
+  if (s !== "pending") return false;
+  const created = new Date(transaction.created_at).getTime();
+  if (
+    !Number.isNaN(created) &&
+    Date.now() >= created + ONRAMP_CLIENT_PAYMENT_SESSION_MS
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/** Whether any history row needs the user to complete a bank transfer for an on-ramp order. */
+export function hasOnrampAwaitingBankTransfer(
+  transactions: Pick<
+    TransactionHistory,
+    "transaction_type" | "status" | "order_id" | "created_at"
+  >[],
+): boolean {
+  return transactions.some(isOnrampAwaitingUserBankTransfer);
+}
+
+/**
+ * Animated pending indicator (orange): expanding ping ripple + solid core.
+ * Navbar wallet pill and Transactions tab (client components only).
+ */
+export function OnrampPendingNotificationDot(): ReactElement {
+  return createElement(
+    "span",
+    {
+      className:
+        "relative inline-flex h-3 w-3 shrink-0 items-center justify-center",
+      "aria-hidden": true,
+    },
+    createElement("span", {
+      className:
+        "absolute inline-flex h-full w-full rounded-full bg-orange-500/50 motion-safe:animate-ping",
+    }),
+    createElement("span", {
+      className:
+        "relative z-[1] h-2 w-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.75)]",
+    }),
+  );
 }

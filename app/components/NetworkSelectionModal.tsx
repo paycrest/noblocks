@@ -109,12 +109,7 @@ export const NetworkSelectionModal = () => {
               </p>
 
               <div className="space-y-2">
-                {networks
-                  .filter((network) => {
-                    if (useInjectedWallet) return true;
-                    return network.chain.name !== "Celo";
-                  })
-                  .map((network) => (
+                {networks.map((network) => (
                     <button
                       key={network.chain.name}
                       type="button"

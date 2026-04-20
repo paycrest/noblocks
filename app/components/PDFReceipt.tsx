@@ -9,7 +9,7 @@ import {
   Font,
 } from "@react-pdf/renderer";
 import { format } from "date-fns";
-import { formatCurrency, getInstitutionNameByCode } from "../utils";
+import { getInstitutionNameByCode } from "../utils";
 import type { OrderDetailsData, InstitutionProps } from "../types";
 
 Font.register({

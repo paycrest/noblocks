@@ -156,13 +156,14 @@ export function MainPageContent() {
       token: "USDC",
       amountSent: 0,
       amountReceived: 0,
-      currency: "",
+      // On-ramp is default: Send = fiat (NGN-only in UI); Receive = token.
+      currency: "NGN",
       recipientName: "",
       memo: "",
       institution: "",
       accountIdentifier: "",
       accountType: "bank",
-      isSwapped: false,
+      isSwapped: true,
       receiveDestinationExplicitlySelected: false,
     },
   });

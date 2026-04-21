@@ -153,10 +153,10 @@ export function MainPageContent() {
   const formMethods = useForm<FormData, any, undefined>({
     mode: "onChange",
     defaultValues: {
-      token: "USDC",
+      token: "",
       amountSent: 0,
       amountReceived: 0,
-      // On-ramp is default: Send = fiat (NGN-only in UI); Receive = token.
+      // On-ramp is default: Send = fiat (NGN-only in UI); Receive = token (user picks — empty until select).
       currency: "NGN",
       recipientName: "",
       memo: "",
@@ -241,9 +241,11 @@ export function MainPageContent() {
   );
 
   useEffect(function ensureDefaultToken() {
-    // Make sure we always have USDC as default
-    if (!formMethods.getValues("token")) {
-      formMethods.reset({ token: "USDC" });
+    // Off-ramp: default token to USDC. On-ramp: keep empty so Receive shows "Select token".
+    // Use === false so a transient undefined `isSwapped` is not treated as off-ramp.
+    if (formMethods.getValues("token")) return;
+    if (formMethods.getValues("isSwapped") === false) {
+      formMethods.setValue("token", "USDC", { shouldDirty: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

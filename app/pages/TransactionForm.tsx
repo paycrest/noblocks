@@ -297,7 +297,9 @@ export const TransactionForm = ({
 
   useEffect(
     function initSelectedToken() {
-      if (getValues("isSwapped")) return;
+      // Only coerce send-side token when explicitly off-ramp. If `isSwapped` is briefly
+      // undefined, do not assign fetchedTokens[0] or on-ramp first paint shows USDC.
+      if (getValues("isSwapped") !== false) return;
       if (
         !fetchedTokens.find((t) => t.symbol === token) &&
         fetchedTokens.length > 0

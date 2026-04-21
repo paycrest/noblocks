@@ -358,9 +358,22 @@ export function MainPageContent() {
               ? lpParam
               : undefined;
 
+          // Aggregator GET /v2/rates/.../{token}/{amount}/{fiat} always expects `amount` in **token**
+          // units (ValidateRate / provider min-max). Off-ramp: Send = token → amountSent. On-ramp:
+          // Send = fiat → use computed token (amountReceived) or 1 USDC probe until the form derives it.
+          const sentN = Number(amountSent) || 0;
+          const recvN = Number(amountReceived) || 0;
+          const rateQueryAmount = isOnrampRate
+            ? recvN > 0
+              ? recvN
+              : 1
+            : sentN > 0
+              ? sentN
+              : 100;
+
           const rate = await fetchRate({
             token,
-            amount: amountSent || 100,
+            amount: rateQueryAmount,
             currency,
             providerId,
             network: normalizeNetworkForRateFetch(selectedNetwork.chain.name),

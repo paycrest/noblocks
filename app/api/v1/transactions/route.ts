@@ -10,6 +10,7 @@ import {
 } from "@/app/lib/server-analytics";
 import type { TransactionHistory, TransactionResponse } from "@/app/types";
 import { getExplorerLink } from "@/app/utils";
+import { getKycMonthlyLimitsRecord } from "@/app/lib/kyc-tier-limits";
 
 // Route handler for GET requests
 export const GET = withRateLimit(async (request: NextRequest) => {
@@ -152,12 +153,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     // Uses an atomic stored procedure to prevent race conditions where two concurrent
     // requests both pass the limit check before either insert is committed.
     if (body.transactionType === "swap") {
-      const KYC_MONTHLY_LIMITS: Record<number, number> = {
-        0: 0,
-        1: 100,
-        2: 15000,
-        3: 50000,
-      };
+      const KYC_MONTHLY_LIMITS = getKycMonthlyLimitsRecord();
 
       const { data: kycProfile, error: kycError } = await supabaseAdmin
         .from("user_kyc_profiles")

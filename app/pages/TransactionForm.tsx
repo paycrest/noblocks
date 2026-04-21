@@ -321,7 +321,7 @@ export const TransactionForm = ({
         : embeddedWalletAddress;
       if (!walletAddressToCheck) return;
 
-      refreshStatus();
+      void refreshStatus(true);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [embeddedWalletAddress, injectedAddress, isInjectedWallet],
@@ -1173,7 +1173,7 @@ export const TransactionForm = ({
           isOpen={isLimitModalOpen}
           onClose={async () => {
             setIsLimitModalOpen(false);
-            await refreshStatus();
+            await refreshStatus(true);
           }}
           transactionAmount={blockedTransactionAmount}
         />

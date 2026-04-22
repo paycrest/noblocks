@@ -11,8 +11,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const latest = posts[0];
   return {
     title: "Noblocks Blog - Decentralized Payments News & Insights",
-    description: "Discover the latest in decentralized payments, stablecoin news, crypto remittance guides, and Web3 finance insights. Learn about USDC, USDT, DAI transfers, cross-border payments, and blockchain technology innovations.",
-    keywords: "Noblocks blog, decentralized payments, stablecoin news, crypto remittance, web3 finance, blockchain payments, USDC news, USDT updates, DAI insights, cross-border payments, fintech blog",
+    description: "Discover the latest in decentralized payments, stablecoin news, crypto remittance guides, and Web3 finance insights. Learn about USDC, USDT, cNGN transfers, cross-border payments, and blockchain technology innovations.",
+    keywords: "Noblocks blog, decentralized payments, stablecoin news, crypto remittance, web3 finance, blockchain payments, USDC news, USDT updates, cNGN insights, cross-border payments, fintech blog",
     alternates: {
       canonical: "https://noblocks.xyz/blog",
     },

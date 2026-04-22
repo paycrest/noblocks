@@ -17,7 +17,7 @@ import WalletMigrationSuccessModal from "./WalletMigrationSuccessModal";
 import { type Address, type Chain, createPublicClient, http, fallback, erc20Abi, encodeAbiParameters } from "viem";
 import { bsc } from "viem/chains";
 import { toast } from "sonner";
-import { networks } from "../mocks";
+import { migrationChecklistNetworks, networks } from "../mocks";
 import config from "../lib/config";
 import {
   createMeeClient,
@@ -36,9 +36,9 @@ function getTransportForChain(chain: Chain) {
     return http(getRpcUrl(chain.name));
 }
 
-// Map network names to viem chains
+// Map network names to viem chains (migration flow only; see migrationChecklistNetworks)
 const CHAIN_MAP = Object.fromEntries(
-    networks.map(n => [n.chain.name, n.chain])
+    migrationChecklistNetworks.map(n => [n.chain.name, n.chain])
 );
 
 // Biconomy v2 ECDSA module address (same across chains). Signature must be ABI-encoded as (bytes moduleSig, address moduleAddress) per blog.
@@ -93,8 +93,8 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             const balancesByChain: Record<string, Record<string, number>> = {};
             const rawByChain: Record<string, Record<string, bigint>> = {};
 
-            // Fetch balances for each supported network
-            for (const network of networks) {
+            // Fetch balances for each network in the migration checklist (excluded chains omitted)
+            for (const network of migrationChecklistNetworks) {
                 try {
                     const publicClient = createPublicClient({
                         chain: network.chain,

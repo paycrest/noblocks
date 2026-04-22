@@ -11,7 +11,7 @@ import { ImSpinner } from "react-icons/im";
 import { resetNetworkModalDismissed } from "../lib/networkModalStore";
 import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
-import { classNames, shortenAddress } from "../utils";
+import { classNames, copyToClipboard, shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 import {
   Copy01Icon,
@@ -67,8 +67,9 @@ export const SettingsDropdown = () => {
       ? embeddedWallet?.address
       : smartWallet?.address;
 
-  const handleCopyAddress = () => {
-    navigator.clipboard.writeText(walletAddress ?? "");
+  const handleCopyAddress = async () => {
+    const ok = await copyToClipboard(walletAddress ?? "", "Address");
+    if (!ok) return;
     setIsAddressCopied(true);
     setTimeout(() => setIsAddressCopied(false), 2000);
     setIsWarningModalOpen(true);
@@ -295,7 +296,7 @@ export const SettingsDropdown = () => {
                   <p>Export wallet</p>
                 </li>
               )}
-              {user && (
+              {!isInjectedWallet && (
                 <li
                   role="menuitem"
                   className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"

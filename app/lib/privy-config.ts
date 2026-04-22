@@ -1,4 +1,13 @@
-import { arbitrum, base, bsc, polygon, lisk, mainnet } from "viem/chains";
+import {
+  arbitrum,
+  base,
+  bsc,
+  polygon,
+  lisk,
+  celo,
+  scroll,
+  mainnet,
+} from "viem/chains";
 import {
   addRpcUrlOverrideToChain,
   type PrivyClientConfig,
@@ -10,13 +19,20 @@ const bscOverride = addRpcUrlOverrideToChain(
   getRpcUrl(bsc.name) ?? "https://bsc-dataseed.bnbchain.org/",
 );
 
+const celoOverride = addRpcUrlOverrideToChain(
+  celo,
+  getRpcUrl(celo.name) ?? "https://forno.celo.org",
+);
+
+const scrollOverride = addRpcUrlOverrideToChain(
+  scroll,
+  getRpcUrl(scroll.name) ?? "https://rpc.scroll.io",
+);
+
 const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
   embeddedWallets: {
     ethereum: {
-      // External-wallet signup: do not auto-create embedded if user already has a wallet
-      // (e.g. MetaMask / Rainbow via Privy login). Email/social users still get embedded.
-      // See https://docs.privy.io/wallets/connectors/usage/connect-or-create
-      createOnLogin: "users-without-wallets",
+      createOnLogin: "all-users",
     },
   },
   externalWallets: {
@@ -28,7 +44,16 @@ const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
       },
     },
   },
-  supportedChains: [mainnet, base, bscOverride, arbitrum, polygon, lisk],
+  supportedChains: [
+    mainnet,
+    base,
+    bscOverride,
+    arbitrum,
+    polygon,
+    lisk,
+    celoOverride,
+    scrollOverride,
+  ],
 };
 
 export const lightModeConfig: PrivyClientConfig = {

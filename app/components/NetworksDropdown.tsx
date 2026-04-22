@@ -62,15 +62,10 @@ export const NetworksDropdown = ({
     }
   };
 
-  const dropdownNetworks = networks
-    .filter((network) => {
-      if (useInjectedWallet) return true;
-      return network.chain.name !== "Celo";
-    })
-    .map((network) => ({
-      name: network.chain.name,
-      imageUrl: getNetworkImageUrl(network, isDark),
-    }));
+  const dropdownNetworks = networks.map((network) => ({
+    name: network.chain.name,
+    imageUrl: getNetworkImageUrl(network, isDark),
+  }));
 
   return (
     <FlexibleDropdown

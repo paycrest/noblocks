@@ -45,6 +45,8 @@ const config: Config = {
     !!(process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "").trim(),
   maintenanceSchedule:
     process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "",
+  /** Sender API key UUID (aggregator dashboard). Used by server proxy and client (on-chain messageHash metadata). */
+  aggregatorSenderApiKey: (process.env.NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID || "").trim(),
 };
 
 export default config;

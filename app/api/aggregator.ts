@@ -978,8 +978,9 @@ export async function migrateLocalStorageRecipients(
 }
 
 /**
- * Creates a v2 payment order (onramp/offramp) via the server proxy to aggregator.
- * POST /api/v1/payment-orders → aggregator POST /v2/sender/orders
+ * Creates a v2 on-ramp payment order (fiat source) via the server proxy to aggregator.
+ * POST /api/v1/payment-orders (on-ramp only) → aggregator POST /v2/sender/orders.
+ * Off-ramp orders are created on-chain (gateway.createOrder), not through this proxy.
  */
 export async function createV2SenderPaymentOrder(
   payload: V2CreatePaymentOrderPayload,

@@ -20,7 +20,7 @@ import {
   shortenAddress,
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
-import {
+import config, {
   getDelegationContractAddress,
   localTransferFeePercent,
 } from "../lib/config";
@@ -46,7 +46,7 @@ import {
   createPublicClient,
   http,
 } from "viem";
-import { useBalance, useInjectedWallet, useStep } from "../context";
+import { useBalance, useInjectedWallet, useStep, useTransactions } from "../context";
 import {
   useShouldUseEOA,
   useDelegationContractAuth,
@@ -104,7 +104,8 @@ export const TransactionPreview = ({
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();
-  const { currentStep, setCurrentStep } = useStep();
+  const { setCurrentStep } = useStep();
+  const { fetchTransactions } = useTransactions();
   const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance } =
     useBalance();
 
@@ -262,10 +263,18 @@ export const TransactionPreview = ({
     };
 
   const prepareCreateOrderParams = async () => {
+    const senderApiKeyId = config.aggregatorSenderApiKey?.trim();
+    if (!senderApiKeyId) {
+      throw new Error(
+        "Sender API key is not configured (set NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID)",
+      );
+    }
+    const metadata = { apiKey: senderApiKeyId };
+
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
 
-    // Prepare recipient data
+    // Prepare recipient data (metadata.apiKey matches aggregator OrderEVM.CreateOrder + indexer)
     const recipient = isOnramp
       ? {
         accountIdentifier: walletAddress || "",
@@ -273,6 +282,7 @@ export const TransactionPreview = ({
         institution: "Wallet",
         ...(providerId && { providerId }),
         nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+        metadata,
       }
       : {
         accountIdentifier: formValues.accountIdentifier,
@@ -281,6 +291,7 @@ export const TransactionPreview = ({
         memo: formValues.memo,
         ...(providerId && { providerId }),
         nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+        metadata,
       };
 
     // Fetch aggregator public key
@@ -726,6 +737,17 @@ export const TransactionPreview = ({
           providerAccount: created.providerAccount,
         });
 
+        const refreshTok = await getAccessToken();
+        if (refreshTok && activeWallet?.address) {
+          void fetchTransactions(
+            activeWallet.address,
+            refreshTok,
+            1,
+            30,
+            true,
+          );
+        }
+
         toast.success("Payment instructions ready");
         setCurrentStep("make_payment");
       } catch (e) {
@@ -1001,7 +1023,12 @@ export const TransactionPreview = ({
             <p className="text-sm text-neutral-500 dark:text-white/50">
               Refund account
             </p>
-            <div className="flex w-full items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-transparent px-3 py-3 transition-colors focus-within:border-lavender-400 focus-within:ring-2 focus-within:ring-lavender-400/25 dark:border-white/[0.12] dark:focus-within:border-lavender-500/70 dark:focus-within:ring-lavender-500/20">
+            <button
+              type="button"
+              onClick={() => setRefundAccountModalOpen(true)}
+              aria-label={refundAccount ? "Edit refund account" : "Add refund account"}
+              className="flex w-full items-center justify-between gap-3 rounded-xl border-[3.3px] border-lavender-500 bg-transparent px-3 py-3 text-left transition-colors hover:border-lavender-400 hover:bg-lavender-500/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500/35 dark:hover:border-lavender-400 dark:hover:bg-lavender-400/10 dark:focus-visible:ring-lavender-400/30"
+            >
               <span className="text-sm text-text-body dark:text-white">
                 {refundAccount ? (
                   <>
@@ -1012,19 +1039,17 @@ export const TransactionPreview = ({
                   "Add Refund Account"
                 )}
               </span>
-              <button
-                type="button"
-                onClick={() => setRefundAccountModalOpen(true)}
-                aria-label={refundAccount ? "Edit refund account" : "Add refund account"}
-                className="shrink-0 rounded-lg p-0.5 text-text-body transition-colors hover:text-neutral-900 dark:text-white/70 dark:hover:text-white"
+              <span
+                className="shrink-0 text-text-body dark:text-white/90"
+                aria-hidden
               >
                 {refundAccount ? (
-                  <BiEdit className="size-5" aria-hidden />
+                  <BiEdit className="size-5" />
                 ) : (
-                  <IoAdd className="size-5" aria-hidden />
+                  <IoAdd className="size-5" />
                 )}
-              </button>
-            </div>
+              </span>
+            </button>
           </div>
           <AddRefundAccountModal
             isOpen={refundAccountModalOpen}

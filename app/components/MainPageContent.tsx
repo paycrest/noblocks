@@ -48,6 +48,7 @@ const PageLayout = ({
   currentStep,
   transactionFormComponent,
   isRecipientFormOpen,
+  isOnramp,
   isBlockFestReferral,
 }: {
   authenticated: boolean;
@@ -55,6 +56,7 @@ const PageLayout = ({
   currentStep: string;
   transactionFormComponent: React.ReactNode;
   isRecipientFormOpen: boolean;
+  isOnramp: boolean;
   isBlockFestReferral: boolean;
 }) => {
   const { claimed, resetClaim } = useBlockFestClaim();
@@ -94,6 +96,7 @@ const PageLayout = ({
         <HomePage
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
+          isOnramp={isOnramp}
           showBlockFestBanner={claimed === true}
         />
       ) : (
@@ -108,7 +111,11 @@ const PageLayout = ({
 export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready, getAccessToken, user } = usePrivy();
-  const { currentStep, setCurrentStep } = useStep();
+  const {
+    currentStep,
+    setCurrentStep,
+    setIsOnrampProviderDetailsOpen,
+  } = useStep();
   const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
   const { crossChainBalances, isLoading: isBalanceLoading } = useBalance();
   const { selectedNetwork, setDisplayedNetwork } = useNetwork();
@@ -156,10 +163,18 @@ export function MainPageContent() {
       accountIdentifier: "",
       accountType: "bank",
       isSwapped: false,
+      receiveDestinationExplicitlySelected: false,
     },
   });
   const { watch } = formMethods;
-  const { currency, amountSent, amountReceived, token, isSwapped } = watch();
+  const {
+    currency,
+    amountSent,
+    amountReceived,
+    token,
+    isSwapped,
+    receiveDestinationExplicitlySelected,
+  } = watch();
   /** On-ramp (fiat→crypto): same as TransactionForm `isSwapped` / v2 `buy` side. */
   const isOnrampRate = Boolean(isSwapped);
 
@@ -191,6 +206,19 @@ export function MainPageContent() {
     onrampPaymentAccount,
     setOnrampPaymentAccount,
   };
+
+  useEffect(() => {
+    const show =
+      currentStep === STEPS.MAKE_PAYMENT &&
+      Boolean(orderId) &&
+      Boolean(onrampPaymentAccount);
+    setIsOnrampProviderDetailsOpen(show);
+  }, [
+    currentStep,
+    orderId,
+    onrampPaymentAccount,
+    setIsOnrampProviderDetailsOpen,
+  ]);
 
   useEffect(function setPageLoadingState() {
     setOrderId("");
@@ -310,6 +338,8 @@ export function MainPageContent() {
       prevRateRefetchTriggerRef.current = rateRefetchTrigger;
 
       if (!currency) return;
+
+      if (isOnrampRate && !token) return;
 
       // Only fetch rate if at least one amount is greater than 0
       if (!amountSent && !amountReceived) return;
@@ -460,7 +490,9 @@ export function MainPageContent() {
     (isInjectedWallet && !injectedReady);
 
   const isRecipientFormOpen =
-    !!currency && (authenticated || isInjectedWallet) && isUserVerified;
+    receiveDestinationExplicitlySelected &&
+    (authenticated || isInjectedWallet) &&
+    isUserVerified;
 
   const renderTransactionStep = useCallback(() => {
     switch (currentStep) {
@@ -557,6 +589,7 @@ export function MainPageContent() {
           currentStep={currentStep}
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
+          isOnramp={isSwapped}
           isBlockFestReferral={isBlockFestReferral}
         />
       )}

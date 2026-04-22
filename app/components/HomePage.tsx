@@ -27,6 +27,8 @@ const crimsonPro = Crimson_Pro({
 interface HomePageProps {
   transactionFormComponent: ReactNode;
   isRecipientFormOpen: boolean;
+  /** On-ramp tab: cash → stablecoins hero copy. */
+  isOnramp: boolean;
   showBlockFestBanner?: boolean;
 }
 
@@ -47,6 +49,7 @@ const heroLineVariants = {
 function HomePageComponent({
   transactionFormComponent,
   isRecipientFormOpen,
+  isOnramp,
   showBlockFestBanner = false,
 }: HomePageProps) {
   const handleScrollToForm = () => {
@@ -90,12 +93,12 @@ function HomePageComponent({
               transition={{ duration: 0.7, ease: "easeInOut" }}
             >
               <span className="text-3xl text-text-secondary dark:text-white/80 sm:text-[2.5rem] md:text-[3.5rem] lg:text-[4rem]">
-                Move between stablecoins
+                {isOnramp ? "Change cash to" : "Change stablecoins to"}
               </span>
               <span
                 className={`${crimsonPro.className} text-[2.5rem] italic sm:text-[3.45rem] md:text-[4.75rem] lg:text-[5.25rem]`}
               >
-                and cash in seconds
+                {isOnramp ? "stablecoins in seconds" : "cash in seconds"}
               </span>
             </motion.h1>
           </motion.section>
@@ -385,12 +388,15 @@ function HomePageComponent({
                 Mobile App
               </span>
             </h3>
-            <p className="pt-2 text-base font-normal leading-7 lg:text-lg lg:leading-[1.875rem]">
-              Your no. 1 app to change stablecoins to cash in less than{" "}
-              <span
-                className={`${crimsonPro.className} text-lg italic lg:text-xl`}
-              >
-                30s
+            <p className="flex flex-col pt-2 text-base font-normal leading-7 lg:text-lg lg:leading-[1.875rem]">
+              <span>Your no. 1 app to move between</span>
+              <span>
+                stablecoins and cash in less than{" "}
+                <span
+                  className={`${crimsonPro.className} text-lg italic lg:text-xl`}
+                >
+                  30s
+                </span>
               </span>
             </p>
           </div>

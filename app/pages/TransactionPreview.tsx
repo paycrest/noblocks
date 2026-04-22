@@ -156,6 +156,9 @@ export const TransactionPreview = ({
   );
   const orderSubmissionBlock = useRef<bigint | null>(null);
 
+  // Ref to prevent duplicate transaction saves
+  const isSavingTransactionRef = useRef(false);
+
   const searchParams = useSearchParams();
 
   useEffect(() => {

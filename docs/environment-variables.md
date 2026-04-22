@@ -13,6 +13,12 @@ NEXT_PUBLIC_AGGREGATOR_URL=https://api.paycrest.io/v1
 # Sender API key UUID (aggregator dashboard). Used by the payment-orders proxy and the client for encrypted gateway.createOrder messageHash.
 NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID=
 
+# KYC tier monthly swap limits (USD). Used by the UI and POST /api/v1/transactions. Optional; defaults match production if unset.
+NEXT_PUBLIC_KYC_TIER_0_MONTHLY=0
+NEXT_PUBLIC_KYC_TIER_1_MONTHLY=100
+NEXT_PUBLIC_KYC_TIER_2_MONTHLY=15000
+NEXT_PUBLIC_KYC_TIER_3_MONTHLY=50000
+
 # Auth services
 NEXT_PUBLIC_PRIVY_APP_ID=
 NEXT_PUBLIC_THIRDWEB_CLIENT_ID=

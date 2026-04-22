@@ -11,6 +11,7 @@ import {
   AnimatedModal,
   slideInOut,
 } from "../components/AnimatedComponents";
+import { TransactionLimitModal, PhoneVerificationModal } from "../components";
 import { primaryBtnClasses } from "../components/Styles";
 import { FormDropdown } from "../components/FormDropdown";
 import { RecipientDetailsForm } from "../components/recipient/RecipientDetailsForm";
@@ -36,7 +37,6 @@ import {
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
-import { fetchKYCStatus } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
@@ -45,6 +45,7 @@ import {
   useInjectedWallet,
   useNetwork,
   useTokens,
+  useKYC,
 } from "../context";
 import WalletMigrationModal from "../components/WalletMigrationModal";
 
@@ -78,6 +79,8 @@ export const TransactionForm = ({
   const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
+  const { canTransact, refreshStatus, isPhoneVerified, tier, phoneNumber } =
+    useKYC();
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -91,6 +94,8 @@ export const TransactionForm = ({
   const isFirstRender = useRef(true);
   const hasRestoredStateRef = useRef(false);
   const [rateError, setRateError] = useState<string | null>(null);
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
+  const [blockedTransactionAmount, setBlockedTransactionAmount] = useState(0);
 
   const currencies = useMemo(
     () =>
@@ -310,33 +315,13 @@ export const TransactionForm = ({
   );
 
   useEffect(
-    function checkKycStatus() {
+    function refreshKycStatus() {
       const walletAddressToCheck = isInjectedWallet
         ? injectedAddress
         : embeddedWalletAddress;
       if (!walletAddressToCheck) return;
 
-      const fetchStatus = async () => {
-        try {
-          const response = await fetchKYCStatus(walletAddressToCheck);
-          if (response.data.status === "pending") {
-            setIsKycModalOpen(true);
-          } else if (response.data.status === "success") {
-            setIsUserVerified(true);
-          }
-        } catch (error) {
-          if (
-            error instanceof Error &&
-            (error as any).response?.status === 404
-          ) {
-            // silently fail if user is not found/verified
-          } else {
-            console.log("error", error);
-          }
-        }
-      };
-
-      fetchStatus();
+      void refreshStatus(true);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [embeddedWalletAddress, injectedAddress, isInjectedWallet],
@@ -404,6 +389,23 @@ export const TransactionForm = ({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [amountSent, amountReceived, rate, isSwapped],
+  );
+
+  // Update isUserVerified based on tier changes and current amount
+  useEffect(
+    function updateVerificationStatus() {
+      if (tier > 0 && amountSent) {
+        const rawAmount = Number(amountSent) || 0;
+        const isCngn = token === "cNGN" || token === "CNGN";
+        const usdAmount =
+          isCngn && cngnRate && cngnRate > 0 ? rawAmount / cngnRate : rawAmount;
+        const canUserTransact = canTransact(usdAmount).allowed;
+        setIsUserVerified(canUserTransact);
+      } else if (tier === 0) {
+        setIsUserVerified(false);
+      }
+    },
+    [tier, amountSent, token, cngnRate, canTransact, setIsUserVerified],
   );
 
   // Register form fields
@@ -561,14 +563,55 @@ export const TransactionForm = ({
 });
 
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isTier2PhoneGateOpen, setIsTier2PhoneGateOpen] = useState(false);
+  /** After phone OTP, KYC context may not have updated before the next handleSwap; allow one continuation. */
+  const pendingContinueSwapAfterPhoneRef = useRef(false);
 
   const handleSwap = () => {
     if (isMigrationMandatory) {
       setIsMigrationModalOpen(true);
       return;
     }
+
+    // Tier 2+ (e.g. migrated ID KYC) still requires a stored phone — prompt before swap.
+    if (tier >= 2) {
+      const hasPhone = Boolean(phoneNumber?.trim());
+      if (!hasPhone && !pendingContinueSwapAfterPhoneRef.current) {
+        setIsTier2PhoneGateOpen(true);
+        return;
+      }
+      pendingContinueSwapAfterPhoneRef.current = false;
+    }
+
     setOrderId("");
+
+    // Calculate the USD equivalent for transaction limit checking.
+    // cNGN is not 1:1 with USD — convert using the live rate.
+    // USDC, USDT, and cUSD are treated as 1:1 with USD.
+    const formData = getValues();
+    const rawAmount = formData.amountSent || 0;
+    const isCngn = formData.token === "cNGN" || formData.token === "CNGN";
+    const usdAmount =
+      isCngn && cngnRate && cngnRate > 0 ? rawAmount / cngnRate : rawAmount;
+
+    // Check transaction limits based on KYC tier
+    const limitCheck = canTransact(usdAmount);
+
+    if (!limitCheck.allowed) {
+      setBlockedTransactionAmount(usdAmount);
+      setIsLimitModalOpen(true);
+      return;
+    }
+
+    // If limits are okay, proceed with transaction
     handleSubmit(onSubmit)();
+  };
+
+  const handleTier2PhoneVerified = async (_verifiedPhone: string) => {
+    setIsTier2PhoneGateOpen(false);
+    pendingContinueSwapAfterPhoneRef.current = true;
+    await refreshStatus(true);
+    handleSwap();
   };
 
   useEffect(() => {
@@ -1120,10 +1163,28 @@ export const TransactionForm = ({
               <KycModal
                 setIsKycModalOpen={setIsKycModalOpen}
                 setIsUserVerified={setIsUserVerified}
+                targetTier={tier === 2 ? 3 : 2}
               />
             </AnimatedModal>
           )}
         </AnimatePresence>
+
+        <TransactionLimitModal
+          isOpen={isLimitModalOpen}
+          onClose={async () => {
+            setIsLimitModalOpen(false);
+            await refreshStatus(true);
+          }}
+          transactionAmount={blockedTransactionAmount}
+        />
+
+        <PhoneVerificationModal
+          isOpen={isTier2PhoneGateOpen}
+          onClose={() => {
+            setIsTier2PhoneGateOpen(false);
+          }}
+          onVerified={handleTier2PhoneVerified}
+        />
 
         {/* Loading and Submit buttons */}
         {!ready && (
@@ -1155,6 +1216,8 @@ export const TransactionForm = ({
                     (fetchedTokens.find((t) => t.symbol === token)
                       ?.address as `0x${string}`) ?? "",
                   ),
+                () => setIsLimitModalOpen(true),
+                isPhoneVerified,
                 () => setIsKycModalOpen(true),
                 isUserVerified,
                 () => setIsMigrationModalOpen(true),

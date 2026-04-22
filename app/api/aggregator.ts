@@ -38,6 +38,41 @@ import config from "../lib/config";
 
 const AGGREGATOR_URL = config.aggregatorUrl;
 
+/**
+ * Base for aggregator routes registered only under `/v1/` (tokens, verify-account, institutions,
+ * pubkey, orders/:chain/:id, reindex, KYC — see `aggregator/routers/index.go`).
+ * When env is `…/v2`, normalize to `…/v1` so paths are not `/v2/tokens`, etc.
+ * @returns {string} The base URL for the aggregator v1 API
+ * @throws {Error} If the aggregator URL is not configured or is not a valid absolute URL
+ */
+function aggregatorBaseUrlV1(): string {
+  const raw = (AGGREGATOR_URL || "").trim().replace(/\/+$/, "");
+  if (!raw) {
+    throw new Error("NEXT_PUBLIC_AGGREGATOR_URL is not configured");
+  }
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new Error("NEXT_PUBLIC_AGGREGATOR_URL must be a valid absolute URL");
+  }
+  const pathNorm = u.pathname.replace(/\/+$/, "");
+  if (/\/v1$/i.test(pathNorm)) {
+    return raw;
+  }
+  const withoutV2 = raw.replace(/\/v2$/i, "");
+  try {
+    u = new URL(withoutV2);
+  } catch {
+    throw new Error("NEXT_PUBLIC_AGGREGATOR_URL must be a valid absolute URL");
+  }
+  const path = u.pathname.replace(/\/+$/, "");
+  if (path === "" || path === "/") {
+    return `${u.origin}/v1`;
+  }
+  return `${withoutV2}/v1`;
+}
+
 /** Maps aggregator order status → Supabase `transactions.status`. Swap keeps validated→completed; on-ramp keeps pending until settled. */
 export function mapAggregatorStatusToDbStatus(
   status: string,
@@ -86,31 +121,6 @@ export function unwrapV2SenderOrderEnvelope(
   return o as unknown as OrderDetailsData;
 }
 
-/** Base URL without trailing `/v1` so v2 paths are `{origin}/v2/...` not `{origin}/v1/v2/...`. */
-function aggregatorOriginForV2(): string {
-  const raw = (AGGREGATOR_URL || "").trim();
-  if (!raw) {
-    throw new Error("NEXT_PUBLIC_AGGREGATOR_URL is not configured");
-  }
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw new Error(
-      "NEXT_PUBLIC_AGGREGATOR_URL must be a valid absolute URL (e.g. https://api.example.com/v1)",
-    );
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error(
-      "NEXT_PUBLIC_AGGREGATOR_URL must use http: or https:",
-    );
-  }
-  const basePath = parsed.pathname
-    .replace(/\/v1\/?$/i, "")
-    .replace(/\/$/, "");
-  return `${parsed.origin}${basePath}`;
-}
-
 function pickV2RateQuote(
   quotes: V2RateQuoteResponse,
   side: RateSide,
@@ -133,15 +143,14 @@ export const fetchRate = async ({
   signal,
 }: RatePayload): Promise<RateResponse> => {
   const startTime = Date.now();
-  const analyticsEndpoint = "/v2/rates";
+  const analyticsEndpoint = "/rates";
   const net = (network || "").trim().toLowerCase();
 
   if (!net) {
     throw new Error("network is required for rate quotes");
   }
 
-  const origin = aggregatorOriginForV2();
-  const endpoint = `${origin}/v2/rates/${encodeURIComponent(net)}/${encodeURIComponent(token)}/${amount}/${encodeURIComponent(currency)}`;
+  const endpoint = `${AGGREGATOR_URL}/rates/${encodeURIComponent(net)}/${encodeURIComponent(token)}/${amount}/${encodeURIComponent(currency)}`;
   const params: Record<string, string> = {
     side,
   };
@@ -251,7 +260,7 @@ export const fetchSupportedInstitutions = async (
 ): Promise<InstitutionProps[]> => {
   try {
     const response = await axios.get(
-      `${AGGREGATOR_URL}/institutions/${currency}`,
+      `${aggregatorBaseUrlV1()}/institutions/${currency}`,
     );
     return response.data.data;
   } catch (error) {
@@ -267,7 +276,7 @@ export const fetchSupportedInstitutions = async (
  */
 export const fetchAggregatorPublicKey = async (): Promise<PubkeyResponse> => {
   try {
-    const response = await axios.get(`${AGGREGATOR_URL}/pubkey`);
+    const response = await axios.get(`${aggregatorBaseUrlV1()}/pubkey`);
     return response.data;
   } catch (error) {
     console.error("Error fetching aggregator public key:", error);
@@ -297,7 +306,7 @@ export const fetchAccountName = async (
     });
 
     const response = await axios.post(
-      `${AGGREGATOR_URL}/verify-account`,
+      `${aggregatorBaseUrlV1()}/verify-account`,
       payload,
     );
 
@@ -348,7 +357,7 @@ export const fetchOrderDetails = async (
 ): Promise<OrderDetailsResponse> => {
   try {
     const response = await axios.get(
-      `${AGGREGATOR_URL}/orders/${chainId}/${orderId}`,
+      `${aggregatorBaseUrlV1()}/orders/${chainId}/${orderId}`,
     );
     return response.data;
   } catch (error) {
@@ -376,7 +385,10 @@ export const initiateKYC = async (
       wallet_address: payload.walletAddress,
     });
 
-    const response = await axios.post(`${AGGREGATOR_URL}/kyc`, payload);
+    const response = await axios.post(
+      `${aggregatorBaseUrlV1()}/kyc`,
+      payload,
+    );
 
     // Track successful response
     const responseTime = Date.now() - startTime;
@@ -429,7 +441,9 @@ export const fetchKYCStatus = async (
       wallet_address: walletAddress,
     });
 
-    const response = await axios.get(`${AGGREGATOR_URL}/kyc/${walletAddress}`);
+    const response = await axios.get(
+      `${aggregatorBaseUrlV1()}/kyc/${walletAddress}`,
+    );
 
     // Track successful response
     const responseTime = Date.now() - startTime;
@@ -629,7 +643,7 @@ export async function reindexTransaction(
       retry_attempt: retryCount,
     });
 
-    const endpoint = `${AGGREGATOR_URL}/reindex/${network}/${txHash}`;
+    const endpoint = `${aggregatorBaseUrlV1()}/reindex/${network}/${txHash}`;
     const response = await axios.get(endpoint);
 
     // Track successful response (2xx status)
@@ -709,7 +723,7 @@ export async function reindexTransaction(
  */
 export const fetchTokens = async (): Promise<APIToken[]> => {
   try {
-    const response = await axios.get(`${AGGREGATOR_URL}/tokens`);
+    const response = await axios.get(`${aggregatorBaseUrlV1()}/tokens`);
     if (response.data?.data && Array.isArray(response.data.data)) {
       return response.data.data;
     }

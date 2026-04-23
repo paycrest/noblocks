@@ -80,6 +80,7 @@ export const SelectBankModal = ({
                       setValue("institution", inst.code, {
                         shouldValidate: true,
                       });
+                      setValue("accountType", inst.type, { shouldValidate: true });
                       setIsManualEntry(true);
                     }}
                     className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm transition-colors hover:bg-gray-100 dark:hover:bg-white/5 ${

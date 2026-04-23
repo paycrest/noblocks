@@ -1,7 +1,7 @@
 import config from "./config";
 /**
  * Add a wallet address to the configured Moralis EVM stream (e.g. after a new user gets a wallet).
- * Server-only; uses MORALIS_API_KEY and MORALIS_STREAM_ID.
+ * Server-only; uses MORALIS_API_KEY, MORALIS_STREAM_ID, and MORALIS_BASE_URL.
  */
 export async function registerWalletForMoralisStream(
   walletAddress: string,
@@ -9,14 +9,19 @@ export async function registerWalletForMoralisStream(
   const address = walletAddress.trim().toLowerCase();
   const streamId = config.moralisStreamId;
   const apiKey = config.moralisApiKey;
-  if (!streamId || !apiKey) {
-    return { ok: false, error: "MORALIS_STREAM_ID or MORALIS_API_KEY not set" };
+  const baseUrl = (config.moralisBaseUrl || "").trim();
+  if (!streamId || !apiKey || !baseUrl) {
+    return {
+      ok: false,
+      error:
+        "MORALIS_STREAM_ID, MORALIS_API_KEY, or MORALIS_BASE_URL not set",
+    };
   }
   if (!address.startsWith("0x") || address.length !== 42) {
     return { ok: false, error: "invalid address" };
   }
   const res = await fetch(
-    `${config.moralisBaseUrl}/streams/evm/${encodeURIComponent(streamId)}/address`,
+    `${baseUrl}/streams/evm/${encodeURIComponent(streamId)}/address`,
     {
       method: "POST",
       headers: {

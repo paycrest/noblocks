@@ -1,6 +1,9 @@
 /**
  * One-time backfill: register Privy users (email signups) with Moralis Streams.
  *
+ * Requires: MORALIS_STREAM_ID, MORALIS_API_KEY, MORALIS_BASE_URL (e.g. https://api.moralis-streams.com)
+ * and Privy env. Output `moralis-backfill-output.json` includes **emails and addresses (PII)**;
+ * it is gitignored—delete or redact if sharing, and do not commit.
  */
 
 import { writeFileSync } from "fs";
@@ -12,7 +15,6 @@ if (process.argv.includes("--dry")) {
   process.env.DRY_RUN = "1";
 }
 
-const MORALIS_BASE = process.env.MORALIS_BASE_URL;
 const DRY_RUN =
   process.env.DRY_RUN === "1" ||
   process.env.DRY_RUN === "true";
@@ -57,9 +59,15 @@ function getMonitoredWalletAddress(user: User): string | null {
   return null;
 }
 
-async function addAddressToMoralisStream(address: string, streamId: string, apiKey: string) {
+async function addAddressToMoralisStream(
+  address: string,
+  streamId: string,
+  apiKey: string,
+  moralisBaseUrl: string,
+) {
+  const base = moralisBaseUrl.replace(/\/$/, "");
   const res = await fetch(
-    `${MORALIS_BASE}/streams/evm/${encodeURIComponent(streamId)}/address`,
+    `${base}/streams/evm/${encodeURIComponent(streamId)}/address`,
     {
       method: "POST",
       headers: {
@@ -98,10 +106,11 @@ type Row = {
 async function main() {
   const streamId = process.env.MORALIS_STREAM_ID;
   const apiKey = process.env.MORALIS_API_KEY;
+  const moralisBase = (process.env.MORALIS_BASE_URL || "").trim();
 
-  if (!DRY_RUN && (!streamId || !apiKey)) {
+  if (!DRY_RUN && (!streamId || !apiKey || !moralisBase)) {
     console.error(
-      "Set MORALIS_STREAM_ID and MORALIS_API_KEY, or use DRY_RUN=1 to list users only.",
+      "Set MORALIS_STREAM_ID, MORALIS_API_KEY, and MORALIS_BASE_URL, or use DRY_RUN=1 to list users only.",
     );
     process.exit(1);
   }
@@ -155,7 +164,12 @@ async function main() {
     }
 
     try {
-      const result = await addAddressToMoralisStream(address, streamId!, apiKey!);
+      const result = await addAddressToMoralisStream(
+        address,
+        streamId!,
+        apiKey!,
+        moralisBase,
+      );
       if ("skipped" in result && result.skipped) {
         rows.push({
           userId: user.id,
@@ -199,6 +213,9 @@ async function main() {
     `OK: ${rows.filter((r) => r.moralis === "ok").length}, dry_run: ${rows.filter((r) => r.moralis === "dry_run").length}, errors: ${rows.filter((r) => r.moralis === "error").length}, no wallet: ${rows.filter((r) => r.moralis === "skipped_no_wallet").length}`,
   );
   console.log(`Wrote ${outPath}`);
+  console.log(
+    "Note: that file may contain PII (emails); keep local and do not commit.",
+  );
 }
 
 main().catch((e) => {

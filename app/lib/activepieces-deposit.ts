@@ -1,13 +1,12 @@
-
-
 import config from "./config";
+import type { ActivepiecesDepositPayload } from "../types";
+
 /**
  * Forwards a deposit event to an Activepieces webhook (Brevo email flow lives there).
  */
 export async function triggerActivepiecesDeposit(
   payload: ActivepiecesDepositPayload,
-): Promise<void> {
-  const url = config.activepiecesWebhookUrl;
+): Promise<void> {  const url = config.activepiecesWebhookUrl;
   if (!url) {
     if (process.env.NODE_ENV === "development") {
       console.warn(

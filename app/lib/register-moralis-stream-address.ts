@@ -20,18 +20,32 @@ export async function registerWalletForMoralisStream(
   if (!address.startsWith("0x") || address.length !== 42) {
     return { ok: false, error: "invalid address" };
   }
-  const res = await fetch(
-    `${baseUrl}/streams/evm/${encodeURIComponent(streamId)}/address`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "X-API-Key": apiKey,
+  const timeoutMs = 8_000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(
+      `${baseUrl}/streams/evm/${encodeURIComponent(streamId)}/address`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-API-Key": apiKey,
+        },
+        body: JSON.stringify({ address }),
+        signal: controller.signal,
       },
-      body: JSON.stringify({ address }),
-    },
-  );
+    );
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return { ok: false, error: "Moralis request timeout" };
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
   const text = await res.text();
   if (!res.ok) {
     if (res.status === 400 || res.status === 409) {

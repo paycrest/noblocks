@@ -44,6 +44,8 @@ export function MoralisStreamRegistration() {
 
     ranForSession.current = sessionKey;
     let cancelled = false;
+    const controller = new AbortController();
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     (async () => {
       let token: string | null = null;
       try {
@@ -56,15 +58,22 @@ export function MoralisStreamRegistration() {
         ranForSession.current = null;
         return;
       }
+      timeoutId = setTimeout(() => controller.abort(), 8_000);
       let res: Response;
       try {
         res = await fetch("/api/v1/wallets/moralis-stream/register", {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
       } catch {
         ranForSession.current = null;
         return;
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        timeoutId = undefined;
       }
       if (cancelled) {
         ranForSession.current = null;
@@ -99,6 +108,10 @@ export function MoralisStreamRegistration() {
 
     return () => {
       cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      controller.abort();
     };
   }, [
     ready,

@@ -554,3 +554,29 @@ export type ActivepiecesDepositPayload = {
   txExplorerUrl: string;
   kind: "native" | "erc20";
 };
+
+export interface MoralisNativeTx {
+  hash: string;
+  fromAddress: string;
+  toAddress: string;
+  value: string;
+}
+
+export interface MoralisErc20Transfer {
+  transactionHash?: string;
+  txHash?: string;
+  from: string;
+  to: string;
+  valueWithDecimals: string;
+  tokenSymbol: string;
+  tokenName: string;
+}
+
+export interface MoralisWebhookBody {
+  confirmed: boolean;
+  chainId: string;
+  streamId?: string;
+  tag?: string;
+  txs?: MoralisNativeTx[];
+  erc20Transfers?: MoralisErc20Transfer[];
+}

@@ -2,10 +2,10 @@ import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyMoralisSignature } from "@/app/lib/moralis-webhook";
 import {
-  processMoralisDepositPayload,
-  type MoralisWebhookBody,
+  processMoralisDepositPayload, 
 } from "@/app/lib/moralis-deposit-processing";
 import config from "@/app/lib/config";
+import { MoralisWebhookBody } from "@/app/types";
 
 /**
  * Moralis Streams → verify signature → (after response) map `to` → Privy email → Activepieces → Brevo.

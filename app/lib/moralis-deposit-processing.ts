@@ -4,32 +4,8 @@ import {
   getEmailForMonitoredAddress,
   getMoralisDepositNetworkAndExplorer,
 } from "@/app/utils";
+import { MoralisWebhookBody } from "../types";
 
-export interface MoralisNativeTx {
-  hash: string;
-  fromAddress: string;
-  toAddress: string;
-  value: string;
-}
-
-export interface MoralisErc20Transfer {
-  transactionHash?: string;
-  txHash?: string;
-  from: string;
-  to: string;
-  valueWithDecimals: string;
-  tokenSymbol: string;
-  tokenName: string;
-}
-
-export interface MoralisWebhookBody {
-  confirmed: boolean;
-  chainId: string;
-  streamId?: string;
-  tag?: string;
-  txs?: MoralisNativeTx[];
-  erc20Transfers?: MoralisErc20Transfer[];
-}
 
 /** Native token ticker for display (simplified; most EVMs use 18 decimals for native in Moralis). */
 const CHAIN_NATIVE_SYMBOL: Record<string, string> = {

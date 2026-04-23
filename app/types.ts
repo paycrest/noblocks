@@ -380,6 +380,11 @@ export type Config = {
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
   aggregatorSenderApiKey: string;
+  moralisWebhookSecret: string;
+  activepiecesWebhookUrl: string;
+  moralisStreamId: string;
+  moralisApiKey: string;
+  moralisBaseUrl: string;
 };
 
 export type Network = {
@@ -538,3 +543,14 @@ declare global {
     };
   }
 }
+
+export type ActivepiecesDepositPayload = {
+  email: string;
+  amount: string;
+  symbol: string;
+  from: string;
+  txHash: string;
+  network: string;
+  txExplorerUrl: string;
+  kind: "native" | "erc20";
+};

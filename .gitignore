@@ -42,3 +42,6 @@ keys
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# one-time Moralis backfill output (may contain PII)
+scripts/moralis-backfill-output.json

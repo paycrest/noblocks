@@ -192,6 +192,39 @@ export function getTransactionHistoryTypeLabel(
 }
 
 /**
+ * Resolve a Privy user's email for an on-chain address (embedded EOA and/or smart wallet).
+ * Used by Moralis webhooks. Dynamic-imports Privy so client modules that only use other
+ * `utils` exports are not linked to the server `PRIVY_APP_SECRET` client.
+ */
+export async function getEmailForMonitoredAddress(
+  address: string,
+): Promise<string | null> {
+  const normalized = address.trim().toLowerCase();
+  if (!normalized.startsWith("0x") || normalized.length !== 42) {
+    return null;
+  }
+  const { getPrivyClient } = await import("./lib/privy");
+  const privy = getPrivyClient();
+  try {
+    const byWallet = await privy.getUserByWalletAddress(normalized);
+    if (byWallet?.email?.address) {
+      return byWallet.email.address.trim().toLowerCase();
+    }
+  } catch (e) {
+    console.warn("[privy] getUserByWalletAddress", normalized, e);
+  }
+  try {
+    const byScw = await privy.getUserBySmartWalletAddress(normalized);
+    if (byScw?.email?.address) {
+      return byScw.email.address.trim().toLowerCase();
+    }
+  } catch (e) {
+    console.warn("[privy] getUserBySmartWalletAddress", normalized, e);
+  }
+  return null;
+}
+
+/**
  * Encrypts data using the provided public key.
  * @param data - The data to be encrypted.
  * @param publicKeyPEM - The public key in PEM format.
@@ -262,6 +295,58 @@ export const getExplorerLink = (network: string, txHash: string) => {
     default:
       return "";
   }
+};
+
+/** Moralis / viem hex chainId (canonical) → `getExplorerLink` network name. */
+const CHAIN_ID_TO_EXPLORER_NETWORK: Record<string, string> = {
+  "0x1": "Ethereum",
+  "0x38": "BNB Smart Chain",
+  "0x89": "Polygon",
+  "0xa4b1": "Arbitrum One",
+  "0x2105": "Base",
+  "0xa": "Optimism",
+  "0x82750": "Scroll",
+  "0xa4ec": "Celo",
+  "0x46f": "Lisk",
+};
+
+/**
+ * Normalizes an EVM chain id to canonical lowercase hex (e.g. `0x0A` → `0xa`).
+ * Internal: used by {@link getMoralisDepositNetworkAndExplorer} only.
+ */
+function canonicalEvmChainIdHex(chainId: string): string {
+  const s = chainId.trim();
+  if (!s) {
+    return s;
+  }
+  try {
+    if (/^0x/i.test(s)) {
+      return `0x${BigInt(s).toString(16)}`;
+    }
+    if (/^\d+$/.test(s)) {
+      return `0x${BigInt(s).toString(16)}`;
+    }
+    return `0x${BigInt(`0x${s}`).toString(16)}`;
+  } catch {
+    return s.toLowerCase();
+  }
+}
+
+/**
+ * For Moralis webhooks: display `network` + full `txExplorerUrl` in one pass
+ * (shares the same map + `getExplorerLink` as the rest of the app).
+ * `txExplorerUrl` is `""` if the chain is unmapped or `txHash` is empty.
+ */
+export const getMoralisDepositNetworkAndExplorer = (
+  chainId: string,
+  txHash: string,
+): { network: string; txExplorerUrl: string } => {
+  const key = canonicalEvmChainIdHex(chainId);
+  const name = CHAIN_ID_TO_EXPLORER_NETWORK[key];
+  const network = name ?? chainId;
+  const txExplorerUrl =
+    txHash && name ? getExplorerLink(name, txHash) : "";
+  return { network, txExplorerUrl };
 };
 
 // write function to get rpc url for a given network
@@ -1432,54 +1517,22 @@ export const getAvatarImage = (index: number): string => {
 };
 
 /**
- * Copies text to clipboard and shows a toast notification.
- * Uses `navigator.clipboard` when available; falls back to `execCommand` when the API is
- * unavailable, non-secure context, or when `writeText` rejects.
- * @param label - Optional label for the toast (e.g. "Address", "Link") → "{label} copied to clipboard"
- * @returns Whether the copy succeeded
+ * Copies text to clipboard and shows a toast notification
+ * @param text - The text to copy to clipboard
+ * @param label - Optional label for the toast message (e.g., "Account number", "Amount")
+ * @returns Promise that resolves when copy is complete
  */
-export async function copyToClipboard(
+export const copyToClipboard = async (
   text: string,
   label?: string,
-): Promise<boolean> {
-  const fallbackCopy = () => {
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.style.position = "fixed";
-    textarea.style.left = "-9999px";
-    document.body.appendChild(textarea);
-
-    try {
-      textarea.focus();
-      textarea.select();
-      const ok = document.execCommand("copy");
-      if (!ok) {
-        throw new Error("execCommand copy failed");
-      }
-    } finally {
-      textarea.remove();
-    }
-  };
-
+): Promise<void> => {
   try {
-    if (navigator.clipboard?.writeText && window.isSecureContext) {
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch {
-        fallbackCopy();
-      }
-    } else {
-      fallbackCopy();
-    }
-    toast.success(
-      label ? `${label} copied to clipboard` : "Copied to clipboard",
-    );
-    return true;
-  } catch {
+    await navigator.clipboard.writeText(text);
+    toast.success(label ? `${label} copied to clipboard` : "Copied to clipboard");
+  } catch (error) {
     toast.error("Failed to copy");
-    return false;
   }
-}
+};
 
 export function mapProviderAccountToInstructions(
   a: V2FiatProviderAccountDTO,

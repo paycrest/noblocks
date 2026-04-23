@@ -27,7 +27,9 @@
     "sanity:dev": "sanity dev --studio studio",
     "sanity:build": "sanity build --studio studio",
     "sanity:deploy": "sanity deploy",
-    "sanity:undeploy": "sanity undeploy"
+    "sanity:undeploy": "sanity undeploy",
+    "backfill-moralis": "node --env-file=.env.local --import tsx ./scripts/backfill-moralis-from-privy.ts",
+    "backfill-moralis:dry": "node --env-file=.env.local --import tsx ./scripts/backfill-moralis-from-privy.ts -- --dry"
   },
   "dependencies": {
     "@biconomy/abstractjs": "^1.1.21",
@@ -100,6 +102,7 @@
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.12",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.3",
     "typescript": "^5.8.3"
   },
   "engines": {

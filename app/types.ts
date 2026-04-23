@@ -380,6 +380,11 @@ export type Config = {
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
   aggregatorSenderApiKey: string;
+  moralisWebhookSecret: string;
+  activepiecesWebhookUrl: string;
+  moralisStreamId: string;
+  moralisApiKey: string;
+  moralisBaseUrl: string;
 };
 
 export type Network = {
@@ -537,4 +542,43 @@ declare global {
       groupId: string;
     };
   }
+}
+
+export type ActivepiecesDepositPayload = {
+  email: string;
+  amount: string;
+  symbol: string;
+  from: string;
+  txHash: string;
+  network: string;
+  txExplorerUrl: string;
+  kind: "native" | "erc20";
+};
+
+export interface MoralisNativeTx {
+  hash: string;
+  fromAddress: string;
+  toAddress: string;
+  value: string;
+}
+
+export interface MoralisErc20Transfer {
+  transactionHash?: string;
+  txHash?: string;
+  logIndex?: string;
+  contract?: string;
+  from: string;
+  to: string;
+  valueWithDecimals: string;
+  tokenSymbol: string;
+  tokenName: string;
+}
+
+export interface MoralisWebhookBody {
+  confirmed: boolean;
+  chainId: string;
+  streamId?: string;
+  tag?: string;
+  txs?: MoralisNativeTx[];
+  erc20Transfers?: MoralisErc20Transfer[];
 }

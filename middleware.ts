@@ -341,6 +341,7 @@ export const config = {
     "/api/v1/refund-account",
     "/api/v1/payment-orders",
     "/api/v1/payment-orders/:path*",
+    "/api/v1/wallets/moralis-stream/register",
     "/api/blockfest/cashback",
     "/api/bundler",
     "/api/bundler/:path*",

@@ -148,7 +148,8 @@ export const getCurrencySymbol = (currency: string): string => {
 
 /**
  * Off-ramp account/phone field placeholder. Banks use a generic label; mobile money
- * uses a country-appropriate example.
+ * uses a country-appropriate example. All mobile-money values share an "eg: " prefix
+ * (no leading space before the label) so the placeholder is aligned in the input.
  */
 export function getOfframpAccountIdentifierPlaceholder(
   currency: string,
@@ -159,14 +160,14 @@ export function getOfframpAccountIdentifierPlaceholder(
   }
   const examples: Record<string, string> = {
     KES: " 2547XXXXXXXX",
-    NGN: " 08012345678",
+    NGN: " 07XXXXXXXX",
     UGX: " 2567XXXXXXXX",
     TZS: " 2557XXXXXXXX",
     MWK: " 2659XXXXXXXX",
     GHS: " 23324XXXXXXX",
   };
   return (
-    examples[currency.toUpperCase()] ?? "e.g. country code + phone number"
+    examples[currency.toUpperCase()] ?? "country code + phone number"
   );
 }
 

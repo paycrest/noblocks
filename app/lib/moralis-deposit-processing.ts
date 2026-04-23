@@ -137,6 +137,7 @@ export async function processMoralisDepositPayload(
     }
     try {
       const token = tr.tokenSymbol || "TOKEN";
+      const tokenAddress = (tr.contract ?? "").trim().toLowerCase();
       await moralisDepositNotificationOnce(
         {
           kind: "erc20",
@@ -145,7 +146,9 @@ export async function processMoralisDepositPayload(
           to,
           from: tr.from,
           valueWithDecimals: tr.valueWithDecimals,
+          tokenAddress,
           tokenSymbol: token,
+          erc20LogIndex: tr.logIndex,
         },
         async () => {
           const { network, txExplorerUrl } = getMoralisDepositNetworkAndExplorer(

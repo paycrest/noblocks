@@ -10,7 +10,12 @@ export type MoralisDepositIdempotencyInput =
       to: string;
       from: string;
       valueWithDecimals: string;
+      /** Token contract; primary idempotency discriminator (symbol is not unique). */
+      tokenAddress: string;
+      /** `tokenSymbol` is for display only; not used in the hash. */
       tokenSymbol: string;
+      /** Set when `tokenAddress` is missing (use Moralis `logIndex`). */
+      erc20LogIndex?: string;
     };
 
 function isPostgresUniqueViolation(e: { code?: string; message?: string }): boolean {
@@ -48,7 +53,13 @@ function buildMoralisDepositIdempotencyKey(
     const s = `v1|${c}|${h}|native|${input.to.toLowerCase().trim()}`;
     return createHash("sha256").update(s).digest("hex");
   }
-  const s = `v1|${c}|${h}|erc20|${input.to.toLowerCase().trim()}|${input.from.toLowerCase().trim()}|${input.valueWithDecimals}|${input.tokenSymbol.toLowerCase().trim()}`;
+  const to = input.to.toLowerCase().trim();
+  const from = input.from.toLowerCase().trim();
+  const v = input.valueWithDecimals.trim();
+  const contract = input.tokenAddress.trim().toLowerCase();
+  const tokenId =
+    contract || `nocontract|${(input.erc20LogIndex ?? "na").trim()}`;
+  const s = `v1|${c}|${h}|erc20|${to}|${from}|${v}|${tokenId}`;
   return createHash("sha256").update(s).digest("hex");
 }
 
@@ -69,7 +80,7 @@ async function tryClaimMoralisDepositIdempotencyKey(
       return false;
     }
     console.error("[moralis idempotency] claim insert failed", error);
-    return true;
+    throw new Error("[moralis idempotency] claim insert failed", { cause: error });
   }
   return true;
 }

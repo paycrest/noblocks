@@ -9,18 +9,30 @@ export async function triggerActivepiecesDeposit(
 ): Promise<void> {
   const url = config.activepiecesWebhookUrl;
   if (!url) {
-    if (process.env.NODE_ENV === "development") {
-      console.warn(
-        "[activepieces] ACTIVEPIECES_WEBHOOK_URL not set — skipping forward",
-      );
-    }
+    console.error(
+      "[activepieces] ACTIVEPIECES_WEBHOOK_URL not set — skipping forward",
+    );
     return;
   }
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const timeoutMs = 10_000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Activepieces webhook timeout after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
   if (!res.ok) {
     const t = await res.text().catch(() => "");
     throw new Error(

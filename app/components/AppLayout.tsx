@@ -13,12 +13,14 @@ import NoticeBanner from "./NoticeBanner";
 import { MigrationBannerWrapper } from "../context";
 import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeModal";
 import SentryClientProvider from "./SentryClientProvider";
+import { MoralisStreamRegistration } from "./MoralisStreamRegistration";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SentryClientProvider>
       <Providers>
+        <MoralisStreamRegistration />
         <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
           <div className={`relative ${config.maintenanceEnabled ? 'mb-16' : ''}`}>
             <Navbar />

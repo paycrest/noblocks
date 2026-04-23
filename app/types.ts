@@ -565,6 +565,8 @@ export interface MoralisNativeTx {
 export interface MoralisErc20Transfer {
   transactionHash?: string;
   txHash?: string;
+  logIndex?: string;
+  contract?: string;
   from: string;
   to: string;
   valueWithDecimals: string;

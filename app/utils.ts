@@ -158,12 +158,12 @@ export function getOfframpAccountIdentifierPlaceholder(
     return "Account number";
   }
   const examples: Record<string, string> = {
-    KES: "e.g. 2547XXXXXXXX",
-    NGN: "e.g. 08012345678",
-    UGX: "e.g. 2567XXXXXXXX",
-    TZS: "e.g. 2557XXXXXXXX",
-    MWK: "e.g. 2659XXXXXXXX",
-    GHS: "e.g. 23324XXXXXXX",
+    KES: " 2547XXXXXXXX",
+    NGN: " 08012345678",
+    UGX: " 2567XXXXXXXX",
+    TZS: " 2557XXXXXXXX",
+    MWK: " 2659XXXXXXXX",
+    GHS: " 23324XXXXXXX",
   };
   return (
     examples[currency.toUpperCase()] ?? "e.g. country code + phone number"

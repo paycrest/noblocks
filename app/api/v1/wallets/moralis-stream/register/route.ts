@@ -27,7 +27,25 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
   trackApiRequest(request, ROUTE, "POST", { wallet_address: walletAddress });
 
-  const result = await registerWalletForMoralisStream(walletAddress);
+  let result: Awaited<ReturnType<typeof registerWalletForMoralisStream>>;
+  try {
+    result = await registerWalletForMoralisStream(walletAddress);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unexpected registration failure";
+    trackApiError(
+      request,
+      ROUTE,
+      "POST",
+      error instanceof Error ? error : new Error(message),
+      502,
+    );
+    return NextResponse.json(
+      { success: false, error: "Upstream registration failed" },
+      { status: 502 },
+    );
+  }
+
   const responseTime = Date.now() - startTime;
 
   if (result.ok) {
@@ -37,7 +55,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     return NextResponse.json({ success: true });
   }
 
-  const status = /not set/i.test(result.error) ? 503 : 400;
+  const upstream = /^Moralis\s+(\d{3})\b/i.exec(result.error);
+  const upstreamStatus = upstream ? Number(upstream[1]) : null;
+  const status = /not set/i.test(result.error)
+    ? 503
+    : upstreamStatus && upstreamStatus >= 500
+      ? 502
+      : 400;
   if (status >= 500) {
     trackApiError(request, ROUTE, "POST", new Error(result.error), status);
   } else {

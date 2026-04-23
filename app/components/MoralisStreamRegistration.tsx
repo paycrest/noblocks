@@ -45,7 +45,13 @@ export function MoralisStreamRegistration() {
     ranForSession.current = sessionKey;
     let cancelled = false;
     (async () => {
-      const token = await getAccessToken();
+      let token: string | null = null;
+      try {
+        token = await getAccessToken();
+      } catch {
+        ranForSession.current = null;
+        return;
+      }
       if (cancelled || !token) {
         ranForSession.current = null;
         return;
@@ -72,7 +78,6 @@ export function MoralisStreamRegistration() {
         }
         return;
       }
-      ranForSession.current = null;
       if (res.status === 503) {
         if (process.env.NODE_ENV === "development") {
           console.warn(
@@ -81,6 +86,7 @@ export function MoralisStreamRegistration() {
         }
         return;
       }
+      ranForSession.current = null;
       if (process.env.NODE_ENV === "development") {
         const body = await res.text();
         console.warn(

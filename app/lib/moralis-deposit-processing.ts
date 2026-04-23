@@ -1,11 +1,11 @@
 import { formatUnits } from "viem";
 import { triggerActivepiecesDeposit } from "@/app/lib/activepieces-deposit";
+import { moralisDepositNotificationOnce } from "@/app/lib/moralis-deposit-idempotency";
 import {
   getEmailForMonitoredAddress,
   getMoralisDepositNetworkAndExplorer,
 } from "@/app/utils";
-import { MoralisWebhookBody } from "../types";
-
+import type { MoralisWebhookBody } from "../types";
 
 /** Native token ticker for display (simplified; most EVMs use 18 decimals for native in Moralis). */
 const CHAIN_NATIVE_SYMBOL: Record<string, string> = {
@@ -52,7 +52,7 @@ export async function processMoralisDepositPayload(
     const to = tx.toAddress?.toLowerCase();
     if (!to) continue;
     try {
-      if (tx.value && BigInt(tx.value) === 0n) {
+      if (tx.value && BigInt(tx.value) === BigInt(0)) {
         continue;
       }
     } catch {
@@ -87,20 +87,25 @@ export async function processMoralisDepositPayload(
       );
     }
     try {
-      const { network, txExplorerUrl } = getMoralisDepositNetworkAndExplorer(
-        body.chainId,
-        tx.hash,
+      await moralisDepositNotificationOnce(
+        { kind: "native", chainId: body.chainId, txHash: tx.hash, to },
+        async () => {
+          const { network, txExplorerUrl } = getMoralisDepositNetworkAndExplorer(
+            body.chainId,
+            tx.hash,
+          );
+          await triggerActivepiecesDeposit({
+            email,
+            amount: amountStr,
+            symbol,
+            from: tx.fromAddress,
+            txHash: tx.hash,
+            network,
+            txExplorerUrl,
+            kind: "native",
+          });
+        },
       );
-      await triggerActivepiecesDeposit({
-        email,
-        amount: amountStr,
-        symbol,
-        from: tx.fromAddress,
-        txHash: tx.hash,
-        network,
-        txExplorerUrl,
-        kind: "native",
-      });
     } catch (e) {
       console.error("[moralis deposit] activepieces native", e);
     }
@@ -131,20 +136,34 @@ export async function processMoralisDepositPayload(
       );
     }
     try {
-      const { network, txExplorerUrl } = getMoralisDepositNetworkAndExplorer(
-        body.chainId,
-        txId,
+      const token = tr.tokenSymbol || "TOKEN";
+      await moralisDepositNotificationOnce(
+        {
+          kind: "erc20",
+          chainId: body.chainId,
+          txHash: txId,
+          to,
+          from: tr.from,
+          valueWithDecimals: tr.valueWithDecimals,
+          tokenSymbol: token,
+        },
+        async () => {
+          const { network, txExplorerUrl } = getMoralisDepositNetworkAndExplorer(
+            body.chainId,
+            txId,
+          );
+          await triggerActivepiecesDeposit({
+            email,
+            amount: tr.valueWithDecimals,
+            symbol: token,
+            from: tr.from,
+            txHash: txId,
+            network,
+            txExplorerUrl,
+            kind: "erc20",
+          });
+        },
       );
-      await triggerActivepiecesDeposit({
-        email,
-        amount: tr.valueWithDecimals,
-        symbol: tr.tokenSymbol || "TOKEN",
-        from: tr.from,
-        txHash: txId,
-        network,
-        txExplorerUrl,
-        kind: "erc20",
-      });
     } catch (e) {
       console.error("[moralis deposit] activepieces erc20", e);
     }

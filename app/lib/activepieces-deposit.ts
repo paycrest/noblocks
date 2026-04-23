@@ -6,7 +6,8 @@ import type { ActivepiecesDepositPayload } from "../types";
  */
 export async function triggerActivepiecesDeposit(
   payload: ActivepiecesDepositPayload,
-): Promise<void> {  const url = config.activepiecesWebhookUrl;
+): Promise<void> {
+  const url = config.activepiecesWebhookUrl;
   if (!url) {
     if (process.env.NODE_ENV === "development") {
       console.warn(

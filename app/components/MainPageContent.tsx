@@ -108,6 +108,26 @@ const PageLayout = ({
   );
 };
 
+/**
+ * v2 `/rates/.../{token}/{amount}/{fiat}` expects `amount` in token units. On-ramp, the receive
+ * (token) field is often 0 until a rate exists — use a peg-aware fiat-sized probe instead of `1`
+ * so provider min/max match the user's order (e.g. CNGN ↔ NGN).
+ */
+function onrampRateQueryTokenAmount(
+  token: string,
+  currency: string,
+  sentN: number,
+  recvN: number,
+): number {
+  if (recvN > 0) return recvN;
+  const t = (token || "").trim().toUpperCase();
+  const c = (currency || "").trim().toUpperCase();
+  if (t === "CNGN" && c === "NGN" && sentN > 0) {
+    return sentN;
+  }
+  return 1;
+}
+
 export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready, getAccessToken, user } = usePrivy();
@@ -363,13 +383,11 @@ export function MainPageContent() {
 
           // Aggregator GET /v2/rates/.../{token}/{amount}/{fiat} always expects `amount` in **token**
           // units (ValidateRate / provider min-max). Off-ramp: Send = token → amountSent. On-ramp:
-          // Send = fiat → use computed token (amountReceived) or 1 USDC probe until the form derives it.
+          // Send = fiat → use computed token (amountReceived), else peg-aware probe, else 1.
           const sentN = Number(amountSent) || 0;
           const recvN = Number(amountReceived) || 0;
           const rateQueryAmount = isOnrampRate
-            ? recvN > 0
-              ? recvN
-              : 1
+            ? onrampRateQueryTokenAmount(token, currency, sentN, recvN)
             : sentN > 0
               ? sentN
               : 100;

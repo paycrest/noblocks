@@ -1,7 +1,6 @@
 "use client";
 import Image from "next/image";
 import { toast } from "sonner";
-import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { networks } from "../mocks";
@@ -32,9 +31,6 @@ export const NetworksDropdown = ({
   iconOnly = !isFormStep;
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
-  const [dropdownSelectedItem, setDropdownSelectedItem] = useState<string>(
-    selectedNetwork.chain.name,
-  );
 
   const handleNetworkSelect = async (networkName: string) => {
     const newNetwork = networks.find((net) => net.chain.name === networkName);
@@ -44,7 +40,6 @@ export const NetworksDropdown = ({
         useInjectedWallet,
         setSelectedNetwork,
         () => {
-          setDropdownSelectedItem(newNetwork.chain.name);
           if (!useInjectedWallet) {
             toast.success(`Network switched successfully`, {
               description: `You are now swapping on ${newNetwork.chain.name} network`,
@@ -70,7 +65,7 @@ export const NetworksDropdown = ({
   return (
     <FlexibleDropdown
       data={dropdownNetworks}
-      selectedItem={dropdownSelectedItem}
+      selectedItem={selectedNetwork.chain.name}
       onSelect={handleNetworkSelect}
       className="max-h-max min-w-56"
       dropdownWidth={250}

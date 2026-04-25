@@ -297,7 +297,9 @@ export const TransactionForm = ({
 
   useEffect(
     function initSelectedToken() {
-      if (getValues("isSwapped")) return;
+      // Only coerce send-side token when explicitly off-ramp. If `isSwapped` is briefly
+      // undefined, do not assign fetchedTokens[0] or on-ramp first paint shows USDC.
+      if (getValues("isSwapped") !== false) return;
       if (
         !fetchedTokens.find((t) => t.symbol === token) &&
         fetchedTokens.length > 0
@@ -812,7 +814,7 @@ export const TransactionForm = ({
                   "bg-neutral-100 dark:bg-[#141414]",
                   isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
-                    : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
+                    : "border border-transparent text-neutral-900/40 dark:text-white/40",
                 ].join(" ")}
               >
                 On-ramp
@@ -831,7 +833,7 @@ export const TransactionForm = ({
                   "bg-neutral-100 dark:bg-[#141414]",
                   !isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
-                    : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
+                    : "border border-transparent text-neutral-900/40 dark:text-white/40",
                 ].join(" ")}
               >
                 Off-ramp

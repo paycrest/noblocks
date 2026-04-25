@@ -108,6 +108,26 @@ const PageLayout = ({
   );
 };
 
+/**
+ * v2 `/rates/.../{token}/{amount}/{fiat}` expects `amount` in token units. On-ramp, the receive
+ * (token) field is often 0 until a rate exists — use a peg-aware fiat-sized probe instead of `1`
+ * so provider min/max match the user's order (e.g. CNGN ↔ NGN).
+ */
+function onrampRateQueryTokenAmount(
+  token: string,
+  currency: string,
+  sentN: number,
+  recvN: number,
+): number {
+  if (recvN > 0) return recvN;
+  const t = (token || "").trim().toUpperCase();
+  const c = (currency || "").trim().toUpperCase();
+  if (t === "CNGN" && c === "NGN" && sentN > 0) {
+    return sentN;
+  }
+  return 1;
+}
+
 export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready, getAccessToken, user } = usePrivy();
@@ -153,16 +173,17 @@ export function MainPageContent() {
   const formMethods = useForm<FormData, any, undefined>({
     mode: "onChange",
     defaultValues: {
-      token: "USDC",
+      token: "",
       amountSent: 0,
       amountReceived: 0,
-      currency: "",
+      // On-ramp is default: Send = fiat (NGN-only in UI); Receive = token (user picks — empty until select).
+      currency: "NGN",
       recipientName: "",
       memo: "",
       institution: "",
       accountIdentifier: "",
       accountType: "bank",
-      isSwapped: false,
+      isSwapped: true,
       receiveDestinationExplicitlySelected: false,
     },
   });
@@ -240,9 +261,11 @@ export function MainPageContent() {
   );
 
   useEffect(function ensureDefaultToken() {
-    // Make sure we always have USDC as default
-    if (!formMethods.getValues("token")) {
-      formMethods.reset({ token: "USDC" });
+    // Off-ramp: default token to USDC. On-ramp: keep empty so Receive shows "Select token".
+    // Use === false so a transient undefined `isSwapped` is not treated as off-ramp.
+    if (formMethods.getValues("token")) return;
+    if (formMethods.getValues("isSwapped") === false) {
+      formMethods.setValue("token", "USDC", { shouldDirty: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -358,9 +381,20 @@ export function MainPageContent() {
               ? lpParam
               : undefined;
 
+          // Aggregator GET /v2/rates/.../{token}/{amount}/{fiat} always expects `amount` in **token**
+          // units (ValidateRate / provider min-max). Off-ramp: Send = token → amountSent. On-ramp:
+          // Send = fiat → use computed token (amountReceived), else peg-aware probe, else 1.
+          const sentN = Number(amountSent) || 0;
+          const recvN = Number(amountReceived) || 0;
+          const rateQueryAmount = isOnrampRate
+            ? onrampRateQueryTokenAmount(token, currency, sentN, recvN)
+            : sentN > 0
+              ? sentN
+              : 100;
+
           const rate = await fetchRate({
             token,
-            amount: amountSent || 100,
+            amount: rateQueryAmount,
             currency,
             providerId,
             network: normalizeNetworkForRateFetch(selectedNetwork.chain.name),

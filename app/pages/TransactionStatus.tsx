@@ -54,6 +54,7 @@ import { pdf } from "@react-pdf/renderer";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { usePrivy } from "@privy-io/react-auth";
+import { PaymentConfirmationModal } from "../components/PaymentConfirmationModal";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
 import { BlockFestCashbackComponent } from "../components/blockfest";
@@ -143,6 +144,10 @@ export function TransactionStatus({
   const [hasShownConfetti, setHasShownConfetti] = useState(false);
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
+  const paymentConfirmationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const stuckInFulfillingSinceRef = useRef<number | null>(null);
+  const lastStuckOrderIdRef = useRef<string | null>(null);
   const [hasReindexed, setHasReindexed] = useState(false);
   const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
@@ -637,6 +642,157 @@ export function TransactionStatus({
     [transactionStatus, hasReindexed, orderDetails, createdAt],
   );
 
+  useEffect(
+    function showPaymentConfirmationAfterDelay() {
+      const STUCK_STORAGE_KEY_PREFIX = "stuck_fulfilling_since_";
+      const getStuckStorageKey = () =>
+        orderId ? `${STUCK_STORAGE_KEY_PREFIX}${orderId}` : null;
+
+      const isStuckState = ["fulfilling", "fulfilled"].includes(transactionStatus);
+
+      if (!isStuckState) {
+        setShowPaymentConfirmation(false);
+        stuckInFulfillingSinceRef.current = null;
+        lastStuckOrderIdRef.current = null;
+        const key = getStuckStorageKey();
+        if (key && typeof window !== "undefined") {
+          try {
+            localStorage.removeItem(key);
+          } catch {
+            // ignore
+          }
+        }
+        if (paymentConfirmationTimerRef.current) {
+          clearTimeout(paymentConfirmationTimerRef.current);
+          paymentConfirmationTimerRef.current = null;
+        }
+        return;
+      }
+
+      if (orderId !== lastStuckOrderIdRef.current) {
+        stuckInFulfillingSinceRef.current = null;
+        lastStuckOrderIdRef.current = orderId ?? null;
+      }
+
+      const now = Date.now();
+      if (stuckInFulfillingSinceRef.current === null) {
+        const key = getStuckStorageKey();
+        if (key && typeof window !== "undefined") {
+          try {
+            const stored = localStorage.getItem(key);
+            const parsed = stored ? parseInt(stored, 10) : NaN;
+            if (Number.isFinite(parsed) && parsed <= now) {
+              stuckInFulfillingSinceRef.current = parsed;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (stuckInFulfillingSinceRef.current === null) {
+          stuckInFulfillingSinceRef.current = now;
+          const keyToWrite = getStuckStorageKey();
+          if (keyToWrite && typeof window !== "undefined") {
+            try {
+              localStorage.setItem(keyToWrite, String(now));
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+      const stuckSince = stuckInFulfillingSinceRef.current;
+      const elapsed = now - stuckSince;
+      const delayMs = 120_000;
+
+      if (elapsed >= delayMs) {
+        setShowPaymentConfirmation(true);
+      } else {
+        paymentConfirmationTimerRef.current = setTimeout(() => {
+          setShowPaymentConfirmation(true);
+        }, delayMs - elapsed);
+      }
+
+      return () => {
+        if (paymentConfirmationTimerRef.current) {
+          clearTimeout(paymentConfirmationTimerRef.current);
+          paymentConfirmationTimerRef.current = null;
+        }
+      };
+    },
+    [transactionStatus, orderId],
+  );
+
+  const handlePaymentConfirmed = async () => {
+    const accessToken = await getAccessToken();
+    if (!accessToken || !orderId) {
+      toast.error("Unable to confirm payment. Please try again.");
+      throw new Error("Missing access token or order ID");
+    }
+
+    const walletAddress = embeddedWallet?.address || "";
+    if (!walletAddress) {
+      toast.error("Wallet not connected. Please reconnect and try again.");
+      throw new Error("Missing wallet address");
+    }
+
+    try {
+      // Validate order on aggregator first (sender API)
+      const validateResult = await validateOrder({
+        orderId,
+        accessToken,
+        walletAddress,
+      });
+
+      if (!validateResult.success) {
+        toast.error(
+          validateResult.error ||
+          "Could not validate order. Please try again or contact support.",
+        );
+        throw new Error(validateResult.error || "Validation failed");
+      }
+
+      const transactionId = localStorage.getItem("currentTransactionId");
+      if (!transactionId) throw new Error("Transaction not found");
+
+      const updateResult = await updateTransactionDetails({
+        transactionId,
+        status: "settled",
+        txHash: createdHash || orderDetails?.txHash,
+        timeSpent: calculateDuration(createdAt, new Date().toISOString()),
+        accessToken,
+        walletAddress,
+      });
+
+      if (!updateResult?.success) {
+        toast.error("Could not update transaction status. Please try again.");
+        throw new Error("Transaction update failed");
+      }
+
+      setTransactionStatus("settled");
+      setShowPaymentConfirmation(false);
+      if (orderId && typeof window !== "undefined") {
+        try {
+          localStorage.removeItem(`stuck_fulfilling_since_${orderId}`);
+        } catch {
+          // ignore
+        }
+      }
+    } catch (error) {
+      console.error("Error confirming payment:", error);
+      const msg = error instanceof Error ? error.message : "";
+      const alreadyToasted =
+        msg === "Missing access token or order ID" ||
+        msg === "Missing wallet address" ||
+        msg === "Transaction not found" ||
+        msg === "Validation failed" ||
+        msg === "Transaction update failed";
+      if (!alreadyToasted) {
+        toast.error("Failed to confirm payment. Please try again.");
+      }
+      throw error;
+    }
+  };
+
   /**
    * Renders the appropriate status indicator based on transaction status
    * Shows checkmark for success, X for failure, or spinner for pending states
@@ -1126,6 +1282,24 @@ export function TransactionStatus({
                   fails."
           showAfterMs={60000}
           className="w-full space-y-4"
+        />
+
+        {/* Payment confirmation modal for long-running transactions (120s) */}
+        <PaymentConfirmationModal
+          isOpen={showPaymentConfirmation}
+          onClose={() => setShowPaymentConfirmation(false)}
+          onConfirm={handlePaymentConfirmed}
+          tokenAmount={String(amount)}
+          token={String(token)}
+          txHash={createdHash || orderDetails?.txHash}
+          explorerLink={
+            (createdHash || orderDetails?.txHash) && orderDetails?.network
+              ? getExplorerLink(
+                  orderDetails.network,
+                  (createdHash || orderDetails?.txHash) ?? "",
+                )
+              : undefined
+          }
         />
 
         <AnimatePresence>

@@ -24,6 +24,7 @@ import {
 import Image from "next/image";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { Dialog } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -77,6 +78,7 @@ export const WalletDetails = () => {
   const { isOnrampProviderDetailsOpen } = useStep();
   const isDark = useActualTheme();
   const shouldUseEOA = useShouldUseEOA();
+  const hookWalletAddress = useWalletAddress();
 
   // Custom hook for handling wallet funding
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
@@ -91,35 +93,38 @@ export const WalletDetails = () => {
     dependencies: [selectedNetwork],
   });
 
-  // Get embedded wallet (EOA) and smart wallet (SCW)
   const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
+    (wallet) => wallet.walletClientType === "privy",
   );
   const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet"
+    (account) => account.type === "smart_wallet",
   );
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : shouldUseEOA
-      ? (embeddedWallet ? { address: embeddedWallet.address } : undefined)
-      : smartWallet;
+    : selectedNetwork.chain.name === "Starknet"
+      ? hookWalletAddress
+        ? { address: hookWalletAddress }
+        : undefined
+      : shouldUseEOA
+        ? embeddedWallet
+          ? { address: embeddedWallet.address }
+          : undefined
+        : smartWallet;
 
-  // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
-    : shouldUseEOA
-      ? allBalances.externalWallet
-      : allBalances.smartWallet;
+    : selectedNetwork.chain.name === "Starknet"
+      ? allBalances.starknetWallet
+      : shouldUseEOA
+        ? allBalances.externalWallet
+        : allBalances.smartWallet;
 
-  // Sort cross-chain balances: selected network first, then alphabetically
-  // Filter to show only networks with non-zero balances (except selected network)
   const sortedCrossChainBalances = useSortedCrossChainBalances(
     crossChainBalances,
     selectedNetwork.chain.name,
   );
 
-  /** Re-evaluate on-ramp pending dot when client payment window elapses (same cadence as transaction list). */
   const [onrampDotRevision, bumpOnrampDot] = useReducer(
     (n: number) => n + 1,
     0,
@@ -301,6 +306,8 @@ export const WalletDetails = () => {
                         <div className="text-2xl font-medium text-text-body dark:text-white">
                           {isLoading ? (
                             <BalanceSkeleton className="w-24" />
+                          ) : selectedNetwork.chain.name === "Starknet" ? (
+                            `$${(activeBalance?.total ?? 0).toFixed(2)}`
                           ) : (
                             formatCurrency(crossChainTotal, "USD", "en-US")
                           )}
@@ -428,18 +435,16 @@ export const WalletDetails = () => {
                                       <Divider />
                                     </div>
 
-                                    {/* Token balances for this network */}
                                     <div className="space-y-4">
                                       {filteredBalances.map(
                                         ([token, balance]) => {
-                                          // For CNGN, use raw balance for token amount display
                                           const displayBalance =
                                             token === "CNGN" || token === "cNGN"
                                               ? (entry.balances.rawBalances?.[
                                                   token
                                                 ] ?? balance)
                                               : balance;
-                                          const usdEquivalent = balance; // The 'balance' is the USD equivalent
+                                          const usdEquivalent = balance;
 
                                           return (
                                             <div

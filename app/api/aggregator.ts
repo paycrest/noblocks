@@ -708,14 +708,36 @@ export async function reindexTransaction(
  * @throws {Error} If the API request fails
  */
 export const fetchTokens = async (): Promise<APIToken[]> => {
+  const base = (AGGREGATOR_URL || "").trim().replace(/\/$/, "");
+  if (!base) {
+    console.warn(
+      "fetchTokens: NEXT_PUBLIC_AGGREGATOR_URL is not set. Copy from .env.example into .env.local and restart dev.",
+    );
+    return [];
+  }
+
+  const url = `${base}/tokens`;
   try {
-    const response = await axios.get(`${AGGREGATOR_URL}/tokens`);
+    const response = await axios.get(url);
     if (response.data?.data && Array.isArray(response.data.data)) {
       return response.data.data;
     }
     return [];
   } catch (error) {
-    console.error("Error fetching supported tokens from API:", error);
+    if (axios.isAxiosError(error)) {
+      const isNetwork =
+        error.code === "ERR_NETWORK" ||
+        String(error.message).toLowerCase().includes("network");
+      console.error(
+        "Error fetching supported tokens from API:",
+        isNetwork
+          ? `Network error calling ${url}. Check: (1) NEXT_PUBLIC_AGGREGATOR_URL is correct, (2) the API is reachable from your machine/VPN, (3) browser extensions or CORS are not blocking the request.`
+          : error.message,
+        error.response?.status,
+      );
+    } else {
+      console.error("Error fetching supported tokens from API:", error);
+    }
     throw error;
   }
 };

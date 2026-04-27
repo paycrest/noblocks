@@ -124,7 +124,7 @@ export const networks = [
 ];
 
 /** Chain IDs excluded from wallet migration (popup math + transfer modal). */
-export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number>([
+export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number | string>([
   celo.id,
   scroll.id,
   starknetMainnet.id,
@@ -132,7 +132,7 @@ export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number>([
 
 /** Networks scanned and shown in the wallet migration modal (excludes Celo and Scroll). */
 export const migrationChecklistNetworks = networks.filter(
-  (n) => !MIGRATION_EXCLUDED_CHAIN_IDS.has(n.chain.id),
+  (n) => !MIGRATION_EXCLUDED_CHAIN_IDS.has(n.chain.id as number | string),
 );
 
 export const colors = [

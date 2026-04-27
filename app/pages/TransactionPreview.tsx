@@ -107,13 +107,7 @@ export const TransactionPreview = ({
   const { isLoading: isMigrationLoading } = useMigrationStatus();
   const { signDelegationAuthorization } = useDelegationContractAuth();
 
-  const {
-    walletId,
-    address: starknetAddress,
-    publicKey,
-    deployed,
-    deployWallet,
-  } = useStarknet();
+  const { walletId, address: starknetAddress, publicKey } = useStarknet();
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();

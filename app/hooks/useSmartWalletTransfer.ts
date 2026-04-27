@@ -76,7 +76,7 @@ export function useSmartWalletTransfer({
   const shouldUseEOA = useShouldUseEOA();
   const { wallets } = useWallets();
   const { signDelegationAuthorization } = useDelegationContractAuth();
-  const { deployWallet } = useStarknet();
+  const { ensureWalletExists } = useStarknet();
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
 
   const [isLoading, setIsLoading] = useState(false);
@@ -144,10 +144,10 @@ export function useSmartWalletTransfer({
           }
           if (!starknetWallet.deployed) {
             try {
-              await deployWallet();
+              await ensureWalletExists();
               await new Promise((resolve) => setTimeout(resolve, 1000));
             } catch {
-              // deployment is best-effort; transfer may still proceed if already deployed
+              // best-effort; transfer may still proceed if account is ready
             }
           }
           const accessToken = await getAccessToken();
@@ -427,7 +427,7 @@ export function useSmartWalletTransfer({
       signDelegationAuthorization,
       onRequireMigration,
       starknetWallet,
-      deployWallet,
+      ensureWalletExists,
     ],
   );
 

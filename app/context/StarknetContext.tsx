@@ -59,12 +59,23 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
 
         setWalletId(walletId);
         setAddress(address);
-        if (pk) setPublicKey(pk);
+        setPublicKey(pk ?? null);
 
         saveToLocalStorage({
           walletId,
           address,
-          publicKey: pk,
+          publicKey: pk ?? null,
+          deployed: false,
+        });
+      } else {
+        setWalletId(null);
+        setAddress(null);
+        setPublicKey(null);
+        setDeployed(false);
+        saveToLocalStorage({
+          walletId: null,
+          address: null,
+          publicKey: null,
           deployed: false,
         });
       }
@@ -87,10 +98,30 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
         `${STORAGE_PREFIX}deployed_${user.id}`,
       );
 
-      if (storedWalletId) setWalletId(storedWalletId);
-      if (storedAddress) setAddress(storedAddress);
-      if (storedPublicKey) setPublicKey(storedPublicKey);
-      if (storedDeployed === "true") setDeployed(true);
+      const walletId =
+        storedWalletId && storedWalletId !== ""
+          ? storedWalletId
+          : null;
+      const address =
+        storedAddress && storedAddress !== "" ? storedAddress : null;
+      const publicKey =
+        storedPublicKey && storedPublicKey !== ""
+          ? storedPublicKey
+          : null;
+
+      setWalletId(walletId);
+      setAddress(address);
+      setPublicKey(publicKey);
+      setDeployed(storedDeployed === "true");
+
+      if (!walletId && !address && !publicKey) {
+        saveToLocalStorage({
+          walletId: null,
+          address: null,
+          publicKey: null,
+          deployed: false,
+        });
+      }
     } else if (!user) {
       setWalletId(null);
       setAddress(null);
@@ -166,8 +197,12 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
       const newAddress = wallet.address || null;
       let newPublicKey = wallet.public_key || wallet.publicKey || null;
 
+      if (!newWalletId) {
+        throw new Error("Created wallet missing id");
+      }
+
       // Step 2: If no public key, derive it via signing
-      if (!newPublicKey && newWalletId) {
+      if (!newPublicKey) {
         try {
           const pkResponse = await fetch("/api/starknet/get-public-key", {
             method: "POST",

@@ -8,10 +8,9 @@ import {
   getStarknetWallet,
   setupPaymaster,
 } from "@/app/lib/starknet";
-import { cairo, CallData } from "starknet";
+import { cairo, CallData, validateAndParseAddress } from "starknet";
 
 export async function POST(request: NextRequest) {
-  let isDeployed = false;
   try {
     // Extract and verify JWT token
     const authHeader = request.headers.get("authorization");
@@ -46,14 +45,6 @@ export async function POST(request: NextRequest) {
       address: WalletAddress,
     } = body;
 
-    const provider = getRpcProvider();
-    try {
-      await provider.getClassHashAt(WalletAddress);
-      isDeployed = true;
-    } catch {
-      isDeployed = false;
-    }
-
     // Validate required fields
     if (!walletId || !publicKey || !tokenAddress || !recipientAddress) {
       return NextResponse.json(
@@ -75,6 +66,37 @@ export async function POST(request: NextRequest) {
         { error: "Missing amount parameter" },
         { status: 400 },
       );
+    }
+
+    if (!WalletAddress || typeof WalletAddress !== "string") {
+      return NextResponse.json(
+        {
+          error: "Missing or invalid wallet address",
+          missing: {
+            address: !WalletAddress || typeof WalletAddress !== "string",
+          },
+        },
+        { status: 400 },
+      );
+    }
+
+    let normalizedWalletAddress: string;
+    try {
+      normalizedWalletAddress = validateAndParseAddress(WalletAddress);
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid wallet address format" },
+        { status: 400 },
+      );
+    }
+
+    let isDeployed = false;
+    const provider = getRpcProvider();
+    try {
+      await provider.getClassHashAt(normalizedWalletAddress);
+      isDeployed = true;
+    } catch {
+      isDeployed = false;
     }
 
     // Use class hash from client or fallback to server env

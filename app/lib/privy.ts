@@ -8,9 +8,9 @@ let client: PrivyClient | undefined
 
 export function getPrivyClient(): PrivyClient {
   if (client) return client
-  const appId = process.env.PRIVY_APP_ID
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID
   const appSecret = process.env.PRIVY_APP_SECRET
-  if (!appId || !appSecret) throw new Error('Missing PRIVY_APP_ID or PRIVY_APP_SECRET')
+  if (!appId || !appSecret) throw new Error('Missing NEXT_PUBLIC_PRIVY_APP_ID or PRIVY_APP_SECRET')
   client = new PrivyClient(appId, appSecret)
   const authKey = process.env.PRIVY_WALLET_AUTH_PRIVATE_KEY
   if (authKey) {

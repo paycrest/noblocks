@@ -121,8 +121,8 @@ export async function rawSign(
   messageHash: string,
   opts: { userJwt: string; userId?: string; origin?: string },
 ) {
-  const appId = process.env.PRIVY_APP_ID;
-  if (!appId) throw new Error("Missing PRIVY_APP_ID");
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  if (!appId) throw new Error("Missing NEXT_PUBLIC_PRIVY_APP_ID");
   const appSecret = process.env.PRIVY_APP_SECRET;
   if (!appSecret) throw new Error("Missing PRIVY_APP_SECRET");
 

@@ -683,9 +683,9 @@ export async function fetchStarknetBalance(
   }
 
   try {
-    const { RpcProvider } = await import("starknet");
+    const { createStarknetRpcProvider } = await import("./lib/starknetRpc");
     const rpcUrl = process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
-    const provider = new RpcProvider({ nodeUrl: rpcUrl });
+    const provider = createStarknetRpcProvider(rpcUrl);
 
     let totalBalance = 0;
     const balances: Record<string, number> = {};

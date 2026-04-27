@@ -29,9 +29,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get request body
-    const body = await request.json();
-
     const userId = authUserId;
 
     if (!userId) {

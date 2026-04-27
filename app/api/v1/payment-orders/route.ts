@@ -74,16 +74,12 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     const { data, status } = await axios.post(url, body, {
-      headers: {
+      headers: {  
         "Content-Type": "application/json",
         "API-Key": config.aggregatorSenderApiKey.trim(),
       },
       validateStatus: () => true,
     });
-
-    if (process.env.NODE_ENV === "development" && status >= 400) {
-      console.log("[payment-orders] aggregator response →", status, JSON.stringify(data, null, 2));
-    }
 
     const responseTime = Date.now() - startTime;
     trackApiResponse("/api/v1/payment-orders", "POST", status, responseTime, {

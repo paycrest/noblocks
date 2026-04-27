@@ -178,13 +178,8 @@ export async function rawSign(
 
   if (!resp.ok)
     throw new Error(data?.error || data?.message || `HTTP ${resp.status}`);
-  const sig: string | undefined =
-    data?.signature ||
-    data?.result?.signature ||
-    data?.data?.signature ||
-    data?.result?.data?.signature ||
-    (typeof data === "string" ? data : undefined);
-  if (!sig || typeof sig !== "string")
+  const sig = data?.data?.signature;
+  if (typeof sig !== "string" || !sig)
     throw new Error("No signature returned from Privy");
   return sig.startsWith("0x") ? sig : `0x${sig}`;
 }
@@ -283,7 +278,12 @@ export async function buildReadyAccount({
  * Get RPC provider
  */
 export function getRpcProvider() {
-  const rpcUrl = process.env.NEXT_PUBLIC_STARKNET_RPC_URL || "";
+  const rpcUrl = process.env.NEXT_PUBLIC_STARKNET_RPC_URL?.trim() ?? "";
+  if (!rpcUrl) {
+    throw new Error(
+      "NEXT_PUBLIC_STARKNET_RPC_URL is missing or empty; set a valid Starknet JSON-RPC URL",
+    );
+  }
 
   return new RpcProvider({ nodeUrl: rpcUrl });
 }

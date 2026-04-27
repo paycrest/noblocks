@@ -21,7 +21,6 @@ interface StarknetWalletState {
 interface StarknetContextType extends StarknetWalletState {
   createWallet: () => Promise<void>;
   resetError: () => void;
-  refreshWalletState: () => Promise<void>;
   ensureWalletExists: () => Promise<void>; // Auto-create wallet if needed
 }
 
@@ -207,37 +206,6 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshWalletState = async () => {
-    if (!authenticated || !user?.id) return;
-
-    try {
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error("Authentication required. Please sign in.");
-      }
-      const response = await fetch(
-        `/api/starknet/wallet-state?userId=${user.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.walletId) setWalletId(data.walletId);
-        if (data.address) setAddress(data.address);
-        if (data.publicKey) setPublicKey(data.publicKey);
-        if (data.deployed !== undefined) setDeployed(data.deployed);
-
-        saveToLocalStorage(data);
-      }
-    } catch (err) {
-      console.error("Failed to refresh Starknet wallet state:", err);
-    }
-  };
-
   /**
    * Ensures a Starknet wallet exists for the user
    * Auto-creates if needed (silent operation)
@@ -294,7 +262,6 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
         error,
         createWallet: createWalletWrapper,
         resetError,
-        refreshWalletState,
         ensureWalletExists,
       }}
     >

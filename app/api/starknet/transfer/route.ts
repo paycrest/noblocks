@@ -114,7 +114,6 @@ export async function POST(request: NextRequest) {
     }
     const { paymasterRpc, isSponsored, gasToken } = config;
 
-    // Build account without paymaster (user pays gas for transfers)
     const { account, address } = await buildReadyAccount({
       walletId,
       publicKey: walletPublicKey,

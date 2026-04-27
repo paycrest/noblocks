@@ -444,7 +444,10 @@ export function useSmartWalletTransfer({
       token: string;
     }) => {
       try {
-        const from = getEmbeddedWalletAddress();
+        const from =
+          selectedNetwork.chain.name === "Starknet"
+            ? starknetWallet?.address ?? undefined
+            : getEmbeddedWalletAddress();
         if (!user || !from) return;
         const accessToken = await getAccessToken();
         if (!accessToken) return;
@@ -475,7 +478,7 @@ export function useSmartWalletTransfer({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user, getAccessToken, selectedNetwork],
+    [user, getAccessToken, selectedNetwork, starknetWallet],
   );
 
   const getTxExplorerLink = useCallback((): string | undefined => {

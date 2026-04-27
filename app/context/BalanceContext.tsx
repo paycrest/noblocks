@@ -9,8 +9,10 @@ import {
 } from "react";
 import {
   fetchWalletBalance,
+  fetchStarknetBalance,
   getRpcUrl,
   calculateCorrectedTotalBalance,
+  getNetworkTokens,
 } from "../utils";
 import { useCNGNRate, getCNGNRateForNetwork } from "../hooks/useCNGNRate";
 import { useMigrationStatus } from "./MigrationStatusContext";
@@ -21,6 +23,7 @@ import { createPublicClient, fallback, http } from "viem";
 import { useInjectedWallet } from "./InjectedWalletContext";
 import { migrationChecklistNetworks, networks } from "../mocks";
 import type { Network } from "../types";
+import { useStarknet } from "./StarknetContext";
 import { bsc } from "viem/chains";
 
 // All networks are fetched in parallel — no artificial concurrency limit
@@ -34,6 +37,7 @@ interface WalletBalances {
   total: number;
   balances: Record<string, number>;
   rawBalances?: Record<string, number>; // Raw balances before CNGN conversion
+  balancesUsd?: Record<string, number>; // USD value for each token (e.g. Starknet)
 }
 
 // Cross-chain balance entry for a single network
@@ -96,10 +100,12 @@ interface BalanceContextProps {
   smartWalletBalance: WalletBalances | null;
   externalWalletBalance: WalletBalances | null;
   injectedWalletBalance: WalletBalances | null;
+  starknetWalletBalance: WalletBalances | null;
   allBalances: {
     smartWallet: WalletBalances | null;
     externalWallet: WalletBalances | null;
     injectedWallet: WalletBalances | null;
+    starknetWallet: WalletBalances | null;
   };
   crossChainBalances: CrossChainBalanceEntry[];
   crossChainTotal: number;
@@ -129,6 +135,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const { selectedNetwork } = useNetwork();
   const { isInjectedWallet, injectedAddress, injectedReady, injectedProvider } =
     useInjectedWallet();
+  const { address: starknetAddress } = useStarknet();
 
   const [smartWalletBalance, setSmartWalletBalance] =
     useState<WalletBalances | null>(null);
@@ -146,6 +153,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       totalAll: number;
       totalMigrationRelevant: number;
     } | null>(null);
+  const [starknetWalletBalance, setStarknetWalletBalance] =
+    useState<WalletBalances | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Hook for CNGN rate to correct total balances
@@ -158,6 +167,9 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const { isMigrationComplete, isLoading: isMigrationLoading } = useMigrationStatus();
 
   const applicableNetworks = networks;
+  const evmBalanceNetworks = applicableNetworks.filter(
+    (n) => n.chain.name !== "Starknet",
+  );
 
   /**
    * Shared helper: fetches cross-chain balance entries for an address.
@@ -172,7 +184,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     );
 
     const results = await Promise.allSettled(
-      applicableNetworks.map(async (network) => {
+      evmBalanceNetworks.map(async (network) => {
         const rpcUrl = getRpcUrl(network.chain.name);
         const publicClient = createPublicClient({
           chain: network.chain,
@@ -214,6 +226,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       setSmartWalletBalance(null);
       setExternalWalletBalance(null);
       setInjectedWalletBalance(null);
+      setStarknetWalletBalance(null);
       setCrossChainBalances([]);
       setSmartWalletRemainingTotal(0);
       setSmartWalletCrossChainTotals(null);
@@ -224,6 +237,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       setSmartWalletBalance(null);
       setExternalWalletBalance(null);
       setInjectedWalletBalance(null);
+      setStarknetWalletBalance(null);
     };
 
     setIsLoading(true);
@@ -237,9 +251,38 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     if (user && !isInjectedWallet && wallets.length === 0) return;
 
     try {
-      // Resolve CNGN rate once so all branches use the same value
       const resolvedCngnRate =
         cngnRate ?? (await getCNGNRateForNetwork(selectedNetwork.chain.name));
+
+      if (selectedNetwork.chain.name === "Starknet") {
+        if (starknetAddress) {
+          try {
+            const tokens = await getNetworkTokens("Starknet");
+            const result = await fetchStarknetBalance(starknetAddress, tokens);
+
+            setStarknetWalletBalance(result);
+            setSmartWalletBalance(null);
+            setExternalWalletBalance(null);
+            setInjectedWalletBalance(null);
+            setCrossChainBalances([]);
+            setSmartWalletRemainingTotal(0);
+            setSmartWalletCrossChainTotals(null);
+          } catch (error) {
+            console.error("Error fetching Starknet balance:", error);
+            setStarknetWalletBalance(null);
+          }
+        } else {
+          setStarknetWalletBalance(null);
+          setSmartWalletBalance(null);
+          setExternalWalletBalance(null);
+          setInjectedWalletBalance(null);
+        }
+
+        setIsLoading(false);
+        return;
+      }
+
+      setStarknetWalletBalance(null);
 
       if (ready && !isInjectedWallet) {
         const smartWalletAccount = user?.linkedAccounts.find(
@@ -512,15 +555,27 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     isInjectedWallet,
     injectedReady,
     injectedAddress,
+    starknetAddress,
     cngnRate,
     isMigrationComplete,
     isMigrationLoading,
   ]);
 
+  useEffect(() => {
+    if (!user && !isInjectedWallet && !starknetAddress) {
+      setSmartWalletBalance(null);
+      setExternalWalletBalance(null);
+      setInjectedWalletBalance(null);
+      setStarknetWalletBalance(null);
+      setIsLoading(false);
+    }
+  }, [user, isInjectedWallet, starknetAddress]);
+
   const allBalances = {
     smartWallet: smartWalletBalance,
     externalWallet: externalWalletBalance,
     injectedWallet: injectedWalletBalance,
+    starknetWallet: starknetWalletBalance,
   };
 
   // Calculate cross-chain total for the active wallet type (balances are already CNGN-corrected)
@@ -536,6 +591,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         smartWalletBalance,
         externalWalletBalance,
         injectedWalletBalance,
+        starknetWalletBalance,
         allBalances,
         crossChainBalances,
         crossChainTotal,

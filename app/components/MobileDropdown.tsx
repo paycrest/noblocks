@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { usePrivy, useMfaEnrollment, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance, useTokens } from "../context";
+import { useBalance, useTokens, useStarknet } from "../context";
 import {
   copyToClipboard,
   detectWalletProvider,
@@ -21,6 +21,7 @@ import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { toastMappedError } from "../lib/toastMappedError";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useSortedCrossChainBalances } from "../hooks/useSortedCrossChainBalances";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useTransactions } from "../context/TransactionsContext";
 import { networks } from "../mocks";
@@ -53,6 +54,7 @@ export const MobileDropdown = ({
   const { user, linkEmail, updateEmail, exportWallet } = usePrivy();
   const { allBalances, crossChainBalances, isLoading, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
+  const { ensureWalletExists } = useStarknet();
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
@@ -62,27 +64,29 @@ export const MobileDropdown = ({
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const shouldUseEOA = useShouldUseEOA();
   const { wallets } = useWallets();
+  const walletAddress = useWalletAddress();
 
-  // Get embedded wallet (EOA) and smart wallet (SCW)
   const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
+    (wallet) => wallet.walletClientType === "privy",
   );
   const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet"
+    (account) => account.type === "smart_wallet",
   );
 
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
-  // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
-    ? { address: injectedAddress, type: "injected_wallet" }
-    : shouldUseEOA
-      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
-      : smartWallet;
+    ? { address: injectedAddress, type: "injected_wallet" as const }
+    : selectedNetwork.chain.name === "Starknet"
+      ? walletAddress
+        ? { address: walletAddress, type: "smart_wallet" as const }
+        : undefined
+      : shouldUseEOA
+        ? embeddedWallet
+          ? { address: embeddedWallet.address, type: "eoa" as const }
+          : undefined
+        : smartWallet;
 
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
-  // Use activeWallet for consistency
   const walletForCopy = activeWallet;
 
   const { currentStep } = useStep();
@@ -129,9 +133,11 @@ export const MobileDropdown = ({
   // Get appropriate balance based on migration status
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
-    : shouldUseEOA
-      ? allBalances.externalWallet
-      : allBalances.smartWallet;
+    : selectedNetwork.chain.name === "Starknet"
+      ? allBalances.starknetWallet
+      : shouldUseEOA
+        ? allBalances.externalWallet
+        : allBalances.smartWallet;
   // Sort cross-chain balances: selected network first, then alphabetically
   const sortedCrossChainBalances = useSortedCrossChainBalances(
     crossChainBalances,
@@ -162,25 +168,29 @@ export const MobileDropdown = ({
           title: "Error switching network",
         });
       },
+      ensureWalletExists, // Pass the Starknet wallet creation function
     );
 
     setIsNetworkListOpen(false);
   };
 
   // Helper function for fallback fetch with timeout
-  const trackLogoutWithFetch = (payload: { walletAddress: string; logoutMethod: string }) => {
+  const trackLogoutWithFetch = (payload: {
+    walletAddress: string;
+    logoutMethod: string;
+  }) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
 
-    fetch('/api/track-logout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch("/api/track-logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      signal: controller.signal
+      signal: controller.signal,
     })
-      .catch(error => {
-        if (error.name !== 'AbortError') {
-          console.warn('Logout tracking failed:', error);
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          console.warn("Logout tracking failed:", error);
         }
       })
       .finally(() => {

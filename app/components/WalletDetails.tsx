@@ -205,6 +205,8 @@ export const WalletDetails = () => {
         <div className="flex items-center gap-1.5 dark:text-white/80">
           {isLoading ? (
             <BalanceSkeleton />
+          ) : selectedNetwork.chain.name === "Starknet" ? (
+            <p>${(activeBalance?.total ?? 0).toFixed(2)}</p>
           ) : (
             <p>{formatCurrency(crossChainTotal, "USD", "en-US")}</p>
           )}

@@ -47,6 +47,7 @@ import { useBlockFestModal } from "../context/BlockFestModalContext";
 import { useBalance, useInjectedWallet } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
 import { useWalletAddress } from "../hooks/useWalletAddress";
+import { networks } from "../mocks";
 const PageLayout = ({
   authenticated,
   ready,
@@ -138,7 +139,8 @@ export function MainPageContent() {
   } = useStep();
   const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
   const { crossChainBalances, isLoading: isBalanceLoading } = useBalance();
-  const { selectedNetwork, setDisplayedNetwork } = useNetwork();
+  const { selectedNetwork, setDisplayedNetwork, setSelectedNetwork } =
+    useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -198,6 +200,32 @@ export function MainPageContent() {
   } = watch();
   /** On-ramp (fiat→crypto): same as TransactionForm `isSwapped` / v2 `buy` side. */
   const isOnrampRate = Boolean(isSwapped);
+
+  /**
+   * On-ramp is not supported on Starknet. Switch to an EVM network and notify the user.
+   */
+  useEffect(
+    function leaveStarknetForOnramp() {
+      if (!isSwapped || selectedNetwork.chain.name !== "Starknet") return;
+      const fallback = networks.find((n) => n.chain.name !== "Starknet");
+      if (!fallback) return;
+
+      if (isInjectedWallet) {
+        toast.warning("Starknet isn’t supported for on-ramp.", {
+          id: "onramp-starknet-injected",
+          description: "Pick an EVM network in the network dropdown to continue.",
+        });
+        return;
+      }
+
+      void setSelectedNetwork(fallback).then(() => {
+        toast.info("Starknet isn’t supported for on-ramp.", {
+          description: `Switched network to ${fallback.chain.name}.`,
+        });
+      });
+    },
+    [isSwapped, selectedNetwork.chain.name, setSelectedNetwork, isInjectedWallet],
+  );
 
   // State props for child components
   const stateProps: StateProps = {

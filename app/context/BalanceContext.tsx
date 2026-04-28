@@ -265,18 +265,27 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             setSmartWalletBalance(null);
             setExternalWalletBalance(null);
             setInjectedWalletBalance(null);
-            setCrossChainBalances([]);
+            const starknetNetwork = networks.find(
+              (n) => n.chain.name === "Starknet",
+            );
+            setCrossChainBalances(
+              starknetNetwork
+                ? [{ network: starknetNetwork, balances: result }]
+                : [],
+            );
             setSmartWalletRemainingTotal(0);
             setSmartWalletCrossChainTotals(null);
           } catch (error) {
             console.error("Error fetching Starknet balance:", error);
             setStarknetWalletBalance(null);
+            setCrossChainBalances([]);
           }
         } else {
           setStarknetWalletBalance(null);
           setSmartWalletBalance(null);
           setExternalWalletBalance(null);
           setInjectedWalletBalance(null);
+          setCrossChainBalances([]);
         }
 
         setIsLoading(false);

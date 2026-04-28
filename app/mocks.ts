@@ -10,7 +10,6 @@ import {
   mainnet,
 } from "viem/chains";
 
-// Define Starknet Mainnet chain (not in viem by default)
 export const starknetMainnet = {
   id: BigInt(toHex('SN_MAIN')).toString(), // Starknet Mainnet chain ID (SN_MAIN encoded)
   name: "Starknet",

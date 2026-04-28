@@ -279,6 +279,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             console.error("Error fetching Starknet balance:", error);
             setStarknetWalletBalance(null);
             setCrossChainBalances([]);
+            setSmartWalletRemainingTotal(0);
+            setSmartWalletCrossChainTotals(null);
           }
         } else {
           setStarknetWalletBalance(null);
@@ -286,6 +288,8 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           setExternalWalletBalance(null);
           setInjectedWalletBalance(null);
           setCrossChainBalances([]);
+          setSmartWalletRemainingTotal(0);
+          setSmartWalletCrossChainTotals(null);
         }
 
         setIsLoading(false);
@@ -579,6 +583,9 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
       setExternalWalletBalance(null);
       setInjectedWalletBalance(null);
       setStarknetWalletBalance(null);
+      setCrossChainBalances([]);
+      setSmartWalletRemainingTotal(0);
+      setSmartWalletCrossChainTotals(null);
       setIsLoading(false);
     }
   }, [user, isInjectedWallet, starknetAddress]);

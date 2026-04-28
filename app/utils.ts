@@ -1010,6 +1010,14 @@ export function normalizeStarknetAddress(address: string): string {
     throw new Error("Invalid hex characters in Starknet address");
   }
 
+  if (hexPart.length === 0) {
+    throw new Error("Starknet address has no hex digits after 0x");
+  }
+
+  if (/^0+$/.test(hexPart)) {
+    throw new Error("Starknet address cannot be the zero address");
+  }
+
   // Validate length (must not exceed 64 hex chars)
   if (hexPart.length > 64) {
     throw new Error(
@@ -1218,13 +1226,14 @@ export const handleNetworkSwitch = async (
   onError: (error: Error) => void,
   ensureWalletExists?: () => Promise<void>,
 ) => {
-  // If switching to Starknet, ensure wallet exists first
+  // If switching to Starknet, ensure wallet exists first (do not change network on failure)
   if (network.chain.name === "Starknet" && ensureWalletExists) {
     try {
       await ensureWalletExists();
     } catch (error) {
       console.error("Failed to ensure Starknet wallet exists:", error);
-      // Continue with network switch even if wallet creation fails
+      onError(error instanceof Error ? error : new Error(String(error)));
+      return;
     }
   }
 

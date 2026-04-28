@@ -582,30 +582,9 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
           }
           tokens[networkName].push(transformToken(apiToken));
         });
-        // Temporarily add USDT on Base for user withdrawal
-        if (tokens["Base"]) {
-          const usdtBase = {
-            name: "Tether USD",
-            symbol: "USDT",
-            decimals: 6,
-            address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
-            imageUrl: "/logos/usdt-logo.svg",
-          };
-
-          const hasUSDT = tokens["Base"].some(
-            (token) => token.symbol === "USDT",
-          );
-          if (!hasUSDT) {
-            tokens["Base"].push(usdtBase);
-          }
-        }
-        if (FALLBACK_TOKENS["Starknet"]) {
-          tokens["Starknet"] = FALLBACK_TOKENS["Starknet"];
-        }
 
         // Merge fallback tokens for any networks missing from API response
         Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
-          if (networkName === "Starknet") return;
           if (!tokens[networkName] || tokens[networkName].length === 0) {
             tokens[networkName] = FALLBACK_TOKENS[networkName];
           }

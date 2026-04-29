@@ -8,6 +8,7 @@ import {
   getStarknetWallet,
   setupPaymaster,
 } from "@/app/lib/starknet";
+import { STARKNET_READY_ACCOUNT_CLASSHASH } from "@/app/lib/config";
 import { cairo, CallData, byteArray, validateAndParseAddress } from "starknet";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import {
@@ -191,42 +192,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       isDeployed = false;
     }
 
-    // Use class hash from client or fallback to server env
-    const classHash = clientClassHash || process.env.STARKNET_READY_CLASSHASH;
-    if (!classHash) {
-      trackApiError(
-        request,
-        ROUTE,
-        "POST",
-        new Error("STARKNET_READY_CLASSHASH not configured"),
-        500,
-        { wallet_address: walletAddress },
-      );
-      return NextResponse.json(
-        { error: "STARKNET_READY_CLASSHASH not configured" },
-        { status: 500 },
-      );
-    }
+    // Use class hash from client or built-in Ready Account default
+    const classHash = clientClassHash || STARKNET_READY_ACCOUNT_CLASSHASH;
 
     // Use origin from client or header
     const origin = clientOrigin || request.headers.get("origin") || undefined;
 
     const { publicKey: walletPublicKey } = await getStarknetWallet(walletId);
-
-    // Setup paymaster if configured
-    const usePaymaster = !!(
-      process.env.STARKNET_PAYMASTER_URL && process.env.STARKNET_PAYMASTER_MODE
-    );
-
-    if (!usePaymaster) {
-      trackApiError(request, ROUTE, "POST", new Error("Paymaster not configured"), 500, {
-        wallet_address: walletAddress,
-      });
-      return NextResponse.json(
-        { error: "Paymaster not configured" },
-        { status: 500 },
-      );
-    }
 
     let config;
     try {

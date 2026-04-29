@@ -23,6 +23,7 @@ import { useNetwork, useTokens } from "../context";
 import config, {
   getDelegationContractAddress,
   localTransferFeePercent,
+  STARKNET_READY_ACCOUNT_CLASSHASH,
 } from "../lib/config";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
@@ -355,7 +356,7 @@ export const TransactionPreview = ({
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
-        const classHash = process.env.NEXT_PUBLIC_STARKNET_READY_CLASSHASH;
+        const classHash = STARKNET_READY_ACCOUNT_CLASSHASH;
 
         const token = await getAccessToken();
         if (!token) {

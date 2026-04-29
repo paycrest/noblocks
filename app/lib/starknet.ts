@@ -22,6 +22,10 @@ import {
   getUserAuthorizationKey,
 } from "./authorization";
 import { WalletApiRequestSignatureInput } from "@privy-io/server-auth";
+import {
+  STARKNET_PAYMASTER_MODE,
+  STARKNET_PAYMASTER_URL,
+} from "./config";
 
 /**
  * Custom signer base class (matches Privy demo's RawSigner)
@@ -296,12 +300,8 @@ export async function setupPaymaster(): Promise<{
   isSponsored: boolean;
   gasToken?: string;
 }> {
-  const paymasterUrl = process.env.STARKNET_PAYMASTER_URL;
-  if (!paymasterUrl) {
-    throw new Error("STARKNET_PAYMASTER_URL not configured");
-  }
-
-  const paymasterMode = process.env.STARKNET_PAYMASTER_MODE || "sponsored";
+  const paymasterUrl = STARKNET_PAYMASTER_URL;
+  const paymasterMode = STARKNET_PAYMASTER_MODE;
   const isSponsored = paymasterMode.toLowerCase() === "sponsored";
 
   if (isSponsored && !process.env.STARKNET_PAYMASTER_API_KEY) {

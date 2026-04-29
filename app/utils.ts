@@ -64,6 +64,16 @@ export function classNames(...classes: string[]) {
 }
 
 /**
+ * First word of recipient name for transaction status pills (matches sentence-style capitalization in body copy).
+ */
+export function formatRecipientFirstWordForStatusPill(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "";
+  const firstWord = trimmed.split(/\s+/)[0];
+  return firstWord.charAt(0).toUpperCase() + firstWord.slice(1).toLowerCase();
+}
+
+/**
  * Gets the logo identifier for a token symbol (for transaction history display)
  * @param tokenSymbol - The token symbol (e.g., "USDC", "USDT")
  * @returns The logo identifier (e.g., "usdc", "usdt")

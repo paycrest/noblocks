@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
+import axios from "axios";
 import type { TransactionHistory, OrderDetailsData } from "../types";
 import {
   fetchTransactions,
@@ -280,8 +281,19 @@ export function TransactionsProvider({
           );
         }
       } catch (error) {
-        setError(error as Error);
-        console.error("Error fetching transactions:", error);
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          setTransactions([]);
+          setTotal(0);
+          setError(null);
+          if (process.env.NODE_ENV === "development") {
+            console.warn(
+              "[transactions] GET /api/v1/transactions returned 404 — treating as empty history. Same-origin SPA should serve this route; for split deployments set NEXT_PUBLIC_INTERNAL_API_ORIGIN to the Noblocks API origin.",
+            );
+          }
+        } else {
+          setError(error as Error);
+          console.error("Error fetching transactions:", error);
+        }
       } finally {
         setIsLoading(false);
       }

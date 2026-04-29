@@ -14,6 +14,8 @@ interface UseSwapButtonProps {
   rate?: number | null;
   tokenDecimals?: number;
   isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
+  /** Starknet + on-ramp: product not shipped; show “Coming soon” and block submit. */
+  isStarknetOnramp?: boolean;
   needsMigration?: boolean;
   isRemainingFundsMigration?: boolean;
 }
@@ -27,6 +29,7 @@ export function useSwapButton({
   rate,
   tokenDecimals = 18,
   isSwapped = false,
+  isStarknetOnramp = false,
   needsMigration = false,
   isRemainingFundsMigration = false,
 }: UseSwapButtonProps) {
@@ -110,6 +113,10 @@ export function useSwapButton({
   const buttonText = (() => {
     if (needsMigration && authenticated && !isInjectedWallet) {
       return "Swap";
+    }
+
+    if (isStarknetOnramp) {
+      return "Coming soon";
     }
 
     if (isInjectedWallet && hasInsufficientBalance) {

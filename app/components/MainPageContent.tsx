@@ -25,7 +25,7 @@ import {
   fetchSupportedInstitutions,
   migrateLocalStorageRecipients,
 } from "../api/aggregator";
-import { normalizeNetworkForRateFetch } from "../utils";
+import { normalizeNetworkForRateFetch, isStarknetChain } from "../utils";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
 import {
@@ -44,10 +44,10 @@ import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
-import { useBalance, useInjectedWallet } from "../context";
+import { useHomeTransactionFormMode, useInjectedWallet, useBalance } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
 import { useWalletAddress } from "../hooks/useWalletAddress";
-import { networks } from "../mocks";
+
 const PageLayout = ({
   authenticated,
   ready,
@@ -201,29 +201,13 @@ export function MainPageContent() {
   /** On-ramp (fiat→crypto): same as TransactionForm `isSwapped` / v2 `buy` side. */
   const isOnrampRate = Boolean(isSwapped);
 
-  /**
-   * On-ramp is not supported on Starknet. Switch to an EVM network and notify the user.
-   */
+  const { setTransactionFormSwapped } = useHomeTransactionFormMode();
+
   useEffect(
-    function leaveStarknetForOnramp() {
-      if (!isSwapped || selectedNetwork.chain.name !== "Starknet") return;
-      const fallback = networks.find((n) => n.chain.name !== "Starknet");
-      if (!fallback) return;
-
-      if (isInjectedWallet) {
-        toast.warning("Starknet isn’t supported for on-ramp.", {
-          id: "onramp-starknet-injected",
-          description: "Pick an EVM network in the network dropdown to continue.",
-        });
-        return;
-      }
-
-      setSelectedNetwork(fallback);
-      toast.info("Starknet isn’t supported for on-ramp.", {
-        description: `Switched network to ${fallback.chain.name}.`,
-      });
+    function syncSwapModeToGlobalUi() {
+      setTransactionFormSwapped(Boolean(isSwapped));
     },
-    [isSwapped, selectedNetwork.chain.name, setSelectedNetwork, isInjectedWallet],
+    [isSwapped, setTransactionFormSwapped],
   );
 
   // State props for child components
@@ -389,6 +373,13 @@ export function MainPageContent() {
 
       if (!currency) return;
 
+      if (isOnrampRate && isStarknetChain(selectedNetwork.chain)) {
+        setRate(0);
+        setRateError(null);
+        setIsFetchingRate(false);
+        return;
+      }
+
       if (isOnrampRate && !token) return;
 
       // Only fetch rate if at least one amount is greater than 0
@@ -488,7 +479,7 @@ export function MainPageContent() {
       amountReceived,
       currency,
       token,
-      isSwapped,
+      isOnrampRate,
       searchParams,
       selectedNetwork,
       rateRefetchTrigger,

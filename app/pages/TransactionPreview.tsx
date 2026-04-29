@@ -229,6 +229,16 @@ export const TransactionPreview = ({
           : undefined
         : smartWallet);
 
+  /**
+   * `/api/v1/transactions` middleware sets `x-wallet-address` from the JWT to Privy's
+   * embedded **EVM** wallet. Off-chain DB rows are keyed by that address. On Starknet,
+   * `activeWallet` is the Starknet address — sending it in the body caused 403 mismatch.
+   */
+  const walletAddressForTransactionApi =
+    selectedNetwork.chain.name === "Starknet" && embeddedWallet?.address
+      ? embeddedWallet.address
+      : activeWallet?.address;
+
   const activeBalance = injectedWallet
     ? injectedWalletBalance
     : selectedNetwork.chain.name === "Starknet"
@@ -893,7 +903,7 @@ export const TransactionPreview = ({
     /** Pass from create-order response so bank name is saved before React state updates. */
     providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {
-    if (!activeWallet?.address || isSavingTransaction) return;
+    if (!walletAddressForTransactionApi || isSavingTransaction) return;
     setIsSavingTransaction(true);
 
     try {
@@ -903,7 +913,7 @@ export const TransactionPreview = ({
       }
 
       const transaction: TransactionCreateInput = {
-        walletAddress: activeWallet.address,
+        walletAddress: walletAddressForTransactionApi,
         transactionType: isOnramp ? "onramp" : "swap",
         fromCurrency: isOnramp ? currency : token,
         toCurrency: isOnramp ? token : currency,

@@ -285,6 +285,15 @@ export function TransactionsProvider({
           setTransactions([]);
           setTotal(0);
           setError(null);
+          // Align cache so a later fetch won't hit the TTL path and resurrect stale rows
+          setCache((prev) => ({
+            ...prev,
+            [cacheKey]: {
+              data: [],
+              total: 0,
+              timestamp: now,
+            },
+          }));
           if (process.env.NODE_ENV === "development") {
             console.warn(
               "[transactions] GET /api/v1/transactions returned 404 — treating as empty history. Same-origin SPA should serve this route; for split deployments set NEXT_PUBLIC_INTERNAL_API_ORIGIN to the Noblocks API origin.",

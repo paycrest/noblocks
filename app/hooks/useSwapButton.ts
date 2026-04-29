@@ -69,6 +69,9 @@ export function useSwapButton({
   const hasRecipient = isSwapped ? Boolean(walletAddress) : Boolean(recipientName);
 
   const isEnabled = (() => {
+    if (isStarknetOnramp) {
+      return false;
+    }
     if (needsMigration && authenticated && !isInjectedWallet) return true;
     if (isMigrationMandatory) return true;
     if (!receiveDestinationExplicitlySelected) return false;
@@ -111,12 +114,11 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
-    if (needsMigration && authenticated && !isInjectedWallet) {
-      return "Swap";
-    }
-
     if (isStarknetOnramp) {
       return "Coming soon";
+    }
+    if (needsMigration && authenticated && !isInjectedWallet) {
+      return "Swap";
     }
 
     if (isInjectedWallet && hasInsufficientBalance) {
@@ -146,6 +148,9 @@ export function useSwapButton({
     isUserVerified: boolean,
     openMigrationModal?: () => void,
   ) => {
+    if (isStarknetOnramp) {
+      return () => {};
+    }
     if (needsMigration && authenticated && !isInjectedWallet && openMigrationModal) {
       return openMigrationModal;
     }

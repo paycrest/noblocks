@@ -230,14 +230,15 @@ export const TransactionPreview = ({
         : smartWallet);
 
   /**
-   * `/api/v1/transactions` middleware sets `x-wallet-address` from the JWT to Privy's
-   * embedded **EVM** wallet. Off-chain DB rows are keyed by that address. On Starknet,
-   * `activeWallet` is the Starknet address — sending it in the body caused 403 mismatch.
+   * Same identity as middleware `x-wallet-address`: Privy embedded EVM wallet only.
+   * Never use `activeWallet` (Starknet / SCW / injected) here — POST /api/v1/transactions
+   * compares body.walletAddress to that JWT-derived value.
    */
   const walletAddressForTransactionApi =
-    selectedNetwork.chain.name === "Starknet" && embeddedWallet?.address
-      ? embeddedWallet.address
-      : activeWallet?.address;
+    typeof embeddedWallet?.address === "string" &&
+    embeddedWallet.address.trim() !== ""
+      ? embeddedWallet.address.trim()
+      : undefined;
 
   const activeBalance = injectedWallet
     ? injectedWalletBalance
@@ -846,9 +847,9 @@ export const TransactionPreview = ({
         });
 
         const refreshTok = await getAccessToken();
-        if (refreshTok && activeWallet?.address) {
+        if (refreshTok && walletAddressForTransactionApi) {
           void fetchTransactions(
-            activeWallet.address,
+            walletAddressForTransactionApi,
             refreshTok,
             1,
             30,
@@ -903,7 +904,15 @@ export const TransactionPreview = ({
     /** Pass from create-order response so bank name is saved before React state updates. */
     providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {
-    if (!walletAddressForTransactionApi || isSavingTransaction) return;
+    if (isSavingTransaction) return;
+    if (!walletAddressForTransactionApi) {
+      const err = new Error(
+        "Embedded Privy wallet address is required to persist transactions (must match API auth).",
+      );
+      console.error("[TransactionPreview]", err.message);
+      throw err;
+    }
+
     setIsSavingTransaction(true);
 
     try {

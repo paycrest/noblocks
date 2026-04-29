@@ -512,10 +512,15 @@ export function MainPageContent() {
 
   const handleFormSubmit = useCallback(
     (data: FormData) => {
+      const isStarknetOnrampBlocked =
+        isStarknetChain(selectedNetwork.chain) && Boolean(data.isSwapped);
+      if (isStarknetOnrampBlocked) {
+        return;
+      }
       setFormValues(data);
       setCurrentStep(STEPS.PREVIEW);
     },
-    [setFormValues, setCurrentStep],
+    [setFormValues, setCurrentStep, selectedNetwork],
   );
 
   const handleBackToForm = useCallback(() => {

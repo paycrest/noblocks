@@ -2,16 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPrivyClient } from "@/app/lib/privy";
 import { verifyJWT } from "@/app/lib/jwt";
 import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
+import { withRateLimit } from "@/app/lib/rate-limit";
+import {
+  trackApiError,
+  trackApiRequest,
+  trackApiResponse,
+} from "@/app/lib/server-analytics";
+
 
 /**
  * POST /api/starknet/create-wallet
  * Creates a new Starknet wallet for the user via Privy
  */
-export async function POST(request: NextRequest) {
+export const POST = withRateLimit(async (request: NextRequest) => {
+  const startTime = Date.now();
+
   try {
-    // Extract and verify JWT token
     const authHeader = request.headers.get("authorization");
     if (!authHeader?.startsWith("Bearer ")) {
+      trackApiError(
+        request,
+        "/api/starknet/create-wallet",
+        "POST",
+        new Error("Missing or invalid authorization header"),
+        401,
+      );
       return NextResponse.json(
         { error: "Missing or invalid authorization header" },
         { status: 401 },
@@ -23,6 +38,13 @@ export async function POST(request: NextRequest) {
     const authUserId = payload.sub || payload.userId;
 
     if (!authUserId) {
+      trackApiError(
+        request,
+        "/api/starknet/create-wallet",
+        "POST",
+        new Error("Invalid token: missing user ID"),
+        401,
+      );
       return NextResponse.json(
         { error: "Invalid token: missing user ID" },
         { status: 401 },
@@ -32,13 +54,12 @@ export async function POST(request: NextRequest) {
     const userId = authUserId;
 
     if (!userId) {
-      return NextResponse.json(
-        { error: "No user ID available" },
-        { status: 400 },
-      );
+      trackApiError(request, "/api/starknet/create-wallet", "POST", new Error("No user ID available"), 400);
+      return NextResponse.json({ error: "No user ID available" }, { status: 400 });
     }
 
-    // First, check if user already has a Starknet wallet
+    trackApiRequest(request, "/api/starknet/create-wallet", "POST", { privy_user_id: userId });
+
     const privy = getPrivyClient();
 
     let existingStarknetWallet = null;
@@ -48,12 +69,16 @@ export async function POST(request: NextRequest) {
       existingStarknetWallet = linkedAccounts.find(
         (account: any) =>
           account.type === "wallet" &&
-          (account.chainType === "starknet" ||
-            account.chain_type === "starknet"),
+          (account.chainType === "starknet" || account.chain_type === "starknet"),
       );
 
       if (existingStarknetWallet) {
         const wallet = existingStarknetWallet as any;
+        const responseTime = Date.now() - startTime;
+        trackApiResponse("/api/starknet/create-wallet", "POST", 200, responseTime, {
+          privy_user_id: userId,
+          existing_wallet: true,
+        });
         return NextResponse.json({
           success: true,
           wallet: {
@@ -66,17 +91,21 @@ export async function POST(request: NextRequest) {
       }
     } catch (error) {
       console.error("Error checking for existing Starknet wallet:", error);
-      // Re-throw the error to prevent duplicate wallet creation
       throw error;
     }
 
-    // Create Starknet wallet via Privy
     const walletPayload = {
       chainType: "starknet",
       owner: { userId },
     } as any;
 
     const wallet = await privy.walletApi.createWallet(walletPayload);
+
+    const responseTime = Date.now() - startTime;
+    trackApiResponse("/api/starknet/create-wallet", "POST", 200, responseTime, {
+      privy_user_id: userId,
+      existing_wallet: false,
+    });
 
     return NextResponse.json({
       success: true,
@@ -87,13 +116,17 @@ export async function POST(request: NextRequest) {
         chainType: (wallet as any).chainType || (wallet as any).chain_type,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error creating Starknet wallet:", error);
+    const responseTime = Date.now() - startTime;
+    const err =
+      error instanceof Error ? error : new Error("Failed to create Starknet wallet");
+    trackApiError(request, "/api/starknet/create-wallet", "POST", err, 500, {
+      response_time_ms: responseTime,
+    });
     return NextResponse.json(
-      {
-        error: error.message || "Failed to create Starknet wallet",
-      },
+      { error: err.message || "Failed to create Starknet wallet" },
       { status: 500 },
     );
   }
-}
+});

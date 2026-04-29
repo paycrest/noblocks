@@ -8,21 +8,7 @@ import {
 } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "sonner";
-
-interface StarknetWalletState {
-  walletId: string | null;
-  address: string | null;
-  publicKey: string | null;
-  deployed: boolean;
-  isCreating: boolean;
-  error: string | null;
-}
-
-interface StarknetContextType extends StarknetWalletState {
-  createWallet: () => Promise<void>;
-  resetError: () => void;
-  ensureWalletExists: () => Promise<void>; // Auto-create wallet if needed
-}
+import { StarknetContextType, StarknetWalletState } from "../types";
 
 const StarknetContext = createContext<StarknetContextType | undefined>(
   undefined,

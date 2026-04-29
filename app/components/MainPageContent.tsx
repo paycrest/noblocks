@@ -218,10 +218,9 @@ export function MainPageContent() {
         return;
       }
 
-      void setSelectedNetwork(fallback).then(() => {
-        toast.info("Starknet isn’t supported for on-ramp.", {
-          description: `Switched network to ${fallback.chain.name}.`,
-        });
+      setSelectedNetwork(fallback);
+      toast.info("Starknet isn’t supported for on-ramp.", {
+        description: `Switched network to ${fallback.chain.name}.`,
       });
     },
     [isSwapped, selectedNetwork.chain.name, setSelectedNetwork, isInjectedWallet],

@@ -9,12 +9,40 @@ import {
   setupPaymaster,
 } from "@/app/lib/starknet";
 import { cairo, CallData, validateAndParseAddress } from "starknet";
+import { withRateLimit } from "@/app/lib/rate-limit";
+import {
+  trackApiError,
+  trackApiRequest,
+  trackApiResponse,
+} from "@/app/lib/server-analytics";
 
-export async function POST(request: NextRequest) {
+export const POST = withRateLimit(async (request: NextRequest) => {
+  const startTime = Date.now();
+
   try {
-    // Extract and verify JWT token
+    // Get the wallet address from the header set by the middleware
+    const walletAddress = request.headers
+      .get("x-wallet-address")
+      ?.toLowerCase();
+
+    if (!walletAddress) {
+      trackApiError(request, "/api/starknet/transfer", "POST", new Error("Unauthorized"), 401);
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 },
+      );
+    }
+
     const authHeader = request.headers.get("authorization");
     if (!authHeader?.startsWith("Bearer ")) {
+      trackApiError(
+        request,
+        "/api/starknet/transfer",
+        "POST",
+        new Error("Missing or invalid authorization header"),
+        401,
+        { wallet_address: walletAddress },
+      );
       return NextResponse.json(
         { error: "Missing or invalid authorization header" },
         { status: 401 },
@@ -26,11 +54,24 @@ export async function POST(request: NextRequest) {
     const authUserId = payload.sub || payload.userId;
 
     if (!authUserId) {
+      trackApiError(
+        request,
+        "/api/starknet/transfer",
+        "POST",
+        new Error("Invalid token: missing user ID"),
+        401,
+        { wallet_address: walletAddress },
+      );
       return NextResponse.json(
         { error: "Invalid token: missing user ID" },
         { status: 401 },
       );
     }
+
+    trackApiRequest(request, "/api/starknet/transfer", "POST", {
+      wallet_address: walletAddress,
+      privy_user_id: authUserId,
+    });
 
     // Get request body
     const body = await request.json();
@@ -47,6 +88,9 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!walletId || !publicKey || !tokenAddress || !recipientAddress) {
+      trackApiError(request, "/api/starknet/transfer", "POST", new Error("Missing required fields"), 400, {
+        wallet_address: walletAddress,
+      });
       return NextResponse.json(
         {
           error: "Missing required fields",
@@ -62,6 +106,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (amount === undefined || amount === null) {
+      trackApiError(request, "/api/starknet/transfer", "POST", new Error("Missing amount parameter"), 400, {
+        wallet_address: walletAddress,
+      });
       return NextResponse.json(
         { error: "Missing amount parameter" },
         { status: 400 },
@@ -69,6 +116,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (!WalletAddress || typeof WalletAddress !== "string") {
+      trackApiError(
+        request,
+        "/api/starknet/transfer",
+        "POST",
+        new Error("Missing or invalid wallet address"),
+        400,
+        { wallet_address: walletAddress },
+      );
       return NextResponse.json(
         {
           error: "Missing or invalid wallet address",
@@ -84,6 +139,14 @@ export async function POST(request: NextRequest) {
     try {
       normalizedWalletAddress = validateAndParseAddress(WalletAddress);
     } catch {
+      trackApiError(
+        request,
+        "/api/starknet/transfer",
+        "POST",
+        new Error("Invalid wallet address format"),
+        400,
+        { wallet_address: walletAddress },
+      );
       return NextResponse.json(
         { error: "Invalid wallet address format" },
         { status: 400 },
@@ -102,6 +165,14 @@ export async function POST(request: NextRequest) {
     // Use class hash from client or fallback to server env
     const classHash = clientClassHash || process.env.STARKNET_READY_CLASSHASH;
     if (!classHash) {
+      trackApiError(
+        request,
+        "/api/starknet/transfer",
+        "POST",
+        new Error("STARKNET_READY_CLASSHASH not configured"),
+        500,
+        { wallet_address: walletAddress },
+      );
       return NextResponse.json(
         { error: "STARKNET_READY_CLASSHASH not configured" },
         { status: 500 },
@@ -119,6 +190,9 @@ export async function POST(request: NextRequest) {
     );
 
     if (!usePaymaster) {
+      trackApiError(request, "/api/starknet/transfer", "POST", new Error("Paymaster not configured"), 500, {
+        wallet_address: walletAddress,
+      });
       return NextResponse.json(
         { error: "Paymaster not configured" },
         { status: 500 },
@@ -129,6 +203,14 @@ export async function POST(request: NextRequest) {
     try {
       config = await setupPaymaster();
     } catch (e: any) {
+      trackApiError(
+        request,
+        "/api/starknet/transfer",
+        "POST",
+        new Error(e?.message || "Failed to initialize paymaster"),
+        500,
+        { wallet_address: walletAddress },
+      );
       return NextResponse.json(
         { error: e?.message || "Failed to initialize paymaster" },
         { status: 500 },
@@ -181,6 +263,14 @@ export async function POST(request: NextRequest) {
         maxFee = withMargin15(est.suggested_max_fee_in_gas_token);
       } catch (error: any) {
         console.error("[API] Fee estimation failed:", error.message);
+        trackApiError(
+          request,
+          "/api/starknet/transfer",
+          "POST",
+          new Error(error?.message || "Fee estimation failed"),
+          500,
+          { wallet_address: walletAddress },
+        );
         return NextResponse.json(
           { error: `Fee estimation failed: ${error.message}` },
           { status: 500 },
@@ -210,6 +300,14 @@ export async function POST(request: NextRequest) {
       }
     } catch (error: any) {
       console.error("[API] Error executing transaction:", error);
+      trackApiError(
+        request,
+        "/api/starknet/transfer",
+        "POST",
+        new Error(error?.message || "Failed to execute transaction"),
+        500,
+        { wallet_address: walletAddress },
+      );
       return NextResponse.json(
         { error: error.message || "Failed to execute transaction" },
         { status: 500 },
@@ -223,6 +321,14 @@ export async function POST(request: NextRequest) {
       );
 
       if (!txReceipt.isSuccess()) {
+        trackApiError(
+          request,
+          "/api/starknet/transfer",
+          "POST",
+          new Error("Transaction reverted on-chain"),
+          500,
+          { wallet_address: walletAddress },
+        );
         return NextResponse.json(
           { error: "Transaction reverted on-chain" },
           { status: 500 },
@@ -234,6 +340,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const responseTime = Date.now() - startTime;
+    trackApiResponse("/api/starknet/transfer", "POST", 200, responseTime, {
+      wallet_address: walletAddress,
+      privy_user_id: authUserId,
+    });
+
     return NextResponse.json({
       success: true,
       transactionHash: result.transaction_hash,
@@ -242,11 +354,21 @@ export async function POST(request: NextRequest) {
       amount: amount.toString(),
       recipient: recipientAddress,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[API] Error in Starknet transfer:", error);
+    const responseTime = Date.now() - startTime;
+    const err =
+      error instanceof Error ? error : new Error("Failed to process transfer");
+    const walletAddressCatch = request.headers
+      .get("x-wallet-address")
+      ?.toLowerCase();
+    trackApiError(request, "/api/starknet/transfer", "POST", err, 500, {
+      ...(walletAddressCatch ? { wallet_address: walletAddressCatch } : {}),
+      response_time_ms: responseTime,
+    });
     return NextResponse.json(
-      { error: error.message || "Failed to process transfer" },
+      { error: err.message || "Failed to process transfer" },
       { status: 500 },
     );
   }
-}
+});

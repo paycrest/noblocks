@@ -1,13 +1,16 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useReducer } from "react";
 import {
   classNames,
+  copyToClipboard,
   formatCurrency,
   getNetworkImageUrl,
   shortenAddress,
+  hasOnrampAwaitingBankTransfer,
+  OnrampPendingNotificationDot,
 } from "../utils";
-import { useBalance } from "../context/BalanceContext";
-import { usePrivy } from "@privy-io/react-auth";
+import { useBalance, useTransactions, useStep } from "../context";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import {
   ArrowRight03Icon,
@@ -20,7 +23,7 @@ import {
 import Image from "next/image";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
-import { toast } from "sonner";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { Dialog } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -35,8 +38,10 @@ import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useActualTheme } from "../hooks/useActualTheme";
 import TransactionList from "./transaction/TransactionList";
-import { FundWalletForm, ReferralCTA, TransferForm } from "./index";
+import { ReferralCTA } from "./index";
 import { ReferralDashboard } from "./ReferralDashboard";
+import { FundWalletForm } from "./FundWalletForm";
+import { TransferForm } from "./TransferForm";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 
 export const WalletDetails = () => {
@@ -56,8 +61,13 @@ export const WalletDetails = () => {
   const { selectedNetwork } = useNetwork();
   const { allBalances, isLoading, refreshBalance } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const { user } = usePrivy();
+  const { user, getAccessToken } = usePrivy();
+  const { wallets } = useWallets();
+  const { transactions, fetchTransactions } = useTransactions();
+  const { isOnrampProviderDetailsOpen } = useStep();
   const isDark = useActualTheme();
+  const shouldUseEOA = useShouldUseEOA();
+  const hookWalletAddress = useWalletAddress();
 
   // Custom hook for handling wallet funding
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
@@ -72,15 +82,63 @@ export const WalletDetails = () => {
     dependencies: [selectedNetwork],
   });
 
-  // Determine active wallet based on wallet type
+  const embeddedWallet = wallets.find(
+    (wallet) => wallet.walletClientType === "privy",
+  );
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet",
+  );
+
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
+    : selectedNetwork.chain.name === "Starknet"
+      ? hookWalletAddress
+        ? { address: hookWalletAddress }
+        : undefined
+      : shouldUseEOA
+        ? embeddedWallet
+          ? { address: embeddedWallet.address }
+          : undefined
+        : smartWallet;
 
-  // Get appropriate balance based on wallet type
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
-    : allBalances.smartWallet;
+    : selectedNetwork.chain.name === "Starknet"
+      ? allBalances.starknetWallet
+      : shouldUseEOA
+        ? allBalances.externalWallet
+        : allBalances.smartWallet;
+
+  const sortedCrossChainBalances = useSortedCrossChainBalances(
+    crossChainBalances,
+    selectedNetwork.chain.name,
+  );
+
+  const [onrampDotRevision, bumpOnrampDot] = useReducer(
+    (n: number) => n + 1,
+    0,
+  );
+  useEffect(() => {
+    const id = setInterval(() => bumpOnrampDot(), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const addr = activeWallet?.address;
+    if (!addr) return;
+    void getAccessToken().then((token) => {
+      if (token) {
+        void fetchTransactions(addr, token, 1, 30);
+      }
+    });
+  }, [activeWallet?.address, fetchTransactions, getAccessToken]);
+
+  const showOnrampAwaitingDot = useMemo(
+    () =>
+      isOnrampProviderDetailsOpen ||
+      hasOnrampAwaitingBankTransfer(transactions),
+    [isOnrampProviderDetailsOpen, transactions, onrampDotRevision],
+  );
 
   // Handler for funding wallet with specified amount and token
   const handleFundWalletClick = async (
@@ -103,11 +161,11 @@ export const WalletDetails = () => {
   };
 
   // Copy wallet address to clipboard with feedback
-  const handleCopyAddress = () => {
-    navigator.clipboard.writeText(activeWallet?.address ?? "");
+  const handleCopyAddress = async () => {
+    const ok = await copyToClipboard(activeWallet?.address ?? "", "Address");
+    if (!ok) return;
     setIsWarningModalOpen(true);
     setIsAddressCopied(true);
-    toast.success("Address copied to clipboard");
     setTimeout(() => setIsAddressCopied(false), 2000);
   };
 
@@ -121,7 +179,11 @@ export const WalletDetails = () => {
       {/* Wallet balance button in header */}
       <button
         type="button"
-        title="Wallet balance"
+        title={
+          showOnrampAwaitingDot
+            ? "Wallet balance — complete on-ramp payment"
+            : "Wallet balance"
+        }
         onClick={() => {
           setIsSidebarOpen(!isSidebarOpen);
         }}
@@ -132,9 +194,12 @@ export const WalletDetails = () => {
         <div className="flex items-center gap-1.5 dark:text-white/80">
           {isLoading ? (
             <BalanceSkeleton />
+          ) : selectedNetwork.chain.name === "Starknet" ? (
+            <p>${(activeBalance?.total ?? 0).toFixed(2)}</p>
           ) : (
             <p>{formatCurrency(activeBalance?.total ?? 0, "USD", "en-US")}</p>
           )}
+          {showOnrampAwaitingDot ? <OnrampPendingNotificationDot /> : null}
           <ArrowDown01Icon
             aria-label="Caret down"
             className={classNames(
@@ -230,10 +295,12 @@ export const WalletDetails = () => {
 
                       <div className="flex items-center justify-between">
                         <div className="text-2xl font-medium text-text-body dark:text-white">
-                          {formatCurrency(
-                            activeBalance?.total ?? 0,
-                            "USD",
-                            "en-US",
+                          {isLoading ? (
+                            <BalanceSkeleton className="w-24" />
+                          ) : selectedNetwork.chain.name === "Starknet" ? (
+                            `$${(activeBalance?.total ?? 0).toFixed(2)}`
+                          ) : (
+                            formatCurrency(crossChainTotal, "USD", "en-US")
                           )}
                         </div>
                         <button
@@ -306,13 +373,16 @@ export const WalletDetails = () => {
                         onClick={() => setActiveTab("transactions")}
                         title="View transactions"
                         className={classNames(
-                          "text-sm font-medium transition-colors",
+                          "inline-flex items-center gap-2 text-sm font-medium transition-colors",
                           activeTab === "transactions"
                             ? "text-text-body dark:text-white"
                             : "text-text-disabled dark:text-white/30",
                         )}
                       >
                         Transactions
+                        {showOnrampAwaitingDot ? (
+                          <OnrampPendingNotificationDot />
+                        ) : null}
                       </button>
                     </div>
 
@@ -368,21 +438,71 @@ export const WalletDetails = () => {
                                         </span>
                                       </div>
                                     </div>
-                                    <div className="flex flex-col items-end">
-                                      <span className="text-text-body dark:text-white/80">
-                                        {token.toUpperCase() === "CNGN" ? (
-                                          <span>
-                                            $
-                                            {(
-                                              (balance || 0) / (rate || 1)
-                                            ).toFixed(2)}
-                                          </span>
-                                        ) : (
-                                          <span>
-                                            ${(balance || 0).toFixed(2)}
-                                          </span>
-                                        )}
-                                      </span>
+
+                                    <div className="space-y-4">
+                                      {filteredBalances.map(
+                                        ([token, balance]) => {
+                                          const displayBalance =
+                                            token === "CNGN" || token === "cNGN"
+                                              ? (entry.balances.rawBalances?.[
+                                                  token
+                                                ] ?? balance)
+                                              : balance;
+                                          const usdEquivalent = balance;
+
+                                          return (
+                                            <div
+                                              key={`${entry.network.chain.name}-${token}`}
+                                              className="flex items-center justify-between text-sm"
+                                            >
+                                              <div className="flex items-center gap-3">
+                                                <div className="relative">
+                                                  <Image
+                                                    src={`/logos/${token.toLowerCase()}-logo.svg`}
+                                                    alt={token}
+                                                    width={32}
+                                                    height={32}
+                                                    className="size-8 rounded-full"
+                                                    priority
+                                                  />
+                                                  <Image
+                                                    src={getNetworkImageUrl(
+                                                      entry.network,
+                                                      isDark,
+                                                    )}
+                                                    alt={
+                                                      entry.network.chain.name
+                                                    }
+                                                    width={16}
+                                                    height={16}
+                                                    className="absolute -bottom-1 -right-1 size-4 rounded-full"
+                                                  />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                  <span className="text-text-body dark:text-white/80">
+                                                    {token}
+                                                  </span>
+                                                  <span className="text-text-secondary dark:text-white/50">
+                                                    {displayBalance}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              <div className="flex flex-col items-end">
+                                                <span
+                                                  className={`${
+                                                    usdEquivalent === 0 &&
+                                                    displayBalance > 0
+                                                      ? "text-red-500"
+                                                      : "text-text-body dark:text-white/80"
+                                                  }`}
+                                                >
+                                                  ${usdEquivalent.toFixed(2)}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          );
+                                        },
+                                      )}
                                     </div>
                                   </div>
                                 ),

@@ -8,6 +8,7 @@ import { HelpCircleIcon, ArrowLeft02Icon, Cancel01Icon } from "hugeicons-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { networks } from "../mocks";
 import { useNetwork } from "../context/NetworksContext";
+import { useStarknet } from "../context";
 import { AnimatedModal } from "./AnimatedComponents";
 import {
   shouldUseInjectedWallet,
@@ -30,6 +31,7 @@ export const NetworkSelectionModal = ({
   const [showInfo, setShowInfo] = useState(false);
   const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
+  const { ensureWalletExists } = useStarknet();
   const { authenticated, user } = usePrivy();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
@@ -82,6 +84,7 @@ export const NetworkSelectionModal = ({
           console.error("Failed to switch network:", error);
           setSelectedNetwork(selectedNetwork);
         },
+        ensureWalletExists, // Pass the Starknet wallet creation function
       );
     }
   };
@@ -125,12 +128,7 @@ export const NetworkSelectionModal = ({
               </p>
 
               <div className="space-y-2">
-                {networks
-                  .filter((network) => {
-                    if (useInjectedWallet) return true;
-                    return network.chain.name !== "Celo";
-                  })
-                  .map((network) => (
+                {networks.map((network) => (
                     <button
                       key={network.chain.name}
                       type="button"

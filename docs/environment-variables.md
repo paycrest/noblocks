@@ -10,6 +10,9 @@ This document lists all environment variables required for the Noblocks applicat
 # URL of an aggregator service
 NEXT_PUBLIC_AGGREGATOR_URL=https://api.paycrest.io/v1
 
+# Sender API key UUID (aggregator dashboard). Used by the payment-orders proxy and the client for encrypted gateway.createOrder messageHash.
+NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID=
+
 # Auth services
 NEXT_PUBLIC_PRIVY_APP_ID=
 NEXT_PUBLIC_THIRDWEB_CLIENT_ID=
@@ -34,6 +37,21 @@ MIXPANEL_INCLUDE_IP=false
 MIXPANEL_INCLUDE_ERROR_STACKS=false
 # Include emails in client analytics
 NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS=false
+```
+
+### Client error reporting (optional)
+
+Sentry-compatible ingest (e.g. [GlitchTip](https://glitchtip.com/)). Browser-only; no `@sentry/nextjs` plugin.
+
+```bash
+NEXT_PUBLIC_SENTRY_DSN=
+# Optional
+NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+NEXT_PUBLIC_SENTRY_RELEASE=
+# 0–1; default 0 (no performance traces)
+NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=0
+# Set to true to send events while running `next dev`
+NEXT_PUBLIC_SENTRY_ENABLE_IN_DEV=false
 ```
 
 ### Security

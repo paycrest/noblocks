@@ -10,6 +10,7 @@ import {
   Preloader,
   TransactionForm,
   TransactionPreview,
+  MakePayment,
   TransactionStatus,
   NetworkSelectionModal,
   CookieConsent,
@@ -20,8 +21,14 @@ import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
-import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
+import {
+  fetchRate,
+  fetchSupportedInstitutions,
+  migrateLocalStorageRecipients,
+} from "../api/aggregator";
 import { normalizeNetworkForRateFetch } from "../utils";
+import { mapReportAndAct } from "../lib/toastMappedError";
+import { reportClientError } from "../lib/sentry.client";
 import {
   STEPS,
   type FormData,
@@ -29,6 +36,7 @@ import {
   type RecipientDetails,
   type StateProps,
   type TransactionStatusType,
+  type V2FiatProviderAccountDTO,
 } from "../types";
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "../context/StepContext";
@@ -37,14 +45,17 @@ import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
-import { useInjectedWallet } from "../context";
-
+import { useBalance, useInjectedWallet } from "../context";
+import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
+import { useWalletAddress } from "../hooks/useWalletAddress";
+import { networks } from "../mocks";
 const PageLayout = ({
   authenticated,
   ready,
   currentStep,
   transactionFormComponent,
   isRecipientFormOpen,
+  isOnramp,
   isBlockFestReferral,
   showReferralModal,
   onReferralModalClose,
@@ -55,6 +66,7 @@ const PageLayout = ({
   currentStep: string;
   transactionFormComponent: React.ReactNode;
   isRecipientFormOpen: boolean;
+  isOnramp: boolean;
   isBlockFestReferral: boolean;
   showReferralModal: boolean;
   onReferralModalClose: () => void;
@@ -63,9 +75,9 @@ const PageLayout = ({
   const { claimed, resetClaim } = useBlockFestClaim();
   const { user } = usePrivy();
   const { isOpen, openModal, closeModal } = useBlockFestModal();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isInjectedWallet } = useInjectedWallet();
+  const walletAddress = useWalletAddress();
 
-  // Clean up claim state when user logs out
   useEffect(() => {
     if (!authenticated && !isInjectedWallet) {
       resetClaim();
@@ -110,6 +122,7 @@ const PageLayout = ({
         <HomePage
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
+          isOnramp={isOnramp}
           showBlockFestBanner={claimed === true}
         />
       ) : (
@@ -121,12 +134,38 @@ const PageLayout = ({
   );
 };
 
+/**
+ * v2 `/rates/.../{token}/{amount}/{fiat}` expects `amount` in token units. On-ramp, the receive
+ * (token) field is often 0 until a rate exists — use a peg-aware fiat-sized probe instead of `1`
+ * so provider min/max match the user's order (e.g. CNGN ↔ NGN).
+ */
+function onrampRateQueryTokenAmount(
+  token: string,
+  currency: string,
+  sentN: number,
+  recvN: number,
+): number {
+  if (recvN > 0) return recvN;
+  const t = (token || "").trim().toUpperCase();
+  const c = (currency || "").trim().toUpperCase();
+  if (t === "CNGN" && c === "NGN" && sentN > 0) {
+    return sentN;
+  }
+  return 1;
+}
+
 export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready, getAccessToken, user } = usePrivy();
-  const { currentStep, setCurrentStep } = useStep();
-  const { isInjectedWallet, injectedReady } = useInjectedWallet();
-  const { selectedNetwork } = useNetwork();
+  const {
+    currentStep,
+    setCurrentStep,
+    setIsOnrampProviderDetailsOpen,
+  } = useStep();
+  const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
+  const { crossChainBalances, isLoading: isBalanceLoading } = useBalance();
+  const { selectedNetwork, setDisplayedNetwork, setSelectedNetwork } =
+    useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
 
   const [isPageLoading, setIsPageLoading] = useState(true);
@@ -145,9 +184,12 @@ export function MainPageContent() {
     useState<TransactionStatusType>("idle");
   const [createdAt, setCreatedAt] = useState<string>("");
   const [orderId, setOrderId] = useState<string>("");
+  const [onrampPaymentAccount, setOnrampPaymentAccount] =
+    useState<V2FiatProviderAccountDTO | null>(null);
 
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
+  const autoSelectedNetworkSessionRef = useRef<string | null>(null);
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
@@ -155,19 +197,56 @@ export function MainPageContent() {
   const formMethods = useForm<FormData, any, undefined>({
     mode: "onChange",
     defaultValues: {
-      token: "USDC",
+      token: "",
       amountSent: 0,
       amountReceived: 0,
-      currency: "",
+      // On-ramp is default: Send = fiat (NGN-only in UI); Receive = token (user picks — empty until select).
+      currency: "NGN",
       recipientName: "",
       memo: "",
       institution: "",
       accountIdentifier: "",
       accountType: "bank",
+      isSwapped: true,
+      receiveDestinationExplicitlySelected: false,
     },
   });
   const { watch } = formMethods;
-  const { currency, amountSent, amountReceived, token } = watch();
+  const {
+    currency,
+    amountSent,
+    amountReceived,
+    token,
+    isSwapped,
+    receiveDestinationExplicitlySelected,
+  } = watch();
+  /** On-ramp (fiat→crypto): same as TransactionForm `isSwapped` / v2 `buy` side. */
+  const isOnrampRate = Boolean(isSwapped);
+
+  /**
+   * On-ramp is not supported on Starknet. Switch to an EVM network and notify the user.
+   */
+  useEffect(
+    function leaveStarknetForOnramp() {
+      if (!isSwapped || selectedNetwork.chain.name !== "Starknet") return;
+      const fallback = networks.find((n) => n.chain.name !== "Starknet");
+      if (!fallback) return;
+
+      if (isInjectedWallet) {
+        toast.warning("Starknet isn’t supported for on-ramp.", {
+          id: "onramp-starknet-injected",
+          description: "Pick an EVM network in the network dropdown to continue.",
+        });
+        return;
+      }
+
+      setSelectedNetwork(fallback);
+      toast.info("Starknet isn’t supported for on-ramp.", {
+        description: `Switched network to ${fallback.chain.name}.`,
+      });
+    },
+    [isSwapped, selectedNetwork.chain.name, setSelectedNetwork, isInjectedWallet],
+  );
 
   // State props for child components
   const stateProps: StateProps = {
@@ -193,6 +272,9 @@ export function MainPageContent() {
     setOrderId,
     setCreatedAt,
     setTransactionStatus,
+    
+    onrampPaymentAccount,
+    setOnrampPaymentAccount,
   };
 
   // Handle showing referral modal - triggered by network selection callback
@@ -220,8 +302,23 @@ export function MainPageContent() {
     }
   }, [user?.wallet?.address]);
 
+  useEffect(() => {
+    const show =
+      currentStep === STEPS.MAKE_PAYMENT &&
+      Boolean(orderId) &&
+      Boolean(onrampPaymentAccount);
+    setIsOnrampProviderDetailsOpen(show);
+  }, [
+    currentStep,
+    orderId,
+    onrampPaymentAccount,
+    setIsOnrampProviderDetailsOpen,
+  ]);
+
+
   useEffect(function setPageLoadingState() {
     setOrderId("");
+    setOnrampPaymentAccount(null);
     setIsPageLoading(false);
   }, []);
 
@@ -231,6 +328,7 @@ export function MainPageContent() {
       if (!authenticated && !isInjectedWallet) {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
+        setOnrampPaymentAccount(null);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -238,12 +336,65 @@ export function MainPageContent() {
   );
 
   useEffect(function ensureDefaultToken() {
-    // Make sure we always have USDC as default
-    if (!formMethods.getValues("token")) {
-      formMethods.reset({ token: "USDC" });
+    // Off-ramp: default token to USDC. On-ramp: keep empty so Receive shows "Select token".
+    // Use === false so a transient undefined `isSwapped` is not treated as off-ramp.
+    if (formMethods.getValues("token")) return;
+    if (formMethods.getValues("isSwapped") === false) {
+      formMethods.setValue("token", "USDC", { shouldDirty: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(
+    function autoSelectLargestBalanceNetwork() {
+      const sessionKey = isInjectedWallet
+        ? injectedAddress
+          ? `injected:${injectedAddress}`
+          : null
+        : authenticated && user?.id
+          ? `privy:${user.id}`
+          : null;
+
+      if (!sessionKey) {
+        autoSelectedNetworkSessionRef.current = null;
+        return;
+      }
+
+      if (!ready || (isInjectedWallet && !injectedReady) || isBalanceLoading) {
+        return;
+      }
+
+      if (autoSelectedNetworkSessionRef.current === sessionKey) {
+        return;
+      }
+
+      const preferredNetwork = getPreferredNetworkForBalances(
+        crossChainBalances,
+        selectedNetwork.chain.name,
+      );
+
+      if (
+        preferredNetwork &&
+        preferredNetwork.chain.name !== selectedNetwork.chain.name
+      ) {
+        setDisplayedNetwork(preferredNetwork);
+      }
+
+      autoSelectedNetworkSessionRef.current = sessionKey;
+    },
+    [
+      authenticated,
+      crossChainBalances,
+      injectedAddress,
+      injectedReady,
+      isBalanceLoading,
+      isInjectedWallet,
+      ready,
+      selectedNetwork.chain.name,
+      setDisplayedNetwork,
+      user?.id,
+    ],
+  );
 
   useEffect(
     function resetProviderErrorOnChange() {
@@ -282,6 +433,8 @@ export function MainPageContent() {
 
       if (!currency) return;
 
+      if (isOnrampRate && !token) return;
+
       // Only fetch rate if at least one amount is greater than 0
       if (!amountSent && !amountReceived) return;
 
@@ -299,19 +452,29 @@ export function MainPageContent() {
               ? lpParam
               : undefined;
 
+          // Aggregator GET /v2/rates/.../{token}/{amount}/{fiat} always expects `amount` in **token**
+          // units (ValidateRate / provider min-max). Off-ramp: Send = token → amountSent. On-ramp:
+          // Send = fiat → use computed token (amountReceived), else peg-aware probe, else 1.
+          const sentN = Number(amountSent) || 0;
+          const recvN = Number(amountReceived) || 0;
+          const rateQueryAmount = isOnrampRate
+            ? onrampRateQueryTokenAmount(token, currency, sentN, recvN)
+            : sentN > 0
+              ? sentN
+              : 100;
+
           const rate = await fetchRate({
             token,
-            amount: amountSent || 100,
+            amount: rateQueryAmount,
             currency,
             providerId,
             network: normalizeNetworkForRateFetch(selectedNetwork.chain.name),
+            side: isOnrampRate ? "buy" : "sell",
           });
           setRate(rate.data);
           setRateError(null); // Clear error on success
         } catch (error) {
-          let errorMsg = "Unknown error";
           if (error instanceof Error) {
-            errorMsg = error.message;
             const lpParam =
               searchParams.get("provider") || searchParams.get("PROVIDER");
             if (
@@ -319,6 +482,11 @@ export function MainPageContent() {
               lpParam &&
               !failedProviders.current.has(lpParam)
             ) {
+              reportClientError(error, {
+                feature: "cngn-rate",
+                phase: "provider-fallback",
+                provider: lpParam,
+              });
               toast.error(`${error.message} - defaulting to public rate`);
               // Track failed provider
               if (lpParam) {
@@ -332,8 +500,13 @@ export function MainPageContent() {
               return;
             }
           }
-          setRateError(errorMsg);
-          toast.error("No available quote", { description: errorMsg });
+          mapReportAndAct(error, {
+            feature: "cngn-rate",
+            onUserMessage: (userMsg) => {
+              setRateError(userMsg);
+              toast.error(userMsg);
+            },
+          });
         } finally {
           setIsFetchingRate(false);
         }
@@ -355,6 +528,7 @@ export function MainPageContent() {
       amountReceived,
       currency,
       token,
+      isSwapped,
       searchParams,
       selectedNetwork,
     ],
@@ -416,7 +590,9 @@ export function MainPageContent() {
     (isInjectedWallet && !injectedReady);
 
   const isRecipientFormOpen =
-    !!currency && (authenticated || isInjectedWallet) && isUserVerified;
+    receiveDestinationExplicitlySelected &&
+    (authenticated || isInjectedWallet) &&
+    isUserVerified;
 
   const renderTransactionStep = useCallback(() => {
     switch (currentStep) {
@@ -438,6 +614,13 @@ export function MainPageContent() {
             createdAt={createdAt}
           />
         );
+      case STEPS.MAKE_PAYMENT:
+        return (
+          <MakePayment
+            handleBackButtonClick={handleBackToForm}
+            stateProps={stateProps}
+          />
+        );
       case STEPS.STATUS:
         return (
           <TransactionStatus
@@ -445,6 +628,7 @@ export function MainPageContent() {
             transactionStatus={transactionStatus}
             createdAt={createdAt}
             orderId={orderId}
+            isOnramp={!!onrampPaymentAccount}
             clearForm={() => {
               clearFormState(formMethods);
               setSelectedRecipient(null);
@@ -503,6 +687,7 @@ export function MainPageContent() {
           currentStep={currentStep}
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
+          isOnramp={isSwapped}
           isBlockFestReferral={isBlockFestReferral}
           showReferralModal={showReferralModal}
           onReferralModalClose={handleReferralModalClose}

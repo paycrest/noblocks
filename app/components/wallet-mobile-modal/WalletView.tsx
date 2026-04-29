@@ -312,12 +312,7 @@ export function WalletView({
               exit={{ height: 0, opacity: 0 }}
               className="space-y-2 overflow-hidden *:min-h-11"
             >
-              {networks
-                .filter(
-                  (network) =>
-                    isInjectedWallet || network.chain.name !== "Celo",
-                )
-                .map((network) => (
+              {networks.map((network) => (
                   <button
                     type="button"
                     key={network.chain.name}

@@ -1,4 +1,37 @@
-import { arbitrum, base, bsc, polygon, lisk, celo, mainnet } from "viem/chains";
+import { toHex } from "viem";
+import {
+  arbitrum,
+  base,
+  bsc,
+  polygon,
+  lisk,
+  celo,
+  scroll,
+  mainnet,
+} from "viem/chains";
+
+export const starknetMainnet = {
+  id: BigInt(toHex('SN_MAIN')).toString(), // Starknet Mainnet chain ID (SN_MAIN encoded)
+  name: "Starknet",
+  network: "starknet-mainnet",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Ether",
+    symbol: "ETH",
+  },
+  rpcUrls: {
+    default: {
+      http: [process.env.NEXT_PUBLIC_STARKNET_RPC_URL || ""],
+    },
+    public: {
+      http: [process.env.NEXT_PUBLIC_STARKNET_RPC_URL || ""],
+    },
+  },
+  blockExplorers: {
+    default: { name: "Voyager", url: "https://voyager.online" },
+  },
+  testnet: false,
+};
 
 export const acceptedCurrencies = [
   {
@@ -20,7 +53,6 @@ export const acceptedCurrencies = [
   {
     name: "MWK",
     label: "Malawian Kwacha (MWK)",
-    disabled: true,
   },
   {
     name: "GHS",
@@ -72,19 +104,35 @@ export const networks = [
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
   },
+  {
+    chain: scroll,
+    imageUrl: "/logos/scroll-logo.svg",
+  },
+  {
+    chain: starknetMainnet,
+    imageUrl: "/logos/strk-logo.svg",
+  },
   //   {
   //     chain: hedera,
   //     imageUrl: "/logos/hedera-logo.svg",
   //   },
   // {
-  //   chain: scroll,
-  //   imageUrl: "/logos/scroll-logo.svg",
-  // },
-  // {
   //   chain: optimism,
   //   imageUrl: "/logos/op-mainnet-logo.svg",
   // },
 ];
+
+/** Chain IDs excluded from wallet migration (popup math + transfer modal). */
+export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number | string>([
+  celo.id,
+  scroll.id,
+  starknetMainnet.id,
+]);
+
+/** Networks scanned and shown in the wallet migration modal (excludes Celo and Scroll). */
+export const migrationChecklistNetworks = networks.filter(
+  (n) => !MIGRATION_EXCLUDED_CHAIN_IDS.has(n.chain.id as number | string),
+);
 
 export const colors = [
   "bg-blue-600",

@@ -10,20 +10,30 @@ import {
   classNames,
   formatCurrency,
   formatNumberWithCommas,
+  getCurrencySymbol,
   getGatewayContractAddress,
   getInstitutionNameByCode,
   getNetworkImageUrl,
   getRpcUrl,
+  normalizeNetworkName,
   publicKeyEncrypt,
+  shortenAddress,
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
-import { getDelegationContractAddress } from "../lib/config";
+import config, {
+  getDelegationContractAddress,
+  localTransferFeePercent,
+  STARKNET_READY_ACCOUNT_CLASSHASH,
+} from "../lib/config";
+import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
   Token,
   TransactionPreviewProps,
   TransactionCreateInput,
+  RefundAccountDetails,
+  V2FiatProviderAccountDTO,
 } from "../types";
-import { primaryBtnClasses, secondaryBtnClasses } from "../components";
+import { primaryBtnClasses, secondaryBtnClasses } from "../components/Styles";
 import { gatewayAbi } from "../api/abi";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -37,7 +47,13 @@ import {
   createPublicClient,
   http,
 } from "viem";
-import { useBalance, useInjectedWallet, useStep } from "../context";
+import {
+  useBalance,
+  useInjectedWallet,
+  useStep,
+  useTransactions,
+} from "../context";
+import { useStarknet } from "../context/StarknetContext";
 import {
   useShouldUseEOA,
   useDelegationContractAuth,
@@ -51,13 +67,25 @@ import {
   type BatchCall,
 } from "../lib/providerBatch";
 
-import { fetchAggregatorPublicKey, saveTransaction } from "../api/aggregator";
+import {
+  fetchAggregatorPublicKey,
+  fetchTokens,
+  saveTransaction,
+  createV2SenderPaymentOrder,
+  fetchRefundAccount,
+  saveRefundAccount,
+} from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics/client";
 import { ImSpinner } from "react-icons/im";
+import { BiEdit } from "react-icons/bi";
+import { IoAdd } from "react-icons/io5";
 import { InformationSquareIcon } from "hugeicons-react";
+import { AddRefundAccountModal } from "../components/AddRefundAccountModal";
+import { RefundAccountSuccessModal } from "../components/RefundAccountSuccessModal";
 import { PiCheckCircleFill } from "react-icons/pi";
 import { TbCircleDashed } from "react-icons/tb";
 import { useActualTheme } from "../hooks/useActualTheme";
+import axios from "axios";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -80,21 +108,31 @@ export const TransactionPreview = ({
   const { isLoading: isMigrationLoading } = useMigrationStatus();
   const { signDelegationAuthorization } = useDelegationContractAuth();
 
+  const { walletId, address: starknetAddress, publicKey } = useStarknet();
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();
   const { currentStep, setCurrentStep } = useStep();
-  const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance } =
-    useBalance();
+  const { fetchTransactions } = useTransactions();
+  const {
+    refreshBalance,
+    smartWalletBalance,
+    externalWalletBalance,
+    injectedWalletBalance,
+    allBalances,
+  } = useBalance();
 
   const {
     rate,
     formValues,
     institutions: supportedInstitutions,
+    isFetchingInstitutions,
     orderId,
     setOrderId,
     setCreatedAt,
     setTransactionStatus,
+    onrampPaymentAccount,
+    setOnrampPaymentAccount,
   } = stateProps;
 
   const {
@@ -106,7 +144,12 @@ export const TransactionPreview = ({
     recipientName,
     accountIdentifier,
     memo,
+    walletAddress,
   } = formValues;
+
+  const isOnramp = !!walletAddress;
+  const isCNGNOnramp = isOnramp && token?.toUpperCase() === "CNGN";
+  const currencySymbol = currency ? getCurrencySymbol(currency) : "";
 
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0); // Used to trigger toast
@@ -117,9 +160,38 @@ export const TransactionPreview = ({
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
+  const [refundAccountModalOpen, setRefundAccountModalOpen] = useState(false);
+  const [refundAccountSuccessOpen, setRefundAccountSuccessOpen] =
+    useState(false);
+  const [refundAccountWasEdited, setRefundAccountWasEdited] = useState(false);
+  const [refundAccount, setRefundAccount] = useState<RefundAccountDetails | null>(
+    null,
+  );
   const orderSubmissionBlock = useRef<bigint | null>(null);
 
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (!isOnramp) return;
+    // Reset on every currency change so a cached NGN account isn't submitted for KES/TZS/UGX orders.
+    setRefundAccount(null);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token || cancelled) return;
+        const saved = await fetchRefundAccount(token);
+        if (!cancelled && saved) {
+          setRefundAccount(saved);
+        }
+      } catch {
+        // No saved row or fetch failed — user can add in modal
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOnramp, currency, getAccessToken]);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
@@ -145,25 +217,31 @@ export const TransactionPreview = ({
     ? null
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
-  const activeWallet = injectedWallet ||
-    (shouldUseEOA
-      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
-      : smartWallet);
+  const activeWallet =
+    injectedWallet ||
+    (selectedNetwork.chain.name === "Starknet"
+      ? starknetAddress
+        ? { address: starknetAddress, type: "starknet" as const }
+        : undefined
+      : shouldUseEOA
+        ? embeddedWallet
+          ? { address: embeddedWallet.address, type: "eoa" as const }
+          : undefined
+        : smartWallet);
 
-  // Get appropriate balance based on migration status
-  // After migration: use externalWalletBalance (EOA balance)
-  // Before migration: use smartWalletBalance (SCW balance)
-  // Wait for migration status to load before making decision
   const activeBalance = injectedWallet
     ? injectedWalletBalance
-    : !isMigrationLoading && shouldUseEOA
-      ? externalWalletBalance
-      : smartWalletBalance;
+    : selectedNetwork.chain.name === "Starknet"
+      ? allBalances.starknetWallet
+      : !isMigrationLoading && shouldUseEOA
+        ? externalWalletBalance
+        : smartWalletBalance;
 
-  // For CNGN, use raw balance (token units) instead of USD equivalent
   const balance =
     token === "CNGN" || token === "cNGN"
-      ? (activeBalance?.rawBalances?.[token] ?? activeBalance?.balances[token] ?? 0)
+      ? (activeBalance?.rawBalances?.[token] ??
+          activeBalance?.balances[token] ??
+          0)
       : (activeBalance?.balances[token] ?? 0);
 
   // Calculate sender fee for display and balance check
@@ -174,41 +252,70 @@ export const TransactionPreview = ({
   } = calculateSenderFee(amountSent, rate, tokenDecimals ?? 18);
 
   // Rendered tsx info
-  const renderedInfo = {
-    amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
-    totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
-    recipient: recipientName
-      .toLowerCase()
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" "),
-    account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
-    ...(memo && { description: memo }),
-    ...(senderFeeAmount > 0 && {
-      fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
-    }),
-    network: selectedNetwork.chain.name,
-  };
+  const renderedInfo = isOnramp
+    ? {
+      amount: `${currencySymbol}${formatNumberWithCommas(amountSent ?? 0)}`,
+      totalValue: `${formatNumberWithCommas(amountReceived ?? 0)} ${token}`,
+      rate: `${currencySymbol}${formatNumberWithCommas(rate)} ~ 1 ${token}`,
+      ...(isCNGNOnramp && localTransferFeePercent > 0
+        ? {
+          fee: `${localTransferFeePercent}%`,
+        }
+        : {}),
+      recipient: walletAddress ? shortenAddress(walletAddress) : "",
+      network: selectedNetwork.chain.name,
+    }
+    : {
+      amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
+      totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
+      recipient: recipientName
+        .toLowerCase()
+        .split(" ")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+      account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
+      ...(memo && { description: memo }),
+      ...(senderFeeAmount > 0 && {
+        fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
+      }),
+      network: selectedNetwork.chain.name,
+    };
 
   const prepareCreateOrderParams = async () => {
+    const senderApiKeyId = config.aggregatorSenderApiKey?.trim();
+    if (!senderApiKeyId) {
+      throw new Error(
+        "Sender API key is not configured (set NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID)",
+      );
+    }
+    const metadata = { apiKey: senderApiKeyId };
+
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
 
-    // Prepare recipient data
-    const recipient = {
-      accountIdentifier: formValues.accountIdentifier,
-      accountName: recipientName,
-      institution: formValues.institution,
-      memo: formValues.memo,
-      ...(providerId && { providerId }),
-      nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
-    };
+    // Prepare recipient data (metadata.apiKey matches aggregator OrderEVM.CreateOrder + indexer)
+    const recipient = isOnramp
+      ? {
+        accountIdentifier: walletAddress || "",
+        accountName: recipientName || walletAddress || "",
+        institution: "Wallet",
+        ...(providerId && { providerId }),
+        nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+        metadata,
+      }
+      : {
+        accountIdentifier: formValues.accountIdentifier,
+        accountName: recipientName,
+        institution: formValues.institution,
+        memo: formValues.memo,
+        ...(providerId && { providerId }),
+        nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+        metadata,
+      };
 
     // Fetch aggregator public key
     const publicKey = await fetchAggregatorPublicKey();
     const encryptedRecipient = publicKeyEncrypt(recipient, publicKey.data);
-
-    // Use the fee values calculated earlier (already in base units and capped)
 
     // Prepare transaction parameters
     const params = {
@@ -220,7 +327,6 @@ export const TransactionPreview = ({
       refundAddress: activeWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
-
     return params;
   };
 
@@ -238,6 +344,88 @@ export const TransactionPreview = ({
 
   const createOrder = async () => {
     try {
+      // Check if on Starknet and not using injected wallet
+      if (selectedNetwork.chain.name === "Starknet" && !isInjectedWallet) {
+        if (!walletId || !publicKey || !starknetAddress) {
+          toast.error(
+            "Starknet wallet not found. Please create a wallet first.",
+          );
+          return;
+        }
+
+        const params = await prepareCreateOrderParams();
+        setCreatedAt(new Date().toISOString());
+
+        const classHash = STARKNET_READY_ACCOUNT_CLASSHASH;
+
+        const token = await getAccessToken();
+        if (!token) {
+          throw new Error("Failed to get access token");
+        }
+
+        toast.loading("Creating order...");
+
+        // Execute the transaction using Starknet paymaster via API
+        const response = await fetch("/api/starknet/create-order", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            walletId,
+            publicKey,
+            classHash,
+            userId: user?.id,
+            origin: window.location.origin,
+            tokenAddress: tokenAddress,
+            gatewayAddress: getGatewayContractAddress(
+              selectedNetwork.chain.name,
+            ) as string,
+            amount: params.amount.toString(),
+            rate: params.rate.toString(),
+            senderFeeRecipient: params.senderFeeRecipient as string,
+            senderFee: params.senderFee.toString(),
+            refundAddress: params.refundAddress ?? "",
+            messageHash: params.messageHash,
+            address: starknetAddress,
+          }),
+        });
+
+        toast.dismiss();
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to create order");
+        }
+
+        const result = await response.json();
+        const orderId = result.orderId;
+
+        setOrderId(orderId);
+
+        await saveTransactionData({
+          orderId: orderId,
+          txHash: result.transactionHash,
+        });
+
+        setCreatedAt(new Date().toISOString());
+        setTransactionStatus("pending");
+        setCurrentStep("status");
+
+        toast.success("Order created successfully");
+
+        refreshBalance();
+        setIsOrderCreated(true);
+
+        trackEvent("Swap started", {
+          "Entry point": "Transaction preview",
+          "Wallet type": "Starknet embedded wallet",
+          "Transaction hash": result.transactionHash,
+        });
+        return;
+      }
+
       if (isInjectedWallet && injectedProvider) {
         // Injected wallet
         if (!injectedReady) {
@@ -527,7 +715,14 @@ export const TransactionPreview = ({
       });
     } catch (e) {
       const error = e as BaseError;
-      setErrorMessage(error.shortMessage || error.message);
+      const rawReason = error.shortMessage || error.message || "Unknown error";
+      mapReportAndAct(e, {
+        feature: "transaction-preview",
+        onUserMessage: (userMsg) => {
+          setErrorMessage(userMsg);
+          setErrorCount((prevCount: number) => prevCount + 1);
+        },
+      });
       setIsConfirming(false);
       trackEvent("Swap Failed", {
         Amount: amountSent,
@@ -539,7 +734,7 @@ export const TransactionPreview = ({
         ),
         "Wallet balance": balance,
         "Swap date": createdAt,
-        "Reason for failure": error.shortMessage || error.message,
+        "Reason for failure": rawReason,
         "Transaction duration": calculateDuration(
           createdAt,
           new Date().toISOString(),
@@ -556,7 +751,121 @@ export const TransactionPreview = ({
       return;
     }
 
-    // Check balance including sender fee
+    if (isOnramp) {
+      if (!refundAccount) {
+        toast.error("Add a refund account to continue");
+        return;
+      }
+      if (!walletAddress) {
+        toast.error("Recipient wallet is required");
+        return;
+      }
+      try {
+        setIsConfirming(true);
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          toast.error("Please sign in to continue");
+          return;
+        }
+
+        const apiTokens = await fetchTokens();
+        const networkLabel = selectedNetwork.chain.name;
+        const match = apiTokens.find(
+          (t) =>
+            t.symbol.toUpperCase() === token.toUpperCase() &&
+            normalizeNetworkName(t.network) === networkLabel,
+        );
+        if (!match?.network) {
+          throw new Error(
+            "This token is not supported on the selected network for onramp.",
+          );
+        }
+        const aggregatorNetwork = match.network;
+        const providerId =
+          searchParams.get("provider") || searchParams.get("PROVIDER") || undefined;
+
+        const payload = {
+          amount: String(amountSent),
+          amountIn: "fiat" as const,
+          ...(isCNGNOnramp && localTransferFeePercent > 0
+            ? { senderFeePercent: String(localTransferFeePercent) }
+            : {}),
+          source: {
+            type: "fiat" as const,
+            currency,
+            refundAccount: {
+              institution: refundAccount.institutionCode,
+              accountIdentifier: refundAccount.accountNumber,
+              accountName: refundAccount.accountName,
+            },
+          },
+          destination: {
+            type: "crypto" as const,
+            currency: token,
+            network: aggregatorNetwork,
+            ...(providerId ? { providerId } : {}),
+            recipient: {
+              address: walletAddress,
+              network: aggregatorNetwork,
+            },
+          },
+        };
+
+
+        const res = await createV2SenderPaymentOrder(payload, accessToken);
+        if (res.status !== "success" || !res.data) {
+          const msg =
+            typeof res.message === "string"
+              ? res.message
+              : "Failed to create payment order";
+          throw new Error(msg);
+        }
+
+        const created = res.data;
+        const orderIdStr =
+          typeof created.id === "string" ? created.id : String(created.id);
+        setOrderId(orderIdStr);
+        setOnrampPaymentAccount(created.providerAccount);
+        setCreatedAt(new Date().toISOString());
+        setTransactionStatus("pending");
+
+        await saveTransactionData({
+          orderId: orderIdStr,
+          txHash: undefined,
+          providerAccount: created.providerAccount,
+        });
+
+        const refreshTok = await getAccessToken();
+        if (refreshTok && activeWallet?.address) {
+          void fetchTransactions(
+            activeWallet.address,
+            refreshTok,
+            1,
+            30,
+            true,
+          );
+        }
+
+        toast.success("Payment instructions ready");
+        setCurrentStep("make_payment");
+      } catch (e) {
+        let msg: string;
+        if (axios.isAxiosError(e)) {
+          const data = e.response?.data as { message?: string } | undefined;
+          msg = data?.message || e.message;
+        } else {
+          const error = e as BaseError;
+          msg = error.shortMessage || error.message;
+        }
+        setErrorMessage(msg);
+        setErrorCount((prevCount: number) => prevCount + 1);
+      } finally {
+        setIsConfirming(false);
+      }
+      return;
+    }
+
+    // Offramp: require token balance for amount + sender fee
     const totalRequired = amountSent + senderFeeAmount;
 
     if (totalRequired > balance) {
@@ -569,10 +878,6 @@ export const TransactionPreview = ({
     try {
       setIsConfirming(true);
       await createOrder();
-    } catch (e) {
-      const error = e as BaseError;
-      setErrorMessage(error.shortMessage || error.message);
-      setErrorCount((prevCount: number) => prevCount + 1);
     } finally {
       setIsConfirming(false);
     }
@@ -581,9 +886,12 @@ export const TransactionPreview = ({
   const saveTransactionData = async ({
     orderId,
     txHash,
+    providerAccount,
   }: {
     orderId: string;
-    txHash: `0x${string}`;
+    txHash?: `0x${string}`;
+    /** Pass from create-order response so bank name is saved before React state updates. */
+    providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {
     if (!activeWallet?.address || isSavingTransaction) return;
     setIsSavingTransaction(true);
@@ -596,25 +904,34 @@ export const TransactionPreview = ({
 
       const transaction: TransactionCreateInput = {
         walletAddress: activeWallet.address,
-        transactionType: "swap",
-        fromCurrency: token,
-        toCurrency: currency,
+        transactionType: isOnramp ? "onramp" : "swap",
+        fromCurrency: isOnramp ? currency : token,
+        toCurrency: isOnramp ? token : currency,
         amountSent: Number(amountSent),
         amountReceived: Number(amountReceived),
         fee: Number(rate),
-        recipient: {
-          account_name: recipientName,
-          institution: getInstitutionNameByCode(
-            institution,
-            supportedInstitutions,
-          ) as string,
-          account_identifier: accountIdentifier,
-          ...(memo && { memo }),
-        },
+        recipient: isOnramp
+          ? {
+            account_name: recipientName || walletAddress || "",
+            institution:
+              providerAccount?.institution?.trim() ||
+              onrampPaymentAccount?.institution?.trim() ||
+              "Wallet",
+            account_identifier: walletAddress || "",
+          }
+          : {
+            account_name: recipientName,
+            institution: getInstitutionNameByCode(
+              institution,
+              supportedInstitutions,
+            ) as string,
+            account_identifier: accountIdentifier,
+            ...(memo && { memo }),
+          },
         status: "pending",
         network: selectedNetwork.chain.name,
         orderId: orderId,
-        txHash: txHash,
+        ...(txHash ? { txHash } : {}),
         email: user?.email?.address ?? undefined,
       };
 
@@ -652,7 +969,7 @@ export const TransactionPreview = ({
         cleanup();
         reject(
           new Error(
-            "Unable to confirm order on-chain, but your transaction may still be processing. Please check your transaction history before retrying.",
+            "Unable to confirm order onchain, but your transaction may still be processing. Please check your transaction history before retrying.",
           ),
         );
       }, MAX_POLL_DURATION_MS);
@@ -744,37 +1061,49 @@ export const TransactionPreview = ({
       </div>
 
       <div className="grid gap-4">
-        {Object.entries(renderedInfo).map(([key, value]) => (
-          <div key={key} className="flex items-start justify-between gap-2">
-            <h3 className="w-full max-w-28 text-text-secondary dark:text-white/50 sm:max-w-40">
-              {key === "totalValue"
-                ? "Total value"
-                : key.charAt(0).toUpperCase() + key.slice(1)}
-            </h3>
+        {Object.entries(renderedInfo).map(([key, value]) => {
+          const showTokenLogo =
+            (isOnramp && key === "totalValue") ||
+            (!isOnramp && (key === "amount" || key === "fee"));
 
-            <p className="flex flex-grow items-center gap-1 font-medium text-text-body dark:text-white/80">
-              {(key === "amount" || key === "fee") && (
-                <Image
-                  src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
-                  alt={`${token} logo`}
-                  width={14}
-                  height={14}
-                />
-              )}
+          return (
+            <div key={key} className="flex items-start justify-between gap-2">
+              <h3 className="w-full max-w-28 text-text-secondary dark:text-white/50 sm:max-w-40">
+                {key === "totalValue"
+                  ? isOnramp
+                    ? "Receive amount"
+                    : "Total value"
+                  : key === "amount"
+                    ? isOnramp
+                      ? "You send"
+                      : "Amount"
+                    : key.charAt(0).toUpperCase() + key.slice(1)}
+              </h3>
 
-              {key === "network" && (
-                <Image
-                  src={getNetworkImageUrl(selectedNetwork, isDark)}
-                  alt={selectedNetwork.chain.name}
-                  width={14}
-                  height={14}
-                />
-              )}
+              <p className="flex flex-grow items-center gap-1 font-medium text-text-body dark:text-white/80">
+                {showTokenLogo && (
+                  <Image
+                    src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
+                    alt={`${token} logo`}
+                    width={14}
+                    height={14}
+                  />
+                )}
 
-              {value}
-            </p>
-          </div>
-        ))}
+                {key === "network" && (
+                  <Image
+                    src={getNetworkImageUrl(selectedNetwork, isDark)}
+                    alt={selectedNetwork.chain.name}
+                    width={14}
+                    height={14}
+                  />
+                )}
+
+                {value}
+              </p>
+            </div>
+          );
+        })}
       </div>
 
       {/* Transaction detail disclaimer */}
@@ -786,8 +1115,69 @@ export const TransactionPreview = ({
         </p>
       </div>
 
-      {/* Transaction Steps Indicator - Only show for injected wallet */}
-      {isInjectedWallet && (
+      {isOnramp && (
+        <>
+          <div className="space-y-2">
+            <p className="text-sm text-neutral-500 dark:text-white/50">
+              Refund account
+            </p>
+            <button
+              type="button"
+              onClick={() => setRefundAccountModalOpen(true)}
+              aria-label={refundAccount ? "Edit refund account" : "Add refund account"}
+              className="flex w-full items-center justify-between gap-3 rounded-xl border-[3.3px] border-lavender-500 bg-transparent px-3 py-3 text-left transition-colors hover:border-lavender-400 hover:bg-lavender-500/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500/35 dark:hover:border-lavender-400 dark:hover:bg-lavender-400/10 dark:focus-visible:ring-lavender-400/30"
+            >
+              <span className="text-sm text-text-body dark:text-white">
+                {refundAccount ? (
+                  <>
+                    <span>{refundAccount.accountName} </span>
+                    <span className="font-semibold">{refundAccount.accountNumber} | {refundAccount.institutionName}</span>
+                  </>
+                ) : (
+                  "Add Refund Account"
+                )}
+              </span>
+              <span
+                className="shrink-0 text-text-body dark:text-white/90"
+                aria-hidden
+              >
+                {refundAccount ? (
+                  <BiEdit className="size-5" />
+                ) : (
+                  <IoAdd className="size-5" />
+                )}
+              </span>
+            </button>
+          </div>
+          <AddRefundAccountModal
+            isOpen={refundAccountModalOpen}
+            onClose={() => setRefundAccountModalOpen(false)}
+            institutions={supportedInstitutions}
+            isFetchingInstitutions={isFetchingInstitutions}
+            currency={currency}
+            initial={refundAccount}
+            onSave={async (data: RefundAccountDetails) => {
+              const token = await getAccessToken();
+              if (!token) {
+                throw new Error("Please sign in to save your refund account.");
+              }
+              const isEdit = refundAccount !== null;
+              const saved = await saveRefundAccount(data, token);
+              setRefundAccount(saved);
+              setRefundAccountWasEdited(isEdit);
+            }}
+            onSaved={() => setRefundAccountSuccessOpen(true)}
+          />
+          <RefundAccountSuccessModal
+            isOpen={refundAccountSuccessOpen}
+            onClose={() => setRefundAccountSuccessOpen(false)}
+            isEditing={refundAccountWasEdited}
+          />
+        </>
+      )}
+
+      {/* Transaction Steps Indicator - Only for offramp + injected wallet */}
+      {isInjectedWallet && !isOnramp && (
         <>
           <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
 
@@ -845,7 +1235,11 @@ export const TransactionPreview = ({
           type="submit"
           className={classNames(primaryBtnClasses, "w-full")}
           onClick={handlePaymentConfirmation}
-          disabled={isConfirming || isPollingOrderId}
+          disabled={
+            isConfirming ||
+            isPollingOrderId ||
+            (isOnramp && !refundAccount)
+          }
         >
           {isConfirming || isPollingOrderId ? (
             <span className="flex items-center justify-center gap-2">

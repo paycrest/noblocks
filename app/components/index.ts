@@ -1,3 +1,4 @@
+// Prefer direct imports from source files to avoid pulling the full module graph.
 export { Navbar } from "./Navbar";
 export { Footer } from "./Footer";
 export { Preloader } from "./Preloader";
@@ -30,6 +31,7 @@ export { Disclaimer } from "./Disclaimer";
 
 export { TransactionForm } from "../pages/TransactionForm";
 export { TransactionPreview } from "../pages/TransactionPreview";
+export { MakePayment } from "../pages/MakePayment";
 export { TransactionStatus } from "../pages/TransactionStatus";
 
 export { InputError } from "./InputError";

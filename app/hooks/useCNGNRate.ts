@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchRate } from "../api/aggregator";
 import { getPreferredRateToken, normalizeNetworkForRateFetch } from "../utils";
+import { ERROR_MESSAGES } from "../lib/errorMessages";
 
 // Constants for rate fetching configuration
 const CNGN_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
@@ -90,6 +91,7 @@ async function fetchRateWithTimeout(
       amount: 100,
       currency: "NGN",
       network: normalizeNetworkForRateFetch(network),
+      side: "sell",
       signal: controller.signal,
     });
 
@@ -192,6 +194,15 @@ export function useCNGNRate({
       return;
     }
 
+    // Skip rate fetching for Starknet networks (testnet, not supported by aggregator)
+    if (network.toLowerCase().includes("starknet")) {
+      console.log("Skipping rate fetch for Starknet network:", network);
+      setRate(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -200,7 +211,7 @@ export function useCNGNRate({
       setRate(result.rate);
       if (result.source === "expired-cache") {
         setError(
-          "Using outdated cached rate (network issues - please refresh)",
+          "Rate may be outdated due to connection issues. Please refresh when possible.",
         );
       } else {
         setError(null);
@@ -210,9 +221,7 @@ export function useCNGNRate({
     }
 
     setRate(null);
-    setError(
-      "Unable to fetch CNGN rate - please check your internet connection",
-    );
+    setError(ERROR_MESSAGES.NETWORK);
     setIsLoading(false);
   }, [network]);
 
@@ -242,6 +251,10 @@ export function useCNGNRate({
 export async function getCNGNRateForNetwork(
   network: string,
 ): Promise<number | null> {
+  if (!network) return null;
+  if (network.toLowerCase().includes("starknet")) {
+    return null;
+  }
   const result = await fetchCNGNRateWithFallback(network);
   return result.rate;
 }

@@ -11,7 +11,7 @@ import { ImSpinner } from "react-icons/im";
 import { resetNetworkModalDismissed } from "../lib/networkModalStore";
 import { PiCheck } from "react-icons/pi";
 import { useOutsideClick } from "../hooks";
-import { classNames, shortenAddress } from "../utils";
+import { classNames, copyToClipboard, shortenAddress } from "../utils";
 import { dropdownVariants } from "./AnimatedComponents";
 import {
   Copy01Icon,
@@ -20,13 +20,15 @@ import {
   Setting07Icon,
   Wallet01Icon,
   Key01Icon,
-  Download01Icon,
   AccessIcon,
+  ColorsIcon,
 } from "hugeicons-react";
 import { toast } from "sonner";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
+import { ThemeSwitch } from "./ThemeSwitch";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { clearUserSessionData } from "../lib/session-cleanup";
@@ -38,6 +40,7 @@ export const SettingsDropdown = () => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const shouldUseEOA = useShouldUseEOA();
+  const hookWalletAddress = useWalletAddress();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -49,25 +52,24 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
-  // Get embedded wallet (EOA) and smart wallet (SCW)
   const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
+    (wallet) => wallet.walletClientType === "privy",
   );
   const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet"
+    (account) => account.type === "smart_wallet",
   );
 
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
-  // Before migration: show SCW (old wallet)
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : shouldUseEOA
-      ? embeddedWallet?.address
-      : smartWallet?.address;
+  const walletAddress =
+    hookWalletAddress ??
+    (isInjectedWallet
+      ? injectedAddress
+      : shouldUseEOA
+        ? embeddedWallet?.address
+        : smartWallet?.address);
 
-  const handleCopyAddress = () => {
-    navigator.clipboard.writeText(walletAddress ?? "");
+  const handleCopyAddress = async () => {
+    const ok = await copyToClipboard(walletAddress ?? "", "Address");
+    if (!ok) return;
     setIsAddressCopied(true);
     setTimeout(() => setIsAddressCopied(false), 2000);
     setIsWarningModalOpen(true);
@@ -149,6 +151,12 @@ export const SettingsDropdown = () => {
       }
 
       clearUserSessionData(user?.id, user?.wallet?.address);
+
+      localStorage.removeItem(`starknet_walletId_${user?.id}`);
+      localStorage.removeItem(`starknet_address_${user?.id}`);
+      localStorage.removeItem(`starknet_publicKey_${user?.id}`);
+      localStorage.removeItem(`starknet_deployed_${user?.id}`);
+
       await logout();
 
       if (window.ethereum) {
@@ -309,6 +317,13 @@ export const SettingsDropdown = () => {
                 </li>
               )}
             </ul>
+            <div className="-mx-2 mt-0 flex items-center justify-between gap-3 border-t border-border-light pb-2 pl-6 pr-4 pt-4 dark:border-white/10">
+              <div className="flex items-center gap-2.5">
+                <ColorsIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                <p>Theme</p>
+              </div>
+              <ThemeSwitch />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -88,6 +88,12 @@ export const RecipientDetailsForm = ({
   const [isManualEntry, setIsManualEntry] = useState(true);
   const [isReturningFromPreview, setIsReturningFromPreview] = useState(false);
 
+  /** NGN NUBAN: cap at 10 digits (6 for SAFAKEPC). Other currencies: no digit cap. */
+  const ngnAccountMaxDigits = useMemo(() => {
+    if (currency !== "NGN") return null;
+    return selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
+  }, [currency, selectedInstitution?.code]);
+
   const prevCurrencyRef = useRef(currency);
   const isDark = useActualTheme();
 
@@ -293,15 +299,8 @@ export const RecipientDetailsForm = ({
       const digits = String(accountIdentifier ?? "").replace(/\D/g, "");
       const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
 
-      if (
-        !institution ||
-        !accountIdentifier ||
-        accountIdentifier.toString().length <
-        (selectedInstitution?.code === "SAFAKEPC" ? 6 : 10)
-      ) {
-        if (!institution || !accountIdentifier) {
-          setRecipientNameError("");
-        }
+      if (!institution || !accountIdentifier) {
+        setRecipientNameError("");
         return;
       }
 
@@ -351,6 +350,7 @@ export const RecipientDetailsForm = ({
     setValue,
     isManualEntry,
     selectedInstitution?.code,
+    currency,
   ]);
 
   useEffect(() => {
@@ -427,6 +427,24 @@ export const RecipientDetailsForm = ({
   const showSelectBeneficiaryButton =
     (isSwapped && walletRecipients.length > 0) ||
     (!isSwapped && bankRecipients.length > 0);
+
+  const accountIdentifierRegister = register("accountIdentifier", {
+    required: {
+      value: true,
+      message: "Account number is required",
+    },
+    validate: (value) => {
+      if (currency !== "NGN") return true;
+      const digits = String(value ?? "").replace(/\D/g, "");
+      const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
+      if (digits.length !== requiredLen) {
+        return requiredLen === 10
+          ? "Please enter a valid 10-digit account Number."
+          : "Invalid account number. Please enter a 6-digit account number.";
+      }
+      return true;
+    },
+  });
 
   return (
     <>
@@ -554,23 +572,35 @@ export const RecipientDetailsForm = ({
               </div>
 
               {/* Account number */}
+              {/* Account number - NUBAN is 10 digits; SAFAKEPC uses 6 digits (NGN only) */}
               <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
                   placeholder="Account number"
-                  {...register("accountIdentifier", {
-                    required: {
-                      value: true,
-                      message: "Account number is required",
-                    },
-                    minLength: {
-                      value: selectedInstitution?.code === "SAFAKEPC" ? 6 : 10,
-                      message: "Account number is invalid",
-                    },
-                    onChange: () => setIsManualEntry(true),
-                  })}
+                  maxLength={
+                    currency === "NGN"
+                      ? selectedInstitution?.code === "SAFAKEPC"
+                        ? 6
+                        : 10
+                      : undefined
+                  }
+                  {...accountIdentifierRegister}
+                  onChange={(e) => {
+                    setIsManualEntry(true);
+                    if (currency === "NGN" && ngnAccountMaxDigits !== null) {
+                      const next = e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, ngnAccountMaxDigits);
+                      if (next !== e.target.value) {
+                        e.target.value = next;
+                      }
+                    }
+                    void accountIdentifierRegister.onChange(e);
+                  }}
                   className={classNames(
-                    "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
+                    "w-full rounded-xl border bg-transparent px-4 py-2.5 text-base outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30 sm:text-sm",
                     errors.accountIdentifier
                       ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
                       : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",

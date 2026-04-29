@@ -25,8 +25,18 @@ import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useTransactions } from "../context/TransactionsContext";
 import { networks } from "../mocks";
-import { Network, Token, TransactionHistory } from "../types";
-import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
+import {
+  Network,
+  Token,
+  TransactionHistory,
+  type MobileSheetView,
+} from "../types";
+import {
+  WalletView,
+  HistoryView,
+  SettingsView,
+  ReferralDashboardView,
+} from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm } from "./FundWalletForm";
 import { TransferForm } from "./TransferForm";
@@ -43,7 +53,12 @@ export const MobileDropdown = ({
   onClose: () => void;
 }) => {
   const [currentView, setCurrentView] = useState<
-    "wallet" | "settings" | "transfer" | "fund" | "history"
+    | "wallet"
+    | "settings"
+    | "transfer"
+    | "fund"
+    | "history"
+    | "referrals"
   >("wallet");
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -288,6 +303,14 @@ export const MobileDropdown = ({
                               onHistory={() => setCurrentView("history")}
                               setSelectedNetwork={setSelectedNetwork}
                               onRefreshBalance={refreshBalance}
+                              onViewReferrals={() => setCurrentView("referrals")}
+                            />
+                          )}
+
+                          {currentView === "referrals" && (
+                            <ReferralDashboardView
+                              isOpen
+                              onClose={() => setCurrentView("wallet")}
                             />
                           )}
 

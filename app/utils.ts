@@ -1694,6 +1694,72 @@ export function calculateSenderFee(
 }
 
 /**
+ * Avatar path from wallet address (referral leaderboard, etc.).
+ * Loops through 8 avatars (Avatar.png, Avatar1.png through Avatar7.png)
+ */
+export const getAvatarImageFromAddress = (address: string): string => {
+  const avatarCount = 8;
+  const index = parseInt(address.slice(2, 4), 16) % avatarCount;
+
+  if (index === 0) {
+    return "/images/avatar/Avatar.png";
+  }
+  return `/images/avatar/Avatar${index}.png`;
+};
+
+/**
+ * Copy referral code to clipboard
+ * @param referralCode - The referral code to copy
+ * @param onCopied - Callback function to handle copied state (optional)
+ */
+export const handleCopyCode = (
+  referralCode: string | undefined,
+  onCopied?: (value: boolean) => void
+): void => {
+  if (referralCode) {
+    try {
+      navigator.clipboard.writeText(referralCode);
+      if (onCopied) {
+        onCopied(true);
+        setTimeout(() => onCopied(false), 2000);
+      }
+    } catch (error) {
+      console.error("Failed to copy referral code:", error);
+    }
+  }
+};
+
+/**
+ * Copy referral invite link to clipboard
+ * @param referralCode - The referral code to use in the link
+ */
+export const handleCopyLink = (referralCode: string | undefined): void => {
+  if (referralCode) {
+    const link = `${window.location.origin}?ref=${referralCode}`;
+    try {
+      navigator.clipboard.writeText(link);
+      toast.success("Referral link copied!");
+    } catch (error) {
+      console.error("Failed to copy referral link:", error);
+      toast.error("Failed to copy link");
+    }
+  }
+};
+
+/**
+ * Generate a unique 6-character referral code (NB + 4 alphanumeric)
+ * Format: NB[A-Z0-9]{4}
+ */
+export function generateReferralCode(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let code = "NB";
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+/**
  * Gets the avatar image path based on index, cycling through 1-4
  */
 export const getAvatarImage = (index: number): string => {

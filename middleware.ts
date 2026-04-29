@@ -344,6 +344,8 @@ export const config = {
     "/api/blockfest/cashback",
     "/api/bundler",
     "/api/bundler/:path*",
+    "/api/referral",
+    "/api/referral/:path*",
     "/api/starknet/transfer",
     "/api/starknet/create-order",
     // (optional) add other instrumented API routes:

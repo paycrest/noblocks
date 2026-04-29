@@ -22,7 +22,6 @@ import {
   RefreshIcon,
 } from "hugeicons-react";
 import Image from "next/image";
-import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 import { Dialog } from "@headlessui/react";
@@ -43,7 +42,8 @@ import { FundWalletForm } from "./FundWalletForm";
 import { TransferForm } from "./TransferForm";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import WalletMigrationModal from "./WalletMigrationModal";
-import { useCNGNRate } from "../hooks/useCNGNRate";
+import { ReferralCTA } from "./ReferralCTA";
+import { ReferralDashboard } from "./ReferralDashboard";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -58,6 +58,7 @@ export const WalletDetails = () => {
     "balances",
   );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isReferralOpen, setIsReferralOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionHistory | null>(null);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -79,19 +80,6 @@ export const WalletDetails = () => {
   const isDark = useActualTheme();
   const shouldUseEOA = useShouldUseEOA();
   const hookWalletAddress = useWalletAddress();
-
-  // Custom hook for handling wallet funding
-  const { handleFundWallet } = useFundWalletHandler("Wallet details");
-
-  // Custom hook for CNGN rate fetching
-  const {
-    rate,
-    isLoading: isRateLoading,
-    error: rateError,
-  } = useCNGNRate({
-    network: selectedNetwork.chain.name,
-    dependencies: [selectedNetwork],
-  });
 
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -150,20 +138,6 @@ export const WalletDetails = () => {
       hasOnrampAwaitingBankTransfer(transactions),
     [isOnrampProviderDetailsOpen, transactions, onrampDotRevision],
   );
-
-  // Handler for funding wallet with specified amount and token
-  const handleFundWalletClick = async (
-    amount: string,
-    tokenAddress: `0x${string}`,
-    onComplete?: (success: boolean) => void,
-  ) => {
-    await handleFundWallet(
-      activeWallet?.address ?? "",
-      amount,
-      tokenAddress,
-      onComplete,
-    );
-  };
 
   // Close sidebar and reset selected transaction
   const handleSidebarClose = () => {
@@ -356,6 +330,15 @@ export const WalletDetails = () => {
                       )}
                     </div>
 
+                    <div className="mt-8">
+                      <ReferralCTA
+                        onViewReferrals={() => {
+                          handleSidebarClose();
+                          setTimeout(() => setIsReferralOpen(true), 260);
+                        }}
+                      />
+                    </div>
+
                     {/* Tab navigation */}
                     <div className="mt-6 flex items-center gap-6">
                       <button
@@ -531,6 +514,11 @@ export const WalletDetails = () => {
           </Dialog>
         )}
       </AnimatePresence>
+
+      <ReferralDashboard
+        isOpen={isReferralOpen}
+        onClose={() => setIsReferralOpen(false)}
+      />
 
       {/* Transfer and Fund modals */}
       {!isInjectedWallet && (

@@ -1,8 +1,11 @@
+import type { NextRequest } from "next/server";
 import {
   PrivyClient,
   LinkedAccountWithMetadata,
   WalletWithMetadata,
 } from "@privy-io/server-auth";
+import { verifyJWT } from "./jwt";
+import { DEFAULT_PRIVY_CONFIG } from "./config";
 
 let client: PrivyClient | undefined
 
@@ -73,5 +76,28 @@ export async function getSmartWalletAddressFromPrivyUserId(
     return smartWalletAddress.toLowerCase();
   } catch (error) {
     throw error;
+  }
+}
+
+/**
+ * Resolves the Privy user id (JWT `sub`) for API routes.
+ * Prefer `x-user-id` from middleware; if missing, verify the Bearer token.
+ */
+export async function getPrivyUserIdFromRequest(
+  request: NextRequest,
+): Promise<string | null> {
+  const fromMiddleware = request.headers.get("x-user-id");
+  if (fromMiddleware) return fromMiddleware;
+
+  const auth = request.headers.get("Authorization");
+  const token = auth?.replace(/^Bearer\s+/i, "")?.trim();
+  if (!token) return null;
+
+  try {
+    const { payload } = await verifyJWT(token, DEFAULT_PRIVY_CONFIG);
+    const sub = payload.sub;
+    return typeof sub === "string" ? sub : null;
+  } catch {
+    return null;
   }
 }

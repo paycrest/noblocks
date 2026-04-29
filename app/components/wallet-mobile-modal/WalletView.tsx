@@ -13,13 +13,14 @@ import {
 import { CrossChainBalanceSkeleton } from "../BalanceSkeleton";
 import { classNames, getNetworkImageUrl } from "../../utils";
 import type { CrossChainBalanceEntry } from "../../context";
+import { ReferralCTA } from "../ReferralCTA";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
 );
 
 // Types for props
-interface WalletViewProps {
+export interface WalletViewProps {
   isInjectedWallet: boolean;
   detectWalletProvider: () => string;
   isLoading: boolean;
@@ -40,9 +41,10 @@ interface WalletViewProps {
   onHistory: () => void;
   setSelectedNetwork: (network: any) => void;
   onRefreshBalance: () => void;
+  onViewReferrals?: () => void;
 }
 
-export const WalletView: React.FC<WalletViewProps> = ({
+export function WalletView({
   isInjectedWallet,
   detectWalletProvider,
   isLoading,
@@ -62,7 +64,8 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onClose,
   onHistory,
   onRefreshBalance,
-}) => {
+  onViewReferrals,
+}: WalletViewProps) {
   return (
     <div className="mb-[1.5rem] space-y-4">
       <div className="flex items-center justify-between">
@@ -340,6 +343,11 @@ export const WalletView: React.FC<WalletViewProps> = ({
           )}
         </AnimatePresence>
       </div>
+      {!isInjectedWallet && (
+        <ReferralCTA
+          onViewReferrals={onViewReferrals ?? (() => {})}
+        />
+      )}
     </div>
   );
-};
+}

@@ -33,10 +33,13 @@ interface FlexibleDropdownProps {
     selectedItem: DropdownItem | undefined;
     isOpen: boolean;
     toggleDropdown: () => void;
+    disabled: boolean;
   }) => ReactNode;
   className?: string;
   mobileTitle?: string;
   dropdownWidth?: number;
+  /** When true, toggling the menu is blocked (e.g. Starknet on-ramp placeholders). */
+  disabled?: boolean;
 }
 
 function resolveDefaultSelection(
@@ -57,6 +60,7 @@ export const FlexibleDropdown = ({
   className = "",
   mobileTitle = "Select option",
   dropdownWidth,
+  disabled = false,
 }: FlexibleDropdownProps) => {
   const [selectedItem, setSelectedItem] = useState<DropdownItem | undefined>(() =>
     resolveDefaultSelection(defaultSelectedItem, data),
@@ -122,6 +126,12 @@ export const FlexibleDropdown = ({
       window.removeEventListener("scroll", updateDropdownPosition, true);
     };
   }, [isOpen, dropdownWidth]);
+
+  useEffect(() => {
+    if (disabled && isOpen) {
+      setIsOpen(false);
+    }
+  }, [disabled, isOpen]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -251,7 +261,11 @@ export const FlexibleDropdown = ({
         {children({
           selectedItem,
           isOpen,
-          toggleDropdown: () => setIsOpen((v) => !v),
+          disabled,
+          toggleDropdown: () => {
+            if (disabled) return;
+            setIsOpen((v) => !v);
+          },
         })}
       </div>
       {isOpen &&

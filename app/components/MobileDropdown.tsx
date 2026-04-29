@@ -51,6 +51,8 @@ export const MobileDropdown = ({
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
+  const { currentStep } = useStep();
+
   const { user, linkEmail, updateEmail, exportWallet } = usePrivy();
   const { allBalances, crossChainBalances, isLoading, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
@@ -88,8 +90,6 @@ export const MobileDropdown = ({
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
   const walletForCopy = activeWallet;
-
-  const { currentStep } = useStep();
 
   const { disconnectWallet } = useWalletDisconnect();
 

@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
+import axios from "axios";
 import type { TransactionHistory, OrderDetailsData } from "../types";
 import {
   fetchTransactions,
@@ -280,8 +281,15 @@ export function TransactionsProvider({
           );
         }
       } catch (error) {
+        if (axios.isAxiosError(error)) {
+          console.error("Error fetching transactions:", {
+            status: error.response?.status,
+            message: error.message,
+          });
+        } else {
+          console.error("Error fetching transactions:", error);
+        }
         setError(error as Error);
-        console.error("Error fetching transactions:", error);
       } finally {
         setIsLoading(false);
       }

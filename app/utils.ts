@@ -54,12 +54,12 @@ export function isWalletRecipient(
 }
 
 /**
- * Concatenates and returns a string of class names.
+ * Concatenates class names; skips falsy entries (supports `condition && "class"`).
  *
- * @param classes - The class names to concatenate.
+ * @param classes - Strings and/or falsy placeholders.
  * @returns A string of concatenated class names.
  */
-export function classNames(...classes: string[]) {
+export function classNames(...classes: (string | false | undefined | null)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
@@ -1038,6 +1038,16 @@ export function normalizeStarknetAddress(address: string): string {
  */
 export function normalizeNetworkForRateFetch(network: string): string {
   return network.toLowerCase().replace(/\s+/g, "-");
+}
+
+/** True for Starknet mainnet (mock chain + viem-style `network` slug). */
+export function isStarknetChain(chain: {
+  name?: string;
+  network?: string;
+} | null | undefined): boolean {
+  if (!chain) return false;
+  if (chain.name === "Starknet") return true;
+  return chain.network === "starknet-mainnet";
 }
 
 /**

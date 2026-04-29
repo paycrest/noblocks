@@ -21,3 +21,4 @@ export {
   MigrationStatusProvider,
   useMigrationStatus,
 } from "./MigrationStatusContext";
+export { StarknetProvider, useStarknet } from "./StarknetContext";

@@ -73,9 +73,16 @@ export const TransactionForm = ({
   const { authenticated, ready, login, user } = usePrivy();
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
+  const {
+    smartWalletBalance,
+    externalWalletBalance,
+    injectedWalletBalance,
+    starknetWalletBalance,
+    isLoading,
+  } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
-  const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
+  const { needsMigration, isRemainingFundsMigration } =
+    useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
 
@@ -150,9 +157,11 @@ export const TransactionForm = ({
   // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
   const activeBalance = isInjectedWallet
     ? injectedWalletBalance
-    : shouldUseEOA
-      ? externalWalletBalance
-      : smartWalletBalance;
+    : selectedNetwork.chain.name === "Starknet"
+      ? starknetWalletBalance
+      : shouldUseEOA
+        ? externalWalletBalance
+        : smartWalletBalance;
 
   // For CNGN, use raw balance instead of USD equivalent. If rawBalances doesn't contain
   // the token, treat as zero rather than falling back to USD-denominated balance.

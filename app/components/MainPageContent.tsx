@@ -20,7 +20,11 @@ import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
-import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
+import {
+  fetchRate,
+  fetchSupportedInstitutions,
+  migrateLocalStorageRecipients,
+} from "../api/aggregator";
 import { normalizeNetworkForRateFetch } from "../utils";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
@@ -42,6 +46,8 @@ import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
 import { useBalance, useInjectedWallet } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
+import { useWalletAddress } from "../hooks/useWalletAddress";
+import { networks } from "../mocks";
 const PageLayout = ({
   authenticated,
   ready,
@@ -62,19 +68,14 @@ const PageLayout = ({
   const { claimed, resetClaim } = useBlockFestClaim();
   const { user } = usePrivy();
   const { isOpen, openModal, closeModal } = useBlockFestModal();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isInjectedWallet } = useInjectedWallet();
+  const walletAddress = useWalletAddress();
 
-  // Clean up claim state when user logs out
   useEffect(() => {
     if (!authenticated && !isInjectedWallet) {
       resetClaim();
     }
   }, [authenticated, isInjectedWallet, resetClaim]);
-
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-      ?.address;
 
   return (
     <>
@@ -138,7 +139,8 @@ export function MainPageContent() {
   } = useStep();
   const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
   const { crossChainBalances, isLoading: isBalanceLoading } = useBalance();
-  const { selectedNetwork, setDisplayedNetwork } = useNetwork();
+  const { selectedNetwork, setDisplayedNetwork, setSelectedNetwork } =
+    useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -198,6 +200,31 @@ export function MainPageContent() {
   } = watch();
   /** On-ramp (fiat→crypto): same as TransactionForm `isSwapped` / v2 `buy` side. */
   const isOnrampRate = Boolean(isSwapped);
+
+  /**
+   * On-ramp is not supported on Starknet. Switch to an EVM network and notify the user.
+   */
+  useEffect(
+    function leaveStarknetForOnramp() {
+      if (!isSwapped || selectedNetwork.chain.name !== "Starknet") return;
+      const fallback = networks.find((n) => n.chain.name !== "Starknet");
+      if (!fallback) return;
+
+      if (isInjectedWallet) {
+        toast.warning("Starknet isn’t supported for on-ramp.", {
+          id: "onramp-starknet-injected",
+          description: "Pick an EVM network in the network dropdown to continue.",
+        });
+        return;
+      }
+
+      setSelectedNetwork(fallback);
+      toast.info("Starknet isn’t supported for on-ramp.", {
+        description: `Switched network to ${fallback.chain.name}.`,
+      });
+    },
+    [isSwapped, selectedNetwork.chain.name, setSelectedNetwork, isInjectedWallet],
+  );
 
   // State props for child components
   const stateProps: StateProps = {

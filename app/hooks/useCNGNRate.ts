@@ -194,6 +194,15 @@ export function useCNGNRate({
       return;
     }
 
+    // Skip rate fetching for Starknet networks (testnet, not supported by aggregator)
+    if (network.toLowerCase().includes("starknet")) {
+      console.log("Skipping rate fetch for Starknet network:", network);
+      setRate(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -242,6 +251,10 @@ export function useCNGNRate({
 export async function getCNGNRateForNetwork(
   network: string,
 ): Promise<number | null> {
+  if (!network) return null;
+  if (network.toLowerCase().includes("starknet")) {
+    return null;
+  }
   const result = await fetchCNGNRateWithFallback(network);
   return result.rate;
 }

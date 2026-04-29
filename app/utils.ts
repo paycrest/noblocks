@@ -259,6 +259,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://blockscout.lisk.com/tx/${txHash}`;
     case "Ethereum":
       return `https://etherscan.io/tx/${txHash}`;
+    case "Starknet":
+      return `https://voyager.online/tx/${txHash}`;
     default:
       return "";
   }
@@ -284,6 +286,8 @@ export function getRpcUrl(network: string) {
       return `https://api-lisk-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Ethereum":
       return `https://api-ethereum-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
+    case "Starknet":
+      return process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
     default:
       return undefined;
   }
@@ -516,6 +520,24 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/cngn-logo.svg",
     },
   ],
+  Starknet: [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address:
+        "0x033068F6539f8e6e6b131e6B2B814e6c34A5224bC66947c47DaB9dFeE93b35fb",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address:
+        "0x068F5c6a61780768455de69077E07e89787839bf8166dEcfBf92B645209c0fB8",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+  ],
 };
 
 /**
@@ -560,6 +582,7 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
           }
           tokens[networkName].push(transformToken(apiToken));
         });
+
         // Merge fallback tokens for any networks missing from API response
         Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
           if (!tokens[networkName] || tokens[networkName].length === 0) {
@@ -581,48 +604,88 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
   }
 }
 
+/** One balance row per token on a single chain ({@link UnifiedWalletBalances}). */
+export type ChainBalanceEntry = {
+  chainName: string;
+  chainId?: number;
+  symbol: string;
+  address: string;
+  decimals: number;
+  /** Human-readable units (same convention as legacy `balances[symbol]`). */
+  balance: number;
+  balanceWei?: bigint;
+};
+
 /**
- * Fetches the wallet balances for the specified network and address.
- *
- * @param network - The network name.
- * @param address - The wallet address.
- * @returns An object containing the total balance and individual token balances.
+ * Canonical balance snapshot for either EVM (viem client) or Starknet (RPC provider).
  */
-export async function fetchWalletBalance(
+export type UnifiedWalletBalances = {
+  chainName: string;
+  chainId?: number;
+  entries: ChainBalanceEntry[];
+  total: number;
+  balances: Record<string, number>;
+  balancesInWei?: Record<string, bigint>;
+  /** Starknet parity: mirrors `balances` (display units), not an external oracle. */
+  balancesUsd?: Record<string, number>;
+};
+
+export type FetchBalancesForChainArgs =
+  | {
+      kind: "evm";
+      client: any;
+      walletAddress: string;
+    }
+  | {
+      kind: "starknet";
+      walletAddress: string;
+      tokens?: Token[];
+    };
+
+async function fetchEvmBalancesUnified(
   client: any,
   address: string,
-): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
+): Promise<UnifiedWalletBalances> {
   const supportedTokens = await getNetworkTokens(client.chain?.name);
-  if (!supportedTokens) return { total: 0, balances: {}, balancesInWei: {} };
+  const chainName = client.chain?.name ?? "Unknown";
+  const chainId =
+    typeof client.chain?.id === "number" ? client.chain.id : undefined;
+
+  const empty = (): UnifiedWalletBalances => ({
+    chainName,
+    chainId,
+    entries: [],
+    total: 0,
+    balances: {},
+    balancesInWei: {},
+  });
+
+  if (!supportedTokens) return empty();
 
   let totalBalance = 0;
   const balances: Record<string, number> = {};
   const balancesInWei: Record<string, bigint> = {};
 
   try {
-    // Fetch balances in parallel
     const balancePromises = supportedTokens.map(async (token: Token) => {
       try {
         if (token.isNative && token.address === "") {
-          // Native token balance (ETH, BNB, etc.)
           const balanceInWei = await client.getBalance({ address });
           balancesInWei[token.symbol] = balanceInWei;
           const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
           balances[token.symbol] = isNaN(balance) ? 0 : balance;
           return balances[token.symbol];
-        } else {
-          // ERC-20 token balance
-          const balanceInWei = await client.readContract({
-            address: token.address as `0x${string}`,
-            abi: erc20Abi,
-            functionName: "balanceOf",
-            args: [address as `0x${string}`],
-          });
-          balancesInWei[token.symbol] = balanceInWei as bigint;
-          const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-          balances[token.symbol] = isNaN(balance) ? 0 : balance;
-          return balances[token.symbol];
         }
+        const balanceInWei = await client.readContract({
+          address: token.address as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [address as `0x${string}`],
+        });
+        balancesInWei[token.symbol] = balanceInWei as bigint;
+        const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+        balances[token.symbol] = isNaN(balance) ? 0 : balance;
+        return balances[token.symbol];
       } catch (error) {
         console.error(`Error fetching balance for ${token.symbol}:`, error);
         balances[token.symbol] = 0;
@@ -631,20 +694,163 @@ export async function fetchWalletBalance(
       }
     });
 
-    // Wait for all promises to resolve
     const tokenBalances = await Promise.all(balancePromises);
     totalBalance = tokenBalances.reduce(
       (acc: number, curr: number) => (acc || 0) + (curr || 0),
       0,
     );
-  } catch (error) {
-    return { total: 0, balances: {}, balancesInWei: {} };
+
+    const entries: ChainBalanceEntry[] = supportedTokens.map((token) => ({
+      chainName,
+      chainId,
+      symbol: token.symbol,
+      address: token.address ?? "",
+      decimals: token.decimals,
+      balance: balances[token.symbol] ?? 0,
+      balanceWei: balancesInWei[token.symbol],
+    }));
+
+    return {
+      chainName,
+      chainId,
+      entries,
+      total: isNaN(totalBalance) ? 0 : totalBalance,
+      balances,
+      balancesInWei,
+    };
+  } catch {
+    return empty();
+  }
+}
+
+async function fetchStarknetBalancesUnified(
+  address: string,
+  tokens: Token[],
+): Promise<UnifiedWalletBalances> {
+  const chainName = "Starknet";
+
+  const emptyUsd = (): UnifiedWalletBalances => ({
+    chainName,
+    entries: [],
+    total: 0,
+    balances: {},
+    balancesUsd: {},
+  });
+
+  if (!address || !tokens || tokens.length === 0) {
+    return emptyUsd();
   }
 
+  try {
+    const { createStarknetRpcProvider } = await import("./lib/starknetRpc");
+    const rpcUrl = process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
+    const provider = createStarknetRpcProvider(rpcUrl);
+
+    const balances: Record<string, number> = {};
+    const balancesUsd: Record<string, number> = {};
+
+    const balancePromises = tokens.map(async (token: Token) => {
+      try {
+        const result = await provider.callContract({
+          contractAddress: token.address,
+          entrypoint: "balanceOf",
+          calldata: [address],
+        });
+
+        let balanceInWei: bigint;
+        if (Array.isArray(result) && result.length >= 2) {
+          const low = BigInt(result[0]);
+          const high = BigInt(result[1]);
+          balanceInWei = low + (high << BigInt(128));
+        } else if (Array.isArray(result) && result.length === 1) {
+          balanceInWei = BigInt(result[0]);
+        } else {
+          balanceInWei = BigInt(0);
+        }
+
+        const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+        balances[token.symbol] = isNaN(balance) ? 0 : balance;
+        balancesUsd[token.symbol] = balances[token.symbol];
+        return balances[token.symbol];
+      } catch {
+        balances[token.symbol] = 0;
+        balancesUsd[token.symbol] = 0;
+        return 0;
+      }
+    });
+
+    const perTokenAmounts = await Promise.all(balancePromises);
+    const totalBalance = perTokenAmounts.reduce(
+      (acc: number, curr: number) => (acc || 0) + (curr || 0),
+      0,
+    );
+
+    const entries: ChainBalanceEntry[] = tokens.map((token) => ({
+      chainName,
+      symbol: token.symbol,
+      address: token.address,
+      decimals: token.decimals,
+      balance: balances[token.symbol] ?? 0,
+    }));
+
+    return {
+      chainName,
+      entries,
+      total: isNaN(totalBalance) ? 0 : totalBalance,
+      balances,
+      balancesUsd,
+    };
+  } catch {
+    return emptyUsd();
+  }
+}
+
+/**
+ * Single entry point: load supported-token balances for an EVM client or a Starknet address.
+ * Returns one {@link ChainBalanceEntry} per token plus legacy `balances` / `total` maps.
+ */
+export async function fetchBalancesForChain(
+  args: FetchBalancesForChainArgs,
+): Promise<UnifiedWalletBalances> {
+  if (args.kind === "starknet") {
+    const tokens = args.tokens ?? (await getNetworkTokens("Starknet"));
+    return fetchStarknetBalancesUnified(args.walletAddress, tokens);
+  }
+  return fetchEvmBalancesUnified(args.client, args.walletAddress);
+}
+
+/**
+ * Starknet balances for supported tokens (same human units as EVM).
+ * For `entries` / unified shape see {@link fetchBalancesForChain}.
+ */
+export async function fetchStarknetBalance(
+  address: string,
+  tokens: Token[],
+): Promise<{
+  total: number;
+  balances: Record<string, number>;
+  balancesUsd: Record<string, number>;
+}> {
+  const u = await fetchStarknetBalancesUnified(address, tokens);
   return {
-    total: isNaN(totalBalance) ? 0 : totalBalance,
-    balances,
-    balancesInWei,
+    total: u.total,
+    balances: u.balances,
+    balancesUsd: u.balancesUsd ?? {},
+  };
+}
+
+/**
+ * EVM balances via viem public client. For `entries` / unified shape see {@link fetchBalancesForChain}.
+ */
+export async function fetchWalletBalance(
+  client: any,
+  address: string,
+): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
+  const u = await fetchEvmBalancesUnified(client, address);
+  return {
+    total: u.total,
+    balances: u.balances,
+    balancesInWei: u.balancesInWei ?? {},
   };
 }
 
@@ -684,17 +890,16 @@ export function calculateCorrectedTotalBalance(
 }
 
 /**
- * Fetches wallet balance for a specific network.
- * Creates the appropriate publicClient internally based on the network chain.
+ * Fetches wallet balance for a specific EVM network (builds a viem public client).
  *
  * @param network - The Network object containing chain info
  * @param walletAddress - The wallet address to fetch balance for
- * @returns Promise with total balance and individual token balances
+ * @returns Unified shape (includes `entries`); legacy fields `total`, `balances`, `balancesInWei` preserved
  */
 export async function fetchBalanceForNetwork(
   network: { chain: any },
   walletAddress: string,
-): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
+): Promise<UnifiedWalletBalances> {
   const { createPublicClient, http } = await import("viem");
 
   const rpcUrl = getRpcUrl(network.chain.name);
@@ -704,7 +909,7 @@ export async function fetchBalanceForNetwork(
     transport: http(rpcUrl),
   });
 
-  return fetchWalletBalance(publicClient, walletAddress);
+  return fetchEvmBalancesUnified(publicClient, walletAddress);
 }
 
 /**
@@ -776,6 +981,57 @@ export async function resolveEnsNameOrShorten(
 }
 
 /**
+ * Normalizes a Starknet address to ensure it's properly formatted.
+ * Ensures the address is exactly 66 characters long (0x + 64 hex chars).
+ * Pads with zeros after the 0x prefix if necessary.
+ *
+ * @param address - The Starknet address to normalize (can be shorter than 66 chars)
+ * @returns The normalized address with proper padding (0x0...address)
+ * @throws Error if the address is invalid
+ *
+ * @example
+ * normalizeStarknetAddress("0x1234") => "0x0000000000000000000000000000000000000000000000000000000000001234"
+ * normalizeStarknetAddress("0x04718f5a...") => "0x04718f5a..." (already normalized)
+ */
+export function normalizeStarknetAddress(address: string): string {
+  // Remove any whitespace
+  const trimmedAddress = address?.trim();
+
+  // Validate that address starts with 0x
+  if (!trimmedAddress?.startsWith("0x")) {
+    throw new Error("Starknet address must start with 0x");
+  }
+
+  // Extract hex part (without 0x prefix)
+  const hexPart = trimmedAddress?.slice(2);
+
+  // Validate hex characters
+  if (!/^[a-fA-F0-9]*$/.test(hexPart)) {
+    throw new Error("Invalid hex characters in Starknet address");
+  }
+
+  if (hexPart.length === 0) {
+    throw new Error("Starknet address has no hex digits after 0x");
+  }
+
+  if (/^0+$/.test(hexPart)) {
+    throw new Error("Starknet address cannot be the zero address");
+  }
+
+  // Validate length (must not exceed 64 hex chars)
+  if (hexPart.length > 64) {
+    throw new Error(
+      "Starknet address too long (max 64 hex characters after 0x)",
+    );
+  }
+
+  // Pad with zeros after 0x to make it 66 chars total
+  const paddedHex = hexPart.padStart(64, "0");
+
+  return `0x${paddedHex}`;
+}
+
+/**
  * Normalizes network name for rate fetching API.
  * @param network - The network name to normalize.
  * @returns The normalized network name for rate fetching.
@@ -800,6 +1056,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
     Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
     Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5",
+    Starknet: "0x06ff3a3b1532da65594fc98f9ca7200af6c3dbaf37e7339b0ebd3b3f2390c583",
   }[network];
 }
 
@@ -959,6 +1216,7 @@ function getAddChainParameters(network: Network) {
  * @param setSelectedNetwork - Function to update the selected network state.
  * @param onSuccess - Callback function to execute on successful network switch.
  * @param onError - Callback function to execute on network switch failure.
+ * @param ensureWalletExists - Optional function to ensure Starknet wallet exists (for Starknet).
  */
 export const handleNetworkSwitch = async (
   network: Network,
@@ -966,7 +1224,19 @@ export const handleNetworkSwitch = async (
   setSelectedNetwork: (network: Network) => void,
   onSuccess: () => void,
   onError: (error: Error) => void,
+  ensureWalletExists?: () => Promise<void>,
 ) => {
+  // If switching to Starknet, ensure wallet exists first (do not change network on failure)
+  if (network.chain.name === "Starknet" && ensureWalletExists) {
+    try {
+      await ensureWalletExists();
+    } catch (error) {
+      console.error("Failed to ensure Starknet wallet exists:", error);
+      onError(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
+  }
+
   if (useInjectedWallet && window.ethereum) {
     if (!network.chain?.id) {
       throw new Error(`Missing chainId for network: ${network.chain?.name}`);

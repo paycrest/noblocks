@@ -34,7 +34,37 @@ export const CopyAddressWarningModal: React.FC<
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
-  const supportedNetworks = networks;
+  const isStarknet = selectedNetwork.chain.name === "Starknet";
+  /** EVM deposits use a different address format — never imply Starknet deposits work on Ethereum/Base/etc. */
+  const supportedNetworksDisplayed = isStarknet
+    ? networks.filter((n) => n.chain.name === "Starknet")
+    : networks;
+
+  const modalTitle = "You just copied your wallet address!";
+
+  const depositDescription = (
+    <>
+      Only deposit{" "}
+      <span className="font-semibold">supported stablecoins</span> on{" "}
+      <span className="font-semibold">supported networks</span>.
+      {isStarknet ? (
+        <>
+          {" "}
+          This is a <span className="font-semibold">Starknet</span> address, not an
+          Ethereum address, use it only with Starknet networks (
+          <span className="font-semibold">shown below</span>
+          ).
+        </>
+      ) : null}{" "}
+      Depositing unsupported tokens or using unsupported networks may result in
+      loss of funds.
+    </>
+  );
+
+  const footerWarning =
+    "Use only supported stablecoins & networks. Unsupported ones may lead to loss of funds.";
+
+  const supportedNetworksHeading = "Supported networks";
 
   // Check localStorage on mount to see if user has opted out
   useEffect(() => {
@@ -134,12 +164,12 @@ export const CopyAddressWarningModal: React.FC<
                   <Dialog.Title
                     className="mb-2 text-lg font-semibold text-text-body dark:text-white"
                   >
-                    You just copied your wallet address!
+                    {modalTitle}
                   </Dialog.Title>
                   <Dialog.Description
                     className="max-w-[95%] text-sm font-normal text-text-body dark:text-white/70"
                   >
-                    Only deposit <span className="font-semibold">supported stablecoins</span> on <span className="font-semibold">supported networks</span>. Depositing unsupported tokens or using unsupported networks may result in loss of funds.
+                    {depositDescription}
                   </Dialog.Description>
                 </div>
               </div>
@@ -193,10 +223,10 @@ export const CopyAddressWarningModal: React.FC<
                   ))}
                 </div>
                 <h4 className="mb-1 text-xs font-light text-text-secondary dark:text-white/50">
-                  Supported networks
+                  {supportedNetworksHeading}
                 </h4>
                 <div className="flex h-full w-full flex-wrap gap-2">
-                  {supportedNetworks.map((network) => (
+                  {supportedNetworksDisplayed.map((network) => (
                     <div
                       key={network.chain.id}
                       className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"
@@ -222,7 +252,7 @@ export const CopyAddressWarningModal: React.FC<
               <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
                 <InformationSquareIcon className="mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
                 <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
-                  Use only supported stablecoins & networks. Unsupported ones may lead to loss of funds.
+                  {footerWarning}
                 </p>
               </div>
 
@@ -266,12 +296,12 @@ export const CopyAddressWarningModal: React.FC<
                         <Dialog.Title
                           className="mb-2 text-lg font-semibold text-text-body dark:text-white"
                         >
-                          You just copied your wallet address!
+                          {modalTitle}
                         </Dialog.Title>
                         <Dialog.Description
                           className="max-w-[95%] text-sm font-normal text-text-body dark:text-white/70"
                         >
-                          Only deposit <span className="font-semibold">supported stablecoins</span> on <span className="font-semibold">supported networks</span>. Depositing unsupported tokens or using unsupported networks may result in loss of funds.
+                          {depositDescription}
                         </Dialog.Description>
                       </div>
                     </div>
@@ -326,10 +356,10 @@ export const CopyAddressWarningModal: React.FC<
                       </div>
 
                       <h4 className="mb-1 text-xs font-light text-text-secondary dark:text-white/50">
-                        Supported networks
+                        {supportedNetworksHeading}
                       </h4>
                       <div className="flex h-full w-full flex-wrap gap-2">
-                        {supportedNetworks.map((network) => (
+                        {supportedNetworksDisplayed.map((network) => (
                           <div
                             key={network.chain.id}
                             className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"
@@ -355,7 +385,7 @@ export const CopyAddressWarningModal: React.FC<
                     <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
                       <InformationSquareIcon className="mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
                       <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
-                        Use only supported stablecoins & networks. Unsupported ones may lead to loss of funds.
+                        {footerWarning}
                       </p>
                     </div>
 

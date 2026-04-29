@@ -73,7 +73,6 @@ const PageLayout = ({
   onNetworkSelected: () => void;
 }) => {
   const { claimed, resetClaim } = useBlockFestClaim();
-  const { user } = usePrivy();
   const { isOpen, openModal, closeModal } = useBlockFestModal();
   const { isInjectedWallet } = useInjectedWallet();
   const walletAddress = useWalletAddress();
@@ -83,11 +82,6 @@ const PageLayout = ({
       resetClaim();
     }
   }, [authenticated, isInjectedWallet, resetClaim]);
-
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-      ?.address;
 
   return (
     <>

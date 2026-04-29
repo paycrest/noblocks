@@ -11,7 +11,11 @@ import { getReferralData } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { sidebarAnimation } from "./AnimatedComponents";
 import { ReferralDashboardSkeleton } from "./ReferralDashboardSkeleton";
-import { getAvatarImage, handleCopyCode, handleCopyLink } from "../utils";
+import {
+  getAvatarImageFromAddress,
+  handleCopyCode,
+  handleCopyLink,
+} from "../utils";
 
 export const ReferralDashboard = ({
     isOpen,
@@ -263,7 +267,7 @@ export const ReferralDashboard = ({
                                                     {/* Avatar */}
                                                     <div className="flex size-10 flex-shrink-0 items-center justify-center rounded-full overflow-hidden">
                                                         <Image
-                                                            src={getAvatarImage(referral.wallet_address)}
+                                                            src={getAvatarImageFromAddress(referral.wallet_address)}
                                                             alt={`Avatar for ${referral.wallet_address_short}`}
                                                             width={40}
                                                             height={40}

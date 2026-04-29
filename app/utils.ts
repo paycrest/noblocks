@@ -1694,12 +1694,10 @@ export function calculateSenderFee(
 }
 
 /**
- * Get avatar image path based on wallet address
+ * Avatar path from wallet address (referral leaderboard, etc.).
  * Loops through 8 avatars (Avatar.png, Avatar1.png through Avatar7.png)
- * @param address - Wallet address string
- * @returns Path to the avatar image
  */
-export const getAvatarImage = (address: string): string => {
+export const getAvatarImageFromAddress = (address: string): string => {
   const avatarCount = 8;
   const index = parseInt(address.slice(2, 4), 16) % avatarCount;
 
@@ -1760,6 +1758,8 @@ export function generateReferralCode(): string {
   }
   return code;
 }
+
+/**
  * Gets the avatar image path based on index, cycling through 1-4
  */
 export const getAvatarImage = (index: number): string => {

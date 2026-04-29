@@ -12,6 +12,7 @@ import {
 import { useBalance, useTransactions, useStep } from "../context";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import {
   ArrowRight03Icon,
   Copy01Icon,
@@ -21,7 +22,6 @@ import {
   RefreshIcon,
 } from "hugeicons-react";
 import Image from "next/image";
-import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 import { Dialog } from "@headlessui/react";
@@ -34,19 +34,25 @@ import {
 import { TransactionDetails } from "./transaction/TransactionDetails";
 import type { TransactionHistory } from "../types";
 import { PiCheck } from "react-icons/pi";
-import { BalanceSkeleton, BalanceCardSkeleton } from "./BalanceSkeleton";
-import { useCNGNRate } from "../hooks/useCNGNRate";
+import { BalanceSkeleton, CrossChainBalanceSkeleton } from "./BalanceSkeleton";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useSortedCrossChainBalances } from "../hooks/useSortedCrossChainBalances";
 import TransactionList from "./transaction/TransactionList";
-import { ReferralCTA } from "./index";
-import { ReferralDashboard } from "./ReferralDashboard";
 import { FundWalletForm } from "./FundWalletForm";
 import { TransferForm } from "./TransferForm";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
+import WalletMigrationModal from "./WalletMigrationModal";
+import { ReferralCTA } from "./ReferralCTA";
+import { ReferralDashboard } from "./ReferralDashboard";
+
+const Divider = () => (
+  <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
+);
 
 export const WalletDetails = () => {
   const [isTransferModalOpen, setIsTransferModalOpen] =
     useState<boolean>(false);
+  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"balances" | "transactions">(
     "balances",
@@ -59,7 +65,13 @@ export const WalletDetails = () => {
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
   const { selectedNetwork } = useNetwork();
-  const { allBalances, isLoading, refreshBalance } = useBalance();
+  const {
+    allBalances,
+    crossChainBalances,
+    crossChainTotal,
+    isLoading,
+    refreshBalance,
+  } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
@@ -68,19 +80,6 @@ export const WalletDetails = () => {
   const isDark = useActualTheme();
   const shouldUseEOA = useShouldUseEOA();
   const hookWalletAddress = useWalletAddress();
-
-  // Custom hook for handling wallet funding
-  const { handleFundWallet } = useFundWalletHandler("Wallet details");
-
-  // Custom hook for CNGN rate fetching
-  const {
-    rate,
-    isLoading: isRateLoading,
-    error: rateError,
-  } = useCNGNRate({
-    network: selectedNetwork.chain.name,
-    dependencies: [selectedNetwork],
-  });
 
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -140,20 +139,6 @@ export const WalletDetails = () => {
     [isOnrampProviderDetailsOpen, transactions, onrampDotRevision],
   );
 
-  // Handler for funding wallet with specified amount and token
-  const handleFundWalletClick = async (
-    amount: string,
-    tokenAddress: `0x${string}`,
-    onComplete?: (success: boolean) => void,
-  ) => {
-    await handleFundWallet(
-      activeWallet?.address ?? "",
-      amount,
-      tokenAddress,
-      onComplete,
-    );
-  };
-
   // Close sidebar and reset selected transaction
   const handleSidebarClose = () => {
     setIsSidebarOpen(false);
@@ -197,7 +182,7 @@ export const WalletDetails = () => {
           ) : selectedNetwork.chain.name === "Starknet" ? (
             <p>${(activeBalance?.total ?? 0).toFixed(2)}</p>
           ) : (
-            <p>{formatCurrency(activeBalance?.total ?? 0, "USD", "en-US")}</p>
+            <p>{formatCurrency(crossChainTotal, "USD", "en-US")}</p>
           )}
           {showOnrampAwaitingDot ? <OnrampPendingNotificationDot /> : null}
           <ArrowDown01Icon
@@ -344,6 +329,7 @@ export const WalletDetails = () => {
                         </div>
                       )}
                     </div>
+
                     <div className="mt-8">
                       <ReferralCTA
                         onViewReferrals={() => {
@@ -390,53 +376,48 @@ export const WalletDetails = () => {
                     <div className="scrollbar-hide mt-6 w-full flex-grow overflow-y-scroll">
                       <AnimatePresence mode="wait">
                         {activeTab === "balances" ? (
-                          // Balances tab content
+                          // Balances tab content with cross-chain grouping
                           <motion.div
                             key="balances"
                             variants={fadeInOut}
                             initial="initial"
                             animate="animate"
                             exit="exit"
-                            className="h-full space-y-4 overflow-y-auto pb-16"
+                            className="h-full space-y-6 overflow-y-auto pb-16"
                           >
                             {isLoading ? (
-                              <BalanceCardSkeleton />
+                              <CrossChainBalanceSkeleton />
                             ) : (
-                              Object.entries(activeBalance?.balances || {}).map(
-                                ([token, balance]) => (
+                              sortedCrossChainBalances.map((entry) => {
+                                const isSelectedNetwork =
+                                  entry.network.chain.name ===
+                                  selectedNetwork.chain.name;
+                                const balanceEntries = Object.entries(
+                                  entry.balances.balances || {},
+                                );
+
+                                // For selected network: show ALL balances (including zeros)
+                                // For other networks: only show non-zero balances
+                                const filteredBalances = isSelectedNetwork
+                                  ? balanceEntries
+                                  : balanceEntries.filter(
+                                      ([, balance]) => balance > 0,
+                                    );
+
+                                // Skip networks with no balances to show
+                                if (filteredBalances.length === 0) return null;
+
+                                return (
                                   <div
-                                    key={token}
-                                    className="flex items-center justify-between text-sm"
+                                    key={entry.network.chain.name}
+                                    className="space-y-3"
                                   >
-                                    <div className="flex items-center gap-3">
-                                      <div className="relative">
-                                        <Image
-                                          src={`/logos/${token.toLowerCase()}-logo.svg`}
-                                          alt={token}
-                                          width={32}
-                                          height={32}
-                                          className="size-8 rounded-full"
-                                          priority
-                                        />
-                                        <Image
-                                          src={getNetworkImageUrl(
-                                            selectedNetwork,
-                                            isDark,
-                                          )}
-                                          alt={selectedNetwork.chain.name}
-                                          width={16}
-                                          height={16}
-                                          className="absolute -bottom-1 -right-1 size-4 rounded-full"
-                                        />
-                                      </div>
-                                      <div className="flex flex-col">
-                                        <span className="text-text-body dark:text-white/80">
-                                          {token}
-                                        </span>
-                                        <span className="text-text-secondary dark:text-white/50">
-                                          {balance}
-                                        </span>
-                                      </div>
+                                    {/* Network header with divider */}
+                                    <div className="flex items-center justify-between gap-x-6">
+                                      <h3 className="whitespace-nowrap text-sm font-medium text-text-secondary dark:text-white/50">
+                                        {entry.network.chain.name}
+                                      </h3>
+                                      <Divider />
                                     </div>
 
                                     <div className="space-y-4">
@@ -505,8 +486,8 @@ export const WalletDetails = () => {
                                       )}
                                     </div>
                                   </div>
-                                ),
-                              )
+                                );
+                              })
                             )}
                           </motion.div>
                         ) : (
@@ -534,8 +515,10 @@ export const WalletDetails = () => {
         )}
       </AnimatePresence>
 
-      {/* Referral sidebar (opens when CTA clicked) */}
-      <ReferralDashboard isOpen={isReferralOpen} onClose={() => setIsReferralOpen(false)} />
+      <ReferralDashboard
+        isOpen={isReferralOpen}
+        onClose={() => setIsReferralOpen(false)}
+      />
 
       {/* Transfer and Fund modals */}
       {!isInjectedWallet && (
@@ -544,8 +527,19 @@ export const WalletDetails = () => {
             isOpen={isTransferModalOpen}
             onClose={() => setIsTransferModalOpen(false)}
           >
-            <TransferForm onClose={() => setIsTransferModalOpen(false)} />
+            <TransferForm
+              onClose={() => setIsTransferModalOpen(false)}
+              onOpenMigration={() => {
+                setIsTransferModalOpen(false);
+                setIsMigrationModalOpen(true);
+              }}
+            />
           </AnimatedModal>
+
+          <WalletMigrationModal
+            isOpen={isMigrationModalOpen}
+            onClose={() => setIsMigrationModalOpen(false)}
+          />
 
           <AnimatedModal
             isOpen={isFundModalOpen}

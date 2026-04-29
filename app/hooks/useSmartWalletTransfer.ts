@@ -16,7 +16,10 @@ import {
   get7702AuthorizedImplementationForAddress,
 } from "./useEIP7702Account";
 import { useWallets } from "@privy-io/react-auth";
-import config, { getDelegationContractAddress } from "../lib/config";
+import config, {
+  getDelegationContractAddress,
+  STARKNET_READY_ACCOUNT_CLASSHASH,
+} from "../lib/config";
 import {
   buildBatchDigest,
   encodeExecuteBatch,
@@ -154,7 +157,7 @@ export function useSmartWalletTransfer({
           if (!accessToken) {
             throw new Error("Failed to get access token");
           }
-          const classHash = process.env.NEXT_PUBLIC_STARKNET_READY_CLASSHASH;
+          const classHash = STARKNET_READY_ACCOUNT_CLASSHASH;
           const amountInWei = parseUnits(
             amount.toString(),
             tokenDecimals,

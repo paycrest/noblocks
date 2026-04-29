@@ -16,6 +16,12 @@ export function getDelegationContractAddress(chainId: number): string {
   return DELEGATION_CONTRACT_BY_CHAIN[chainId] ?? "";
 }
 
+export const STARKNET_READY_ACCOUNT_CLASSHASH = "0x073414441639dcd11d1846f287650a00c60c416b9d3ba45d31c651672125b2c2";
+
+export const STARKNET_PAYMASTER_URL = "https://starknet.paymaster.avnu.fi";
+
+export const STARKNET_PAYMASTER_MODE = "sponsored";
+
 const config: Config = {
   aggregatorUrl: process.env.NEXT_PUBLIC_AGGREGATOR_URL || "",
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || "",

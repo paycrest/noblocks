@@ -10,7 +10,11 @@ import { getReferralData } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { slideUpAnimation } from "../AnimatedComponents";
 import { ReferralDashboardViewSkeleton } from "../ReferralDashboardViewSkeleton";
-import { getAvatarImageFromAddress, handleCopyCode, handleCopyLink } from "../../utils";
+import {
+  getAvatarImageFromAddress,
+  handleCopyCode,
+  handleCopyLink,
+} from "../../utils";
 
 export const ReferralDashboardView = ({
     isOpen,

@@ -295,7 +295,8 @@ export const MobileDropdown = ({
 
                           {currentView === "referrals" && (
                             <ReferralDashboardView
-                              onBack={() => setCurrentView("wallet")}
+                              isOpen
+                              onClose={() => setCurrentView("wallet")}
                             />
                           )}
 

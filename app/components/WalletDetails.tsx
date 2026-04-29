@@ -23,7 +23,6 @@ import {
   RefreshIcon,
 } from "hugeicons-react";
 import Image from "next/image";
-import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 import { Dialog } from "@headlessui/react";
@@ -44,6 +43,7 @@ import { FundWalletForm } from "./FundWalletForm";
 import { TransferForm } from "./TransferForm";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import WalletMigrationModal from "./WalletMigrationModal";
+import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { ReferralCTA } from "./ReferralCTA";
 import { ReferralDashboard } from "./ReferralDashboard";
@@ -171,20 +171,6 @@ export const WalletDetails = () => {
       hasOnrampAwaitingBankTransfer(transactions),
     [isOnrampProviderDetailsOpen, transactions, onrampDotRevision],
   );
-
-  // Handler for funding wallet with specified amount and token
-  const handleFundWalletClick = async (
-    amount: string,
-    tokenAddress: `0x${string}`,
-    onComplete?: (success: boolean) => void,
-  ) => {
-    await handleFundWallet(
-      activeWallet?.address ?? "",
-      amount,
-      tokenAddress,
-      onComplete,
-    );
-  };
 
   // Close sidebar and reset selected transaction
   const handleSidebarClose = () => {

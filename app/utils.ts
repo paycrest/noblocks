@@ -1862,8 +1862,8 @@ export const getAvatarImage = (index: number): string => {
 };
 
 /**
- * Get avatar image path based on wallet address.
- * Loops through 8 avatars (Avatar.png, Avatar1.png through Avatar7.png).
+ * Avatar path from wallet address (referral leaderboard, etc.).
+ * Loops through 8 avatars (Avatar.png, Avatar1.png through Avatar7.png)
  */
 export const getAvatarImageFromAddress = (address: string): string => {
   const avatarCount = 8;

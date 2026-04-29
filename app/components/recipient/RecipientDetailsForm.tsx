@@ -308,7 +308,7 @@ export const RecipientDetailsForm = ({
         if (digits.length > 0) {
           setRecipientNameError(
             requiredLen === 10
-              ? "Please enter a valid 10-digit account Number."
+              ? "Please enter a valid 10-digit account number."
               : "Invalid account number. Please enter a 6-digit account number.",
           );
         } else {
@@ -439,7 +439,7 @@ export const RecipientDetailsForm = ({
       const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
       if (digits.length !== requiredLen) {
         return requiredLen === 10
-          ? "Please enter a valid 10-digit account Number."
+          ? "Please enter a valid 10-digit account number."
           : "Invalid account number. Please enter a 6-digit account number.";
       }
       return true;

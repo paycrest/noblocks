@@ -229,6 +229,17 @@ export const TransactionPreview = ({
           : undefined
         : smartWallet);
 
+  /**
+   * Same identity as middleware `x-wallet-address`: Privy embedded EVM wallet only.
+   * Never use `activeWallet` (Starknet / SCW / injected) here — POST /api/v1/transactions
+   * compares body.walletAddress to that JWT-derived value.
+   */
+  const walletAddressForTransactionApi =
+    typeof embeddedWallet?.address === "string" &&
+    embeddedWallet.address.trim() !== ""
+      ? embeddedWallet.address.trim()
+      : undefined;
+
   const activeBalance = injectedWallet
     ? injectedWalletBalance
     : selectedNetwork.chain.name === "Starknet"
@@ -836,9 +847,9 @@ export const TransactionPreview = ({
         });
 
         const refreshTok = await getAccessToken();
-        if (refreshTok && activeWallet?.address) {
+        if (refreshTok && walletAddressForTransactionApi) {
           void fetchTransactions(
-            activeWallet.address,
+            walletAddressForTransactionApi,
             refreshTok,
             1,
             30,
@@ -893,7 +904,15 @@ export const TransactionPreview = ({
     /** Pass from create-order response so bank name is saved before React state updates. */
     providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {
-    if (!activeWallet?.address || isSavingTransaction) return;
+    if (isSavingTransaction) return;
+    if (!walletAddressForTransactionApi) {
+      const err = new Error(
+        "Embedded Privy wallet address is required to persist transactions (must match API auth).",
+      );
+      console.error("[TransactionPreview]", err.message);
+      throw err;
+    }
+
     setIsSavingTransaction(true);
 
     try {
@@ -903,7 +922,7 @@ export const TransactionPreview = ({
       }
 
       const transaction: TransactionCreateInput = {
-        walletAddress: activeWallet.address,
+        walletAddress: walletAddressForTransactionApi,
         transactionType: isOnramp ? "onramp" : "swap",
         fromCurrency: isOnramp ? currency : token,
         toCurrency: isOnramp ? token : currency,

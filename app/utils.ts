@@ -27,6 +27,7 @@ import {
   localTransferFeePercent,
   localTransferFeeCap,
 } from "./lib/config";
+import { logBalanceTelemetry } from "./lib/balanceTelemetry";
 
 /**
  * Type predicate to narrow RecipientDetails to bank/mobile_money types.
@@ -643,10 +644,12 @@ export type FetchBalancesForChainArgs =
       tokens?: Token[];
     };
 
-async function fetchEvmBalancesUnified(
+async function fetchEvmBalancesUnifiedUncached(
   client: any,
   address: string,
 ): Promise<UnifiedWalletBalances> {
+  const t0 =
+    typeof performance !== "undefined" ? performance.now() : Date.now();
   const supportedTokens = await getNetworkTokens(client.chain?.name);
   const chainName = client.chain?.name ?? "Unknown";
   const chainId =
@@ -663,41 +666,111 @@ async function fetchEvmBalancesUnified(
 
   if (!supportedTokens) return empty();
 
-  let totalBalance = 0;
   const balances: Record<string, number> = {};
   const balancesInWei: Record<string, bigint> = {};
 
+  const fillBalancesFromWei = (token: Token, balanceInWei: bigint) => {
+    balancesInWei[token.symbol] = balanceInWei;
+    const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+    balances[token.symbol] = isNaN(balance) ? 0 : balance;
+  };
+
   try {
-    const balancePromises = supportedTokens.map(async (token: Token) => {
+    const nativeTokens = supportedTokens.filter(
+      (t: Token) => t.isNative && t.address === "",
+    );
+    const erc20Tokens = supportedTokens.filter(
+      (t: Token) => !(t.isNative && t.address === ""),
+    );
+
+    let usedMulticall = false;
+
+    const nativePromise =
+      nativeTokens.length === 0
+        ? Promise.resolve()
+        : Promise.all(
+            nativeTokens.map(async (token: Token) => {
+              try {
+                const balanceInWei = await client.getBalance({ address });
+                fillBalancesFromWei(token, balanceInWei);
+              } catch (error) {
+                console.error(
+                  `Error fetching native balance for ${token.symbol}:`,
+                  error,
+                );
+                balances[token.symbol] = 0;
+                balancesInWei[token.symbol] = BigInt(0);
+              }
+            }),
+          );
+
+    const erc20Promise = (async () => {
+      if (erc20Tokens.length === 0) return;
       try {
-        if (token.isNative && token.address === "") {
-          const balanceInWei = await client.getBalance({ address });
-          balancesInWei[token.symbol] = balanceInWei;
-          const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-          balances[token.symbol] = isNaN(balance) ? 0 : balance;
-          return balances[token.symbol];
-        }
-        const balanceInWei = await client.readContract({
+        const contracts = erc20Tokens.map((token: Token) => ({
           address: token.address as `0x${string}`,
           abi: erc20Abi,
-          functionName: "balanceOf",
+          functionName: "balanceOf" as const,
           args: [address as `0x${string}`],
+        }));
+        type MulticallEntry =
+          | { status: "success"; result: bigint }
+          | { status: "failure"; error: Error; result?: undefined };
+        const multicallResults = (await client.multicall({
+          contracts,
+          allowFailure: true,
+        })) as MulticallEntry[];
+        usedMulticall = true;
+        multicallResults.forEach((res, i) => {
+          const token = erc20Tokens[i];
+          if (res.status === "success") {
+            fillBalancesFromWei(token, res.result);
+          } else {
+            console.error(
+              `Multicall balanceOf failed for ${token.symbol}:`,
+              res.error,
+            );
+            balances[token.symbol] = 0;
+            balancesInWei[token.symbol] = BigInt(0);
+          }
         });
-        balancesInWei[token.symbol] = balanceInWei as bigint;
-        const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-        balances[token.symbol] = isNaN(balance) ? 0 : balance;
-        return balances[token.symbol];
       } catch (error) {
-        console.error(`Error fetching balance for ${token.symbol}:`, error);
+        console.error(
+          "ERC-20 multicall failed, falling back to sequential",
+          error,
+        );
+        for (const token of erc20Tokens) {
+          try {
+            const balanceInWei = await client.readContract({
+              address: token.address as `0x${string}`,
+              abi: erc20Abi,
+              functionName: "balanceOf",
+              args: [address as `0x${string}`],
+            });
+            fillBalancesFromWei(token, balanceInWei as bigint);
+          } catch (err) {
+            console.error(
+              `Error fetching balance for ${token.symbol}:`,
+              err,
+            );
+            balances[token.symbol] = 0;
+            balancesInWei[token.symbol] = BigInt(0);
+          }
+        }
+      }
+    })();
+
+    await Promise.all([nativePromise, erc20Promise]);
+
+    for (const token of supportedTokens) {
+      if (balances[token.symbol] === undefined) {
         balances[token.symbol] = 0;
         balancesInWei[token.symbol] = BigInt(0);
-        return 0;
       }
-    });
+    }
 
-    const tokenBalances = await Promise.all(balancePromises);
-    totalBalance = tokenBalances.reduce(
-      (acc: number, curr: number) => (acc || 0) + (curr || 0),
+    const totalBalance = supportedTokens.reduce(
+      (acc, token) => acc + (balances[token.symbol] ?? 0),
       0,
     );
 
@@ -711,6 +784,17 @@ async function fetchEvmBalancesUnified(
       balanceWei: balancesInWei[token.symbol],
     }));
 
+    const elapsed =
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
+    logBalanceTelemetry("evm_balances_ms", {
+      chainId,
+      chainName,
+      ms: Math.round(elapsed),
+      tokenCount: supportedTokens.length,
+      erc20Count: erc20Tokens.length,
+      usedMulticall,
+    });
+
     return {
       chainName,
       chainId,
@@ -722,6 +806,33 @@ async function fetchEvmBalancesUnified(
   } catch {
     return empty();
   }
+}
+
+/**
+ * Cached, deduped EVM balance fetch (per chain + address).
+ * `bypassCache: true` skips the TTL snapshot and does not join an in-flight
+ * request (forces a fresh RPC batch); use for manual refresh.
+ */
+export async function fetchEvmBalancesForAddress(
+  client: any,
+  address: string,
+  options?: { bypassCache?: boolean },
+): Promise<UnifiedWalletBalances> {
+  /** Client-only: avoid loading walletBalanceCache in Node/server bundles. */
+  if (typeof window === "undefined") {
+    return fetchEvmBalancesUnifiedUncached(client, address);
+  }
+  const { walletBalanceCacheKey, getCachedOrFetchEvmBalances } = await import(
+    "./lib/walletBalanceCache"
+  );
+  const chainId =
+    typeof client.chain?.id === "number" ? client.chain.id : undefined;
+  const key = walletBalanceCacheKey(chainId, address);
+  return getCachedOrFetchEvmBalances(
+    key,
+    () => fetchEvmBalancesUnifiedUncached(client, address),
+    { bypassCache: options?.bypassCache },
+  );
 }
 
 async function fetchStarknetBalancesUnified(
@@ -817,7 +928,7 @@ export async function fetchBalancesForChain(
     const tokens = args.tokens ?? (await getNetworkTokens("Starknet"));
     return fetchStarknetBalancesUnified(args.walletAddress, tokens);
   }
-  return fetchEvmBalancesUnified(args.client, args.walletAddress);
+  return fetchEvmBalancesForAddress(args.client, args.walletAddress);
 }
 
 /**
@@ -846,13 +957,26 @@ export async function fetchStarknetBalance(
 export async function fetchWalletBalance(
   client: any,
   address: string,
+  options?: { bypassCache?: boolean },
 ): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
-  const u = await fetchEvmBalancesUnified(client, address);
+  const u = await fetchEvmBalancesForAddress(client, address, options);
   return {
     total: u.total,
     balances: u.balances,
     balancesInWei: u.balancesInWei ?? {},
   };
+}
+
+/** Whether a cross-chain token row should be listed for a non-selected network. */
+export function tokenBalanceRowVisible(
+  rawBalances: Record<string, number> | undefined,
+  token: string,
+  balance: number,
+  isSelectedNetwork: boolean,
+): boolean {
+  if (isSelectedNetwork) return true;
+  const raw = rawBalances?.[token];
+  return (typeof raw === "number" && raw > 0) || balance > 0;
 }
 
 /**
@@ -900,6 +1024,7 @@ export function calculateCorrectedTotalBalance(
 export async function fetchBalanceForNetwork(
   network: { chain: any },
   walletAddress: string,
+  options?: { bypassCache?: boolean },
 ): Promise<UnifiedWalletBalances> {
   const { createPublicClient, http } = await import("viem");
 
@@ -910,7 +1035,7 @@ export async function fetchBalanceForNetwork(
     transport: http(rpcUrl),
   });
 
-  return fetchEvmBalancesUnified(publicClient, walletAddress);
+  return fetchEvmBalancesForAddress(publicClient, walletAddress, options);
 }
 
 /**

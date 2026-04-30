@@ -687,24 +687,29 @@ async function fetchEvmBalancesUnifiedUncached(
       (t: Token) => !(t.isNative && t.address === ""),
     );
 
-    await Promise.all(
-      nativeTokens.map(async (token: Token) => {
-        try {
-          const balanceInWei = await client.getBalance({ address });
-          fillBalancesFromWei(token, balanceInWei);
-        } catch (error) {
-          console.error(
-            `Error fetching native balance for ${token.symbol}:`,
-            error,
-          );
-          balances[token.symbol] = 0;
-          balancesInWei[token.symbol] = BigInt(0);
-        }
-      }),
-    );
-
     let usedMulticall = false;
-    if (erc20Tokens.length > 0) {
+
+    const nativePromise =
+      nativeTokens.length === 0
+        ? Promise.resolve()
+        : Promise.all(
+            nativeTokens.map(async (token: Token) => {
+              try {
+                const balanceInWei = await client.getBalance({ address });
+                fillBalancesFromWei(token, balanceInWei);
+              } catch (error) {
+                console.error(
+                  `Error fetching native balance for ${token.symbol}:`,
+                  error,
+                );
+                balances[token.symbol] = 0;
+                balancesInWei[token.symbol] = BigInt(0);
+              }
+            }),
+          );
+
+    const erc20Promise = (async () => {
+      if (erc20Tokens.length === 0) return;
       try {
         const contracts = erc20Tokens.map((token: Token) => ({
           address: token.address as `0x${string}`,
@@ -734,7 +739,10 @@ async function fetchEvmBalancesUnifiedUncached(
           }
         });
       } catch (error) {
-        console.error("ERC-20 multicall failed, falling back to sequential", error);
+        console.error(
+          "ERC-20 multicall failed, falling back to sequential",
+          error,
+        );
         for (const token of erc20Tokens) {
           try {
             const balanceInWei = await client.readContract({
@@ -754,7 +762,9 @@ async function fetchEvmBalancesUnifiedUncached(
           }
         }
       }
-    }
+    })();
+
+    await Promise.all([nativePromise, erc20Promise]);
 
     for (const token of supportedTokens) {
       if (balances[token.symbol] === undefined) {

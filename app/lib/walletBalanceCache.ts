@@ -26,6 +26,8 @@ function cloneForCache<T>(data: T): T {
  *
  * Each consumer receives a fresh `structuredClone` so accidental mutation of
  * returned balances cannot poison the cache or other in-flight callers.
+ * When bypassCache is true, skips both the TTL snapshot and in-flight
+ * deduplication so a manual refresh does not join an older pending request.
  */
 export async function getCachedOrFetchEvmBalances<T>(
   key: string,
@@ -40,7 +42,7 @@ export async function getCachedOrFetchEvmBalances<T>(
   }
 
   let p = inflight.get(key) as Promise<T> | undefined;
-  if (!p) {
+  if (!p || opts.bypassCache) {
     const myP = fetcher()
       .then((data) => {
         if (inflight.get(key) !== myP) {

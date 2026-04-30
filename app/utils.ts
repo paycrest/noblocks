@@ -27,10 +27,6 @@ import {
   localTransferFeePercent,
   localTransferFeeCap,
 } from "./lib/config";
-import {
-  getCachedOrFetchEvmBalances,
-  walletBalanceCacheKey,
-} from "./lib/walletBalanceCache";
 import { logBalanceTelemetry } from "./lib/balanceTelemetry";
 
 /**
@@ -813,13 +809,22 @@ async function fetchEvmBalancesUnifiedUncached(
 }
 
 /**
- * Cached, deduped EVM balance fetch (per chain + address). Pass bypassCache on manual refresh.
+ * Cached, deduped EVM balance fetch (per chain + address).
+ * `bypassCache: true` skips the TTL snapshot and does not join an in-flight
+ * request (forces a fresh RPC batch); use for manual refresh.
  */
 export async function fetchEvmBalancesForAddress(
   client: any,
   address: string,
   options?: { bypassCache?: boolean },
 ): Promise<UnifiedWalletBalances> {
+  /** Client-only: avoid loading walletBalanceCache in Node/server bundles. */
+  if (typeof window === "undefined") {
+    return fetchEvmBalancesUnifiedUncached(client, address);
+  }
+  const { walletBalanceCacheKey, getCachedOrFetchEvmBalances } = await import(
+    "./lib/walletBalanceCache"
+  );
   const chainId =
     typeof client.chain?.id === "number" ? client.chain.id : undefined;
   const key = walletBalanceCacheKey(chainId, address);

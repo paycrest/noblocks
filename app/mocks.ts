@@ -72,11 +72,12 @@ export const acceptedCurrencies = [
   },
 ];
 
+// Chain order for network picker, modal, and any `networks.map` UI.
+// Explicit product ranking — not alphabetical (legacy order matched A–Z by coincidence).
+// Ranks 1–3: highest aggregator volume (Base → BNB Smart Chain → Arbitrum).
+// Rank 4: Starknet (fixed position).
+// Ranks 5+: remaining chains by volume (Polygon → Lisk → Ethereum → Celo → Scroll).
 export const networks = [
-  {
-    chain: arbitrum,
-    imageUrl: "/logos/arbitrum-one-logo.svg",
-  },
   {
     chain: base,
     imageUrl: "/logos/base-logo.svg",
@@ -86,12 +87,16 @@ export const networks = [
     imageUrl: "/logos/bnb-smart-chain-logo.svg",
   },
   {
-    chain: celo,
-    imageUrl: "/logos/celo-logo.svg",
+    chain: arbitrum,
+    imageUrl: "/logos/arbitrum-one-logo.svg",
   },
   {
-    chain: mainnet,
-    imageUrl: "/logos/eth-logo.svg",
+    chain: starknetMainnet,
+    imageUrl: "/logos/strk-logo.svg",
+  },
+  {
+    chain: polygon,
+    imageUrl: "/logos/polygon-logo.svg",
   },
   {
     chain: lisk,
@@ -101,16 +106,16 @@ export const networks = [
     },
   },
   {
-    chain: polygon,
-    imageUrl: "/logos/polygon-logo.svg",
+    chain: mainnet,
+    imageUrl: "/logos/eth-logo.svg",
+  },
+  {
+    chain: celo,
+    imageUrl: "/logos/celo-logo.svg",
   },
   {
     chain: scroll,
     imageUrl: "/logos/scroll-logo.svg",
-  },
-  {
-    chain: starknetMainnet,
-    imageUrl: "/logos/strk-logo.svg",
   },
   //   {
   //     chain: hedera,

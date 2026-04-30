@@ -11,6 +11,7 @@ import { darkModeConfig, lightModeConfig } from "./lib/privy-config";
 import config from "./lib/config";
 import {
   BalanceProvider,
+  HomeTransactionFormModeProvider,
   InjectedWalletProvider,
   MigrationStatusProvider,
   NetworkProvider,
@@ -75,25 +76,27 @@ function ContextProviders({ children }: { children: ReactNode }) {
 
   return (
     <NetworkProvider>
-      <InjectedWalletProvider>
-        <MigrationStatusProvider>
-          <StarknetProvider>
-            <TokensProvider>
-              <StepProvider>
-                <BalanceProvider>
-                  <TransactionsProvider>
-                    <BlockFestClaimProvider>
-                      <BlockFestModalProvider>
-                        <RocketStatusProvider>{children}</RocketStatusProvider>
-                      </BlockFestModalProvider>
-                    </BlockFestClaimProvider>
-                  </TransactionsProvider>
-                </BalanceProvider>
-              </StepProvider>
-            </TokensProvider>
-          </StarknetProvider>
-        </MigrationStatusProvider>
-      </InjectedWalletProvider>
+      <HomeTransactionFormModeProvider>
+        <InjectedWalletProvider>
+          <MigrationStatusProvider>
+            <StarknetProvider>
+              <TokensProvider>
+                <StepProvider>
+                  <BalanceProvider>
+                    <TransactionsProvider>
+                      <BlockFestClaimProvider>
+                        <BlockFestModalProvider>
+                          <RocketStatusProvider>{children}</RocketStatusProvider>
+                        </BlockFestModalProvider>
+                      </BlockFestClaimProvider>
+                    </TransactionsProvider>
+                  </BalanceProvider>
+                </StepProvider>
+              </TokensProvider>
+            </StarknetProvider>
+          </MigrationStatusProvider>
+        </InjectedWalletProvider>
+      </HomeTransactionFormModeProvider>
     </NetworkProvider>
   );
 }

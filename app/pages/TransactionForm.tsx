@@ -33,6 +33,7 @@ import {
   formatDecimalPrecision,
   currencyToCountryCode,
   reorderCurrenciesByLocation,
+  isStarknetChain,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -130,6 +131,9 @@ export const TransactionForm = ({
     isSwapped,
     receiveDestinationExplicitlySelected,
   } = watch();
+
+  const starknetLocksOnrampControls =
+    isStarknetChain(selectedNetwork.chain) && Boolean(isSwapped);
 
   // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
   const { rate: cngnRate, error: cngnRateError } = useCNGNRate({
@@ -559,17 +563,18 @@ export const TransactionForm = ({
   }, [currencies]);
 
   const { isEnabled, buttonText, buttonAction, isMigrationMandatory } = useSwapButton({
-  watch,
-  balance,
-  isDirty,
-  isValid,
-  isUserVerified,
-  rate,
-  tokenDecimals,
-  needsMigration,
-  isRemainingFundsMigration,
-  isSwapped,
-});
+    watch,
+    balance,
+    isDirty,
+    isValid,
+    isUserVerified,
+    rate,
+    tokenDecimals,
+    needsMigration,
+    isRemainingFundsMigration,
+    isSwapped,
+    isStarknetOnramp: starknetLocksOnrampControls,
+  });
 
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
 
@@ -807,7 +812,9 @@ export const TransactionForm = ({
       >
         <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
           <div className="flex items-center justify-between px-2 py-1">
-            <h3 className="text-base font-medium">Swap</h3>
+            <h3 className="text-base font-medium">
+              {starknetLocksOnrampControls ? "Coming soon" : "Swap"}
+            </h3>
 
             <div className="flex items-center gap-1">
               {/* On-ramp button */}
@@ -932,7 +939,7 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedSentAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${authenticated && !isSwapped && (amountSent > balance || errors.amountSent)
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:placeholder:text-white/30 ${authenticated && !isSwapped && (amountSent > balance || errors.amountSent)
                   ? "text-red-500 dark:text-red-500"
                   : "text-neutral-900 dark:text-white/80"
                   }`}
@@ -1029,7 +1036,7 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedReceivedAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amountReceived
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:placeholder:text-white/30 ${errors.amountReceived
                   ? "text-red-500 dark:text-red-500"
                   : "text-neutral-900 dark:text-white/80"
                   }`}
@@ -1043,6 +1050,7 @@ export const TransactionForm = ({
                   data={tokens}
                   defaultSelectedItem={token || undefined}
                   isCTA={!token}
+                  disabled={starknetLocksOnrampControls}
                   onSelect={(selectedToken) => {
                     setValue("token", selectedToken, { shouldDirty: true });
                     setValue("receiveDestinationExplicitlySelected", true, {

@@ -36,7 +36,7 @@ export const RecipientDetailsForm = ({
     selectedRecipient,
     setSelectedRecipient,
   },
-  isSwapped = false,
+  swapMode = "offramp",
   token,
   networkName,
   connectedWalletAddress,
@@ -423,10 +423,12 @@ export const RecipientDetailsForm = ({
     [savedRecipients],
   );
 
-  const showMyWalletButton = Boolean(isSwapped && connectedWalletAddress);
+  const showMyWalletButton = Boolean(
+    swapMode === "onramp" && connectedWalletAddress,
+  );
   const showSelectBeneficiaryButton =
-    (isSwapped && walletRecipients.length > 0) ||
-    (!isSwapped && bankRecipients.length > 0);
+    (swapMode === "onramp" && walletRecipients.length > 0) ||
+    (swapMode === "offramp" && bankRecipients.length > 0);
 
   return (
     <>
@@ -473,7 +475,7 @@ export const RecipientDetailsForm = ({
           )}
         </div>
 
-        {isSwapped ? (
+        {swapMode === "onramp" ? (
           <div className="space-y-3">
             <input
               type="text"
@@ -643,14 +645,16 @@ export const RecipientDetailsForm = ({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSelectRecipient={selectSavedRecipient}
-        savedRecipients={isSwapped ? walletRecipients : bankRecipients}
+        savedRecipients={
+          swapMode === "onramp" ? walletRecipients : bankRecipients
+        }
         onDeleteRecipient={deleteRecipient}
         recipientToDelete={recipientToDelete}
         currency={currency}
         institutions={institutions}
         isLoading={isLoadingRecipients}
         error={recipientsError}
-        isSwapped={isSwapped}
+        swapMode={swapMode}
         networkName={networkName}
       />
     </>

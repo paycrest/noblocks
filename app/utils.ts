@@ -11,6 +11,7 @@ import type {
   OnrampPaymentInstructions,
   TransactionHistory,
   TransactionHistoryType,
+  SwapMode,
 } from "./types";
 import type { SanityPost, SanityCategory } from "./blog/types";
 import { erc20Abi, createPublicClient, http } from "viem";
@@ -1133,6 +1134,30 @@ export function shouldUseInjectedWallet(
 ): boolean {
   const injectedParam = searchParams.get("injected");
   return Boolean(injectedParam === "true" && window.ethereum);
+}
+
+/** `?side=` for home swap form: buy = on-ramp, sell = off-ramp (matches rates API). */
+export function swapModeFromSideParam(
+  side: string | null | undefined,
+): SwapMode | undefined {
+  const raw = side?.trim().toLowerCase();
+  if (raw === "buy") return "onramp";
+  if (raw === "sell") return "offramp";
+  return undefined;
+}
+
+/**
+ * First-paint default for main transaction form `swapMode`.
+ * Explicit `side` wins; else Starknet defaults to off-ramp; else global default on-ramp.
+ */
+export function initialSwapModeForHomeForm(
+  searchParams: Pick<URLSearchParams, "get">,
+  chain: { name?: string; network?: string },
+): SwapMode {
+  const fromSide = swapModeFromSideParam(searchParams.get("side"));
+  if (fromSide !== undefined) return fromSide;
+  if (isStarknetChain(chain)) return "offramp";
+  return "onramp";
 }
 
 /**

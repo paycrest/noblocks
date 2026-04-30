@@ -1,7 +1,7 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -25,7 +25,14 @@ import {
   fetchSupportedInstitutions,
   migrateLocalStorageRecipients,
 } from "../api/aggregator";
-import { normalizeNetworkForRateFetch, isStarknetChain } from "../utils";
+import {
+  normalizeNetworkForRateFetch,
+  isStarknetChain,
+  clearFormState,
+  getBannerPadding,
+  initialSwapModeForHomeForm,
+  swapModeFromSideParam,
+} from "../utils";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
 import {
@@ -39,7 +46,6 @@ import {
 } from "../types";
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "../context/StepContext";
-import { clearFormState, getBannerPadding } from "../utils";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
@@ -172,42 +178,56 @@ export function MainPageContent() {
     setRateRefetchTrigger((prev) => prev + 1);
   }, []);
 
+  const [initialSwapMode] = useState(() =>
+    initialSwapModeForHomeForm(searchParams, selectedNetwork.chain),
+  );
+
   const formMethods = useForm<FormData, any, undefined>({
     mode: "onChange",
     defaultValues: {
       token: "",
       amountSent: 0,
       amountReceived: 0,
-      // On-ramp is default: Send = fiat (NGN-only in UI); Receive = token (user picks — empty until select).
+      // Tab default: valid `side` overrides; else Starknet first paint → off-ramp (see initialSwapModeForHomeForm).
       currency: "NGN",
       recipientName: "",
       memo: "",
       institution: "",
       accountIdentifier: "",
       accountType: "bank",
-      isSwapped: true,
+      swapMode: initialSwapMode,
       receiveDestinationExplicitlySelected: false,
     },
   });
-  const { watch } = formMethods;
+  const { watch, setValue } = formMethods;
   const {
     currency,
     amountSent,
     amountReceived,
     token,
-    isSwapped,
+    swapMode,
     receiveDestinationExplicitlySelected,
   } = watch();
-  /** On-ramp (fiat→crypto): same as TransactionForm `isSwapped` / v2 `buy` side. */
-  const isOnrampRate = Boolean(isSwapped);
+  /** On-ramp (fiat→crypto): rates API `buy` side */
+  const isOnrampRate = swapMode === "onramp";
 
-  const { setTransactionFormSwapped } = useHomeTransactionFormMode();
+  const { setTransactionFormSwapMode } = useHomeTransactionFormMode();
+
+  useLayoutEffect(
+    function syncSwapModeToGlobalUi() {
+      setTransactionFormSwapMode(swapMode);
+    },
+    [swapMode, setTransactionFormSwapMode],
+  );
 
   useEffect(
-    function syncSwapModeToGlobalUi() {
-      setTransactionFormSwapped(Boolean(isSwapped));
+    function syncRampFromSideSearchParam() {
+      const next = swapModeFromSideParam(searchParams.get("side"));
+      if (next !== undefined) {
+        setValue("swapMode", next, { shouldDirty: true });
+      }
     },
-    [isSwapped, setTransactionFormSwapped],
+    [searchParams, setValue],
   );
 
   // State props for child components
@@ -273,9 +293,8 @@ export function MainPageContent() {
 
   useEffect(function ensureDefaultToken() {
     // Off-ramp: default token to USDC. On-ramp: keep empty so Receive shows "Select token".
-    // Use === false so a transient undefined `isSwapped` is not treated as off-ramp.
     if (formMethods.getValues("token")) return;
-    if (formMethods.getValues("isSwapped") === false) {
+    if (formMethods.getValues("swapMode") === "offramp") {
       formMethods.setValue("token", "USDC", { shouldDirty: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -513,7 +532,7 @@ export function MainPageContent() {
   const handleFormSubmit = useCallback(
     (data: FormData) => {
       const isStarknetOnrampBlocked =
-        isStarknetChain(selectedNetwork.chain) && Boolean(data.isSwapped);
+        isStarknetChain(selectedNetwork.chain) && data.swapMode === "onramp";
       if (isStarknetOnrampBlocked) {
         return;
       }
@@ -646,7 +665,7 @@ export function MainPageContent() {
           currentStep={currentStep}
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
-          isOnramp={isSwapped}
+          isOnramp={swapMode === "onramp"}
           isBlockFestReferral={isBlockFestReferral}
         />
       )}

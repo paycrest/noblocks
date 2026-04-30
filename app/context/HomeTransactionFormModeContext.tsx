@@ -8,11 +8,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { SwapMode } from "../types";
 
 type HomeTransactionFormModeContextValue = {
-  /** Mirrors TransactionForm `isSwapped`: true = on-ramp (fiat → token). */
-  isSwapped: boolean;
-  setTransactionFormSwapped: (value: boolean) => void;
+  /** Mirrors main transaction form `swapMode`. */
+  swapMode: SwapMode;
+  setTransactionFormSwapMode: (value: SwapMode) => void;
 };
 
 const HomeTransactionFormModeContext =
@@ -27,15 +28,15 @@ export function HomeTransactionFormModeProvider({
 }: {
   children: ReactNode;
 }) {
-  const [isSwapped, setIsSwappedState] = useState(true);
+  const [swapMode, setSwapModeState] = useState<SwapMode>("onramp");
 
-  const setTransactionFormSwapped = useCallback((value: boolean) => {
-    setIsSwappedState(value);
+  const setTransactionFormSwapMode = useCallback((value: SwapMode) => {
+    setSwapModeState(value);
   }, []);
 
   const value = useMemo(
-    () => ({ isSwapped, setTransactionFormSwapped }),
-    [isSwapped, setTransactionFormSwapped],
+    () => ({ swapMode, setTransactionFormSwapMode }),
+    [swapMode, setTransactionFormSwapMode],
   );
 
   return (

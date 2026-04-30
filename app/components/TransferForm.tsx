@@ -12,8 +12,10 @@ import {
   classNames,
   formatDecimalPrecision,
   fetchBalanceForNetwork,
+  normalizeStarknetAddress,
   shouldUseInjectedWallet,
 } from "../utils";
+import { isValidEvmAddressCaseInsensitive } from "../lib/validation";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
@@ -82,6 +84,7 @@ export const TransferForm: React.FC<{
     setValue,
     watch,
     reset,
+    trigger,
     formState: { errors, isValid, isDirty },
   } = formMethods;
   const { token, amount, recipientNetwork, recipientNetworkImageUrl } = watch();
@@ -138,6 +141,10 @@ export const TransferForm: React.FC<{
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    void trigger("recipientAddress");
+  }, [recipientNetwork, trigger]);
 
   useEffect(() => {
     if (error) {
@@ -411,17 +418,31 @@ export const TransferForm: React.FC<{
                   value: true,
                   message: "Recipient address is required",
                 },
-                pattern: {
-                  value: /^0x[a-fA-F0-9]{40}$|^0x[a-fA-F0-9]{64}$/,
-                  message: "Invalid wallet address format",
-                },
                 validate: {
-                  length: (value) =>
-                    value.length === 42 ||
-                    value.length === 66 ||
-                    "Address must be 42 characters (EVM) or 66 characters (Starknet)",
-                  prefix: (value) =>
-                    value.startsWith("0x") || "Address must start with 0x",
+                  addressForNetwork: (value) => {
+                    const raw = (value || "").trim();
+                    if (!raw) return true;
+                    const net =
+                      recipientNetwork || selectedNetwork.chain.name;
+                    if (!raw.startsWith("0x")) {
+                      return "Address must start with 0x";
+                    }
+                    if (net === "Starknet") {
+                      if (isValidEvmAddressCaseInsensitive(raw)) {
+                        return "This address is an EVM address. Enter a Starknet address.";
+                      }
+                      try {
+                        normalizeStarknetAddress(raw);
+                        return true;
+                      } catch {
+                        return "Enter a valid Starknet address.";
+                      }
+                    }
+                    if (!isValidEvmAddressCaseInsensitive(raw)) {
+                      return "Enter a valid EVM address.";
+                    }
+                    return true;
+                  },
                 },
               })}
               className={classNames(

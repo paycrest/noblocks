@@ -41,16 +41,22 @@ export async function getCachedOrFetchEvmBalances<T>(
 
   let p = inflight.get(key) as Promise<T> | undefined;
   if (!p) {
-    p = fetcher()
+    const myP = fetcher()
       .then((data) => {
+        if (inflight.get(key) !== myP) {
+          return data;
+        }
         cache.set(key, { t: Date.now(), data });
         inflight.delete(key);
         return data;
       })
       .catch((err) => {
-        inflight.delete(key);
+        if (inflight.get(key) === myP) {
+          inflight.delete(key);
+        }
         throw err;
       }) as Promise<T>;
+    p = myP;
     inflight.set(key, p);
   }
 
@@ -59,7 +65,11 @@ export async function getCachedOrFetchEvmBalances<T>(
 
 export function invalidateWalletBalanceCacheForAddress(address: string): void {
   const suffix = `:${address.toLowerCase()}`;
-  for (const k of [...cache.keys()]) {
-    if (k.endsWith(suffix)) cache.delete(k);
+  const keys = [...cache.keys(), ...inflight.keys()].filter((k) =>
+    k.endsWith(suffix),
+  );
+  for (const k of new Set(keys)) {
+    cache.delete(k);
+    inflight.delete(k);
   }
 }

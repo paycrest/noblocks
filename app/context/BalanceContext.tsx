@@ -356,7 +356,9 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     try {
       const resolvedCngnRate =
         cngnRate ??
-        (await getCNGNRateForNetwork(CNGN_CROSS_CHAIN_QUOTE_NETWORK));
+        (await getCNGNRateForNetwork(CNGN_CROSS_CHAIN_QUOTE_NETWORK, {
+          bypassCache,
+        }));
 
       if (selectedNetwork.chain.name === "Starknet") {
         if (starknetAddress) {

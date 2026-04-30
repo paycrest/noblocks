@@ -735,26 +735,24 @@ async function fetchEvmBalancesUnifiedUncached(
         });
       } catch (error) {
         console.error("ERC-20 multicall failed, falling back to sequential", error);
-        await Promise.all(
-          erc20Tokens.map(async (token: Token) => {
-            try {
-              const balanceInWei = await client.readContract({
-                address: token.address as `0x${string}`,
-                abi: erc20Abi,
-                functionName: "balanceOf",
-                args: [address as `0x${string}`],
-              });
-              fillBalancesFromWei(token, balanceInWei as bigint);
-            } catch (err) {
-              console.error(
-                `Error fetching balance for ${token.symbol}:`,
-                err,
-              );
-              balances[token.symbol] = 0;
-              balancesInWei[token.symbol] = BigInt(0);
-            }
-          }),
-        );
+        for (const token of erc20Tokens) {
+          try {
+            const balanceInWei = await client.readContract({
+              address: token.address as `0x${string}`,
+              abi: erc20Abi,
+              functionName: "balanceOf",
+              args: [address as `0x${string}`],
+            });
+            fillBalancesFromWei(token, balanceInWei as bigint);
+          } catch (err) {
+            console.error(
+              `Error fetching balance for ${token.symbol}:`,
+              err,
+            );
+            balances[token.symbol] = 0;
+            balancesInWei[token.symbol] = BigInt(0);
+          }
+        }
       }
     }
 

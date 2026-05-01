@@ -43,29 +43,47 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       wallet_address: walletAddress,
     });
 
-    // Fetch bank/mobile_money recipients
-    const { data: bankRecipients, error: bankError } = await supabaseAdmin
+    // Fetch bank/mobile_money recipients (isolated errors so missing table/schema drift on one branch does not 500 the whole route)
+    const bankResult = await supabaseAdmin
       .from("saved_recipients")
       .select("*")
       .eq("normalized_wallet_address", walletAddress)
       .order("created_at", { ascending: false });
 
-    if (bankError) {
-      console.error("Supabase query error:", bankError);
-      throw bankError;
+    if (bankResult.error) {
+      console.error(
+        "[GET /recipients] saved_recipients query error:",
+        bankResult.error.code,
+        bankResult.error.message,
+      );
     }
 
-    // Fetch wallet recipients
-    const { data: walletRecipients, error: walletError } = await supabaseAdmin
+    // Fetch wallet recipients (on-ramp saved addresses)
+    const walletResult = await supabaseAdmin
       .from("saved_wallet_recipients")
       .select("*")
       .eq("normalized_wallet_address", walletAddress)
       .order("created_at", { ascending: false });
 
-    if (walletError) {
-      console.error("Supabase query error:", walletError);
-      throw walletError;
+    if (walletResult.error) {
+      console.error(
+        "[GET /recipients] saved_wallet_recipients query error:",
+        walletResult.error.code,
+        walletResult.error.message,
+      );
     }
+
+    if (bankResult.error && walletResult.error) {
+      const combined =
+        `[saved_recipients] ${bankResult.error.message}; [saved_wallet_recipients] ${walletResult.error.message}`.slice(
+          0,
+          500,
+        );
+      throw new Error(`Recipients fetch failed: ${combined}`);
+    }
+
+    const bankRecipients = bankResult.data ?? null;
+    const walletRecipients = walletResult.data ?? null;
 
     // Transform bank/mobile_money recipients
     const transformedBankRecipients: RecipientDetailsWithId[] =

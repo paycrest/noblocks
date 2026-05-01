@@ -23,6 +23,8 @@ export type RefundAccountDetails = {
   accountNumber: string;
 };
 
+export type SwapMode = "onramp" | "offramp";
+
 export type FormData = {
   network: string;
   token: string;
@@ -35,7 +37,8 @@ export type FormData = {
   memo: string;
   amountSent: number;
   amountReceived: number;
-  isSwapped: boolean;
+  /** Fiat → crypto = onramp (NGN→token); crypto → fiat = offramp */
+  swapMode: SwapMode;
   /** True after user picks the Receive row asset (fiat off-ramp, token on-ramp). */
   receiveDestinationExplicitlySelected: boolean;
 };
@@ -64,7 +67,7 @@ export type TransactionPreviewProps = {
 export type RecipientDetailsFormProps = {
   formMethods: UseFormReturn<FormData, any, undefined>;
   stateProps: StateProps;
-  isSwapped?: boolean; // For onramp mode detection
+  swapMode?: SwapMode;
   token?: string; // Token symbol for onramp
   networkName?: string; // Network name for display
   /** On-ramp: address to fill when user taps "My wallet" (same as active signing wallet). */
@@ -528,6 +531,21 @@ export interface SavedRecipientsResponse {
 export interface SaveRecipientResponse {
   success: boolean;
   data: RecipientDetailsWithId;
+}
+
+export interface StarknetWalletState {
+  walletId: string | null;
+  address: string | null;
+  publicKey: string | null;
+  deployed: boolean;
+  isCreating: boolean;
+  error: string | null;
+}
+
+export interface StarknetContextType extends StarknetWalletState {
+  createWallet: () => Promise<void>;
+  resetError: () => void;
+  ensureWalletExists: () => Promise<void>; // Auto-create wallet if needed
 }
 
 declare global {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -20,8 +20,19 @@ import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
-import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
-import { normalizeNetworkForRateFetch } from "../utils";
+import {
+  fetchRate,
+  fetchSupportedInstitutions,
+  migrateLocalStorageRecipients,
+} from "../api/aggregator";
+import {
+  normalizeNetworkForRateFetch,
+  isStarknetChain,
+  clearFormState,
+  getBannerPadding,
+  initialSwapModeForHomeForm,
+  swapModeFromSideParam,
+} from "../utils";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
 import {
@@ -35,13 +46,14 @@ import {
 } from "../types";
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "../context/StepContext";
-import { clearFormState, getBannerPadding } from "../utils";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
-import { useBalance, useInjectedWallet } from "../context";
+import { useHomeTransactionFormMode, useInjectedWallet, useBalance } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
+import { useWalletAddress } from "../hooks/useWalletAddress";
+
 const PageLayout = ({
   authenticated,
   ready,
@@ -62,19 +74,14 @@ const PageLayout = ({
   const { claimed, resetClaim } = useBlockFestClaim();
   const { user } = usePrivy();
   const { isOpen, openModal, closeModal } = useBlockFestModal();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isInjectedWallet } = useInjectedWallet();
+  const walletAddress = useWalletAddress();
 
-  // Clean up claim state when user logs out
   useEffect(() => {
     if (!authenticated && !isInjectedWallet) {
       resetClaim();
     }
   }, [authenticated, isInjectedWallet, resetClaim]);
-
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-      ?.address;
 
   return (
     <>
@@ -108,6 +115,26 @@ const PageLayout = ({
   );
 };
 
+/**
+ * v2 `/rates/.../{token}/{amount}/{fiat}` expects `amount` in token units. On-ramp, the receive
+ * (token) field is often 0 until a rate exists — use a peg-aware fiat-sized probe instead of `1`
+ * so provider min/max match the user's order (e.g. CNGN ↔ NGN).
+ */
+function onrampRateQueryTokenAmount(
+  token: string,
+  currency: string,
+  sentN: number,
+  recvN: number,
+): number {
+  if (recvN > 0) return recvN;
+  const t = (token || "").trim().toUpperCase();
+  const c = (currency || "").trim().toUpperCase();
+  if (t === "CNGN" && c === "NGN" && sentN > 0) {
+    return sentN;
+  }
+  return 1;
+}
+
 export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready, getAccessToken, user } = usePrivy();
@@ -118,7 +145,8 @@ export function MainPageContent() {
   } = useStep();
   const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
   const { crossChainBalances, isLoading: isBalanceLoading } = useBalance();
-  const { selectedNetwork, setDisplayedNetwork } = useNetwork();
+  const { selectedNetwork, setDisplayedNetwork, setSelectedNetwork } =
+    useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
@@ -150,33 +178,57 @@ export function MainPageContent() {
     setRateRefetchTrigger((prev) => prev + 1);
   }, []);
 
+  const [initialSwapMode] = useState(() =>
+    initialSwapModeForHomeForm(searchParams, selectedNetwork.chain),
+  );
+
   const formMethods = useForm<FormData, any, undefined>({
     mode: "onChange",
     defaultValues: {
-      token: "USDC",
+      token: "",
       amountSent: 0,
       amountReceived: 0,
-      currency: "",
+      // Tab default: valid `side` overrides; else Starknet first paint → off-ramp (see initialSwapModeForHomeForm).
+      currency: "NGN",
       recipientName: "",
       memo: "",
       institution: "",
       accountIdentifier: "",
       accountType: "bank",
-      isSwapped: false,
+      swapMode: initialSwapMode,
       receiveDestinationExplicitlySelected: false,
     },
   });
-  const { watch } = formMethods;
+  const { watch, setValue } = formMethods;
   const {
     currency,
     amountSent,
     amountReceived,
     token,
-    isSwapped,
+    swapMode,
     receiveDestinationExplicitlySelected,
   } = watch();
-  /** On-ramp (fiat→crypto): same as TransactionForm `isSwapped` / v2 `buy` side. */
-  const isOnrampRate = Boolean(isSwapped);
+  /** On-ramp (fiat→crypto): rates API `buy` side */
+  const isOnrampRate = swapMode === "onramp";
+
+  const { setTransactionFormSwapMode } = useHomeTransactionFormMode();
+
+  useLayoutEffect(
+    function syncSwapModeToGlobalUi() {
+      setTransactionFormSwapMode(swapMode);
+    },
+    [swapMode, setTransactionFormSwapMode],
+  );
+
+  useEffect(
+    function syncRampFromSideSearchParam() {
+      const next = swapModeFromSideParam(searchParams.get("side"));
+      if (next !== undefined) {
+        setValue("swapMode", next, { shouldDirty: true });
+      }
+    },
+    [searchParams, setValue],
+  );
 
   // State props for child components
   const stateProps: StateProps = {
@@ -240,9 +292,10 @@ export function MainPageContent() {
   );
 
   useEffect(function ensureDefaultToken() {
-    // Make sure we always have USDC as default
-    if (!formMethods.getValues("token")) {
-      formMethods.reset({ token: "USDC" });
+    // Off-ramp: default token to USDC. On-ramp: keep empty so Receive shows "Select token".
+    if (formMethods.getValues("token")) return;
+    if (formMethods.getValues("swapMode") === "offramp") {
+      formMethods.setValue("token", "USDC", { shouldDirty: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -339,6 +392,13 @@ export function MainPageContent() {
 
       if (!currency) return;
 
+      if (isOnrampRate && isStarknetChain(selectedNetwork.chain)) {
+        setRate(0);
+        setRateError(null);
+        setIsFetchingRate(false);
+        return;
+      }
+
       if (isOnrampRate && !token) return;
 
       // Only fetch rate if at least one amount is greater than 0
@@ -358,9 +418,20 @@ export function MainPageContent() {
               ? lpParam
               : undefined;
 
+          // Aggregator GET /v2/rates/.../{token}/{amount}/{fiat} always expects `amount` in **token**
+          // units (ValidateRate / provider min-max). Off-ramp: Send = token → amountSent. On-ramp:
+          // Send = fiat → use computed token (amountReceived), else peg-aware probe, else 1.
+          const sentN = Number(amountSent) || 0;
+          const recvN = Number(amountReceived) || 0;
+          const rateQueryAmount = isOnrampRate
+            ? onrampRateQueryTokenAmount(token, currency, sentN, recvN)
+            : sentN > 0
+              ? sentN
+              : 100;
+
           const rate = await fetchRate({
             token,
-            amount: amountSent || 100,
+            amount: rateQueryAmount,
             currency,
             providerId,
             network: normalizeNetworkForRateFetch(selectedNetwork.chain.name),
@@ -427,7 +498,7 @@ export function MainPageContent() {
       amountReceived,
       currency,
       token,
-      isSwapped,
+      isOnrampRate,
       searchParams,
       selectedNetwork,
       rateRefetchTrigger,
@@ -460,10 +531,15 @@ export function MainPageContent() {
 
   const handleFormSubmit = useCallback(
     (data: FormData) => {
+      const isStarknetOnrampBlocked =
+        isStarknetChain(selectedNetwork.chain) && data.swapMode === "onramp";
+      if (isStarknetOnrampBlocked) {
+        return;
+      }
       setFormValues(data);
       setCurrentStep(STEPS.PREVIEW);
     },
-    [setFormValues, setCurrentStep],
+    [setFormValues, setCurrentStep, selectedNetwork],
   );
 
   const handleBackToForm = useCallback(() => {
@@ -589,7 +665,7 @@ export function MainPageContent() {
           currentStep={currentStep}
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
-          isOnramp={isSwapped}
+          isOnramp={swapMode === "onramp"}
           isBlockFestReferral={isBlockFestReferral}
         />
       )}

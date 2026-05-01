@@ -2,6 +2,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { UseFormWatch } from "react-hook-form";
 import { useInjectedWallet } from "../context";
 import { calculateSenderFee } from "../utils";
+import type { SwapMode } from "../types";
 
 const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
 
@@ -13,7 +14,9 @@ interface UseSwapButtonProps {
   isUserVerified: boolean;
   rate?: number | null;
   tokenDecimals?: number;
-  isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
+  swapMode?: SwapMode;
+  /** Starknet + on-ramp: product not shipped; show “Coming soon” and block submit. */
+  isStarknetOnramp?: boolean;
   needsMigration?: boolean;
   isRemainingFundsMigration?: boolean;
 }
@@ -26,7 +29,8 @@ export function useSwapButton({
   isUserVerified,
   rate,
   tokenDecimals = 18,
-  isSwapped = false,
+  swapMode = "offramp",
+  isStarknetOnramp = false,
   needsMigration = false,
   isRemainingFundsMigration = false,
 }: UseSwapButtonProps) {
@@ -41,8 +45,10 @@ export function useSwapButton({
     token,
   } = watch();
 
+  const onrampUi = swapMode === "onramp";
+
   // Off-ramp: min 0.5 token. On-ramp: min fiat 0.5×rate only after receive token + rate (same as onrampFiatMin).
-  const isAmountValid = isSwapped
+  const isAmountValid = onrampUi
     ? !token ||
       (Number(rate) > 0 && Number(amountSent) >= 0.5 * Number(rate))
     : Number(amountSent) >= 0.5;
@@ -59,13 +65,16 @@ export function useSwapButton({
   );
   const totalRequired = (Number(amountSent) || 0) + senderFeeAmount;
 
-  // Skip balance check in onramp mode (isSwapped = true)
-  const hasInsufficientBalance = isSwapped ? false : totalRequired > balance;
+  // Skip balance check in on-ramp mode
+  const hasInsufficientBalance = onrampUi ? false : totalRequired > balance;
 
   // Check recipient based on mode: walletAddress for onramp, recipientName for offramp
-  const hasRecipient = isSwapped ? Boolean(walletAddress) : Boolean(recipientName);
+  const hasRecipient = onrampUi ? Boolean(walletAddress) : Boolean(recipientName);
 
   const isEnabled = (() => {
+    if (isStarknetOnramp) {
+      return false;
+    }
     if (needsMigration && authenticated && !isInjectedWallet) return true;
     if (isMigrationMandatory) return true;
     if (!receiveDestinationExplicitlySelected) return false;
@@ -108,6 +117,9 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
+    if (isStarknetOnramp) {
+      return "Coming soon";
+    }
     if (needsMigration && authenticated && !isInjectedWallet) {
       return "Swap";
     }
@@ -139,6 +151,9 @@ export function useSwapButton({
     isUserVerified: boolean,
     openMigrationModal?: () => void,
   ) => {
+    if (isStarknetOnramp) {
+      return () => {};
+    }
     if (needsMigration && authenticated && !isInjectedWallet && openMigrationModal) {
       return openMigrationModal;
     }

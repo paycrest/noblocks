@@ -38,6 +38,33 @@ import config from "../lib/config";
 
 const AGGREGATOR_URL = config.aggregatorUrl;
 
+/**
+ * Absolute URL to this app's Next route handlers (`/api/**`).
+ * Leave unset when the SPA and API share the same origin (default).
+ * Set when the deployed web host does not serve `/api/*` (e.g. static CDN → set to the Noblocks Next/API origin).
+ */
+function noblocksInternalApiUrl(pathAndQuery: string): string {
+  const path = pathAndQuery.startsWith("/") ? pathAndQuery : `/${pathAndQuery}`;
+  const fromEnv =
+    typeof process !== "undefined"
+      ? process.env.NEXT_PUBLIC_INTERNAL_API_ORIGIN?.replace(/\/$/, "")
+      : "";
+
+  if (fromEnv) {
+    return `${fromEnv}${path}`;
+  }
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return `${window.location.origin}${path}`;
+  }
+
+  if (typeof process !== "undefined" && process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}${path}`;
+  }
+
+  return path;
+}
+
 /** Maps aggregator order status → Supabase `transactions.status`. Swap keeps validated→completed; on-ramp keeps pending until settled. */
 export function mapAggregatorStatusToDbStatus(
   status: string,
@@ -494,7 +521,7 @@ export async function fetchTransactions(
   limit: number = 20,
 ): Promise<TransactionResponse> {
   const response = await axios.get<TransactionResponse>(
-    `/api/v1/transactions?page=${page}&limit=${limit}`,
+    noblocksInternalApiUrl(`/api/v1/transactions?page=${page}&limit=${limit}`),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -516,11 +543,11 @@ export async function saveTransaction(
   transaction: TransactionCreateInput,
   accessToken: string,
 ): Promise<SaveTransactionResponse> {
-  const response = await axios.post("/api/v1/transactions", transaction, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
+  const response = await axios.post<SaveTransactionResponse>(
+    noblocksInternalApiUrl("/api/v1/transactions"),
+    transaction,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
   return response.data;
 }
 
@@ -542,7 +569,7 @@ export async function updateTransactionStatus({
   const finalStatus = mapAggregatorStatusToDbStatus(status, { onramp: false });
 
   const response = await axios.put(
-    `/api/v1/transactions/status/${transactionId}`,
+    noblocksInternalApiUrl(`/api/v1/transactions/status/${transactionId}`),
     { status: finalStatus },
     {
       headers: {
@@ -589,7 +616,7 @@ export async function updateTransactionDetails({
   }
 
   const response = await axios.put(
-    `/api/v1/transactions/${transactionId}`,
+    noblocksInternalApiUrl(`/api/v1/transactions/${transactionId}`),
     data,
     {
       headers: {
@@ -708,14 +735,36 @@ export async function reindexTransaction(
  * @throws {Error} If the API request fails
  */
 export const fetchTokens = async (): Promise<APIToken[]> => {
+  const base = (AGGREGATOR_URL || "").trim().replace(/\/$/, "");
+  if (!base) {
+    console.warn(
+      "fetchTokens: NEXT_PUBLIC_AGGREGATOR_URL is not set. Copy from .env.example into .env.local and restart dev.",
+    );
+    return [];
+  }
+
+  const url = `${base}/tokens`;
   try {
-    const response = await axios.get(`${AGGREGATOR_URL}/tokens`);
+    const response = await axios.get(url);
     if (response.data?.data && Array.isArray(response.data.data)) {
       return response.data.data;
     }
     return [];
   } catch (error) {
-    console.error("Error fetching supported tokens from API:", error);
+    if (axios.isAxiosError(error)) {
+      const isNetwork =
+        error.code === "ERR_NETWORK" ||
+        String(error.message).toLowerCase().includes("network");
+      console.error(
+        "Error fetching supported tokens from API:",
+        isNetwork
+          ? `Network error calling ${url}. Check: (1) NEXT_PUBLIC_AGGREGATOR_URL is correct, (2) the API is reachable from your machine/VPN, (3) browser extensions or CORS are not blocking the request.`
+          : error.message,
+        error.response?.status,
+      );
+    } else {
+      console.error("Error fetching supported tokens from API:", error);
+    }
     throw error;
   }
 };
@@ -745,7 +794,7 @@ export async function fetchRefundAccount(
   accessToken: string,
 ): Promise<RefundAccountDetails | null> {
   const response = await axios.get<RefundAccountApiEnvelope>(
-    "/api/v1/refund-account",
+    noblocksInternalApiUrl("/api/v1/refund-account"),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -768,7 +817,7 @@ export async function saveRefundAccount(
   accessToken: string,
 ): Promise<RefundAccountDetails> {
   const response = await axios.put<RefundAccountSaveEnvelope>(
-    "/api/v1/refund-account",
+    noblocksInternalApiUrl("/api/v1/refund-account"),
     {
       institution: detail.institutionName,
       institutionCode: detail.institutionCode,
@@ -793,7 +842,7 @@ export async function fetchSavedRecipients(
   accessToken: string,
 ): Promise<RecipientDetailsWithId[]> {
   const response = await axios.get<SavedRecipientsResponse>(
-    "/api/v1/recipients",
+    noblocksInternalApiUrl("/api/v1/recipients"),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -820,7 +869,7 @@ export async function saveRecipient(
   accessToken: string,
 ): Promise<boolean> {
   try {
-    const response = await axios.post("/api/v1/recipients", recipient, {
+    const response = await axios.post(noblocksInternalApiUrl("/api/v1/recipients"), recipient, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -851,11 +900,14 @@ export async function deleteSavedRecipient(
   recipientId: string,
   accessToken: string,
 ): Promise<boolean> {
-  const response = await axios.delete(`/api/v1/recipients?id=${recipientId}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
+  const response = await axios.delete(
+    noblocksInternalApiUrl(`/api/v1/recipients?id=${recipientId}`),
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     },
-  });
+  );
 
   if (!response.data.success) {
     throw new Error(response.data.error || "Failed to delete recipient");
@@ -973,7 +1025,7 @@ export async function createV2SenderPaymentOrder(
   accessToken: string,
 ): Promise<AggregatorEnvelope<V2PaymentOrderCreateData>> {
   const response = await axios.post<AggregatorEnvelope<V2PaymentOrderCreateData>>(
-    "/api/v1/payment-orders",
+    noblocksInternalApiUrl("/api/v1/payment-orders"),
     payload,
     {
       headers: {
@@ -993,7 +1045,9 @@ export async function fetchV2SenderPaymentOrderById(
   accessToken: string,
 ): Promise<AggregatorEnvelope<V2PaymentOrderGetData>> {
   const response = await axios.get<AggregatorEnvelope<V2PaymentOrderGetData>>(
-    `/api/v1/payment-orders/${encodeURIComponent(orderId)}`,
+    noblocksInternalApiUrl(
+      `/api/v1/payment-orders/${encodeURIComponent(orderId)}`,
+    ),
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,

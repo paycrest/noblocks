@@ -11,7 +11,7 @@ import {
   RefreshIcon,
 } from "hugeicons-react";
 import { CrossChainBalanceSkeleton } from "../BalanceSkeleton";
-import { classNames, getNetworkImageUrl } from "../../utils";
+import { classNames, getNetworkImageUrl, tokenBalanceRowVisible } from "../../utils";
 import type { CrossChainBalanceEntry } from "../../context";
 
 const Divider = () => (
@@ -40,6 +40,7 @@ interface WalletViewProps {
   onHistory: () => void;
   setSelectedNetwork: (network: any) => void;
   onRefreshBalance: () => void;
+  isRefreshing?: boolean;
 }
 
 export const WalletView: React.FC<WalletViewProps> = ({
@@ -62,7 +63,10 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onClose,
   onHistory,
   onRefreshBalance,
+  isRefreshing = false,
 }) => {
+  const showBalanceSkeleton = isLoading && !isRefreshing;
+
   return (
     <div className="mb-[1.5rem] space-y-4">
       <div className="flex items-center justify-between">
@@ -111,13 +115,13 @@ export const WalletView: React.FC<WalletViewProps> = ({
             className="rounded-lg p-1.5 transition-colors hover:bg-accent-gray disabled:opacity-50 dark:hover:bg-white/10"
           >
             <RefreshIcon
-              className={`size-4 text-outline-gray dark:text-white/50 ${isLoading ? "animate-spin" : ""}`}
+              className={`size-4 text-outline-gray dark:text-white/50 ${isLoading || isRefreshing ? "animate-spin" : ""}`}
             />
           </button>
         </div>
 
         <div className="space-y-4">
-          {isLoading ? (
+          {showBalanceSkeleton ? (
             <CrossChainBalanceSkeleton isMobile />
           ) : (
             crossChainBalances.map((entry) => {
@@ -131,7 +135,14 @@ export const WalletView: React.FC<WalletViewProps> = ({
               // For other networks: only show non-zero balances
               const filteredBalances = isSelectedNetwork
                 ? balanceEntries
-                : balanceEntries.filter(([, balance]) => balance > 0);
+                : balanceEntries.filter(([t, balance]) =>
+                    tokenBalanceRowVisible(
+                      entry.balances.rawBalances,
+                      t,
+                      balance,
+                      isSelectedNetwork,
+                    ),
+                  );
 
               // Skip networks with no balances to show
               if (filteredBalances.length === 0) return null;
@@ -195,7 +206,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
           )}
         </div>
 
-        {!isInjectedWallet && !isLoading && (
+        {!isInjectedWallet && !showBalanceSkeleton && (
           <div className="grid grid-cols-2 gap-4">
             <button
               type="button"

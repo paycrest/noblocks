@@ -33,10 +33,22 @@ interface FlexibleDropdownProps {
     selectedItem: DropdownItem | undefined;
     isOpen: boolean;
     toggleDropdown: () => void;
+    disabled: boolean;
   }) => ReactNode;
   className?: string;
   mobileTitle?: string;
   dropdownWidth?: number;
+  /** When true, toggling the menu is blocked (e.g. Starknet on-ramp placeholders). */
+  disabled?: boolean;
+}
+
+function resolveDefaultSelection(
+  defaultSelectedItem: string | undefined,
+  data: DropdownItem[],
+): DropdownItem | undefined {
+  const key = defaultSelectedItem?.trim();
+  if (!key) return undefined;
+  return data.find((item) => item.name === key);
 }
 
 export const FlexibleDropdown = ({
@@ -48,11 +60,10 @@ export const FlexibleDropdown = ({
   className = "",
   mobileTitle = "Select option",
   dropdownWidth,
+  disabled = false,
 }: FlexibleDropdownProps) => {
-  const [selectedItem, setSelectedItem] = useState<DropdownItem | undefined>(
-    defaultSelectedItem
-      ? data.find((item) => item.name === defaultSelectedItem)
-      : undefined,
+  const [selectedItem, setSelectedItem] = useState<DropdownItem | undefined>(() =>
+    resolveDefaultSelection(defaultSelectedItem, data),
   );
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownStyles, setDropdownStyles] = useState<React.CSSProperties>({});
@@ -64,18 +75,14 @@ export const FlexibleDropdown = ({
     typeof window !== "undefined" ? window.innerWidth <= 640 : false;
 
   useEffect(() => {
-    if (controlledSelectedItem) {
+    const controlledKey = controlledSelectedItem?.trim();
+    if (controlledKey) {
       const newSelectedItem = data.find(
-        (item) => item.name === controlledSelectedItem,
-      );
-      newSelectedItem && setSelectedItem(newSelectedItem);
-    } else if (defaultSelectedItem) {
-      const newSelectedItem = data.find(
-        (item) => item.name === defaultSelectedItem,
+        (item) => item.name === controlledKey,
       );
       newSelectedItem && setSelectedItem(newSelectedItem);
     } else {
-      setSelectedItem(undefined);
+      setSelectedItem(resolveDefaultSelection(defaultSelectedItem, data));
     }
   }, [controlledSelectedItem, defaultSelectedItem, data]);
 
@@ -119,6 +126,12 @@ export const FlexibleDropdown = ({
       window.removeEventListener("scroll", updateDropdownPosition, true);
     };
   }, [isOpen, dropdownWidth]);
+
+  useEffect(() => {
+    if (disabled && isOpen) {
+      setIsOpen(false);
+    }
+  }, [disabled, isOpen]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -248,7 +261,11 @@ export const FlexibleDropdown = ({
         {children({
           selectedItem,
           isOpen,
-          toggleDropdown: () => setIsOpen((v) => !v),
+          disabled,
+          toggleDropdown: () => {
+            if (disabled) return;
+            setIsOpen((v) => !v);
+          },
         })}
       </div>
       {isOpen &&

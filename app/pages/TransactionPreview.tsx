@@ -23,6 +23,7 @@ import { useNetwork, useTokens } from "../context";
 import config, {
   getDelegationContractAddress,
   localTransferFeePercent,
+  STARKNET_READY_ACCOUNT_CLASSHASH,
 } from "../lib/config";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
@@ -46,7 +47,13 @@ import {
   createPublicClient,
   http,
 } from "viem";
-import { useBalance, useInjectedWallet, useStep, useTransactions } from "../context";
+import {
+  useBalance,
+  useInjectedWallet,
+  useStep,
+  useTransactions,
+} from "../context";
+import { useStarknet } from "../context/StarknetContext";
 import {
   useShouldUseEOA,
   useDelegationContractAuth,
@@ -101,13 +108,19 @@ export const TransactionPreview = ({
   const { isLoading: isMigrationLoading } = useMigrationStatus();
   const { signDelegationAuthorization } = useDelegationContractAuth();
 
+  const { walletId, address: starknetAddress, publicKey } = useStarknet();
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();
-  const { setCurrentStep } = useStep();
+  const { currentStep, setCurrentStep } = useStep();
   const { fetchTransactions } = useTransactions();
-  const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance } =
-    useBalance();
+  const {
+    refreshBalance,
+    smartWalletBalance,
+    externalWalletBalance,
+    injectedWalletBalance,
+    allBalances,
+  } = useBalance();
 
   const {
     rate,
@@ -204,25 +217,42 @@ export const TransactionPreview = ({
     ? null
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
-  const activeWallet = injectedWallet ||
-    (shouldUseEOA
-      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
-      : smartWallet);
+  const activeWallet =
+    injectedWallet ||
+    (selectedNetwork.chain.name === "Starknet"
+      ? starknetAddress
+        ? { address: starknetAddress, type: "starknet" as const }
+        : undefined
+      : shouldUseEOA
+        ? embeddedWallet
+          ? { address: embeddedWallet.address, type: "eoa" as const }
+          : undefined
+        : smartWallet);
 
-  // Get appropriate balance based on migration status
-  // After migration: use externalWalletBalance (EOA balance)
-  // Before migration: use smartWalletBalance (SCW balance)
-  // Wait for migration status to load before making decision
+  /**
+   * Same identity as middleware `x-wallet-address`: Privy embedded EVM wallet only.
+   * Never use `activeWallet` (Starknet / SCW / injected) here — POST /api/v1/transactions
+   * compares body.walletAddress to that JWT-derived value.
+   */
+  const walletAddressForTransactionApi =
+    typeof embeddedWallet?.address === "string" &&
+    embeddedWallet.address.trim() !== ""
+      ? embeddedWallet.address.trim()
+      : undefined;
+
   const activeBalance = injectedWallet
     ? injectedWalletBalance
-    : !isMigrationLoading && shouldUseEOA
-      ? externalWalletBalance
-      : smartWalletBalance;
+    : selectedNetwork.chain.name === "Starknet"
+      ? allBalances.starknetWallet
+      : !isMigrationLoading && shouldUseEOA
+        ? externalWalletBalance
+        : smartWalletBalance;
 
-  // For CNGN, use raw balance (token units) instead of USD equivalent
   const balance =
     token === "CNGN" || token === "cNGN"
-      ? (activeBalance?.rawBalances?.[token] ?? activeBalance?.balances[token] ?? 0)
+      ? (activeBalance?.rawBalances?.[token] ??
+          activeBalance?.balances[token] ??
+          0)
       : (activeBalance?.balances[token] ?? 0);
 
   // Calculate sender fee for display and balance check
@@ -298,8 +328,6 @@ export const TransactionPreview = ({
     const publicKey = await fetchAggregatorPublicKey();
     const encryptedRecipient = publicKeyEncrypt(recipient, publicKey.data);
 
-    // Use the fee values calculated earlier (already in base units and capped)
-
     // Prepare transaction parameters
     const params = {
       token: tokenAddress,
@@ -310,7 +338,6 @@ export const TransactionPreview = ({
       refundAddress: activeWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
-
     return params;
   };
 
@@ -328,6 +355,88 @@ export const TransactionPreview = ({
 
   const createOrder = async () => {
     try {
+      // Check if on Starknet and not using injected wallet
+      if (selectedNetwork.chain.name === "Starknet" && !isInjectedWallet) {
+        if (!walletId || !publicKey || !starknetAddress) {
+          toast.error(
+            "Starknet wallet not found. Please create a wallet first.",
+          );
+          return;
+        }
+
+        const params = await prepareCreateOrderParams();
+        setCreatedAt(new Date().toISOString());
+
+        const classHash = STARKNET_READY_ACCOUNT_CLASSHASH;
+
+        const token = await getAccessToken();
+        if (!token) {
+          throw new Error("Failed to get access token");
+        }
+
+        toast.loading("Creating order...");
+
+        // Execute the transaction using Starknet paymaster via API
+        const response = await fetch("/api/starknet/create-order", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            walletId,
+            publicKey,
+            classHash,
+            userId: user?.id,
+            origin: window.location.origin,
+            tokenAddress: tokenAddress,
+            gatewayAddress: getGatewayContractAddress(
+              selectedNetwork.chain.name,
+            ) as string,
+            amount: params.amount.toString(),
+            rate: params.rate.toString(),
+            senderFeeRecipient: params.senderFeeRecipient as string,
+            senderFee: params.senderFee.toString(),
+            refundAddress: params.refundAddress ?? "",
+            messageHash: params.messageHash,
+            address: starknetAddress,
+          }),
+        });
+
+        toast.dismiss();
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to create order");
+        }
+
+        const result = await response.json();
+        const orderId = result.orderId;
+
+        setOrderId(orderId);
+
+        await saveTransactionData({
+          orderId: orderId,
+          txHash: result.transactionHash,
+        });
+
+        setCreatedAt(new Date().toISOString());
+        setTransactionStatus("pending");
+        setCurrentStep("status");
+
+        toast.success("Order created successfully");
+
+        refreshBalance();
+        setIsOrderCreated(true);
+
+        trackEvent("Swap started", {
+          "Entry point": "Transaction preview",
+          "Wallet type": "Starknet embedded wallet",
+          "Transaction hash": result.transactionHash,
+        });
+        return;
+      }
+
       if (isInjectedWallet && injectedProvider) {
         // Injected wallet
         if (!injectedReady) {
@@ -738,9 +847,9 @@ export const TransactionPreview = ({
         });
 
         const refreshTok = await getAccessToken();
-        if (refreshTok && activeWallet?.address) {
+        if (refreshTok && walletAddressForTransactionApi) {
           void fetchTransactions(
-            activeWallet.address,
+            walletAddressForTransactionApi,
             refreshTok,
             1,
             30,
@@ -795,7 +904,15 @@ export const TransactionPreview = ({
     /** Pass from create-order response so bank name is saved before React state updates. */
     providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {
-    if (!activeWallet?.address || isSavingTransaction) return;
+    if (isSavingTransaction) return;
+    if (!walletAddressForTransactionApi) {
+      const err = new Error(
+        "Embedded Privy wallet address is required to persist transactions (must match API auth).",
+      );
+      console.error("[TransactionPreview]", err.message);
+      throw err;
+    }
+
     setIsSavingTransaction(true);
 
     try {
@@ -805,7 +922,7 @@ export const TransactionPreview = ({
       }
 
       const transaction: TransactionCreateInput = {
-        walletAddress: activeWallet.address,
+        walletAddress: walletAddressForTransactionApi,
         transactionType: isOnramp ? "onramp" : "swap",
         fromCurrency: isOnramp ? currency : token,
         toCurrency: isOnramp ? token : currency,

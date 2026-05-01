@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useReducer } from "react";
+import { useState, useEffect, useMemo, useReducer, useRef } from "react";
 import {
   classNames,
   copyToClipboard,
@@ -8,6 +8,7 @@ import {
   shortenAddress,
   hasOnrampAwaitingBankTransfer,
   OnrampPendingNotificationDot,
+  tokenBalanceRowVisible,
 } from "../utils";
 import { useBalance, useTransactions, useStep } from "../context";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
@@ -24,6 +25,7 @@ import {
 import Image from "next/image";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { Dialog } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -68,7 +70,9 @@ export const WalletDetails = () => {
     crossChainBalances,
     crossChainTotal,
     isLoading,
+    isRefreshing,
     refreshBalance,
+    softRefresh,
   } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user, getAccessToken } = usePrivy();
@@ -77,49 +81,56 @@ export const WalletDetails = () => {
   const { isOnrampProviderDetailsOpen } = useStep();
   const isDark = useActualTheme();
   const shouldUseEOA = useShouldUseEOA();
+  const hookWalletAddress = useWalletAddress();
 
   // Custom hook for handling wallet funding
   const { handleFundWallet } = useFundWalletHandler("Wallet details");
 
   // Custom hook for CNGN rate fetching
-  const {
-    rate,
-    isLoading: isRateLoading,
-    error: rateError,
-  } = useCNGNRate({
+  const { refetch: refetchCngnRate } = useCNGNRate({
     network: selectedNetwork.chain.name,
     dependencies: [selectedNetwork],
   });
 
-  // Get embedded wallet (EOA) and smart wallet (SCW)
+  const softRefreshRef = useRef(softRefresh);
+  softRefreshRef.current = softRefresh;
+  const refetchCngnRateRef = useRef(refetchCngnRate);
+  refetchCngnRateRef.current = refetchCngnRate;
+
   const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
+    (wallet) => wallet.walletClientType === "privy",
   );
   const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet"
+    (account) => account.type === "smart_wallet",
   );
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : shouldUseEOA
-      ? (embeddedWallet ? { address: embeddedWallet.address } : undefined)
-      : smartWallet;
+    : selectedNetwork.chain.name === "Starknet"
+      ? hookWalletAddress
+        ? { address: hookWalletAddress }
+        : undefined
+      : shouldUseEOA
+        ? embeddedWallet
+          ? { address: embeddedWallet.address }
+          : undefined
+        : smartWallet;
 
-  // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
-    : shouldUseEOA
-      ? allBalances.externalWallet
-      : allBalances.smartWallet;
+    : selectedNetwork.chain.name === "Starknet"
+      ? allBalances.starknetWallet
+      : shouldUseEOA
+        ? allBalances.externalWallet
+        : allBalances.smartWallet;
 
-  // Sort cross-chain balances: selected network first, then alphabetically
-  // Filter to show only networks with non-zero balances (except selected network)
   const sortedCrossChainBalances = useSortedCrossChainBalances(
     crossChainBalances,
     selectedNetwork.chain.name,
   );
 
-  /** Re-evaluate on-ramp pending dot when client payment window elapses (same cadence as transaction list). */
+  const showBalanceSkeleton = isLoading && !isRefreshing;
+
   const [onrampDotRevision, bumpOnrampDot] = useReducer(
     (n: number) => n + 1,
     0,
@@ -138,6 +149,18 @@ export const WalletDetails = () => {
       }
     });
   }, [activeWallet?.address, fetchTransactions, getAccessToken]);
+
+  // Focus refresh: re-quote NGN→USD and SWR-refresh balances when opening the drawer.
+  // Uses softRefresh (cache-respecting) so repeated drawer opens within the cache TTL
+  // don't trigger fresh RPC fan-out; the explicit Refresh button still bypasses cache.
+  useEffect(() => {
+    if (!isSidebarOpen) return;
+    const id = window.setTimeout(() => {
+      void refetchCngnRateRef.current();
+      void softRefreshRef.current();
+    }, 300);
+    return () => clearTimeout(id);
+  }, [isSidebarOpen]);
 
   const showOnrampAwaitingDot = useMemo(
     () =>
@@ -198,8 +221,10 @@ export const WalletDetails = () => {
         <Wallet01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
         <div className="h-9 w-px border-r border-dashed border-border-light dark:border-white/10" />
         <div className="flex items-center gap-1.5 dark:text-white/80">
-          {isLoading ? (
+          {showBalanceSkeleton ? (
             <BalanceSkeleton />
+          ) : selectedNetwork.chain.name === "Starknet" ? (
+            <p>${(activeBalance?.total ?? 0).toFixed(2)}</p>
           ) : (
             <p>{formatCurrency(crossChainTotal, "USD", "en-US")}</p>
           )}
@@ -299,8 +324,10 @@ export const WalletDetails = () => {
 
                       <div className="flex items-center justify-between">
                         <div className="text-2xl font-medium text-text-body dark:text-white">
-                          {isLoading ? (
+                          {showBalanceSkeleton ? (
                             <BalanceSkeleton className="w-24" />
+                          ) : selectedNetwork.chain.name === "Starknet" ? (
+                            `$${(activeBalance?.total ?? 0).toFixed(2)}`
                           ) : (
                             formatCurrency(crossChainTotal, "USD", "en-US")
                           )}
@@ -320,7 +347,7 @@ export const WalletDetails = () => {
                           className="rounded-lg p-2 transition-colors hover:bg-accent-gray disabled:opacity-50 dark:hover:bg-white/10"
                         >
                           <RefreshIcon
-                            className={`size-5 text-outline-gray dark:text-white/50 ${isLoading ? "animate-spin" : ""}`}
+                            className={`size-5 text-outline-gray dark:text-white/50 ${isLoading || isRefreshing ? "animate-spin" : ""}`}
                           />
                         </button>
                       </div>
@@ -393,7 +420,7 @@ export const WalletDetails = () => {
                             exit="exit"
                             className="h-full space-y-6 overflow-y-auto pb-16"
                           >
-                            {isLoading ? (
+                            {showBalanceSkeleton ? (
                               <CrossChainBalanceSkeleton />
                             ) : (
                               sortedCrossChainBalances.map((entry) => {
@@ -408,8 +435,13 @@ export const WalletDetails = () => {
                                 // For other networks: only show non-zero balances
                                 const filteredBalances = isSelectedNetwork
                                   ? balanceEntries
-                                  : balanceEntries.filter(
-                                      ([, balance]) => balance > 0,
+                                  : balanceEntries.filter(([t, balance]) =>
+                                      tokenBalanceRowVisible(
+                                        entry.balances.rawBalances,
+                                        t,
+                                        balance,
+                                        isSelectedNetwork,
+                                      ),
                                     );
 
                                 // Skip networks with no balances to show
@@ -428,18 +460,22 @@ export const WalletDetails = () => {
                                       <Divider />
                                     </div>
 
-                                    {/* Token balances for this network */}
                                     <div className="space-y-4">
                                       {filteredBalances.map(
                                         ([token, balance]) => {
-                                          // For CNGN, use raw balance for token amount display
+                                          const isCngn =
+                                            token === "CNGN" ||
+                                            token === "cNGN";
                                           const displayBalance =
-                                            token === "CNGN" || token === "cNGN"
+                                            isCngn
                                               ? (entry.balances.rawBalances?.[
                                                   token
                                                 ] ?? balance)
                                               : balance;
-                                          const usdEquivalent = balance; // The 'balance' is the USD equivalent
+                                          const usdEquivalent = balance;
+                                          const cngnUnknown =
+                                            isCngn &&
+                                            entry.balances.cngnUsdUnknown;
 
                                           return (
                                             <div
@@ -475,20 +511,32 @@ export const WalletDetails = () => {
                                                   </span>
                                                   <span className="text-text-secondary dark:text-white/50">
                                                     {displayBalance}
+                                                    {cngnUnknown ? (
+                                                      <span className="block text-xs text-text-disabled dark:text-white/40">
+                                                        NGN-pegged · USD quote
+                                                        unavailable
+                                                      </span>
+                                                    ) : null}
                                                   </span>
                                                 </div>
                                               </div>
                                               <div className="flex flex-col items-end">
-                                                <span
-                                                  className={`${
-                                                    usdEquivalent === 0 &&
-                                                    displayBalance > 0
-                                                      ? "text-red-500"
-                                                      : "text-text-body dark:text-white/80"
-                                                  }`}
-                                                >
-                                                  ${usdEquivalent.toFixed(2)}
-                                                </span>
+                                                {cngnUnknown ? (
+                                                  <span className="text-text-secondary dark:text-white/45">
+                                                    —
+                                                  </span>
+                                                ) : (
+                                                  <span
+                                                    className={`${
+                                                      usdEquivalent === 0 &&
+                                                      displayBalance > 0
+                                                        ? "text-red-500"
+                                                        : "text-text-body dark:text-white/80"
+                                                    }`}
+                                                  >
+                                                    ${usdEquivalent.toFixed(2)}
+                                                  </span>
+                                                )}
                                               </div>
                                             </div>
                                           );

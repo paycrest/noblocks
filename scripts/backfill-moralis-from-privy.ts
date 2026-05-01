@@ -2,10 +2,11 @@
  * One-time backfill: register Privy users (email signups) with Moralis Streams.
  *
  * Requires: MORALIS_STREAM_ID, MORALIS_API_KEY, MORALIS_BASE_URL (e.g. https://api.moralis-streams.com)
- * and Privy env. Output `moralis-backfill-output.json` includes **emails and addresses (PII)**;
- * it is gitignored—delete or redact if sharing, and do not commit.
+ * and Privy env. Output `moralis-backfill-output.json` is gitignored and stores **no raw PII**:
+ * emails as truncated SHA-256 fingerprints, addresses as `0xabcd…7890` masks (plus userId, status, optional detail).
  */
 
+import { createHash } from "crypto";
 import { writeFileSync } from "fs";
 import { resolve } from "path";
 import type { User, LinkedAccountWithMetadata, WalletWithMetadata } from "@privy-io/server-auth";
@@ -102,6 +103,41 @@ type Row = {
   moralis: "ok" | "skipped_duplicate" | "error" | "dry_run" | "skipped_no_wallet";
   detail?: string;
 };
+
+/** Non-reversible audit fingerprint (first 12 hex chars of SHA-256). */
+function emailFingerprint(email: string): string {
+  if (!email) return "";
+  return `${createHash("sha256").update(email).digest("hex").slice(0, 12)}…`;
+}
+
+/** Short hex mask; empty string stays empty. */
+function maskEthAddress(address: string): string {
+  const a = address.trim().toLowerCase();
+  if (!a) return "";
+  if (!a.startsWith("0x") || a.length < 12) return "[invalid]";
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+type OutputRow = {
+  userId: string;
+  emailFingerprint: string;
+  addressMasked: string;
+  moralis: Row["moralis"];
+  detail?: string;
+};
+
+function rowForJsonOutput(row: Row): OutputRow {
+  const out: OutputRow = {
+    userId: row.userId,
+    emailFingerprint: emailFingerprint(row.email),
+    addressMasked: maskEthAddress(row.address),
+    moralis: row.moralis,
+  };
+  if (row.detail !== undefined) {
+    out.detail = row.detail;
+  }
+  return out;
+}
 
 async function main() {
   const streamId = process.env.MORALIS_STREAM_ID;
@@ -203,19 +239,9 @@ async function main() {
       usersWithLinkedEmail: emailUsers,
       registeredOrAttempted: rows.filter((r) => r.moralis === "ok" || r.moralis === "error").length,
     },
-    rows,
+    rows: rows.map(rowForJsonOutput),
   };
   writeFileSync(outPath, JSON.stringify(payload, null, 2), "utf8");
-
-  console.log("— Summary —");
-  console.log(`Users with linked email: ${emailUsers}`);
-  console.log(
-    `OK: ${rows.filter((r) => r.moralis === "ok").length}, dry_run: ${rows.filter((r) => r.moralis === "dry_run").length}, errors: ${rows.filter((r) => r.moralis === "error").length}, no wallet: ${rows.filter((r) => r.moralis === "skipped_no_wallet").length}`,
-  );
-  console.log(`Wrote ${outPath}`);
-  console.log(
-    "Note: that file may contain PII (emails); keep local and do not commit.",
-  );
 }
 
 main().catch((e) => {

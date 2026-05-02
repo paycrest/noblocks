@@ -9,7 +9,7 @@ import { AnimatedModal, AnimatedFeedbackItem } from "@/app/components/AnimatedCo
 import { SearchInput } from "@/app/components/recipient/SearchInput";
 import { InputError } from "@/app/components/InputError";
 import type { InstitutionProps, RefundAccountDetails } from "@/app/types";
-import { classNames } from "@/app/utils";
+import { classNames, getOfframpAccountIdentifierPlaceholder } from "@/app/utils";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "@/app/components/Styles";
 
@@ -259,7 +259,10 @@ export function AddRefundAccountModal({
                   autoComplete="off"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
-                  placeholder="Account number"
+                  placeholder={getOfframpAccountIdentifierPlaceholder(
+                    currency,
+                    selectedInstitution?.type,
+                  )}
                   className={classNames(
                     "w-full rounded-xl border bg-white px-3.5 py-3 text-sm text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:ring-2 dark:bg-[#202020] dark:text-white dark:placeholder:text-white/35",
                     accountNumberError

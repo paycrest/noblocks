@@ -148,6 +148,32 @@ export const getCurrencySymbol = (currency: string): string => {
   return currencySymbols[currency.toUpperCase()] || currency;
 };
 
+/**
+ * Off-ramp account/phone field placeholder. Banks use a generic label; mobile money
+ * uses a country-appropriate example. All mobile-money values share an "eg: " prefix
+ * (no leading space before the label) so the placeholder is aligned in the input.
+ * Examples use local-style numbers only (no international country calling prefix).
+ */
+export function getOfframpAccountIdentifierPlaceholder(
+  currency: string,
+  institutionType: "bank" | "mobile_money" | undefined,
+): string {
+  if (institutionType !== "mobile_money") {
+    return "Account number";
+  }
+  const examples: Record<string, string> = {
+    KES: "07XXXXXXXX",
+    NGN: "08XXXXXXXX",
+    UGX: "07XXXXXXXX",
+    TZS: "07XXXXXXXX",
+    MWK: "0XXXXXXXXX",
+    GHS: "0XXXXXXXXX",
+  };
+  return (
+    examples[currency.toUpperCase()] ?? "eg: phone number"
+  );
+}
+
 /** Fiat codes supported in Noblocks swap (matches `mocks.acceptedCurrencies` names). */
 const NOBLOCKS_FIAT_CURRENCY_CODES = new Set([
   "NGN",

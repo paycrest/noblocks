@@ -57,6 +57,12 @@ const nextConfig = {
   experimental: {
     optimizeCss: true,
     optimizePackageImports: ["@headlessui/react", "framer-motion", "hugeicons-react", "react-icons"],
+    // Workaround for Turbopack scope-hoisting BytePos overflow panic
+    // ("The high bits of the position ... are not all 0s or 1s") that
+    // crashes `next build --turbopack` on large module graphs (e.g. Sanity).
+    // Fix landed in Next.js 16 via vercel/next.js#83399 and is not in 15.5.x.
+    // Remove this once we upgrade to a Next.js version that includes the fix.
+    turbopackScopeHoisting: false,
   },
   serverExternalPackages: ['mixpanel', 'https-proxy-agent'],
   webpack: (config, { isServer }) => {

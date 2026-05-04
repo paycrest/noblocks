@@ -9,6 +9,9 @@ const CNGN_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
 const PRIMARY_TIMEOUT = 5000; // 5 seconds for primary network attempts
 const FALLBACK_TIMEOUT = 3000; // 3 seconds for fallback network attempts
 const RELIABLE_NETWORKS = ["Base", "BNB Smart Chain"]; // Most reliable networks for rate fallback
+
+/** NGN↔USD-stable quote corridor for cross-chain balance correction (not tied to selected chain). */
+export const CNGN_CROSS_CHAIN_QUOTE_NETWORK = RELIABLE_NETWORKS[0] ?? "Base";
 const CNGN_CACHE_KEY = "cngn_last_rate";
 const CNGN_CACHE_TIME_KEY = "cngn_cache_time";
 
@@ -67,11 +70,16 @@ function cacheRate(rate: number): void {
 function parseRateResponse(
   rateResponse: { data?: unknown } | null | undefined,
 ): number | null {
-  if (rateResponse?.data && typeof rateResponse.data === "string") {
-    const numericRate = Number(rateResponse.data);
-    if (numericRate > 0) {
-      return numericRate;
-    }
+  const raw = rateResponse?.data;
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+
+  const numericRate =
+    typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+
+  if (Number.isFinite(numericRate) && numericRate > 0) {
+    return numericRate;
   }
 
   return null;
@@ -130,10 +138,13 @@ async function fetchFallbackRate(primaryNetwork: string): Promise<number | null>
 
 async function fetchCNGNRateWithFallback(
   network: string,
+  options: { bypassCache?: boolean } = {},
 ): Promise<CNGNRateFetchResult> {
-  const freshCachedRate = getFreshCachedRate();
-  if (freshCachedRate !== null) {
-    return { rate: freshCachedRate, source: "fresh-cache" };
+  if (!options.bypassCache) {
+    const freshCachedRate = getFreshCachedRate();
+    if (freshCachedRate !== null) {
+      return { rate: freshCachedRate, source: "fresh-cache" };
+    }
   }
 
   const primaryRate = await fetchRateWithTimeout(network, PRIMARY_TIMEOUT);
@@ -250,11 +261,12 @@ export function useCNGNRate({
  */
 export async function getCNGNRateForNetwork(
   network: string,
+  options: { bypassCache?: boolean } = {},
 ): Promise<number | null> {
   if (!network) return null;
   if (network.toLowerCase().includes("starknet")) {
     return null;
   }
-  const result = await fetchCNGNRateWithFallback(network);
+  const result = await fetchCNGNRateWithFallback(network, options);
   return result.rate;
 }

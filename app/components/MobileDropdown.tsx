@@ -54,7 +54,7 @@ export const MobileDropdown = ({
   const { currentStep } = useStep();
 
   const { user, linkEmail, updateEmail, exportWallet } = usePrivy();
-  const { allBalances, crossChainBalances, isLoading, refreshBalance } = useBalance();
+  const { allBalances, crossChainBalances, isLoading, isRefreshing, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const { ensureWalletExists } = useStarknet();
   const { logout } = useLogout({
@@ -288,6 +288,7 @@ export const MobileDropdown = ({
                               onHistory={() => setCurrentView("history")}
                               setSelectedNetwork={setSelectedNetwork}
                               onRefreshBalance={refreshBalance}
+                              isRefreshing={isRefreshing}
                             />
                           )}
 

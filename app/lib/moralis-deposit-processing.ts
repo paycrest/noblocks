@@ -5,6 +5,7 @@ import {
   getEmailForMonitoredAddress,
   getMoralisDepositNetworkAndExplorer,
 } from "@/app/utils";
+import { supabaseAdmin } from "@/app/lib/supabase";
 import type { MoralisWebhookBody } from "../types";
 
 /** Native token ticker for display (simplified; most EVMs use 18 decimals for native in Moralis). */
@@ -104,6 +105,25 @@ export async function processMoralisDepositPayload(
             txExplorerUrl,
             kind: "native",
           });
+          await supabaseAdmin.from("transactions").insert({
+            wallet_address: to,
+            transaction_type: "credit",
+            from_currency: symbol,
+            to_currency: symbol,
+            amount_sent: parseFloat(amountStr) || 0,
+            amount_received: parseFloat(amountStr) || 0,
+            fee: 0,
+            recipient: {
+              account_name: "Deposit",
+              institution: network,
+              account_identifier: (tx.fromAddress ?? "").toLowerCase(),
+              memo: "",
+            },
+            status: "completed",
+            network,
+            tx_hash: tx.hash,
+            explorer_link: txExplorerUrl || null,
+          });
         },
       );
     } catch (e) {
@@ -164,6 +184,25 @@ export async function processMoralisDepositPayload(
             network,
             txExplorerUrl,
             kind: "erc20",
+          });
+          await supabaseAdmin.from("transactions").insert({
+            wallet_address: to,
+            transaction_type: "credit",
+            from_currency: token,
+            to_currency: token,
+            amount_sent: parseFloat(tr.valueWithDecimals ?? "0") || 0,
+            amount_received: parseFloat(tr.valueWithDecimals ?? "0") || 0,
+            fee: 0,
+            recipient: {
+              account_name: "Deposit",
+              institution: network,
+              account_identifier: (tr.from ?? "").toLowerCase(),
+              memo: "",
+            },
+            status: "completed",
+            network,
+            tx_hash: txId,
+            explorer_link: txExplorerUrl || null,
           });
         },
       );

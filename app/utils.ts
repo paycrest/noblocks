@@ -186,6 +186,8 @@ export function getTransactionHistoryTypeLabel(
       return "Swapped";
     case "onramp":
       return "Swapped";
+    case "credit":
+      return "Funded";
     default:
       return type;
   }

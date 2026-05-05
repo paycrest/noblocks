@@ -95,9 +95,25 @@ export const TransactionListItem = ({
             />
             <span className="dark:text-white/80">
               {getTransactionHistoryTypeLabel(transaction.transaction_type)}{" "}
-              {formatTransactionAmountDisplay(
-                transaction.amount_sent,
-                transaction.from_currency,
+              {transaction.transaction_type === "credit" ? (
+                <span className="font-medium text-green-500">
+                  +{formatTransactionAmountDisplay(
+                    transaction.amount_received,
+                    transaction.from_currency,
+                  )}
+                </span>
+              ) : transaction.transaction_type === "transfer" ? (
+                <span className="font-medium text-red-500">
+                  -{formatTransactionAmountDisplay(
+                    transaction.amount_sent,
+                    transaction.from_currency,
+                  )}
+                </span>
+              ) : (
+                formatTransactionAmountDisplay(
+                  transaction.amount_sent,
+                  transaction.from_currency,
+                )
               )}
             </span>
           </div>
@@ -121,10 +137,11 @@ export const TransactionListItem = ({
         whileHover={{ x: -4 }}
         transition={{ duration: 0.2 }}
       >
-        {formatTransactionAmountDisplay(
-          transaction.amount_received,
-          transaction.to_currency,
-        )}
+        {transaction.transaction_type !== "credit" &&
+          formatTransactionAmountDisplay(
+            transaction.amount_received,
+            transaction.to_currency,
+          )}
       </motion.span>
     </div>
   );

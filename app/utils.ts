@@ -164,6 +164,27 @@ export function isNoblocksFiatCurrencyCode(code: string): boolean {
   return NOBLOCKS_FIAT_CURRENCY_CODES.has(code.toUpperCase());
 }
 
+/** Fiat codes enabled for on-ramp (send fiat → receive crypto). */
+export const ONRAMP_FIAT_CURRENCY_CODES = new Set(["NGN", "KES"]);
+
+export function isOnrampFiatCurrencyCode(code: string): boolean {
+  return ONRAMP_FIAT_CURRENCY_CODES.has(code.toUpperCase());
+}
+
+/**
+ * Max send amount for on-ramp in local fiat units (product caps per corridor).
+ * Tune KES with product/compliance when backend limits are finalized.
+ */
+export function getOnrampFiatMaxAmount(currencyCode: string): number {
+  switch (currencyCode.toUpperCase()) {
+    case "KES":
+      return 3_000_000;
+    case "NGN":
+    default:
+      return 2_300_000;
+  }
+}
+
 /**
  * List / details: fiat uses symbol prefix (e.g. ₦1,000.5); crypto uses "1.23 USDC".
  */

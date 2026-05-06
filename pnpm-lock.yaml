@@ -79,7 +79,7 @@ importers:
         version: 11.18.2(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       hugeicons-react:
         specifier: ^0.3.0
-        version: 0.3.1(react@19.2.5)
+        version: 0.3.0(react@19.2.5)
       jose:
         specifier: ^6.0.11
         version: 6.2.3
@@ -8744,8 +8744,9 @@ packages:
     resolution: {integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==}
     engines: {node: '>= 14'}
 
-  hugeicons-react@0.3.1:
-    resolution: {integrity: sha512-4c+tVcewlJVB2cJI754Tp6rxnMW1+c6CFvHmnEonXW7HL8NUUHxZgXWw5OirWr3Fwgsq9PNQrr+Y2MAcpbRCPA==}
+  hugeicons-react@0.3.0:
+    resolution: {integrity: sha512-znmC+uX7xVqcIs0q09LvwEvJkjX0U3xgT05BSiRV19farS4lPONOKjYT0JkcQG5cvfV0rXHSEAEVNjbHAu81rg==}
+    deprecated: 'Deprecated. Use @hugeicons/react: https://www.npmjs.com/package/@hugeicons/react'
     peerDependencies:
       react: ^19.0.1
 
@@ -26696,7 +26697,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  hugeicons-react@0.3.1(react@19.2.5):
+  hugeicons-react@0.3.0(react@19.2.5):
     dependencies:
       react: 19.2.5
 

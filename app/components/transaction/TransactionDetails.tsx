@@ -342,7 +342,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
             label="Amount"
             value={
               <span className="font-medium text-red-500">
-                -{formatTransactionAmountDisplay(
+                {formatTransactionAmountDisplay(
                   transaction.amount_sent ?? 0,
                   transaction.from_currency,
                 )}

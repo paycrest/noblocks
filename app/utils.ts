@@ -174,14 +174,17 @@ export function isOnrampFiatCurrencyCode(code: string): boolean {
 /**
  * Max send amount for on-ramp in local fiat units (product caps per corridor).
  * Tune KES with product/compliance when backend limits are finalized.
+ * @throws If currencyCode is not a supported on-ramp fiat (fail closed; no silent NGN cap).
  */
 export function getOnrampFiatMaxAmount(currencyCode: string): number {
-  switch (currencyCode.toUpperCase()) {
+  const code = (currencyCode ?? "").trim().toUpperCase();
+  switch (code) {
     case "KES":
       return 3_000_000;
     case "NGN":
-    default:
       return 2_300_000;
+    default:
+      throw new Error(`Unsupported on-ramp fiat currency: ${currencyCode}`);
   }
 }
 

@@ -11,11 +11,13 @@ import { darkModeConfig, lightModeConfig } from "./lib/privy-config";
 import config from "./lib/config";
 import {
   BalanceProvider,
+  HomeTransactionFormModeProvider,
   InjectedWalletProvider,
   KYCProvider,
   MigrationStatusProvider,
   NetworkProvider,
   RocketStatusProvider,
+  StarknetProvider,
   StepProvider,
   TokensProvider,
   TransactionsProvider,
@@ -75,25 +77,31 @@ function ContextProviders({ children }: { children: ReactNode }) {
 
   return (
     <NetworkProvider>
-      <InjectedWalletProvider>
-        <MigrationStatusProvider>
-          <TokensProvider>
-            <StepProvider>
-              <BalanceProvider>
-                <TransactionsProvider>
-                  <KYCProvider>
-                  <BlockFestClaimProvider>
-                    <BlockFestModalProvider>
-                      <RocketStatusProvider>{children}</RocketStatusProvider>
-                    </BlockFestModalProvider>
-                  </BlockFestClaimProvider>
-                </KYCProvider>
-              </TransactionsProvider>
-            </BalanceProvider>
-          </StepProvider>
-        </TokensProvider>
-       </MigrationStatusProvider>
-      </InjectedWalletProvider>
+      <HomeTransactionFormModeProvider>
+        <InjectedWalletProvider>
+          <MigrationStatusProvider>
+            <StarknetProvider>
+              <TokensProvider>
+                <StepProvider>
+                  <BalanceProvider>
+                    <TransactionsProvider>
+                      <KYCProvider>
+                        <BlockFestClaimProvider>
+                          <BlockFestModalProvider>
+                            <RocketStatusProvider>
+                              {children}
+                            </RocketStatusProvider>
+                          </BlockFestModalProvider>
+                        </BlockFestClaimProvider>
+                      </KYCProvider>
+                    </TransactionsProvider>
+                  </BalanceProvider>
+                </StepProvider>
+              </TokensProvider>
+            </StarknetProvider>
+          </MigrationStatusProvider>
+        </InjectedWalletProvider>
+      </HomeTransactionFormModeProvider>
     </NetworkProvider>
   );
 }

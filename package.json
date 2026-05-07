@@ -41,6 +41,7 @@
     "@sanity/client": "^7.8.1",
     "@sanity/image-url": "^1.1.0",
     "@sentry/react": "^8.55.0",
+    "@smileid/web-components": "^11.4.0",
     "@supabase/supabase-js": "^2.50.0",
     "@tanstack/react-query": "^5.80.7",
     "axios": "^1.15.0",
@@ -53,6 +54,7 @@
     "js-cookie": "^3.0.5",
     "jsencrypt": "^3.3.2",
     "jsonwebtoken": "^9.0.2",
+    "libphonenumber-js": "^1.12.42",
     "lru-cache": "^11.1.0",
     "mixpanel": "^0.18.1",
     "mixpanel-browser": "^2.65.0",
@@ -67,9 +69,11 @@
     "react-icons": "^5.5.0",
     "react-qrcode-logo": "^3.0.0",
     "sanity": "^4.4.1",
+    "smile-identity-core": "^3.1.0",
     "sonner": "^1.7.4",
     "starknet": "^9.2.1",
     "styled-components": "^6.1.19",
+    "twilio": "^6.0.1",
     "viem": "^2.31.0"
   },
   "devDependencies": {

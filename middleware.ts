@@ -342,10 +342,14 @@ export const config = {
     "/api/v1/payment-orders",
     "/api/v1/payment-orders/:path*",
     "/api/blockfest/cashback",
+    "/api/kyc/smile-id",
+    "/api/kyc/status",
+    "/api/kyc/transaction-summary",
+    "/api/kyc/tier3-verify",
+    "/api/phone/send-otp",
+    "/api/phone/verify-otp",
     "/api/bundler",
     "/api/bundler/:path*",
-    "/api/starknet/transfer",
-    "/api/starknet/create-order",
     // (optional) add other instrumented API routes:
     // '/api/v1/kyc/:path*', '/api/v1/rates', '/api/v1/rates/:path*'
   ],

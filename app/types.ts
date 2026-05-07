@@ -39,6 +39,8 @@ export type FormData = {
   amountReceived: number;
   /** Fiat → crypto = onramp (NGN→token); crypto → fiat = offramp */
   swapMode: SwapMode;
+  /** Legacy compatibility for extracted KYC branch components. */
+  isSwapped?: boolean;
   /** True after user picks the Receive row asset (fiat off-ramp, token on-ramp). */
   receiveDestinationExplicitlySelected: boolean;
 };
@@ -68,6 +70,7 @@ export type RecipientDetailsFormProps = {
   formMethods: UseFormReturn<FormData, any, undefined>;
   stateProps: StateProps;
   swapMode?: SwapMode;
+  isSwapped?: boolean;
   token?: string; // Token symbol for onramp
   networkName?: string; // Network name for display
   /** On-ramp: address to fill when user taps "My wallet" (same as active signing wallet). */
@@ -355,6 +358,15 @@ export type InitiateKYCResponse = {
   data: {
     url: string;
     expiresAt: string;
+  };
+};
+
+export type SmileIDSubmissionResponse = {
+  status: string;
+  message: string;
+  data?: {
+    jobId: string;
+    userId: string;
   };
 };
 

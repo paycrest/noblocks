@@ -84,6 +84,23 @@ const nextConfig = {
       os: false,
     };
 
+    // Stub starkzap optional peer deps we don't use (tongo confidential
+    // transfers, hyperlane Solana bridge). starkzap's barrel re-exports
+    // these modules, so the bundler must resolve them — but we never call
+    // those code paths.
+    const starkzapUnusedShim = path.resolve(
+      __dirname,
+      "app/lib/_starkzap-unused-shim.ts",
+    );
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@fatsolutions/tongo-sdk": starkzapUnusedShim,
+      "@hyperlane-xyz/sdk": starkzapUnusedShim,
+      "@hyperlane-xyz/registry": starkzapUnusedShim,
+      "@hyperlane-xyz/utils": starkzapUnusedShim,
+      "@solana/web3.js": starkzapUnusedShim,
+    };
+
     // Handle Mixpanel on server-side only
     if (isServer) {
       config.externals = config.externals || [];
@@ -132,7 +149,15 @@ const nextConfig = {
         loaders: ["@svgr/webpack"],
         as: "*.js"
       }
-    }
+    },
+    // Mirror the webpack alias above for `next dev --turbo`.
+    resolveAlias: {
+      "@fatsolutions/tongo-sdk": "./app/lib/_starkzap-unused-shim.ts",
+      "@hyperlane-xyz/sdk": "./app/lib/_starkzap-unused-shim.ts",
+      "@hyperlane-xyz/registry": "./app/lib/_starkzap-unused-shim.ts",
+      "@hyperlane-xyz/utils": "./app/lib/_starkzap-unused-shim.ts",
+      "@solana/web3.js": "./app/lib/_starkzap-unused-shim.ts",
+    },
   },
 };
 

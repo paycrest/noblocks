@@ -398,9 +398,27 @@ export const MakePayment = ({
                 </div>
             </div>
 
-            <div className="flex items-center justify-center gap-2 rounded-xl border border-border-light bg-background-neutral px-4 py-3 text-text-secondary dark:border-white/10 dark:bg-white/5 dark:text-white/50">
-                <ImSpinner className="size-4 shrink-0 animate-spin text-lavender-500" />
-                <p className="text-sm">Checking for your payment automatically…</p>
+            <div className="flex gap-4 xsm:gap-2">
+                <button
+                    type="button"
+                    onClick={handleBackButtonClick}
+                    className={secondaryBtnClasses}
+                >
+                    Back
+                </button>
+                <div
+                    className={classNames(
+                        secondaryBtnClasses,
+                        "min-h-11 min-w-0 flex-1 cursor-default gap-2 text-text-secondary dark:text-white/50",
+                    )}
+                    role="status"
+                    aria-live="polite"
+                >
+                    <ImSpinner className="size-4 shrink-0 animate-spin text-lavender-500" />
+                    <span className="text-center text-sm leading-snug">
+                        Checking payment automatically…
+                    </span>
+                </div>
             </div>
         </div>
     );

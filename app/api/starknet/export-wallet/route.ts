@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { WalletApiRequestSignatureInput } from "@privy-io/server-auth";
 import { verifyJWT } from "@/app/lib/jwt";
 import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
 import { getPrivyClient } from "@/app/lib/privy";
 import { withRateLimit } from "@/app/lib/rate-limit";
-import { generateAuthorizationSignature } from "@privy-io/server-auth/wallet-api";
+import {
+  buildAuthorizationSignature,
+  getUserAuthorizationKey,
+} from "@/app/lib/authorization";
 import {
   trackApiError,
   trackApiRequest,
@@ -135,22 +139,40 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       Authorization: `Basic ${Buffer.from(`${appId}:${appSecret}`).toString("base64")}`,
     };
 
+    const sigInput: WalletApiRequestSignatureInput = {
+      version: 1,
+      method: "POST",
+      url,
+      body: exportBody,
+      headers: { "privy-app-id": appId },
+    };
+
+    const userAuthorizationKey = await getUserAuthorizationKey({
+      userJwt,
+      userId: authUserId,
+    });
+    const userSig = buildAuthorizationSignature({
+      input: sigInput,
+      authorizationKey: userAuthorizationKey,
+    });
+    const signatureParts = [userSig].filter(Boolean);
+
     const authPrivKey = process.env.PRIVY_WALLET_AUTH_PRIVATE_KEY;
     if (authPrivKey) {
-      const sig = generateAuthorizationSignature({
-        input: {
-          version: 1,
-          method: "POST",
-          url,
-          body: exportBody,
-          headers: { "privy-app-id": appId },
-        },
-        authorizationPrivateKey: authPrivKey,
+      const serverSig = buildAuthorizationSignature({
+        input: sigInput,
+        authorizationKey: authPrivKey,
       });
-      if (sig) {
-        headers["privy-authorization-signature"] = sig;
-      }
+      if (serverSig) signatureParts.push(serverSig);
     }
+
+    if (signatureParts.length === 0) {
+      return NextResponse.json(
+        { error: "Failed to build export authorization signature" },
+        { status: 500 },
+      );
+    }
+    headers["privy-authorization-signature"] = signatureParts.join(",");
 
     const res = await fetch(url, {
       method: "POST",

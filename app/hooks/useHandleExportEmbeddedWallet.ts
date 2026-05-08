@@ -3,34 +3,34 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useCallback } from "react";
 import { toast } from "sonner";
+import { useStarknetExportModal } from "../context/StarknetExportModalContext";
 import { useNetwork } from "../context/NetworksContext";
+import { useStarknet } from "../context/StarknetContext";
 import { useWalletAddress } from "./useWalletAddress";
 
 /**
- * Opens Privy's export modal for the embedded wallet that matches the selected network.
- * On Starknet, passes the Starknet embedded address so the modal does not default to HD index 0 (EVM).
+ * EVM: Privy’s built-in export modal (`exportWallet()`).
+ * Starknet: custom modal + server-proxied HPKE export (Privy REST); `exportWallet({ address })` is invalid for Starknet addresses (viem).
  */
 export function useHandleExportEmbeddedWallet() {
   const { exportWallet } = usePrivy();
   const { selectedNetwork } = useNetwork();
   const networkWalletAddress = useWalletAddress();
+  const { walletId } = useStarknet();
+  const { openStarknetExport } = useStarknetExportModal();
 
   return useCallback(async () => {
     const isStarknet = selectedNetwork?.chain?.name === "Starknet";
 
     if (isStarknet) {
-      if (!networkWalletAddress) {
+      if (!networkWalletAddress || !walletId) {
         toast.error("Starknet wallet not ready", {
           description:
             "Wait for your Starknet wallet to load, or try switching networks and back.",
         });
         return;
       }
-      try {
-        await exportWallet({ address: networkWalletAddress });
-      } catch {
-        toast.error("Could not open wallet export");
-      }
+      openStarknetExport();
       return;
     }
 
@@ -39,5 +39,11 @@ export function useHandleExportEmbeddedWallet() {
     } catch {
       toast.error("Could not open wallet export");
     }
-  }, [exportWallet, selectedNetwork?.chain?.name, networkWalletAddress]);
+  }, [
+    exportWallet,
+    selectedNetwork?.chain?.name,
+    networkWalletAddress,
+    walletId,
+    openStarknetExport,
+  ]);
 }

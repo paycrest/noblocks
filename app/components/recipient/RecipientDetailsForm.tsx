@@ -11,7 +11,7 @@ import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames } from "@/app/utils";
+import { classNames, getOfframpAccountIdentifierPlaceholder } from "@/app/utils";
 import {
   RecipientDetails,
   RecipientDetailsFormProps,
@@ -361,13 +361,14 @@ export const RecipientDetailsForm = ({
       );
       if (foundInstitution) {
         setSelectedInstitution(foundInstitution);
+        setValue("accountType", foundInstitution.type, { shouldValidate: true });
         // Only set manual entry to false if we have recipient name
         if (recipientName) {
           setIsManualEntry(false);
         }
       }
     }
-  }, [institution, institutions, selectedInstitution, recipientName]);
+  }, [institution, institutions, selectedInstitution, recipientName, setValue]);
 
   // Simplified recipient details management
   const clearRecipientDetails = () => {
@@ -559,7 +560,6 @@ export const RecipientDetailsForm = ({
               <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
                 <input
                   type="number"
-                  placeholder="Account number"
                   {...register("accountIdentifier", {
                     required: {
                       value: true,
@@ -571,6 +571,10 @@ export const RecipientDetailsForm = ({
                     },
                     onChange: () => setIsManualEntry(true),
                   })}
+                  placeholder={getOfframpAccountIdentifierPlaceholder(
+                    currency,
+                    selectedInstitution?.type,
+                  )}
                   className={classNames(
                     "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
                     errors.accountIdentifier

@@ -1,3 +1,4 @@
+import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Lazy server-only Supabase admin client so `next build` can bundle API routes
@@ -9,14 +10,17 @@ function getSupabaseAdmin(): SupabaseClient {
     return supabaseSingleton;
   }
   const url = process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const secretKey = process.env.SUPABASE_SECRET_KEY;
+
   if (!url) {
     throw new Error("Missing env.SUPABASE_URL");
   }
-  if (!serviceRoleKey) {
-    throw new Error("Missing env.SUPABASE_SERVICE_ROLE_KEY");
+  if (!secretKey) {
+    throw new Error(
+      "Missing env.SUPABASE_SECRET_KEY",
+    );
   }
-  supabaseSingleton = createClient(url, serviceRoleKey, {
+  supabaseSingleton = createClient(url, secretKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

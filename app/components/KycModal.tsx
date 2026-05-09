@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 // smart-camera-web JSX types are declared in app/types/smart-camera-web.d.ts
 declare global {
   interface Window {
@@ -157,6 +157,8 @@ export const KycModal = ({
   const [tier3ErrorMessage, setTier3ErrorMessage] = useState<string | null>(
     null,
   );
+  /** True while Tier 2 Smile payload is posting after capture — avoid fetchStatus resetting LOADING → TERMS. */
+  const smileIdSubmitInFlightRef = useRef(false);
   const { refreshStatus } = useKYC();
   const countries = getAllCountries();
   const tier3CountryOptions = countries.map((c) => ({
@@ -230,8 +232,7 @@ export const KycModal = ({
               />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
                 <p>
-                  We do not store any personal information. All personal data is
-                  handled exclusively by our third-party KYC provider.
+                  I agree to the Paycrest Terms of Service and acknowledge the Privacy Policy.
                 </p>
               </Label>
             </div>
@@ -243,8 +244,7 @@ export const KycModal = ({
               />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
                 <p>
-                  We only store the KYC reference code and signing wallet
-                  address for verification and audit purposes.
+                  I confirm that the information I provide is accurate and that I will use Paycrest in compliance with applicable laws and regulations.
                 </p>
               </Label>
             </div>
@@ -256,9 +256,7 @@ export const KycModal = ({
               />
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
                 <p>
-                  We rely on the third-party provider&apos;s rigorous data
-                  protection measures to ensure that your personal information
-                  is secure.
+                  I understand that Paycrest facilitates fiat and digital asset transactions and that transactions may be irreversible once completed.
                 </p>
               </Label>
             </div>
@@ -311,9 +309,7 @@ export const KycModal = ({
             </svg>
           </Checkbox>
           <p className="text-xs text-gray-500 dark:text-white/50">
-            By clicking &ldquo;Accept and continue&rdquo; below, you are
-            agreeing to the KYC Policy and hereby request an identity
-            verification check for your wallet address.
+            By clicking &ldquo;Sign and continue&rdquo; below, you are agreeing to the terms and policies above.
           </p>
         </div>
       </div>
@@ -542,9 +538,9 @@ export const KycModal = ({
         <button
           type="button"
           className={`${primaryBtnClasses} w-full`}
-          onClick={async () => {
-            await refreshStatus();
+          onClick={() => {
             setIsKycModalOpen(false);
+            void refreshStatus(true);
           }}
         >
           Got it
@@ -571,10 +567,10 @@ export const KycModal = ({
       <button
         type="button"
         className={`${primaryBtnClasses} w-full`}
-        onClick={async () => {
-          await refreshStatus();
+        onClick={() => {
           setIsUserVerified(true);
           setIsKycModalOpen(false);
+          void refreshStatus(true);
         }}
       >
         Let&apos;s go!
@@ -1099,9 +1095,9 @@ export const KycModal = ({
 
                 const data = await res.json();
                 if (data?.success) {
-                  await refreshStatus();
                   setIsUserVerified(true);
                   setStep(STEPS.STATUS.SUCCESS);
+                  void refreshStatus(true);
                 } else {
                   const errorDetail =
                     data?.error || data?.message || "Tier 3 verification failed.";
@@ -1154,14 +1150,37 @@ export const KycModal = ({
       const data = await res.json();
       const tier: number = data.tier ?? 0;
 
-      // Map Supabase tier to modal step.
-      const newStatus: Step = tier >= 2 ? STEPS.STATUS.SUCCESS : STEPS.TERMS;
-
-      setStep(newStatus);
-
-      if (newStatus === STEPS.STATUS.SUCCESS) {
+      // Map Supabase tier to modal step. When tier < 2, do not reset steps the
+      // user is already in — a useEffect was calling fetchStatus on every `step`
+      // change and forcing TERMS, which bounced users out of ID_INFO / capture.
+      if (tier >= 2) {
+        setStep(STEPS.STATUS.SUCCESS);
         trackEvent("Account verification", {
           "Verification status": "Success",
+        });
+      } else {
+        setStep((current) => {
+          // Initial Tier 2 step is LOADING until status hydrates — must land on TERMS.
+          if (current === STEPS.LOADING) {
+            if (smileIdSubmitInFlightRef.current) {
+              return current;
+            }
+            return STEPS.TERMS;
+          }
+          const midFlowSteps: Step[] = [
+            STEPS.ID_INFO,
+            STEPS.CAPTURE,
+            STEPS.STATUS.PENDING,
+            STEPS.STATUS.FAILED,
+            STEPS.REFRESH,
+          ];
+          if (midFlowSteps.includes(current)) {
+            return current;
+          }
+          if (current === STEPS.TERMS) {
+            return STEPS.TERMS;
+          }
+          return STEPS.TERMS;
         });
       }
 
@@ -1176,48 +1195,38 @@ export const KycModal = ({
     }
   };
 
+  // Tier 2: hydrate LOADING → TERMS (or SUCCESS) when wallet is ready only.
+  // Do not tie this to `step` or accepting terms will refetch and reset the modal.
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    if (targetTier === 3 || !walletAddress) return;
+    const timeoutId = setTimeout(() => {
+      void fetchStatus();
+    }, 500);
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletAddress, targetTier]);
+
+  // Poll KYC while SmileID result is pending — separate from step transitions.
+  useEffect(() => {
+    if (step !== STEPS.STATUS.PENDING) return;
+
     const startTime = Date.now();
 
-    const debouncedFetchStatus = () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
+    void fetchStatus();
 
-      timeoutId = setTimeout(async () => {
-        await fetchStatus();
-      }, 500); // 500ms debounce delay
-    };
-
-    debouncedFetchStatus(); // Initial fetch
-
-    let intervalId: NodeJS.Timeout;
-
-    if (step === STEPS.STATUS.PENDING) {
-      intervalId = setInterval(() => {
-        const elapsedSeconds = (Date.now() - startTime) / 1000;
-
-        // stop polling after 10 minutes
-        if (elapsedSeconds >= 600) {
-          clearInterval(intervalId);
-          setStep(STEPS.REFRESH);
-        } else {
-          debouncedFetchStatus();
-        }
-      }, 10000);
-    }
-
-    return () => {
-      if (intervalId) {
+    const intervalId = setInterval(() => {
+      const elapsedSeconds = (Date.now() - startTime) / 1000;
+      if (elapsedSeconds >= 600) {
         clearInterval(intervalId);
+        setStep(STEPS.REFRESH);
+      } else {
+        void fetchStatus();
       }
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
+    }, 10000);
+
+    return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletAddress, step]);
+  }, [step]);
 
   // Handle Smile ID publish event
   useEffect(() => {
@@ -1230,7 +1239,7 @@ export const KycModal = ({
     }
 
     const handlePublish = async (event: any) => {
-      // Show loading screen while submitting
+      smileIdSubmitInFlightRef.current = true;
       setStep(STEPS.LOADING);
 
       try {
@@ -1290,6 +1299,8 @@ export const KycModal = ({
         toast.error("Failed to submit verification data");
         setFailedRetryStep(STEPS.TERMS);
         setStep(STEPS.STATUS.FAILED);
+      } finally {
+        smileIdSubmitInFlightRef.current = false;
       }
     };
 

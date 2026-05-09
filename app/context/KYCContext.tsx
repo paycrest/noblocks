@@ -81,6 +81,9 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   );
   const walletAddress = embeddedWallet?.address;
 
+  const walletAddressRef = useRef(walletAddress);
+  walletAddressRef.current = walletAddress;
+
   // In-memory guards for fetches per wallet
   const fetchGuardsRef = useRef<Record<string, string>>({});
   const lastFetchTimeRef = useRef<number>(0);
@@ -128,13 +131,19 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   );
 
   const fetchTransactionSummary = useCallback(async (): Promise<boolean> => {
-    if (!walletAddress) return false;
+    const snapshot = walletAddress;
+    if (!snapshot) return false;
     const guards = fetchGuardsRef.current;
-    const key = `${guardKey}_tx`;
+    const key = `${snapshot}_tx`;
     if (guards[key] === "fetching") return false;
     guards[key] = "fetching";
     try {
       const accessToken = await getAccessToken();
+      if (
+        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+      ) {
+        return false;
+      }
       if (!accessToken) return false;
 
       const response = await fetch(
@@ -145,15 +154,24 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
           },
         },
       );
+      if (
+        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+      ) {
+        return false;
+      }
       if (!response.ok) return false;
       const data = await response.json();
-      if (data.success) {
-        setTransactionSummary({
-          dailySpent: data.dailySpent,
-          monthlySpent: data.monthlySpent,
-          lastTransactionDate: data.lastTransactionDate,
-        });
+      if (
+        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+      ) {
+        return false;
       }
+      if (!data.success) return false;
+      setTransactionSummary({
+        dailySpent: data.dailySpent,
+        monthlySpent: data.monthlySpent,
+        lastTransactionDate: data.lastTransactionDate,
+      });
       return true;
     } catch {
       // Silently fail — analytics tracked server-side
@@ -161,16 +179,22 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     } finally {
       guards[key] = "done";
     }
-  }, [walletAddress, guardKey, getAccessToken]);
+  }, [walletAddress, getAccessToken]);
 
   const fetchKYCStatus = useCallback(async (): Promise<boolean> => {
-    if (!walletAddress) return false;
+    const snapshot = walletAddress;
+    if (!snapshot) return false;
     const guards = fetchGuardsRef.current;
-    const key = `${guardKey}_kyc`;
+    const key = `${snapshot}_kyc`;
     if (guards[key] === "fetching") return false;
     guards[key] = "fetching";
     try {
       const accessToken = await getAccessToken();
+      if (
+        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+      ) {
+        return false;
+      }
       if (!accessToken) return false;
 
       const response = await fetch(`/api/kyc/status`, {
@@ -178,13 +202,22 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
           Authorization: `Bearer ${accessToken}`,
         },
       });
+      if (
+        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+      ) {
+        return false;
+      }
       if (!response.ok) return false;
       const data = await response.json();
-      if (data.success) {
-        setTier(Math.min(Number(data.tier) || 0, 3) as KYCTierLevel);
-        setIsPhoneVerified(data.isPhoneVerified);
-        setPhoneNumber(data.phoneNumber);
+      if (
+        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+      ) {
+        return false;
       }
+      if (!data.success) return false;
+      setTier(Math.min(Number(data.tier) || 0, 3) as KYCTierLevel);
+      setIsPhoneVerified(data.isPhoneVerified);
+      setPhoneNumber(data.phoneNumber);
       return true;
     } catch {
       // Silently fail — analytics tracked server-side
@@ -211,7 +244,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       kycSettled.status === "fulfilled" && kycSettled.value === true;
     const txFetched =
       txSettled.status === "fulfilled" && txSettled.value === true;
-    if (kycFetched || txFetched) {
+    if (kycFetched && txFetched) {
       lastFetchTimeRef.current = Date.now();
     }
   }, [fetchKYCStatus, fetchTransactionSummary, guardKey]);

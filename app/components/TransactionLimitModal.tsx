@@ -149,9 +149,14 @@ export default function TransactionLimitModal({
                 ? formatNumberWithCommas(nextTier.limits.monthly)
                 : "1,000"}
               /month and beyond.{" "}
-              <span className="cursor-pointer text-lavender-600 dark:text-lavender-600">
+              <button
+                type="button"
+                onClick={() => setIsPhoneModalOpen(true)}
+                className="inline cursor-pointer border-0 bg-transparent p-0 font-inherit text-lavender-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 dark:text-lavender-600"
+                aria-label="Learn more about verification tiers"
+              >
                 Learn more.
-              </span>
+              </button>
             </>
           ) : (
             <>
@@ -161,9 +166,14 @@ export default function TransactionLimitModal({
                 ? `Upgrade to ${nextTier.name} for ${nextTier.limits.unlimited ? "Unlimited transactions" : `$${formatNumberWithCommas(nextTier.limits.monthly)}/month`}`
                 : "You have the highest tier available"}
               .{" "}
-              <span className="cursor-pointer text-lavender-600 underline dark:text-lavender-400">
+              <button
+                type="button"
+                onClick={() => setIsKycModalOpen(true)}
+                className="inline cursor-pointer border-0 bg-transparent p-0 font-inherit text-lavender-600 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 dark:text-lavender-400"
+                aria-label="Learn more about upgrading your verification tier"
+              >
                 Learn more.
-              </span>
+              </button>
             </>
           )}
         </p>
@@ -240,8 +250,10 @@ export default function TransactionLimitModal({
                 setIsKycModalOpen(value);
                 if (!value) onClose();
               }}
-              setIsUserVerified={async () => {
-                await refreshStatus();
+              setIsUserVerified={(verified) => {
+                if (verified) {
+                  void refreshStatus(true);
+                }
                 setIsKycModalOpen(false);
                 onClose();
               }}

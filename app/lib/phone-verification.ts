@@ -1,4 +1,4 @@
-import { parsePhoneNumber, CountryCode } from "libphonenumber-js";
+import { parsePhoneNumberWithError, CountryCode } from "libphonenumber-js";
 import { randomInt } from "crypto";
 import twilio, { type Twilio } from "twilio";
 
@@ -44,7 +44,7 @@ export interface PhoneValidation {
  */
 export function validatePhoneNumber(phoneNumber: string): PhoneValidation {
   try {
-    const parsed = parsePhoneNumber(phoneNumber);
+    const parsed = parsePhoneNumberWithError(phoneNumber);
 
     if (!parsed || !parsed.isValid()) {
       return {

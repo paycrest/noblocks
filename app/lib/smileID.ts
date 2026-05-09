@@ -36,11 +36,28 @@ export async function submitSmileIDJob({ images, partner_params, walletAddress, 
   const partnerId = process.env.SMILE_IDENTITY_PARTNER_ID;
   const callbackUrl = process.env.SMILE_ID_CALLBACK_URL?.trim() ?? "";
   const apiKey = process.env.SMILE_IDENTITY_API_KEY;
-  const serverUrl = process.env.SMILE_IDENTITY_SERVER;
+  const serverModeOverride = process.env.SMILE_IDENTITY_SERVER_MODE?.trim();
+  const serverRaw = process.env.SMILE_IDENTITY_SERVER?.trim();
 
-  if (!partnerId || !apiKey || !serverUrl || !callbackUrl) {
+  const hasServerConfig =
+    serverModeOverride === "0" ||
+    serverModeOverride === "1" ||
+    Boolean(serverRaw);
+
+  const sidServerMode: "0" | "1" = (() => {
+    if (serverModeOverride === "1") return "1";
+    if (serverModeOverride === "0") return "0";
+    if (serverRaw === "1") return "1";
+    if (serverRaw === "0") return "0";
+    if (serverRaw && /^https?:\/\//i.test(serverRaw)) {
+      return /testapi|sandbox/i.test(serverRaw) ? "0" : "1";
+    }
+    return "0";
+  })();
+
+  if (!partnerId || !apiKey || !callbackUrl || !hasServerConfig) {
     throw new Error(
-      "Missing SmileID environment variables (SMILE_IDENTITY_PARTNER_ID, SMILE_IDENTITY_API_KEY, SMILE_IDENTITY_SERVER, SMILE_ID_CALLBACK_URL)",
+      "Missing SmileID environment variables (SMILE_IDENTITY_PARTNER_ID, SMILE_IDENTITY_API_KEY, SMILE_ID_CALLBACK_URL, and SMILE_IDENTITY_SERVER as 0/1 or legacy API URL, or SMILE_IDENTITY_SERVER_MODE as 0/1)",
     );
   }
 
@@ -58,7 +75,7 @@ export async function submitSmileIDJob({ images, partner_params, walletAddress, 
     partnerId,
     callbackUrl,
     apiKey,
-    serverUrl,
+    sidServerMode,
   );
 
   const job_id =

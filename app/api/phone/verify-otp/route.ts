@@ -185,7 +185,21 @@ export async function POST(request: NextRequest) {
     }
 
     // KudiSMS path: expiry, attempts, and DB OTP comparison
-    if (new Date() > new Date(verification.expires_at)) {
+    const expiresRaw = verification.expires_at;
+    if (expiresRaw == null || expiresRaw === "") {
+      return NextResponse.json(
+        { success: false, error: "OTP has expired. Please request a new one." },
+        { status: 400 },
+      );
+    }
+    const expiresDate = new Date(expiresRaw as string);
+    if (Number.isNaN(expiresDate.getTime())) {
+      return NextResponse.json(
+        { success: false, error: "OTP has expired. Please request a new one." },
+        { status: 400 },
+      );
+    }
+    if (new Date() > expiresDate) {
       return NextResponse.json(
         { success: false, error: "OTP has expired. Please request a new one." },
         { status: 400 },

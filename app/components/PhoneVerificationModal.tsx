@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,7 +17,8 @@ import {
 import { parsePhoneNumber } from "libphonenumber-js";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { fadeInOut, AnimatedComponent, slideInOut } from "./AnimatedComponents";
-import { classNames } from "../utils";
+import { classNames, formatNumberWithCommas } from "../utils";
+import { getKycMonthlyLimitsRecord } from "@/app/lib/kyc-tier-limits";
 import {
   fetchCountries,
   getPopularCountries,
@@ -44,8 +45,31 @@ export default function PhoneVerificationModal({
   onClose,
   onVerified,
 }: PhoneVerificationModalProps) {
+  const tier1MonthlyLimitUsd = useMemo(
+    () => getKycMonthlyLimitsRecord()[1],
+    [],
+  );
   const { wallets } = useWallets();
-  const { getAccessToken } = usePrivy();
+  const { getAccessToken, ready, authenticated } = usePrivy();
+
+  const resolveAccessToken = useCallback(async (): Promise<string | null> => {
+    if (!ready) {
+      toast.error(
+        "Authentication is still loading. Please wait a moment and try again.",
+      );
+      return null;
+    }
+    if (!authenticated) {
+      toast.error("Please sign in again to verify your phone.");
+      return null;
+    }
+    const token = await getAccessToken();
+    if (typeof token !== "string" || !token.trim()) {
+      toast.error("Could not get a valid session. Please sign in again.");
+      return null;
+    }
+    return token.trim();
+  }, [ready, authenticated, getAccessToken]);
 
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -159,9 +183,13 @@ export default function PhoneVerificationModal({
         return;
       }
 
+      const accessToken = await resolveAccessToken();
+      if (!accessToken) {
+        return;
+      }
+
       setIsLoading(true);
 
-      const accessToken = await getAccessToken();
       const response = await fetch("/api/phone/send-otp", {
         method: "POST",
         headers: {
@@ -197,7 +225,7 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [phoneNumber, walletAddress, selectedCountry, name, getAccessToken]);
+  }, [phoneNumber, walletAddress, selectedCountry, name, resolveAccessToken]);
 
   const handleOtpSubmit = useCallback(async () => {
     if (!otpCode.trim() || otpCode.length !== 6) {
@@ -205,10 +233,14 @@ export default function PhoneVerificationModal({
       return;
     }
 
+    const accessToken = await resolveAccessToken();
+    if (!accessToken) {
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const accessToken = await getAccessToken();
       const response = await fetch("/api/phone/verify-otp", {
         method: "POST",
         headers: {
@@ -236,12 +268,16 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [otpCode, formattedPhone, getAccessToken]);
+  }, [otpCode, formattedPhone, resolveAccessToken]);
 
   const handleResendOtp = useCallback(async () => {
+    const accessToken = await resolveAccessToken();
+    if (!accessToken) {
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const accessToken = await getAccessToken();
       const response = await fetch("/api/phone/send-otp", {
         method: "POST",
         headers: {
@@ -266,7 +302,7 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [formattedPhone, getAccessToken]);
+  }, [formattedPhone, resolveAccessToken]);
 
   const handleClose = () => {
     if (step === STEPS.VERIFIED && formattedPhone) {
@@ -292,7 +328,7 @@ export default function PhoneVerificationModal({
           Verify your number to start swapping
         </DialogTitle>
         <p className="text-sm font-light text-text-secondary dark:text-white/50">
-          Enter your fullname & phone number to unlock your first swaps on
+          Enter your fullname &amp; phone number to unlock your first swaps on
           Noblocks. No extra documents required.
         </p>
       </div>
@@ -429,20 +465,13 @@ export default function PhoneVerificationModal({
         </div>
       </div>
 
-      {/* Info message */}
+      {/* Limits callout */}
       <div className="flex items-start gap-2 rounded-xl bg-background-neutral p-3 dark:bg-white/5">
         <InformationSquareIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-white/40" />
         <p className="text-sm font-light leading-[20px] text-text-secondary dark:text-white/50">
-          By clicking &quot;Verify and start&quot;, you consent to receiving
-          transactional text messages for notifications and alerts from
-          Noblocks. Reply STOP to opt out. You agree to our{" "}
-          <a
-            href="https://paycrest.io/privacy-policy"
-            className="text-lavender-600"
-          >
-            Privacy Policy and terms &amp; conditions
-          </a>
-          .
+          With just your phone number, you can swap up to $
+          {formatNumberWithCommas(tier1MonthlyLimitUsd)}/month. Verify your ID
+          later to unlock even higher limits.
         </p>
       </div>
 

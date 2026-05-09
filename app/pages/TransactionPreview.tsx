@@ -550,7 +550,11 @@ export const TransactionPreview = ({
         toast.success("Order created successfully");
         refreshBalance();
         setIsPollingOrderId(true);
-        void getOrderId().finally(() => setIsPollingOrderId(false));
+        try {
+          await getOrderId();
+        } finally {
+          setIsPollingOrderId(false);
+        }
         return;
       } else {
         // Smart wallet (pre-migration)
@@ -845,11 +849,21 @@ export const TransactionPreview = ({
         throw new Error("Failed to save transaction");
       }
 
-      // Store the transaction ID in localStorage
-      localStorage.setItem("currentTransactionId", response.data.id);
+      const rawId = (response.data as { id?: unknown } | undefined)?.id;
+      const idStr =
+        typeof rawId === "string"
+          ? rawId
+          : rawId != null && String(rawId) !== "undefined"
+            ? String(rawId)
+            : "";
+      if (!idStr) {
+        throw new Error("Failed to save transaction: missing transaction id");
+      }
+
+      localStorage.setItem("currentTransactionId", idStr);
     } catch (error) {
       console.error("Error saving transaction:", error);
-      // Don't show error toast as this is a background operation
+      throw error;
     } finally {
       setIsSavingTransaction(false);
     }

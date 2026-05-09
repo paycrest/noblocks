@@ -11,6 +11,8 @@ interface UseSwapButtonProps {
   isDirty: boolean;
   isValid: boolean;
   isUserVerified: boolean;
+  /** Wallets that already have Noblocks activity need tier‑1 wording ("Verify and start"); new users keep "Get started". */
+  hasPriorTransactionActivity?: boolean;
   rate?: number | null;
   tokenDecimals?: number;
   isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
@@ -24,6 +26,7 @@ export function useSwapButton({
   isDirty,
   isValid,
   isUserVerified,
+  hasPriorTransactionActivity = false,
   rate,
   tokenDecimals = 18,
   isSwapped = false,
@@ -125,7 +128,7 @@ export function useSwapButton({
       (authenticated || isInjectedWallet) &&
       amountSent > 0
     ) {
-      return "Get started";
+      return hasPriorTransactionActivity ? "Verify and start" : "Get started";
     }
 
     return "Swap";

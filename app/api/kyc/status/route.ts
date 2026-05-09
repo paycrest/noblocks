@@ -51,7 +51,11 @@ export async function GET(request: NextRequest) {
     }
 
     const rawTier = Number(kycProfile?.tier ?? 0);
-    const tier: 0 | 1 | 2 | 3 = Math.min(Math.max(rawTier, 0), 3) as 0 | 1 | 2 | 3;
+    const safeTier = Number.isFinite(rawTier) ? rawTier : 0;
+    const tier: 0 | 1 | 2 | 3 = Math.min(
+      Math.max(safeTier, 0),
+      3,
+    ) as 0 | 1 | 2 | 3;
     const phoneNumber = kycProfile?.phone_number || null;
     // tier >= 1 means phone OTP was verified; do not rely on the generic `verified` flag
     const phoneVerified = tier >= 1 && !!phoneNumber;

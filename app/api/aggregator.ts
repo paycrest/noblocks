@@ -520,6 +520,9 @@ export async function saveTransaction(
   const response = await axios.post("/api/v1/transactions", transaction, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
+      // Same intent as middleware primary wallet; overwritten by middleware for browser,
+      // but clarifies signer for proxies and matches fetchTransactions/update patterns.
+      "x-wallet-address": String(transaction.walletAddress).toLowerCase(),
     },
   });
   return response.data;

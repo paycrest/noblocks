@@ -9,7 +9,7 @@ jest.mock('@sentry/react', () => ({
 
 // Mock environment variables for tests
 process.env.SUPABASE_URL = 'https://test.supabase.co'
-process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
+process.env.SUPABASE_SECRET_KEY = 'sb_secret_test_placeholder'
 process.env.NEXT_PUBLIC_PRIVY_APP_ID = 'test-privy-app-id'
 process.env.INTERNAL_API_KEY = 'test-internal-api-key'
 

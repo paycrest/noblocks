@@ -87,11 +87,35 @@ export async function verifyUtilityBill(
     clearTimeout(timeoutId);
   }
 
-  const data = (await res.json()) as DojahUtilityBillResponse & { message?: string };
+  const rawText = await res.text();
+  let data: (DojahUtilityBillResponse & { message?: string }) | undefined;
+  try {
+    if (rawText) {
+      const parsed: unknown = JSON.parse(rawText);
+      data =
+        typeof parsed === "object" && parsed !== null
+          ? (parsed as DojahUtilityBillResponse & { message?: string })
+          : undefined;
+    }
+  } catch {
+    data = undefined;
+  }
 
   if (!res.ok) {
-    const message = data?.message || data?.entity?.result?.message || res.statusText;
+    const message =
+      data?.message ||
+      data?.entity?.result?.message ||
+      rawText ||
+      res.statusText;
     throw new Error(message || `Dojah request failed: ${res.status}`);
+  }
+
+  if (!data) {
+    throw new Error(
+      rawText?.trim()
+        ? `Dojah returned non-JSON response (${res.status})`
+        : `Dojah returned empty response (${res.status})`,
+    );
   }
 
   return data;

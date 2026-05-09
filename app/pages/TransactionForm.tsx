@@ -79,8 +79,23 @@ export const TransactionForm = ({
   const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
-  const { canTransact, refreshStatus, isPhoneVerified, tier, phoneNumber } =
-    useKYC();
+  const {
+    canTransact,
+    refreshStatus,
+    isPhoneVerified,
+    tier,
+    phoneNumber,
+    transactionSummary,
+  } = useKYC();
+
+  const hasPriorTransactionActivity = useMemo(() => {
+    const { monthlySpent, dailySpent, lastTransactionDate } = transactionSummary;
+    return (
+      monthlySpent > 0 ||
+      dailySpent > 0 ||
+      (lastTransactionDate != null && lastTransactionDate !== "")
+    );
+  }, [transactionSummary]);
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -555,6 +570,7 @@ export const TransactionForm = ({
   isDirty,
   isValid,
   isUserVerified,
+  hasPriorTransactionActivity,
   rate,
   tokenDecimals,
   needsMigration,

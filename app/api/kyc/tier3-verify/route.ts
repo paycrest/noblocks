@@ -273,6 +273,7 @@ export async function POST(request: NextRequest) {
       address_country: trimmedCountry,
       address_postal_code: postalCode?.trim() || null,
       updated_at: new Date().toISOString(),
+      attempts: 0,
     };
     if (houseNumber?.trim())
       updatePayload.address_street = [houseNumber, streetAddress?.trim()]
@@ -310,12 +311,6 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
-
-    // Reset attempt counter on success
-    await supabaseAdmin
-      .from("user_kyc_profiles")
-      .update({ attempts: 0 })
-      .eq("wallet_address", walletAddress);
 
     return NextResponse.json({
       success: true,

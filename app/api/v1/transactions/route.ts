@@ -11,6 +11,7 @@ import {
 import type { TransactionHistory, TransactionResponse } from "@/app/types";
 import { getExplorerLink } from "@/app/utils";
 import { getKycMonthlyLimitsRecord } from "@/app/lib/kyc-tier-limits";
+import { collectLinkedEvmAddressesForPrivyUserId } from "@/app/lib/privy";
 
 // Route handler for GET requests
 export const GET = withRateLimit(async (request: NextRequest) => {
@@ -132,14 +133,66 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );  
     }  
     // Normalize wallet addresses to lowercase for comparison and storage  
-    const normalizedBodyWalletAddress = String(body.walletAddress).toLowerCase();  
+    const normalizedBodyWalletAddress = String(body.walletAddress).toLowerCase();
 
-    if (normalizedBodyWalletAddress !== walletAddress) {  
-      trackApiError(request, '/api/v1/transactions', 'POST', new Error('Wallet address mismatch'), 403);
-      return NextResponse.json(
-        { success: false, error: "Unauthorized: Wallet address mismatch" },
-        { status: 403 },
-      );
+    // Middleware pins x-wallet-address to Privy's embedded / primary EOA lookup.
+    // The client may POST with smart wallet or injected wallet as the actor; allow
+    // any EVM address linked to the same JWT user (Privy linked_accounts).
+    if (normalizedBodyWalletAddress !== walletAddress) {
+      const privyUserId = request.headers.get("x-user-id");
+      if (!privyUserId) {
+        trackApiError(
+          request,
+          "/api/v1/transactions",
+          "POST",
+          new Error("Missing user context for wallet mismatch resolution"),
+          401,
+        );
+        return NextResponse.json(
+          { success: false, error: "Unauthorized" },
+          { status: 401 },
+        );
+      }
+      try {
+        const linked = await collectLinkedEvmAddressesForPrivyUserId(
+          privyUserId,
+        );
+        if (!linked.includes(normalizedBodyWalletAddress)) {
+          trackApiError(
+            request,
+            "/api/v1/transactions",
+            "POST",
+            new Error("Wallet address mismatch"),
+            403,
+          );
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Unauthorized: Wallet address mismatch",
+            },
+            { status: 403 },
+          );
+        }
+      } catch (e) {
+        console.error(
+          "Privy linked-address resolution for POST /transactions:",
+          e,
+        );
+        trackApiError(
+          request,
+          "/api/v1/transactions",
+          "POST",
+          e instanceof Error ? e : new Error("Linked wallet lookup failed"),
+          503,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Unable to verify wallet ownership. Please try again.",
+          },
+          { status: 503 },
+        );
+      }
     }
 
     const normalizedEmail =

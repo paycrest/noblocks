@@ -18,6 +18,23 @@ function hashOTP(otp: string): string {
   return createHash("sha256").update(otp).digest("hex");
 }
 
+/** Align with user_kyc_profiles_tier_check (0–4). Corrupt/non-numeric tiers would fail the upsert after OTP is sent. */
+function clampKycTier(tier: unknown): number {
+  const n = Number(tier ?? 0);
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(Math.max(Math.trunc(n), 0), 4);
+}
+
+function logSupabaseError(scope: string, err: { message?: string; code?: string; details?: string; hint?: string }) {
+  const fields = {
+    message: err.message ?? "(no message)",
+    code: err.code,
+    details: err.details,
+    hint: err.hint,
+  };
+  console.error(`[send-otp] ${scope}:`, fields.message, fields);
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
@@ -98,12 +115,26 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
     if (profileFetchError) {
+      logSupabaseError(
+        "Supabase profile fetch failed",
+        profileFetchError,
+      );
       trackApiError(
         request,
         "/api/phone/send-otp",
         "POST",
-        profileFetchError,
+        new Error(
+          profileFetchError.message
+            ? `Supabase select user_kyc_profiles: ${profileFetchError.message}`
+            : "Supabase select user_kyc_profiles failed",
+        ),
         500,
+        {
+          supabase_operation: "select_user_kyc_profiles",
+          supabase_code: profileFetchError.code,
+          supabase_details: profileFetchError.details,
+          supabase_hint: profileFetchError.hint,
+        },
       );
       return NextResponse.json(
         { success: false, error: "Failed to load profile" },
@@ -132,6 +163,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (!result.success) {
+      console.error("[send-otp] OTP provider failed:", {
+        error: result.error,
+        message: result.message,
+        provider: validation.provider,
+      });
       const responseTime = Date.now() - startTime;
       trackApiResponse(
         "/api/phone/send-otp",
@@ -154,7 +190,7 @@ export async function POST(request: NextRequest) {
       .upsert(
         {
           wallet_address: walletAddress,
-          user_id: userId,
+          user_id: userId?.trim() ? userId.trim() : null,
           full_name: name || existingProfile?.full_name || null,
           phone_number: validation.e164Format,
           otp_code: otpHash,
@@ -165,7 +201,7 @@ export async function POST(request: NextRequest) {
           verified_at: phoneNumberChanged
             ? null
             : existingProfile?.verified_at || null,
-          tier: existingProfile?.tier || 0,
+          tier: clampKycTier(existingProfile?.tier),
           id_country: existingProfile?.id_country || null,
           id_type: existingProfile?.id_type || null,
           platform: existingProfile?.platform || null,
@@ -178,11 +214,41 @@ export async function POST(request: NextRequest) {
       );
 
     if (dbError) {
-      trackApiError(request, "/api/phone/send-otp", "POST", dbError, 500);
-      return NextResponse.json(
-        { success: false, error: "Failed to store verification data" },
-        { status: 500 },
+      logSupabaseError("Supabase upsert (user_kyc_profiles) failed", dbError);
+      trackApiError(
+        request,
+        "/api/phone/send-otp",
+        "POST",
+        new Error(
+          dbError.message
+            ? `Supabase upsert: ${dbError.message}`
+            : "Supabase upsert failed",
+        ),
+        500,
+        {
+          supabase_operation: "upsert_user_kyc_profiles",
+          supabase_code: dbError.code,
+          supabase_details: dbError.details,
+          supabase_hint: dbError.hint,
+        },
       );
+      const payload: {
+        success: false;
+        error: string;
+        debug?: Record<string, string | undefined>;
+      } = {
+        success: false,
+        error: "Failed to store verification data",
+      };
+      if (process.env.NODE_ENV !== "production") {
+        payload.debug = {
+          message: dbError.message,
+          code: dbError.code,
+          details: dbError.details,
+          hint: dbError.hint,
+        };
+      }
+      return NextResponse.json(payload, { status: 500 });
     }
 
     const responseTime = Date.now() - startTime;
@@ -195,6 +261,7 @@ export async function POST(request: NextRequest) {
       phoneNumber: validation.internationalFormat,
     });
   } catch (error) {
+    console.error("[send-otp] POST uncaught exception:", error);
     trackApiError(request, "/api/phone/send-otp", "POST", error as Error, 500);
 
     return NextResponse.json(

@@ -36,6 +36,7 @@ CREATE TABLE transactions (
 -- Create indices
 CREATE INDEX idx_transactions_wallet_address ON transactions (wallet_address);
 CREATE INDEX idx_transactions_created_at ON transactions (created_at DESC);
+CREATE UNIQUE INDEX idx_transactions_order_txhash_unique ON transactions (order_id, tx_hash);
 
 -- Enable RLS
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;

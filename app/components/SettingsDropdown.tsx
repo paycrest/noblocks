@@ -153,7 +153,7 @@ export const SettingsDropdown = () => {
         }
       }
 
-      clearUserSessionData(user?.id, user?.wallet?.address);
+      clearUserSessionData(user?.id, walletAddress ?? user?.wallet?.address);
       await logout();
 
       if (window.ethereum) {

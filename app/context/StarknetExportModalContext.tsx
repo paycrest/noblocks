@@ -19,7 +19,7 @@ const StarknetExportModalContext =
 
 export function StarknetExportModalProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const { walletId, address } = useStarknet();
+  const { walletId, address, publicKey } = useStarknet();
 
   const openStarknetExport = useCallback(() => {
     setOpen(true);
@@ -37,6 +37,7 @@ export function StarknetExportModalProvider({ children }: { children: ReactNode 
         onCloseAction={closeExportModalAction}
         walletId={walletId}
         address={address}
+        expectedPublicKey={publicKey}
       />
     </StarknetExportModalContext.Provider>
   );

@@ -12,6 +12,12 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { PiCheck } from "react-icons/pi";
 import { toast } from "sonner";
+import {
+  deriveReadyAddressFromPrivateKey,
+  normalizePrivyStarknetExportedKey,
+  starkHexFeltEq,
+  starkPubKeyFromPrivateKey,
+} from "../lib/starknet-export-normalize";
 import { decryptStarknetExportHpke } from "../lib/starknet-export-hpke";
 import { copyToClipboard, shortenAddress } from "../utils";
 
@@ -31,6 +37,8 @@ type Props = {
   onCloseAction: () => void;
   walletId: string | null;
   address: string | null;
+  /** Privy-linked Starknet signer pubkey (for verifying export matches this wallet). */
+  expectedPublicKey: string | null;
 };
 
 export function ExportStarknetWalletModal({
@@ -38,6 +46,7 @@ export function ExportStarknetWalletModal({
   onCloseAction,
   walletId,
   address,
+  expectedPublicKey,
 }: Props) {
   const { getAccessToken } = usePrivy();
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
@@ -47,6 +56,9 @@ export function ExportStarknetWalletModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
+  const [keyVerificationWarning, setKeyVerificationWarning] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -55,6 +67,7 @@ export function ExportStarknetWalletModal({
       setErrorMsg(null);
       setCopiedKey(false);
       setCopiedAddress(false);
+      setKeyVerificationWarning(null);
       return;
     }
 
@@ -129,8 +142,32 @@ export function ExportStarknetWalletModal({
           json.ciphertext,
         );
 
+        const normalized = normalizePrivyStarknetExportedKey(plain);
+
+        let warn: string | null = null;
+        try {
+          const derivedPub = starkPubKeyFromPrivateKey(normalized);
+          if (
+            expectedPublicKey &&
+            !starkHexFeltEq(derivedPub, expectedPublicKey)
+          ) {
+            warn =
+              "Exported key does not match this wallet’s signer key. Try again or contact support before moving funds.";
+          } else if (address) {
+            const derivedAddr = deriveReadyAddressFromPrivateKey(normalized);
+            if (!starkHexFeltEq(derivedAddr, address)) {
+              warn =
+                "Derived Ready account address from this key differs from the address shown. If another app shows a different address, it may be using a different account type than Noblocks (Ready).";
+            }
+          }
+        } catch {
+          warn =
+            "Could not verify the exported key format. Only import into trusted Starknet wallets.";
+        }
+
         if (!cancelled) {
-          setPrivateKey(plain);
+          setPrivateKey(normalized);
+          setKeyVerificationWarning(warn);
           setStatus("ready");
         }
       } catch (e) {
@@ -147,7 +184,7 @@ export function ExportStarknetWalletModal({
       cancelled = true;
       ac.abort();
     };
-  }, [isOpen, walletId, getAccessToken]);
+  }, [isOpen, walletId, getAccessToken, expectedPublicKey, address]);
 
   const handleCopyKey = useCallback(async () => {
     if (!privateKey) return;
@@ -209,8 +246,9 @@ export function ExportStarknetWalletModal({
 
               <div className="space-y-4 px-5 py-4">
                 <p className="text-sm text-text-body/80 dark:text-white/70">
-                  Copy your private key to use this Starknet embedded wallet in
-                  another client.{" "}
+                  Copy your Starknet signing key (hex). Your Noblocks address is a
+                  Ready smart account — import this key in a wallet that supports
+                  the same account type to recover this address.{" "}
                   <a
                     href="https://docs.privy.io/wallets/wallets/export"
                     target="_blank"
@@ -262,6 +300,12 @@ export function ExportStarknetWalletModal({
                 {status === "error" && errorMsg && (
                   <p className="rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">
                     {errorMsg}
+                  </p>
+                )}
+
+                {status === "ready" && keyVerificationWarning && (
+                  <p className="rounded-xl bg-amber-500/15 px-3 py-2 text-sm text-amber-900 dark:text-amber-100/90">
+                    {keyVerificationWarning}
                   </p>
                 )}
 

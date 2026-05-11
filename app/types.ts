@@ -37,7 +37,7 @@ export type FormData = {
   memo: string;
   amountSent: number;
   amountReceived: number;
-  /** Fiat → crypto = onramp (NGN→token); crypto → fiat = offramp */
+  /** Fiat → crypto = onramp (NGN/KES→token); crypto → fiat = offramp */
   swapMode: SwapMode;
   /** True after user picks the Receive row asset (fiat off-ramp, token on-ramp). */
   receiveDestinationExplicitlySelected: boolean;

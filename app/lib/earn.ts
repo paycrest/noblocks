@@ -162,7 +162,11 @@ export async function getVesuPosition(
     positions = (await provider.getPositions?.(ctx, {
       user: fromAddress(walletAddress),
     })) ?? [];
-  } catch {
+  } catch (error) {
+    console.error(
+      `[earn] getPositions failed for ${walletAddress}; treating as no position`,
+      error,
+    );
     positions = [];
   }
 

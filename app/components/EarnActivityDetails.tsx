@@ -183,6 +183,7 @@ export function EarnActivityDetails({
               <button
                 type="button"
                 title="Copy pool address"
+                aria-label="Copy pool address"
                 className="rounded-lg p-1 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
                 onClick={async () => {
                   await copyToClipboard(pool.address, "Pool address");

@@ -227,7 +227,9 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         );
       }
     } catch {
-      // Soft-fail confirmation
+      console.log(
+        "[API] Warning: Could not confirm transaction, but it may still succeed",
+      );
     }
 
     const responseTime = Date.now() - startTime;

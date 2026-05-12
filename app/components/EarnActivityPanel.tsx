@@ -198,12 +198,13 @@ const ActivityRow: React.FC<{
   const amount = formatBaseUnits(safeBigInt(entry.amountBaseUnits));
   const tokenLogo = `/logos/${entry.token.toLowerCase()}-logo.svg`;
   return (
-    <motion.div
+    <motion.button
+      type="button"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       onClick={onClick}
-      className="group flex cursor-pointer items-start justify-between rounded-xl px-2 py-2 transition-all hover:bg-gray-50 dark:hover:bg-white/5"
+      className="group flex w-full cursor-pointer items-start justify-between rounded-xl bg-transparent px-2 py-2 text-left transition-all hover:bg-gray-50 dark:hover:bg-white/5"
     >
       <div className="flex items-center gap-2">
         <div className="space-y-3 text-sm">
@@ -235,6 +236,6 @@ const ActivityRow: React.FC<{
       <span className="text-sm text-text-secondary dark:text-white/50">
         {amount} {entry.token}
       </span>
-    </motion.div>
+    </motion.button>
   );
 };

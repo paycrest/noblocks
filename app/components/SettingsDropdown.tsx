@@ -31,10 +31,12 @@ import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
+import { useHandleExportEmbeddedWallet } from "../hooks/useHandleExportEmbeddedWallet";
 import { clearUserSessionData } from "../lib/session-cleanup";
 
 export const SettingsDropdown = () => {
-  const { user, updateEmail, exportWallet } = usePrivy();
+  const { user, updateEmail } = usePrivy();
+  const handleExportEmbeddedWallet = useHandleExportEmbeddedWallet();
   const { wallets } = useWallets();
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -296,7 +298,7 @@ export const SettingsDropdown = () => {
                 <li
                   role="menuitem"
                   className="flex cursor-pointer items-center gap-2.5 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
-                  onClick={exportWallet}
+                  onClick={() => void handleExportEmbeddedWallet()}
                 >
                   <AccessIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                   <p>Export wallet</p>

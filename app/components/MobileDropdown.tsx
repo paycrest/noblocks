@@ -33,6 +33,7 @@ import { TransferForm } from "./TransferForm";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import WalletMigrationModal from "./WalletMigrationModal";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
+import { useHandleExportEmbeddedWallet } from "../hooks/useHandleExportEmbeddedWallet";
 import { clearUserSessionData } from "../lib/session-cleanup";
 
 export const MobileDropdown = ({
@@ -53,7 +54,8 @@ export const MobileDropdown = ({
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { currentStep } = useStep();
 
-  const { user, linkEmail, updateEmail, exportWallet } = usePrivy();
+  const { user, linkEmail, updateEmail } = usePrivy();
+  const handleExportEmbeddedWallet = useHandleExportEmbeddedWallet();
   const { allBalances, crossChainBalances, isLoading, isRefreshing, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const { ensureWalletExists } = useStarknet();
@@ -299,7 +301,7 @@ export const MobileDropdown = ({
                               user={user}
                               updateEmail={updateEmail}
                               linkEmail={linkEmail}
-                              exportWallet={exportWallet}
+                              exportWallet={handleExportEmbeddedWallet}
                               handleLogout={handleLogout}
                               isLoggingOut={isLoggingOut}
                               onBack={() => setCurrentView("wallet")}

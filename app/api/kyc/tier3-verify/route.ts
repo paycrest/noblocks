@@ -189,14 +189,17 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
+      const msg = uploadError.message || "";
+      const lower = msg.toLowerCase();
+      const bucketMissing =
+        lower.includes("bucket") && lower.includes("not found");
+      const errorText = bucketMissing
+        ? `${msg} Create the "${KYC_BUCKET}" bucket in Supabase (Dashboard → Storage, or migration), or set KYC_DOCUMENTS_BUCKET to an existing private bucket.`
+        : msg ||
+          "Failed to upload document. Ensure the KYC storage bucket exists.";
       return NextResponse.json(
-        {
-          success: false,
-          error:
-            uploadError.message ||
-            "Failed to upload document. Ensure the KYC storage bucket exists.",
-        },
-        { status: 500 }
+        { success: false, error: errorText },
+        { status: 500 },
       );
     }
 
@@ -224,11 +227,12 @@ export async function POST(request: NextRequest) {
       county: county?.trim() || undefined,
       postalCode: postalCode?.trim() || undefined,
     };
-    const dojahResult = await verifyUtilityBill(signedUrl, addressData);
+    const dojahResult = await verifyUtilityBill(
+      signedUrl,
+      addressData,
+    );
     if (!isDojahVerificationSuccess(dojahResult)) {
-      const msg =
-        dojahResult?.entity?.result?.message ||
-        "Document could not be verified as a valid proof of address.";
+      const msg = dojahResult?.entity?.result?.message || "Document could not be verified as a valid proof of address.";
       console.error("[tier3-verify] Dojah verification failed", {
         resultStatus: dojahResult?.entity?.result?.status,
         resultMessage: dojahResult?.entity?.result?.message,
@@ -318,11 +322,25 @@ export async function POST(request: NextRequest) {
       data: { tier: 3 },
     });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Verification failed";
+    const raw =
+      err instanceof Error ? err.message : String(err);
+    console.error("[tier3-verify] unexpected error", err);
+    // Dojah often returns JSON in the thrown message; avoid double-encoding for clients.
+    let message = raw;
+    if (raw.trim().startsWith("{")) {
+      try {
+        const parsed = JSON.parse(raw) as { error?: string; message?: string };
+        message =
+          (typeof parsed.error === "string" && parsed.error) ||
+          (typeof parsed.message === "string" && parsed.message) ||
+          raw;
+      } catch {
+        // keep raw
+      }
+    }
     return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
+      { success: false, error: message || "Verification failed" },
+      { status: 500 },
     );
   }
 }

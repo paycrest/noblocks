@@ -64,6 +64,7 @@ import {
   fetchAggregatorPublicKey,
   fetchTokens,
   saveTransaction,
+  precheckSwapTransaction,
   createV2SenderPaymentOrder,
   fetchRefundAccount,
   saveRefundAccount,
@@ -786,7 +787,39 @@ export const TransactionPreview = ({
 
     try {
       setIsConfirming(true);
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        toast.error("Please sign in to continue");
+        return;
+      }
+
+      await precheckSwapTransaction(
+        {
+          walletAddress: activeWallet.address,
+          fromCurrency: token,
+          toCurrency: currency,
+          amountSent: Number(amountSent),
+          amountReceived: Number(amountReceived),
+          fee: Number(rate),
+          recipient: {
+            account_name: recipientName,
+            institution: getInstitutionNameByCode(
+              institution,
+              supportedInstitutions,
+            ) as string,
+            account_identifier: accountIdentifier,
+            ...(memo && { memo }),
+          },
+        },
+        accessToken,
+      );
+
       await createOrder();
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Unable to start this transaction.";
+      setErrorMessage(msg);
+      setErrorCount((prevCount: number) => prevCount + 1);
     } finally {
       setIsConfirming(false);
     }

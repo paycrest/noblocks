@@ -50,6 +50,29 @@ import {
 import WalletMigrationModal from "../components/WalletMigrationModal";
 
 /**
+ * Monthly KYC limits are in USD. Offramp `amountSent` is token (stable ≈ USD).
+ * Onramp `amountSent` is fiat (NGN) — use crypto received as the USD notional.
+ */
+function kycUsdNotionalForLimitCheck(params: {
+  isOnramp: boolean;
+  amountSent: number;
+  amountReceived: number;
+  token: string | undefined;
+  cngnRate: number | undefined;
+}): number {
+  const { isOnramp, amountSent, amountReceived, token, cngnRate } = params;
+  const isCngn = token === "cNGN" || token === "CNGN";
+  if (isOnramp) {
+    const recv = Number(amountReceived) || 0;
+    if (isCngn && cngnRate && cngnRate > 0) return recv / cngnRate;
+    return recv;
+  }
+  const raw = Number(amountSent) || 0;
+  if (isCngn && cngnRate && cngnRate > 0) return raw / cngnRate;
+  return raw;
+}
+
+/**
  * TransactionForm component renders a form for submitting a transaction.
  * It includes fields for selecting network, token, amount, and recipient details.
  * The form also displays rate and fee information based on the selected token.
@@ -141,6 +164,7 @@ export const TransactionForm = ({
     currency,
     walletAddress,
     isSwapped,
+    swapMode,
     receiveDestinationExplicitlySelected,
   } = watch();
 
@@ -406,21 +430,45 @@ export const TransactionForm = ({
     [amountSent, amountReceived, rate, isSwapped],
   );
 
-  // Update isUserVerified based on tier changes and current amount
+  // Derive swap eligibility from tier + spend limits. Always set explicitly so we
+  // never leave a stale true/false (e.g. tier ≥ 1 with no amount, or after reload).
   useEffect(
     function updateVerificationStatus() {
-      if (tier > 0 && amountSent) {
-        const rawAmount = Number(amountSent) || 0;
-        const isCngn = token === "cNGN" || token === "CNGN";
-        const usdAmount =
-          isCngn && cngnRate && cngnRate > 0 ? rawAmount / cngnRate : rawAmount;
-        const canUserTransact = canTransact(usdAmount).allowed;
-        setIsUserVerified(canUserTransact);
-      } else if (tier === 0) {
+      if (tier === 0) {
         setIsUserVerified(false);
+        return;
       }
+      const rawAmount = Number(amountSent);
+      if (!Number.isFinite(rawAmount) || rawAmount <= 0) {
+        setIsUserVerified(false);
+        return;
+      }
+      if (isSwapped) {
+        const recv = Number(amountReceived);
+        if (!Number.isFinite(recv) || recv <= 0) {
+          setIsUserVerified(false);
+          return;
+        }
+      }
+      const usdAmount = kycUsdNotionalForLimitCheck({
+        isOnramp: isSwapped,
+        amountSent: rawAmount,
+        amountReceived: Number(amountReceived) || 0,
+        token,
+        cngnRate,
+      });
+      setIsUserVerified(canTransact(usdAmount).allowed);
     },
-    [tier, amountSent, token, cngnRate, canTransact, setIsUserVerified],
+    [
+      tier,
+      amountSent,
+      amountReceived,
+      isSwapped,
+      token,
+      cngnRate,
+      canTransact,
+      setIsUserVerified,
+    ],
   );
 
   // Register form fields
@@ -570,7 +618,9 @@ export const TransactionForm = ({
   isDirty,
   isValid,
   isUserVerified,
+  isPhoneVerified,
   hasPriorTransactionActivity,
+  kycTier: tier,
   rate,
   tokenDecimals,
   needsMigration,
@@ -601,14 +651,22 @@ export const TransactionForm = ({
 
     setOrderId("");
 
-    // Calculate the USD equivalent for transaction limit checking.
-    // cNGN is not 1:1 with USD — convert using the live rate.
-    // USDC, USDT, and cUSD are treated as 1:1 with USD.
+    // Calculate the USD equivalent for transaction limit checking (see kycUsdNotionalForLimitCheck).
     const formData = getValues();
-    const rawAmount = formData.amountSent || 0;
-    const isCngn = formData.token === "cNGN" || formData.token === "CNGN";
-    const usdAmount =
-      isCngn && cngnRate && cngnRate > 0 ? rawAmount / cngnRate : rawAmount;
+    const rawAmount = Number(formData.amountSent) || 0;
+    if (formData.isSwapped) {
+      const recv = Number(formData.amountReceived) || 0;
+      if (!Number.isFinite(recv) || recv <= 0) {
+        return;
+      }
+    }
+    const usdAmount = kycUsdNotionalForLimitCheck({
+      isOnramp: Boolean(formData.isSwapped),
+      amountSent: rawAmount,
+      amountReceived: Number(formData.amountReceived) || 0,
+      token: formData.token,
+      cngnRate,
+    });
 
     // Check transaction limits based on KYC tier
     const limitCheck = canTransact(usdAmount);
@@ -675,6 +733,9 @@ export const TransactionForm = ({
 
     // Toggle swap mode FIRST (persisted on form so parent rate fetch uses correct side)
     setValue("isSwapped", willBeSwapped, { shouldDirty: true });
+    setValue("swapMode", willBeSwapped ? "onramp" : "offramp", {
+      shouldDirty: true,
+    });
 
     if (isCompleteFlow) {
       // Swap send/receive numbers and formatting; keep token & currency (and wallet) across the flip
@@ -1140,6 +1201,7 @@ export const TransactionForm = ({
                 <RecipientDetailsForm
                   formMethods={formMethods}
                   stateProps={stateProps}
+                  swapMode={swapMode ?? "offramp"}
                   isSwapped={isSwapped}
                   token={token}
                   networkName={selectedNetwork.chain.name}

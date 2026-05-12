@@ -210,13 +210,6 @@ export default function PhoneVerificationModal({
         setOtpCode("");
         setAttemptsRemaining(3);
         setStep(STEPS.ENTER_OTP);
-        const providerName =
-          data.provider === "kudisms"
-            ? "KudiSMS"
-            : data.provider === "termii"
-              ? "Termii"
-              : "Twilio";
-        toast.success(`OTP sent via ${providerName}`);
       } else {
         toast.error(data.error || "Failed to send OTP");
       }

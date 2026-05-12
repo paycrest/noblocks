@@ -5,6 +5,13 @@ import { calculateSenderFee } from "../utils";
 
 const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
 
+/** Primary CTA when limits require upgrading verification (opens KYC modal from swap). */
+function labelForNextTierVerification(tier: number): string {
+  if (tier >= 3) return "Verify to continue";
+  if (tier === 2) return "Verify address for higher limits";
+  return "Verify ID for higher limits";
+}
+
 interface UseSwapButtonProps {
   watch: UseFormWatch<any>;
   balance?: number;
@@ -13,6 +20,10 @@ interface UseSwapButtonProps {
   isUserVerified: boolean;
   /** Wallets that already have Noblocks activity need tier‑1 wording ("Verify and start"); new users keep "Get started". */
   hasPriorTransactionActivity?: boolean;
+  /** After phone OTP, CTA should name the next verification step (ID / address), not generic "raise limit". */
+  isPhoneVerified?: boolean;
+  /** Current KYC tier (0–3); used when phone is done but swap is blocked by limits. */
+  kycTier?: number;
   rate?: number | null;
   tokenDecimals?: number;
   isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
@@ -27,6 +38,8 @@ export function useSwapButton({
   isValid,
   isUserVerified,
   hasPriorTransactionActivity = false,
+  isPhoneVerified = false,
+  kycTier = 0,
   rate,
   tokenDecimals = 18,
   isSwapped = false,
@@ -71,6 +84,21 @@ export function useSwapButton({
   const isEnabled = (() => {
     if (needsMigration && authenticated && !isInjectedWallet) return true;
     if (isMigrationMandatory) return true;
+
+    // Phone / next-tier KYC from the main CTA must work before the user picks a
+    // recipient; otherwise the verify label appears on a permanently disabled button.
+    const rateReady = Boolean(rate) && Number(rate) > 0;
+    if (
+      !isUserVerified &&
+      (authenticated || isInjectedWallet) &&
+      Number(amountSent) > 0 &&
+      isCurrencySelected &&
+      isAmountValid &&
+      rateReady
+    ) {
+      return true;
+    }
+
     if (!receiveDestinationExplicitlySelected) return false;
     if (!rate) return false;
     if (isInjectedWallet && hasInsufficientBalance) {
@@ -81,25 +109,14 @@ export function useSwapButton({
       return true;
     }
 
-    if (
-      !isUserVerified &&
-      (authenticated || isInjectedWallet) &&
-      amountSent > 0 &&
-      isCurrencySelected &&
-      isAmountValid &&
-      isDirty
-    ) {
-      return true;
-    }
-
     if (isInjectedWallet) {
-      if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
+      if (!isValid || !isCurrencySelected || !isAmountValid) {
         return false;
       }
       return hasRecipient;
     }
 
-    if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
+    if (!isValid || !isCurrencySelected || !isAmountValid) {
       return false;
     }
 
@@ -128,6 +145,9 @@ export function useSwapButton({
       (authenticated || isInjectedWallet) &&
       amountSent > 0
     ) {
+      if (isPhoneVerified) {
+        return labelForNextTierVerification(kycTier);
+      }
       return hasPriorTransactionActivity ? "Verify and start" : "Get started";
     }
 

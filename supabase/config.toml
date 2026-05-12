@@ -111,7 +111,13 @@ enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
-# Uncomment to configure local storage buckets
+# Tier 3 KYC uploads (matches migration + KYC_DOCUMENTS_BUCKET default)
+[storage.buckets.kyc-documents]
+public = false
+file_size_limit = "5MiB"
+allowed_mime_types = ["image/jpeg", "image/png", "image/webp", "application/pdf"]
+
+# Uncomment to configure additional local storage buckets
 # [storage.buckets.images]
 # public = false
 # file_size_limit = "50MiB"

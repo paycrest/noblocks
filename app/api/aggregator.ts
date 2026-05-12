@@ -528,6 +528,44 @@ export async function saveTransaction(
   return response.data;
 }
 
+export type SwapPrecheckPayload = Pick<
+  TransactionCreateInput,
+  | "walletAddress"
+  | "fromCurrency"
+  | "toCurrency"
+  | "amountSent"
+  | "amountReceived"
+  | "fee"
+> & { recipient?: TransactionCreateInput["recipient"] };
+
+/**
+ * Server-side monthly KYC limit check (RPC dry run) before on-chain swap steps.
+ * Throws Error with the API message when the swap would be rejected at save time.
+ */
+export async function precheckSwapTransaction(
+  payload: SwapPrecheckPayload,
+  accessToken: string,
+): Promise<void> {
+  const res = await axios.post<{ success?: boolean; error?: string }>(
+    "/api/v1/transactions/swap-precheck",
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "x-wallet-address": String(payload.walletAddress).toLowerCase(),
+      },
+      validateStatus: () => true,
+    },
+  );
+  if (!res.data?.success) {
+    const msg =
+      typeof res.data?.error === "string"
+        ? res.data.error
+        : "Unable to verify transaction limits. Please try again.";
+    throw new Error(msg);
+  }
+}
+
 /**
  * Updates the status of a transaction
  * @param {string} transactionId - The ID of the transaction to update

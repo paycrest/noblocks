@@ -849,21 +849,25 @@ export const KycModal = ({
 
   const renderTier3Upload = () => {
     const handleTier3FileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
+      const input = e.currentTarget;
+      const file = input.files?.[0];
       if (!file) return;
       const ext = file.name.split(".").pop()?.toUpperCase();
       if (!ext || !ALLOWED_TIER3_EXTENSIONS.includes(ext)) {
         setTier3ErrorMessage(
           "Invalid file type; allowed: JPG, JPEG, PNG, PDF",
         );
+        input.value = "";
         return;
       }
       if (file.size > TIER3_MAX_BYTES) {
         setTier3ErrorMessage("File too large; maximum 5 MB");
+        input.value = "";
         return;
       }
       setTier3ErrorMessage(null);
       setTier3UploadedFile(file);
+      input.value = "";
     };
     const handleTier3Drop = (e: React.DragEvent) => {
       e.preventDefault();
@@ -988,12 +992,18 @@ export const KycModal = ({
               </div>
               {tier3UploadedFile ? (
                 <>
-                  <p className="flex items-center gap-1 text-xs font-light text-gray-600 dark:text-white/70">
-                    {tier3UploadedFile.name}{" "}
-                    <PencilEdit02Icon className="size-3.5 text-lavender-500" />{" "}
-                    <span className="text-lavender-500 hover:underline">
+                  <p className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs font-light text-gray-600 dark:text-white/70">
+                    <span className="break-all">{tier3UploadedFile.name}</span>
+                    <label className="inline-flex cursor-pointer items-center gap-1 text-lavender-500 hover:underline">
+                      <PencilEdit02Icon className="size-3.5 shrink-0" />
                       change
-                    </span>
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        className="sr-only"
+                        onChange={handleTier3FileChange}
+                      />
+                    </label>
                   </p>
                   <p className="text-xs font-extralight text-gray-500 dark:text-white/50">
                     Size: {(tier3UploadedFile.size / 1024 / 1024).toFixed(2)} MB

@@ -6,13 +6,13 @@ import {
 } from "@/app/lib/config";
 import {
   buildReadyAccount,
+  computeReadyAddress,
   deployReadyAccount,
   getRpcProvider,
   getStarknetWallet,
   setupPaymaster,
 } from "@/app/lib/starknet";
 import { prepareVesuDepositCalls, type EarnTokenSymbol } from "@/app/lib/earn";
-import { validateAndParseAddress } from "starknet";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import {
   trackApiError,
@@ -80,7 +80,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       classHash: clientClassHash,
       amount,
       origin: clientOrigin,
-      address: WalletAddress,
       token: rawTokenSymbol,
     } = body as {
       walletId?: string;
@@ -88,7 +87,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       classHash?: string;
       amount?: string | number;
       origin?: string;
-      address?: string;
       token?: string;
     };
 
@@ -127,23 +125,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    if (!WalletAddress || typeof WalletAddress !== "string") {
-      return NextResponse.json(
-        { error: "Missing or invalid wallet address" },
-        { status: 400 },
-      );
-    }
-
-    let normalizedWalletAddress: string;
-    try {
-      normalizedWalletAddress = validateAndParseAddress(WalletAddress);
-    } catch {
-      return NextResponse.json(
-        { error: "Invalid wallet address format" },
-        { status: 400 },
-      );
-    }
-
     let amountBaseUnits: bigint;
     try {
       amountBaseUnits = BigInt(amount as string | number);
@@ -160,19 +141,20 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    let isDeployed = false;
-    const provider = getRpcProvider();
-    try {
-      await provider.getClassHashAt(normalizedWalletAddress);
-      isDeployed = true;
-    } catch {
-      isDeployed = false;
-    }
-
     const classHash = clientClassHash || STARKNET_READY_ACCOUNT_CLASSHASH;
     const origin = clientOrigin || request.headers.get("origin") || undefined;
 
     const { publicKey: walletPublicKey } = await getStarknetWallet(walletId);
+    const address = computeReadyAddress(walletPublicKey, classHash);
+
+    let isDeployed = false;
+    const provider = getRpcProvider();
+    try {
+      await provider.getClassHashAt(address);
+      isDeployed = true;
+    } catch {
+      isDeployed = false;
+    }
 
     let paymasterCfg;
     try {
@@ -193,7 +175,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
     const { paymasterRpc, isSponsored, gasToken } = paymasterCfg;
 
-    const { account, address } = await buildReadyAccount({
+    const { account } = await buildReadyAccount({
       walletId,
       publicKey: walletPublicKey,
       classHash,
@@ -206,7 +188,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     let calls;
     try {
       calls = await prepareVesuDepositCalls({
-        walletAddress: normalizedWalletAddress,
+        walletAddress: address,
         amountBaseUnits,
         tokenSymbol,
       });

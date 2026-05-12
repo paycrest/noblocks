@@ -6,7 +6,7 @@ import {
 } from "@/app/lib/config";
 import {
   buildReadyAccount,
-  deployReadyAccount,
+  computeReadyAddress,
   getRpcProvider,
   getStarknetWallet,
   setupPaymaster,
@@ -16,7 +16,6 @@ import {
   prepareVesuWithdrawMaxCalls,
   type EarnTokenSymbol,
 } from "@/app/lib/earn";
-import { validateAndParseAddress } from "starknet";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import {
   trackApiError,
@@ -66,7 +65,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       amount,
       max,
       origin: clientOrigin,
-      address: WalletAddress,
       token: rawTokenSymbol,
     } = body as {
       walletId?: string;
@@ -75,7 +73,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       amount?: string | number;
       max?: boolean;
       origin?: string;
-      address?: string;
       token?: string;
     };
 
@@ -88,26 +85,15 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    if (!walletId || !publicKey || !WalletAddress) {
+    if (!walletId || !publicKey) {
       return NextResponse.json(
         {
           error: "Missing required fields",
           missing: {
             walletId: !walletId,
             publicKey: !publicKey,
-            address: !WalletAddress,
           },
         },
-        { status: 400 },
-      );
-    }
-
-    let normalizedWalletAddress: string;
-    try {
-      normalizedWalletAddress = validateAndParseAddress(WalletAddress);
-    } catch {
-      return NextResponse.json(
-        { error: "Invalid wallet address format" },
         { status: 400 },
       );
     }
@@ -136,10 +122,16 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       }
     }
 
+    const classHash = clientClassHash || STARKNET_READY_ACCOUNT_CLASSHASH;
+    const origin = clientOrigin || request.headers.get("origin") || undefined;
+
+    const { publicKey: walletPublicKey } = await getStarknetWallet(walletId);
+    const address = computeReadyAddress(walletPublicKey, classHash);
+
     let isDeployed = false;
     const provider = getRpcProvider();
     try {
-      await provider.getClassHashAt(normalizedWalletAddress);
+      await provider.getClassHashAt(address);
       isDeployed = true;
     } catch {
       isDeployed = false;
@@ -152,14 +144,9 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    const classHash = clientClassHash || STARKNET_READY_ACCOUNT_CLASSHASH;
-    const origin = clientOrigin || request.headers.get("origin") || undefined;
-
-    const { publicKey: walletPublicKey } = await getStarknetWallet(walletId);
-
     const { paymasterRpc, isSponsored, gasToken } = await setupPaymaster();
 
-    const { account, address } = await buildReadyAccount({
+    const { account } = await buildReadyAccount({
       walletId,
       publicKey: walletPublicKey,
       classHash,
@@ -173,11 +160,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     try {
       calls = max
         ? await prepareVesuWithdrawMaxCalls({
-            walletAddress: normalizedWalletAddress,
+            walletAddress: address,
             tokenSymbol,
           })
         : await prepareVesuWithdrawCalls({
-            walletAddress: normalizedWalletAddress,
+            walletAddress: address,
             amountBaseUnits,
             tokenSymbol,
           });

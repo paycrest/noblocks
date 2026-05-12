@@ -223,7 +223,6 @@ export function useEarnHandler() {
         body: JSON.stringify({
           walletId,
           publicKey,
-          address,
           token,
           amount: amountBaseUnits.toString(),
           origin: window.location.origin,
@@ -267,7 +266,6 @@ export function useEarnHandler() {
         body: JSON.stringify({
           walletId,
           publicKey,
-          address,
           token,
           ...(isMax
             ? { max: true }

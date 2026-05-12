@@ -907,6 +907,7 @@ async function fetchStarknetBalancesUnified(
       address: token.address,
       decimals: token.decimals,
       balance: balances[token.symbol] ?? 0,
+      balanceWei: balancesInWei[token.symbol],
     }));
 
     return {

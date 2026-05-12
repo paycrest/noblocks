@@ -44,6 +44,8 @@ export interface WalletBalances {
   balances: Record<string, number>;
   rawBalances?: Record<string, number>; // Raw balances before CNGN conversion
   balancesUsd?: Record<string, number>; // USD value for each token (e.g. Starknet)
+  /** Token base units as bigint (e.g. 6-decimal USDC). Populated by Starknet and EVM fetchers; preferred over `balances` when callers need exact integer math. */
+  balancesInWei?: Record<string, bigint>;
   /** True when user holds CNGN but no USD/NGN rate was available for conversion. */
   cngnUsdUnknown?: boolean;
 }

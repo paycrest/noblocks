@@ -216,6 +216,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
+    let confirmed = true;
     try {
       const txReceipt = await account.waitForTransaction(
         result.transaction_hash,
@@ -227,6 +228,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         );
       }
     } catch {
+      confirmed = false;
       console.log(
         "[API] Warning: Could not confirm transaction, but it may still succeed",
       );
@@ -240,6 +242,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     return NextResponse.json({
       success: true,
+      confirmed,
       transactionHash: result.transaction_hash,
       walletId,
       address,

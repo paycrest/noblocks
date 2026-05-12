@@ -80,10 +80,9 @@ export const EarnWalletForm: React.FC<{ onClose: () => void }> = ({
     ? ((allBalances.starknetWallet?.balances?.[token] as number | undefined) ??
       0)
     : 0;
-  const walletBalanceBaseUnits: bigint = useMemo(() => {
-    const baseUnits = parseAmountToBaseUnits(walletBalanceUnit.toString());
-    return baseUnits ?? BigInt("0");
-  }, [walletBalanceUnit]);
+  const walletBalanceBaseUnits: bigint = token
+    ? (allBalances.starknetWallet?.balancesInWei?.[token] ?? BigInt("0"))
+    : BigInt("0");
 
   const position = token ? positions[token] : null;
   const suppliedBaseUnits: bigint = useMemo(() => {

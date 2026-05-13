@@ -101,6 +101,23 @@ export function formatNumberWithCommas(num: string | number): string {
 }
 
 /**
+ * First word of a display name with title case (e.g. success flow pill vs headline).
+ *
+ * @param name - Full recipient name (may include multiple words).
+ * @returns First word title-cased, or empty string if missing.
+ */
+export function formatRecipientNameFirstWordForPill(name: string): string {
+  const trimmed = (name ?? "").trim();
+  if (!trimmed) return "";
+  const titleCased = trimmed
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return titleCased.split(/\s+/)[0] ?? "";
+}
+
+/**
  * Formats a number as a currency string.
  *
  * @param value - The number to format.

@@ -28,8 +28,10 @@ import {
   classNames,
   formatCurrency,
   formatNumberWithCommas,
+  formatRecipientNameFirstWordForPill,
   getExplorerLink,
   getInstitutionNameByCode,
+  isBlockFestActive,
 } from "../utils";
 import {
   fetchOrderDetails,
@@ -57,7 +59,6 @@ import { useConfetti } from "../hooks/useConfetti";
 import { BlockFestCashbackComponent } from "../components/blockfest";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { useRocketStatus } from "../context/RocketStatusContext";
-import { isBlockFestActive } from "../utils";
 
 // Allowed tokens for BlockFest cashback
 const ALLOWED_CASHBACK_TOKENS = new Set(["USDC", "USDT"]);
@@ -1046,7 +1047,7 @@ export function TransactionStatus({
           >
             {isOnramp
               ? (recipientWalletAddress ? `${recipientWalletAddress.slice(0, 6)}...${recipientWalletAddress.slice(-4)}` : "")
-              : (recipientName ?? "").toLowerCase().split(" ")[0]}
+              : formatRecipientNameFirstWordForPill(recipientName)}
           </AnimatedComponent>
         </div>
       </div>
@@ -1110,7 +1111,7 @@ export function TransactionStatus({
           >
             {isOnramp
               ? (recipientWalletAddress ? `${recipientWalletAddress.slice(0, 6)}...${recipientWalletAddress.slice(-4)}` : "")
-              : (recipientName ?? "").toLowerCase().split(" ")[0]}
+              : formatRecipientNameFirstWordForPill(recipientName)}
           </AnimatedComponent>
         </div>
 

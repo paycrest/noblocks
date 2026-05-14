@@ -71,6 +71,7 @@
     "sanity": "^4.4.1",
     "sonner": "^1.7.4",
     "starknet": "^9.2.1",
+    "starkzap": "^3.0.0",
     "styled-components": "^6.1.19",
     "viem": "^2.31.0"
   },

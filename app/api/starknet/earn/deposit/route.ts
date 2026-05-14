@@ -212,7 +212,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       : { feeMode: { mode: "default" as const, gasToken } };
 
     let maxFee: any = undefined;
-    if (!isSponsored) {
+    if (isDeployed && !isSponsored) {
       try {
         const est = await account.estimatePaymasterTransactionFee(
           calls,

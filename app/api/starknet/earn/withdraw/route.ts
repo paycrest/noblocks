@@ -5,6 +5,7 @@ import {
   STARKNET_READY_ACCOUNT_CLASSHASH,
 } from "@/app/lib/config";
 import {
+  applySafetyMargin,
   buildReadyAccount,
   computeReadyAddress,
   getRpcProvider,
@@ -186,11 +187,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           calls,
           paymasterDetails,
         );
-        const withMargin15 = (v: any) => {
-          const bi = BigInt(v.toString());
-          return (bi * BigInt(3) + BigInt(1)) / BigInt(2);
-        };
-        maxFee = withMargin15(est.suggested_max_fee_in_gas_token);
+        maxFee = applySafetyMargin(est.suggested_max_fee_in_gas_token);
       } catch (error: any) {
         return NextResponse.json(
           { error: `Fee estimation failed: ${error.message}` },

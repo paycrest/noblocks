@@ -5,6 +5,7 @@ import {
   STARKNET_READY_ACCOUNT_CLASSHASH,
 } from "@/app/lib/config";
 import {
+  applySafetyMargin,
   buildReadyAccount,
   computeReadyAddress,
   deployReadyAccount,
@@ -212,17 +213,17 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       : { feeMode: { mode: "default" as const, gasToken } };
 
     let maxFee: any = undefined;
+    // Only estimate on the execute path. On first-deposit (!isDeployed),
+    // deployReadyAccount handles its own deploy-aware fee estimation, and
+    // estimating here without deploymentData would be both inaccurate and
+    // unused (maxFee is not passed to deployReadyAccount).
     if (isDeployed && !isSponsored) {
       try {
         const est = await account.estimatePaymasterTransactionFee(
           calls,
           paymasterDetails,
         );
-        const withMargin15 = (v: any) => {
-          const bi = BigInt(v.toString());
-          return (bi * BigInt(3) + BigInt(1)) / BigInt(2);
-        };
-        maxFee = withMargin15(est.suggested_max_fee_in_gas_token);
+        maxFee = applySafetyMargin(est.suggested_max_fee_in_gas_token);
       } catch (error: any) {
         trackApiError(request, ROUTE, "POST", error, 500, {
           wallet_address: walletAddress,

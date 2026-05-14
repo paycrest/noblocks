@@ -10,7 +10,7 @@ import {
 import { toast } from "sonner";
 import { useBalance } from "../context";
 import {
-  EARN_TOKENS,
+  useEarnAvailableTokens,
   useEarnHandler,
   type EarnToken,
 } from "../hooks/useEarnHandler";
@@ -26,11 +26,6 @@ const TOKEN_FACTOR = BigInt("1000000");
 // cadence so the displayed rate stays in sync with the live pool while the
 // modal is open.
 const APR_REFRESH_MS = 30_000;
-
-const TOKEN_DROPDOWN_ITEMS = EARN_TOKENS.map((t) => ({
-  name: t,
-  imageUrl: `/logos/${t.toLowerCase()}-logo.svg`,
-}));
 
 type Tab = "deposit" | "withdraw";
 
@@ -65,6 +60,16 @@ export const EarnWalletForm: React.FC<{ onClose: () => void }> = ({
 }) => {
   const { allBalances, refreshBalance } = useBalance();
   const { positions, refreshPosition, deposit, withdraw } = useEarnHandler();
+  const { tokens: availableEarnTokens } = useEarnAvailableTokens();
+
+  const tokenDropdownItems = useMemo(
+    () =>
+      availableEarnTokens.map((t) => ({
+        name: t,
+        imageUrl: `/logos/${t.toLowerCase()}-logo.svg`,
+      })),
+    [availableEarnTokens],
+  );
 
   const [tab, setTab] = useState<Tab>("deposit");
   const [token, setToken] = useState<EarnToken | null>(null);
@@ -346,12 +351,13 @@ export const EarnWalletForm: React.FC<{ onClose: () => void }> = ({
             />
             <FormDropdown
               defaultTitle="Select token"
-              data={TOKEN_DROPDOWN_ITEMS}
+              data={tokenDropdownItems}
               defaultSelectedItem={token ?? undefined}
               isCTA={true}
-              onSelect={(name: string) =>
-                setToken(name === "USDT" ? "USDT" : "USDC")
-              }
+              onSelect={(name: string) => {
+                const match = availableEarnTokens.find((t) => t === name);
+                if (match) setToken(match);
+              }}
               className="min-w-32"
               dropdownWidth={192}
             />

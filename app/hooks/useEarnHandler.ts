@@ -3,10 +3,51 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useStarknet } from "../context/StarknetContext";
+import { getNetworkTokens } from "../utils";
 
 export type EarnToken = "USDC" | "USDT";
 
 export const EARN_TOKENS: EarnToken[] = ["USDC", "USDT"];
+
+/**
+ * Tokens currently advertised by Paycrest's aggregator for Starknet AND
+ * supported by our local Vesu pool config (`EARN_TOKEN_CONFIG`). Lets the
+ * Earn UI track Paycrest's supported-token list without code coordination,
+ * while never exposing a token we don't have a Vesu pool address for. Falls
+ * back to the full `EARN_TOKENS` list if the Paycrest fetch fails so the UI
+ * stays functional offline / during transient API outages.
+ */
+export function useEarnAvailableTokens(): {
+  tokens: EarnToken[];
+  loading: boolean;
+} {
+  const [tokens, setTokens] = useState<EarnToken[]>(EARN_TOKENS);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    getNetworkTokens("Starknet")
+      .then((networkTokens) => {
+        if (cancelled) return;
+        const advertised = new Set((networkTokens ?? []).map((t) => t.symbol));
+        const intersection = EARN_TOKENS.filter((s) => advertised.has(s));
+        // If the intersection is empty (API miss or transient outage), keep
+        // the full supported list so the dropdown stays usable.
+        setTokens(intersection.length > 0 ? intersection : EARN_TOKENS);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // `tokens` is already initialised to the full supported list.
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { tokens, loading };
+}
 
 export interface EarnPosition {
   /** Underlying token supplied, as base units string. */

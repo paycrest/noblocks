@@ -344,19 +344,21 @@ export function TransactionStatus({
         void saveTransactionData("fulfilling", h);
       };
 
+      const sessionExpiredMessage =
+        "Session expired. Please refresh to continue tracking your transaction.";
+
       const getOrderDetails = async () => {
         try {
+          const accessToken = await getAccessToken();
+          if (!accessToken) {
+            toast.error(sessionExpiredMessage);
+            if (intervalId) clearInterval(intervalId);
+            return;
+          }
+
           let responseData: OrderDetailsData;
 
           if (isOnramp) {
-            const accessToken = await getAccessToken();
-            if (!accessToken) {
-              toast.error(
-                "Session expired. Please refresh to continue tracking your transaction.",
-              );
-              clearInterval(intervalId);
-              return;
-            }
             const res = await fetchV2SenderPaymentOrderById(orderId, accessToken);
             const resolvedStatus = resolveOnrampOrderStatusFromV2Response(res);
             responseData =
@@ -367,14 +369,6 @@ export function TransactionStatus({
               responseData = { ...responseData, status: resolvedStatus };
             }
           } else {
-            const accessToken = await getAccessToken();
-            if (!accessToken) {
-              toast.error(
-                "Session expired. Please refresh to continue tracking your transaction.",
-              );
-              clearInterval(intervalId);
-              return;
-            }
             const orderDetailsResponse = await fetchOrderDetails(
               orderId,
               accessToken,
@@ -491,8 +485,15 @@ export function TransactionStatus({
         }
       };
 
-      getOrderDetails();
-      intervalId = setInterval(getOrderDetails, 5000);
+      void (async () => {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          toast.error(sessionExpiredMessage);
+          return;
+        }
+        await getOrderDetails();
+        intervalId = setInterval(getOrderDetails, 5000);
+      })();
 
       return () => {
         if (intervalId) clearInterval(intervalId);

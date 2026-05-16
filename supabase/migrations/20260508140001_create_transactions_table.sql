@@ -6,7 +6,7 @@ CREATE TABLE transactions (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     wallet_address TEXT NOT NULL,
     transaction_type TEXT NOT NULL CHECK (
-        transaction_type IN ('swap', 'transfer')
+        transaction_type IN ('onramp', 'offramp', 'transfer')
     ),
     from_currency TEXT NOT NULL,
     to_currency TEXT NOT NULL,

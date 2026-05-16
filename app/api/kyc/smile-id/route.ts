@@ -104,7 +104,16 @@ export async function POST(request: NextRequest) {
         { status: 500 },
       );
     }
-    if (newAttemptCount === null || newAttemptCount === undefined) {
+    if (newAttemptCount === -1) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message: "KYC profile not found. Please complete phone verification first.",
+        },
+        { status: 404 },
+      );
+    }
+    if (newAttemptCount === -2) {
       return NextResponse.json(
         {
           status: "error",

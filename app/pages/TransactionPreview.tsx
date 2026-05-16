@@ -853,7 +853,9 @@ export const TransactionPreview = ({
     /** Pass from create-order response so bank name is saved before React state updates. */
     providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {
-    if (!activeWallet?.address || isSavingTransaction) return;
+    if (!activeWallet?.address) return;
+    if (isSavingTransactionRef.current) return;
+    isSavingTransactionRef.current = true;
     setIsSavingTransaction(true);
 
     try {
@@ -916,6 +918,7 @@ export const TransactionPreview = ({
       console.error("Error saving transaction:", error);
       throw error;
     } finally {
+      isSavingTransactionRef.current = false;
       setIsSavingTransaction(false);
     }
   };

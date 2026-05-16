@@ -1,6 +1,4 @@
--- KYC profiles table and all associated functions, indexes, and RLS.
--- Consolidated from: create_user_kyc_profiles.sql, add_increment_kyc_attempts_function.sql,
---                    add_otp_attempts_column.sql, and atomic_swap_transaction.sql
+-- KYC profiles, OTP/KYC attempt RPCs, and monthly-limit transaction insert RPC.
 
 -- ─── Table ────────────────────────────────────────────────────────────────────
 
@@ -25,7 +23,7 @@ CREATE TABLE public.user_kyc_profiles (
     expires_at          timestamp with time zone NULL,
     provider            text        NULL,
     -- SmileID / document-verification attempt counter
-    attempts            integer     NULL    DEFAULT 0,
+    attempts            integer     NOT NULL DEFAULT 0,
     -- Phone OTP attempt counter (independent of the document counter)
     otp_attempts        integer     NOT NULL DEFAULT 0,
     tier                integer     NOT NULL DEFAULT 0,
@@ -90,8 +88,7 @@ CREATE TRIGGER update_user_kyc_profiles_updated_at
 ALTER TABLE public.user_kyc_profiles ENABLE ROW LEVEL SECURITY;
 
 -- ─── increment_kyc_attempts ───────────────────────────────────────────────────
--- Increments the SmileID / document-verification attempt counter.
--- Returns the new count, or NULL if the max has already been reached.
+-- Return values: >= 1 new count; -1 profile not found; -2 max attempts reached.
 
 CREATE OR REPLACE FUNCTION public.increment_kyc_attempts(
   p_wallet_address text,
@@ -102,14 +99,29 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   v_attempts integer;
+  v_exists   boolean;
 BEGIN
   UPDATE public.user_kyc_profiles
-     SET attempts = attempts + 1
+     SET attempts = COALESCE(attempts, 0) + 1
    WHERE wallet_address = p_wallet_address
-     AND attempts < p_max_attempts
+     AND COALESCE(attempts, 0) < p_max_attempts
   RETURNING attempts INTO v_attempts;
 
-  RETURN v_attempts;
+  IF v_attempts IS NOT NULL THEN
+    RETURN v_attempts;
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1
+      FROM public.user_kyc_profiles
+     WHERE wallet_address = p_wallet_address
+  ) INTO v_exists;
+
+  IF NOT v_exists THEN
+    RETURN -1;
+  END IF;
+
+  RETURN -2;
 END;
 $$;
 
@@ -138,25 +150,13 @@ END;
 $$;
 
 -- ─── insert_swap_transaction_if_within_limit ──────────────────────────────────
--- Atomically checks the monthly KYC spend limit and inserts a swap transaction.
--- Uses pg_advisory_xact_lock to serialize concurrent inserts for the same wallet,
--- preventing the race condition where two requests both pass the limit check
--- before either insert is committed.
---
--- Returns a JSONB object:
---   { "id": "<uuid>" }               — success
---   { "error": "limit_exceeded" }    — spend limit would be breached
---   { "error": "rate_unavailable" }  — cNGN rate needed but not provided
---
--- Pass p_cngn_to_usd_rate = 0 when no cNGN is involved; the function treats
--- any value <= 0 as "unavailable" and returns rate_unavailable if cNGN appears
--- in the current transaction or in the wallet's history for this month.
+-- Atomically checks monthly KYC spend (onramp + offramp) and optionally inserts.
+-- Returns { "id": uuid } | { "ok": true } (dry_run) | { "error": ... }.
 
 CREATE OR REPLACE FUNCTION public.insert_swap_transaction_if_within_limit(
   p_wallet_address   TEXT,
   p_monthly_limit    NUMERIC,
   p_cngn_to_usd_rate NUMERIC,
-  -- Transaction fields
   p_transaction_type TEXT,
   p_from_currency    TEXT,
   p_to_currency      TEXT,
@@ -170,64 +170,111 @@ CREATE OR REPLACE FUNCTION public.insert_swap_transaction_if_within_limit(
   p_tx_hash          TEXT DEFAULT NULL,
   p_order_id         TEXT DEFAULT NULL,
   p_email            TEXT DEFAULT NULL,
-  p_explorer_link    TEXT DEFAULT NULL
+  p_explorer_link    TEXT DEFAULT NULL,
+  p_dry_run          BOOLEAN DEFAULT FALSE
 )
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_monthly_spent    NUMERIC := 0;
-  v_this_tx_usd      NUMERIC;
-  v_new_id           UUID;
-  v_month_start      TIMESTAMPTZ;
-  v_has_cngn_history BOOLEAN;
+  v_monthly_spent       NUMERIC := 0;
+  v_offramp_spent       NUMERIC := 0;
+  v_onramp_spent        NUMERIC := 0;
+  v_this_tx_usd         NUMERIC;
+  v_new_id              UUID;
+  v_month_start         TIMESTAMPTZ;
+  v_has_cngn_history    BOOLEAN;
+  v_needs_fiat_rate     BOOLEAN;
+  v_stable_to           TEXT[] := ARRAY['USDC', 'USDT', 'CUSD'];
 BEGIN
-  -- Serialize concurrent inserts for this wallet address
+  PERFORM set_config('search_path', 'public', true);
+
   PERFORM pg_advisory_xact_lock(hashtext(p_wallet_address));
 
   v_month_start := date_trunc('month', now() AT TIME ZONE 'UTC');
 
-  -- Check for historical cNGN transactions this month
   SELECT EXISTS (
     SELECT 1
     FROM transactions
     WHERE wallet_address   = p_wallet_address
-      AND transaction_type = 'swap'
+      AND transaction_type = 'offramp'
       AND status           IN ('fulfilling', 'completed')
-      AND from_currency    = 'cNGN'
+      AND upper(coalesce(from_currency, '')) = 'CNGN'
       AND created_at       >= v_month_start
   ) INTO v_has_cngn_history;
 
-  -- Refuse if cNGN rate is needed but unavailable (prevents undercounting spend)
-  IF (v_has_cngn_history OR p_from_currency = 'cNGN')
-     AND (p_cngn_to_usd_rate IS NULL OR p_cngn_to_usd_rate <= 0) THEN
+  v_needs_fiat_rate := (
+    v_has_cngn_history
+    OR upper(coalesce(p_from_currency, '')) = 'CNGN'
+    OR upper(coalesce(p_to_currency, '')) = 'CNGN'
+    OR EXISTS (
+      SELECT 1
+      FROM transactions
+      WHERE wallet_address   = p_wallet_address
+        AND transaction_type = 'onramp'
+        AND status           IN ('pending', 'fulfilling', 'completed')
+        AND created_at       >= v_month_start
+        AND upper(coalesce(to_currency, '')) NOT IN ('USDC', 'USDT', 'CUSD', 'CNGN')
+    )
+    OR (
+      p_transaction_type = 'onramp'
+      AND upper(coalesce(p_to_currency, '')) NOT IN ('USDC', 'USDT', 'CUSD', 'CNGN')
+    )
+  );
+
+  IF v_needs_fiat_rate AND (p_cngn_to_usd_rate IS NULL OR p_cngn_to_usd_rate <= 0) THEN
     RETURN jsonb_build_object('error', 'rate_unavailable');
   END IF;
 
-  -- Sum monthly spend in USD
   SELECT COALESCE(SUM(
     CASE
-      WHEN from_currency = 'cNGN' THEN amount_sent::NUMERIC / p_cngn_to_usd_rate
+      WHEN upper(coalesce(from_currency, '')) = 'CNGN' THEN amount_sent::NUMERIC / p_cngn_to_usd_rate
       ELSE amount_sent::NUMERIC
     END
   ), 0)
-  INTO v_monthly_spent
+  INTO v_offramp_spent
   FROM transactions
   WHERE wallet_address   = p_wallet_address
-    AND transaction_type = 'swap'
+    AND transaction_type = 'offramp'
     AND status           IN ('fulfilling', 'completed')
-    AND from_currency    IN ('USDC', 'USDT', 'cUSD', 'cNGN')
+    AND upper(coalesce(from_currency, '')) IN ('USDC', 'USDT', 'CUSD', 'CNGN')
     AND created_at       >= v_month_start;
 
-  -- Convert this transaction's amount to USD
-  IF p_from_currency = 'cNGN' THEN
+  SELECT COALESCE(SUM(
+    CASE
+      WHEN upper(coalesce(to_currency, '')) = ANY (v_stable_to) THEN amount_received::NUMERIC
+      WHEN upper(coalesce(to_currency, '')) = 'CNGN' THEN amount_received::NUMERIC / p_cngn_to_usd_rate
+      WHEN upper(coalesce(from_currency, '')) NOT IN ('USDC', 'USDT', 'CUSD', 'CNGN')
+        THEN amount_sent::NUMERIC / p_cngn_to_usd_rate
+      ELSE amount_received::NUMERIC
+    END
+  ), 0)
+  INTO v_onramp_spent
+  FROM transactions
+  WHERE wallet_address   = p_wallet_address
+    AND transaction_type = 'onramp'
+    AND status           IN ('pending', 'fulfilling', 'completed')
+    AND created_at       >= v_month_start;
+
+  v_monthly_spent := v_offramp_spent + v_onramp_spent;
+
+  IF p_transaction_type = 'onramp' THEN
+    IF upper(coalesce(p_to_currency, '')) = ANY (v_stable_to) THEN
+      v_this_tx_usd := p_amount_received;
+    ELSIF upper(coalesce(p_to_currency, '')) = 'CNGN' THEN
+      v_this_tx_usd := p_amount_received / p_cngn_to_usd_rate;
+    ELSIF upper(coalesce(p_from_currency, '')) NOT IN ('USDC', 'USDT', 'CUSD', 'CNGN') THEN
+      v_this_tx_usd := p_amount_sent / p_cngn_to_usd_rate;
+    ELSE
+      v_this_tx_usd := p_amount_received;
+    END IF;
+  ELSIF upper(coalesce(p_from_currency, '')) = 'CNGN' THEN
     v_this_tx_usd := p_amount_sent / p_cngn_to_usd_rate;
   ELSE
     v_this_tx_usd := p_amount_sent;
   END IF;
 
-  -- Enforce monthly limit
   IF v_monthly_spent + v_this_tx_usd > p_monthly_limit THEN
     RETURN jsonb_build_object(
       'error',         'limit_exceeded',
@@ -237,7 +284,10 @@ BEGIN
     );
   END IF;
 
-  -- Insert transaction atomically (within the same advisory-locked transaction)
+  IF COALESCE(p_dry_run, FALSE) THEN
+    RETURN jsonb_build_object('ok', true);
+  END IF;
+
   INSERT INTO transactions (
     wallet_address, transaction_type, from_currency, to_currency,
     amount_sent, amount_received, fee, recipient, status, network,
@@ -253,5 +303,4 @@ BEGIN
 END;
 $$;
 
--- Only the service_role backend may call this function
 GRANT EXECUTE ON FUNCTION public.insert_swap_transaction_if_within_limit TO service_role;

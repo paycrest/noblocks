@@ -143,7 +143,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         wallet_address: newAddress.toLowerCase(),
         user_id: userId,
       })
-      .eq("wallet_address", oldAddress.toLowerCase());
+      .eq("wallet_address", oldAddress.toLowerCase())
+      .eq("user_id", userId);
 
     if (kycError) {
       console.error("KYC migration error:", kycError);

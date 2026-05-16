@@ -21,3 +21,43 @@ export function resolveChainIdFromNetworkName(networkName: string): number | nul
   const id = match?.chain?.id;
   return typeof id === "number" ? id : null;
 }
+
+/** Maps EVM chain id → Noblocks network display name (e.g. 8453 → "Base"). */
+export function resolveNetworkNameFromChainId(chainId: number): string | null {
+  const match = networks.find((n) => n.chain.id === chainId);
+  return match?.chain?.name ?? null;
+}
+
+/**
+ * Parses `{decimalChainId}-{orderId}` composite ids. UUID / gateway ids without a
+ * numeric chain prefix are returned unchanged (avoids stripping UUID segments).
+ */
+export function parseEvmChainPrefixedOrderId(transactionId: string): {
+  orderId: string;
+  chainId: number | null;
+  canonicalTransactionId: string;
+} {
+  const trimmed = transactionId.trim();
+  if (!trimmed) {
+    return { orderId: "", chainId: null, canonicalTransactionId: "" };
+  }
+
+  const match = /^(\d+)-(.+)$/.exec(trimmed);
+  if (match) {
+    const chainId = Number(match[1]);
+    const orderId = match[2].trim();
+    if (Number.isInteger(chainId) && chainId > 0 && orderId.length > 0) {
+      return {
+        orderId,
+        chainId,
+        canonicalTransactionId: `${chainId}-${orderId}`,
+      };
+    }
+  }
+
+  return {
+    orderId: trimmed,
+    chainId: null,
+    canonicalTransactionId: trimmed,
+  };
+}

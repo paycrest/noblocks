@@ -1252,12 +1252,14 @@ export async function migrateLocalStorageRecipients(
  * Submits Smile ID captured data for KYC verification
  * @param {object} payload - The Smile ID data payload
  * @param {string} accessToken - The access token for authentication
+ * @param {string} walletAddress - Wallet address for x-wallet-address header
  * @returns {Promise<SmileIDSubmissionResponse>} The submission response
  * @throws {Error} If the API request fails
  */
 export const submitSmileIDData = async (
   payload: any,
   accessToken: string,
+  walletAddress: string,
 ): Promise<SmileIDSubmissionResponse> => {
   const startTime = Date.now();
 
@@ -1273,6 +1275,7 @@ export const submitSmileIDData = async (
     const response = await axios.post(`/api/kyc/smile-id`, payload, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
+        "x-wallet-address": walletAddress.toLowerCase(),
       },
     });
 

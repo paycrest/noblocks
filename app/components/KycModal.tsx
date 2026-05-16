@@ -290,6 +290,7 @@ export const KycModal = ({
           email: ctx.user?.email?.address,
         },
         accessToken,
+        ctx.walletAddress,
       );
 
       if (response.status === "success") {
@@ -1019,6 +1020,7 @@ export const KycModal = ({
       if (!file) return;
       const ext = file.name.split(".").pop()?.toUpperCase();
       if (!ext || !ALLOWED_TIER3_EXTENSIONS.includes(ext)) {
+        setTier3UploadedFile(null);
         setTier3ErrorMessage(
           "Invalid file type; allowed: JPG, JPEG, PNG, PDF",
         );
@@ -1026,6 +1028,7 @@ export const KycModal = ({
         return;
       }
       if (file.size > TIER3_MAX_BYTES) {
+        setTier3UploadedFile(null);
         setTier3ErrorMessage("File too large; maximum 5 MB");
         input.value = "";
         return;
@@ -1040,12 +1043,14 @@ export const KycModal = ({
       if (!file) return;
       const ext = file.name.split(".").pop()?.toUpperCase();
       if (!ext || !ALLOWED_TIER3_EXTENSIONS.includes(ext)) {
+        setTier3UploadedFile(null);
         setTier3ErrorMessage(
           "Invalid file type; allowed: JPG, JPEG, PNG, PDF",
         );
         return;
       }
       if (file.size > TIER3_MAX_BYTES) {
+        setTier3UploadedFile(null);
         setTier3ErrorMessage("File too large; maximum 5 MB");
         return;
       }
@@ -1359,7 +1364,10 @@ export const KycModal = ({
         });
       }
 
-      setIsKycModalOpen(true);
+      // Do not reopen while polling SmileID (user may have closed the modal).
+      if (step !== STEPS.STATUS.PENDING) {
+        setIsKycModalOpen(true);
+      }
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message);

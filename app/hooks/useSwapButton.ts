@@ -166,9 +166,9 @@ export function useSwapButton({
     isPhoneVerified: boolean,
     setIsKycModalOpen: () => void,
     isUserVerified: boolean,
-    openMigrationModal?: () => void,
+    openMigrationModal: () => void,
   ) => {
-    if (needsMigration && authenticated && !isInjectedWallet && openMigrationModal) {
+    if (needsMigration && authenticated && !isInjectedWallet) {
       return openMigrationModal;
     }
     if (!authenticated && !isInjectedWallet) {

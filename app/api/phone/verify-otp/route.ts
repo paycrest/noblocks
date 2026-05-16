@@ -6,10 +6,8 @@ import {
   trackApiResponse,
   trackApiError,
 } from "../../../lib/server-analytics";
-import {
-  validatePhoneNumber,
-  checkTwilioVerifyCode,
-} from "@/app/lib/phone-verification";
+import { validatePhoneNumber } from "@/app/lib/phone-validation";
+import { checkTwilioVerifyCode } from "@/app/lib/phone-verification";
 import { rateLimit } from "@/app/lib/rate-limit";
 
 const MAX_ATTEMPTS = 3;

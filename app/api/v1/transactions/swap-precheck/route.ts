@@ -114,10 +114,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         ? body.recipient
         : { account_name: "", institution: "", account_identifier: "" };
 
+    const transactionType: "onramp" | "offramp" =
+      body.transactionType === "onramp" ? "onramp" : "offramp";
+
     const swapResult = await executeSwapTransactionLimitCheck(
       normalizedBodyWalletAddress,
       {
-        transactionType: "swap",
+        transactionType,
         fromCurrency: String(body.fromCurrency),
         toCurrency: String(body.toCurrency),
         amountSent: body.amountSent,

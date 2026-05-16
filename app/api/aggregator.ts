@@ -36,6 +36,10 @@ import {
   trackApiResponse,
 } from "../lib/server-analytics";
 import config from "../lib/config";
+import {
+  isGatewayOrderId,
+  resolveChainIdFromNetworkName,
+} from "../lib/payment-order-id";
 
 const AGGREGATOR_URL = config.aggregatorUrl;
 
@@ -87,8 +91,89 @@ export function unwrapV2SenderOrderEnvelope(
   return o as unknown as OrderDetailsData;
 }
 
+function mapTransactionLogStatusToReceiptStatus(raw: unknown): string {
+  const s = String(raw ?? "").toLowerCase();
+  if (s === "order_created") return "pending";
+  if (s.startsWith("order_")) return s.slice(6);
+  return s;
+}
+
+/** Maps GET /v2/sender/orders/:id `data` into legacy `OrderDetailsData` used by reconciliation / status UI. */
+export function mapV2SenderOrderGetToOrderDetailsData(
+  data: unknown,
+): OrderDetailsData | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  if (typeof d.status !== "string") return null;
+
+  const logsRaw = d.transactionLogs;
+  const txReceipts: OrderDetailsData["txReceipts"] = [];
+  if (Array.isArray(logsRaw)) {
+    for (const log of logsRaw) {
+      if (!log || typeof log !== "object") continue;
+      const L = log as Record<string, unknown>;
+      const txHash = String(L.tx_hash ?? L.txHash ?? "");
+      const created = L.created_at ?? L.createdAt;
+      const timestamp =
+        typeof created === "string"
+          ? created
+          : created instanceof Date
+            ? created.toISOString()
+            : "";
+      txReceipts.push({
+        status: mapTransactionLogStatusToReceiptStatus(L.status),
+        txHash,
+        timestamp,
+      });
+    }
+  }
+
+  let network = "";
+  let token = "";
+  const src = d.source;
+  if (src && typeof src === "object") {
+    const s = src as Record<string, unknown>;
+    network = String(s.network ?? "");
+    token = String(s.currency ?? "");
+  }
+  const dest = d.destination;
+  if (dest && typeof dest === "object") {
+    const r = dest as Record<string, unknown>;
+    const recipient = r.recipient;
+    if (recipient && typeof recipient === "object") {
+      const meta = (recipient as Record<string, unknown>).metadata;
+      if (meta && typeof meta === "object") {
+        const m = meta as Record<string, unknown>;
+        if (!network) network = String(m.network ?? "");
+        if (!token) token = String(m.token ?? m.currency ?? "");
+      }
+    }
+  }
+
+  const updatedAtRaw = d.updatedAt;
+  const updatedAt =
+    typeof updatedAtRaw === "string"
+      ? updatedAtRaw
+      : updatedAtRaw instanceof Date
+        ? updatedAtRaw.toISOString()
+        : new Date().toISOString();
+
+  return {
+    orderId: String(d.id ?? ""),
+    amount: String(d.amount ?? ""),
+    token,
+    network,
+    settlePercent: String(d.percentSettled ?? "0"),
+    status: d.status,
+    txHash: String(d.txHash ?? ""),
+    settlements: [],
+    txReceipts,
+    updatedAt,
+  };
+}
+
 /** Base URL without trailing `/v1` so v2 paths are `{origin}/v2/...` not `{origin}/v1/v2/...`. */
-function aggregatorOriginForV2(): string {
+export function aggregatorOriginForV2(): string {
   const raw = (AGGREGATOR_URL || "").trim();
   if (!raw) {
     throw new Error("NEXT_PUBLIC_AGGREGATOR_URL is not configured");
@@ -110,6 +195,79 @@ function aggregatorOriginForV2(): string {
     .replace(/\/v1\/?$/i, "")
     .replace(/\/$/, "");
   return `${parsed.origin}${basePath}`;
+}
+
+function buildV2SenderOrderUrl(orderId: string): string {
+  return `${aggregatorOriginForV2()}/v2/sender/orders/${encodeURIComponent(orderId)}`;
+}
+
+function buildGatewayOrderStatusUrl(orderId: string, networkName: string): string {
+  const chainId = resolveChainIdFromNetworkName(networkName);
+  if (chainId == null) {
+    throw new Error(`Unknown network for order lookup: ${networkName}`);
+  }
+  return `${aggregatorOriginForV2()}/v2/orders/${chainId}/${encodeURIComponent(orderId.trim())}`;
+}
+
+/** Maps GET /v2/orders/:chainId/:id (gateway) into `OrderDetailsData`. */
+export function mapProviderOrderStatusToOrderDetailsData(
+  raw: unknown,
+): OrderDetailsData | null {
+  if (!raw || typeof raw !== "object") return null;
+  const d = raw as Record<string, unknown>;
+
+  const txReceipts: OrderDetailsData["txReceipts"] = [];
+  if (Array.isArray(d.txReceipts)) {
+    for (const item of d.txReceipts) {
+      if (!item || typeof item !== "object") continue;
+      const r = item as Record<string, unknown>;
+      txReceipts.push({
+        status: String(r.status ?? ""),
+        txHash: String(r.txHash ?? ""),
+        timestamp:
+          typeof r.timestamp === "string"
+            ? r.timestamp
+            : r.timestamp instanceof Date
+              ? r.timestamp.toISOString()
+              : String(r.timestamp ?? ""),
+      });
+    }
+  }
+
+  const settlements: OrderDetailsData["settlements"] = [];
+  if (Array.isArray(d.settlements)) {
+    for (const item of d.settlements) {
+      if (!item || typeof item !== "object") continue;
+      const s = item as Record<string, unknown>;
+      settlements.push({
+        splitOrderId: String(s.splitOrderId ?? ""),
+        amount: String(s.amount ?? ""),
+        rate: String(s.rate ?? ""),
+        orderPercent: String(s.orderPercent ?? ""),
+      });
+    }
+  }
+
+  const updatedAtRaw = d.updatedAt;
+  const updatedAt =
+    typeof updatedAtRaw === "string"
+      ? updatedAtRaw
+      : updatedAtRaw instanceof Date
+        ? updatedAtRaw.toISOString()
+        : new Date().toISOString();
+
+  return {
+    orderId: String(d.orderId ?? ""),
+    amount: String(d.amount ?? ""),
+    token: String(d.token ?? ""),
+    network: String(d.network ?? ""),
+    settlePercent: String(d.settlePercent ?? "0"),
+    status: String(d.status ?? ""),
+    txHash: String(d.txHash ?? ""),
+    settlements,
+    txReceipts,
+    updatedAt,
+  };
 }
 
 function pickV2RateQuote(
@@ -337,24 +495,105 @@ export const fetchAccountName = async (
 };
 
 /**
- * Fetches details of an order by chain ID and order ID
- * @param {number} chainId - The blockchain chain ID
- * @param {string} orderId - The order ID
- * @returns {Promise<OrderDetailsResponse>} The order details
- * @throws {Error} If the API request fails
+ * Fetches payment order status from the aggregator (via Noblocks proxy in the browser).
+ *
+ * - **Onramp** (UUID): `GET /v2/sender/orders/:id`
+ * - **Offramp** (gateway `0x…` bytes32): `GET /v2/orders/:chainId/:id` — requires `network`
+ *   (Noblocks `transactions.network` / chain display name).
  */
 export const fetchOrderDetails = async (
-  chainId: number,
   orderId: string,
+  accessToken?: string,
+  options?: { network?: string },
 ): Promise<OrderDetailsResponse> => {
-  try {
-    const response = await axios.get(
-      `${AGGREGATOR_URL}/orders/${chainId}/${orderId}`,
-    );
-    return response.data;
-  } catch (error) {
-    throw error;
+  const id = orderId.trim();
+  if (!id) {
+    throw new Error("orderId is required");
   }
+
+  const gatewayLookup = isGatewayOrderId(id);
+  if (gatewayLookup && !options?.network?.trim()) {
+    throw new Error(
+      "Network is required to look up an offramp order by gateway id",
+    );
+  }
+
+  let envelope: {
+    status?: string;
+    message?: string;
+    data?: unknown;
+  };
+
+  if (typeof window !== "undefined" && accessToken?.trim()) {
+    const response = await axios.get(
+      `/api/v1/payment-orders/${encodeURIComponent(id)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken.trim()}`,
+        },
+        params:
+          gatewayLookup && options?.network
+            ? { network: options.network.trim() }
+            : undefined,
+        validateStatus: () => true,
+      },
+    );
+    envelope = response.data;
+    if (response.status >= 400) {
+      throw new Error(
+        typeof envelope?.message === "string"
+          ? envelope.message
+          : `Order request failed (${response.status})`,
+      );
+    }
+  } else {
+    const url = gatewayLookup
+      ? buildGatewayOrderStatusUrl(id, options!.network!.trim())
+      : buildV2SenderOrderUrl(id);
+    const headers: Record<string, string> = {};
+    if (!gatewayLookup) {
+      const apiKey = config.aggregatorSenderApiKey?.trim();
+      if (!apiKey) {
+        throw new Error(
+          "NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID is not configured",
+        );
+      }
+      headers["API-Key"] = apiKey;
+    }
+    const response = await axios.get(url, {
+      headers,
+      validateStatus: () => true,
+    });
+    envelope = response.data;
+    if (response.status >= 400) {
+      throw new Error(
+        typeof envelope?.message === "string"
+          ? envelope.message
+          : `Order request failed (${response.status})`,
+      );
+    }
+  }
+
+  if (!envelope || envelope.status === "error") {
+    throw new Error(
+      typeof envelope?.message === "string"
+        ? envelope.message
+        : "Order fetch failed",
+    );
+  }
+
+  const mapped = gatewayLookup
+    ? mapProviderOrderStatusToOrderDetailsData(envelope.data)
+    : mapV2SenderOrderGetToOrderDetailsData(envelope.data);
+  if (!mapped) {
+    throw new Error("Invalid order payload from aggregator");
+  }
+
+  return {
+    status: String(envelope.status ?? "success"),
+    message: String(envelope.message ?? ""),
+    data: mapped,
+  };
 };
 
 /**
@@ -536,7 +775,11 @@ export type SwapPrecheckPayload = Pick<
   | "amountSent"
   | "amountReceived"
   | "fee"
-> & { recipient?: TransactionCreateInput["recipient"] };
+> & {
+  recipient?: TransactionCreateInput["recipient"];
+  /** Defaults to offramp; pass onramp for fiat → crypto limit checks. */
+  transactionType?: "offramp" | "onramp";
+};
 
 /**
  * Server-side monthly KYC limit check (RPC dry run) before on-chain swap steps.

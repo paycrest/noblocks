@@ -367,9 +367,18 @@ export function TransactionStatus({
               responseData = { ...responseData, status: resolvedStatus };
             }
           } else {
+            const accessToken = await getAccessToken();
+            if (!accessToken) {
+              toast.error(
+                "Session expired. Please refresh to continue tracking your transaction.",
+              );
+              clearInterval(intervalId);
+              return;
+            }
             const orderDetailsResponse = await fetchOrderDetails(
-              selectedNetwork.chain.id,
               orderId,
+              accessToken,
+              { network: selectedNetwork.chain.name },
             );
             responseData = orderDetailsResponse.data;
           }

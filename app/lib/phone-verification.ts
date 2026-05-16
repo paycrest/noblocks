@@ -1,22 +1,4 @@
-import { parsePhoneNumberWithError, CountryCode } from "libphonenumber-js";
-import { randomInt } from "crypto";
-import twilio, { type Twilio } from "twilio";
-
-let twilioClientSingleton: Twilio | null = null;
-
-function getTwilioClient(): Twilio {
-  const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
-  const token = process.env.TWILIO_AUTH_TOKEN?.trim();
-  if (!sid || !token) {
-    throw new Error(
-      "Twilio is not configured: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required",
-    );
-  }
-  if (!twilioClientSingleton) {
-    twilioClientSingleton = twilio(sid, token);
-  }
-  return twilioClientSingleton;
-}
+import "server-only";
 
 export interface PhoneVerificationResult {
   success: boolean;
@@ -25,60 +7,38 @@ export interface PhoneVerificationResult {
   error?: string;
 }
 
-export interface PhoneValidation {
-  isValid: boolean;
-  country?: CountryCode;
-  internationalFormat?: string;
-  e164Format?: string; // E.164 format without spaces (e.g., +12025550123)
-  digitsOnly?: string; // Digits only format for KudiSMS (e.g., 2025550123)
-  isNigerian: boolean;
-  provider: "kudisms" | "twilio";
-}
 
-/**
- * Validates and parses a phone number
- * Returns multiple formats for different use cases:
- * - internationalFormat: Display format with spaces (e.g., +1 202 555 0123)
- * - e164Format: Twilio-compatible format without spaces (e.g., +12025550123)
- * - digitsOnly: KudiSMS-compatible format (e.g., 12025550123)
- */
-export function validatePhoneNumber(phoneNumber: string): PhoneValidation {
-  try {
-    const parsed = parsePhoneNumberWithError(phoneNumber);
-
-    if (!parsed || !parsed.isValid()) {
-      return {
-        isValid: false,
-        isNigerian: false,
-        provider: "twilio",
+interface TwilioVerifyApi {
+  verify: {
+    v2: {
+      services: (serviceSid: string) => {
+        verifications: {
+          create: (args: { to: string; channel: string }) => Promise<{ sid: string }>;
+        };
+        verificationChecks: {
+          create: (args: { to: string; code: string }) => Promise<{ status: string }>;
+        };
       };
-    }
-
-    const country = parsed.country as CountryCode;
-    const isNigerian = country === "NG";
-
-    return {
-      isValid: true,
-      country,
-      internationalFormat: parsed.formatInternational(), // With spaces for display
-      e164Format: parsed.format("E.164"), // Without spaces for Twilio
-      digitsOnly: parsed.number.toString().replace(/\D/g, ""), // Digits only for KudiSMS
-      isNigerian,
-      provider: isNigerian ? "kudisms" : "twilio",
     };
-  } catch (error) {
-    console.error("Error validating phone number:", error);
-    return {
-      isValid: false,
-      isNigerian: false,
-      provider: "twilio",
-    };
-  }
+  };
 }
 
-/**
- * Sends OTP via Kudi SMS for Nigerian numbers
- */
+let twilioClientSingleton: TwilioVerifyApi | null = null;
+
+async function getTwilioClient(): Promise<TwilioVerifyApi> {
+  if (twilioClientSingleton) return twilioClientSingleton;
+  const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
+  const token = process.env.TWILIO_AUTH_TOKEN?.trim();
+  if (!sid || !token) {
+    throw new Error(
+      "Twilio is not configured: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required",
+    );
+  }
+  const twilio = (await import("twilio")).default;
+  twilioClientSingleton = twilio(sid, token) as TwilioVerifyApi;
+  return twilioClientSingleton;
+}
+
 export async function sendKudiSMSOTP(
   phoneNumber: string,
   code: string,
@@ -144,10 +104,6 @@ export async function sendKudiSMSOTP(
   }
 }
 
-/**
- * Sends OTP via Twilio Verify for non-Nigerian numbers.
- * Twilio generates and sends the code; we do not pass a custom code.
- */
 export async function sendTwilioVerifyOTP(
   phoneE164: string,
 ): Promise<PhoneVerificationResult> {
@@ -161,9 +117,9 @@ export async function sendTwilioVerifyOTP(
     };
   }
 
-  let client: Twilio;
+  let client;
   try {
-    client = getTwilioClient();
+    client = await getTwilioClient();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Twilio is not configured";
     return {
@@ -197,10 +153,6 @@ export async function sendTwilioVerifyOTP(
   }
 }
 
-/**
- * Verifies the code with Twilio Verify (for non-Nigerian numbers).
- * Returns true if the verification was approved.
- */
 export async function checkTwilioVerifyCode(
   phoneE164: string,
   code: string,
@@ -211,9 +163,9 @@ export async function checkTwilioVerifyCode(
     return { success: false, error: "Twilio Verify is not configured" };
   }
 
-  let client: Twilio;
+  let client;
   try {
-    client = getTwilioClient();
+    client = await getTwilioClient();
   } catch (e) {
     return {
       success: false,
@@ -238,11 +190,4 @@ export async function checkTwilioVerifyCode(
       error: err?.message || "Verification failed",
     };
   }
-}
-
-/**
- * Generates a 6-digit OTP
- */
-export function generateOTP(): string {
-  return randomInt(100000, 1000000).toString();
 }

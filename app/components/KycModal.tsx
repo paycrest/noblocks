@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 // smart-camera-web JSX types are declared in app/types/smart-camera-web.d.ts
 declare global {
   interface Window {
@@ -44,6 +44,7 @@ import { formatNumberWithCommas } from "../utils";
 import { DocumentRequirementsModal } from "./kyc/DocumentRequirementsModal";
 
 import idTypesData from "../api/kyc/smile-id/id_types.json";
+import { validateSmileIdIdInfo } from "../lib/smileIdIdValidation";
 
 const TIER3_DOCUMENT_TYPES = [
   { value: "utility_bill", label: "Utility bill" },
@@ -134,7 +135,10 @@ export const KycModal = ({
   const [failedRetryStep, setFailedRetryStep] = useState<Step>(STEPS.TERMS);
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [cameraElement, setCameraElement] = useState<HTMLElement | null>(null);
+  const cameraHostRef = useRef<HTMLElement | null>(null);
+  const smileListenerCleanupRef = useRef<(() => void) | null>(null);
+  const stepRef = useRef(step);
+  stepRef.current = step;
   const [smileIdLoaded, setSmileIdLoaded] = useState(false);
 
   // ID info state for Job Type 1
@@ -184,6 +188,166 @@ export const KycModal = ({
     selectedCountry,
     selectedIdType,
   );
+
+  const smileIdIdNumberValidation = useMemo(() => {
+    if (!selectedCountry || !selectedIdType || needsDocCapture) {
+      return { ok: true as const };
+    }
+    return validateSmileIdIdInfo({
+      country: selectedCountry.code,
+      id_type: selectedIdType,
+      id_number: idNumber,
+    });
+  }, [selectedCountry, selectedIdType, idNumber, needsDocCapture]);
+
+  const captureSmileContextRef = useRef({
+    walletAddress,
+    selectedCountry,
+    selectedIdType,
+    idNumber,
+    needsDocCapture,
+    getAccessToken,
+    user,
+  });
+  captureSmileContextRef.current = {
+    walletAddress,
+    selectedCountry,
+    selectedIdType,
+    idNumber,
+    needsDocCapture,
+    getAccessToken,
+    user,
+  };
+
+  const detachSmileCameraListeners = () => {
+    smileListenerCleanupRef.current?.();
+    smileListenerCleanupRef.current = null;
+  };
+
+  const handleSmilePublish = async (event: Event) => {
+    if (smileIdSubmitInFlightRef.current) {
+      return;
+    }
+
+    const detail = (event as CustomEvent).detail as {
+      images?: unknown[];
+      partner_params?: Record<string, unknown>;
+    };
+    const ctx = captureSmileContextRef.current;
+
+    if (!ctx.needsDocCapture) {
+      const idCheck = validateSmileIdIdInfo({
+        country: ctx.selectedCountry?.code ?? "",
+        id_type: ctx.selectedIdType ?? "",
+        id_number: ctx.idNumber,
+      });
+      if (!idCheck.ok) {
+        toast.error(idCheck.message);
+        setStep(STEPS.ID_INFO);
+        return;
+      }
+    }
+
+    smileIdSubmitInFlightRef.current = true;
+    setStep(STEPS.LOADING);
+
+    try {
+      const { images, partner_params } = detail;
+
+      if (!images || !Array.isArray(images) || images.length === 0) {
+        throw new Error("Invalid image data received");
+      }
+
+      if (!ctx.walletAddress) {
+        throw new Error("Missing wallet address");
+      }
+
+      const accessToken = await ctx.getAccessToken();
+      if (!accessToken) {
+        throw new Error("No access token available");
+      }
+
+      if (!ctx.selectedCountry || !ctx.selectedIdType) {
+        throw new Error("Please select country and ID type");
+      }
+
+      if (!ctx.needsDocCapture && !ctx.idNumber) {
+        throw new Error("Please enter your ID number");
+      }
+
+      const response = await submitSmileIDData(
+        {
+          images,
+          partner_params: {
+            ...partner_params,
+            user_id: `user-${ctx.walletAddress}`,
+          },
+          id_info: {
+            country: ctx.selectedCountry.code,
+            id_type: ctx.selectedIdType,
+            ...(ctx.idNumber && { id_number: ctx.idNumber }),
+          },
+          email: ctx.user?.email?.address,
+        },
+        accessToken,
+      );
+
+      if (response.status === "success") {
+        setStep(STEPS.STATUS.PENDING);
+        trackEvent("Account verification", {
+          "Verification status": "Submitted",
+        });
+      } else {
+        setFailedRetryStep(STEPS.TERMS);
+        setStep(STEPS.STATUS.FAILED);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to submit verification data";
+      toast.error(message);
+      setFailedRetryStep(STEPS.TERMS);
+      setStep(STEPS.STATUS.FAILED);
+    } finally {
+      smileIdSubmitInFlightRef.current = false;
+    }
+  };
+
+  const attachSmileCameraListeners = (host: HTMLElement) => {
+    detachSmileCameraListeners();
+
+    const onPublish = (event: Event) => {
+      void handleSmilePublish(event);
+    };
+    const onCancel = () => {
+      toast.info("Verification cancelled");
+      setStep(STEPS.TERMS);
+    };
+    const onBack = () => {};
+
+    host.addEventListener("smart-camera-web.publish", onPublish);
+    host.addEventListener("smart-camera-web.cancelled", onCancel);
+    host.addEventListener("smart-camera-web.back", onBack);
+
+    smileListenerCleanupRef.current = () => {
+      host.removeEventListener("smart-camera-web.publish", onPublish);
+      host.removeEventListener("smart-camera-web.cancelled", onCancel);
+      host.removeEventListener("smart-camera-web.back", onBack);
+    };
+  };
+
+  const bindCameraHostRef = (el: HTMLElement | null) => {
+    if (cameraHostRef.current && cameraHostRef.current !== el) {
+      detachSmileCameraListeners();
+    }
+    cameraHostRef.current = el;
+    if (el && stepRef.current === STEPS.CAPTURE) {
+      attachSmileCameraListeners(el);
+    } else if (!el) {
+      detachSmileCameraListeners();
+    }
+  };
 
   useEffect(() => {
     // Only load SmileID components for Tier 2 verification flow
@@ -366,6 +530,8 @@ export const KycModal = ({
             }}
             mobileTitle="Select Country"
             dropdownWidth={350}
+            searchable
+            searchPlaceholder="Search countries…"
           >
             {({ selectedItem, isOpen, toggleDropdown }) => (
               <button
@@ -435,6 +601,8 @@ export const KycModal = ({
             </label>
             <input
               type="text"
+              inputMode="numeric"
+              autoComplete="off"
               value={idNumber}
               onChange={(e) => setIdNumber(e.target.value)}
               placeholder={`Enter your ${selectedIdType.replace(/_/g, " ")} number`}
@@ -461,7 +629,7 @@ export const KycModal = ({
           disabled={
             !selectedCountry ||
             !selectedIdType ||
-            (!needsDocCapture && !idNumber) ||
+            !smileIdIdNumberValidation.ok ||
             !smileIdLoaded
           }
           onClick={() => {
@@ -482,7 +650,7 @@ export const KycModal = ({
     <motion.div key="capture" {...fadeInOut} className="space-y-4">
       <div className="space-y-3">
         <UserDetailsIcon />
-        <div>
+        <div className="space-y-2">
           <h2 className="text-lg font-medium dark:text-white">
             {needsDocCapture ? "Capture your documents" : "Take a selfie"}
           </h2>
@@ -494,18 +662,15 @@ export const KycModal = ({
         </div>
       </div>
 
-      <div className="flex justify-center">
+      <div className="mx-auto flex min-h-[min(65vh,480px)] w-full max-w-md justify-center">
         {needsDocCapture ? (
           <smart-camera-web
-            ref={(el: HTMLElement | null) => setCameraElement(el)}
+            ref={bindCameraHostRef}
             theme-color="#8B85F4"
             capture-id
           />
         ) : (
-          <smart-camera-web
-            ref={(el: HTMLElement | null) => setCameraElement(el)}
-            theme-color="#8B85F4"
-          />
+          <smart-camera-web ref={bindCameraHostRef} theme-color="#8B85F4" />
         )}
       </div>
 
@@ -1238,115 +1403,25 @@ export const KycModal = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  // Handle Smile ID publish event
+  // Re-bind Smile listeners when capture context changes (ref callback handles initial mount).
   useEffect(() => {
     if (step !== STEPS.CAPTURE) {
+      detachSmileCameraListeners();
       return;
     }
-
-    if (!cameraElement) {
-      return;
+    const host = cameraHostRef.current;
+    if (host) {
+      attachSmileCameraListeners(host);
     }
-
-    const handlePublish = async (event: any) => {
-      smileIdSubmitInFlightRef.current = true;
-      setStep(STEPS.LOADING);
-
-      try {
-        const { images, partner_params } = event.detail;
-
-        // Validate data structure
-        if (!images || !Array.isArray(images) || images.length === 0) {
-          throw new Error("Invalid image data received");
-        }
-
-        if (!walletAddress) {
-          throw new Error("Missing wallet address");
-        }
-
-        // Get access token for JWT authentication
-        const accessToken = await getAccessToken();
-        if (!accessToken) {
-          throw new Error("No access token available");
-        }
-
-        // Validate ID info is selected
-        if (!selectedCountry || !selectedIdType) {
-          throw new Error("Please select country and ID type");
-        }
-
-        // For biometric_kyc (BVN, NIN, etc.), ID number is required
-        if (!needsDocCapture && !idNumber) {
-          throw new Error("Please enter your ID number");
-        }
-
-        const payload = {
-          images,
-          partner_params: {
-            ...partner_params,
-            user_id: `user-${walletAddress}`,
-          },
-          id_info: {
-            country: selectedCountry.code,
-            id_type: selectedIdType,
-            ...(idNumber && { id_number: idNumber }),
-          },
-          email: user?.email?.address,
-        };
-
-        const response = await submitSmileIDData(payload, accessToken);
-
-        if (response.status === "success") {
-          setStep(STEPS.STATUS.PENDING);
-          trackEvent("Account verification", {
-            "Verification status": "Submitted",
-          });
-        } else {
-          setFailedRetryStep(STEPS.TERMS);
-          setStep(STEPS.STATUS.FAILED);
-        }
-      } catch (error) {
-        toast.error("Failed to submit verification data");
-        setFailedRetryStep(STEPS.TERMS);
-        setStep(STEPS.STATUS.FAILED);
-      } finally {
-        smileIdSubmitInFlightRef.current = false;
-      }
-    };
-
-    const handleCancel = () => {
-      toast.info("Verification cancelled");
-      setStep(STEPS.TERMS);
-    };
-
-    const handleBack = () => {
-      // Handle back navigation if needed
-    };
-
-    cameraElement.addEventListener("smart-camera-web.publish", handlePublish);
-    cameraElement.addEventListener("smart-camera-web.cancelled", handleCancel);
-    cameraElement.addEventListener("smart-camera-web.back", handleBack);
-
-    return () => {
-      cameraElement.removeEventListener(
-        "smart-camera-web.publish",
-        handlePublish,
-      );
-      cameraElement.removeEventListener(
-        "smart-camera-web.cancelled",
-        handleCancel,
-      );
-      cameraElement.removeEventListener("smart-camera-web.back", handleBack);
-    };
+    return () => detachSmileCameraListeners();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     step,
-    cameraElement,
     walletAddress,
     selectedCountry,
     selectedIdType,
     idNumber,
     needsDocCapture,
-    getAccessToken,
     user,
   ]);
 

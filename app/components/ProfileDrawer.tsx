@@ -382,7 +382,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                                 size={16}
                               />
                               <span className="text-xs font-medium text-white dark:text-black">
-                                Current: {KYC_TIERS[tier]?.name || "Tier 0"}
+                                Current: {KYC_TIERS[tier]?.name ?? "Free"}
                               </span>
                             </div>
 

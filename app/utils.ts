@@ -177,15 +177,14 @@ export function formatTransactionAmountDisplay(
   return `${formatNumberWithCommas(amount)} ${currencyCode}`;
 }
 
-/** User-facing label for transaction history rows (API still uses `onramp`). */
+/** User-facing label for transaction history rows (`onramp` / `offramp`). */
 export function getTransactionHistoryTypeLabel(
   type: TransactionHistoryType,
 ): string {
   switch (type) {
     case "transfer":
       return "Transferred";
-    case "swap":
-      return "Swapped";
+    case "offramp":
     case "onramp":
       return "Swapped";
     default:

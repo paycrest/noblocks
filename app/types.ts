@@ -431,7 +431,7 @@ export type TransactionStatus =
   | "refunding"
   | "refunded"
   | "expired";
-export type TransactionHistoryType = "swap" | "transfer" | "onramp";
+export type TransactionHistoryType = "onramp" | "offramp" | "transfer";
 
 export interface Recipient {
   account_name: string;

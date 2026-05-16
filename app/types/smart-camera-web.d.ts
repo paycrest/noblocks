@@ -9,6 +9,10 @@ declare module "react" {
       > & {
         "theme-color"?: string;
         "capture-id"?: boolean | string;
+        "allow-legacy-selfie-fallback"?: boolean | string;
+        "show-navigation"?: boolean | string;
+        "hide-attribution"?: boolean | string;
+        "disable-image-tests"?: boolean | string;
       };
     }
   }

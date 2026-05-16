@@ -5,11 +5,12 @@ import { calculateSenderFee } from "../utils";
 
 const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
 
-/** Primary CTA when limits require upgrading verification (opens KYC modal from swap). */
+/** Primary CTA when limits require upgrading verification (opens limit / KYC flow from swap). */
 function labelForNextTierVerification(tier: number): string {
   if (tier >= 3) return "Verify to continue";
   if (tier === 2) return "Verify address for higher limits";
-  return "Verify ID for higher limits";
+  if (tier === 1) return "Verify ID for higher limits";
+  return "Verify phone for higher limits";
 }
 
 interface UseSwapButtonProps {
@@ -145,6 +146,9 @@ export function useSwapButton({
       (authenticated || isInjectedWallet) &&
       amountSent > 0
     ) {
+      if (kycTier === 0) {
+        return "Increase limit";
+      }
       if (isPhoneVerified) {
         return labelForNextTierVerification(kycTier);
       }
@@ -174,7 +178,8 @@ export function useSwapButton({
       return handleFundWallet;
     }
     if (!hasInsufficientBalance && !isUserVerified && (authenticated || isInjectedWallet)) {
-      if (!isPhoneVerified) {
+      // Free mode (tier 0): limit modal → phone. Tier 1+: ID/address via KycModal.
+      if (kycTier < 1 || !isPhoneVerified) {
         return setIsLimitModalOpen;
       }
       return setIsKycModalOpen;

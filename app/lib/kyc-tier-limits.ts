@@ -1,6 +1,7 @@
 /**
  * KYC tier monthly spend limits (USD). Used by the client (NEXT_PUBLIC_*) and API route.
- * Tier 0 = no swaps until verified.
+ * Tier 0 (free mode): transact up to cap with no verification.
+ * Tier 1 = phone, 2 = ID, 3 = address — each raises the monthly cap.
  */
 const DEFAULT_KYC_MONTHLY_LIMITS: Record<number, number> = {
   0: 0,

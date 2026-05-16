@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
+import { createHash, randomInt } from "crypto";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import {
-  validatePhoneNumber,
-  sendKudiSMSOTP,
-  sendTwilioVerifyOTP,
-  generateOTP,
-} from "../../../lib/phone-verification";
+import { validatePhoneNumber } from "../../../lib/phone-validation";
+import { sendKudiSMSOTP, sendTwilioVerifyOTP } from "../../../lib/phone-verification";
 import {
   trackApiRequest,
   trackApiResponse,
@@ -16,6 +12,10 @@ import { rateLimit } from "@/app/lib/rate-limit";
 
 function hashOTP(otp: string): string {
   return createHash("sha256").update(otp).digest("hex");
+}
+
+function generateOtpCode(): string {
+  return randomInt(100000, 1000000).toString();
 }
 
 /** Align with user_kyc_profiles_tier_check (0–4). Corrupt/non-numeric tiers would fail the upsert after OTP is sent. */
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     trackApiRequest(request, "/api/phone/send-otp", "POST");
 
     const body = await request.json();
-    const { phoneNumber, name } = body;
+    const { phoneNumber, name, countryIso } = body;
 
     // Use authenticated wallet address and user ID from middleware
     const walletAddress = request.headers.get("x-wallet-address");
@@ -104,6 +104,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (
+      typeof countryIso === "string" &&
+      countryIso.trim() &&
+      validation.country &&
+      validation.country !== countryIso.trim().toUpperCase()
+    ) {
+      trackApiError(
+        request,
+        "/api/phone/send-otp",
+        "POST",
+        new Error("Phone country mismatch"),
+        400,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Phone number does not match the selected country. Pick the correct country code.",
+        },
+        { status: 400 },
+      );
+    }
+
     // Get existing profile to preserve important fields
     const { data: existingProfile, error: profileFetchError } =
       await supabaseAdmin
@@ -146,7 +169,7 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(Date.now() + (isNigerian ? 5 : 10) * 60 * 1000); // 5 min KudiSMS, 10 min Twilio Verify
 
     // Nigerian: we generate OTP, hash it, and store the hash. Non-Nigerian: Twilio Verify sends its own code.
-    const otp = isNigerian ? generateOTP() : null;
+    const otp = isNigerian ? generateOtpCode() : null;
     const otpHash = otp ? hashOTP(otp) : null;
 
     const phoneNumberChanged =

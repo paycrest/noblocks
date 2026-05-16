@@ -92,14 +92,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     // Step 4: Fetch transaction details from aggregator
     let orderDetails;
     try {
-      // Extract chainId from transactionId if needed (format: chainId-orderId)
+      // Optional format: `{chainId}-{orderId}`; sender order id is the tail (UUID may contain hyphens).
       await new Promise((resolve) => setTimeout(resolve, 2000));
       const parts = transactionId.split("-");
-      const chainId = parts.length > 1 ? parseInt(parts[0]) : 8453; // Default to Base (8453)
       const orderId =
         parts.length > 1 ? parts.slice(1).join("-") : transactionId;
 
-      const orderResponse = await fetchOrderDetails(chainId, orderId);
+      const orderResponse = await fetchOrderDetails(orderId);
       orderDetails = orderResponse.data;
     } catch (error) {
       console.error("Failed to fetch transaction:", error);

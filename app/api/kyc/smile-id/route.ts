@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { submitSmileIDJob, type SmileIDIdInfo } from "@/app/lib/smileID";
+import {
+  submitSmileIDJob,
+  SmileIdValidationError,
+  type SmileIDIdInfo,
+} from "@/app/lib/smileID";
 import { rateLimit } from "@/app/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
@@ -131,6 +135,12 @@ export async function POST(request: NextRequest) {
       job_id = result.job_id;
       user_id = result.user_id;
     } catch (err) {
+      if (err instanceof SmileIdValidationError) {
+        return NextResponse.json(
+          { status: "error", message: err.message },
+          { status: 400 },
+        );
+      }
       return NextResponse.json(
         {
           status: "error",

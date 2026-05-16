@@ -56,16 +56,39 @@ export async function GET(request: NextRequest) {
       // Rate fetch failed — cNGN transactions will be excluded below
     }
 
-    const TRACKED_CURRENCIES = ["USDC", "USDT", "cUSD", "cNGN"];
+    const TRACKED_SWAP_CURRENCIES = ["USDC", "USDT", "cUSD", "cNGN"];
+    const STABLE_TO_CURRENCIES = ["USDC", "USDT", "cUSD"];
 
-    const { data: transactions, error } = await supabaseAdmin
+    const { data: swapTransactions, error: swapError } = await supabaseAdmin
       .from("transactions")
       .select("amount_sent, from_currency, created_at")
       .eq("wallet_address", walletAddress)
-      .eq("transaction_type", "swap")
+      .eq("transaction_type", "offramp")
       .in("status", ["fulfilling", "completed"])
-      .in("from_currency", TRACKED_CURRENCIES)
+      .in("from_currency", TRACKED_SWAP_CURRENCIES)
       .gte("created_at", monthStart.toISOString());
+
+    const { data: onrampTransactions, error: onrampError } = await supabaseAdmin
+      .from("transactions")
+      .select(
+        "amount_sent, amount_received, from_currency, to_currency, created_at",
+      )
+      .eq("wallet_address", walletAddress)
+      .eq("transaction_type", "onramp")
+      .in("status", ["pending", "fulfilling", "completed"])
+      .gte("created_at", monthStart.toISOString());
+
+    const error = swapError ?? onrampError;
+    const transactions = [
+      ...(swapTransactions ?? []).map((tx) => ({
+        ...tx,
+        kind: "offramp" as const,
+      })),
+      ...(onrampTransactions ?? []).map((tx) => ({
+        ...tx,
+        kind: "onramp" as const,
+      })),
+    ];
 
     if (error) {
       trackApiError(request, "/api/kyc/transaction-summary", "GET", error, 500);
@@ -78,7 +101,11 @@ export async function GET(request: NextRequest) {
     // If any cNGN transactions exist but we have no rate, we cannot produce accurate
     // compliance totals — return a partial-state indicator so callers know not to trust
     // the numbers for limit enforcement.
-    const hasCngnTxs = transactions?.some((tx) => tx.from_currency === "cNGN");
+    const hasCngnTxs = transactions?.some(
+      (tx) =>
+        tx.from_currency === "cNGN" ||
+        ("to_currency" in tx && tx.to_currency === "cNGN"),
+    );
     if (hasCngnTxs && cngnToUsdRate === null) {
       trackApiError(
         request,
@@ -104,14 +131,28 @@ export async function GET(request: NextRequest) {
 
     transactions?.forEach((tx) => {
       const txDate = new Date(tx.created_at);
-      const rawAmount = parseFloat(tx.amount_sent) || 0;
 
       let usdAmount: number;
-      if (tx.from_currency === "cNGN") {
-        // cngnToUsdRate is guaranteed non-null here (checked above)
-        usdAmount = rawAmount / cngnToUsdRate!;
+      if (tx.kind === "onramp") {
+        const toCur = String(tx.to_currency ?? "").toUpperCase();
+        const recv = parseFloat(String(tx.amount_received)) || 0;
+        const sent = parseFloat(String(tx.amount_sent)) || 0;
+        if (STABLE_TO_CURRENCIES.includes(toCur)) {
+          usdAmount = recv;
+        } else if (toCur === "CNGN" && cngnToUsdRate) {
+          usdAmount = recv / cngnToUsdRate;
+        } else if (cngnToUsdRate && sent > 0) {
+          usdAmount = sent / cngnToUsdRate;
+        } else {
+          usdAmount = recv;
+        }
       } else {
-        usdAmount = rawAmount; // USDC, USDT, cUSD are 1:1 with USD
+        const rawAmount = parseFloat(tx.amount_sent) || 0;
+        if (tx.from_currency === "cNGN") {
+          usdAmount = rawAmount / cngnToUsdRate!;
+        } else {
+          usdAmount = rawAmount;
+        }
       }
 
       monthlySpent += usdAmount;

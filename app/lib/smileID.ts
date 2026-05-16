@@ -1,6 +1,5 @@
 let SIDWebAPI: any = null;
 
-// Dynamically import SmileID only when needed to avoid build-time issues
 async function getSIDWebAPI() {
   if (!SIDWebAPI) {
     const SIDCore = await import("smile-identity-core");
@@ -9,30 +8,36 @@ async function getSIDWebAPI() {
   return SIDWebAPI;
 }
 
-export type SmileIDIdInfo = {
-  country: string; 
-  id_type: string;  // e.g., "NATIONAL_ID", "PASSPORT", "DRIVERS_LICENSE"
-  id_number?: string;
-  first_name?: string;
-  last_name?: string;
-  dob?: string;  // Date of birth in YYYY-MM-DD format
+import {
+  getJobTypeForIdType,
+  validateSmileIdIdInfo,
+  SmileIdValidationError,
+  type SmileIDIdInfo,
+} from "./smileIdIdValidation";
+
+export {
+  getJobTypeForIdType,
+  validateSmileIdIdInfo,
+  SmileIdValidationError,
+  type SmileIDIdInfo,
 };
 
-// Determines if ID type uses Enhanced KYC (Job Type 5) vs Biometric KYC (Job Type 1)
-// Job Type 5: ID number verification only (no document photo needed) - for BVN, NIN, etc.
-// Job Type 1: Document verification + face match (requires ID card image) - for Passport, License, etc.
-export function getJobTypeForIdType(idType: string): number {
-  const enhancedKycTypes = ['BVN', 'NIN', 'NIN_SLIP', 'V_NIN'];
-  return enhancedKycTypes.includes(idType) ? 5 : 1;
-}
-
-export async function submitSmileIDJob({ images, partner_params, walletAddress, id_info }: {
+export async function submitSmileIDJob({
+  images,
+  partner_params,
+  walletAddress,
+  id_info,
+}: {
   images: any[];
   partner_params: any;
   walletAddress: string;
   id_info: SmileIDIdInfo;
 }) {
-  // Validate required env vars
+  const validation = validateSmileIdIdInfo(id_info);
+  if (!validation.ok) {
+    throw new SmileIdValidationError(validation.message);
+  }
+
   const partnerId = process.env.SMILE_IDENTITY_PARTNER_ID;
   const callbackUrl = process.env.SMILE_ID_CALLBACK_URL?.trim() ?? "";
   const apiKey = process.env.SMILE_IDENTITY_API_KEY;
@@ -62,14 +67,11 @@ export async function submitSmileIDJob({ images, partner_params, walletAddress, 
   }
 
   if (!id_info?.country || !id_info?.id_type) {
-    throw new Error(
-      "id_info with country and id_type is required for KYC",
-    );
+    throw new Error("id_info with country and id_type is required for KYC");
   }
 
   const jobType = getJobTypeForIdType(id_info.id_type);
 
-  // Initialize SmileID Web API
   const WebApiClass = await getSIDWebAPI();
   const connection = new WebApiClass(
     partnerId,
@@ -90,7 +92,6 @@ export async function submitSmileIDJob({ images, partner_params, walletAddress, 
     job_type: jobType,
   };
 
-  // Submit to SmileID with id_info for government database verification
   const options = { return_job_status: true };
 
   try {

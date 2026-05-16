@@ -694,6 +694,24 @@ export const TransactionPreview = ({
         const providerId =
           searchParams.get("provider") || searchParams.get("PROVIDER") || undefined;
 
+        await precheckSwapTransaction(
+          {
+            walletAddress: activeWallet.address,
+            transactionType: "onramp",
+            fromCurrency: currency,
+            toCurrency: token,
+            amountSent: Number(amountSent),
+            amountReceived: Number(amountReceived),
+            fee: Number(rate),
+            recipient: {
+              account_name: recipientName || walletAddress || "",
+              institution: "Wallet",
+              account_identifier: walletAddress || "",
+            },
+          },
+          accessToken,
+        );
+
         const payload = {
           amount: String(amountSent),
           amountIn: "fiat" as const,
@@ -846,7 +864,7 @@ export const TransactionPreview = ({
 
       const transaction: TransactionCreateInput = {
         walletAddress: activeWallet.address,
-        transactionType: isOnramp ? "onramp" : "swap",
+        transactionType: isOnramp ? "onramp" : "offramp",
         fromCurrency: isOnramp ? currency : token,
         toCurrency: isOnramp ? token : currency,
         amountSent: Number(amountSent),

@@ -14,10 +14,10 @@ import {
   InformationSquareIcon,
   ArrowLeft02Icon,
 } from "hugeicons-react";
-import { parsePhoneNumber } from "libphonenumber-js";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
+import { validatePhoneForSelectedCountry, sanitizePhoneNumberInputForCountry } from "../lib/phone-validation";
 import { fadeInOut, AnimatedComponent, slideInOut } from "./AnimatedComponents";
-import { classNames, formatNumberWithCommas } from "../utils";
+import { formatNumberWithCommas } from "../utils";
 import { getKycMonthlyLimitsRecord } from "@/app/lib/kyc-tier-limits";
 import {
   fetchCountries,
@@ -141,9 +141,11 @@ export default function PhoneVerificationModal({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target;
       if (
+        target instanceof Node &&
         dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
+        !dropdownRef.current.contains(target)
       ) {
         setIsCountryDropdownOpen(false);
         setCountrySearch("");
@@ -157,32 +159,27 @@ export default function PhoneVerificationModal({
     }
   }, [isCountryDropdownOpen]);
 
+  useEffect(() => {
+    setPhoneNumber((prev) =>
+      sanitizePhoneNumberInputForCountry(prev, selectedCountry),
+    );
+  }, [selectedCountry]);
+
+  const phoneValidation = useMemo(
+    () => validatePhoneForSelectedCountry(phoneNumber, selectedCountry),
+    [phoneNumber, selectedCountry],
+  );
+
   const handlePhoneSubmit = useCallback(async () => {
     if (!name.trim()) {
       toast.error("Please enter your full name");
       return;
     }
-    if (!phoneNumber.trim() || !walletAddress) {
-      toast.error("Please enter a valid phone number");
+    if (!walletAddress || !phoneValidation.ok) {
       return;
     }
 
     try {
-      // Combine selected country code with phone number
-      let fullPhoneNumber = phoneNumber.trim();
-      if (!fullPhoneNumber.startsWith("+")) {
-        // Remove any leading zeros and add selected country code
-        fullPhoneNumber = fullPhoneNumber.replace(/^0+/, "");
-        fullPhoneNumber = selectedCountry.code + fullPhoneNumber;
-      }
-
-      // Validate phone number format
-      const parsed = parsePhoneNumber(fullPhoneNumber);
-      if (!parsed || !parsed.isValid()) {
-        toast.error("Please enter a valid phone number");
-        return;
-      }
-
       const accessToken = await resolveAccessToken();
       if (!accessToken) {
         return;
@@ -197,8 +194,9 @@ export default function PhoneVerificationModal({
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          phoneNumber: fullPhoneNumber,
+          phoneNumber: phoneValidation.e164,
           name: name,
+          countryIso: selectedCountry.country,
         }),
       });
 
@@ -218,7 +216,7 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [phoneNumber, walletAddress, selectedCountry, name, resolveAccessToken]);
+  }, [phoneNumber, walletAddress, selectedCountry, name, resolveAccessToken, phoneValidation]);
 
   const handleOtpSubmit = useCallback(async () => {
     if (!otpCode.trim() || otpCode.length !== 6) {
@@ -446,10 +444,19 @@ export default function PhoneVerificationModal({
             <input
               type="tel"
               id="phone"
+              inputMode="numeric"
+              autoComplete="tel-national"
               value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
+              onChange={(e) =>
+                setPhoneNumber(
+                  sanitizePhoneNumberInputForCountry(
+                    e.target.value,
+                    selectedCountry,
+                  ),
+                )
+              }
               placeholder="enter your phone number"
-              className="min-h-12 w-full rounded-xl border border-border-input bg-transparent py-3 pl-24 pr-4 text-sm text-neutral-900 transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-black2 dark:text-white/80 dark:placeholder:text-white/30 dark:focus-within:border-white/40"
+              className="min-h-12 w-full rounded-xl border border-border-input bg-transparent py-3 pl-24 pr-4 text-sm text-neutral-900 transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-black2 dark:text-white/80 dark:placeholder:text-white/30 dark:border-white/20 dark:focus-within:border-white/40"
               style={{
                 paddingLeft: `${selectedCountry.code.length * 8 + 60}px`,
               }}
@@ -471,7 +478,12 @@ export default function PhoneVerificationModal({
       <button
         type="button"
         onClick={handlePhoneSubmit}
-        disabled={isLoading || !phoneNumber.trim() || !name.trim()}
+        disabled={
+          isLoading ||
+          !name.trim() ||
+          !phoneNumber.trim() ||
+          !phoneValidation.ok
+        }
         className={`${primaryBtnClasses} w-full`}
       >
         {isLoading ? "Sending..." : "Verify and start"}

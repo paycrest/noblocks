@@ -16,6 +16,7 @@ import { primaryBtnClasses } from "../components/Styles";
 import { FormDropdown } from "../components/FormDropdown";
 import { RecipientDetailsForm } from "../components/recipient/RecipientDetailsForm";
 import { KycModal } from "../components/KycModal";
+import { getKycModalTargetTier } from "@/app/lib/kyc-upgrade-path";
 import { FundWalletForm } from "../components/FundWalletForm";
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
@@ -58,17 +59,18 @@ function kycUsdNotionalForLimitCheck(params: {
   amountSent: number;
   amountReceived: number;
   token: string | undefined;
-  cngnRate: number | undefined;
+  cngnRate?: number | null;
 }): number {
   const { isOnramp, amountSent, amountReceived, token, cngnRate } = params;
+  const rate = cngnRate ?? undefined;
   const isCngn = token === "cNGN" || token === "CNGN";
   if (isOnramp) {
     const recv = Number(amountReceived) || 0;
-    if (isCngn && cngnRate && cngnRate > 0) return recv / cngnRate;
+    if (isCngn && rate && rate > 0) return recv / rate;
     return recv;
   }
   const raw = Number(amountSent) || 0;
-  if (isCngn && cngnRate && cngnRate > 0) return raw / cngnRate;
+  if (isCngn && rate && rate > 0) return raw / rate;
   return raw;
 }
 
@@ -434,10 +436,6 @@ export const TransactionForm = ({
   // never leave a stale true/false (e.g. tier ≥ 1 with no amount, or after reload).
   useEffect(
     function updateVerificationStatus() {
-      if (tier === 0) {
-        setIsUserVerified(false);
-        return;
-      }
       const rawAmount = Number(amountSent);
       if (!Number.isFinite(rawAmount) || rawAmount <= 0) {
         setIsUserVerified(false);
@@ -451,7 +449,7 @@ export const TransactionForm = ({
         }
       }
       const usdAmount = kycUsdNotionalForLimitCheck({
-        isOnramp: isSwapped,
+        isOnramp: Boolean(isSwapped),
         amountSent: rawAmount,
         amountReceived: Number(amountReceived) || 0,
         token,
@@ -1233,7 +1231,7 @@ export const TransactionForm = ({
         </AnimatePresence>
 
         <AnimatePresence>
-          {isKycModalOpen && (
+          {isKycModalOpen && tier >= 1 && (
             <AnimatedModal
               isOpen={isKycModalOpen}
               onClose={() => setIsKycModalOpen(false)}
@@ -1241,7 +1239,7 @@ export const TransactionForm = ({
               <KycModal
                 setIsKycModalOpen={setIsKycModalOpen}
                 setIsUserVerified={setIsUserVerified}
-                targetTier={tier === 2 ? 3 : 2}
+                targetTier={getKycModalTargetTier(tier)}
               />
             </AnimatedModal>
           )}

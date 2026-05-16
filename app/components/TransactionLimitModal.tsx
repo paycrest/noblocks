@@ -15,6 +15,10 @@ import { AnimatedModal, fadeInOut } from "./AnimatedComponents";
 import { formatNumberWithCommas } from "../utils";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { KycModal } from "./KycModal";
+import {
+  getKycModalTargetTier,
+  getKycUpgradeStep,
+} from "@/app/lib/kyc-upgrade-path";
 
 interface TransactionLimitModalProps {
   isOpen: boolean;
@@ -31,7 +35,6 @@ export default function TransactionLimitModal({
     tier,
     getCurrentLimits,
     refreshStatus,
-    phoneNumber,
     transactionSummary,
   } = useKYC();
 
@@ -39,7 +42,9 @@ export default function TransactionLimitModal({
   const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Refresh KYC status every time modal is opened
+  const upgradeStep = getKycUpgradeStep(tier);
+  const tier1Limits = KYC_TIERS[1]?.limits.monthly;
+
   useEffect(() => {
     if (isOpen) {
       setIsLoading(true);
@@ -47,24 +52,22 @@ export default function TransactionLimitModal({
     }
   }, [isOpen, refreshStatus]);
 
-  // Auto-open phone verification modal if tier is less than 1 (unverified)
-  useEffect(() => {
-    if (
-      isOpen &&
-      !isLoading &&
-      ((tier < 1 && !phoneNumber) || tier === undefined)
-    ) {
-      setIsPhoneModalOpen(true);
-    }
-  }, [isOpen, isLoading, tier, phoneNumber]);
-
   const currentLimits = getCurrentLimits();
   const currentTier = KYC_TIERS[tier];
   const nextTier = KYC_TIERS[tier + 1];
 
+  const openNextUpgrade = () => {
+    if (upgradeStep === "phone") {
+      setIsPhoneModalOpen(true);
+    } else {
+      setIsKycModalOpen(true);
+    }
+  };
+
   const handlePhoneVerified = async () => {
     setIsPhoneModalOpen(false);
-    await refreshStatus();
+    await refreshStatus(true);
+    onClose();
   };
 
   const renderLoadingStatus = () => (
@@ -73,7 +76,7 @@ export default function TransactionLimitModal({
       {...fadeInOut}
       className="flex items-center justify-center py-20"
     >
-      <div className="h-16 w-16 animate-spin rounded-full border-4 border-t-4 border-lavender-500 border-t-white"></div>
+      <motion.div className="h-16 w-16 animate-spin rounded-full border-4 border-t-4 border-lavender-500 border-t-white" />
     </motion.div>
   );
 
@@ -89,7 +92,14 @@ export default function TransactionLimitModal({
           <span className="font-medium text-black dark:text-white">
             ${formatNumberWithCommas(currentLimits.monthly)}
           </span>
-          . Verify your identity to unlock higher limits.
+          {transactionAmount > 0 ? (
+            <>
+              . This transaction (${formatNumberWithCommas(transactionAmount)})
+              would exceed that limit.
+            </>
+          ) : (
+            ". Verify to unlock higher limits."
+          )}
         </p>
       </div>
 
@@ -97,11 +107,10 @@ export default function TransactionLimitModal({
         <div className="flex items-center gap-2 rounded-md bg-[#39C65D] px-3 py-1.5 dark:bg-[#39C65D]">
           <StarIcon className="text-white dark:text-black" size={16} />
           <span className="text-sm font-medium text-white dark:text-black">
-            Current: {tier < 1 ? "Tier 0" : currentTier?.name || "Tier 0"}
+            Current: {currentTier?.name ?? "Free"}
           </span>
         </div>
 
-        {/* Monthly Limit Progress */}
         <div className="w-full space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-text-secondary dark:text-white/70">
@@ -110,16 +119,14 @@ export default function TransactionLimitModal({
             <InformationCircleIcon className="h-4 w-4 text-gray-400 dark:text-white/40" />
           </div>
 
-          {/* Progress Display */}
           <div className="w-full text-start">
             <div className="mb-2 text-2xl font-light text-text-body dark:text-white">
               ${formatNumberWithCommas(transactionSummary.monthlySpent)} / $
               {formatNumberWithCommas(currentLimits.monthly)}
             </div>
 
-            {/* Progress Bar */}
             <div className="mb-4 flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/20">
-              <div
+              <motion.div
                 className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
                 style={{
                   width:
@@ -137,67 +144,57 @@ export default function TransactionLimitModal({
           </div>
         </div>
       </div>
-      {/* Info Text */}
+
       <div className="flex items-start gap-2 rounded-xl bg-gray-50 p-3 dark:bg-white/5">
         <InformationSquareIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-white/40" />
         <p className="text-xs font-light text-text-secondary dark:text-white/50">
           {tier < 1 ? (
             <>
-              Tier 0 gives you ${formatNumberWithCommas(currentLimits.monthly)}
-              /month. Verify your ID to unlock $
-              {nextTier
-                ? formatNumberWithCommas(nextTier.limits.monthly)
-                : "1,000"}
-              /month and beyond.{" "}
-              <button
-                type="button"
-                onClick={() => setIsPhoneModalOpen(true)}
-                className="inline cursor-pointer border-0 bg-transparent p-0 font-inherit text-lavender-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 dark:text-lavender-600"
-                aria-label="Learn more about verification tiers"
-              >
-                Learn more.
-              </button>
+              You&apos;ve reached your free-mode limit ($
+              {formatNumberWithCommas(currentLimits.monthly)}/month). Verify your
+              phone to unlock {KYC_TIERS[1].name} ($
+              {formatNumberWithCommas(tier1Limits)}/month). ID and address
+              verification unlock higher limits after that.
             </>
           ) : (
             <>
               You&apos;re currently at {currentTier?.name} with $
               {formatNumberWithCommas(currentLimits.monthly)}/month.{" "}
               {nextTier
-                ? `Upgrade to ${nextTier.name} for ${nextTier.limits.unlimited ? "Unlimited transactions" : `$${formatNumberWithCommas(nextTier.limits.monthly)}/month`}`
+                ? `Upgrade to ${nextTier.name} for ${nextTier.limits.unlimited ? "unlimited transactions" : `$${formatNumberWithCommas(nextTier.limits.monthly)}/month`}`
                 : "You have the highest tier available"}
-              .{" "}
-              <button
-                type="button"
-                onClick={() => setIsKycModalOpen(true)}
-                className="inline cursor-pointer border-0 bg-transparent p-0 font-inherit text-lavender-600 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 dark:text-lavender-400"
-                aria-label="Learn more about upgrading your verification tier"
-              >
-                Learn more.
-              </button>
+              .
             </>
           )}
         </p>
       </div>
 
-      {/* Action Button */}
       {tier < 3 && (
         <button
-          onClick={() => {
-            if (tier < 1) {
-              setIsPhoneModalOpen(true);
-            } else {
-              setIsKycModalOpen(true);
-            }
-          }}
+          type="button"
+          onClick={openNextUpgrade}
           className={`${primaryBtnClasses} w-full`}
         >
-          Verify and increase limit
+          {upgradeStep === "phone"
+            ? "Verify phone number"
+            : upgradeStep === "id"
+              ? "Verify ID to increase limit"
+              : "Verify address to increase limit"}
         </button>
       )}
 
-      {/* Already at max tier */}
+      {tier < 1 && (
+        <button
+          type="button"
+          onClick={onClose}
+          className={`${secondaryBtnClasses} w-full`}
+        >
+          Continue in free mode
+        </button>
+      )}
+
       {tier >= 3 && (
-        <button onClick={onClose} className={`${secondaryBtnClasses} w-full`}>
+        <button type="button" onClick={onClose} className={`${secondaryBtnClasses} w-full`}>
           Got it
         </button>
       )}
@@ -206,10 +203,12 @@ export default function TransactionLimitModal({
 
   if (!isOpen) return null;
 
+  const showLimitDialog = isOpen && !isPhoneModalOpen && !isKycModalOpen;
+
   return (
     <>
       <AnimatePresence mode="wait">
-        {isOpen && !isPhoneModalOpen && (
+        {showLimitDialog && (
           <Dialog open={isOpen} onClose={onClose} className="relative z-50">
             <div
               className="fixed inset-0 bg-black/50 backdrop-blur-sm"
@@ -231,13 +230,12 @@ export default function TransactionLimitModal({
         isOpen={isPhoneModalOpen}
         onClose={() => {
           setIsPhoneModalOpen(false);
-          onClose(); // Close parent modal too
         }}
         onVerified={handlePhoneVerified}
       />
 
       <AnimatePresence>
-        {isKycModalOpen && (
+        {isKycModalOpen && tier >= 1 && (
           <AnimatedModal
             isOpen={isKycModalOpen}
             onClose={() => {
@@ -257,11 +255,11 @@ export default function TransactionLimitModal({
                 setIsKycModalOpen(false);
                 onClose();
               }}
-              targetTier={tier === 2 ? 3 : 2}
+              targetTier={getKycModalTargetTier(tier)}
             />
           </AnimatedModal>
         )}
       </AnimatePresence>
     </>
   );
-}
+};

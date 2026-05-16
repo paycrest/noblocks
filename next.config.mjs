@@ -71,7 +71,9 @@ const nextConfig = {
     // Remove this once we upgrade to a Next.js version that includes the fix.
     turbopackScopeHoisting: false,
   },
-  serverExternalPackages: ['mixpanel', 'https-proxy-agent'],
+  // Twilio: keep on Node resolution (nested https-proxy-agent vs root dep caused
+  // "can't be external" version skew when https-proxy-agent was listed here).
+  serverExternalPackages: ["mixpanel", "twilio"],
   webpack: (config, { isServer }) => {
     // Handle both client and server-side fallbacks
     config.resolve.fallback = {

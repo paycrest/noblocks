@@ -178,14 +178,20 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         ? getExplorerLink(body.network, body.txHash)
         : "";
 
-    // KYC tier enforcement — only applies to swap transactions
+    // KYC tier enforcement for swap and onramp (not transfer).
     // Uses an atomic stored procedure to prevent race conditions where two concurrent
     // requests both pass the limit check before either insert is committed.
-    if (body.transactionType === "swap") {
+    const normalizedTransactionType =
+      body.transactionType === "swap" ? "offramp" : body.transactionType;
+
+    if (
+      normalizedTransactionType === "offramp" ||
+      normalizedTransactionType === "onramp"
+    ) {
       const swapResult = await executeSwapTransactionLimitCheck(
         normalizedBodyWalletAddress,
         {
-          transactionType: body.transactionType,
+          transactionType: normalizedTransactionType,
           fromCurrency: body.fromCurrency,
           toCurrency: body.toCurrency,
           amountSent: body.amountSent,
@@ -328,6 +334,17 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       .single();
 
     if (error) {
+      if (error.code === "23514") {
+        console.error("Transaction insert constraint violation:", error);
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Invalid transaction data. If this persists, contact support.",
+          },
+          { status: 400 },
+        );
+      }
       throw error;
     }
 

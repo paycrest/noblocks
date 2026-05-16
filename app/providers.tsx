@@ -18,6 +18,7 @@ import {
   NetworkProvider,
   RocketStatusProvider,
   StarknetProvider,
+  StarknetExportModalProvider,
   StepProvider,
   TokensProvider,
   TransactionsProvider,
@@ -81,23 +82,25 @@ function ContextProviders({ children }: { children: ReactNode }) {
         <InjectedWalletProvider>
           <MigrationStatusProvider>
             <StarknetProvider>
-              <TokensProvider>
-                <StepProvider>
-                  <BalanceProvider>
-                    <TransactionsProvider>
-                      <KYCProvider>
-                        <BlockFestClaimProvider>
-                          <BlockFestModalProvider>
-                            <RocketStatusProvider>
-                              {children}
-                            </RocketStatusProvider>
-                          </BlockFestModalProvider>
-                        </BlockFestClaimProvider>
-                      </KYCProvider>
-                    </TransactionsProvider>
-                  </BalanceProvider>
-                </StepProvider>
-              </TokensProvider>
+              <StarknetExportModalProvider>
+                <TokensProvider>
+                  <StepProvider>
+                    <BalanceProvider>
+                      <TransactionsProvider>
+                        <KYCProvider>
+                          <BlockFestClaimProvider>
+                            <BlockFestModalProvider>
+                              <RocketStatusProvider>
+                                {children}
+                              </RocketStatusProvider>
+                            </BlockFestModalProvider>
+                          </BlockFestClaimProvider>
+                        </KYCProvider>
+                      </TransactionsProvider>
+                    </BalanceProvider>
+                  </StepProvider>
+                </TokensProvider>
+              </StarknetExportModalProvider>
             </StarknetProvider>
           </MigrationStatusProvider>
         </InjectedWalletProvider>

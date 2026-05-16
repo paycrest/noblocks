@@ -30,6 +30,8 @@
     "sanity:undeploy": "sanity undeploy"
   },
   "dependencies": {
+    "@hpke/chacha20poly1305": "^1.6.2",
+    "@hpke/core": "^1.9.0",
     "@biconomy/abstractjs": "^1.1.21",
     "@headlessui/react": "^2.2.4",
     "@hotjar/browser": "^1.0.9",

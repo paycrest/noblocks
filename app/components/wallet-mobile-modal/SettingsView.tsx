@@ -18,7 +18,7 @@ interface SettingsViewProps {
   user: any;
   updateEmail: () => void;
   linkEmail: () => void;
-  exportWallet: () => void;
+  exportWallet: () => void | Promise<void>;
   handleLogout: () => void;
   isLoggingOut: boolean;
   onBack: () => void;

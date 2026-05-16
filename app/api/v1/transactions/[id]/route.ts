@@ -8,6 +8,7 @@ import {
   trackApiError,
 } from "@/app/lib/server-analytics";
 import { getExplorerLink } from "@/app/utils";
+import { assertTransactionWalletMatchesJwtUser } from "@/app/lib/transaction-wallet-auth";
 
 // Route handler for PUT requests
 export const PUT = withRateLimit(
@@ -16,40 +17,11 @@ export const PUT = withRateLimit(
     const { id } = await params;
 
     try {
-      const walletAddress = request.headers
-        .get("x-wallet-address")
-        ?.toLowerCase();
       const body = await request.json();
-
-      if (!walletAddress) {
-        trackApiError(
-          request,
-          `/api/v1/transactions/${id}`,
-          "PUT",
-          new Error("Unauthorized"),
-          401,
-        );
-        return NextResponse.json(
-          { success: false, error: "Unauthorized" },
-          { status: 401 },
-        );
-      }
-      trackApiRequest(request, `/api/v1/transactions/${id}`, "PUT", {
-        wallet_address: walletAddress,
-        transaction_id: id,
-        new_status: body.status,
-      });
-
       const { txHash, timeSpent, status } = body;
 
-      // First verify that the transaction belongs to the wallet
       const { data: existingTransaction, error: fetchError } =
-        await supabaseAdmin
-          .from("transactions")
-          .select("*")
-          .eq("id", id)
-          .eq("wallet_address", walletAddress)
-          .single();
+        await supabaseAdmin.from("transactions").select("*").eq("id", id).single();
 
       if (fetchError || !existingTransaction) {
         trackApiError(
@@ -64,6 +36,31 @@ export const PUT = withRateLimit(
           { status: 404 },
         );
       }
+
+      const auth = await assertTransactionWalletMatchesJwtUser(
+        request,
+        existingTransaction.wallet_address,
+      );
+      if (!auth.ok) {
+        trackApiError(
+          request,
+          `/api/v1/transactions/${id}`,
+          "PUT",
+          new Error(auth.error),
+          auth.status,
+        );
+        return NextResponse.json(
+          { success: false, error: auth.error },
+          { status: auth.status },
+        );
+      }
+      const walletAddress = auth.normalizedRowWallet;
+
+      trackApiRequest(request, `/api/v1/transactions/${id}`, "PUT", {
+        wallet_address: walletAddress,
+        transaction_id: id,
+        new_status: body.status,
+      });
 
       const explorerLink =
         txHash && existingTransaction.network

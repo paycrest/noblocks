@@ -107,9 +107,11 @@ export const Navbar = () => {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target;
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
+        target instanceof Node &&
+        !dropdownRef.current.contains(target)
       ) {
         setIsDropdownOpen(false);
       }
@@ -139,11 +141,11 @@ export const Navbar = () => {
               className="flex cursor-pointer items-center gap-1"
               onMouseEnter={() => setIsDropdownOpen(true)}
               onMouseLeave={(e) => {
-                // Only close if we're not moving to the dropdown menu
-                const relatedTarget = e.relatedTarget as Node;
+                const related = e.relatedTarget;
                 if (
-                  !relatedTarget ||
-                  !dropdownRef.current?.contains(relatedTarget)
+                  !related ||
+                  !(related instanceof Node) ||
+                  !dropdownRef.current?.contains(related)
                 ) {
                   setIsDropdownOpen(false);
                 }

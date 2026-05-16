@@ -23,7 +23,6 @@ import { useNetwork, useTokens } from "../context";
 import config, {
   getDelegationContractAddress,
   localTransferFeePercent,
-  STARKNET_READY_ACCOUNT_CLASSHASH,
 } from "../lib/config";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
@@ -47,13 +46,7 @@ import {
   createPublicClient,
   http,
 } from "viem";
-import {
-  useBalance,
-  useInjectedWallet,
-  useStep,
-  useTransactions,
-} from "../context";
-import { useStarknet } from "../context/StarknetContext";
+import { useBalance, useInjectedWallet, useStep, useTransactions } from "../context";
 import {
   useShouldUseEOA,
   useDelegationContractAuth,
@@ -71,6 +64,7 @@ import {
   fetchAggregatorPublicKey,
   fetchTokens,
   saveTransaction,
+  precheckSwapTransaction,
   createV2SenderPaymentOrder,
   fetchRefundAccount,
   saveRefundAccount,
@@ -108,19 +102,13 @@ export const TransactionPreview = ({
   const { isLoading: isMigrationLoading } = useMigrationStatus();
   const { signDelegationAuthorization } = useDelegationContractAuth();
 
-  const { walletId, address: starknetAddress, publicKey } = useStarknet();
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();
-  const { currentStep, setCurrentStep } = useStep();
+  const { setCurrentStep } = useStep();
   const { fetchTransactions } = useTransactions();
-  const {
-    refreshBalance,
-    smartWalletBalance,
-    externalWalletBalance,
-    injectedWalletBalance,
-    allBalances,
-  } = useBalance();
+  const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance } =
+    useBalance();
 
   const {
     rate,
@@ -168,6 +156,9 @@ export const TransactionPreview = ({
     null,
   );
   const orderSubmissionBlock = useRef<bigint | null>(null);
+
+  // Ref to prevent duplicate transaction saves
+  const isSavingTransactionRef = useRef(false);
 
   const searchParams = useSearchParams();
 
@@ -217,42 +208,25 @@ export const TransactionPreview = ({
     ? null
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
-  const activeWallet =
-    injectedWallet ||
-    (selectedNetwork.chain.name === "Starknet"
-      ? starknetAddress
-        ? { address: starknetAddress, type: "starknet" as const }
-        : undefined
-      : shouldUseEOA
-        ? embeddedWallet
-          ? { address: embeddedWallet.address, type: "eoa" as const }
-          : undefined
-        : smartWallet);
+  const activeWallet = injectedWallet ||
+    (shouldUseEOA
+      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
+      : smartWallet);
 
-  /**
-   * Same identity as middleware `x-wallet-address`: Privy embedded EVM wallet only.
-   * Never use `activeWallet` (Starknet / SCW / injected) here — POST /api/v1/transactions
-   * compares body.walletAddress to that JWT-derived value.
-   */
-  const walletAddressForTransactionApi =
-    typeof embeddedWallet?.address === "string" &&
-    embeddedWallet.address.trim() !== ""
-      ? embeddedWallet.address.trim()
-      : undefined;
-
+  // Get appropriate balance based on migration status
+  // After migration: use externalWalletBalance (EOA balance)
+  // Before migration: use smartWalletBalance (SCW balance)
+  // Wait for migration status to load before making decision
   const activeBalance = injectedWallet
     ? injectedWalletBalance
-    : selectedNetwork.chain.name === "Starknet"
-      ? allBalances.starknetWallet
-      : !isMigrationLoading && shouldUseEOA
-        ? externalWalletBalance
-        : smartWalletBalance;
+    : !isMigrationLoading && shouldUseEOA
+      ? externalWalletBalance
+      : smartWalletBalance;
 
+  // For CNGN, use raw balance (token units) instead of USD equivalent
   const balance =
     token === "CNGN" || token === "cNGN"
-      ? (activeBalance?.rawBalances?.[token] ??
-          activeBalance?.balances[token] ??
-          0)
+      ? (activeBalance?.rawBalances?.[token] ?? activeBalance?.balances[token] ?? 0)
       : (activeBalance?.balances[token] ?? 0);
 
   // Calculate sender fee for display and balance check
@@ -328,6 +302,8 @@ export const TransactionPreview = ({
     const publicKey = await fetchAggregatorPublicKey();
     const encryptedRecipient = publicKeyEncrypt(recipient, publicKey.data);
 
+    // Use the fee values calculated earlier (already in base units and capped)
+
     // Prepare transaction parameters
     const params = {
       token: tokenAddress,
@@ -338,6 +314,7 @@ export const TransactionPreview = ({
       refundAddress: activeWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
+
     return params;
   };
 
@@ -355,88 +332,6 @@ export const TransactionPreview = ({
 
   const createOrder = async () => {
     try {
-      // Check if on Starknet and not using injected wallet
-      if (selectedNetwork.chain.name === "Starknet" && !isInjectedWallet) {
-        if (!walletId || !publicKey || !starknetAddress) {
-          toast.error(
-            "Starknet wallet not found. Please create a wallet first.",
-          );
-          return;
-        }
-
-        const params = await prepareCreateOrderParams();
-        setCreatedAt(new Date().toISOString());
-
-        const classHash = STARKNET_READY_ACCOUNT_CLASSHASH;
-
-        const token = await getAccessToken();
-        if (!token) {
-          throw new Error("Failed to get access token");
-        }
-
-        toast.loading("Creating order...");
-
-        // Execute the transaction using Starknet paymaster via API
-        const response = await fetch("/api/starknet/create-order", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            walletId,
-            publicKey,
-            classHash,
-            userId: user?.id,
-            origin: window.location.origin,
-            tokenAddress: tokenAddress,
-            gatewayAddress: getGatewayContractAddress(
-              selectedNetwork.chain.name,
-            ) as string,
-            amount: params.amount.toString(),
-            rate: params.rate.toString(),
-            senderFeeRecipient: params.senderFeeRecipient as string,
-            senderFee: params.senderFee.toString(),
-            refundAddress: params.refundAddress ?? "",
-            messageHash: params.messageHash,
-            address: starknetAddress,
-          }),
-        });
-
-        toast.dismiss();
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || "Failed to create order");
-        }
-
-        const result = await response.json();
-        const orderId = result.orderId;
-
-        setOrderId(orderId);
-
-        await saveTransactionData({
-          orderId: orderId,
-          txHash: result.transactionHash,
-        });
-
-        setCreatedAt(new Date().toISOString());
-        setTransactionStatus("pending");
-        setCurrentStep("status");
-
-        toast.success("Order created successfully");
-
-        refreshBalance();
-        setIsOrderCreated(true);
-
-        trackEvent("Swap started", {
-          "Entry point": "Transaction preview",
-          "Wallet type": "Starknet embedded wallet",
-          "Transaction hash": result.transactionHash,
-        });
-        return;
-      }
-
       if (isInjectedWallet && injectedProvider) {
         // Injected wallet
         if (!injectedReady) {
@@ -656,7 +551,11 @@ export const TransactionPreview = ({
         toast.success("Order created successfully");
         refreshBalance();
         setIsPollingOrderId(true);
-        void getOrderId().finally(() => setIsPollingOrderId(false));
+        try {
+          await getOrderId();
+        } finally {
+          setIsPollingOrderId(false);
+        }
         return;
       } else {
         // Smart wallet (pre-migration)
@@ -795,6 +694,24 @@ export const TransactionPreview = ({
         const providerId =
           searchParams.get("provider") || searchParams.get("PROVIDER") || undefined;
 
+        await precheckSwapTransaction(
+          {
+            walletAddress: activeWallet.address,
+            transactionType: "onramp",
+            fromCurrency: currency,
+            toCurrency: token,
+            amountSent: Number(amountSent),
+            amountReceived: Number(amountReceived),
+            fee: Number(rate),
+            recipient: {
+              account_name: recipientName || walletAddress || "",
+              institution: "Wallet",
+              account_identifier: walletAddress || "",
+            },
+          },
+          accessToken,
+        );
+
         const payload = {
           amount: String(amountSent),
           amountIn: "fiat" as const,
@@ -847,9 +764,9 @@ export const TransactionPreview = ({
         });
 
         const refreshTok = await getAccessToken();
-        if (refreshTok && walletAddressForTransactionApi) {
+        if (refreshTok && activeWallet?.address) {
           void fetchTransactions(
-            walletAddressForTransactionApi,
+            activeWallet.address,
             refreshTok,
             1,
             30,
@@ -888,7 +805,39 @@ export const TransactionPreview = ({
 
     try {
       setIsConfirming(true);
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        toast.error("Please sign in to continue");
+        return;
+      }
+
+      await precheckSwapTransaction(
+        {
+          walletAddress: activeWallet.address,
+          fromCurrency: token,
+          toCurrency: currency,
+          amountSent: Number(amountSent),
+          amountReceived: Number(amountReceived),
+          fee: Number(rate),
+          recipient: {
+            account_name: recipientName,
+            institution: getInstitutionNameByCode(
+              institution,
+              supportedInstitutions,
+            ) as string,
+            account_identifier: accountIdentifier,
+            ...(memo && { memo }),
+          },
+        },
+        accessToken,
+      );
+
       await createOrder();
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Unable to start this transaction.";
+      setErrorMessage(msg);
+      setErrorCount((prevCount: number) => prevCount + 1);
     } finally {
       setIsConfirming(false);
     }
@@ -904,15 +853,9 @@ export const TransactionPreview = ({
     /** Pass from create-order response so bank name is saved before React state updates. */
     providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {
-    if (isSavingTransaction) return;
-    if (!walletAddressForTransactionApi) {
-      const err = new Error(
-        "Embedded Privy wallet address is required to persist transactions (must match API auth).",
-      );
-      console.error("[TransactionPreview]", err.message);
-      throw err;
-    }
-
+    if (!activeWallet?.address) return;
+    if (isSavingTransactionRef.current) return;
+    isSavingTransactionRef.current = true;
     setIsSavingTransaction(true);
 
     try {
@@ -922,8 +865,8 @@ export const TransactionPreview = ({
       }
 
       const transaction: TransactionCreateInput = {
-        walletAddress: walletAddressForTransactionApi,
-        transactionType: isOnramp ? "onramp" : "swap",
+        walletAddress: activeWallet.address,
+        transactionType: isOnramp ? "onramp" : "offramp",
         fromCurrency: isOnramp ? currency : token,
         toCurrency: isOnramp ? token : currency,
         amountSent: Number(amountSent),
@@ -959,12 +902,23 @@ export const TransactionPreview = ({
         throw new Error("Failed to save transaction");
       }
 
-      // Store the transaction ID in localStorage
-      localStorage.setItem("currentTransactionId", response.data.id);
+      const rawId = (response.data as { id?: unknown } | undefined)?.id;
+      const idStr =
+        typeof rawId === "string"
+          ? rawId
+          : rawId != null && String(rawId) !== "undefined"
+            ? String(rawId)
+            : "";
+      if (!idStr) {
+        throw new Error("Failed to save transaction: missing transaction id");
+      }
+
+      localStorage.setItem("currentTransactionId", idStr);
     } catch (error) {
       console.error("Error saving transaction:", error);
-      // Don't show error toast as this is a background operation
+      throw error;
     } finally {
+      isSavingTransactionRef.current = false;
       setIsSavingTransaction(false);
     }
   };

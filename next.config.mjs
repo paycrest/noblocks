@@ -6,6 +6,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  // Allow dev HMR / _next assets when the app is opened via ngrok (or similar)
+  // instead of localhost only. See https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+  allowedDevOrigins: [
+    "*.ngrok-free.app",
+    "*.ngrok.io",
+    "*.ngrok.app",
+  ],
   headers: async () => [
     {
       source: "/:path*",
@@ -64,7 +71,9 @@ const nextConfig = {
     // Remove this once we upgrade to a Next.js version that includes the fix.
     turbopackScopeHoisting: false,
   },
-  serverExternalPackages: ['mixpanel', 'https-proxy-agent'],
+  // Twilio: keep on Node resolution (nested https-proxy-agent vs root dep caused
+  // "can't be external" version skew when https-proxy-agent was listed here).
+  serverExternalPackages: ["mixpanel", "twilio"],
   webpack: (config, { isServer }) => {
     // Handle both client and server-side fallbacks
     config.resolve.fallback = {

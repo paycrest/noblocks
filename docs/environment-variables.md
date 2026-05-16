@@ -13,6 +13,12 @@ NEXT_PUBLIC_AGGREGATOR_URL=https://api.paycrest.io/v1
 # Sender API key UUID (aggregator dashboard). Used by the payment-orders proxy and the client for encrypted gateway.createOrder messageHash.
 NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID=
 
+# KYC tier monthly swap limits (USD). Used by the UI and POST /api/v1/transactions. Optional; defaults match production if unset.
+NEXT_PUBLIC_KYC_TIER_0_MONTHLY=0
+NEXT_PUBLIC_KYC_TIER_1_MONTHLY=100
+NEXT_PUBLIC_KYC_TIER_2_MONTHLY=15000
+NEXT_PUBLIC_KYC_TIER_3_MONTHLY=50000
+
 # Auth services
 NEXT_PUBLIC_PRIVY_APP_ID=
 NEXT_PUBLIC_THIRDWEB_CLIENT_ID=
@@ -77,12 +83,8 @@ ENABLE_WALLET_CONTEXT_SYNC=false
 # Get these from: Supabase Dashboard → Project Settings → API
 SUPABASE_URL=https://your-project.supabase.co
 
-# ⚠️ IMPORTANT: Use the SERVICE ROLE key, NOT the anon/public key
-# The service role key bypasses Row-Level Security (RLS) policies
-# Location: Supabase Dashboard → Project Settings → API → "service_role" secret
-# Format: Starts with "eyJ..." and contains "role":"service_role" when decoded
-# DO NOT use the "anon public" key here - it will cause RLS policy violations
-SUPABASE_SERVICE_ROLE_KEY=
+# Server (`supabaseAdmin`): Secret key sb_secret_…
+SUPABASE_SECRET_KEY=
 
 # Privy Authentication
 PRIVY_APP_SECRET=
@@ -159,12 +161,9 @@ NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS=true
 ## Security Notes
 
 ### Supabase Keys
-- **`SUPABASE_SERVICE_ROLE_KEY`**: 
-  - **CRITICAL**: Must be the service role key, not the anon key
-  - The service role key bypasses RLS and should never be exposed to clients
-  - Verify by decoding the JWT - it should contain `"role":"service_role"`
-  - Using the anon key will cause "row violates row-level security policy" errors
-  - Get it from: Supabase Dashboard → Project Settings → API → "service_role" secret
+- **`SUPABASE_SECRET_KEY`**: required for server `supabaseAdmin` — **Secret** key (`sb_secret_…`). Bypasses RLS. Do not put the publishable key here or inserts will fail with RLS errors.
+- **`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`**: only if you add a client-side Supabase client; not used by current API routes.
+- **`SUPABASE_URL`** or **`NEXT_PUBLIC_SUPABASE_URL`**: project API URL ([Connect](https://supabase.com/docs/guides/getting-started/quickstarts/nextjs)).
 
 ### Other Security
 - **`INTERNAL_API_KEY`**: Generate a strong random string (e.g., `openssl rand -hex 32`)

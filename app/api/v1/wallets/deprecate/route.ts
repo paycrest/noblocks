@@ -136,10 +136,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       throw upsertError;
     }
 
-    // Migrate KYC data
+    // Migrate KYC profile (wallet-scoped PK on user_kyc_profiles)
     const { error: kycError } = await supabaseAdmin
-      .from("kyc_data")
-      .update({ wallet_address: newAddress.toLowerCase() })
+      .from("user_kyc_profiles")
+      .update({
+        wallet_address: newAddress.toLowerCase(),
+        user_id: userId,
+      })
       .eq("wallet_address", oldAddress.toLowerCase())
       .eq("user_id", userId);
 

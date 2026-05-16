@@ -25,6 +25,41 @@ interface TwilioVerifyApi {
 
 let twilioClientSingleton: TwilioVerifyApi | null = null;
 
+function getTwilioVerifyTimeoutMs(): number {
+  const ms = Number(process.env.TWILIO_VERIFY_TIMEOUT_MS ?? "5000");
+  return Number.isFinite(ms) && ms > 0 ? ms : 5000;
+}
+
+/** Bounds hung Twilio Verify requests (SDK does not accept AbortSignal). */
+async function withTwilioVerifyTimeout<T>(
+  operation: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const ms = getTwilioVerifyTimeoutMs();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ms);
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener(
+      "abort",
+      () => {
+        const err = new Error(
+          `Twilio Verify ${operation} timed out after ${ms}ms`,
+        );
+        err.name = "AbortError";
+        reject(err);
+      },
+      { once: true },
+    );
+  });
+
+  try {
+    return await Promise.race([fn(), timeoutPromise]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function getTwilioClient(): Promise<TwilioVerifyApi> {
   if (twilioClientSingleton) return twilioClientSingleton;
   const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
@@ -130,12 +165,14 @@ export async function sendTwilioVerifyOTP(
   }
 
   try {
-    const verification = await client.verify.v2
-      .services(serviceSid)
-      .verifications.create({
-        to: phoneE164,
-        channel: "sms",
-      });
+    const verification = await withTwilioVerifyTimeout(
+      "verifications.create",
+      () =>
+        client.verify.v2.services(serviceSid).verifications.create({
+          to: phoneE164,
+          channel: "sms",
+        }),
+    );
 
     return {
       success: true,
@@ -143,8 +180,12 @@ export async function sendTwilioVerifyOTP(
       messageId: verification.sid,
     };
   } catch (error: unknown) {
-    const err = error as { message?: string; code?: number };
-    console.error("Twilio Verify send error:", error);
+    const err = error as { message?: string; code?: number; name?: string };
+    if (err?.name === "AbortError") {
+      console.error("Twilio Verify send timed out:", err.message);
+    } else {
+      console.error("Twilio Verify send error:", error);
+    }
     return {
       success: false,
       message: "Failed to send verification code",
@@ -174,17 +215,23 @@ export async function checkTwilioVerifyCode(
   }
 
   try {
-    const check = await client.verify.v2
-      .services(serviceSid)
-      .verificationChecks.create({
-        to: phoneE164,
-        code,
-      });
+    const check = await withTwilioVerifyTimeout(
+      "verificationChecks.create",
+      () =>
+        client.verify.v2.services(serviceSid).verificationChecks.create({
+          to: phoneE164,
+          code,
+        }),
+    );
 
     return { success: check.status === "approved" };
   } catch (error: unknown) {
-    const err = error as { message?: string };
-    console.error("Twilio Verify check error:", error);
+    const err = error as { message?: string; name?: string };
+    if (err?.name === "AbortError") {
+      console.error("Twilio Verify check timed out:", err.message);
+    } else {
+      console.error("Twilio Verify check error:", error);
+    }
     return {
       success: false,
       error: err?.message || "Verification failed",

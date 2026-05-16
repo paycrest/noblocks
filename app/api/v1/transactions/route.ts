@@ -292,7 +292,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         normalizedBodyWalletAddress,
         {
           transaction_id: rpcDataId,
-          transaction_type: body.transactionType,
+          transaction_type: normalizedTransactionType,
           from_currency: body.fromCurrency,
           to_currency: body.toCurrency,
           amount_sent: body.amountSent,
@@ -355,7 +355,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     });
     trackTransactionEvent('Transaction Created', normalizedBodyWalletAddress, {
       transaction_id: data.id,
-      transaction_type: body.transactionType,
+      transaction_type: normalizedTransactionType,
       from_currency: body.fromCurrency,
       to_currency: body.toCurrency,
       amount_sent: body.amountSent,

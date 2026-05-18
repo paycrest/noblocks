@@ -164,6 +164,21 @@ export function isNoblocksFiatCurrencyCode(code: string): boolean {
   return NOBLOCKS_FIAT_CURRENCY_CODES.has(code.toUpperCase());
 }
 
+
+const TRANSACTION_AMOUNT_DECIMALS = 2;
+
+/**
+ * Rounds an amount for Supabase/email so stored values match what users see (2dp).
+ * Form state can still carry extra precision from rate math until save.
+ */
+export function roundAmountForCurrency(amount: number): number {
+  if (typeof amount !== "number" || !Number.isFinite(amount)) {
+    return 0;
+  }
+  const factor = 10 ** TRANSACTION_AMOUNT_DECIMALS;
+  return Math.round(amount * factor) / factor;
+}
+
 /**
  * List / details: fiat uses symbol prefix (e.g. ₦1,000.5); crypto uses "1.23 USDC".
  */

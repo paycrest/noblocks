@@ -9,7 +9,7 @@ import {
   trackBusinessEvent 
 } from "@/app/lib/server-analytics";
 import type { TransactionHistory, TransactionResponse } from "@/app/types";
-import { getExplorerLink } from "@/app/utils";
+import { getExplorerLink, roundAmountForCurrency } from "@/app/utils";
 
 // Route handler for GET requests
 export const GET = withRateLimit(async (request: NextRequest) => {
@@ -149,6 +149,9 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         ? getExplorerLink(body.network, body.txHash)
         : "";
 
+    const amountSent = roundAmountForCurrency(Number(body.amountSent));
+    const amountReceived = roundAmountForCurrency(Number(body.amountReceived));
+
     // Insert transaction
     const { data, error } = await supabaseAdmin
       .from("transactions")
@@ -157,8 +160,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         transaction_type: body.transactionType,
         from_currency: body.fromCurrency,
         to_currency: body.toCurrency,
-        amount_sent: body.amountSent,
-        amount_received: body.amountReceived,
+        amount_sent: amountSent,
+        amount_received: amountReceived,
         fee: body.fee,
         recipient: body.recipient,
         status: body.status,
@@ -189,8 +192,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       transaction_type: body.transactionType,
       from_currency: body.fromCurrency,
       to_currency: body.toCurrency,
-      amount_sent: body.amountSent,
-      amount_received: body.amountReceived,
+      amount_sent: amountSent,
+      amount_received: amountReceived,
       fee: body.fee,
       status: body.status,
       network: body.network,

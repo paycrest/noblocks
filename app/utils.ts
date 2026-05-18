@@ -165,8 +165,6 @@ export function isNoblocksFiatCurrencyCode(code: string): boolean {
 }
 
 
-const TRANSACTION_AMOUNT_DECIMALS = 2;
-
 /**
  * Rounds an amount for Supabase/email so stored values match what users see (2dp).
  * Form state can still carry extra precision from rate math until save.
@@ -175,7 +173,7 @@ export function roundAmountForCurrency(amount: number): number {
   if (typeof amount !== "number" || !Number.isFinite(amount)) {
     return 0;
   }
-  const factor = 10 ** TRANSACTION_AMOUNT_DECIMALS;
+  const factor = 10 ** 2; // 2 decimal places
   return Math.round(amount * factor) / factor;
 }
 

@@ -187,8 +187,10 @@ export function roundAmountForCurrency(amount: number): number {
   if (typeof amount !== "number" || !Number.isFinite(amount)) {
     return 0;
   }
-  const factor = 10 ** 2; // 2 decimal places
-  return Math.round(amount * factor) / factor;
+  const decimals = 2;
+  return Number(
+    `${Math.round(Number(`${amount}e${decimals}`))}e-${decimals}`,
+  );
 }
 
 /**

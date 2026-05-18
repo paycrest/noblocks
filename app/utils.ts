@@ -164,6 +164,40 @@ export function isNoblocksFiatCurrencyCode(code: string): boolean {
   return NOBLOCKS_FIAT_CURRENCY_CODES.has(code.toUpperCase());
 }
 
+/** NGN fintech institutions pinned after mobile_money, before A–Z (off-ramp + on-ramp). */
+export const NGN_PRIORITY_INSTITUTION_CODES = [
+  "OPAYNGPC",
+  "PALMNGPC",
+  "MONINGPC",
+  "KUDANGPC",
+] as const;
+
+export function compareInstitutionsForDisplay(
+  a: InstitutionProps,
+  b: InstitutionProps,
+): number {
+  if (a.type === "mobile_money" && b.type !== "mobile_money") return -1;
+  if (a.type !== "mobile_money" && b.type === "mobile_money") return 1;
+  for (const code of NGN_PRIORITY_INSTITUTION_CODES) {
+    if (a.code === code && b.code !== code) return -1;
+    if (a.code !== code && b.code === code) return 1;
+  }
+  return a.name.localeCompare(b.name);
+}
+
+/** Filter by name search and sort for institution pickers (swap + refund/on-ramp). */
+export function filterAndSortInstitutions(
+  institutions: InstitutionProps[] | undefined,
+  searchTerm: string,
+): InstitutionProps[] {
+  const term = searchTerm.toLowerCase();
+  const filtered =
+    institutions?.filter((item) =>
+      item.name.toLowerCase().includes(term),
+    ) ?? [];
+  return [...filtered].sort(compareInstitutionsForDisplay);
+}
+
 /**
  * List / details: fiat uses symbol prefix (e.g. ₦1,000.5); crypto uses "1.23 USDC".
  */

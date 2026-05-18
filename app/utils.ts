@@ -166,6 +166,20 @@ export function isNoblocksFiatCurrencyCode(code: string): boolean {
 
 
 /**
+ * Parses a transaction amount from the API body. Returns null if missing or invalid.
+ */
+export function parseValidTransactionAmount(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    return null;
+  }
+  return n;
+}
+
+/**
  * Rounds an amount for Supabase/email so stored values match what users see (2dp).
  * Form state can still carry extra precision from rate math until save.
  */

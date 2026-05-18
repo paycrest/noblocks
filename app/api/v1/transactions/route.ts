@@ -9,7 +9,11 @@ import {
   trackBusinessEvent 
 } from "@/app/lib/server-analytics";
 import type { TransactionHistory, TransactionResponse } from "@/app/types";
-import { getExplorerLink, roundAmountForCurrency } from "@/app/utils";
+import {
+  getExplorerLink,
+  parseValidTransactionAmount,
+  roundAmountForCurrency,
+} from "@/app/utils";
 
 // Route handler for GET requests
 export const GET = withRateLimit(async (request: NextRequest) => {
@@ -149,8 +153,26 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         ? getExplorerLink(body.network, body.txHash)
         : "";
 
-    const amountSent = roundAmountForCurrency(Number(body.amountSent));
-    const amountReceived = roundAmountForCurrency(Number(body.amountReceived));
+    const parsedAmountSent = parseValidTransactionAmount(body.amountSent);
+    const parsedAmountReceived = parseValidTransactionAmount(body.amountReceived);
+    if (parsedAmountSent === null || parsedAmountReceived === null) {
+      trackApiError(
+        request,
+        "/api/v1/transactions",
+        "POST",
+        new Error("Invalid amountSent or amountReceived"),
+        400,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Bad Request: amountSent and amountReceived must be valid numbers",
+        },
+        { status: 400 },
+      );
+    }
+    const amountSent = roundAmountForCurrency(parsedAmountSent);
+    const amountReceived = roundAmountForCurrency(parsedAmountReceived);
 
     // Insert transaction
     const { data, error } = await supabaseAdmin

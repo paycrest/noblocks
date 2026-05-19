@@ -27,7 +27,6 @@ import {
 } from "../api/aggregator";
 import {
   normalizeNetworkForRateFetch,
-  isStarknetChain,
   clearFormState,
   getBannerPadding,
   initialSwapModeForHomeForm,
@@ -392,13 +391,6 @@ export function MainPageContent() {
 
       if (!currency) return;
 
-      if (isOnrampRate && isStarknetChain(selectedNetwork.chain)) {
-        setRate(0);
-        setRateError(null);
-        setIsFetchingRate(false);
-        return;
-      }
-
       if (isOnrampRate && !token) return;
 
       // Only fetch rate if at least one amount is greater than 0
@@ -531,15 +523,10 @@ export function MainPageContent() {
 
   const handleFormSubmit = useCallback(
     (data: FormData) => {
-      const isStarknetOnrampBlocked =
-        isStarknetChain(selectedNetwork.chain) && data.swapMode === "onramp";
-      if (isStarknetOnrampBlocked) {
-        return;
-      }
       setFormValues(data);
       setCurrentStep(STEPS.PREVIEW);
     },
-    [setFormValues, setCurrentStep, selectedNetwork],
+    [setFormValues, setCurrentStep],
   );
 
   const handleBackToForm = useCallback(() => {

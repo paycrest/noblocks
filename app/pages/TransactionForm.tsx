@@ -33,10 +33,10 @@ import {
   formatDecimalPrecision,
   currencyToCountryCode,
   reorderCurrenciesByLocation,
-  isStarknetChain,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { fetchKYCStatus } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
@@ -89,6 +89,7 @@ export const TransactionForm = ({
     useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
+  const connectedWalletAddress = useWalletAddress();
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -134,9 +135,6 @@ export const TransactionForm = ({
     swapMode,
     receiveDestinationExplicitlySelected,
   } = watch();
-
-  const starknetLocksOnrampControls =
-    isStarknetChain(selectedNetwork.chain) && swapMode === "onramp";
 
   // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
   const { rate: cngnRate, error: cngnRateError } = useCNGNRate({
@@ -579,7 +577,6 @@ export const TransactionForm = ({
       needsMigration,
       isRemainingFundsMigration,
       swapMode,
-      isStarknetOnramp: starknetLocksOnrampControls,
     });
 
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
@@ -818,17 +815,7 @@ export const TransactionForm = ({
       >
         <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
           <div className="flex items-start justify-between gap-2 px-2 py-1">
-            <div className="flex min-w-0 flex-col gap-1">
-              <h3 className="text-base font-medium">Swap</h3>
-              {starknetLocksOnrampControls && (
-                <p
-                  id="starknet-onramp-unavailable-description"
-                  className="text-xs leading-snug text-text-secondary dark:text-white/50"
-                >
-                  On-ramp isn&apos;t available on Starknet yet.
-                </p>
-              )}
-            </div>
+            <h3 className="text-base font-medium">Swap</h3>
 
             <div className="flex shrink-0 items-center gap-1">
               {/* On-ramp button */}
@@ -1070,7 +1057,6 @@ export const TransactionForm = ({
                   data={tokens}
                   defaultSelectedItem={token || undefined}
                   isCTA={!token}
-                  disabled={starknetLocksOnrampControls}
                   onSelect={(selectedToken) => {
                     setValue("token", selectedToken, { shouldDirty: true });
                     setValue("receiveDestinationExplicitlySelected", true, {
@@ -1123,7 +1109,7 @@ export const TransactionForm = ({
                   swapMode={swapMode}
                   token={token}
                   networkName={selectedNetwork.chain.name}
-                  connectedWalletAddress={activeWallet?.address ?? undefined}
+                  connectedWalletAddress={connectedWalletAddress}
                 />
 
                 {/* Memo - Only show for offramp (not swapped) */}
@@ -1185,11 +1171,6 @@ export const TransactionForm = ({
               type="button"
               className={primaryBtnClasses}
               disabled={!isEnabled}
-              aria-describedby={
-                starknetLocksOnrampControls
-                  ? "starknet-onramp-unavailable-description"
-                  : undefined
-              }
               onClick={buttonAction(
                 handleSwap,
                 login,

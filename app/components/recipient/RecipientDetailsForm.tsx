@@ -23,7 +23,7 @@ import {
 } from "@/app/api/aggregator";
 import { SavedBeneficiariesModal } from "@/app/components/recipient/SavedBeneficiariesModal";
 import { SelectBankModal } from "@/app/components/recipient/SelectBankModal";
-import { isValidEvmAddressCaseInsensitive } from "@/app/lib/validation";
+import { validateWalletAddress } from "@/app/lib/validation";
 import { getNetworkImageUrl } from "@/app/utils";
 import { useActualTheme } from "@/app/hooks/useActualTheme";
 import { useNetwork } from "@/app/context";
@@ -485,13 +485,8 @@ export const RecipientDetailsForm = ({
                   value: true,
                   message: "Wallet address is required",
                 },
-                validate: (value) => {
-                  if (!value) return true;
-                  if (!isValidEvmAddressCaseInsensitive(value)) {
-                    return "Invalid wallet address format";
-                  }
-                  return true;
-                },
+                validate: (value) =>
+                  validateWalletAddress(value, networkName ?? ""),
               })}
               className={classNames(
                 "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",

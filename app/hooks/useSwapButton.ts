@@ -15,8 +15,6 @@ interface UseSwapButtonProps {
   rate?: number | null;
   tokenDecimals?: number;
   swapMode?: SwapMode;
-  /** Starknet + on-ramp: product not shipped; show “Coming soon” and block submit. */
-  isStarknetOnramp?: boolean;
   needsMigration?: boolean;
   isRemainingFundsMigration?: boolean;
 }
@@ -30,7 +28,6 @@ export function useSwapButton({
   rate,
   tokenDecimals = 18,
   swapMode = "offramp",
-  isStarknetOnramp = false,
   needsMigration = false,
   isRemainingFundsMigration = false,
 }: UseSwapButtonProps) {
@@ -72,9 +69,6 @@ export function useSwapButton({
   const hasRecipient = onrampUi ? Boolean(walletAddress) : Boolean(recipientName);
 
   const isEnabled = (() => {
-    if (isStarknetOnramp) {
-      return false;
-    }
     if (needsMigration && authenticated && !isInjectedWallet) return true;
     if (isMigrationMandatory) return true;
     if (!receiveDestinationExplicitlySelected) return false;
@@ -117,9 +111,6 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
-    if (isStarknetOnramp) {
-      return "Coming soon";
-    }
     if (needsMigration && authenticated && !isInjectedWallet) {
       return "Swap";
     }
@@ -151,9 +142,6 @@ export function useSwapButton({
     isUserVerified: boolean,
     openMigrationModal?: () => void,
   ) => {
-    if (isStarknetOnramp) {
-      return () => {};
-    }
     if (needsMigration && authenticated && !isInjectedWallet && openMigrationModal) {
       return openMigrationModal;
     }

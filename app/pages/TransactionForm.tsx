@@ -50,6 +50,7 @@ import {
   useNetwork,
   useTokens,
 } from "../context";
+import { isValidEvmAddressCaseInsensitive } from "../lib/validation";
 import WalletMigrationModal from "../components/WalletMigrationModal";
 
 /**
@@ -89,6 +90,7 @@ export const TransactionForm = ({
     useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
+  const connectedWalletAddress = useWalletAddress();
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -142,23 +144,12 @@ export const TransactionForm = ({
     dependencies: [selectedNetwork],
   });
 
-  // Determine active wallet based on migration status
-  // After migration: use EOA (new wallet with funds)
-  // Before migration: use SCW (old wallet)
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy",
-  );
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
-
-  const activeWallet = isInjectedWallet
-    ? { address: injectedAddress }
-    : shouldUseEOA
-      ? embeddedWallet
-        ? { address: embeddedWallet.address }
-        : undefined
-      : smartWallet;
+  // Signing / fund / "My wallet" address for the selected network
+  const activeWallet = connectedWalletAddress
+    ? { address: connectedWalletAddress }
+    : isInjectedWallet && injectedAddress
+      ? { address: injectedAddress }
+      : undefined;
 
   // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
   const activeBalance = isInjectedWallet
@@ -588,6 +579,18 @@ export const TransactionForm = ({
     setOrderId("");
     handleSubmit(onSubmit)();
   };
+
+  // Clear recipient when it does not match the selected network (e.g. EOA left after switching to Starknet)
+  useEffect(() => {
+    const w = (getValues("walletAddress") ?? "").trim();
+    if (!w) return;
+    if (
+      selectedNetwork.chain.name === "Starknet" &&
+      isValidEvmAddressCaseInsensitive(w)
+    ) {
+      setValue("walletAddress", "", { shouldDirty: true });
+    }
+  }, [selectedNetwork.chain.name, getValues, setValue]);
 
   useEffect(() => {
     // Only run once to align on-ramp mode with persisted recipient (e.g. deep link / refresh)
@@ -1108,7 +1111,7 @@ export const TransactionForm = ({
                   swapMode={swapMode}
                   token={token}
                   networkName={selectedNetwork.chain.name}
-                connectedWalletAddress={activeWallet?.address ?? undefined}
+                connectedWalletAddress={connectedWalletAddress}
                 />
 
                 {/* Memo - Only show for offramp (not swapped) */}

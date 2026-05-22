@@ -10,7 +10,6 @@ import {
   StarIcon,
   InformationCircleIcon,
   FaceIdIcon,
-  AiPhone01Icon,
   MapPinpoint01Icon,
   WorkAlertIcon,
 } from "hugeicons-react";
@@ -24,7 +23,7 @@ import {
 import { formatNumberWithCommas, shortenAddress, classNames } from "../utils";
 import { sidebarAnimation } from "./AnimatedComponents";
 import { PiCheck } from "react-icons/pi";
-import { TbIdBadge } from "react-icons/tb";
+import { TbIdBadge, TbPhoneCall } from "react-icons/tb";
 import TransactionLimitModal from "./TransactionLimitModal";
 
 interface ProfileDrawerProps {
@@ -204,7 +203,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                         {(() => {
                           if (req.toLowerCase().includes("phone")) {
                             return (
-                              <AiPhone01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                              <TbPhoneCall className="size-4 text-outline-gray dark:text-white/50" />
                             );
                           }
                           if (req.includes("Selfie verification")) {

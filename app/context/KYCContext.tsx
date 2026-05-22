@@ -38,7 +38,7 @@ export const KYC_TIERS: Record<number, KYCTier> = {
     level: 1,
     name: "Phone",
     limits: { monthly: kycMonthlyLimits[1] },
-    requirements: ["Phone verification"],
+    requirements: ["Phone number"],
   },
   2: {
     level: 2,

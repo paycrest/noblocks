@@ -89,7 +89,6 @@ export const TransactionForm = ({
     useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
-  const connectedWalletAddress = useWalletAddress();
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -1109,7 +1108,7 @@ export const TransactionForm = ({
                   swapMode={swapMode}
                   token={token}
                   networkName={selectedNetwork.chain.name}
-                  connectedWalletAddress={connectedWalletAddress}
+                connectedWalletAddress={activeWallet?.address ?? undefined}
                 />
 
                 {/* Memo - Only show for offramp (not swapped) */}

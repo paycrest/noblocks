@@ -24,3 +24,13 @@ export function getKycModalTargetTier(currentTier: KYCTierLevel): 2 | 3 {
 export function isFreeModeTier(tier: KYCTierLevel): boolean {
   return tier < 1;
 }
+
+/** User has completed at least phone verification (tier 1+). */
+export function hasAssignedKycTier(tier: number): tier is KYCTierLevel & (1 | 2 | 3) {
+  return tier >= 1;
+}
+
+/** Profile / limit UI (Figma): "Tier 1", not "Free" or verification step names. */
+export function formatKycTierDisplayLabel(level: number): string {
+  return `Tier ${level}`;
+}

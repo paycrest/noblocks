@@ -10,13 +10,17 @@ import {
   StarIcon,
   InformationCircleIcon,
   FaceIdIcon,
-  CallingIcon,
+  AiPhone01Icon,
   MapPinpoint01Icon,
   WorkAlertIcon,
 } from "hugeicons-react";
 import { usePrivy, useLinkAccount } from "@privy-io/react-auth";
 import { useKYC } from "../context";
 import { KYC_TIERS } from "../context/KYCContext";
+import {
+  formatKycTierDisplayLabel,
+  hasAssignedKycTier,
+} from "../lib/kyc-upgrade-path";
 import { formatNumberWithCommas, shortenAddress, classNames } from "../utils";
 import { sidebarAnimation } from "./AnimatedComponents";
 import { PiCheck } from "react-icons/pi";
@@ -39,8 +43,9 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
   } = useKYC();
 
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
-  const [expandedTiers, setExpandedTiers] = useState<Record<number, boolean>>(
-    {},
+  /** Only one tier accordion section open at a time. */
+  const [expandedTierLevel, setExpandedTierLevel] = useState<number | null>(
+    null,
   );
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -95,19 +100,15 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
   };
 
   const toggleTierExpansion = (tierLevel: number) => {
-    setExpandedTiers((prev) => ({
-      ...prev,
-      [tierLevel]: !prev[tierLevel],
-    }));
+    setExpandedTierLevel((current) =>
+      current === tierLevel ? null : tierLevel,
+    );
   };
 
-  // Auto-expand next tier section
+  // Auto-expand next tier section (closes any other)
   useEffect(() => {
     if (tier < 1) {
-      setExpandedTiers((prev) => ({
-        ...prev,
-        [tier + 1]: true,
-      }));
+      setExpandedTierLevel(tier + 1);
     }
   }, [tier]);
 
@@ -150,7 +151,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
 
   const renderTierSection = (tierLevel: number) => {
     const tierData = KYC_TIERS[tierLevel];
-    const isExpanded = expandedTiers[tierLevel];
+    const isExpanded = expandedTierLevel === tierLevel;
 
     if (!tierData) return null;
 
@@ -162,12 +163,12 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
         <button
           type="button"
           onClick={() => toggleTierExpansion(tierLevel)}
-          title={`View ${tierData.name} details`}
+          title={`View ${formatKycTierDisplayLabel(tierLevel)} details`}
           className="flex w-full items-center justify-between p-4 text-left transition-colors"
         >
           <div className="flex items-center gap-3">
             <span className="text-sm font-light text-text-body dark:text-white/70">
-              {tierData.name}
+              {formatKycTierDisplayLabel(tierData.level)}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -201,9 +202,9 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                     >
                       <div className="rounded-lg bg-white/10 p-0.5">
                         {(() => {
-                          if (req.includes("number")) {
+                          if (req.toLowerCase().includes("phone")) {
                             return (
-                              <CallingIcon className="size-4 text-outline-gray dark:text-white/50" />
+                              <AiPhone01Icon className="size-4 text-outline-gray dark:text-white/50" />
                             );
                           }
                           if (req.includes("Selfie verification")) {
@@ -258,7 +259,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                     onClick={() => {
                       setIsLimitModalOpen(true);
                     }}
-                    title={`Upgrade to ${tierData.name}`}
+                    title={`Upgrade to ${formatKycTierDisplayLabel(tierLevel)}`}
                     className="min-h-11 w-full rounded-xl bg-lavender-600 px-4 py-2 text-center text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600"
                   >
                     Verify now
@@ -371,8 +372,8 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                           </div>
                         </div>
 
-                        {/* Current Tier Status */}
-                        {tier !== undefined && tier !== null && (
+                        {/* Current tier status — only after tier 1+ (no "Free" badge) */}
+                        {hasAssignedKycTier(tier) && (
                           <div className="space-y-4 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/5">
                             {/* Current Tier Badge */}
 
@@ -382,7 +383,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                                 size={16}
                               />
                               <span className="text-xs font-medium text-white dark:text-black">
-                                Current: {KYC_TIERS[tier]?.name ?? "Free"}
+                                Current: {formatKycTierDisplayLabel(tier)}
                               </span>
                             </div>
 
@@ -422,10 +423,10 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                                 onClick={() => {
                                   setIsLimitModalOpen(true);
                                 }}
-                                title={`Upgrade to ${KYC_TIERS[tier + 1]?.name}`}
+                                title={`Upgrade to ${formatKycTierDisplayLabel(tier + 1)}`}
                                 className="min-h-11 w-full rounded-xl bg-lavender-600 px-4 py-2 text-center text-sm font-light text-white transition-all hover:scale-[0.98] hover:bg-lavender-700 active:scale-95 dark:bg-lavender-500 dark:hover:bg-lavender-600"
                               >
-                                Increase limit → {KYC_TIERS[tier + 1]?.name}
+                                Increase limit → {formatKycTierDisplayLabel(tier + 1)}
                               </button>
                             )}
                           </div>

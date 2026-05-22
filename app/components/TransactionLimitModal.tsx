@@ -16,8 +16,10 @@ import { formatNumberWithCommas } from "../utils";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { KycModal } from "./KycModal";
 import {
+  formatKycTierDisplayLabel,
   getKycModalTargetTier,
   getKycUpgradeStep,
+  hasAssignedKycTier,
 } from "@/app/lib/kyc-upgrade-path";
 
 interface TransactionLimitModalProps {
@@ -53,7 +55,6 @@ export default function TransactionLimitModal({
   }, [isOpen, refreshStatus]);
 
   const currentLimits = getCurrentLimits();
-  const currentTier = KYC_TIERS[tier];
   const nextTier = KYC_TIERS[tier + 1];
 
   const openNextUpgrade = () => {
@@ -104,12 +105,14 @@ export default function TransactionLimitModal({
       </div>
 
       <div className="flex flex-col items-start space-y-4 rounded-3xl border-[0.3px] border-gray-200 p-4 dark:border-white/5">
-        <div className="flex items-center gap-2 rounded-md bg-[#39C65D] px-3 py-1.5 dark:bg-[#39C65D]">
-          <StarIcon className="text-white dark:text-black" size={16} />
-          <span className="text-sm font-medium text-white dark:text-black">
-            Current: {currentTier?.name ?? "Free"}
-          </span>
-        </div>
+        {hasAssignedKycTier(tier) && (
+          <div className="flex items-center gap-2 rounded-md bg-[#39C65D] px-3 py-1.5 dark:bg-[#39C65D]">
+            <StarIcon className="text-white dark:text-black" size={16} />
+            <span className="text-sm font-medium text-white dark:text-black">
+              Current: {formatKycTierDisplayLabel(tier)}
+            </span>
+          </div>
+        )}
 
         <div className="w-full space-y-3">
           <div className="flex items-center gap-2">
@@ -152,16 +155,16 @@ export default function TransactionLimitModal({
             <>
               You&apos;ve reached your free-mode limit ($
               {formatNumberWithCommas(currentLimits.monthly)}/month). Verify your
-              phone to unlock {KYC_TIERS[1].name} ($
+              phone to unlock {formatKycTierDisplayLabel(1)} ($
               {formatNumberWithCommas(tier1Limits)}/month). ID and address
               verification unlock higher limits after that.
             </>
           ) : (
             <>
-              You&apos;re currently at {currentTier?.name} with $
+              You&apos;re currently at {formatKycTierDisplayLabel(tier)} with $
               {formatNumberWithCommas(currentLimits.monthly)}/month.{" "}
               {nextTier
-                ? `Upgrade to ${nextTier.name} for ${nextTier.limits.unlimited ? "unlimited transactions" : `$${formatNumberWithCommas(nextTier.limits.monthly)}/month`}`
+                ? `Upgrade to ${formatKycTierDisplayLabel(tier + 1)} for ${nextTier.limits.unlimited ? "unlimited transactions" : `$${formatNumberWithCommas(nextTier.limits.monthly)}/month`}`
                 : "You have the highest tier available"}
               .
             </>
@@ -180,16 +183,6 @@ export default function TransactionLimitModal({
             : upgradeStep === "id"
               ? "Verify ID to increase limit"
               : "Verify address to increase limit"}
-        </button>
-      )}
-
-      {tier < 1 && (
-        <button
-          type="button"
-          onClick={onClose}
-          className={`${secondaryBtnClasses} w-full`}
-        >
-          Continue in free mode
         </button>
       )}
 

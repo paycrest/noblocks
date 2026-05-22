@@ -50,7 +50,7 @@ import {
   useNetwork,
   useTokens,
 } from "../context";
-import { isValidEvmAddressCaseInsensitive } from "../lib/validation";
+import { validateWalletAddress } from "../lib/validation";
 import WalletMigrationModal from "../components/WalletMigrationModal";
 
 /**
@@ -580,14 +580,11 @@ export const TransactionForm = ({
     handleSubmit(onSubmit)();
   };
 
-  // Clear recipient when it does not match the selected network (e.g. EOA left after switching to Starknet)
+  // Clear recipient when it is invalid for the selected network (EVM ↔ Starknet switches)
   useEffect(() => {
     const w = (getValues("walletAddress") ?? "").trim();
     if (!w) return;
-    if (
-      selectedNetwork.chain.name === "Starknet" &&
-      isValidEvmAddressCaseInsensitive(w)
-    ) {
+    if (validateWalletAddress(w, selectedNetwork.chain.name) !== true) {
       setValue("walletAddress", "", { shouldDirty: true });
     }
   }, [selectedNetwork.chain.name, getValues, setValue]);

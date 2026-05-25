@@ -2,7 +2,7 @@ import type { KYCTierLevel } from "@/app/context/KYCContext";
 
 /**
  * Verification ladder (monthly caps from `NEXT_PUBLIC_KYC_TIER_*_MONTHLY`):
- * - Tier 0: free mode — transact within cap, no phone/ID/address required
+ * - Tier 0: unverified — phone required before swapping
  * - Tier 1: phone verification
  * - Tier 2: government ID + selfie
  * - Tier 3: address verification

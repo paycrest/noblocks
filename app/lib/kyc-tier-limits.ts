@@ -1,13 +1,12 @@
 /**
  * KYC tier monthly spend limits (USD). Used by the client (NEXT_PUBLIC_*) and API route.
- * Tier 0 (free mode): transact up to cap with no verification.
- * Tier 1 = phone, 2 = ID, 3 = address — each raises the monthly cap.
+ * Tier 0 = unverified (no monthly spend until phone). Tier 1 = phone, 2 = ID, 3 = address.
  */
 const DEFAULT_KYC_MONTHLY_LIMITS: Record<number, number> = {
   0: 0,
-  1: 100,
-  2: 15000,
-  3: 50000,
+  1: 0.5,
+  2: 1,
+  3: 2,
 };
 
 function parseNonNegativeNumber(value: string | undefined, fallback: number): number {

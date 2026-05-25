@@ -627,6 +627,7 @@ export const TransactionForm = ({
 });
 
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isPhoneVerificationOpen, setIsPhoneVerificationOpen] = useState(false);
   const [isTier2PhoneGateOpen, setIsTier2PhoneGateOpen] = useState(false);
   /** After phone OTP, KYC context may not have updated before the next handleSwap; allow one continuation. */
   const pendingContinueSwapAfterPhoneRef = useRef(false);
@@ -670,6 +671,10 @@ export const TransactionForm = ({
     const limitCheck = canTransact(usdAmount);
 
     if (!limitCheck.allowed) {
+      if (tier < 1 || !isPhoneVerified) {
+        setIsPhoneVerificationOpen(true);
+        return;
+      }
       setBlockedTransactionAmount(usdAmount);
       setIsLimitModalOpen(true);
       return;
@@ -679,7 +684,8 @@ export const TransactionForm = ({
     handleSubmit(onSubmit)();
   };
 
-  const handleTier2PhoneVerified = async (_verifiedPhone: string) => {
+  const handlePhoneVerified = async (_verifiedPhone: string) => {
+    setIsPhoneVerificationOpen(false);
     setIsTier2PhoneGateOpen(false);
     pendingContinueSwapAfterPhoneRef.current = true;
     await refreshStatus(true);
@@ -1255,11 +1261,12 @@ export const TransactionForm = ({
         />
 
         <PhoneVerificationModal
-          isOpen={isTier2PhoneGateOpen}
+          isOpen={isPhoneVerificationOpen || isTier2PhoneGateOpen}
           onClose={() => {
+            setIsPhoneVerificationOpen(false);
             setIsTier2PhoneGateOpen(false);
           }}
-          onVerified={handleTier2PhoneVerified}
+          onVerified={handlePhoneVerified}
         />
 
         {/* Loading and Submit buttons */}
@@ -1292,9 +1299,9 @@ export const TransactionForm = ({
                     (fetchedTokens.find((t) => t.symbol === token)
                       ?.address as `0x${string}`) ?? "",
                   ),
+                () => setIsPhoneVerificationOpen(true),
                 () => setIsLimitModalOpen(true),
                 isPhoneVerified,
-                () => setIsKycModalOpen(true),
                 isUserVerified,
                 () => setIsMigrationModalOpen(true),
               )}

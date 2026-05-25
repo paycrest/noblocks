@@ -26,11 +26,11 @@ export interface KYCTier {
 
 const kycMonthlyLimits = getKycMonthlyLimitsRecord();
 
-/** Product tiers: 0 = free (trade within cap, no verification), 1 = phone, 2 = ID, 3 = address. */
+/** Product tiers: 0 = unverified (no swaps until phone), 1 = phone, 2 = ID, 3 = address. */
 export const KYC_TIERS: Record<number, KYCTier> = {
   0: {
     level: 0,
-    name: "Free",
+    name: "Unverified",
     limits: { monthly: kycMonthlyLimits[0] },
     requirements: [],
   },

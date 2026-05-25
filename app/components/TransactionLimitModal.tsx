@@ -153,9 +153,8 @@ export default function TransactionLimitModal({
         <p className="text-xs font-light text-text-secondary dark:text-white/50">
           {tier < 1 ? (
             <>
-              You&apos;ve reached your free-mode limit ($
-              {formatNumberWithCommas(currentLimits.monthly)}/month). Verify your
-              phone to unlock {formatKycTierDisplayLabel(1)} ($
+              Verify your phone to start swapping on{" "}
+              {formatKycTierDisplayLabel(1)} ($
               {formatNumberWithCommas(tier1Limits)}/month). ID and address
               verification unlock higher limits after that.
             </>

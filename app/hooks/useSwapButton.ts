@@ -146,13 +146,13 @@ export function useSwapButton({
       (authenticated || isInjectedWallet) &&
       amountSent > 0
     ) {
-      if (kycTier === 0) {
-        return "Increase limit";
+      // Not on Tier 1 yet: start phone verification (not "Increase limit").
+      if (kycTier < 1 || !isPhoneVerified) {
+        return hasPriorTransactionActivity
+          ? "Verify and start"
+          : "Start";
       }
-      if (isPhoneVerified) {
-        return labelForNextTierVerification(kycTier);
-      }
-      return hasPriorTransactionActivity ? "Verify and start" : "Get started";
+      return labelForNextTierVerification(kycTier);
     }
 
     return "Swap";
@@ -162,9 +162,9 @@ export function useSwapButton({
     handleSwap: () => void,
     login: () => void,
     handleFundWallet: () => void,
-    setIsLimitModalOpen: () => void,
+    openPhoneVerification: () => void,
+    openLimitModal: () => void,
     isPhoneVerified: boolean,
-    setIsKycModalOpen: () => void,
     isUserVerified: boolean,
     openMigrationModal: () => void,
   ) => {
@@ -178,11 +178,11 @@ export function useSwapButton({
       return handleFundWallet;
     }
     if (!hasInsufficientBalance && !isUserVerified && (authenticated || isInjectedWallet)) {
-      // Free mode (tier 0): limit modal → phone. Tier 1+: ID/address via KycModal.
+      // Tier 1 onboarding: phone modal. Active tier at cap: limit or ID/address upgrade.
       if (kycTier < 1 || !isPhoneVerified) {
-        return setIsLimitModalOpen;
+        return openPhoneVerification;
       }
-      return setIsKycModalOpen;
+      return openLimitModal;
     }
     return handleSwap;
   };

@@ -150,7 +150,7 @@ export function useSwapButton({
       if (kycTier < 1 || !isPhoneVerified) {
         return hasPriorTransactionActivity
           ? "Verify and start"
-          : "Start";
+          : "Get started";
       }
       return labelForNextTierVerification(kycTier);
     }

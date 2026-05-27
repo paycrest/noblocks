@@ -10,6 +10,7 @@ import {
   type EarnToken,
 } from "../hooks/useEarnHandler";
 import { classNames, getRelativeDate } from "../utils";
+import { EarnDisclosureBanner } from "./EarnDisclosureBanner";
 
 const TOKEN_DECIMALS = 6;
 const TOKEN_FACTOR = BigInt("1000000");
@@ -66,9 +67,13 @@ const Divider = () => (
 
 interface Props {
   onSelectActivity?: (entry: EarnActivityEntry) => void;
+  showDisclosureBanner?: boolean;
 }
 
-export const EarnActivityPanel: React.FC<Props> = ({ onSelectActivity }) => {
+export const EarnActivityPanel: React.FC<Props> = ({
+  onSelectActivity,
+  showDisclosureBanner = true,
+}) => {
   const { positions, activity, refreshAllPositions } = useEarnHandler();
 
   useEffect(() => {
@@ -105,6 +110,8 @@ export const EarnActivityPanel: React.FC<Props> = ({ onSelectActivity }) => {
 
   return (
     <div className="space-y-6">
+      {showDisclosureBanner ? <EarnDisclosureBanner /> : null}
+
       {suppliedTokens.length > 0 && (
         <div className="space-y-2">
           {suppliedTokens.map((t) => {

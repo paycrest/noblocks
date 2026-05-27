@@ -49,6 +49,9 @@ import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import WalletMigrationModal from "./WalletMigrationModal";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { EarnActivityPanel } from "./EarnActivityPanel";
+import { EarnConsentModal } from "./EarnConsentModal";
+import { useEarnAccess } from "../hooks/useEarnAccess";
+import { isEarnUiVisible } from "../lib/earnFeature";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -60,6 +63,12 @@ export const WalletDetails = () => {
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [isEarnModalOpen, setIsEarnModalOpen] = useState(false);
+  const {
+    isConsentModalOpen: isEarnConsentModalOpen,
+    requestEarnAccess,
+    handleConsentAccepted: handleEarnConsentAccepted,
+    dismissConsent: dismissEarnConsent,
+  } = useEarnAccess();
   const [activeTab, setActiveTab] = useState<
     "balances" | "transactions" | "earn"
   >("balances");
@@ -157,14 +166,21 @@ export const WalletDetails = () => {
     });
   }, [activeWallet?.address, fetchTransactions, getAccessToken]);
 
+  const showEarnUi = isEarnUiVisible(selectedNetwork.chain.name);
+
+  const onEarnAccessAction = (action: "earn-modal" | "earn-tab" | "earn-hub") => {
+    if (action === "earn-modal") setIsEarnModalOpen(true);
+    else if (action === "earn-tab") setActiveTab("earn");
+  };
+
   // The Earn tab only exists on Starknet; if the user switches network
   // while on it, return them to the default tab so they don't see an
   // empty/irrelevant pane on a non-Starknet chain.
   useEffect(() => {
-    if (activeTab === "earn" && selectedNetwork.chain.name !== "Starknet") {
+    if (activeTab === "earn" && !showEarnUi) {
       setActiveTab("balances");
     }
-  }, [activeTab, selectedNetwork.chain.name]);
+  }, [activeTab, showEarnUi]);
 
   // Focus refresh: re-quote NGN→USD and SWR-refresh balances when opening the drawer.
   // Uses softRefresh (cache-respecting) so repeated drawer opens within the cache TTL
@@ -378,9 +394,7 @@ export const WalletDetails = () => {
                         <div
                           className={classNames(
                             "grid gap-4",
-                            selectedNetwork.chain.name === "Starknet"
-                              ? "grid-cols-3"
-                              : "grid-cols-2",
+                            showEarnUi ? "grid-cols-3" : "grid-cols-2",
                           )}
                         >
                           <button
@@ -399,11 +413,13 @@ export const WalletDetails = () => {
                           >
                             Fund
                           </button>
-                          {selectedNetwork.chain.name === "Starknet" && (
+                          {showEarnUi && (
                             <button
                               type="button"
                               title="Earn yield on USDC via Vesu"
-                              onClick={() => setIsEarnModalOpen(true)}
+                              onClick={() =>
+                                requestEarnAccess("earn-modal", onEarnAccessAction)
+                              }
                               className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-all hover:scale-[0.98] hover:bg-[#EBEBEF] active:scale-95 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
                             >
                               Earn
@@ -444,10 +460,12 @@ export const WalletDetails = () => {
                           <OnrampPendingNotificationDot />
                         ) : null}
                       </button>
-                      {selectedNetwork.chain.name === "Starknet" && (
+                      {showEarnUi && (
                         <button
                           type="button"
-                          onClick={() => setActiveTab("earn")}
+                          onClick={() =>
+                            requestEarnAccess("earn-tab", onEarnAccessAction)
+                          }
                           title="View earn activity"
                           className={classNames(
                             "text-sm font-medium transition-colors",
@@ -677,6 +695,12 @@ export const WalletDetails = () => {
           </AnimatedModal>
         </>
       )}
+
+      <EarnConsentModal
+        isOpen={isEarnConsentModalOpen}
+        onClose={dismissEarnConsent}
+        onAccepted={() => handleEarnConsentAccepted(onEarnAccessAction)}
+      />
 
       <CopyAddressWarningModal
         isOpen={isWarningModalOpen}

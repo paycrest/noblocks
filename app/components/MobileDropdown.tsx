@@ -26,12 +26,24 @@ import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useTransactions } from "../context/TransactionsContext";
 import { networks } from "../mocks";
 import { Network, Token, TransactionHistory } from "../types";
-import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
+import {
+  WalletView,
+  HistoryView,
+  SettingsView,
+  EarnHubView,
+  EarnActivityDetailView,
+} from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm } from "./FundWalletForm";
 import { TransferForm } from "./TransferForm";
+import { EarnWalletForm } from "./EarnWalletForm";
+import { EarnConsentModal } from "./EarnConsentModal";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import WalletMigrationModal from "./WalletMigrationModal";
+import { useEarnAccess } from "../hooks/useEarnAccess";
+import { isEarnUiVisible } from "../lib/earnFeature";
+import type { EarnActivityEntry } from "../hooks/useEarnHandler";
+import type { MobileSheetView } from "../types";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useHandleExportEmbeddedWallet } from "../hooks/useHandleExportEmbeddedWallet";
 import { clearUserSessionData } from "../lib/session-cleanup";
@@ -43,9 +55,11 @@ export const MobileDropdown = ({
   isOpen: boolean;
   onClose: () => void;
 }) => {
-  const [currentView, setCurrentView] = useState<
-    "wallet" | "settings" | "transfer" | "fund" | "history"
-  >("wallet");
+  const [currentView, setCurrentView] = useState<MobileSheetView>("wallet");
+  const [selectedEarnActivity, setSelectedEarnActivity] =
+    useState<EarnActivityEntry | null>(null);
+  const [earnActivityReturnView, setEarnActivityReturnView] =
+    useState<Extract<MobileSheetView, "wallet" | "earn">>("wallet");
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
@@ -232,6 +246,24 @@ export const MobileDropdown = ({
 
   const { client } = useSmartWallets();
 
+  const showEarnUi = isEarnUiVisible(selectedNetwork.chain.name);
+  const {
+    isConsentModalOpen: isEarnConsentModalOpen,
+    requestEarnAccess,
+    handleConsentAccepted: handleEarnConsentAccepted,
+    dismissConsent: dismissEarnConsent,
+  } = useEarnAccess();
+
+  const onEarnAccessAction = (
+    action: "earn-modal" | "earn-tab" | "earn-hub",
+  ) => {
+    if (action === "earn-hub" || action === "earn-modal") {
+      setCurrentView("earn");
+    }
+  };
+
+  const starknetWalletTotal = allBalances.starknetWallet?.total ?? 0;
+
   return (
     <>
       <AnimatePresence>
@@ -288,11 +320,72 @@ export const MobileDropdown = ({
                               onSettings={() => setCurrentView("settings")}
                               onClose={onClose}
                               onHistory={() => setCurrentView("history")}
-                              setSelectedNetwork={setSelectedNetwork}
                               onRefreshBalance={refreshBalance}
                               isRefreshing={isRefreshing}
+                              showEarnUi={showEarnUi}
+                              walletBalanceUsd={starknetWalletTotal}
+                              onEarn={() =>
+                                requestEarnAccess("earn-hub", onEarnAccessAction)
+                              }
+                              onEarnActivityTab={(open) =>
+                                requestEarnAccess("earn-tab", () => open())
+                              }
+                              onSelectEarnActivity={(entry) => {
+                                setSelectedEarnActivity(entry);
+                                setEarnActivityReturnView("wallet");
+                                setCurrentView("earn-activity-detail");
+                              }}
+                              onSelectTransaction={(tx) => {
+                                setSelectedTransaction(tx);
+                                setCurrentView("history");
+                              }}
                             />
                           )}
+
+                          {currentView === "earn" && showEarnUi && (
+                            <EarnHubView
+                              onBack={() => setCurrentView("wallet")}
+                              onClose={onClose}
+                              onDeposit={() => setCurrentView("earn-deposit")}
+                              onWithdraw={() => setCurrentView("earn-withdraw")}
+                              onSelectActivity={(entry) => {
+                                setSelectedEarnActivity(entry);
+                                setEarnActivityReturnView("earn");
+                                setCurrentView("earn-activity-detail");
+                              }}
+                            />
+                          )}
+
+                          {currentView === "earn-deposit" && showEarnUi && (
+                            <EarnWalletForm
+                              layout="mobile"
+                              showBackButton
+                              initialTab="deposit"
+                              onBack={() => setCurrentView("earn")}
+                              onClose={onClose}
+                            />
+                          )}
+
+                          {currentView === "earn-withdraw" && showEarnUi && (
+                            <EarnWalletForm
+                              layout="mobile"
+                              showBackButton
+                              initialTab="withdraw"
+                              onBack={() => setCurrentView("earn")}
+                              onClose={onClose}
+                            />
+                          )}
+
+                          {currentView === "earn-activity-detail" &&
+                            selectedEarnActivity && (
+                              <EarnActivityDetailView
+                                entry={selectedEarnActivity}
+                                onBack={() => {
+                                  setSelectedEarnActivity(null);
+                                  setCurrentView(earnActivityReturnView);
+                                }}
+                              />
+                            )}
 
                           {currentView === "settings" && (
                             <SettingsView
@@ -349,6 +442,12 @@ export const MobileDropdown = ({
           </Dialog>
         )}
       </AnimatePresence>
+
+      <EarnConsentModal
+        isOpen={isEarnConsentModalOpen}
+        onClose={dismissEarnConsent}
+        onAccepted={() => handleEarnConsentAccepted(onEarnAccessAction)}
+      />
 
       <CopyAddressWarningModal
         isOpen={isWarningModalOpen}

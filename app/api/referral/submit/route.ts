@@ -13,6 +13,14 @@ import config from "@/app/lib/config";
 
 const referralRewardAmountUsd = config.referralRewardAmountUsd;
 
+function isUniqueViolation(error: { code?: string; message?: string } | null): boolean {
+    return (
+        error?.code === "23505" ||
+        Boolean(error?.message?.toLowerCase().includes("duplicate")) ||
+        Boolean(error?.message?.toLowerCase().includes("unique"))
+    );
+}
+
 export const POST = withRateLimit(async (request: NextRequest) => {
     const startTime = Date.now();
 
@@ -81,25 +89,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             );
         }
 
-        // Check if user already has a referral
-        const { data: existingReferral, error: existingError } =
-            await supabaseAdmin
-                .from("referrals")
-                .select("id")
-                .eq("referred_wallet_address", walletAddress)
-                .single();
-
-        if (existingError && existingError.code !== "PGRST116") {
-            throw existingError;
-        }
-
-        if (existingReferral) {
-            return NextResponse.json(
-                { success: false, error: "You have already used a referral code" },
-                { status: 409 }
-            );
-        }
-
         // Find the referrer by code
         const { data: referrer, error: referrerError } = await supabaseAdmin
             .from("users")
@@ -153,7 +142,20 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             .single();
 
         if (insertError) {
+            if (isUniqueViolation(insertError)) {
+                return NextResponse.json(
+                    {
+                        success: false,
+                        error: "You have already used a referral code",
+                    },
+                    { status: 409 },
+                );
+            }
             throw insertError;
+        }
+
+        if (!referralData) {
+            throw new Error("Referral insert returned no row");
         }
 
         // Track successful response

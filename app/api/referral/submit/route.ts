@@ -9,6 +9,9 @@ import {
     trackAuthEvent,
 } from "@/app/lib/server-analytics";
 import { getWalletAddressFromPrivyUserId } from "@/app/lib/privy";
+import config from "@/app/lib/config";
+
+const referralRewardAmountUsd = config.referralRewardAmountUsd;
 
 export const POST = withRateLimit(async (request: NextRequest) => {
     const startTime = Date.now();
@@ -120,8 +123,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             );
         }
 
-        // Prevent self-referral
-        if (referrer.wallet_address.toLowerCase() === walletAddress) {
+        // Prevent self-referral (normalize casing — DB may store checksummed addresses)
+        if (
+            referrer.wallet_address.toLowerCase() ===
+            walletAddress.toLowerCase()
+        ) {
             return NextResponse.json(
                 {
                     success: false,
@@ -140,7 +146,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 referred_wallet_address: walletAddress,
                 referral_code: normalizedCode,
                 status: "pending",
-                reward_amount: 1.0, // $1 reward
+                reward_amount: referralRewardAmountUsd,
                 created_at: new Date().toISOString(),
             })
             .select()

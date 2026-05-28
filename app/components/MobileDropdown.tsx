@@ -70,7 +70,7 @@ export const MobileDropdown = ({
 
   const { user, linkEmail, updateEmail } = usePrivy();
   const handleExportEmbeddedWallet = useHandleExportEmbeddedWallet();
-  const { allBalances, crossChainBalances, isLoading, isRefreshing, refreshBalance } = useBalance();
+  const { allBalances, crossChainBalances, crossChainTotal, isLoading, isRefreshing, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
   const { ensureWalletExists } = useStarknet();
   const { logout } = useLogout({
@@ -262,7 +262,7 @@ export const MobileDropdown = ({
     }
   };
 
-  const starknetWalletTotal = allBalances.starknetWallet?.total ?? 0;
+  const walletBalanceUsd = crossChainTotal ?? 0;
 
   return (
     <>
@@ -323,18 +323,10 @@ export const MobileDropdown = ({
                               onRefreshBalance={refreshBalance}
                               isRefreshing={isRefreshing}
                               showEarnUi={showEarnUi}
-                              walletBalanceUsd={starknetWalletTotal}
+                              walletBalanceUsd={walletBalanceUsd}
                               onEarn={() =>
                                 requestEarnAccess("earn-hub", onEarnAccessAction)
                               }
-                              onEarnActivityTab={(open) =>
-                                requestEarnAccess("earn-tab", () => open())
-                              }
-                              onSelectEarnActivity={(entry) => {
-                                setSelectedEarnActivity(entry);
-                                setEarnActivityReturnView("wallet");
-                                setCurrentView("earn-activity-detail");
-                              }}
                               onSelectTransaction={(tx) => {
                                 setSelectedTransaction(tx);
                                 setCurrentView("history");
@@ -346,6 +338,7 @@ export const MobileDropdown = ({
                             <EarnHubView
                               onBack={() => setCurrentView("wallet")}
                               onClose={onClose}
+                              onSettings={() => setCurrentView("settings")}
                               onDeposit={() => setCurrentView("earn-deposit")}
                               onWithdraw={() => setCurrentView("earn-withdraw")}
                               onSelectActivity={(entry) => {

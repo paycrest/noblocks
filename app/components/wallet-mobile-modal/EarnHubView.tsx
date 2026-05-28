@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo } from "react";
-import { ArrowLeft02Icon, Cancel01Icon } from "hugeicons-react";
+import { ArrowLeft02Icon, Cancel01Icon, Setting07Icon } from "hugeicons-react";
 import {
   EARN_TOKENS,
   useEarnHandler,
@@ -60,6 +60,7 @@ function projectEarnings(
 interface EarnHubViewProps {
   onBack: () => void;
   onClose: () => void;
+  onSettings?: () => void;
   onDeposit: () => void;
   onWithdraw: () => void;
   onSelectActivity: (entry: EarnActivityEntry) => void;
@@ -68,6 +69,7 @@ interface EarnHubViewProps {
 export const EarnHubView: React.FC<EarnHubViewProps> = ({
   onBack,
   onClose,
+  onSettings,
   onDeposit,
   onWithdraw,
   onSelectActivity,
@@ -110,14 +112,26 @@ export const EarnHubView: React.FC<EarnHubViewProps> = ({
             Earn
           </span>
         </button>
-        <button
-          type="button"
-          title="Close"
-          onClick={onClose}
-          className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
-        >
-          <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
-        </button>
+        <div className="flex items-center">
+          {onSettings ? (
+            <button
+              type="button"
+              title="Settings"
+              onClick={onSettings}
+              className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
+            >
+              <Setting07Icon className="size-5 text-outline-gray dark:text-white/50" />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            title="Close"
+            onClick={onClose}
+            className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-white/10"
+          >
+            <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4 rounded-[20px] border border-border-light bg-accent-gray/40 p-5 dark:border-white/10 dark:bg-white/5">

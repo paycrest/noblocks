@@ -22,15 +22,13 @@ import {
 } from "../../utils";
 import type { CrossChainBalanceEntry } from "../../context";
 import TransactionList from "../transaction/TransactionList";
-import { EarnActivityPanel } from "../EarnActivityPanel";
-import type { EarnActivityEntry } from "../../hooks/useEarnHandler";
 import type { Network, TransactionHistory } from "../../types";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
 );
 
-type WalletTab = "balances" | "transactions" | "earn";
+type WalletTab = "balances" | "transactions";
 
 interface WalletViewProps {
   isInjectedWallet: boolean;
@@ -55,10 +53,7 @@ interface WalletViewProps {
   isRefreshing?: boolean;
   showEarnUi?: boolean;
   onEarn?: () => void;
-  /** Called before switching to the earn activity tab; invoke `open` after consent. */
-  onEarnActivityTab?: (open: () => void) => void;
   walletBalanceUsd?: number;
-  onSelectEarnActivity?: (entry: EarnActivityEntry) => void;
   onSelectTransaction?: (tx: TransactionHistory) => void;
 }
 
@@ -85,9 +80,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   isRefreshing = false,
   showEarnUi = false,
   onEarn,
-  onEarnActivityTab,
   walletBalanceUsd = 0,
-  onSelectEarnActivity,
   onSelectTransaction,
 }) => {
   const showBalanceSkeleton = isLoading && !isRefreshing;
@@ -95,24 +88,10 @@ export const WalletView: React.FC<WalletViewProps> = ({
   const [isAddressCopied, setIsAddressCopied] = useState(false);
 
   useEffect(() => {
-    if (!showEarnUi && walletTab !== "balances") {
-      setWalletTab("balances");
-    }
-  }, [showEarnUi, walletTab]);
-
-  useEffect(() => {
     if (showEarnUi && selectedNetwork.chain.name !== "Starknet") {
       setWalletTab("balances");
     }
   }, [showEarnUi, selectedNetwork.chain.name]);
-
-  const handleTabChange = (tab: WalletTab) => {
-    if (tab === "earn" && onEarnActivityTab) {
-      onEarnActivityTab(() => setWalletTab("earn"));
-      return;
-    }
-    setWalletTab(tab);
-  };
 
   const handleCopyInCard = async () => {
     handleCopyAddress();
@@ -130,6 +109,19 @@ export const WalletView: React.FC<WalletViewProps> = ({
           Wallet
         </h2>
         <div className="flex items-center">
+          {showEarnUi && (
+            <button
+              type="button"
+              title="Refresh balance"
+              onClick={onRefreshBalance}
+              disabled={isLoading}
+              className="rounded-lg p-2 hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-white/10"
+            >
+              <RefreshIcon
+                className={`size-5 text-outline-gray dark:text-white/50 ${isLoading || isRefreshing ? "animate-spin" : ""}`}
+              />
+            </button>
+          )}
           {!showEarnUi && (
             <button
               type="button"
@@ -239,53 +231,97 @@ export const WalletView: React.FC<WalletViewProps> = ({
           </div>
         )}
 
-        {showEarnUi && (
-          <div className="flex items-center gap-6 overflow-x-auto pb-1">
-            {(
-              [
-                ["balances", "Balances"],
-                ["transactions", "Transactions"],
-                ["earn", "Earn activity"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => handleTabChange(id)}
-                className={classNames(
-                  "shrink-0 text-sm font-medium transition-colors",
-                  walletTab === id
-                    ? "text-text-body dark:text-white"
-                    : "text-text-disabled dark:text-white/30",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {(!showEarnUi || walletTab === "balances") && (
-          <div className="space-y-4">
-            {showEarnUi && (
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium text-text-secondary dark:text-white/50">
-                  Balances
-                </h3>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-6">
+              {(
+                [
+                  ["balances", "Balances"],
+                  ["transactions", "Transactions"],
+                ] as const
+              ).map(([id, label]) => (
                 <button
+                  key={id}
                   type="button"
-                  onClick={onRefreshBalance}
-                  title="Refresh balance"
-                  disabled={isLoading}
-                  className="rounded-lg p-1.5 transition-colors hover:bg-accent-gray disabled:opacity-50 dark:hover:bg-white/10"
+                  onClick={() => setWalletTab(id)}
+                  className={classNames(
+                    "shrink-0 text-sm font-medium transition-colors",
+                    walletTab === id
+                      ? "text-text-body dark:text-white"
+                      : "text-text-disabled dark:text-white/30",
+                  )}
                 >
-                  <RefreshIcon
-                    className={`size-4 text-outline-gray dark:text-white/50 ${isLoading || isRefreshing ? "animate-spin" : ""}`}
-                  />
+                  {label}
                 </button>
-              </div>
-            )}
+              ))}
+            </div>
+            <button
+              type="button"
+              title="Select network"
+              onClick={() => setIsNetworkListOpen(!isNetworkListOpen)}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg py-1 pl-1 pr-0.5 hover:bg-accent-gray dark:hover:bg-white/10"
+            >
+              <Image
+                src={getNetworkImageUrl(selectedNetwork, isDark)}
+                alt={selectedNetwork.chain.name}
+                width={16}
+                height={16}
+                className="size-4 rounded-full"
+              />
+              <span className="max-w-[5.5rem] truncate text-sm font-medium text-text-body dark:text-white">
+                {selectedNetwork.chain.name}
+              </span>
+              <ArrowDown01Icon
+                className={classNames(
+                  "size-4 text-outline-gray transition-transform dark:text-white/50",
+                  isNetworkListOpen && "rotate-180",
+                )}
+              />
+            </button>
+          </div>
 
+          <AnimatePresence>
+            {isNetworkListOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="space-y-1 overflow-hidden rounded-xl border border-border-light p-2 dark:border-white/10"
+              >
+                {networks.map((network) => (
+                  <button
+                    type="button"
+                    key={network.chain.name}
+                    onClick={() => handleNetworkSwitchWrapper(network)}
+                    className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 hover:bg-accent-gray dark:hover:bg-white/5"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Image
+                        src={getNetworkImageUrl(network, isDark)}
+                        alt={network.chain.name}
+                        width={24}
+                        height={24}
+                        className="size-6"
+                      />
+                      <span className="text-text-body dark:text-white/80">
+                        {network.chain.name}
+                      </span>
+                    </div>
+                    {selectedNetwork.chain.name === network.chain.name && (
+                      <PiCheck
+                        className="size-5 text-green-900 dark:text-green-500"
+                        strokeWidth={2}
+                      />
+                    )}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {walletTab === "balances" && (
+          <div className="space-y-4">
             {showBalanceSkeleton ? (
               <CrossChainBalanceSkeleton isMobile />
             ) : (
@@ -375,14 +411,10 @@ export const WalletView: React.FC<WalletViewProps> = ({
           </div>
         )}
 
-        {showEarnUi && walletTab === "transactions" && (
+        {walletTab === "transactions" && (
           <TransactionList
             onSelectTransaction={(tx) => onSelectTransaction?.(tx)}
           />
-        )}
-
-        {showEarnUi && walletTab === "earn" && (
-          <EarnActivityPanel onSelectActivity={onSelectEarnActivity} />
         )}
       </div>
 
@@ -408,108 +440,6 @@ export const WalletView: React.FC<WalletViewProps> = ({
           </button>
         </div>
       )}
-
-      {/* Network List Container */}
-      <div
-        className={classNames(
-          "space-y-3 rounded-[20px] py-3",
-          isNetworkListOpen
-            ? "border border-border-light px-4 dark:border-white/10"
-            : "",
-        )}
-      >
-        <div
-          className="flex cursor-pointer items-center justify-between"
-          onClick={() => setIsNetworkListOpen(!isNetworkListOpen)}
-        >
-          <div
-            className={classNames(
-              "flex items-center",
-              isNetworkListOpen ? "gap-3" : "gap-1",
-            )}
-          >
-            <AnimatePresence mode="wait">
-              <motion.span
-                key={isNetworkListOpen ? "select" : "network"}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className={classNames(
-                  "font-medium text-text-body",
-                  isNetworkListOpen
-                    ? "text-base dark:text-white"
-                    : "dark:text-white/80",
-                )}
-              >
-                {isNetworkListOpen ? "Select network" : "Network"}
-              </motion.span>
-            </AnimatePresence>
-          </div>
-          <AnimatePresence mode="wait">
-            {!isNetworkListOpen && (
-              <motion.div
-                initial={{ x: -10, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                exit={{ x: -10, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-2"
-              >
-                <Image
-                  src={getNetworkImageUrl(selectedNetwork, isDark)}
-                  alt={selectedNetwork.chain.name}
-                  width={16}
-                  height={16}
-                  className="size-4 rounded-full"
-                />
-                <span className="text-text-body dark:text-white">
-                  {selectedNetwork.chain.name}
-                </span>
-                <ArrowDown01Icon className="size-4 text-outline-gray transition-transform dark:text-white/50" />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <AnimatePresence>
-          {isNetworkListOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="space-y-2 overflow-hidden *:min-h-11"
-            >
-              {networks.map((network) => (
-                <button
-                  type="button"
-                  key={network.chain.name}
-                  onClick={() => handleNetworkSwitchWrapper(network)}
-                  className="flex w-full items-center justify-between"
-                >
-                  <div className="flex items-center gap-2 py-2.5">
-                    <Image
-                      src={getNetworkImageUrl(network, isDark)}
-                      alt={network.chain.name}
-                      width={24}
-                      height={24}
-                      className="size-6"
-                    />
-                    <span className="text-text-body dark:text-white/80">
-                      {network.chain.name}
-                    </span>
-                  </div>
-                  {selectedNetwork.chain.name === network.chain.name && (
-                    <PiCheck
-                      className="size-5 text-green-900 dark:text-green-500"
-                      strokeWidth={2}
-                    />
-                  )}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
     </div>
   );
 };

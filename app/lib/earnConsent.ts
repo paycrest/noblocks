@@ -11,5 +11,6 @@ export function setEarnConsentAccepted(): void {
   localStorage.setItem(EARN_CONSENT_STORAGE_KEY, "true");
 }
 
-/** Vesu product overview. */
-export const EARN_LEARN_MORE_URL = "https://vesu.xyz";
+/** Earn / Vesu risk disclosure article. */
+export const EARN_LEARN_MORE_URL =
+  "https://docs.google.com/document/d/13_C1VoNiWXl0gOzcLGuOF_sz_2dEKhuKkIAjwfzC654/edit?tab=t.0#heading=h.vabjr2kta3us";

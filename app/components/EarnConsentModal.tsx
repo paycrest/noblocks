@@ -15,7 +15,7 @@ interface EarnConsentModalProps {
 }
 
 const RISK_COPY =
-  "Before you continue, please note that Earn works differently from your Noblocks wallet. When you use Earn, your funds leave our platform entirely and are managed by independent third-party blockchain protocols that we do not own, operate, or control.\n\nYour USDC will be transferred to Vesu, a decentralized lending protocol on the Starknet blockchain.\n\nNoblocks will have no access to your funds while they are in EarnWe cannot freeze, recover, reverse, or guarantee your funds once they leave our platform - This is not a savings account. There is no deposit insurance. Returns are not guaranteed.";
+  "Before you continue, please note that Earn works differently from your Noblocks wallet. When you use Earn, your funds leave our platform entirely and are managed by independent third-party blockchain protocols that we do not own, operate, or control.\n\nYour USDC will be transferred to Vesu, a decentralized lending protocol on the Starknet blockchain.\n\nNoblocks will have no access to your funds while they are in Earn. We cannot freeze, recover, reverse, or guarantee your funds once they leave our platform - This is not a savings account. There is no deposit insurance. Returns are not guaranteed.";
 
 /** Above mobile wallet sheet (z-60); below copy-address warning (z-80). */
 const EARN_CONSENT_Z = "z-[65]";

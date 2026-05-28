@@ -114,7 +114,19 @@ export function reportClientError(
 ): void {
   if (typeof window === "undefined") return;
   ensureSentryClientInitialized();
+  const tags: Record<string, string> = {};
+  const feature = context?.feature;
+  const flow = context?.flow;
+  const step = context?.step;
+  const statusCode = context?.statusCode;
+
+  if (typeof feature === "string" && feature.trim()) tags.feature = feature;
+  if (typeof flow === "string" && flow.trim()) tags.flow = flow;
+  if (typeof step === "string" && step.trim()) tags.step = step;
+  if (typeof statusCode === "number") tags.statusCode = String(statusCode);
+
   Sentry.captureException(error, {
+    tags,
     extra: context,
   });
 }

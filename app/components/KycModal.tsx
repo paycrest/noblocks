@@ -21,6 +21,7 @@ import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics/client";
 import { Cancel01Icon, CheckmarkCircle01Icon } from "hugeicons-react";
 import { useInjectedWallet } from "../context";
+import { reportClientError } from "../lib/sentry.client";
 
 export const STEPS = {
   TERMS: "terms",
@@ -87,6 +88,11 @@ export const KycModal = ({
 
           signature = signResult;
         } catch (error) {
+          reportClientError(error, {
+            feature: "onboarding",
+            flow: "kyc",
+            step: "kyc-sign-message-injected",
+          });
           console.error("Injected wallet signature error:", error);
           toast.error("Failed to sign message with injected wallet");
           setIsSigning(false);
@@ -135,6 +141,21 @@ export const KycModal = ({
         }
       }
     } catch (error: unknown) {
+      reportClientError(error, {
+        feature: "onboarding",
+        flow: "kyc",
+        step: "kyc-initiate",
+        statusCode:
+          typeof (error as { response?: { status?: unknown } })?.response
+            ?.status === "number"
+            ? (error as { response?: { status?: number } }).response?.status
+            : undefined,
+        networkError:
+          error instanceof Error &&
+          (error as { message?: string }).message
+            ?.toLowerCase()
+            .includes("network"),
+      });
       console.log("error", error);
       if (
         error instanceof Error &&
@@ -523,6 +544,17 @@ export const KycModal = ({
         setStep(STEPS.TERMS);
         return;
       }
+
+      reportClientError(error, {
+        feature: "onboarding",
+        flow: "kyc",
+        step: "kyc-status-refresh",
+        statusCode:
+          typeof (error as { response?: { status?: unknown } })?.response
+            ?.status === "number"
+            ? (error as { response?: { status?: number } }).response?.status
+            : undefined,
+      });
 
       // Show error message from backend if available, otherwise show generic error
       if (error instanceof Error) {

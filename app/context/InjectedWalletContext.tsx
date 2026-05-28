@@ -11,6 +11,7 @@ import { createWalletClient, custom } from "viem";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { shouldUseInjectedWallet } from "../utils";
+import { reportClientError } from "../lib/sentry.client";
 
 interface InjectedWalletContextType {
   isInjectedWallet: boolean;
@@ -54,6 +55,15 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
             setInjectedAddress(address);
             setInjectedReady(true);
           } else {
+            reportClientError(
+              new Error("Injected wallet did not return an address"),
+              {
+                feature: "onboarding",
+                flow: "wallet",
+                step: "injected-wallet-init",
+                networkError: false,
+              },
+            );
             console.warn("No address returned from injected wallet.");
             toast.error(
               "Couldn't connect to your wallet. Please check your wallet connection.",
@@ -73,6 +83,16 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
             setInjectedAddress(null);
             setInjectedReady(false);
           } else {
+            reportClientError(error, {
+              feature: "onboarding",
+              flow: "wallet",
+              step: "injected-wallet-init",
+              networkError: true,
+              errorCode:
+                typeof (error as { code?: unknown })?.code === "number"
+                  ? (error as { code?: number }).code
+                  : undefined,
+            });
             toast.error(
               "Failed to connect to wallet. Please refresh and try again.",
             );

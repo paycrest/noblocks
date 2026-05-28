@@ -13,7 +13,7 @@ import { submitReferralCode } from "../api/aggregator";
 interface ReferralInputModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmitSuccess: () => void;
+    onSubmitSuccess?: () => void;
 }
 
 export const ReferralInputModal = ({
@@ -50,7 +50,7 @@ export const ReferralInputModal = ({
 
                 if (res && res.success) {
                     toast.success(res.data?.message || "Referral code applied! Complete KYC and your first transaction to earn rewards.");
-                    onSubmitSuccess();
+                    onSubmitSuccess?.();
                     onClose();
                 } else {
                     // API returned a well-formed error response
@@ -99,7 +99,7 @@ export const ReferralInputModal = ({
                 </div>
 
                 <p className="text-sm text-text-secondary dark:text-white/50">
-                    Enter your referral code below and get $1 on your first $100 transaction on {sponsorChain}
+                    Enter your referral code below and get $1 on your first $20 transaction on {sponsorChain}
                 </p>
 
                 <div className="space-y-3">
@@ -133,7 +133,7 @@ export const ReferralInputModal = ({
                         onClick={handleSkip}
                         className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-colors hover:bg-accent-gray/80 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
                     >
-                        I don't have a referral code
+                        I don&apos;t have a referral code
                     </button>
                 </div>
             </motion.div>

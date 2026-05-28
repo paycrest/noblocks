@@ -111,9 +111,6 @@ const PageLayout = ({
       <ReferralInputModal
         isOpen={showReferralModal}
         onClose={onReferralModalClose}
-        onSubmitSuccess={() => {
-          toast.success("Welcome! Complete KYC and your first transaction to earn rewards.");
-        }}
       />
 
       <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
@@ -290,18 +287,24 @@ export function MainPageContent() {
 
   const walletAddress = useWalletAddress();
 
-  const handleNetworkSelected = useCallback(() => {
-    if (!authenticated || !walletAddress) {
+  const showReferralIfEligible = useCallback(() => {
+    if (!ready || !authenticated || !walletAddress || isInjectedWallet) {
       return;
     }
 
     const referralStorageKey = `hasSeenReferralModal-${walletAddress.toLowerCase()}`;
-    const hasSeenReferralModal = localStorage.getItem(referralStorageKey);
-
-    if (!hasSeenReferralModal) {
+    if (!localStorage.getItem(referralStorageKey)) {
       setShowReferralModal(true);
     }
-  }, [authenticated, walletAddress]);
+  }, [ready, authenticated, walletAddress, isInjectedWallet]);
+
+  const handleNetworkSelected = useCallback(() => {
+    showReferralIfEligible();
+  }, [showReferralIfEligible]);
+
+  useEffect(() => {
+    showReferralIfEligible();
+  }, [showReferralIfEligible]);
 
   const handleReferralModalClose = useCallback(() => {
     setShowReferralModal(false);

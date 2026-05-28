@@ -85,78 +85,116 @@ export default function TransactionLimitModal({
     <motion.div {...fadeInOut} className="space-y-4">
       <div className="space-y-3 text-start">
         <Wallet02Icon className="h-6 w-6 text-gray-400 dark:text-white/50" />
-        <DialogTitle className="text-md font-medium text-text-body dark:text-white">
-          Increase your transaction limit
+        <DialogTitle
+          className={
+            upgradeStep === "phone"
+              ? "text-lg font-medium leading-snug text-text-body dark:text-white"
+              : "text-md font-medium text-text-body dark:text-white"
+          }
+        >
+          {upgradeStep === "phone"
+            ? "Verify your Phone number to start swapping."
+            : "Increase your transaction limit"}
         </DialogTitle>
-        <p className="text-sm font-light text-text-secondary dark:text-white/50">
-          Your current monthly limit is{" "}
-          <span className="font-medium text-black dark:text-white">
-            ${formatNumberWithCommas(currentLimits.monthly)}
-          </span>
-          {transactionAmount > 0 ? (
-            <>
-              . This transaction (${formatNumberWithCommas(transactionAmount)})
-              would exceed that limit.
-            </>
-          ) : (
-            ". Verify to unlock higher limits."
-          )}
-        </p>
+        {upgradeStep !== "phone" && (
+          <p className="text-sm font-light text-text-secondary dark:text-white/50">
+            Your current monthly limit is{" "}
+            <span className="font-medium text-black dark:text-white">
+              ${formatNumberWithCommas(currentLimits.monthly)}
+            </span>
+            {transactionAmount > 0 ? (
+              <>
+                . This transaction (${formatNumberWithCommas(transactionAmount)}
+                ) would exceed that limit.
+              </>
+            ) : (
+              ". Verify to unlock higher limits."
+            )}
+          </p>
+        )}
       </div>
 
-      <div className="flex flex-col items-start space-y-4 rounded-3xl border-[0.3px] border-gray-200 p-4 dark:border-white/5">
-        {hasAssignedKycTier(tier) && (
-          <div className="flex items-center gap-2 rounded-md bg-[#39C65D] px-3 py-1.5 dark:bg-[#39C65D]">
-            <StarIcon className="text-white dark:text-black" size={16} />
-            <span className="text-sm font-medium text-white dark:text-black">
-              Current: {formatKycTierDisplayLabel(tier)}
-            </span>
-          </div>
-        )}
+      {upgradeStep === "phone" ? (
+        <div className="flex w-fit items-center gap-2 rounded-lg bg-[#39C65D] px-3 py-1.5">
+          <StarIcon className="text-white dark:text-black" size={16} />
+          <span className="text-sm font-medium text-white dark:text-black">
+            You&apos;re unverified
+          </span>
+        </div>
+      ) : (
+        <div className="flex flex-col items-start space-y-4 rounded-3xl border-[0.3px] border-gray-200 p-4 dark:border-white/5">
+          {hasAssignedKycTier(tier) && (
+            <div className="flex items-center gap-2 rounded-md bg-[#39C65D] px-3 py-1.5 dark:bg-[#39C65D]">
+              <StarIcon className="text-white dark:text-black" size={16} />
+              <span className="text-sm font-medium text-white dark:text-black">
+                Current: {formatKycTierDisplayLabel(tier)}
+              </span>
+            </div>
+          )}
 
-        <div className="w-full space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-text-secondary dark:text-white/70">
-              Monthly limit
-            </span>
-            <InformationCircleIcon className="h-4 w-4 text-gray-400 dark:text-white/40" />
-          </div>
-
-          <div className="w-full text-start">
-            <div className="mb-2 text-2xl font-light text-text-body dark:text-white">
-              ${formatNumberWithCommas(transactionSummary.monthlySpent)} / $
-              {formatNumberWithCommas(currentLimits.monthly)}
+          <div className="w-full space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-text-secondary dark:text-white/70">
+                Monthly limit
+              </span>
+              <InformationCircleIcon className="h-4 w-4 text-gray-400 dark:text-white/40" />
             </div>
 
-            <div className="mb-4 flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/20">
-              <motion.div
-                className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
-                style={{
-                  width:
-                    currentLimits.monthly > 0
-                      ? `${Math.min(
-                          (transactionSummary.monthlySpent /
-                            currentLimits.monthly) *
+            <div className="w-full text-start">
+              <div className="mb-2 text-2xl font-light text-text-body dark:text-white">
+                ${formatNumberWithCommas(transactionSummary.monthlySpent)} / $
+                {formatNumberWithCommas(currentLimits.monthly)}
+              </div>
+
+              <div className="mb-4 flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/20">
+                <motion.div
+                  className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
+                  style={{
+                    width:
+                      currentLimits.monthly > 0
+                        ? `${Math.min(
+                            (transactionSummary.monthlySpent /
+                              currentLimits.monthly) *
+                              100,
                             100,
-                          100,
-                        )}%`
-                      : "0%",
-                }}
-              />
+                          )}%`
+                        : "0%",
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="flex items-start gap-2 rounded-xl bg-gray-50 p-3 dark:bg-white/5">
+      <div
+        className={`flex items-start gap-2 bg-gray-50 dark:bg-white/5 ${
+          upgradeStep === "phone" ? "rounded-2xl p-4" : "rounded-xl p-3"
+        }`}
+      >
         <InformationSquareIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-white/40" />
-        <p className="text-xs font-light text-text-secondary dark:text-white/50">
-          {tier < 1 ? (
+        <p
+          className={
+            upgradeStep === "phone"
+              ? "text-sm font-light leading-relaxed text-text-secondary dark:text-white/50"
+              : "text-xs font-light text-text-secondary dark:text-white/50"
+          }
+        >
+          {upgradeStep === "phone" ? (
             <>
-              Verify your phone to start swapping on{" "}
-              {formatKycTierDisplayLabel(1)} ($
-              {formatNumberWithCommas(tier1Limits)}/month). ID and address
-              verification unlock higher limits after that.
+              {formatKycTierDisplayLabel(1)} gives you{" "}
+              <span className="font-semibold text-text-body dark:text-white">
+                ${formatNumberWithCommas(tier1Limits)}/month
+              </span>
+              . Verify your phone number to begin swapping.{" "}
+              <a
+                href="https://paycrest.notion.site/KYC-Policy-10e2482d45a280e191b8d47d76a8d242"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-lavender-500 hover:underline dark:text-lavender-400"
+              >
+                Learn more.
+              </a>
             </>
           ) : (
             <>
@@ -178,7 +216,7 @@ export default function TransactionLimitModal({
           className={`${primaryBtnClasses} w-full`}
         >
           {upgradeStep === "phone"
-            ? "Verify phone number"
+            ? "Verify now"
             : upgradeStep === "id"
               ? "Verify ID to increase limit"
               : "Verify address to increase limit"}
@@ -186,7 +224,11 @@ export default function TransactionLimitModal({
       )}
 
       {tier >= 3 && (
-        <button type="button" onClick={onClose} className={`${secondaryBtnClasses} w-full`}>
+        <button
+          type="button"
+          onClick={onClose}
+          className={`${secondaryBtnClasses} w-full`}
+        >
           Got it
         </button>
       )}

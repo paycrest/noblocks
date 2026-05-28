@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
 import { usePathname } from "next/navigation";
+import { toast } from "sonner";
 
 import {
   NoblocksLogo,
@@ -30,6 +31,7 @@ import { useActualTheme } from "../hooks/useActualTheme";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useWalletAddress } from "../hooks/useWalletAddress";
+import { reportClientError } from "../lib/sentry.client";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -67,32 +69,56 @@ export const Navbar = () => {
 
   const { login } = useLogin({
     onComplete: async ({ user, isNewUser, loginMethod }) => {
-      if (user.wallet?.address) {
-        identifyUser(user.wallet.address, {
-          login_method: loginMethod,
-          isNewUser,
-          createdAt: user.createdAt,
-          email: user.email,
-        });
-
-        localStorage.setItem("userId", user.wallet.address);
-
-        if (isNewUser) {
-          localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`);
-
-          trackEvent("Sign up completed", {
-            "Login method": loginMethod,
-            user_id: user.wallet.address,
-            "Email address": user.email,
-            "Sign up date": user.createdAt.toISOString(),
-            "Noblocks balance": 0, // a new user should always have 0 balance
+      try {
+        if (user.wallet?.address) {
+          identifyUser(user.wallet.address, {
+            login_method: loginMethod,
+            isNewUser,
+            createdAt: user.createdAt,
+            email: user.email,
           });
-        } else {
-          trackEvent("Login completed", { "Login method": loginMethod });
+
+          localStorage.setItem("userId", user.wallet.address);
+
+          if (isNewUser) {
+            localStorage.removeItem(
+              `hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`,
+            );
+
+            trackEvent("Sign up completed", {
+              "Login method": loginMethod,
+              user_id: user.wallet.address,
+              "Email address": user.email,
+              "Sign up date": user.createdAt.toISOString(),
+              "Noblocks balance": 0, // a new user should always have 0 balance
+            });
+          } else {
+            trackEvent("Login completed", { "Login method": loginMethod });
+          }
         }
+      } catch (error) {
+        reportClientError(error, {
+          feature: "onboarding",
+          flow: "auth",
+          step: isNewUser ? "signup-onComplete" : "login-onComplete",
+          loginMethod,
+        });
       }
     },
   });
+
+  const handleLoginClick = async () => {
+    try {
+      await login();
+    } catch (error) {
+      reportClientError(error, {
+        feature: "onboarding",
+        flow: "auth",
+        step: "privy-login-click",
+      });
+      toast.error("Sign in failed. Please try again.");
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -319,7 +345,7 @@ export const Navbar = () => {
               <button
                 type="button"
                 className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}
-                onClick={() => login()}
+                onClick={() => void handleLoginClick()}
               >
                 Sign in
               </button>

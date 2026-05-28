@@ -9,6 +9,7 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "sonner";
 import { StarknetContextType, StarknetWalletState } from "../types";
+import { reportClientError } from "../lib/sentry.client";
 
 const StarknetContext = createContext<StarknetContextType | undefined>(
   undefined,
@@ -175,6 +176,14 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
 
       if (!response.ok) {
+        reportClientError(new Error(data.error || "Failed to create Starknet wallet"), {
+          feature: "onboarding",
+          flow: "wallet",
+          step: "starknet-create-wallet",
+          networkError: response.status >= 500,
+          statusCode: response.status,
+          responseData: data,
+        });
         throw new Error(data.error || "Failed to create Starknet wallet");
       }
 
@@ -204,6 +213,11 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
             newPublicKey = pkData.publicKey;
           }
         } catch (pkError) {
+          reportClientError(pkError, {
+            feature: "onboarding",
+            flow: "wallet",
+            step: "starknet-get-public-key",
+          });
           console.error("Failed to derive public key:", pkError);
         }
       }
@@ -220,6 +234,11 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
 
       return newWalletId;
     } catch (err: any) {
+      reportClientError(err, {
+        feature: "onboarding",
+        flow: "wallet",
+        step: "starknet-create-wallet",
+      });
       setError(err.message || "Failed to create Starknet wallet");
       throw err;
     } finally {
@@ -261,6 +280,11 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch (err) {
+      reportClientError(err, {
+        feature: "onboarding",
+        flow: "wallet",
+        step: "starknet-ensure-wallet",
+      });
       console.error("Failed to ensure Starknet wallet exists:", err);
     }
   };

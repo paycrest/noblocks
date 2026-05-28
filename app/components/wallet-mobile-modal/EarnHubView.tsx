@@ -92,6 +92,8 @@ export const EarnHubView: React.FC<EarnHubViewProps> = ({
     [positions],
   );
 
+  const hasWithdrawableBalance = suppliedTokens.length > 0;
+
   const primaryToken = suppliedTokens[0] ?? null;
   const primaryPosition = primaryToken ? positions[primaryToken] : null;
   const primarySupplied = safeBigInt(primaryPosition?.suppliedBaseUnits);
@@ -185,7 +187,8 @@ export const EarnHubView: React.FC<EarnHubViewProps> = ({
           <button
             type="button"
             onClick={onWithdraw}
-            className="min-h-11 rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-gray-900 transition-all hover:bg-[#EBEBEF] active:scale-[0.98] dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+            disabled={!hasWithdrawableBalance}
+            className="min-h-11 rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-gray-900 transition-all hover:bg-[#EBEBEF] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
           >
             Withdraw
           </button>

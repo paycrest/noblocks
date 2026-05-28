@@ -158,6 +158,24 @@ export const EarnWalletForm: React.FC<{
   const sourceBaseUnits =
     tab === "deposit" ? walletBalanceBaseUnits : suppliedBaseUnits;
 
+  const hasAnySuppliedBalance = useMemo(
+    () =>
+      availableEarnTokens.some((t) => {
+        const units = positions[t]?.suppliedBaseUnits;
+        if (!units) return false;
+        try {
+          return BigInt(units) > BigInt("0");
+        } catch {
+          return false;
+        }
+      }),
+    [availableEarnTokens, positions],
+  );
+
+  const amountEntered =
+    parsedAmount != null && parsedAmount > BigInt("0");
+  const metricPlaceholder = "—";
+
   const handleChip = (ratio: number) => {
     if (sourceBaseUnits <= BigInt("0")) return;
     const portion =
@@ -333,7 +351,9 @@ export const EarnWalletForm: React.FC<{
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            disabled={submitting}
+            disabled={
+              submitting || (t === "withdraw" && !hasAnySuppliedBalance)
+            }
             className={classNames(
               "h-9 rounded-lg text-sm font-medium capitalize transition-all disabled:opacity-50",
               tab === t
@@ -416,15 +436,15 @@ export const EarnWalletForm: React.FC<{
         )}
       </div>
 
-      {/* Stats: APR / Monthly / Yearly — always visible. Labels stay so the
-          modal's height is stable; values are blank until a token is selected.
-          Each value cell uses a non-breaking space placeholder to preserve the
-          row height when empty. */}
+      {/* Stats: APR / Monthly / Yearly — labels always visible; values show
+          em dashes until the user enters an amount greater than zero. */}
       <div className="grid grid-cols-3 gap-2 rounded-2xl bg-accent-gray p-3 text-center dark:bg-white/5">
         <div>
           <p className="text-xs text-text-secondary dark:text-white/50">APR</p>
           <p className="text-sm font-semibold text-text-body dark:text-white">
-            {token ? formatPercent(apy) : " "}
+            {amountEntered && token && apy != null
+              ? formatPercent(apy)
+              : metricPlaceholder}
           </p>
         </div>
         <div>
@@ -432,7 +452,9 @@ export const EarnWalletForm: React.FC<{
             Monthly est.
           </p>
           <p className="text-sm font-semibold text-text-body dark:text-white">
-            {token ? `${formatBaseUnits(projection.monthly)} ${token}` : " "}
+            {amountEntered && token
+              ? `${formatBaseUnits(projection.monthly)} ${token}`
+              : metricPlaceholder}
           </p>
         </div>
         <div>
@@ -440,7 +462,9 @@ export const EarnWalletForm: React.FC<{
             Yearly est.
           </p>
           <p className="text-sm font-semibold text-text-body dark:text-white">
-            {token ? `${formatBaseUnits(projection.yearly)} ${token}` : " "}
+            {amountEntered && token
+              ? `${formatBaseUnits(projection.yearly)} ${token}`
+              : metricPlaceholder}
           </p>
         </div>
       </div>
@@ -448,7 +472,11 @@ export const EarnWalletForm: React.FC<{
       {/* Submit */}
       <button
         type="submit"
-        disabled={submitting || !token}
+        disabled={
+          submitting ||
+          !token ||
+          (tab === "withdraw" && suppliedBaseUnits <= BigInt("0"))
+        }
         className="min-h-11 w-full rounded-xl bg-lavender-500 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[0.99] hover:bg-lavender-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submitting ? (

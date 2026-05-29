@@ -8,7 +8,7 @@ function MainContent({ children }: { children: React.ReactNode }) {
 
   const getMaxWidthClass = (): string => {
     const widerRoutes = ["/privacy-policy", "/terms"];
-    return widerRoutes.includes(pathname) ? "max-w-xl" : "max-w-full";
+    return widerRoutes.includes(pathname) ? "max-w-4xl" : "max-w-full";
   };
 
   return (

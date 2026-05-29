@@ -430,19 +430,14 @@ export const KycModal = ({
               <div className="mx-1 mt-1 size-7 flex-shrink-0"></div>
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
                 <a
-                  href={
-                    "https://paycrest.notion.site/KYC-Policy-10e2482d45a280e191b8d47d76a8d242"
-                  }
+                  href="/privacy-policy"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-lavender-500 hover:underline"
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    window.open(
-                      "https://paycrest.notion.site/KYC-Policy-10e2482d45a280e191b8d47d76a8d242",
-                      "_blank",
-                    );
+                    window.open("/privacy-policy", "_blank");
                   }}
                 >
                   Read full KYC Policy

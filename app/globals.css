@@ -9,6 +9,18 @@
   }
 }
 
+/* Prevent iOS Safari from auto-zooming when focusing form fields.
+   iOS zooms in on any input/select/textarea whose font-size is < 16px.
+   !important is required to override per-field Tailwind classes
+   (e.g. text-sm/text-xs) that would otherwise keep fields below 16px. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;

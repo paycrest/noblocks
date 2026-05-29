@@ -51,7 +51,12 @@ import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
-import { useHomeTransactionFormMode, useInjectedWallet, useBalance } from "../context";
+import {
+  useHomeTransactionFormMode,
+  useInjectedWallet,
+  useBalance,
+  useKYC,
+} from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 
@@ -209,7 +214,11 @@ export function MainPageContent() {
       accountIdentifier: "",
       accountType: "bank",
       swapMode: initialSwapMode,
-      receiveDestinationExplicitlySelected: false,
+      /** Must match `swapMode` or tabs vs recipient/rates disagree (e.g. Base defaults on-ramp). */
+      isSwapped: initialSwapMode === "onramp",
+      // Off-ramp defaults already include receive fiat (NGN); without this flag the UI
+      // shows NGN but useSwapButton stays disabled until the user re-opens Receive.
+      receiveDestinationExplicitlySelected: initialSwapMode === "offramp",
     },
   });
   const { watch, setValue } = formMethods;
@@ -225,6 +234,16 @@ export function MainPageContent() {
   const isOnrampRate = swapMode === "onramp";
 
   const { setTransactionFormSwapMode } = useHomeTransactionFormMode();
+  const { refreshStatus } = useKYC();
+  const prevStepForKycRefreshRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const prev = prevStepForKycRefreshRef.current;
+    prevStepForKycRefreshRef.current = currentStep;
+    if (currentStep !== STEPS.FORM) return;
+    if (prev === null || prev === STEPS.FORM) return;
+    void refreshStatus(true);
+  }, [currentStep, refreshStatus]);
 
   useLayoutEffect(
     function syncSwapModeToGlobalUi() {
@@ -238,6 +257,7 @@ export function MainPageContent() {
       const next = swapModeFromSideParam(searchParams.get("side"));
       if (next !== undefined) {
         setValue("swapMode", next, { shouldDirty: true });
+        setValue("isSwapped", next === "onramp", { shouldDirty: true });
       }
     },
     [searchParams, setValue],

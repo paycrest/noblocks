@@ -75,3 +75,31 @@ export async function getSmartWalletAddressFromPrivyUserId(
     throw error;
   }
 }
+
+const EVM_ADDRESS_LOWER = /^0x[a-f0-9]{40}$/;
+
+/**
+ * All lowercase 0x-prefixed EVM addresses linked to this Privy user (wallets,
+ * smart wallets, injected wallets, etc.). Used to authorize API bodies where
+ * the active signer differs from the middleware "primary" wallet (e.g. SCW vs EOA).
+ */
+export async function collectLinkedEvmAddressesForPrivyUserId(
+  userId: string,
+): Promise<string[]> {
+  const privy = getPrivyClient();
+  const user = await privy.getUser(userId);
+  const addresses = new Set<string>();
+  for (const account of user?.linkedAccounts ?? []) {
+    const addrCandidate =
+      account &&
+      typeof account === "object" &&
+      "address" in account &&
+      typeof (account as { address: unknown }).address === "string"
+        ? ((account as { address: string }).address).toLowerCase()
+        : null;
+    if (addrCandidate && EVM_ADDRESS_LOWER.test(addrCandidate)) {
+      addresses.add(addrCandidate);
+    }
+  }
+  return [...addresses];
+}

@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
+  ArrowLeft02Icon,
   Cancel01Icon,
   CheckmarkCircle01Icon,
   Wallet01Icon,
@@ -17,7 +18,6 @@ import {
 import { classNames } from "../utils";
 import { FormDropdown } from "./FormDropdown";
 import { primaryBtnClasses } from "./Styles";
-
 const VOYAGER_TX_BASE = "https://voyager.online/tx/";
 
 const TOKEN_DECIMALS = 6;
@@ -55,8 +55,18 @@ function formatPercent(decimal: number | null): string {
   return `${(decimal * 100).toFixed(2)}%`;
 }
 
-export const EarnWalletForm: React.FC<{ onClose: () => void }> = ({
+export const EarnWalletForm: React.FC<{
+  onClose: () => void;
+  showBackButton?: boolean;
+  onBack?: () => void;
+  initialTab?: Tab;
+  layout?: "modal" | "mobile";
+}> = ({
   onClose,
+  showBackButton = false,
+  onBack,
+  initialTab = "deposit",
+  layout = "modal",
 }) => {
   const { allBalances, refreshBalance } = useBalance();
   const { positions, refreshPosition, deposit, withdraw } = useEarnHandler();
@@ -71,7 +81,8 @@ export const EarnWalletForm: React.FC<{ onClose: () => void }> = ({
     [availableEarnTokens],
   );
 
-  const [tab, setTab] = useState<Tab>("deposit");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const isMobileLayout = layout === "mobile";
   const [token, setToken] = useState<EarnToken | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [successInfo, setSuccessInfo] = useState<{
@@ -146,6 +157,24 @@ export const EarnWalletForm: React.FC<{ onClose: () => void }> = ({
 
   const sourceBaseUnits =
     tab === "deposit" ? walletBalanceBaseUnits : suppliedBaseUnits;
+
+  const hasAnySuppliedBalance = useMemo(
+    () =>
+      availableEarnTokens.some((t) => {
+        const units = positions[t]?.suppliedBaseUnits;
+        if (!units) return false;
+        try {
+          return BigInt(units) > BigInt("0");
+        } catch {
+          return false;
+        }
+      }),
+    [availableEarnTokens, positions],
+  );
+
+  const amountEntered =
+    parsedAmount != null && parsedAmount > BigInt("0");
+  const metricPlaceholder = "—";
 
   const handleChip = (ratio: number) => {
     if (sourceBaseUnits <= BigInt("0")) return;
@@ -257,37 +286,74 @@ export const EarnWalletForm: React.FC<{ onClose: () => void }> = ({
     return renderSuccessView();
   }
 
+  const screenTitle = tab === "deposit" ? "Deposit" : "Withdraw";
+  const screenSubtitle =
+    tab === "deposit"
+      ? "Supply USDC or USDT to a Vesu lending pool"
+      : "Withdraw USDC or USDT from your Vesu lending pool";
+
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 bg-white dark:bg-surface-overlay">
-        <div className="space-y-4 sm:flex-1">
-          <h2 className="text-xl font-semibold text-text-body dark:text-white">
-            Earn
-          </h2>
+      <div className="flex items-start justify-between gap-4 bg-white dark:bg-surface-overlay">
+        <div className="min-w-0 flex-1 space-y-2">
+          {showBackButton ? (
+            <button
+              type="button"
+              title="Back"
+              onClick={onBack ?? onClose}
+              disabled={submitting}
+              className="flex items-center gap-1 rounded-lg py-1 pr-2 hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-white/10"
+            >
+              <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
+              <h2 className="text-lg font-semibold text-text-body dark:text-white">
+                {screenTitle}
+              </h2>
+            </button>
+          ) : (
+            <h2 className="text-xl font-semibold text-text-body dark:text-white">
+              Earn
+            </h2>
+          )}
           <p className="text-sm text-text-secondary dark:text-white/50">
-            Supply USDC or USDT to a Vesu lending pool
+            {isMobileLayout ? screenSubtitle : "Supply USDC or USDT to a Vesu lending pool"}
           </p>
         </div>
-        <button
-          type="button"
-          aria-label="Close earn modal"
-          onClick={onClose}
-          disabled={submitting}
-          className="rounded-lg p-2 hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-white/10"
-        >
-          <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
-        </button>
+        {!showBackButton && (
+          <button
+            type="button"
+            aria-label="Close earn modal"
+            onClick={onClose}
+            disabled={submitting}
+            className="rounded-lg p-2 hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-white/10"
+          >
+            <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+          </button>
+        )}
+        {showBackButton && isMobileLayout && (
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            disabled={submitting}
+            className="rounded-lg p-2 hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-white/10"
+          >
+            <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
+          </button>
+        )}
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — desktop modal only; mobile uses separate deposit/withdraw screens */}
+      {!isMobileLayout && (
       <div className="grid grid-cols-2 gap-2 rounded-xl bg-accent-gray p-1 dark:bg-white/5">
         {(["deposit", "withdraw"] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            disabled={submitting}
+            disabled={
+              submitting || (t === "withdraw" && !hasAnySuppliedBalance)
+            }
             className={classNames(
               "h-9 rounded-lg text-sm font-medium capitalize transition-all disabled:opacity-50",
               tab === t
@@ -299,6 +365,7 @@ export const EarnWalletForm: React.FC<{ onClose: () => void }> = ({
           </button>
         ))}
       </div>
+      )}
 
       {/* Amount field — mirrors TransferForm's amount box */}
       <div className="w-full max-w-full space-y-2">
@@ -369,15 +436,15 @@ export const EarnWalletForm: React.FC<{ onClose: () => void }> = ({
         )}
       </div>
 
-      {/* Stats: APR / Monthly / Yearly — always visible. Labels stay so the
-          modal's height is stable; values are blank until a token is selected.
-          Each value cell uses a non-breaking space placeholder to preserve the
-          row height when empty. */}
+      {/* Stats: APR / Monthly / Yearly — labels always visible; values show
+          em dashes until the user enters an amount greater than zero. */}
       <div className="grid grid-cols-3 gap-2 rounded-2xl bg-accent-gray p-3 text-center dark:bg-white/5">
         <div>
           <p className="text-xs text-text-secondary dark:text-white/50">APR</p>
           <p className="text-sm font-semibold text-text-body dark:text-white">
-            {token ? formatPercent(apy) : " "}
+            {amountEntered && token && apy != null
+              ? formatPercent(apy)
+              : metricPlaceholder}
           </p>
         </div>
         <div>
@@ -385,7 +452,9 @@ export const EarnWalletForm: React.FC<{ onClose: () => void }> = ({
             Monthly est.
           </p>
           <p className="text-sm font-semibold text-text-body dark:text-white">
-            {token ? `${formatBaseUnits(projection.monthly)} ${token}` : " "}
+            {amountEntered && token
+              ? `${formatBaseUnits(projection.monthly)} ${token}`
+              : metricPlaceholder}
           </p>
         </div>
         <div>
@@ -393,7 +462,9 @@ export const EarnWalletForm: React.FC<{ onClose: () => void }> = ({
             Yearly est.
           </p>
           <p className="text-sm font-semibold text-text-body dark:text-white">
-            {token ? `${formatBaseUnits(projection.yearly)} ${token}` : " "}
+            {amountEntered && token
+              ? `${formatBaseUnits(projection.yearly)} ${token}`
+              : metricPlaceholder}
           </p>
         </div>
       </div>
@@ -401,16 +472,20 @@ export const EarnWalletForm: React.FC<{ onClose: () => void }> = ({
       {/* Submit */}
       <button
         type="submit"
-        disabled={submitting || !token}
+        disabled={
+          submitting ||
+          !token ||
+          (tab === "withdraw" && suppliedBaseUnits <= BigInt("0"))
+        }
         className="min-h-11 w-full rounded-xl bg-lavender-500 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[0.99] hover:bg-lavender-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {submitting ? (
           <span className="inline-flex items-center justify-center gap-2">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            {tab === "deposit" ? "Starting…" : "Confirming…"}
+            {tab === "deposit" ? "Continuing…" : "Confirming…"}
           </span>
         ) : tab === "deposit" ? (
-          "Start earning"
+          "Continue"
         ) : (
           "Confirm"
         )}

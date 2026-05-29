@@ -9,8 +9,9 @@ import {
   hasOnrampAwaitingBankTransfer,
   OnrampPendingNotificationDot,
   tokenBalanceRowVisible,
+  handleNetworkSwitch,
 } from "../utils";
-import { useBalance, useTransactions, useStep } from "../context";
+import { useBalance, useTransactions, useStep, useStarknet } from "../context";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
@@ -36,8 +37,12 @@ import {
 import { TransactionDetails } from "./transaction/TransactionDetails";
 import { EarnActivityDetails } from "./EarnActivityDetails";
 import type { EarnActivityEntry } from "../hooks/useEarnHandler";
-import type { TransactionHistory } from "../types";
+import type { TransactionHistory, Network } from "../types";
+import { STEPS } from "../types";
 import { PiCheck } from "react-icons/pi";
+import { toast } from "sonner";
+import { toastMappedError } from "../lib/toastMappedError";
+import { networks } from "../mocks";
 import { BalanceSkeleton, CrossChainBalanceSkeleton } from "./BalanceSkeleton";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useSortedCrossChainBalances } from "../hooks/useSortedCrossChainBalances";
@@ -48,7 +53,10 @@ import { TransferForm } from "./TransferForm";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import WalletMigrationModal from "./WalletMigrationModal";
 import { useCNGNRate } from "../hooks/useCNGNRate";
-import { EarnActivityPanel } from "./EarnActivityPanel";
+import { EarnConsentModal } from "./EarnConsentModal";
+import { useEarnAccess } from "../hooks/useEarnAccess";
+import { isEarnUiVisible } from "../lib/earnFeature";
+import { EarnHubView } from "./wallet-mobile-modal";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -59,10 +67,19 @@ export const WalletDetails = () => {
     useState<boolean>(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
-  const [isEarnModalOpen, setIsEarnModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<
-    "balances" | "transactions" | "earn"
-  >("balances");
+  const [isEarnFormOpen, setIsEarnFormOpen] = useState(false);
+  const [earnFormTab, setEarnFormTab] = useState<"deposit" | "withdraw">("deposit");
+  const [sidebarView, setSidebarView] = useState<"wallet" | "earn">("wallet");
+  const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
+  const {
+    isConsentModalOpen: isEarnConsentModalOpen,
+    requestEarnAccess,
+    handleConsentAccepted: handleEarnConsentAccepted,
+    dismissConsent: dismissEarnConsent,
+  } = useEarnAccess();
+  const [activeTab, setActiveTab] = useState<"balances" | "transactions">(
+    "balances",
+  );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionHistory | null>(null);
@@ -71,7 +88,9 @@ export const WalletDetails = () => {
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
 
-  const { selectedNetwork } = useNetwork();
+  const { selectedNetwork, setSelectedNetwork } = useNetwork();
+  const { currentStep } = useStep();
+  const { ensureWalletExists } = useStarknet();
   const {
     allBalances,
     crossChainBalances,
@@ -157,14 +176,49 @@ export const WalletDetails = () => {
     });
   }, [activeWallet?.address, fetchTransactions, getAccessToken]);
 
-  // The Earn tab only exists on Starknet; if the user switches network
-  // while on it, return them to the default tab so they don't see an
-  // empty/irrelevant pane on a non-Starknet chain.
-  useEffect(() => {
-    if (activeTab === "earn" && selectedNetwork.chain.name !== "Starknet") {
-      setActiveTab("balances");
+  const showEarnUi = isEarnUiVisible(selectedNetwork.chain.name);
+
+  const onEarnAccessAction = (action: "earn-modal" | "earn-tab" | "earn-hub") => {
+    if (action === "earn-hub" || action === "earn-modal") {
+      setSidebarView("earn");
     }
-  }, [activeTab, selectedNetwork.chain.name]);
+  };
+
+  const handleNetworkSwitchWrapper = (network: Network) => {
+    if (currentStep !== STEPS.FORM) {
+      toast.error("Cannot switch networks during an active transaction");
+      return;
+    }
+
+    handleNetworkSwitch(
+      network,
+      isInjectedWallet,
+      setSelectedNetwork,
+      () => {
+        if (!isInjectedWallet) {
+          toast("Network switched successfully", {
+            description: `You are now swapping on ${network.chain.name} network`,
+          });
+        }
+      },
+      (error) => {
+        console.error("Failed to switch network:", error);
+        toastMappedError(error, {
+          feature: "network-switch",
+          title: "Error switching network",
+        });
+      },
+      ensureWalletExists,
+    );
+
+    setIsNetworkListOpen(false);
+  };
+
+  useEffect(() => {
+    if (sidebarView === "earn" && !showEarnUi) {
+      setSidebarView("wallet");
+    }
+  }, [sidebarView, showEarnUi]);
 
   // Focus refresh: re-quote NGN→USD and SWR-refresh balances when opening the drawer.
   // Uses softRefresh (cache-respecting) so repeated drawer opens within the cache TTL
@@ -202,8 +256,11 @@ export const WalletDetails = () => {
   // Close sidebar and reset any selected detail view
   const handleSidebarClose = () => {
     setIsSidebarOpen(false);
+    setSidebarView("wallet");
+    setIsEarnFormOpen(false);
     setSelectedTransaction(null);
     setSelectedEarnActivity(null);
+    setIsNetworkListOpen(false);
   };
 
   // Copy wallet address to clipboard with feedback
@@ -303,6 +360,22 @@ export const WalletDetails = () => {
                       )}
                     </div>
                   </div>
+                ) : sidebarView === "earn" && showEarnUi ? (
+                  <div className="scrollbar-hide flex h-full flex-col overflow-y-auto p-5">
+                    <EarnHubView
+                      onBack={() => setSidebarView("wallet")}
+                      onClose={handleSidebarClose}
+                      onDeposit={() => {
+                        setEarnFormTab("deposit");
+                        setIsEarnFormOpen(true);
+                      }}
+                      onWithdraw={() => {
+                        setEarnFormTab("withdraw");
+                        setIsEarnFormOpen(true);
+                      }}
+                      onSelectActivity={setSelectedEarnActivity}
+                    />
+                  </div>
                 ) : (
                   // Main wallet view
                   <div className="flex h-full flex-col p-5">
@@ -348,6 +421,8 @@ export const WalletDetails = () => {
                         <div className="text-2xl font-medium text-text-body dark:text-white">
                           {showBalanceSkeleton ? (
                             <BalanceSkeleton className="w-24" />
+                          ) : showEarnUi ? (
+                            formatCurrency(crossChainTotal, "USD", "en-US")
                           ) : selectedNetwork.chain.name === "Starknet" ? (
                             `$${(activeBalance?.total ?? 0).toFixed(2)}`
                           ) : (
@@ -378,9 +453,7 @@ export const WalletDetails = () => {
                         <div
                           className={classNames(
                             "grid gap-4",
-                            selectedNetwork.chain.name === "Starknet"
-                              ? "grid-cols-3"
-                              : "grid-cols-2",
+                            showEarnUi ? "grid-cols-3" : "grid-cols-2",
                           )}
                         >
                           <button
@@ -399,11 +472,13 @@ export const WalletDetails = () => {
                           >
                             Fund
                           </button>
-                          {selectedNetwork.chain.name === "Starknet" && (
+                          {showEarnUi && (
                             <button
                               type="button"
                               title="Earn yield on USDC via Vesu"
-                              onClick={() => setIsEarnModalOpen(true)}
+                              onClick={() =>
+                                requestEarnAccess("earn-hub", onEarnAccessAction)
+                              }
                               className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-all hover:scale-[0.98] hover:bg-[#EBEBEF] active:scale-95 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
                             >
                               Earn
@@ -414,51 +489,103 @@ export const WalletDetails = () => {
                     </div>
 
                     {/* Tab navigation */}
-                    <div className="mt-6 flex items-center gap-6">
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("balances")}
-                        title="View balances"
-                        className={classNames(
-                          "text-sm font-medium transition-colors",
-                          activeTab === "balances"
-                            ? "text-text-body dark:text-white"
-                            : "text-text-disabled dark:text-white/30",
-                        )}
-                      >
-                        Balances
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab("transactions")}
-                        title="View transactions"
-                        className={classNames(
-                          "inline-flex items-center gap-2 text-sm font-medium transition-colors",
-                          activeTab === "transactions"
-                            ? "text-text-body dark:text-white"
-                            : "text-text-disabled dark:text-white/30",
-                        )}
-                      >
-                        Transactions
-                        {showOnrampAwaitingDot ? (
-                          <OnrampPendingNotificationDot />
-                        ) : null}
-                      </button>
-                      {selectedNetwork.chain.name === "Starknet" && (
+                    <div className="mt-6 space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-6">
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab("balances")}
+                            title="View balances"
+                            className={classNames(
+                              "text-sm font-medium transition-colors",
+                              activeTab === "balances"
+                                ? "text-text-body dark:text-white"
+                                : "text-text-disabled dark:text-white/30",
+                            )}
+                          >
+                            Balances
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab("transactions")}
+                            title="View transactions"
+                            className={classNames(
+                              "inline-flex items-center gap-2 text-sm font-medium transition-colors",
+                              activeTab === "transactions"
+                                ? "text-text-body dark:text-white"
+                                : "text-text-disabled dark:text-white/30",
+                            )}
+                          >
+                            Transactions
+                            {showOnrampAwaitingDot ? (
+                              <OnrampPendingNotificationDot />
+                            ) : null}
+                          </button>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => setActiveTab("earn")}
-                          title="View earn activity"
-                          className={classNames(
-                            "text-sm font-medium transition-colors",
-                            activeTab === "earn"
-                              ? "text-text-body dark:text-white"
-                              : "text-text-disabled dark:text-white/30",
-                          )}
+                          title="Select network"
+                          onClick={() => setIsNetworkListOpen(!isNetworkListOpen)}
+                          className="flex shrink-0 items-center gap-1.5 rounded-lg py-1 pl-1 pr-0.5 hover:bg-accent-gray dark:hover:bg-white/10"
                         >
-                          Earn activity
+                          <Image
+                            src={getNetworkImageUrl(selectedNetwork, isDark)}
+                            alt={selectedNetwork.chain.name}
+                            width={16}
+                            height={16}
+                            className="size-4 rounded-full"
+                          />
+                          <span className="max-w-[5.5rem] truncate text-sm font-medium text-text-body dark:text-white">
+                            {selectedNetwork.chain.name}
+                          </span>
+                          <ArrowDown01Icon
+                            className={classNames(
+                              "size-4 text-outline-gray transition-transform dark:text-white/50",
+                              isNetworkListOpen && "rotate-180",
+                            )}
+                          />
                         </button>
-                      )}
+                      </div>
+
+                      <AnimatePresence>
+                        {isNetworkListOpen && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="space-y-1 overflow-hidden rounded-xl border border-border-light p-2 dark:border-white/10"
+                          >
+                            {networks.map((network) => (
+                              <button
+                                type="button"
+                                key={network.chain.name}
+                                onClick={() => handleNetworkSwitchWrapper(network)}
+                                className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 hover:bg-accent-gray dark:hover:bg-white/5"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Image
+                                    src={getNetworkImageUrl(network, isDark)}
+                                    alt={network.chain.name}
+                                    width={24}
+                                    height={24}
+                                    className="size-6"
+                                  />
+                                  <span className="text-text-body dark:text-white/80">
+                                    {network.chain.name}
+                                  </span>
+                                </div>
+                                {selectedNetwork.chain.name ===
+                                  network.chain.name && (
+                                  <PiCheck
+                                    className="size-5 text-green-900 dark:text-green-500"
+                                    strokeWidth={2}
+                                  />
+                                )}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                     {/* Tab content */}
@@ -602,7 +729,7 @@ export const WalletDetails = () => {
                               })
                             )}
                           </motion.div>
-                        ) : activeTab === "transactions" ? (
+                        ) : (
                           // Transactions tab content
                           <motion.div
                             key="transactions"
@@ -614,20 +741,6 @@ export const WalletDetails = () => {
                           >
                             <TransactionList
                               onSelectTransaction={setSelectedTransaction}
-                            />
-                          </motion.div>
-                        ) : (
-                          // Earn activity tab (Starknet only)
-                          <motion.div
-                            key="earn"
-                            variants={fadeInOut}
-                            initial="initial"
-                            animate="animate"
-                            exit="exit"
-                            className="h-full pb-16"
-                          >
-                            <EarnActivityPanel
-                              onSelectActivity={setSelectedEarnActivity}
                             />
                           </motion.div>
                         )}
@@ -670,13 +783,22 @@ export const WalletDetails = () => {
           </AnimatedModal>
 
           <AnimatedModal
-            isOpen={isEarnModalOpen}
-            onClose={() => setIsEarnModalOpen(false)}
+            isOpen={isEarnFormOpen}
+            onClose={() => setIsEarnFormOpen(false)}
           >
-            <EarnWalletForm onClose={() => setIsEarnModalOpen(false)} />
+            <EarnWalletForm
+              initialTab={earnFormTab}
+              onClose={() => setIsEarnFormOpen(false)}
+            />
           </AnimatedModal>
         </>
       )}
+
+      <EarnConsentModal
+        isOpen={isEarnConsentModalOpen}
+        onClose={dismissEarnConsent}
+        onAccepted={() => handleEarnConsentAccepted(onEarnAccessAction)}
+      />
 
       <CopyAddressWarningModal
         isOpen={isWarningModalOpen}

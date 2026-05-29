@@ -1,6 +1,15 @@
 import type { ReactNode } from "react";
 
-export type MobileSheetView = "wallet" | "settings" | "transfer" | "fund" | "history";
+export type MobileSheetView =
+  | "wallet"
+  | "settings"
+  | "transfer"
+  | "fund"
+  | "history"
+  | "earn"
+  | "earn-deposit"
+  | "earn-withdraw"
+  | "earn-activity-detail";
 
 import type {
   FieldErrors,
@@ -383,6 +392,8 @@ export type Config = {
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
   aggregatorSenderApiKey: string;
+  /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
+  earnEnabled: boolean;
 };
 
 export type Network = {

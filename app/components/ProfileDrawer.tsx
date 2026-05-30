@@ -20,7 +20,7 @@ import {
   formatKycTierDisplayLabel,
   hasAssignedKycTier,
 } from "../lib/kyc-upgrade-path";
-import { formatNumberWithCommas, shortenAddress, classNames } from "../utils";
+import { formatUsdAmount, shortenAddress, classNames } from "../utils";
 import { sidebarAnimation } from "./AnimatedComponents";
 import { PiCheck } from "react-icons/pi";
 import { TbIdBadge, TbPhoneCall } from "react-icons/tb";
@@ -245,7 +245,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                     ) : (
                       <>
                         <span className="text-sm font-medium">
-                          ${formatNumberWithCommas(tierData.limits.monthly)}
+                          ${formatUsdAmount(tierData.limits.monthly)}
                         </span>{" "}
                         / month
                       </>
@@ -397,11 +397,9 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
 
                               <div className="text-2xl font-light text-text-body dark:text-white">
                                 $
-                                {formatNumberWithCommas(
-                                  transactionSummary.monthlySpent,
-                                )}{" "}
+                                {formatUsdAmount(transactionSummary.monthlySpent)}{" "}
                                 / $
-                                {formatNumberWithCommas(currentLimits.monthly)}
+                                {formatUsdAmount(currentLimits.monthly)}
                               </div>
 
                               {/* Progress Bar */}

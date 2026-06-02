@@ -25,6 +25,7 @@ import {
   searchCountries,
   type Country,
 } from "../lib/countries";
+import { useKYC } from "../context/KYCContext";
 
 interface PhoneVerificationModalProps {
   isOpen: boolean;
@@ -49,6 +50,7 @@ export default function PhoneVerificationModal({
     () => getKycMonthlyLimitsRecord()[1],
     [],
   );
+  const { refreshStatus } = useKYC();
   const { wallets } = useWallets();
   const { getAccessToken, ready, authenticated } = usePrivy();
 
@@ -247,6 +249,7 @@ export default function PhoneVerificationModal({
       const data = await response.json();
 
       if (data.success) {
+        await refreshStatus(true);
         setStep(STEPS.VERIFIED);
       } else {
         toast.error(data.error || "Invalid OTP code");
@@ -259,7 +262,7 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [otpCode, formattedPhone, resolveAccessToken]);
+  }, [otpCode, formattedPhone, resolveAccessToken, refreshStatus]);
 
   const handleResendOtp = useCallback(async () => {
     const accessToken = await resolveAccessToken();
@@ -295,8 +298,9 @@ export default function PhoneVerificationModal({
     }
   }, [formattedPhone, resolveAccessToken]);
 
-  const handleClose = () => {
+  const handleClose = async () => {
     if (step === STEPS.VERIFIED && formattedPhone) {
+      await refreshStatus(true);
       onVerified(formattedPhone);
     }
     onClose();

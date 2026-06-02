@@ -12,7 +12,7 @@ import { KYC_TIERS } from "../context/KYCContext";
 import PhoneVerificationModal from "./PhoneVerificationModal";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { AnimatedModal, fadeInOut } from "./AnimatedComponents";
-import { formatNumberWithCommas } from "../utils";
+import { formatNumberWithCommas, formatUsdAmount } from "../utils";
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { KycModal } from "./KycModal";
 import {
@@ -100,7 +100,7 @@ export default function TransactionLimitModal({
           <p className="text-sm font-light text-text-secondary dark:text-white/50">
             Your current monthly limit is{" "}
             <span className="font-medium text-black dark:text-white">
-              ${formatNumberWithCommas(currentLimits.monthly)}
+              ${formatUsdAmount(currentLimits.monthly)}
             </span>
             {transactionAmount > 0 ? (
               <>
@@ -142,8 +142,8 @@ export default function TransactionLimitModal({
 
             <div className="w-full text-start">
               <div className="mb-2 text-2xl font-light text-text-body dark:text-white">
-                ${formatNumberWithCommas(transactionSummary.monthlySpent)} / $
-                {formatNumberWithCommas(currentLimits.monthly)}
+                ${formatUsdAmount(transactionSummary.monthlySpent)} / $
+                {formatUsdAmount(currentLimits.monthly)}
               </div>
 
               <div className="mb-4 flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/20">
@@ -184,7 +184,7 @@ export default function TransactionLimitModal({
             <>
               {formatKycTierDisplayLabel(1)} gives you{" "}
               <span className="font-semibold text-text-body dark:text-white">
-                ${formatNumberWithCommas(tier1Limits)}/month
+                ${formatUsdAmount(tier1Limits)}/month
               </span>
               . Verify your phone number to begin swapping.{" "}
               <a
@@ -199,9 +199,9 @@ export default function TransactionLimitModal({
           ) : (
             <>
               You&apos;re currently at {formatKycTierDisplayLabel(tier)} with $
-              {formatNumberWithCommas(currentLimits.monthly)}/month.{" "}
+              {formatUsdAmount(currentLimits.monthly)}/month.{" "}
               {nextTier
-                ? `Upgrade to ${formatKycTierDisplayLabel(tier + 1)} for ${nextTier.limits.unlimited ? "unlimited transactions" : `$${formatNumberWithCommas(nextTier.limits.monthly)}/month`}`
+                ? `Upgrade to ${formatKycTierDisplayLabel(tier + 1)} for ${nextTier.limits.unlimited ? "unlimited transactions" : `$${formatUsdAmount(nextTier.limits.monthly)}/month`}`
                 : "You have the highest tier available"}
               .
             </>

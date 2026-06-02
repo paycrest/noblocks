@@ -107,6 +107,7 @@ export const TransactionForm = ({
   const {
     canTransact,
     refreshStatus,
+    getKycStatusSnapshot,
     isPhoneVerified,
     tier,
     phoneNumber,
@@ -638,9 +639,11 @@ export const TransactionForm = ({
       return;
     }
 
+    const kyc = getKycStatusSnapshot();
+
     // Tier 2+ (e.g. migrated ID KYC) still requires a stored phone — prompt before swap.
-    if (tier >= 2) {
-      const hasPhone = Boolean(phoneNumber?.trim());
+    if (kyc.tier >= 2) {
+      const hasPhone = Boolean(kyc.phoneNumber?.trim());
       if (!hasPhone && !pendingContinueSwapAfterPhoneRef.current) {
         setIsTier2PhoneGateOpen(true);
         return;
@@ -671,7 +674,7 @@ export const TransactionForm = ({
     const limitCheck = canTransact(usdAmount);
 
     if (!limitCheck.allowed) {
-      if (tier < 1 || !isPhoneVerified) {
+      if (kyc.tier < 1 || !kyc.isPhoneVerified) {
         setIsPhoneVerificationOpen(true);
         return;
       }

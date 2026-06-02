@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 // smart-camera-web JSX types are declared in app/types/smart-camera-web.d.ts
 declare global {
   interface Window {
@@ -45,10 +45,10 @@ import { DocumentRequirementsModal } from "./kyc/DocumentRequirementsModal";
 
 import idTypesData from "../api/kyc/smile-id/id_types.json";
 import { validateSmileIdIdInfo } from "../lib/smileIdIdValidation";
+import { startSmileCameraAlertStyleFix } from "../lib/smileCameraTheme";
 
 const TIER3_DOCUMENT_TYPES = [
   { value: "utility_bill", label: "Utility bill" },
-  { value: "bank_statement", label: "Bank statement" },
 ] as const;
 
 export const STEPS = {
@@ -137,6 +137,7 @@ export const KycModal = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const cameraHostRef = useRef<HTMLElement | null>(null);
   const smileListenerCleanupRef = useRef<(() => void) | null>(null);
+  const smileThemeObserverCleanupRef = useRef<(() => void) | null>(null);
   const stepRef = useRef(step);
   stepRef.current = step;
   const [smileIdLoaded, setSmileIdLoaded] = useState(false);
@@ -294,6 +295,7 @@ export const KycModal = ({
       );
 
       if (response.status === "success") {
+        await refreshStatus(true);
         setStep(STEPS.STATUS.PENDING);
         trackEvent("Account verification", {
           "Verification status": "Submitted",
@@ -338,17 +340,42 @@ export const KycModal = ({
     };
   };
 
+  const detachSmileCameraAlertStyleFix = () => {
+    smileThemeObserverCleanupRef.current?.();
+    smileThemeObserverCleanupRef.current = null;
+  };
+
+  const attachSmileCameraAlertStyleFix = (host: HTMLElement) => {
+    detachSmileCameraAlertStyleFix();
+    smileThemeObserverCleanupRef.current = startSmileCameraAlertStyleFix(host);
+  };
+
   const bindCameraHostRef = (el: HTMLElement | null) => {
     if (cameraHostRef.current && cameraHostRef.current !== el) {
       detachSmileCameraListeners();
+      detachSmileCameraAlertStyleFix();
     }
     cameraHostRef.current = el;
     if (el && stepRef.current === STEPS.CAPTURE) {
       attachSmileCameraListeners(el);
+      attachSmileCameraAlertStyleFix(el);
     } else if (!el) {
       detachSmileCameraListeners();
+      detachSmileCameraAlertStyleFix();
     }
   };
+
+  useLayoutEffect(() => {
+    if (step !== STEPS.CAPTURE) {
+      detachSmileCameraAlertStyleFix();
+      return;
+    }
+    const host = cameraHostRef.current;
+    if (!host) return;
+
+    attachSmileCameraAlertStyleFix(host);
+    return detachSmileCameraAlertStyleFix;
+  }, [step, smileIdLoaded]);
 
   useEffect(() => {
     // Only load SmileID components for Tier 2 verification flow
@@ -663,15 +690,30 @@ export const KycModal = ({
         </div>
       </div>
 
-      <div className="mx-auto flex min-h-[min(65vh,480px)] w-full max-w-md justify-center">
+      <div
+        className={classNames(
+          "mx-auto w-full max-w-md",
+          needsDocCapture
+            ? "flex min-h-0 max-h-[min(70dvh,32rem)] flex-col overflow-visible"
+            : "flex min-h-[min(65vh,480px)] justify-center",
+        )}
+      >
         {needsDocCapture ? (
           <smart-camera-web
             ref={bindCameraHostRef}
+            className="noblocks-kyc-camera-host block h-full min-h-0 w-full flex-1"
             theme-color="#8B85F4"
             capture-id
+            hide-attribution
+            style={
+              {
+                "--web-digital-blue": "#FFFFFF",
+                "--color-active": "#FFFFFF",
+              } as React.CSSProperties
+            }
           />
         ) : (
-          <smart-camera-web ref={bindCameraHostRef} theme-color="#8B85F4" />
+          <smart-camera-web ref={bindCameraHostRef} theme-color="#ffffff" />
         )}
       </div>
 
@@ -704,9 +746,9 @@ export const KycModal = ({
         <button
           type="button"
           className={`${primaryBtnClasses} w-full`}
-          onClick={() => {
+          onClick={async () => {
+            await refreshStatus(true);
             setIsKycModalOpen(false);
-            void refreshStatus(true);
           }}
         >
           Got it
@@ -733,10 +775,10 @@ export const KycModal = ({
       <button
         type="button"
         className={`${primaryBtnClasses} w-full`}
-        onClick={() => {
+        onClick={async () => {
+          await refreshStatus(true);
           setIsUserVerified(true);
           setIsKycModalOpen(false);
-          void refreshStatus(true);
         }}
       >
         Let&apos;s go!
@@ -820,7 +862,7 @@ export const KycModal = ({
           Address verification
         </p>
         <p className="text-xs font-light text-gray-500 dark:text-white/50">
-          Utility bill, Bank statement.
+          Utility bill.
         </p>
       </div>
     </div>
@@ -1010,7 +1052,7 @@ export const KycModal = ({
     </motion.div>
   );
 
-  const ALLOWED_TIER3_EXTENSIONS = ["JPG", "JPEG", "PNG", "PDF"];
+  const ALLOWED_TIER3_EXTENSIONS = ["JPG", "JPEG", "PNG"];
   const TIER3_MAX_BYTES = 5 * 1024 * 1024;
 
   const renderTier3Upload = () => {
@@ -1022,7 +1064,7 @@ export const KycModal = ({
       if (!ext || !ALLOWED_TIER3_EXTENSIONS.includes(ext)) {
         setTier3UploadedFile(null);
         setTier3ErrorMessage(
-          "Invalid file type; allowed: JPG, JPEG, PNG, PDF",
+          "Invalid file type; allowed: JPG, JPEG, PNG",
         );
         input.value = "";
         return;
@@ -1045,7 +1087,7 @@ export const KycModal = ({
       if (!ext || !ALLOWED_TIER3_EXTENSIONS.includes(ext)) {
         setTier3UploadedFile(null);
         setTier3ErrorMessage(
-          "Invalid file type; allowed: JPG, JPEG, PNG, PDF",
+          "Invalid file type; allowed: JPG, JPEG, PNG",
         );
         return;
       }
@@ -1075,8 +1117,7 @@ export const KycModal = ({
             Upload proof of address
           </h2>
           <p className="text-xs font-light text-gray-500 dark:text-white/50">
-            Provide any of the document below as proof of your residential
-            address
+            Upload a recent utility bill as proof of your residential address
           </p>
         </div>
         <div className="rounded-2xl bg-gray-50 p-2 dark:bg-[#141414]">
@@ -1169,7 +1210,7 @@ export const KycModal = ({
                       change
                       <input
                         type="file"
-                        accept=".jpg,.jpeg,.png,.pdf"
+                        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                         className="sr-only"
                         onChange={handleTier3FileChange}
                       />
@@ -1193,14 +1234,14 @@ export const KycModal = ({
                       <Folder02Icon className="size-3.5" /> browse file
                       <input
                         type="file"
-                        accept=".jpg,.jpeg,.png,.pdf"
+                        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                         className="sr-only"
                         onChange={handleTier3FileChange}
                       />
                     </label>
                   </p>
                   <p className="text-xs font-extralight text-gray-500 dark:text-white/50">
-                    JPG, JPEG, PNG, PDF allowed. 5MB Max.
+                    JPG, JPEG, PNG allowed. 5MB Max.
                   </p>
                 </>
               )}
@@ -1275,9 +1316,9 @@ export const KycModal = ({
 
                 const data = await res.json();
                 if (data?.success) {
+                  await refreshStatus(true);
                   setIsUserVerified(true);
                   setStep(STEPS.STATUS.SUCCESS);
-                  void refreshStatus(true);
                 } else {
                   const errorDetail =
                     data?.error || data?.message || "Tier 3 verification failed.";

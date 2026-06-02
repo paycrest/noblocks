@@ -100,14 +100,12 @@ export function formatNumberWithCommas(num: string | number): string {
   return parts.join(".");
 }
 
-/** Format a USD amount for KYC limit UI (up to 4 decimals, comma-separated). */
+/** Format a USD amount for KYC limit UI (2 decimals, comma-separated). */
 export function formatUsdAmount(amount: number): string {
-  if (!Number.isFinite(amount)) return "0";
-  const rounded = Math.round(amount * 10000) / 10000;
-  if (rounded === 0) return "0";
-  const fixed = rounded.toFixed(4);
-  const trimmed = fixed.replace(/\.?0+$/, "") || "0";
-  return formatNumberWithCommas(trimmed);
+  if (!Number.isFinite(amount)) return "0.00";
+  const rounded = Math.round(amount * 100) / 100;
+  if (rounded === 0) return "0.00";
+  return formatNumberWithCommas(rounded.toFixed(2));
 }
 
 /**

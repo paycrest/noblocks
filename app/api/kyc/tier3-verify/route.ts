@@ -13,17 +13,12 @@ const KYC_BUCKET = process.env.KYC_DOCUMENTS_BUCKET || "kyc-documents";
 const STREET_ADDRESS_OPTIONAL_COUNTRIES = new Set(["AE", "QA", "OM", "BH", "KW"]);
 const SIGNED_URL_EXPIRY_SEC = 3600;
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
-const ALLOWED_MIME_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "application/pdf",
-] as const;
+const ALLOWED_DOCUMENT_TYPE = "utility_bill";
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 const MIME_TO_EXT: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
   "image/webp": "webp",
-  "application/pdf": "pdf",
 };
 
 export async function POST(request: NextRequest) {
@@ -60,9 +55,12 @@ export async function POST(request: NextRequest) {
     const postalCode = formData.get("postalCode") as string | null;
 
     const validatedDocumentType = documentType.trim();
-    if (!validatedDocumentType) {
+    if (validatedDocumentType !== ALLOWED_DOCUMENT_TYPE) {
       return NextResponse.json(
-        { success: false, error: "Document type is required" },
+        {
+          success: false,
+          error: "Only utility bills are accepted for Tier 3 address verification",
+        },
         { status: 400 }
       );
     }
@@ -133,7 +131,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error:
-            "Invalid file type; allowed: image/jpeg, image/png, image/webp, application/pdf",
+            "Invalid file type; allowed: image/jpeg, image/png, image/webp",
         },
         { status: 400 }
       );

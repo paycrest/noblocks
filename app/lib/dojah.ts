@@ -1,5 +1,5 @@
 /**
- * Dojah API client for Tier 3 address verification (utility bill / proof of address).
+ * Dojah API client for Tier 3 address verification (utility bill only).
  * Docs: https://docs.dojah.io/docs/document-analysis/utility-bill
  */
 
@@ -35,7 +35,7 @@ export interface AddressData {
 }
 
 /**
- * Submit a utility bill (or similar proof-of-address document) to Dojah for analysis.
+ * Submit a utility bill to Dojah for analysis.
  * Dojah expects a publicly accessible image URL.
  * Optional address fields are sent for cross-validation when provided.
  */

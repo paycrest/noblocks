@@ -21,6 +21,15 @@
   }
 }
 
+/* Smile ID document capture inside KYC modal — avoid 100vh clipping on mobile */
+smart-camera-web.noblocks-kyc-camera-host {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(70dvh, 32rem);
+  overflow: visible;
+}
+
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;

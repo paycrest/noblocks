@@ -60,6 +60,14 @@ interface UserTransactionSummary {
   lastTransactionDate: string | null;
 }
 
+/** Synchronous KYC view — updated as soon as status APIs return (before re-render). */
+export interface KYCStatusSnapshot {
+  tier: KYCTierLevel;
+  isPhoneVerified: boolean;
+  phoneNumber: string | null;
+  transactionSummary: UserTransactionSummary;
+}
+
 interface KYCContextType {
   tier: KYCTierLevel;
   isPhoneVerified: boolean;
@@ -69,10 +77,26 @@ interface KYCContextType {
   canTransact: (amount: number) => { allowed: boolean; reason?: string };
   getCurrentLimits: () => TransactionLimits;
   getRemainingLimits: () => TransactionLimits;
-  refreshStatus: (force?: boolean) => Promise<void>;
+  getKycStatusSnapshot: () => KYCStatusSnapshot;
+  refreshStatus: (force?: boolean) => Promise<KYCStatusSnapshot | null>;
 }
 
 const KYCContext = createContext<KYCContextType | undefined>(undefined);
+
+const EMPTY_TX_SUMMARY: UserTransactionSummary = {
+  dailySpent: 0,
+  monthlySpent: 0,
+  lastTransactionDate: null,
+};
+
+function createEmptySnapshot(): KYCStatusSnapshot {
+  return {
+    tier: 0,
+    isPhoneVerified: false,
+    phoneNumber: null,
+    transactionSummary: { ...EMPTY_TX_SUMMARY },
+  };
+}
 
 export function KYCProvider({ children }: { children: React.ReactNode }) {
   const { wallets } = useWallets();
@@ -85,34 +109,57 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   const walletAddressRef = useRef(walletAddress);
   walletAddressRef.current = walletAddress;
 
-  // In-memory guards for fetches per wallet
   const fetchGuardsRef = useRef<Record<string, string>>({});
   const lastFetchTimeRef = useRef<number>(0);
-  const STALENESS_WINDOW_MS = 30_000; // 30 seconds
+  const refreshInFlightRef = useRef<Promise<KYCStatusSnapshot | null> | null>(
+    null,
+  );
+  const latestSnapshotRef = useRef<KYCStatusSnapshot>(createEmptySnapshot());
+  const STALENESS_WINDOW_MS = 30_000;
   const guardKey = walletAddress || "no_wallet";
 
   const [tier, setTier] = useState<KYCTierLevel>(0);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [transactionSummary, setTransactionSummary] =
-    useState<UserTransactionSummary>({
-      dailySpent: 0,
-      monthlySpent: 0,
-      lastTransactionDate: null,
-    });
+    useState<UserTransactionSummary>({ ...EMPTY_TX_SUMMARY });
+
+  const applySnapshot = useCallback((partial: Partial<KYCStatusSnapshot>) => {
+    const next: KYCStatusSnapshot = {
+      tier: partial.tier ?? latestSnapshotRef.current.tier,
+      isPhoneVerified:
+        partial.isPhoneVerified ?? latestSnapshotRef.current.isPhoneVerified,
+      phoneNumber:
+        partial.phoneNumber !== undefined
+          ? partial.phoneNumber
+          : latestSnapshotRef.current.phoneNumber,
+      transactionSummary:
+        partial.transactionSummary ?? latestSnapshotRef.current.transactionSummary,
+    };
+    latestSnapshotRef.current = next;
+    setTier(next.tier);
+    setIsPhoneVerified(next.isPhoneVerified);
+    setPhoneNumber(next.phoneNumber);
+    setTransactionSummary(next.transactionSummary);
+    return next;
+  }, []);
+
+  const getKycStatusSnapshot = useCallback(
+    (): KYCStatusSnapshot => latestSnapshotRef.current,
+    [],
+  );
 
   const getCurrentLimits = useCallback((): TransactionLimits => {
-    return KYC_TIERS[tier].limits;
-  }, [tier]);
+    return KYC_TIERS[latestSnapshotRef.current.tier].limits;
+  }, []);
 
   const getRemainingLimits = useCallback((): TransactionLimits => {
-    const currentLimits = KYC_TIERS[tier].limits;
-    const remaining = Math.max(
-      0,
-      currentLimits.monthly - transactionSummary.monthlySpent,
-    );
+    const currentTier = latestSnapshotRef.current.tier;
+    const currentLimits = KYC_TIERS[currentTier].limits;
+    const spent = latestSnapshotRef.current.transactionSummary.monthlySpent;
+    const remaining = Math.max(0, currentLimits.monthly - spent);
     return { monthly: remaining, unlimited: currentLimits.unlimited };
-  }, [tier, transactionSummary.monthlySpent]);
+  }, []);
 
   const canTransact = useCallback(
     (amount: number): { allowed: boolean; reason?: string } => {
@@ -131,136 +178,169 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     [getRemainingLimits],
   );
 
-  const fetchTransactionSummary = useCallback(async (): Promise<boolean> => {
-    const snapshot = walletAddress;
-    if (!snapshot) return false;
-    const guards = fetchGuardsRef.current;
-    const key = `${snapshot}_tx`;
-    if (guards[key] === "fetching") return false;
-    guards[key] = "fetching";
-    try {
-      const accessToken = await getAccessToken();
-      if (
-        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
-      ) {
-        return false;
-      }
-      if (!accessToken) return false;
+  const fetchTransactionSummary = useCallback(
+    async (options?: { force?: boolean }): Promise<boolean> => {
+      const snapshot = walletAddress;
+      if (!snapshot) return false;
+      const guards = fetchGuardsRef.current;
+      const key = `${snapshot}_tx`;
+      if (!options?.force && guards[key] === "fetching") return false;
+      guards[key] = "fetching";
+      try {
+        const accessToken = await getAccessToken();
+        if (
+          walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+        ) {
+          return false;
+        }
+        if (!accessToken) return false;
 
-      const response = await fetch(
-        `/api/kyc/transaction-summary`,
-        {
+        const response = await fetch(`/api/kyc/transaction-summary`, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
-        },
-      );
-      if (
-        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
-      ) {
+        });
+        if (
+          walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+        ) {
+          return false;
+        }
+        if (!response.ok) return false;
+        const data = await response.json();
+        if (
+          walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+        ) {
+          return false;
+        }
+        if (!data.success) return false;
+        applySnapshot({
+          transactionSummary: {
+            dailySpent: data.dailySpent,
+            monthlySpent: data.monthlySpent,
+            lastTransactionDate: data.lastTransactionDate,
+          },
+        });
+        return true;
+      } catch {
         return false;
+      } finally {
+        guards[key] = "done";
       }
-      if (!response.ok) return false;
-      const data = await response.json();
-      if (
-        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
-      ) {
+    },
+    [walletAddress, getAccessToken, applySnapshot],
+  );
+
+  const fetchKYCStatus = useCallback(
+    async (options?: { force?: boolean }): Promise<boolean> => {
+      const snapshot = walletAddress;
+      if (!snapshot) return false;
+      const guards = fetchGuardsRef.current;
+      const key = `${snapshot}_kyc`;
+      if (!options?.force && guards[key] === "fetching") return false;
+      guards[key] = "fetching";
+      try {
+        const accessToken = await getAccessToken();
+        if (
+          walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+        ) {
+          return false;
+        }
+        if (!accessToken) return false;
+
+        const response = await fetch(`/api/kyc/status`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        if (
+          walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+        ) {
+          return false;
+        }
+        if (!response.ok) return false;
+        const data = await response.json();
+        if (
+          walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+        ) {
+          return false;
+        }
+        if (!data.success) return false;
+        const safeTier = Math.min(
+          Math.max(Number(data.tier) || 0, 0),
+          3,
+        ) as KYCTierLevel;
+        applySnapshot({
+          tier: safeTier,
+          isPhoneVerified: Boolean(data.isPhoneVerified),
+          phoneNumber: data.phoneNumber ?? null,
+        });
+        return true;
+      } catch {
         return false;
+      } finally {
+        guards[key] = "done";
       }
-      if (!data.success) return false;
-      setTransactionSummary({
-        dailySpent: data.dailySpent,
-        monthlySpent: data.monthlySpent,
-        lastTransactionDate: data.lastTransactionDate,
-      });
-      return true;
-    } catch {
-      // Silently fail — analytics tracked server-side
-      return false;
-    } finally {
-      guards[key] = "done";
-    }
-  }, [walletAddress, getAccessToken]);
+    },
+    [walletAddress, getAccessToken, applySnapshot],
+  );
 
-  const fetchKYCStatus = useCallback(async (): Promise<boolean> => {
-    const snapshot = walletAddress;
-    if (!snapshot) return false;
-    const guards = fetchGuardsRef.current;
-    const key = `${snapshot}_kyc`;
-    if (guards[key] === "fetching") return false;
-    guards[key] = "fetching";
-    try {
-      const accessToken = await getAccessToken();
+  const refreshStatus = useCallback(
+    async (force = false): Promise<KYCStatusSnapshot | null> => {
+      if (!walletAddress) return null;
+
+      const now = Date.now();
       if (
-        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
+        !force &&
+        now - lastFetchTimeRef.current < STALENESS_WINDOW_MS
       ) {
-        return false;
+        return latestSnapshotRef.current;
       }
-      if (!accessToken) return false;
 
-      const response = await fetch(`/api/kyc/status`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-      if (
-        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
-      ) {
-        return false;
+      if (refreshInFlightRef.current) {
+        return refreshInFlightRef.current;
       }
-      if (!response.ok) return false;
-      const data = await response.json();
-      if (
-        walletAddressRef.current?.toLowerCase() !== snapshot.toLowerCase()
-      ) {
-        return false;
+
+      const run = async (): Promise<KYCStatusSnapshot | null> => {
+        const guards = fetchGuardsRef.current;
+        delete guards[`${guardKey}_kyc`];
+        delete guards[`${guardKey}_tx`];
+
+        const fetchOpts = { force: true as const };
+        await Promise.all([
+          fetchKYCStatus(fetchOpts),
+          fetchTransactionSummary(fetchOpts),
+        ]);
+
+        lastFetchTimeRef.current = Date.now();
+        return latestSnapshotRef.current;
+      };
+
+      refreshInFlightRef.current = run();
+      try {
+        return await refreshInFlightRef.current;
+      } finally {
+        refreshInFlightRef.current = null;
       }
-      if (!data.success) return false;
-      setTier(Math.min(Number(data.tier) || 0, 3) as KYCTierLevel);
-      setIsPhoneVerified(data.isPhoneVerified);
-      setPhoneNumber(data.phoneNumber);
-      return true;
-    } catch {
-      // Silently fail — analytics tracked server-side
-      return false;
-    } finally {
-      guards[key] = "done";
-    }
-  }, [walletAddress, getAccessToken, guardKey]);
+    },
+    [
+      walletAddress,
+      guardKey,
+      fetchKYCStatus,
+      fetchTransactionSummary,
+    ],
+  );
 
-  const refreshStatus = useCallback(async (force = false) => {
-    // Skip refresh if data is fresh (within staleness window)
-    const now = Date.now();
-    if (!force && now - lastFetchTimeRef.current < STALENESS_WINDOW_MS) return;
-
-    // Reset guards so fetches can run again
-    const guards = fetchGuardsRef.current;
-    delete guards[`${guardKey}_kyc`];
-    delete guards[`${guardKey}_tx`];
-    const [kycSettled, txSettled] = await Promise.allSettled([
-      fetchKYCStatus(),
-      fetchTransactionSummary(),
-    ]);
-    const kycFetched =
-      kycSettled.status === "fulfilled" && kycSettled.value === true;
-    const txFetched =
-      txSettled.status === "fulfilled" && txSettled.value === true;
-    if (kycFetched && txFetched) {
-      lastFetchTimeRef.current = Date.now();
-    }
-  }, [fetchKYCStatus, fetchTransactionSummary, guardKey]);
-
-  // Initial load and wallet address change — reset all KYC state before re-fetching
-  // so stale data from a previous wallet is never shown to the new wallet's session
   useEffect(() => {
     if (walletAddress) {
-      setTier(0);
-      setIsPhoneVerified(false);
-      setPhoneNumber(null);
-      setTransactionSummary({ dailySpent: 0, monthlySpent: 0, lastTransactionDate: null });
+      const empty = createEmptySnapshot();
+      latestSnapshotRef.current = empty;
+      setTier(empty.tier);
+      setIsPhoneVerified(empty.isPhoneVerified);
+      setPhoneNumber(empty.phoneNumber);
+      setTransactionSummary({ ...EMPTY_TX_SUMMARY });
       fetchGuardsRef.current = {};
       lastFetchTimeRef.current = 0;
-      refreshStatus(true);
+      void refreshStatus(true);
     }
   }, [walletAddress, refreshStatus]);
 
@@ -275,6 +355,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         canTransact,
         getCurrentLimits,
         getRemainingLimits,
+        getKycStatusSnapshot,
         refreshStatus,
       }}
     >

@@ -695,7 +695,7 @@ export const KycModal = ({
           "mx-auto w-full h-full max-w-md",
           needsDocCapture
             ? "flex min-h-0 max-h-[min(70dvh,32rem)] flex-col overflow-visible"
-            : "flex min-h-[min(65vh,480px)] max-h-fit-content justify-center",
+            : "flex min-h-[min(65vh,480px)] max-h-fit justify-center",
         )}
       >
         {needsDocCapture ? (

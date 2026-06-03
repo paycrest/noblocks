@@ -675,7 +675,7 @@ export const KycModal = ({
   );
 
   const renderCapture = () => (
-    <motion.div key="capture" {...fadeInOut} className="space-y-4">
+    <motion.div key="capture" {...fadeInOut} className="space-y-4 max-h-[min(90dvh,48rem)] py-4">
       <div className="space-y-3">
         <UserDetailsIcon />
         <div className="space-y-2">
@@ -692,10 +692,10 @@ export const KycModal = ({
 
       <div
         className={classNames(
-          "mx-auto w-full max-w-md",
+          "mx-auto w-full h-full max-w-md",
           needsDocCapture
             ? "flex min-h-0 max-h-[min(70dvh,32rem)] flex-col overflow-visible"
-            : "flex min-h-[min(65vh,480px)] justify-center",
+            : "flex min-h-[min(65vh,480px)] max-h-fit justify-center",
         )}
       >
         {needsDocCapture ? (
@@ -713,7 +713,18 @@ export const KycModal = ({
             }
           />
         ) : (
-          <smart-camera-web ref={bindCameraHostRef} theme-color="#ffffff" />
+          <smart-camera-web
+           ref={bindCameraHostRef} 
+           className="noblocks-kyc-camera-host block h-full min-h-0 w-full flex-1"
+           theme-color="#8B85F4"
+           hide-attribution
+           style={
+             {
+               "--web-digital-blue": "#FFFFFF",
+               "--color-active": "#FFFFFF",
+             } as React.CSSProperties
+           }
+          />
         )}
       </div>
 

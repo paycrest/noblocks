@@ -15,6 +15,7 @@ import {
   NetworkSelectionModal,
   CookieConsent,
   Disclaimer,
+  ReferralInputModal,
 } from "./";
 import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
@@ -67,6 +68,9 @@ const PageLayout = ({
   isRecipientFormOpen,
   isOnramp,
   isBlockFestReferral,
+  showReferralModal,
+  onReferralModalClose,
+  onNetworkSelected,
 }: {
   authenticated: boolean;
   ready: boolean;
@@ -75,9 +79,11 @@ const PageLayout = ({
   isRecipientFormOpen: boolean;
   isOnramp: boolean;
   isBlockFestReferral: boolean;
+  showReferralModal: boolean;
+  onReferralModalClose: () => void;
+  onNetworkSelected: () => void;
 }) => {
   const { claimed, resetClaim } = useBlockFestClaim();
-  const { user } = usePrivy();
   const { isOpen, openModal, closeModal } = useBlockFestModal();
   const { isInjectedWallet } = useInjectedWallet();
   const walletAddress = useWalletAddress();
@@ -100,7 +106,17 @@ const PageLayout = ({
 
       <Disclaimer />
       <CookieConsent />
-      {!isInjectedWallet && <NetworkSelectionModal />}
+
+      {/* Network Selection Modal with callback */}
+      {!isInjectedWallet && (
+        <NetworkSelectionModal onNetworkSelected={onNetworkSelected} />
+      )}
+
+      {/* Referral Input Modal */}
+      <ReferralInputModal
+        isOpen={showReferralModal}
+        onClose={onReferralModalClose}
+      />
 
       <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
 
@@ -153,9 +169,11 @@ export function MainPageContent() {
   const { selectedNetwork, setDisplayedNetwork, setSelectedNetwork } =
     useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
+
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
+  const [showReferralModal, setShowReferralModal] = useState(false);
 
   const [rate, setRate] = useState<number>(0);
   const [formValues, setFormValues] = useState<FormData>({} as FormData);
@@ -177,11 +195,6 @@ export function MainPageContent() {
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
-  const [rateRefetchTrigger, setRateRefetchTrigger] = useState(0);
-
-  const refetchRate = useCallback(() => {
-    setRateRefetchTrigger((prev) => prev + 1);
-  }, []);
 
   const [initialSwapMode] = useState(() =>
     initialSwapModeForHomeForm(searchParams, selectedNetwork.chain),
@@ -292,6 +305,38 @@ export function MainPageContent() {
     setIsOnrampProviderDetailsOpen,
   ]);
 
+  const walletAddress = useWalletAddress();
+
+  const showReferralIfEligible = useCallback(() => {
+    if (!ready || !authenticated || !walletAddress || isInjectedWallet) {
+      return;
+    }
+
+    const referralStorageKey = `hasSeenReferralModal-${walletAddress.toLowerCase()}`;
+    if (!localStorage.getItem(referralStorageKey)) {
+      setShowReferralModal(true);
+    }
+  }, [ready, authenticated, walletAddress, isInjectedWallet]);
+
+  const handleNetworkSelected = useCallback(() => {
+    showReferralIfEligible();
+  }, [showReferralIfEligible]);
+
+  useEffect(() => {
+    showReferralIfEligible();
+  }, [showReferralIfEligible]);
+
+  const handleReferralModalClose = useCallback(() => {
+    setShowReferralModal(false);
+
+    if (walletAddress) {
+      localStorage.setItem(
+        `hasSeenReferralModal-${walletAddress.toLowerCase()}`,
+        "true",
+      );
+    }
+  }, [walletAddress]);
+
   useEffect(function setPageLoadingState() {
     setOrderId("");
     setOnrampPaymentAccount(null);
@@ -401,14 +446,10 @@ export function MainPageContent() {
     [currency],
   );
 
-  const prevRateRefetchTriggerRef = useRef(rateRefetchTrigger);
-
   useEffect(
     function handleRateFetch() {
       // Debounce rate fetching
       let timeoutId: NodeJS.Timeout;
-      const isExplicitRefetch = prevRateRefetchTriggerRef.current !== rateRefetchTrigger;
-      prevRateRefetchTriggerRef.current = rateRefetchTrigger;
 
       if (!currency) return;
 
@@ -500,11 +541,7 @@ export function MainPageContent() {
 
       const debounceFetchRate = () => {
         clearTimeout(timeoutId);
-        if (isExplicitRefetch) {
-          getRate();
-        } else {
-          timeoutId = setTimeout(() => getRate(), 1000);
-        }
+        timeoutId = setTimeout(() => getRate(), 1000);
       };
 
       debounceFetchRate();
@@ -521,7 +558,6 @@ export function MainPageContent() {
       isOnrampRate,
       searchParams,
       selectedNetwork,
-      rateRefetchTrigger,
     ],
   );
 
@@ -636,7 +672,6 @@ export function MainPageContent() {
             setCurrentStep={setCurrentStep}
             supportedInstitutions={institutions}
             setOrderId={setOrderId}
-            refetchRate={refetchRate}
           />
         );
       default:
@@ -658,7 +693,6 @@ export function MainPageContent() {
     setTransactionStatus,
     setCurrentStep,
     setOrderId,
-    refetchRate,
   ]);
 
   const transactionFormComponent = useMemo(
@@ -687,6 +721,9 @@ export function MainPageContent() {
           isRecipientFormOpen={isRecipientFormOpen}
           isOnramp={swapMode === "onramp"}
           isBlockFestReferral={isBlockFestReferral}
+          showReferralModal={showReferralModal}
+          onReferralModalClose={handleReferralModalClose}
+          onNetworkSelected={handleNetworkSelected}
         />
       )}
     </div>

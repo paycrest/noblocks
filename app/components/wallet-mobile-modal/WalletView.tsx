@@ -13,6 +13,7 @@ import {
 import { CrossChainBalanceSkeleton } from "../BalanceSkeleton";
 import { classNames, getNetworkImageUrl, tokenBalanceRowVisible } from "../../utils";
 import type { CrossChainBalanceEntry } from "../../context";
+import { ReferralCTA } from "../ReferralCTA";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -41,6 +42,7 @@ interface WalletViewProps {
   setSelectedNetwork: (network: any) => void;
   onRefreshBalance: () => void;
   isRefreshing?: boolean;
+  onViewReferrals?: () => void;
 }
 
 export const WalletView: React.FC<WalletViewProps> = ({
@@ -64,6 +66,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onHistory,
   onRefreshBalance,
   isRefreshing = false,
+  onViewReferrals,
 }) => {
   const showBalanceSkeleton = isLoading && !isRefreshing;
 
@@ -351,6 +354,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
           )}
         </AnimatePresence>
       </div>
+      {!isInjectedWallet && (
+        <ReferralCTA onViewReferrals={onViewReferrals ?? (() => {})} />
+      )}
     </div>
   );
 };

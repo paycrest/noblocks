@@ -23,7 +23,6 @@ import {
   RefreshIcon,
 } from "hugeicons-react";
 import Image from "next/image";
-import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 import { Dialog } from "@headlessui/react";
@@ -44,7 +43,10 @@ import { FundWalletForm } from "./FundWalletForm";
 import { TransferForm } from "./TransferForm";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import WalletMigrationModal from "./WalletMigrationModal";
+import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useCNGNRate } from "../hooks/useCNGNRate";
+import { ReferralCTA } from "./ReferralCTA";
+import { ReferralDashboard } from "./ReferralDashboard";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -63,6 +65,7 @@ export const WalletDetails = () => {
     useState<TransactionHistory | null>(null);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [isReferralOpen, setIsReferralOpen] = useState(false);
 
   const { selectedNetwork } = useNetwork();
   const {
@@ -168,20 +171,6 @@ export const WalletDetails = () => {
       hasOnrampAwaitingBankTransfer(transactions),
     [isOnrampProviderDetailsOpen, transactions, onrampDotRevision],
   );
-
-  // Handler for funding wallet with specified amount and token
-  const handleFundWalletClick = async (
-    amount: string,
-    tokenAddress: `0x${string}`,
-    onComplete?: (success: boolean) => void,
-  ) => {
-    await handleFundWallet(
-      activeWallet?.address ?? "",
-      amount,
-      tokenAddress,
-      onComplete,
-    );
-  };
 
   // Close sidebar and reset selected transaction
   const handleSidebarClose = () => {
@@ -372,6 +361,15 @@ export const WalletDetails = () => {
                           </button>
                         </div>
                       )}
+                    </div>
+
+                    <div className="mt-8">
+                      <ReferralCTA
+                        onViewReferrals={() => {
+                          handleSidebarClose();
+                          setTimeout(() => setIsReferralOpen(true), 260);
+                        }}
+                      />
                     </div>
 
                     {/* Tab navigation */}
@@ -572,6 +570,11 @@ export const WalletDetails = () => {
           </Dialog>
         )}
       </AnimatePresence>
+
+      <ReferralDashboard
+        isOpen={isReferralOpen}
+        onClose={() => setIsReferralOpen(false)}
+      />
 
       {/* Transfer and Fund modals */}
       {!isInjectedWallet && (

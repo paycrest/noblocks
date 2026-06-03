@@ -100,6 +100,8 @@ export async function getPrivyUserIdFromRequest(
   } catch {
     return null;
   }
+}
+
 const EVM_ADDRESS_LOWER = /^0x[a-f0-9]{40}$/;
 
 /**

@@ -241,7 +241,7 @@ export const TransactionPreview = ({
     ? {
       amount: `${currencySymbol}${formatNumberWithCommas(amountSent ?? 0)}`,
       totalValue: `${formatNumberWithCommas(amountReceived ?? 0)} ${token}`,
-      rate: `${currencySymbol}${formatNumberWithCommas(rate)} ~ 1 ${token}`,
+      rate: `${currencySymbol}${formatNumberWithCommas(rate)}`,
       ...(isCNGNOnramp && localTransferFeePercent > 0
         ? {
           fee: `${localTransferFeePercent}%`,

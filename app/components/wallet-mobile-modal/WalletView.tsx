@@ -23,6 +23,7 @@ import {
 import type { CrossChainBalanceEntry } from "../../context";
 import TransactionList from "../transaction/TransactionList";
 import type { Network, TransactionHistory } from "../../types";
+import { ReferralCTA } from "../ReferralCTA";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -55,6 +56,7 @@ interface WalletViewProps {
   onEarn?: () => void;
   walletBalanceUsd?: number;
   onSelectTransaction?: (tx: TransactionHistory) => void;
+  onViewReferrals?: () => void;
 }
 
 export const WalletView: React.FC<WalletViewProps> = ({
@@ -82,6 +84,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onEarn,
   walletBalanceUsd = 0,
   onSelectTransaction,
+  onViewReferrals,
 }) => {
   const showBalanceSkeleton = isLoading && !isRefreshing;
   const [walletTab, setWalletTab] = useState<WalletTab>("balances");
@@ -439,6 +442,10 @@ export const WalletView: React.FC<WalletViewProps> = ({
             Copy
           </button>
         </div>
+      )}
+
+      {!isInjectedWallet && (
+        <ReferralCTA onViewReferrals={onViewReferrals ?? (() => {})} />
       )}
     </div>
   );

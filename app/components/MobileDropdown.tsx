@@ -14,7 +14,7 @@ import { useLogout } from "@privy-io/react-auth";
 import { resetNetworkModalDismissed } from "../lib/networkModalStore";
 import { toast } from "sonner";
 import { useStep } from "../context/StepContext";
-import { STEPS } from "../types";
+import { STEPS, type MobileSheetView } from "../types";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
@@ -32,6 +32,7 @@ import {
   SettingsView,
   EarnHubView,
   EarnActivityDetailView,
+  ReferralDashboardView,
 } from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm } from "./FundWalletForm";
@@ -39,11 +40,11 @@ import { TransferForm } from "./TransferForm";
 import { EarnWalletForm } from "./EarnWalletForm";
 import { EarnConsentModal } from "./EarnConsentModal";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
+import ProfileDrawer from "./ProfileDrawer";
 import WalletMigrationModal from "./WalletMigrationModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
 import { isEarnUiVisible } from "../lib/earnFeature";
 import type { EarnActivityEntry } from "../hooks/useEarnHandler";
-import type { MobileSheetView } from "../types";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useHandleExportEmbeddedWallet } from "../hooks/useHandleExportEmbeddedWallet";
 import { clearUserSessionData } from "../lib/session-cleanup";
@@ -64,6 +65,7 @@ export const MobileDropdown = ({
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { currentStep } = useStep();
@@ -331,6 +333,14 @@ export const MobileDropdown = ({
                                 setSelectedTransaction(tx);
                                 setCurrentView("history");
                               }}
+                              onViewReferrals={() => setCurrentView("referrals")}
+                            />
+                          )}
+
+                          {currentView === "referrals" && (
+                            <ReferralDashboardView
+                              isOpen
+                              onClose={() => setCurrentView("wallet")}
                             />
                           )}
 
@@ -391,6 +401,10 @@ export const MobileDropdown = ({
                               handleLogout={handleLogout}
                               isLoggingOut={isLoggingOut}
                               onBack={() => setCurrentView("wallet")}
+                              onOpenProfile={() => {
+                                onClose();
+                                setIsProfileDrawerOpen(true);
+                              }}
                             />
                           )}
 
@@ -451,6 +465,11 @@ export const MobileDropdown = ({
       <WalletMigrationModal
         isOpen={isMigrationModalOpen}
         onClose={() => setIsMigrationModalOpen(false)}
+      />
+
+      <ProfileDrawer
+        isOpen={isProfileDrawerOpen}
+        onClose={() => setIsProfileDrawerOpen(false)}
       />
     </>
   );

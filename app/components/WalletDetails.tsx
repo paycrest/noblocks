@@ -24,7 +24,6 @@ import {
   RefreshIcon,
 } from "hugeicons-react";
 import Image from "next/image";
-import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 import { Dialog } from "@headlessui/react";
@@ -52,11 +51,14 @@ import { EarnWalletForm } from "./EarnWalletForm";
 import { TransferForm } from "./TransferForm";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import WalletMigrationModal from "./WalletMigrationModal";
+import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { EarnConsentModal } from "./EarnConsentModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
 import { isEarnUiVisible } from "../lib/earnFeature";
 import { EarnHubView } from "./wallet-mobile-modal";
+import { ReferralCTA } from "./ReferralCTA";
+import { ReferralDashboard } from "./ReferralDashboard";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -87,6 +89,7 @@ export const WalletDetails = () => {
     useState<EarnActivityEntry | null>(null);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [isReferralOpen, setIsReferralOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { currentStep } = useStep();
@@ -488,6 +491,15 @@ export const WalletDetails = () => {
                       )}
                     </div>
 
+                    <div className="mt-8">
+                      <ReferralCTA
+                        onViewReferrals={() => {
+                          handleSidebarClose();
+                          setTimeout(() => setIsReferralOpen(true), 260);
+                        }}
+                      />
+                    </div>
+
                     {/* Tab navigation */}
                     <div className="mt-6 space-y-3">
                       <div className="flex items-center justify-between gap-2">
@@ -753,6 +765,11 @@ export const WalletDetails = () => {
           </Dialog>
         )}
       </AnimatePresence>
+
+      <ReferralDashboard
+        isOpen={isReferralOpen}
+        onClose={() => setIsReferralOpen(false)}
+      />
 
       {/* Transfer and Fund modals */}
       {!isInjectedWallet && (

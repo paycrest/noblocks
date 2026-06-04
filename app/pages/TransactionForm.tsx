@@ -38,6 +38,7 @@ import {
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
@@ -48,6 +49,7 @@ import {
   useTokens,
   useKYC,
 } from "../context";
+import { validateWalletAddress } from "../lib/validation";
 import WalletMigrationModal from "../components/WalletMigrationModal";
 
 /**
@@ -104,6 +106,9 @@ export const TransactionForm = ({
   const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
+  // Network-aware "My wallet" / recipient address: Starknet wallet on Starknet,
+  // EVM embedded EOA / smart wallet on EVM (mirrors activeWallet for EVM).
+  const connectedWalletAddress = useWalletAddress();
   const {
     canTransact,
     refreshStatus,
@@ -695,6 +700,15 @@ export const TransactionForm = ({
     handleSwap();
   };
 
+  // Clear recipient when it is invalid for the selected network (EVM ↔ Starknet switches)
+  useEffect(() => {
+    const w = (getValues("walletAddress") ?? "").trim();
+    if (!w) return;
+    if (validateWalletAddress(w, selectedNetwork.chain.name) !== true) {
+      setValue("walletAddress", "", { shouldDirty: true });
+    }
+  }, [selectedNetwork.chain.name, getValues, setValue]);
+
   useEffect(() => {
     // Only run once to align on-ramp mode with persisted recipient (e.g. deep link / refresh)
     if (hasRestoredStateRef.current) {
@@ -1212,7 +1226,7 @@ export const TransactionForm = ({
                   isSwapped={isSwapped}
                   token={token}
                   networkName={selectedNetwork.chain.name}
-                  connectedWalletAddress={activeWallet?.address ?? undefined}
+                  connectedWalletAddress={connectedWalletAddress ?? undefined}
                 />
 
                 {/* Memo - Only show for offramp (not swapped) */}

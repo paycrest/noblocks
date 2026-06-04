@@ -847,7 +847,7 @@ export const TransactionForm = ({
                     : "border border-transparent text-neutral-900/40 dark:text-white/40",
                 ].join(" ")}
               >
-                On-ramp
+                Buy
               </button>
 
               {/* Off-ramp button */}
@@ -866,7 +866,7 @@ export const TransactionForm = ({
                     : "border border-transparent text-neutral-900/40 dark:text-white/40",
                 ].join(" ")}
               >
-                Off-ramp
+                Sell
               </button>
             </div>
           </div>

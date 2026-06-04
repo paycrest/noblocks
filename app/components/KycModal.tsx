@@ -294,7 +294,7 @@ export const KycModal = ({
         ctx.walletAddress,
       );
 
-      if (response.status === "success") {
+      if (response.status === "success" || response.status === "pending") {
         await refreshStatus(true);
         setStep(STEPS.STATUS.PENDING);
         trackEvent("Account verification", {
@@ -675,9 +675,19 @@ export const KycModal = ({
   );
 
   const renderCapture = () => (
-    <motion.div key="capture" {...fadeInOut} className="space-y-4 max-h-[min(90dvh,48rem)] py-4">
+    <motion.div key="capture" {...fadeInOut} className="flex flex-col py-4" style={{ maxHeight: "min(90dvh, 48rem)" }}>
       <div className="space-y-3">
+        <div className="flex items-center justify-between">
         <UserDetailsIcon />
+        <button
+        type="button"
+        onClick={() => setStep(STEPS.ID_INFO)}
+        className="mb-3 flex flex-shrink-0 items-center gap-1.5 self-start text-sm text-text-secondary transition-colors hover:text-text-body dark:text-white/50 dark:hover:text-white"
+      >
+        <ArrowLeft01Icon className="size-4" />
+        Back
+      </button>
+      </div>
         <div className="space-y-2">
           <h2 className="text-lg font-medium dark:text-white">
             {needsDocCapture ? "Capture your documents" : "Take a selfie"}
@@ -692,10 +702,10 @@ export const KycModal = ({
 
       <div
         className={classNames(
-          "mx-auto w-full h-full max-w-md",
+          "mx-auto w-full min-h-0 max-w-md flex-1",
           needsDocCapture
-            ? "flex min-h-0 max-h-[min(70dvh,32rem)] flex-col overflow-visible"
-            : "flex min-h-[min(65vh,480px)] max-h-fit justify-center",
+            ? "flex flex-col overflow-visible"
+            : "flex justify-center",
         )}
       >
         {needsDocCapture ? (
@@ -714,7 +724,7 @@ export const KycModal = ({
           />
         ) : (
           <smart-camera-web
-           ref={bindCameraHostRef} 
+           ref={bindCameraHostRef}
            className="noblocks-kyc-camera-host block h-full min-h-0 w-full flex-1"
            theme-color="#8B85F4"
            hide-attribution
@@ -727,14 +737,6 @@ export const KycModal = ({
           />
         )}
       </div>
-
-      <button
-        type="button"
-        onClick={() => setStep(STEPS.ID_INFO)}
-        className={secondaryBtnClasses}
-      >
-        Back
-      </button>
     </motion.div>
   );
 
@@ -995,7 +997,7 @@ export const KycModal = ({
                 value={tier3HouseNumber}
                 onChange={(e) => setTier3HouseNumber(e.target.value)}
                 placeholder="Enter house number"
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white dark:placeholder:text-white/50"
               />
             </div>
             <div>
@@ -1007,7 +1009,7 @@ export const KycModal = ({
                 value={tier3StreetAddress}
                 onChange={(e) => setTier3StreetAddress(e.target.value)}
                 placeholder="Enter street address"
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white dark:placeholder:text-white/50"
               />
             </div>
             <div>
@@ -1019,7 +1021,7 @@ export const KycModal = ({
                 value={tier3County}
                 onChange={(e) => setTier3County(e.target.value)}
                 placeholder="Select county"
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white dark:placeholder:text-white/50"
               />
             </div>
             <div>
@@ -1031,7 +1033,7 @@ export const KycModal = ({
                 value={tier3PostalCode}
                 onChange={(e) => setTier3PostalCode(e.target.value)}
                 placeholder="Enter postal code"
-                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white/50 dark:placeholder:text-white/50"
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-left font-light text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#A9A9BC] dark:border-white/10 dark:bg-transparent dark:text-white dark:placeholder:text-white/50"
               />
             </div>
           </div>

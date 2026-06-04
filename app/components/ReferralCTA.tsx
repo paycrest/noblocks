@@ -34,7 +34,7 @@ export const ReferralCTA = ({ onViewReferrals }: { onViewReferrals: () => void }
                         Invite. Earn. Repeat.
                     </h3>
                     <p className="font-light text-text-secondary dark:text-white/50">
-                        Refer your friends and earn USDC
+                        Refer your friends and earn stablecoins
                     </p>
                 </div>
             </div>

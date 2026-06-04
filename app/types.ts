@@ -1,6 +1,12 @@
 import type { ReactNode } from "react";
 
-export type MobileSheetView = "wallet" | "settings" | "transfer" | "fund" | "history";
+export type MobileSheetView =
+  | "wallet"
+  | "settings"
+  | "transfer"
+  | "fund"
+  | "history"
+  | "referrals";
 
 import type {
   FieldErrors,
@@ -39,6 +45,8 @@ export type FormData = {
   amountReceived: number;
   /** Fiat → crypto = onramp (NGN→token); crypto → fiat = offramp */
   swapMode: SwapMode;
+  /** Legacy compatibility for extracted KYC branch components. */
+  isSwapped?: boolean;
   /** True after user picks the Receive row asset (fiat off-ramp, token on-ramp). */
   receiveDestinationExplicitlySelected: boolean;
 };
@@ -68,6 +76,7 @@ export type RecipientDetailsFormProps = {
   formMethods: UseFormReturn<FormData, any, undefined>;
   stateProps: StateProps;
   swapMode?: SwapMode;
+  isSwapped?: boolean;
   token?: string; // Token symbol for onramp
   networkName?: string; // Network name for display
   /** On-ramp: address to fill when user taps "My wallet" (same as active signing wallet). */
@@ -358,6 +367,15 @@ export type InitiateKYCResponse = {
   };
 };
 
+export type SmileIDSubmissionResponse = {
+  status: string;
+  message: string;
+  data?: {
+    jobId: string;
+    userId: string;
+  };
+};
+
 export type KYCStatusResponse = {
   status: string;
   message: string;
@@ -382,6 +400,8 @@ export type Config = {
   biconomyMeeApiKey: string;
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
+  referralMinQualifyingVolumeUsd: number;
+  referralRewardAmountUsd: number;
   aggregatorSenderApiKey: string;
 };
 
@@ -419,7 +439,7 @@ export type TransactionStatus =
   | "refunding"
   | "refunded"
   | "expired";
-export type TransactionHistoryType = "swap" | "transfer" | "onramp";
+export type TransactionHistoryType = "onramp" | "offramp" | "transfer";
 
 export interface Recipient {
   account_name: string;
@@ -547,6 +567,35 @@ export interface StarknetContextType extends StarknetWalletState {
   resetError: () => void;
   ensureWalletExists: () => Promise<void>; // Auto-create wallet if needed
 }
+
+export interface ReferralData {
+  referral_code: string;
+  total_earned: number;
+  total_pending: number;
+  total_referrals?: number;
+  earned_count?: number;
+  pending_count?: number;
+  referrals: Array<{
+    id: string;
+    role?: "referrer" | "referred";
+    wallet_address: string;
+    wallet_address_short: string;
+    status: string;
+    amount: number;
+    created_at: string;
+    completed_at?: string | null;
+  }>;
+  newly_generated?: boolean;
+}
+
+export type ApiResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error: string; status?: number; code?: string };
+
+export type SubmitReferralResult = {
+  referral_id?: string;
+  message?: string;
+};
 
 declare global {
   interface Window {

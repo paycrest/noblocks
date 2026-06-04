@@ -100,6 +100,14 @@ export function formatNumberWithCommas(num: string | number): string {
   return parts.join(".");
 }
 
+/** Format a USD amount for KYC limit UI (2 decimals, comma-separated). */
+export function formatUsdAmount(amount: number): string {
+  if (!Number.isFinite(amount)) return "0.00";
+  const rounded = Math.round(amount * 100) / 100;
+  if (rounded === 0) return "0.00";
+  return formatNumberWithCommas(rounded.toFixed(2));
+}
+
 /**
  * Formats a number as a currency string.
  *
@@ -177,15 +185,14 @@ export function formatTransactionAmountDisplay(
   return `${formatNumberWithCommas(amount)} ${currencyCode}`;
 }
 
-/** User-facing label for transaction history rows (API still uses `onramp`). */
+/** User-facing label for transaction history rows (`onramp` / `offramp`). */
 export function getTransactionHistoryTypeLabel(
   type: TransactionHistoryType,
 ): string {
   switch (type) {
     case "transfer":
       return "Transferred";
-    case "swap":
-      return "Swapped";
+    case "offramp":
     case "onramp":
       return "Swapped";
     default:
@@ -1862,6 +1869,68 @@ export const getAvatarImage = (index: number): string => {
 };
 
 /**
+ * Avatar path from wallet address (referral leaderboard, etc.).
+ * Loops through 8 avatars (Avatar.png, Avatar1.png through Avatar7.png)
+ */
+export const getAvatarImageFromAddress = (address: string): string => {
+  const avatarCount = 8;
+  const index = parseInt(address.slice(2, 4), 16) % avatarCount;
+
+  if (index === 0) {
+    return "/images/avatar/Avatar.png";
+  }
+  return `/images/avatar/Avatar${index}.png`;
+};
+
+/**
+ * Copy referral code to clipboard
+ */
+export const handleCopyCode = (
+  referralCode: string | undefined,
+  onCopied?: (value: boolean) => void,
+): void => {
+  if (referralCode) {
+    try {
+      navigator.clipboard.writeText(referralCode);
+      if (onCopied) {
+        onCopied(true);
+        setTimeout(() => onCopied(false), 2000);
+      }
+    } catch (error) {
+      console.error("Failed to copy referral code:", error);
+    }
+  }
+};
+
+/**
+ * Copy referral invite link to clipboard
+ */
+export const handleCopyLink = (referralCode: string | undefined): void => {
+  if (referralCode) {
+    const link = `${window.location.origin}?ref=${referralCode}`;
+    try {
+      navigator.clipboard.writeText(link);
+      toast.success("Referral link copied!");
+    } catch (error) {
+      console.error("Failed to copy referral link:", error);
+      toast.error("Failed to copy link");
+    }
+  }
+};
+
+/**
+ * Generate a unique 6-character referral code (NB + 4 alphanumeric)
+ */
+export function generateReferralCode(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let code = "NB";
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+/**
  * Copies text to clipboard and shows a toast notification.
  * Uses `navigator.clipboard` when available; falls back to `execCommand` when the API is
  * unavailable, non-secure context, or when `writeText` rejects.
@@ -2011,3 +2080,4 @@ export function OnrampPendingNotificationDot(): ReactElement {
     }),
   );
 }
+

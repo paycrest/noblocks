@@ -74,6 +74,9 @@ INTERNAL_API_KEY=
 # Feature toggles (NEW)
 # Enable wallet context sync in middleware
 ENABLE_WALLET_CONTEXT_SYNC=false
+
+# Starknet Earn (Vesu / Starkzap): Earn button, deposit/withdraw UI, earn activity tab
+NEXT_PUBLIC_EARN_ENABLED=false
 ```
 
 ### Database & Authentication

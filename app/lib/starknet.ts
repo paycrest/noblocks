@@ -342,6 +342,15 @@ export async function setupPaymaster(): Promise<{
 }
 
 /**
+ * Apply a 1.5x (50%) safety margin to a fee estimate, ceiling-rounded.
+ * Formula: ceil(bi * 1.5) implemented as (bi * 3 + 1) / 2 to stay in BigInt.
+ */
+export function applySafetyMargin(v: bigint | number | string): bigint {
+  const bi = BigInt(v.toString());
+  return (bi * BigInt(3) + BigInt(1)) / BigInt(2);
+}
+
+/**
  * Deploy a Ready account on Starknet using paymaster
  * Matches the implementation from starknet-privy-demo
  */
@@ -421,12 +430,7 @@ export async function deployReadyAccount({
     );
     const suggested = feeEstimation.suggested_max_fee_in_gas_token;
 
-    // Apply 1.5x safety margin
-    const withMargin15 = (v: any) => {
-      const bi = BigInt(v.toString());
-      return (bi * BigInt(3) + BigInt(1)) / BigInt(2); // ceil(1.5x)
-    };
-    maxFee = withMargin15(suggested);
+    maxFee = applySafetyMargin(suggested);
   }
 
   // Execute deployment with paymaster

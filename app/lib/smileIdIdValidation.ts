@@ -22,9 +22,10 @@ export class SmileIdValidationError extends Error {
 }
 
 export function getJobTypeForIdType(idType: string): number {
-  const enhancedKycTypes = ["BVN", "NIN", "NIN_SLIP", "V_NIN", "NIN_V2"];
   const normalized = idType?.toString().trim().toUpperCase();
-  return enhancedKycTypes.includes(normalized) ? 5 : 1;
+  if (["BVN", "NIN", "NIN_SLIP", "V_NIN", "NIN_V2"].includes(normalized)) return 5;
+  if (normalized === "DRIVERS_LICENSE") return 6;
+  return 1;
 }
 
 const SMILE_ELEVEN_DIGIT_ID_TYPES = new Set([

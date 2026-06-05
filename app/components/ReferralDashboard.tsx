@@ -136,7 +136,7 @@ export const ReferralDashboard = ({
                                     type="button"
                                     aria-label="Close referrals"
                                     onClick={onClose}
-                                    className="mb-4 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-white/10"
+                                    className="mb-4 flex min-h-11 min-w-11 items-center justify-center rounded-lg touch-manipulation transition-colors hover:bg-gray-100 dark:hover:bg-white/10"
                                 >
                                     <ArrowLeft02Icon className="size-5 text-outline-gray dark:text-white/50" />
                                 </button>
@@ -261,7 +261,7 @@ export const ReferralDashboard = ({
                                         filteredReferrals.map((referral) => (
                                             <div
                                                 key={referral.id}
-                                                className="flex items-center justify-between py-2"
+                                                className="flex items-center justify-between py-2 pr-14"
                                             >
                                                 <div className="flex items-center gap-3">
                                                     {/* Avatar */}

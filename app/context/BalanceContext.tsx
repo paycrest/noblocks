@@ -44,6 +44,8 @@ export interface WalletBalances {
   balances: Record<string, number>;
   rawBalances?: Record<string, number>; // Raw balances before CNGN conversion
   balancesUsd?: Record<string, number>; // USD value for each token (e.g. Starknet)
+  /** Token base units as bigint (e.g. 6-decimal USDC). Populated by Starknet and EVM fetchers; preferred over `balances` when callers need exact integer math. */
+  balancesInWei?: Record<string, bigint>;
   /** True when user holds CNGN but no USD/NGN rate was available for conversion. */
   cngnUsdUnknown?: boolean;
 }
@@ -115,6 +117,7 @@ function hasPositiveCngn(raw: Record<string, number>): boolean {
 function buildWalletBalancesFromRaw(
   rawBalances: Record<string, number>,
   rate: number | null,
+  balancesInWei?: Record<string, bigint>,
 ): WalletBalances {
   const rawTotal = Object.values(rawBalances).reduce(
     (s, v) => s + (typeof v === "number" && !isNaN(v) ? v : 0),
@@ -127,6 +130,7 @@ function buildWalletBalancesFromRaw(
     total: correctedTotal,
     balances: correctedBalances,
     rawBalances: { ...rawBalances },
+    balancesInWei: balancesInWei ? { ...balancesInWei } : undefined,
     cngnUsdUnknown:
       hasPositiveCngn(rawBalances) && !(rate != null && rate > 0),
   };
@@ -293,7 +297,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const rawBalances = { ...rawResult.balances };
         return {
           network,
-          balances: buildWalletBalancesFromRaw(rawBalances, cngnRateValue),
+          balances: buildWalletBalancesFromRaw(
+            rawBalances,
+            cngnRateValue,
+            rawResult.balancesInWei,
+          ),
         };
       });
   };
@@ -475,7 +483,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
               { bypassCache },
             );
             setExternalWalletBalance(
-              buildWalletBalancesFromRaw({ ...result.balances }, resolvedCngnRate),
+              buildWalletBalancesFromRaw(
+                { ...result.balances },
+                resolvedCngnRate,
+                result.balancesInWei,
+              ),
             );
           }
         } else if (smartWalletAccount) {
@@ -506,7 +518,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             );
             const rawBalances = { ...result.balances };
             setSmartWalletBalance(
-              buildWalletBalancesFromRaw(rawBalances, resolvedCngnRate),
+              buildWalletBalancesFromRaw(
+                rawBalances,
+                resolvedCngnRate,
+                result.balancesInWei,
+              ),
             );
           }
 
@@ -533,6 +549,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
                 buildWalletBalancesFromRaw(
                   { ...eoaResult.balances },
                   resolvedCngnRate,
+                  eoaResult.balancesInWei,
                 ),
               );
             }
@@ -567,7 +584,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
             );
             const rawBalances = { ...result.balances };
             setExternalWalletBalance(
-              buildWalletBalancesFromRaw(rawBalances, resolvedCngnRate),
+              buildWalletBalancesFromRaw(
+                rawBalances,
+                resolvedCngnRate,
+                result.balancesInWei,
+              ),
             );
           }
         } else {
@@ -589,7 +610,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           const rawBalances = { ...result.balances };
 
           setExternalWalletBalance(
-            buildWalletBalancesFromRaw(rawBalances, resolvedCngnRate),
+            buildWalletBalancesFromRaw(
+              rawBalances,
+              resolvedCngnRate,
+              result.balancesInWei,
+            ),
           );
         }
 
@@ -617,7 +642,11 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
           const rawBalances = { ...result.balances };
 
           setInjectedWalletBalance(
-            buildWalletBalancesFromRaw(rawBalances, resolvedCngnRate),
+            buildWalletBalancesFromRaw(
+              rawBalances,
+              resolvedCngnRate,
+              result.balancesInWei,
+            ),
           );
 
           // Fetch cross-chain balances for injected wallet
@@ -662,7 +691,9 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
     if (cngnRate == null || !(cngnRate > 0)) return;
 
     const patch = (w: WalletBalances | null) =>
-      w?.rawBalances ? buildWalletBalancesFromRaw(w.rawBalances, cngnRate) : w;
+      w?.rawBalances
+        ? buildWalletBalancesFromRaw(w.rawBalances, cngnRate, w.balancesInWei)
+        : w;
 
     setCrossChainBalances((prev) =>
       prev.map((e) =>
@@ -672,6 +703,7 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
               balances: buildWalletBalancesFromRaw(
                 e.balances.rawBalances,
                 cngnRate,
+                e.balances.balancesInWei,
               ),
             }
           : e,

@@ -853,6 +853,7 @@ async function fetchStarknetBalancesUnified(
     entries: [],
     total: 0,
     balances: {},
+    balancesInWei: {},
     balancesUsd: {},
   });
 
@@ -866,6 +867,7 @@ async function fetchStarknetBalancesUnified(
     const provider = createStarknetRpcProvider(rpcUrl);
 
     const balances: Record<string, number> = {};
+    const balancesInWei: Record<string, bigint> = {};
     const balancesUsd: Record<string, number> = {};
 
     const balancePromises = tokens.map(async (token: Token) => {
@@ -889,10 +891,12 @@ async function fetchStarknetBalancesUnified(
 
         const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
         balances[token.symbol] = isNaN(balance) ? 0 : balance;
+        balancesInWei[token.symbol] = balanceInWei;
         balancesUsd[token.symbol] = balances[token.symbol];
         return balances[token.symbol];
       } catch {
         balances[token.symbol] = 0;
+        balancesInWei[token.symbol] = BigInt(0);
         balancesUsd[token.symbol] = 0;
         return 0;
       }
@@ -910,6 +914,7 @@ async function fetchStarknetBalancesUnified(
       address: token.address,
       decimals: token.decimals,
       balance: balances[token.symbol] ?? 0,
+      balanceWei: balancesInWei[token.symbol],
     }));
 
     return {
@@ -917,6 +922,7 @@ async function fetchStarknetBalancesUnified(
       entries,
       total: isNaN(totalBalance) ? 0 : totalBalance,
       balances,
+      balancesInWei,
       balancesUsd,
     };
   } catch {
@@ -948,12 +954,14 @@ export async function fetchStarknetBalance(
 ): Promise<{
   total: number;
   balances: Record<string, number>;
+  balancesInWei: Record<string, bigint>;
   balancesUsd: Record<string, number>;
 }> {
   const u = await fetchStarknetBalancesUnified(address, tokens);
   return {
     total: u.total,
     balances: u.balances,
+    balancesInWei: u.balancesInWei ?? {},
     balancesUsd: u.balancesUsd ?? {},
   };
 }

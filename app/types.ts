@@ -6,6 +6,10 @@ export type MobileSheetView =
   | "transfer"
   | "fund"
   | "history"
+  | "earn"
+  | "earn-deposit"
+  | "earn-withdraw"
+  | "earn-activity-detail"
   | "referrals";
 
 import type {
@@ -403,6 +407,8 @@ export type Config = {
   referralMinQualifyingVolumeUsd: number;
   referralRewardAmountUsd: number;
   aggregatorSenderApiKey: string;
+  /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
+  earnEnabled: boolean;
 };
 
 export type Network = {

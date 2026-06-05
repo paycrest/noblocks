@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
       // Enhanced KYC: Check if ID verification passed
       verificationSuccess = actions.Verify_ID_Number === "Verified";
     } else if (isBiometricKyc) {
-      // Biometric KYC: Check job_complete and job_success
+      // Biometric KYC: job is complete — check whether it succeeded
       verificationSuccess =
         smileIdResult.job_complete && smileIdResult.job_success;
     }

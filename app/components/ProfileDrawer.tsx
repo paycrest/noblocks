@@ -295,7 +295,7 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
               {/* Drawer content */}
               <motion.div
                 {...sidebarAnimation}
-                className="z-50 my-4 ml-auto mr-4 flex h-[calc(100%-32px)] overflow-y-auto w-full max-w-[396px] flex-col overflow-hidden rounded-[20px] border border-border-light bg-white shadow-lg dark:border-white/5 dark:bg-surface-overlay"
+                className="z-50 my-4 ml-auto mr-4 flex h-[calc(100%-32px)] w-full max-w-[396px] flex-col overflow-hidden rounded-[20px] border border-border-light bg-white shadow-lg dark:border-white/5 dark:bg-surface-overlay"
               >
                 <div className="flex h-full flex-col p-5">
                   {/* Header with close button */}

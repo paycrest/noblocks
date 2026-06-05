@@ -306,19 +306,38 @@ export function MainPageContent() {
 
   const walletAddress = useWalletAddress();
 
-  const showReferralIfEligible = useCallback(() => {
+  const showReferralIfEligible = useCallback((fromNetworkSelected = false) => {
     if (!ready || !authenticated || !walletAddress || isInjectedWallet) {
       return;
+    }
+
+    // Only show referral modal to new users (account created within the last 30 days).
+    // Existing users who predate the referral feature should not be prompted.
+    if (user?.createdAt) {
+      const accountAgeDays = (Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+      if (accountAgeDays > 30) {
+        return;
+      }
+    }
+
+    // For new users, the network selection modal opens at the same time as this
+    // check would fire. Defer to handleNetworkSelected so the referral modal only
+    // shows after they've picked a network — not underneath it.
+    if (!fromNetworkSelected && user?.wallet?.address) {
+      const networkModalKey = `hasSeenNetworkModal-${user.wallet.address}`;
+      if (!localStorage.getItem(networkModalKey)) {
+        return;
+      }
     }
 
     const referralStorageKey = `hasSeenReferralModal-${walletAddress.toLowerCase()}`;
     if (!localStorage.getItem(referralStorageKey)) {
       setShowReferralModal(true);
     }
-  }, [ready, authenticated, walletAddress, isInjectedWallet]);
+  }, [ready, authenticated, walletAddress, isInjectedWallet, user?.wallet?.address, user?.createdAt]);
 
   const handleNetworkSelected = useCallback(() => {
-    showReferralIfEligible();
+    showReferralIfEligible(true);
   }, [showReferralIfEligible]);
 
   useEffect(() => {

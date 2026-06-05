@@ -87,6 +87,18 @@ export const GET = withRateLimit(async (request: NextRequest) => {
                             ?.toLowerCase()
                             .includes("unique"))
                 ) {
+                    // A concurrent request already inserted a code for this wallet.
+                    // Re-fetch to get whatever was committed rather than retrying.
+                    const { data: refetched } = await supabaseAdmin
+                        .from("users")
+                        .select("referral_code")
+                        .eq("wallet_address", walletAddress)
+                        .single();
+
+                    if (refetched?.referral_code) {
+                        generated = refetched.referral_code;
+                        break;
+                    }
                     continue;
                 }
 

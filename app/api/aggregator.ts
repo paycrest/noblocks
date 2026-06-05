@@ -1390,6 +1390,7 @@ export async function submitReferralCode(
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const message =
+        error.response?.data?.error ||
         error.response?.data?.message ||
         error.message ||
         "Failed to submit referral code";

@@ -801,13 +801,13 @@ export const KycModal = ({
   );
 
   const getFailureHint = (reason: string | null): string => {
-    if (!reason) return "Some documents you uploaded couldn’t be verified. Please check all requirements and upload again";
+    if (!reason) return "Your verification couldn’t be completed. Please check all requirements and try again.";
     const t = reason.toLowerCase();
-    if (t.includes("not verified") || t.includes("unable to verify") || t.includes("database") || t.includes("timeout") || t.includes("not found")) {
+    if (t.includes("timeout") || t.includes("database") || t.includes("service unavailable") || t.includes("server error") || t.includes("temporarily unavailable") || t.includes("connection")) {
       return "The government database may be temporarily unavailable. Try a different ID type (e.g. Driver’s License) or retry later.";
     }
     if (t.includes("readable") || t.includes("bright") || t.includes("blurry") || t.includes("quality") || t.includes("not clear")) {
-      return "Your document image was unclear. Retake in better lighting, or try a different document.";
+      return "Your image was unclear. Retake in better lighting, or try a different ID type.";
     }
     if (t.includes("liveness")) {
       return "Liveness check failed. Look directly at the camera with good lighting and try again.";
@@ -815,7 +815,7 @@ export const KycModal = ({
     if (t.includes("mismatch") || t.includes("face")) {
       return "Your selfie didn’t match the ID. Ensure you’re submitting your own valid ID.";
     }
-    return "Please check your document and try again, or use a different ID type.";
+    return "Verification failed. Please try again with a different ID type or contact support.";
   };
 
   const renderFailedStatus = () => (

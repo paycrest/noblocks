@@ -7,17 +7,28 @@ import {
   type SmileIDIdInfo,
 } from "@/app/lib/smileID";
 
+import { rateLimit } from "@/app/lib/rate-limit";
+
 type SmileFailureCategory = "database" | "quality" | "liveness" | "mismatch" | "general";
 
+// Only matches clear infrastructure signals — NOT normal verification failures like
+// "ID Not Verified" or "Unable to Verify" (which are meaningful SmileID outcomes).
 function classifySmileIdFailure(resultText: string): SmileFailureCategory {
   const t = resultText.toLowerCase();
-  if (t.includes("not verified") || t.includes("unable to verify") || t.includes("database") || t.includes("timeout") || t.includes("not found")) return "database";
+  if (
+    t.includes("timeout") ||
+    t.includes("database") ||
+    t.includes("service unavailable") ||
+    t.includes("internal server error") ||
+    t.includes("server error") ||
+    t.includes("temporarily unavailable") ||
+    t.includes("connection")
+  ) return "database";
   if (t.includes("readable") || t.includes("bright") || t.includes("blurry") || t.includes("quality") || t.includes("not clear")) return "quality";
   if (t.includes("liveness")) return "liveness";
   if (t.includes("mismatch") || t.includes("face")) return "mismatch";
   return "general";
 }
-import { rateLimit } from "@/app/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   // Rate limit check
@@ -188,46 +199,29 @@ export async function POST(request: NextRequest) {
         smileIdResult.job_complete && smileIdResult.job_success;
     }
 
-    // One transparent retry for Job Type 1 (passport) when the government database
-    // is the culprit — the user should not burn an attempt for a backend outage.
-    if (
-      !verificationSuccess &&
-      getJobTypeForIdType(id_info.id_type) === 1 &&
-      classifySmileIdFailure(smileIdResult?.ResultText || "") === "database"
-    ) {
-      await new Promise((r) => setTimeout(r, 1500));
-      try {
-        const retryResult = await submitSmileIDJob({
-          images,
-          partner_params,
-          walletAddress,
-          id_info: id_info as SmileIDIdInfo,
-        });
-        const retrySmileIdResult = { job_complete: false, ...retryResult.smileIdResult };
-        job_id = retryResult.job_id;
-        user_id = retryResult.user_id;
-        const retryActions = retrySmileIdResult?.Actions;
-        if (retryActions?.Verify_ID_Number !== undefined) {
-          verificationSuccess = retryActions.Verify_ID_Number === "Verified";
-        } else {
-          verificationSuccess = retrySmileIdResult.job_complete && retrySmileIdResult.job_success;
-        }
-        if (verificationSuccess) {
-          smileIdResult = retrySmileIdResult;
-        }
-      } catch {
-        // retry failed — fall through to the original failure response below
-      }
-    }
-
     if (!verificationSuccess) {
       const errorMessage =
         smileIdResult?.ResultText || "SmileID verification failed";
+      const category = classifySmileIdFailure(errorMessage);
+
+      // Infrastructure outages should not count against the user's attempt quota.
+      // Decrement the counter that was incremented above so they can retry freely.
+      if (getJobTypeForIdType(id_info.id_type) === 1 && category === "database") {
+        console.warn("[smile-id] infrastructure failure detected — restoring attempt counter", {
+          walletAddress,
+          resultText: errorMessage,
+        });
+        await supabaseAdmin
+          .from("user_kyc_profiles")
+          .update({ attempts: Math.max(0, newAttemptCount - 1) })
+          .eq("wallet_address", walletAddress);
+      }
+
       return NextResponse.json(
         {
           status: "error",
           message: errorMessage,
-          failureCategory: classifySmileIdFailure(errorMessage),
+          failureCategory: category,
         },
         { status: 400 },
       );

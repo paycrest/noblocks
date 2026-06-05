@@ -133,6 +133,7 @@ export const KycModal = ({
   // Tracks where the retry button in renderFailedStatus should navigate back to.
   // Tier 3 failures retry at TIER3_UPLOAD; SmileID (Tier 2) failures retry at TERMS.
   const [failedRetryStep, setFailedRetryStep] = useState<Step>(STEPS.TERMS);
+  const [failedReason, setFailedReason] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const cameraHostRef = useRef<HTMLElement | null>(null);
@@ -301,15 +302,15 @@ export const KycModal = ({
           "Verification status": "Submitted",
         });
       } else {
+        setFailedReason(response.message || null);
         setFailedRetryStep(STEPS.TERMS);
         setStep(STEPS.STATUS.FAILED);
       }
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to submit verification data";
-      toast.error(message);
+      const axiosData = (error as { response?: { data?: { message?: string } } })?.response?.data;
+      const message = axiosData?.message || (error instanceof Error ? error.message : "Failed to submit verification data");
+      setFailedReason(message);
+      toast.error("Verification failed");
       setFailedRetryStep(STEPS.TERMS);
       setStep(STEPS.STATUS.FAILED);
     } finally {
@@ -799,6 +800,24 @@ export const KycModal = ({
     </motion.div>
   );
 
+  const getFailureHint = (reason: string | null): string => {
+    if (!reason) return "Your verification couldn’t be completed. Please check all requirements and try again.";
+    const t = reason.toLowerCase();
+    if (t.includes("timeout") || t.includes("database") || t.includes("service unavailable") || t.includes("server error") || t.includes("temporarily unavailable") || t.includes("connection")) {
+      return "The government database may be temporarily unavailable. Try a different ID type (e.g. Driver’s License) or retry later.";
+    }
+    if (t.includes("readable") || t.includes("bright") || t.includes("blurry") || t.includes("quality") || t.includes("not clear")) {
+      return "Your image was unclear. Retake in better lighting, or try a different ID type.";
+    }
+    if (t.includes("liveness")) {
+      return "Liveness check failed. Look directly at the camera with good lighting and try again.";
+    }
+    if (t.includes("mismatch") || t.includes("face")) {
+      return "Your selfie didn’t match the ID. Ensure you’re submitting your own valid ID.";
+    }
+    return "Verification failed. Please try again with a different ID type or contact support.";
+  };
+
   const renderFailedStatus = () => (
     <motion.div key="failed" {...fadeInOut} className="space-y-4 pt-4">
       <SadFaceIcon className="mx-auto" />
@@ -808,16 +827,22 @@ export const KycModal = ({
           Verification failed
         </DialogTitle>
 
+        {failedReason && (
+          <p className="text-xs text-gray-400 dark:text-white/30">{failedReason}</p>
+        )}
+
         <p className="text-gray-500 dark:text-white/50">
-          Some documents you uploaded couldn’t be verified. Please check all
-          requirements and upload again
+          {getFailureHint(failedReason)}
         </p>
       </div>
 
       <button
         type="button"
         className={`${primaryBtnClasses} w-full`}
-        onClick={() => setStep(failedRetryStep)}
+        onClick={() => {
+          setFailedReason(null);
+          setStep(failedRetryStep);
+        }}
       >
         Retry verification
       </button>
@@ -966,6 +991,8 @@ export const KycModal = ({
             onSelect={(code) => setTier3CountryCode(code)}
             mobileTitle="Select Country"
             dropdownWidth={350}
+            searchable
+            searchPlaceholder="Search countries…"
           >
             {({ selectedItem, isOpen, toggleDropdown }) => (
               <button
@@ -1321,6 +1348,7 @@ export const KycModal = ({
 
                   console.error("Tier 3 verification request failed:", errorDetail);
                   toast.error("Tier 3 verification failed", { description: errorDetail });
+                  setFailedReason(errorDetail);
                   setFailedRetryStep(STEPS.TIER3_UPLOAD);
                   setStep(STEPS.STATUS.FAILED);
                   setTier3Submitting(false);
@@ -1329,19 +1357,20 @@ export const KycModal = ({
 
                 const data = await res.json();
                 if (data?.success) {
-                  await refreshStatus(true);
-                  setIsUserVerified(true);
                   setStep(STEPS.STATUS.SUCCESS);
                 } else {
                   const errorDetail =
                     data?.error || data?.message || "Tier 3 verification failed.";
                   toast.error("Tier 3 verification failed", { description: errorDetail });
+                  setFailedReason(errorDetail);
                   setFailedRetryStep(STEPS.TIER3_UPLOAD);
                   setStep(STEPS.STATUS.FAILED);
                 }
               } catch (e) {
                 console.error("Tier 3 verification error:", e);
-                toast.error("Tier 3 verification failed. Please try again.");
+                const msg = e instanceof Error ? e.message : "Tier 3 verification failed. Please try again.";
+                toast.error(msg);
+                setFailedReason(msg);
                 setFailedRetryStep(STEPS.TIER3_UPLOAD);
                 setStep(STEPS.STATUS.FAILED);
               } finally {

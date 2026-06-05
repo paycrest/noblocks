@@ -56,9 +56,8 @@ import { useCNGNRate } from "../hooks/useCNGNRate";
 import { EarnConsentModal } from "./EarnConsentModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
 import { isEarnUiVisible } from "../lib/earnFeature";
-import { EarnHubView } from "./wallet-mobile-modal";
+import { EarnHubView, ReferralHubView } from "./wallet-mobile-modal";
 import { ReferralCTA } from "./ReferralCTA";
-import { ReferralDashboard } from "./ReferralDashboard";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -71,7 +70,9 @@ export const WalletDetails = () => {
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [isEarnFormOpen, setIsEarnFormOpen] = useState(false);
   const [earnFormTab, setEarnFormTab] = useState<"deposit" | "withdraw">("deposit");
-  const [sidebarView, setSidebarView] = useState<"wallet" | "earn">("wallet");
+  const [sidebarView, setSidebarView] = useState<
+    "wallet" | "earn" | "referrals"
+  >("wallet");
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const {
     isConsentModalOpen: isEarnConsentModalOpen,
@@ -89,7 +90,6 @@ export const WalletDetails = () => {
     useState<EarnActivityEntry | null>(null);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
-  const [isReferralOpen, setIsReferralOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { currentStep } = useStep();
@@ -363,6 +363,13 @@ export const WalletDetails = () => {
                       )}
                     </div>
                   </div>
+                ) : sidebarView === "referrals" ? (
+                  <div className="scrollbar-hide flex h-full flex-col overflow-y-auto p-5">
+                    <ReferralHubView
+                      onBack={() => setSidebarView("wallet")}
+                      onClose={handleSidebarClose}
+                    />
+                  </div>
                 ) : sidebarView === "earn" && showEarnUi ? (
                   <div className="scrollbar-hide flex h-full flex-col overflow-y-auto p-5">
                     <EarnHubView
@@ -381,7 +388,8 @@ export const WalletDetails = () => {
                   </div>
                 ) : (
                   // Main wallet view
-                  <div className="flex h-full flex-col p-5">
+                  <div className="flex h-full min-h-0 flex-col overflow-hidden p-5">
+                    <div className="flex-shrink-0">
                     {/* Header with close button */}
                     <div className="flex items-center justify-between">
                       <h2 className="text-lg font-semibold text-text-body dark:text-white">
@@ -490,18 +498,17 @@ export const WalletDetails = () => {
                         </div>
                       )}
                     </div>
+                    </div>
 
+                    <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
                     <div className="mt-8">
                       <ReferralCTA
-                        onViewReferrals={() => {
-                          handleSidebarClose();
-                          setTimeout(() => setIsReferralOpen(true), 260);
-                        }}
+                        onViewReferrals={() => setSidebarView("referrals")}
                       />
                     </div>
 
-                    {/* Tab navigation */}
-                    <div className="mt-6 space-y-3">
+                    {/* Tab navigation — sticks below Transfer/Fund/Earn when scrolled */}
+                    <div className="sticky top-0 z-10 -mx-5 space-y-3 bg-white px-5 pb-2 pt-4 dark:bg-surface-overlay">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-6">
                           <button
@@ -601,7 +608,7 @@ export const WalletDetails = () => {
                     </div>
 
                     {/* Tab content */}
-                    <div className="scrollbar-hide mt-6 w-full flex-grow overflow-y-scroll">
+                    <div className="mt-2 w-full pb-16">
                       <AnimatePresence mode="wait">
                         {activeTab === "balances" ? (
                           // Balances tab content with cross-chain grouping
@@ -611,7 +618,7 @@ export const WalletDetails = () => {
                             initial="initial"
                             animate="animate"
                             exit="exit"
-                            className="h-full space-y-6 overflow-y-auto pb-16"
+                            className="space-y-6"
                           >
                             {showBalanceSkeleton ? (
                               <CrossChainBalanceSkeleton />
@@ -749,7 +756,7 @@ export const WalletDetails = () => {
                             initial="initial"
                             animate="animate"
                             exit="exit"
-                            className="flex h-full flex-col items-center gap-4 text-center"
+                            className="flex flex-col items-center gap-4 text-center"
                           >
                             <TransactionList
                               onSelectTransaction={setSelectedTransaction}
@@ -758,6 +765,7 @@ export const WalletDetails = () => {
                         )}
                       </AnimatePresence>
                     </div>
+                    </div>
                   </div>
                 )}
               </motion.div>
@@ -765,11 +773,6 @@ export const WalletDetails = () => {
           </Dialog>
         )}
       </AnimatePresence>
-
-      <ReferralDashboard
-        isOpen={isReferralOpen}
-        onClose={() => setIsReferralOpen(false)}
-      />
 
       {/* Transfer and Fund modals */}
       {!isInjectedWallet && (

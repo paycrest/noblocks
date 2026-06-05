@@ -204,17 +204,25 @@ export async function POST(request: NextRequest) {
         smileIdResult?.ResultText || "SmileID verification failed";
       const category = classifySmileIdFailure(errorMessage);
 
-      // Infrastructure outages should not count against the user's attempt quota.
-      // Decrement the counter that was incremented above so they can retry freely.
-      if (getJobTypeForIdType(id_info.id_type) === 1 && category === "database") {
+      // Infrastructure outages should not count against the user's attempt quota
+      // regardless of job type (Job Type 1, 5, or 6). Restore the counter that
+      // was incremented above so they can retry freely.
+      if (category === "database") {
         console.warn("[smile-id] infrastructure failure detected — restoring attempt counter", {
           walletAddress,
+          jobType: getJobTypeForIdType(id_info.id_type),
           resultText: errorMessage,
         });
-        await supabaseAdmin
+        const { error: restoreError } = await supabaseAdmin
           .from("user_kyc_profiles")
           .update({ attempts: Math.max(0, newAttemptCount - 1) })
           .eq("wallet_address", walletAddress);
+        if (restoreError) {
+          console.error("[smile-id] failed to restore attempt counter after infrastructure failure", {
+            walletAddress,
+            error: restoreError.message,
+          });
+        }
       }
 
       return NextResponse.json(

@@ -25,6 +25,7 @@ import {
   fetchRate,
   fetchSupportedInstitutions,
   migrateLocalStorageRecipients,
+  getReferralData,
 } from "../api/aggregator";
 import {
   normalizeNetworkForRateFetch,
@@ -173,6 +174,8 @@ export function MainPageContent() {
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
   const [showReferralModal, setShowReferralModal] = useState(false);
+  const [hasExistingReferral, setHasExistingReferral] = useState(false);
+  const [isReferralDataChecked, setIsReferralDataChecked] = useState(false);
 
   const [rate, setRate] = useState<number>(0);
   const [formValues, setFormValues] = useState<FormData>({} as FormData);
@@ -306,35 +309,57 @@ export function MainPageContent() {
 
   const walletAddress = useWalletAddress();
 
-  const showReferralIfEligible = useCallback((fromNetworkSelected = false) => {
-    if (!ready || !authenticated || !walletAddress || isInjectedWallet) {
-      return;
-    }
-
-    // Only show referral modal to new users (account created within the last 30 days).
-    // Existing users who predate the referral feature should not be prompted.
-    if (user?.createdAt) {
-      const accountAgeDays = (Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24);
-      if (accountAgeDays > 30) {
+  const showReferralIfEligible = useCallback(
+    (fromNetworkSelected = false) => {
+      if (!ready || !authenticated || !walletAddress || isInjectedWallet) {
         return;
       }
-    }
 
-    // For new users, the network selection modal opens at the same time as this
-    // check would fire. Defer to handleNetworkSelected so the referral modal only
-    // shows after they've picked a network — not underneath it.
-    if (!fromNetworkSelected && user?.wallet?.address) {
-      const networkModalKey = `hasSeenNetworkModal-${user.wallet.address}`;
-      if (!localStorage.getItem(networkModalKey)) {
+      if (!isReferralDataChecked) {
         return;
       }
-    }
 
-    const referralStorageKey = `hasSeenReferralModal-${walletAddress.toLowerCase()}`;
-    if (!localStorage.getItem(referralStorageKey)) {
-      setShowReferralModal(true);
-    }
-  }, [ready, authenticated, walletAddress, isInjectedWallet, user?.wallet?.address, user?.createdAt]);
+      if (hasExistingReferral) {
+        return;
+      }
+
+      // Only show referral modal to new users (account created within the last 30 days).
+      // Existing users who predate the referral feature should not be prompted.
+      if (user?.createdAt) {
+        const accountAgeDays =
+          (Date.now() - new Date(user.createdAt).getTime()) /
+          (1000 * 60 * 60 * 24);
+        if (accountAgeDays > 30) {
+          return;
+        }
+      }
+
+      // For new users, the network selection modal opens at the same time as this
+      // check would fire. Defer to handleNetworkSelected so the referral modal only
+      // shows after they've picked a network — not underneath it.
+      if (!fromNetworkSelected && user?.wallet?.address) {
+        const networkModalKey = `hasSeenNetworkModal-${user.wallet.address}`;
+        if (!localStorage.getItem(networkModalKey)) {
+          return;
+        }
+      }
+
+      const referralStorageKey = `hasSeenReferralModal-${walletAddress.toLowerCase()}`;
+      if (!localStorage.getItem(referralStorageKey)) {
+        setShowReferralModal(true);
+      }
+    },
+    [
+      ready,
+      authenticated,
+      walletAddress,
+      isInjectedWallet,
+      user?.wallet?.address,
+      user?.createdAt,
+      isReferralDataChecked,
+      hasExistingReferral,
+    ],
+  );
 
   const handleNetworkSelected = useCallback(() => {
     showReferralIfEligible(true);
@@ -342,7 +367,7 @@ export function MainPageContent() {
 
   useEffect(() => {
     showReferralIfEligible();
-  }, [showReferralIfEligible]);
+  }, [showReferralIfEligible, isReferralDataChecked]);
 
   const handleReferralModalClose = useCallback(() => {
     setShowReferralModal(false);
@@ -594,6 +619,45 @@ export function MainPageContent() {
       runMigration();
     },
     [authenticated, ready, isInjectedWallet, getAccessToken],
+  );
+
+  // Fetch server-side referral data to gate the referral modal
+  useEffect(
+    function fetchReferralData() {
+      async function checkReferralStatus() {
+        if (!authenticated || !ready || isInjectedWallet || !walletAddress) {
+          setIsReferralDataChecked(true);
+          return;
+        }
+
+        try {
+          const accessToken = await getAccessToken();
+          if (accessToken) {
+            const response = await getReferralData(accessToken, walletAddress);
+            if (response.success && response.data && Array.isArray(response.data.referrals)) {
+              const hasReferred = response.data.referrals.some(
+                (r) => r.role === "referred",
+              );
+              setHasExistingReferral(hasReferred);
+            } else {
+              // Safe default: if we can't confirm they haven't been referred, assume they have
+              setHasExistingReferral(true);
+            }
+          } else {
+            setHasExistingReferral(true);
+          }
+        } catch (error) {
+          console.error("Failed to fetch referral data:", error);
+          // Safe default on error: assume they have been referred to prevent showing the modal inappropriately
+          setHasExistingReferral(true);
+        } finally {
+          setIsReferralDataChecked(true);
+        }
+      }
+
+      checkReferralStatus();
+    },
+    [authenticated, ready, isInjectedWallet, walletAddress, getAccessToken],
   );
 
   const handleFormSubmit = useCallback(

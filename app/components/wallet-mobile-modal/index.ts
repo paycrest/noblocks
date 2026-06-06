@@ -3,4 +3,4 @@ export { HistoryView } from "./HistoryView";
 export { SettingsView } from "./SettingsView";
 export { EarnHubView } from "./EarnHubView";
 export { EarnActivityDetailView } from "./EarnActivityDetailView";
-export { ReferralDashboardView } from "./ReferralDashboardView";
+export { ReferralHubView } from "./ReferralHubView";

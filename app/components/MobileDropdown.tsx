@@ -32,7 +32,7 @@ import {
   SettingsView,
   EarnHubView,
   EarnActivityDetailView,
-  ReferralDashboardView,
+  ReferralHubView,
 } from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm } from "./FundWalletForm";
@@ -299,7 +299,13 @@ export const MobileDropdown = ({
                         }}
                         style={{ overflow: "hidden" }}
                       >
-                        <div className="scrollbar-hide max-h-[90vh] overflow-y-scroll pb-12">
+                        <div
+                          className={
+                            currentView === "wallet"
+                              ? "flex max-h-[90vh] flex-col overflow-hidden pb-12"
+                              : "scrollbar-hide max-h-[90vh] overflow-y-scroll pb-12"
+                          }
+                        >
                           {currentView === "wallet" && (
                             <WalletView
                               isInjectedWallet={isInjectedWallet}
@@ -338,9 +344,9 @@ export const MobileDropdown = ({
                           )}
 
                           {currentView === "referrals" && (
-                            <ReferralDashboardView
-                              isOpen
-                              onClose={() => setCurrentView("wallet")}
+                            <ReferralHubView
+                              onBack={() => setCurrentView("wallet")}
+                              onClose={onClose}
                             />
                           )}
 

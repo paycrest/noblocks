@@ -2,13 +2,10 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 
 export const ReferralCTA = ({ onViewReferrals }: { onViewReferrals: () => void }) => {
-    const router = useRouter();
-
     const handleViewReferrals = () => {
-        if (onViewReferrals) return onViewReferrals();
+        onViewReferrals();
     };
 
     return (

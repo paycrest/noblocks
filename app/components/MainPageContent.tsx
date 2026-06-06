@@ -60,6 +60,23 @@ import {
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 
+/**
+ * PageLayout component renders the main page structure including modals,
+ * disclaimers, cookie consent, and the transaction form or status view.
+ *
+ * @param props - The layout properties.
+ * @param props.authenticated - Whether the user is authenticated.
+ * @param props.ready - Whether the auth state is ready.
+ * @param props.currentStep - The current transaction step.
+ * @param props.transactionFormComponent - The transaction form or status component to render.
+ * @param props.isRecipientFormOpen - Whether the recipient form is open.
+ * @param props.isOnramp - Whether the current mode is on-ramp.
+ * @param props.isBlockFestReferral - Whether the user is a BlockFest referral.
+ * @param props.showReferralModal - Whether to show the referral input modal.
+ * @param props.onReferralModalClose - Callback when the referral modal is closed.
+ * @param props.onNetworkSelected - Callback when a network is selected.
+ * @returns The rendered page layout.
+ */
 const PageLayout = ({
   authenticated,
   ready,
@@ -137,9 +154,17 @@ const PageLayout = ({
 };
 
 /**
+ * Calculates the token amount to use for on-ramp rate queries.
+ *
  * v2 `/rates/.../{token}/{amount}/{fiat}` expects `amount` in token units. On-ramp, the receive
  * (token) field is often 0 until a rate exists — use a peg-aware fiat-sized probe instead of `1`
  * so provider min/max match the user's order (e.g. CNGN ↔ NGN).
+ *
+ * @param token - The token symbol (e.g., "CNGN").
+ * @param currency - The fiat currency (e.g., "NGN").
+ * @param sentN - The amount sent in fiat units.
+ * @param recvN - The amount received in token units.
+ * @returns The calculated token amount for the rate query.
  */
 function onrampRateQueryTokenAmount(
   token: string,
@@ -156,6 +181,14 @@ function onrampRateQueryTokenAmount(
   return 1;
 }
 
+/**
+ * MainPageContent is the primary component for the home page.
+ * It manages the transaction flow, including form state, rate fetching,
+ * institution fetching, network selection, and referral modal gating.
+ * It also handles user authentication state and KYC verification.
+ *
+ * @returns The rendered main page content.
+ */
 export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready, getAccessToken, user } = usePrivy();

@@ -657,16 +657,22 @@ export function MainPageContent() {
   // Fetch server-side referral data to gate the referral modal
   useEffect(
     function fetchReferralData() {
+      let isMounted = true;
+
       async function checkReferralStatus() {
         if (!authenticated || !ready || isInjectedWallet || !walletAddress) {
-          setIsReferralDataChecked(true);
+          if (isMounted) setIsReferralDataChecked(true);
           return;
         }
 
         try {
           const accessToken = await getAccessToken();
+          if (!isMounted) return;
+
           if (accessToken) {
             const response = await getReferralData(accessToken, walletAddress);
+            if (!isMounted) return;
+
             if (response.success && response.data && Array.isArray(response.data.referrals)) {
               const hasReferred = response.data.referrals.some(
                 (r) => r.role === "referred",
@@ -677,18 +683,25 @@ export function MainPageContent() {
               setHasExistingReferral(true);
             }
           } else {
-            setHasExistingReferral(true);
+            if (isMounted) setHasExistingReferral(true);
           }
         } catch (error) {
+          if (!isMounted) return;
           console.error("Failed to fetch referral data:", error);
           // Safe default on error: assume they have been referred to prevent showing the modal inappropriately
           setHasExistingReferral(true);
         } finally {
-          setIsReferralDataChecked(true);
+          if (isMounted) {
+            setIsReferralDataChecked(true);
+          }
         }
       }
 
       checkReferralStatus();
+
+      return () => {
+        isMounted = false;
+      };
     },
     [authenticated, ready, isInjectedWallet, walletAddress, getAccessToken],
   );

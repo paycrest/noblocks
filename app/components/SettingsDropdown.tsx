@@ -30,19 +30,16 @@ import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import ProfileDrawer from "./ProfileDrawer";
 import { ThemeSwitch } from "./ThemeSwitch";
-import { useWallets } from "@privy-io/react-auth";
-import { useShouldUseEOA } from "../hooks/useEIP7702Account";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useHandleExportEmbeddedWallet } from "../hooks/useHandleExportEmbeddedWallet";
 import { clearUserSessionData } from "../lib/session-cleanup";
 
 export const SettingsDropdown = () => {
   const { user, updateEmail } = usePrivy();
   const handleExportEmbeddedWallet = useHandleExportEmbeddedWallet();
-  const { wallets } = useWallets();
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const shouldUseEOA = useShouldUseEOA();
+  const { isInjectedWallet } = useInjectedWallet();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -55,25 +52,11 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
-  // Get embedded wallet (EOA) and smart wallet (SCW)
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy",
-  );
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
-  );
-
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
-  // Before migration: show SCW (old wallet)
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : shouldUseEOA
-      ? embeddedWallet?.address
-      : smartWallet?.address;
+  const walletAddress = useWalletAddress();
 
   const handleCopyAddress = async () => {
-    const ok = await copyToClipboard(walletAddress ?? "", "Address");
+    if (!walletAddress) return;
+    const ok = await copyToClipboard(walletAddress, "Address");
     if (!ok) return;
     setIsAddressCopied(true);
     setTimeout(() => setIsAddressCopied(false), 2000);
@@ -214,13 +197,14 @@ export const SettingsDropdown = () => {
               >
                 <button
                   type="button"
-                  className="group flex w-full items-center justify-between gap-4"
+                  className="group flex w-full items-center justify-between gap-4 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleCopyAddress}
+                  disabled={!walletAddress}
                 >
                   <div className="flex items-center gap-2.5">
                     <Wallet01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                     <p className="max-w-60 break-words">
-                      {shortenAddress(walletAddress ?? "", 10)}
+                      {walletAddress ? shortenAddress(walletAddress, 10) : "—"}
                     </p>
                   </div>
                   {isAddressCopied ? (

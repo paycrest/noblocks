@@ -793,6 +793,8 @@ export const KycModal = ({
           await refreshStatus(true);
           setIsUserVerified(true);
           setIsKycModalOpen(false);
+          // SmileID camera displaces the document scroll position — restore after dialog unmounts
+          requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "instant" }));
         }}
       >
         Let&apos;s go!

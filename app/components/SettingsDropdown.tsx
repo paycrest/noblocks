@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import ProfileDrawer from "./ProfileDrawer";
 import { ThemeSwitch } from "./ThemeSwitch";
@@ -43,6 +44,7 @@ export const SettingsDropdown = () => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const shouldUseEOA = useShouldUseEOA();
+  const hookWalletAddress = useWalletAddress();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -63,14 +65,15 @@ export const SettingsDropdown = () => {
     (account) => account.type === "smart_wallet",
   );
 
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
-  // Before migration: show SCW (old wallet)
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : shouldUseEOA
-      ? embeddedWallet?.address
-      : smartWallet?.address;
+  // Prefer the network-aware address (handles Starknet Ready account); fall back to
+  // migration-based EVM logic (after migration: EOA with funds; before: SCW).
+  const walletAddress =
+    hookWalletAddress ??
+    (isInjectedWallet
+      ? injectedAddress
+      : shouldUseEOA
+        ? embeddedWallet?.address
+        : smartWallet?.address);
 
   const handleCopyAddress = async () => {
     const ok = await copyToClipboard(walletAddress ?? "", "Address");

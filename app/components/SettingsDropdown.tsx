@@ -27,6 +27,7 @@ import {
 } from "hugeicons-react";
 import { toast } from "sonner";
 import { useInjectedWallet } from "../context";
+import { useNetwork } from "../context/NetworksContext";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
@@ -43,6 +44,8 @@ export const SettingsDropdown = () => {
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { selectedNetwork } = useNetwork();
+  const isStarknet = selectedNetwork?.chain?.name === "Starknet";
   const shouldUseEOA = useShouldUseEOA();
   const hookWalletAddress = useWalletAddress();
 
@@ -65,15 +68,17 @@ export const SettingsDropdown = () => {
     (account) => account.type === "smart_wallet",
   );
 
-  // Prefer the network-aware address (handles Starknet Ready account); fall back to
-  // migration-based EVM logic (after migration: EOA with funds; before: SCW).
+  // Prefer the network-aware address; fall back to EVM-only logic only when not on Starknet,
+  // to avoid showing an EVM address while Starknet is active.
   const walletAddress =
     hookWalletAddress ??
-    (isInjectedWallet
-      ? injectedAddress
-      : shouldUseEOA
-        ? embeddedWallet?.address
-        : smartWallet?.address);
+    (isStarknet
+      ? undefined
+      : isInjectedWallet
+        ? injectedAddress
+        : shouldUseEOA
+          ? embeddedWallet?.address
+          : smartWallet?.address);
 
   const handleCopyAddress = async () => {
     if (!walletAddress) return;

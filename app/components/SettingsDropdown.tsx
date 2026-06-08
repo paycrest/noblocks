@@ -6,6 +6,7 @@ import {
   useLogout,
   usePrivy,
   useMfaEnrollment,
+  useWallets,
 } from "@privy-io/react-auth";
 import { ImSpinner } from "react-icons/im";
 import { resetNetworkModalDismissed } from "../lib/networkModalStore";
@@ -26,11 +27,12 @@ import {
 } from "hugeicons-react";
 import { toast } from "sonner";
 import { useInjectedWallet } from "../context";
+import { useNetwork } from "../context/NetworksContext";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import ProfileDrawer from "./ProfileDrawer";
 import { ThemeSwitch } from "./ThemeSwitch";
-import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useHandleExportEmbeddedWallet } from "../hooks/useHandleExportEmbeddedWallet";
 import { clearUserSessionData } from "../lib/session-cleanup";
@@ -42,7 +44,10 @@ export const SettingsDropdown = () => {
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { selectedNetwork } = useNetwork();
+  const isStarknet = selectedNetwork?.chain?.name === "Starknet";
   const shouldUseEOA = useShouldUseEOA();
+  const hookWalletAddress = useWalletAddress();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -63,17 +68,21 @@ export const SettingsDropdown = () => {
     (account) => account.type === "smart_wallet",
   );
 
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
-  // Before migration: show SCW (old wallet)
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : shouldUseEOA
-      ? embeddedWallet?.address
-      : smartWallet?.address;
+  // Prefer the network-aware address; fall back to EVM-only logic only when not on Starknet,
+  // to avoid showing an EVM address while Starknet is active.
+  const walletAddress =
+    hookWalletAddress ??
+    (isStarknet
+      ? undefined
+      : isInjectedWallet
+        ? injectedAddress
+        : shouldUseEOA
+          ? embeddedWallet?.address
+          : smartWallet?.address);
 
   const handleCopyAddress = async () => {
-    const ok = await copyToClipboard(walletAddress ?? "", "Address");
+    if (!walletAddress) return;
+    const ok = await copyToClipboard(walletAddress, "Address");
     if (!ok) return;
     setIsAddressCopied(true);
     setTimeout(() => setIsAddressCopied(false), 2000);
@@ -214,13 +223,14 @@ export const SettingsDropdown = () => {
               >
                 <button
                   type="button"
-                  className="group flex w-full items-center justify-between gap-4"
+                  className="group flex w-full items-center justify-between gap-4 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleCopyAddress}
+                  disabled={!walletAddress}
                 >
                   <div className="flex items-center gap-2.5">
                     <Wallet01Icon className="size-5 text-icon-outline-secondary dark:text-white/50" />
                     <p className="max-w-60 break-words">
-                      {shortenAddress(walletAddress ?? "", 10)}
+                      {walletAddress ? shortenAddress(walletAddress, 10) : "—"}
                     </p>
                   </div>
                   {isAddressCopied ? (

@@ -76,6 +76,7 @@
     "smile-identity-core": "^3.1.0",
     "sonner": "^1.7.4",
     "starknet": "^9.2.1",
+    "starkzap": "^3.0.0",
     "styled-components": "^6.1.19",
     "twilio": "^6.0.1",
     "viem": "^2.31.0"

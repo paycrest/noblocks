@@ -15,6 +15,7 @@ import {
   NetworkSelectionModal,
   CookieConsent,
   Disclaimer,
+  ReferralInputModal,
 } from "./";
 import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
@@ -24,10 +25,10 @@ import {
   fetchRate,
   fetchSupportedInstitutions,
   migrateLocalStorageRecipients,
+  getReferralData,
 } from "../api/aggregator";
 import {
   normalizeNetworkForRateFetch,
-  isStarknetChain,
   clearFormState,
   getBannerPadding,
   initialSwapModeForHomeForm,
@@ -59,6 +60,23 @@ import {
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 
+/**
+ * PageLayout component renders the main page structure including modals,
+ * disclaimers, cookie consent, and the transaction form or status view.
+ *
+ * @param props - The layout properties.
+ * @param props.authenticated - Whether the user is authenticated.
+ * @param props.ready - Whether the auth state is ready.
+ * @param props.currentStep - The current transaction step.
+ * @param props.transactionFormComponent - The transaction form or status component to render.
+ * @param props.isRecipientFormOpen - Whether the recipient form is open.
+ * @param props.isOnramp - Whether the current mode is on-ramp.
+ * @param props.isBlockFestReferral - Whether the user is a BlockFest referral.
+ * @param props.showReferralModal - Whether to show the referral input modal.
+ * @param props.onReferralModalClose - Callback when the referral modal is closed.
+ * @param props.onNetworkSelected - Callback when a network is selected.
+ * @returns The rendered page layout.
+ */
 const PageLayout = ({
   authenticated,
   ready,
@@ -67,6 +85,9 @@ const PageLayout = ({
   isRecipientFormOpen,
   isOnramp,
   isBlockFestReferral,
+  showReferralModal,
+  onReferralModalClose,
+  onNetworkSelected,
 }: {
   authenticated: boolean;
   ready: boolean;
@@ -75,9 +96,11 @@ const PageLayout = ({
   isRecipientFormOpen: boolean;
   isOnramp: boolean;
   isBlockFestReferral: boolean;
+  showReferralModal: boolean;
+  onReferralModalClose: () => void;
+  onNetworkSelected: () => void;
 }) => {
   const { claimed, resetClaim } = useBlockFestClaim();
-  const { user } = usePrivy();
   const { isOpen, openModal, closeModal } = useBlockFestModal();
   const { isInjectedWallet } = useInjectedWallet();
   const walletAddress = useWalletAddress();
@@ -100,7 +123,17 @@ const PageLayout = ({
 
       <Disclaimer />
       <CookieConsent />
-      {!isInjectedWallet && <NetworkSelectionModal />}
+
+      {/* Network Selection Modal with callback */}
+      {!isInjectedWallet && (
+        <NetworkSelectionModal onNetworkSelected={onNetworkSelected} />
+      )}
+
+      {/* Referral Input Modal */}
+      <ReferralInputModal
+        isOpen={showReferralModal}
+        onClose={onReferralModalClose}
+      />
 
       <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
 
@@ -121,9 +154,17 @@ const PageLayout = ({
 };
 
 /**
+ * Calculates the token amount to use for on-ramp rate queries.
+ *
  * v2 `/rates/.../{token}/{amount}/{fiat}` expects `amount` in token units. On-ramp, the receive
  * (token) field is often 0 until a rate exists — use a peg-aware fiat-sized probe instead of `1`
  * so provider min/max match the user's order (e.g. CNGN ↔ NGN).
+ *
+ * @param token - The token symbol (e.g., "CNGN").
+ * @param currency - The fiat currency (e.g., "NGN").
+ * @param sentN - The amount sent in fiat units.
+ * @param recvN - The amount received in token units.
+ * @returns The calculated token amount for the rate query.
  */
 function onrampRateQueryTokenAmount(
   token: string,
@@ -140,6 +181,14 @@ function onrampRateQueryTokenAmount(
   return 1;
 }
 
+/**
+ * MainPageContent is the primary component for the home page.
+ * It manages the transaction flow, including form state, rate fetching,
+ * institution fetching, network selection, and referral modal gating.
+ * It also handles user authentication state and KYC verification.
+ *
+ * @returns The rendered main page content.
+ */
 export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready, getAccessToken, user } = usePrivy();
@@ -153,9 +202,13 @@ export function MainPageContent() {
   const { selectedNetwork, setDisplayedNetwork, setSelectedNetwork } =
     useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
+
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
+  const [showReferralModal, setShowReferralModal] = useState(false);
+  const [hasExistingReferral, setHasExistingReferral] = useState(false);
+  const [isReferralDataChecked, setIsReferralDataChecked] = useState(false);
 
   const [rate, setRate] = useState<number>(0);
   const [formValues, setFormValues] = useState<FormData>({} as FormData);
@@ -177,11 +230,6 @@ export function MainPageContent() {
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
-  const [rateRefetchTrigger, setRateRefetchTrigger] = useState(0);
-
-  const refetchRate = useCallback(() => {
-    setRateRefetchTrigger((prev) => prev + 1);
-  }, []);
 
   const [initialSwapMode] = useState(() =>
     initialSwapModeForHomeForm(searchParams, selectedNetwork.chain),
@@ -292,6 +340,79 @@ export function MainPageContent() {
     setIsOnrampProviderDetailsOpen,
   ]);
 
+  const walletAddress = useWalletAddress();
+
+  const showReferralIfEligible = useCallback(
+    (fromNetworkSelected = false) => {
+      if (!ready || !authenticated || !walletAddress || isInjectedWallet) {
+        return;
+      }
+
+      if (!isReferralDataChecked) {
+        return;
+      }
+
+      if (hasExistingReferral) {
+        return;
+      }
+
+      // Only show referral modal to new users (account created within the last 30 days).
+      // Existing users who predate the referral feature should not be prompted.
+      if (user?.createdAt) {
+        const accountAgeDays =
+          (Date.now() - new Date(user.createdAt).getTime()) /
+          (1000 * 60 * 60 * 24);
+        if (accountAgeDays > 30) {
+          return;
+        }
+      }
+
+      // For new users, the network selection modal opens at the same time as this
+      // check would fire. Defer to handleNetworkSelected so the referral modal only
+      // shows after they've picked a network — not underneath it.
+      if (!fromNetworkSelected && user?.wallet?.address) {
+        const networkModalKey = `hasSeenNetworkModal-${user.wallet.address}`;
+        if (!localStorage.getItem(networkModalKey)) {
+          return;
+        }
+      }
+
+      const referralStorageKey = `hasSeenReferralModal-${walletAddress.toLowerCase()}`;
+      if (!localStorage.getItem(referralStorageKey)) {
+        setShowReferralModal(true);
+      }
+    },
+    [
+      ready,
+      authenticated,
+      walletAddress,
+      isInjectedWallet,
+      user?.wallet?.address,
+      user?.createdAt,
+      isReferralDataChecked,
+      hasExistingReferral,
+    ],
+  );
+
+  const handleNetworkSelected = useCallback(() => {
+    showReferralIfEligible(true);
+  }, [showReferralIfEligible]);
+
+  useEffect(() => {
+    showReferralIfEligible();
+  }, [showReferralIfEligible, isReferralDataChecked]);
+
+  const handleReferralModalClose = useCallback(() => {
+    setShowReferralModal(false);
+
+    if (walletAddress) {
+      localStorage.setItem(
+        `hasSeenReferralModal-${walletAddress.toLowerCase()}`,
+        "true",
+      );
+    }
+  }, [walletAddress]);
+
   useEffect(function setPageLoadingState() {
     setOrderId("");
     setOnrampPaymentAccount(null);
@@ -401,23 +522,12 @@ export function MainPageContent() {
     [currency],
   );
 
-  const prevRateRefetchTriggerRef = useRef(rateRefetchTrigger);
-
   useEffect(
     function handleRateFetch() {
       // Debounce rate fetching
       let timeoutId: NodeJS.Timeout;
-      const isExplicitRefetch = prevRateRefetchTriggerRef.current !== rateRefetchTrigger;
-      prevRateRefetchTriggerRef.current = rateRefetchTrigger;
 
       if (!currency) return;
-
-      if (isOnrampRate && isStarknetChain(selectedNetwork.chain)) {
-        setRate(0);
-        setRateError(null);
-        setIsFetchingRate(false);
-        return;
-      }
 
       if (isOnrampRate && !token) return;
 
@@ -500,11 +610,7 @@ export function MainPageContent() {
 
       const debounceFetchRate = () => {
         clearTimeout(timeoutId);
-        if (isExplicitRefetch) {
-          getRate();
-        } else {
-          timeoutId = setTimeout(() => getRate(), 1000);
-        }
+        timeoutId = setTimeout(() => getRate(), 1000);
       };
 
       debounceFetchRate();
@@ -521,7 +627,6 @@ export function MainPageContent() {
       isOnrampRate,
       searchParams,
       selectedNetwork,
-      rateRefetchTrigger,
     ],
   );
 
@@ -549,17 +654,64 @@ export function MainPageContent() {
     [authenticated, ready, isInjectedWallet, getAccessToken],
   );
 
+  // Fetch server-side referral data to gate the referral modal
+  useEffect(
+    function fetchReferralData() {
+      let isMounted = true;
+
+      async function checkReferralStatus() {
+        if (!authenticated || !ready || isInjectedWallet || !walletAddress) {
+          if (isMounted) setIsReferralDataChecked(true);
+          return;
+        }
+
+        try {
+          const accessToken = await getAccessToken();
+          if (!isMounted) return;
+
+          if (accessToken) {
+            const response = await getReferralData(accessToken, walletAddress);
+            if (!isMounted) return;
+
+            if (response.success && response.data && Array.isArray(response.data.referrals)) {
+              const hasReferred = response.data.referrals.some(
+                (r) => r.role === "referred",
+              );
+              setHasExistingReferral(hasReferred);
+            } else {
+              // Safe default: if we can't confirm they haven't been referred, assume they have
+              setHasExistingReferral(true);
+            }
+          } else {
+            if (isMounted) setHasExistingReferral(true);
+          }
+        } catch (error) {
+          if (!isMounted) return;
+          console.error("Failed to fetch referral data:", error);
+          // Safe default on error: assume they have been referred to prevent showing the modal inappropriately
+          setHasExistingReferral(true);
+        } finally {
+          if (isMounted) {
+            setIsReferralDataChecked(true);
+          }
+        }
+      }
+
+      checkReferralStatus();
+
+      return () => {
+        isMounted = false;
+      };
+    },
+    [authenticated, ready, isInjectedWallet, walletAddress, getAccessToken],
+  );
+
   const handleFormSubmit = useCallback(
     (data: FormData) => {
-      const isStarknetOnrampBlocked =
-        isStarknetChain(selectedNetwork.chain) && data.swapMode === "onramp";
-      if (isStarknetOnrampBlocked) {
-        return;
-      }
       setFormValues(data);
       setCurrentStep(STEPS.PREVIEW);
     },
-    [setFormValues, setCurrentStep, selectedNetwork],
+    [setFormValues, setCurrentStep],
   );
 
   const handleBackToForm = useCallback(() => {
@@ -636,7 +788,6 @@ export function MainPageContent() {
             setCurrentStep={setCurrentStep}
             supportedInstitutions={institutions}
             setOrderId={setOrderId}
-            refetchRate={refetchRate}
           />
         );
       default:
@@ -658,7 +809,6 @@ export function MainPageContent() {
     setTransactionStatus,
     setCurrentStep,
     setOrderId,
-    refetchRate,
   ]);
 
   const transactionFormComponent = useMemo(
@@ -687,6 +837,9 @@ export function MainPageContent() {
           isRecipientFormOpen={isRecipientFormOpen}
           isOnramp={swapMode === "onramp"}
           isBlockFestReferral={isBlockFestReferral}
+          showReferralModal={showReferralModal}
+          onReferralModalClose={handleReferralModalClose}
+          onNetworkSelected={handleNetworkSelected}
         />
       )}
     </div>

@@ -3,9 +3,32 @@ import { supabaseAdmin } from "@/app/lib/supabase";
 import {
   submitSmileIDJob,
   SmileIdValidationError,
+  getJobTypeForIdType,
   type SmileIDIdInfo,
 } from "@/app/lib/smileID";
+
 import { rateLimit } from "@/app/lib/rate-limit";
+
+type SmileFailureCategory = "database" | "quality" | "liveness" | "mismatch" | "general";
+
+// Only matches clear infrastructure signals — NOT normal verification failures like
+// "ID Not Verified" or "Unable to Verify" (which are meaningful SmileID outcomes).
+function classifySmileIdFailure(resultText: string): SmileFailureCategory {
+  const t = resultText.toLowerCase();
+  if (
+    t.includes("timeout") ||
+    t.includes("database") ||
+    t.includes("service unavailable") ||
+    t.includes("internal server error") ||
+    t.includes("server error") ||
+    t.includes("temporarily unavailable") ||
+    t.includes("connection")
+  ) return "database";
+  if (t.includes("readable") || t.includes("bright") || t.includes("blurry") || t.includes("quality") || t.includes("not clear")) return "quality";
+  if (t.includes("liveness")) return "liveness";
+  if (t.includes("mismatch") || t.includes("face")) return "mismatch";
+  return "general";
+}
 
 export async function POST(request: NextRequest) {
   // Rate limit check
@@ -171,7 +194,7 @@ export async function POST(request: NextRequest) {
       // Enhanced KYC: Check if ID verification passed
       verificationSuccess = actions.Verify_ID_Number === "Verified";
     } else if (isBiometricKyc) {
-      // Biometric KYC: Check job_complete and job_success
+      // Biometric KYC: job is complete — check whether it succeeded
       verificationSuccess =
         smileIdResult.job_complete && smileIdResult.job_success;
     }
@@ -179,10 +202,34 @@ export async function POST(request: NextRequest) {
     if (!verificationSuccess) {
       const errorMessage =
         smileIdResult?.ResultText || "SmileID verification failed";
+      const category = classifySmileIdFailure(errorMessage);
+
+      // Infrastructure outages should not count against the user's attempt quota
+      // regardless of job type (Job Type 1, 5, or 6). Restore the counter that
+      // was incremented above so they can retry freely.
+      if (category === "database") {
+        console.warn("[smile-id] infrastructure failure detected — restoring attempt counter", {
+          walletAddress,
+          jobType: getJobTypeForIdType(id_info.id_type),
+          resultText: errorMessage,
+        });
+        const { error: restoreError } = await supabaseAdmin
+          .from("user_kyc_profiles")
+          .update({ attempts: Math.max(0, newAttemptCount - 1) })
+          .eq("wallet_address", walletAddress);
+        if (restoreError) {
+          console.error("[smile-id] failed to restore attempt counter after infrastructure failure", {
+            walletAddress,
+            error: restoreError.message,
+          });
+        }
+      }
+
       return NextResponse.json(
         {
           status: "error",
           message: errorMessage,
+          failureCategory: category,
         },
         { status: 400 },
       );

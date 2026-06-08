@@ -1,25 +1,26 @@
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useInjectedWallet } from "../context";
 import { useStarknet } from "../context/StarknetContext";
 import { useNetwork } from "../context/NetworksContext";
 import { normalizeStarknetAddress } from "../utils";
+import { useShouldUseEOA } from "./useEIP7702Account";
 
 /**
- * Hook to get the appropriate wallet address based on the current network
- * @returns The wallet address for the currently selected network
+ * Active wallet address for the selected network (matches WalletDetails / swap form).
+ * Starknet → Starknet wallet; EVM → embedded EOA when migrated / empty SCW, else smart wallet.
  */
 export function useWalletAddress(): string | undefined {
   const { user } = usePrivy();
+  const { wallets } = useWallets();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { address: starknetAddress } = useStarknet();
   const { selectedNetwork } = useNetwork();
+  const shouldUseEOA = useShouldUseEOA();
 
-  // If using injected wallet, return injected address
   if (isInjectedWallet) {
     return injectedAddress ?? undefined;
   }
 
-  // If on Starknet, return Starknet wallet address
   if (selectedNetwork?.chain?.name === "Starknet") {
     if (!starknetAddress) {
       return undefined;
@@ -32,7 +33,21 @@ export function useWalletAddress(): string | undefined {
     }
   }
 
-  // Otherwise, return EVM smart wallet address
-  return user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-    ?.address;
+  const embeddedLinked = user?.linkedAccounts?.find(
+    (account) =>
+      account.type === "wallet" &&
+      (account as { connectorType?: string }).connectorType === "embedded" &&
+      typeof (account as { address?: string }).address === "string",
+  ) as { address?: string } | undefined;
+  const embeddedWallet = wallets.find(
+    (wallet) => wallet.walletClientType === "privy",
+  );
+  const smartWallet = user?.linkedAccounts?.find(
+    (account) => account.type === "smart_wallet",
+  ) as { address?: string } | undefined;
+
+  if (shouldUseEOA) {
+    return embeddedLinked?.address ?? embeddedWallet?.address;
+  }
+  return smartWallet?.address;
 }

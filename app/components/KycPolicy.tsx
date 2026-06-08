@@ -279,7 +279,7 @@ export const KycPolicy = () => {
         securely delete or anonymize it, in line with applicable laws and industry standards.
       </p>
 
-      <h3 className="text-base font-bold">12. Retention of Your Information</h3>
+      <h3 className="text-base font-bold">12. Third-Party Applications and Services</h3>
       <p>
         12.1 Our service may involve the use of third-party applications or services that may request
         personal information from you and use cookies or similar technologies. While these

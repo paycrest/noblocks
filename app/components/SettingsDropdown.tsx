@@ -6,6 +6,7 @@ import {
   useLogout,
   usePrivy,
   useMfaEnrollment,
+  useWallets,
 } from "@privy-io/react-auth";
 import { ImSpinner } from "react-icons/im";
 import { resetNetworkModalDismissed } from "../lib/networkModalStore";
@@ -27,19 +28,23 @@ import {
 import { toast } from "sonner";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import ProfileDrawer from "./ProfileDrawer";
 import { ThemeSwitch } from "./ThemeSwitch";
-import { useWalletAddress } from "../hooks/useWalletAddress";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useHandleExportEmbeddedWallet } from "../hooks/useHandleExportEmbeddedWallet";
 import { clearUserSessionData } from "../lib/session-cleanup";
 
 export const SettingsDropdown = () => {
   const { user, updateEmail } = usePrivy();
   const handleExportEmbeddedWallet = useHandleExportEmbeddedWallet();
+  const { wallets } = useWallets();
   const { showMfaEnrollmentModal } = useMfaEnrollment();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const { isInjectedWallet } = useInjectedWallet();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const shouldUseEOA = useShouldUseEOA();
+  const hookWalletAddress = useWalletAddress();
 
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
@@ -52,7 +57,23 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
-  const walletAddress = useWalletAddress();
+  // Get embedded wallet (EOA) and smart wallet (SCW)
+  const embeddedWallet = wallets.find(
+    (wallet) => wallet.walletClientType === "privy",
+  );
+  const smartWallet = user?.linkedAccounts.find(
+    (account) => account.type === "smart_wallet",
+  );
+
+  // Prefer the network-aware address (handles Starknet Ready account); fall back to
+  // migration-based EVM logic (after migration: EOA with funds; before: SCW).
+  const walletAddress =
+    hookWalletAddress ??
+    (isInjectedWallet
+      ? injectedAddress
+      : shouldUseEOA
+        ? embeddedWallet?.address
+        : smartWallet?.address);
 
   const handleCopyAddress = async () => {
     if (!walletAddress) return;

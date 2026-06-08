@@ -10,6 +10,26 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      # Configured repo secrets
+      AGGREGATOR_DATABASE_URL: ${{ secrets.AGGREGATOR_DATABASE_URL }}
+      BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+      BREVO_LIST_ID: ${{ secrets.BREVO_LIST_ID }}
+      NEXT_PUBLIC_AGGREGATOR_URL: ${{ secrets.NEXT_PUBLIC_AGGREGATOR_URL }}
+      NEXT_PUBLIC_FEE_RECIPIENT_ADDRESS: ${{ secrets.NEXT_PUBLIC_FEE_RECIPIENT_ADDRESS }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_URL: ${{ secrets.SENTRY_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Dummy values for vars required at build time but not in repo secrets
+      NEXT_PUBLIC_PRIVY_APP_ID: ci-dummy-privy-app-id
+      PRIVY_APP_SECRET: ci-dummy-privy-app-secret
+      INTERNAL_API_KEY: ci-dummy-internal-api-key
+      PRIVY_JWKS_URL: https://auth.privy.io/api/v1/apps/ci-dummy-privy-app-id/jwks.json
+      PRIVY_ISSUER: privy.io
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

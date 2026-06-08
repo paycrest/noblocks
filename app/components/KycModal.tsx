@@ -458,14 +458,14 @@ export const KycModal = ({
               <div className="mx-1 mt-1 size-7 flex-shrink-0"></div>
               <Label className="cursor-pointer text-gray-500 dark:text-white/50">
                 <a
-                  href="/privacy-policy"
+                  href="/kyc-policy"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-lavender-500 hover:underline"
                   onClick={(e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    window.open("/privacy-policy", "_blank");
+                    window.open("/kyc-policy", "_blank");
                   }}
                 >
                   Read full KYC Policy

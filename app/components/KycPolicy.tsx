@@ -2,77 +2,81 @@
 import Link from "next/link";
 
 /* eslint-disable react/no-unescaped-entities */
-export const PrivacyPolicy = () => {
+export const KycPolicy = () => {
   return (
-    <div className="mt-4 space-y-4 text-justify text-sm font-normal leading-6 dark:text-[#FFFFFF80]">
-      <p className="text-sm text-neutral-500 dark:text-white/50">
+    <div className="mt-4 space-y-4 text-justify text-sm font-normal leading-5 dark:text-[#FFFFFF80]">
+      <p className="text-sm font-bold text-neutral-500 dark:text-white/50">
         Updated on November 18th 2025
       </p>
 
-      <h3 className="text-base font-medium">1. Introduction</h3>
+      <h3 className="text-base font-bold">1. Introduction</h3>
       <p>
         Paycrest Inc. (&quot;Paycrest&quot;, &quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is
         the operator of the Paycrest Protocol and the owner of Noblocks (&quot;Noblocks&quot;), a
-        consumer-facing application built on the Paycrest infrastructure. This Privacy Policy
-        (&quot;Policy&quot;) describes the manner in which Paycrest collects, uses, processes,
-        stores, transfers, and discloses Personal Data in connection with: the use of Noblocks by
-        individual and business users; Liquidity Providers participating in the Paycrest ecosystem;
-        and businesses integrating or interfacing with the Paycrest Protocol. By accessing or using
-        any Paycrest service, you acknowledge that you have read, understood, and agree to the data
-        practices described in this Policy.
+        consumer-facing application built on the Paycrest infrastructure.
       </p>
+      <p>
+        This Privacy Policy (&quot;Policy&quot;) describes the manner in which Paycrest collects,
+        uses, processes, stores, transfers, and discloses Personal Data in connection with:
+      </p>
+      <ol className="list-decimal pl-5">
+        <li>the use of Noblocks by individual and business users;</li>
+        <li>Liquidity Providers participating in the Paycrest ecosystem; and</li>
+        <li>businesses integrating or interfacing with the Paycrest Protocol.</li>
+      </ol>
 
-      <h3 className="text-base font-medium">2. Scope and Applicability</h3>
+      <h3 className="text-base font-bold">2. Scope and Applicability</h3>
       <p>2.1. This Policy applies to:</p>
-      <p className="pl-3">
-        Noblocks users (individual and business);
-        <br />
-        Liquidity Providers onboarding directly with Paycrest;
-        <br />
-        Businesses integrating with the Paycrest Protocol;
-        <br />
-        Any person or entity whose information is processed by Paycrest.
-      </p>
+      <p>a. Noblocks users (individual and business);</p>
+      <p>b. Liquidity Providers onboarding directly with Paycrest;</p>
+      <p>c. Businesses integrating with the Paycrest Protocol;</p>
+      <p>d. Any person or entity whose information is processed by Paycrest.</p>
       <p>
         2.2. Noblocks is not a standalone entity. All data collected through Noblocks is collected
         on behalf of, controlled by, and accessible to Paycrest.
       </p>
 
-      <h3 className="text-base font-medium">3. Definitions</h3>
+      <h3 className="text-base font-bold">3. Definitions</h3>
       <p>
         &quot;Personal Data&quot; means any information relating to an identified or identifiable
-        natural or legal person. &quot;Processing&quot; means any operation performed on Personal
-        Data. &quot;Third-Party Provider&quot; means an external entity engaged by Paycrest to
-        perform services. &quot;Beneficial Owner&quot; means any natural person exercising
-        significant control or ownership over a legal entity.
+        natural or legal person.
+      </p>
+      <p>&quot;Processing&quot; means any operation performed on Personal Data.</p>
+      <p>
+        &quot;Third-Party Provider&quot; means an external entity engaged by Paycrest to perform
+        services.
+      </p>
+      <p>
+        &quot;Beneficial Owner&quot; means any natural person exercising significant control or
+        ownership over a legal entity.
       </p>
 
-      <h3 className="text-base font-medium">4. Categories of Personal Data We Process</h3>
+      <h3 className="text-base font-bold">4. Categories of Personal Data We Process</h3>
       <p>4.1 Wallet, Transaction and Technical Data (All Users)</p>
       <p>We collect and store:</p>
-      <p className="pl-3">
-        Blockchain wallet addresses;
-        <br />
-        Transaction information;
-        <br />
-        Recipient information;
-        <br />
-        Device identifiers and logs;
-        <br />
-        Security and behavioural analytics data.
-      </p>
+      <ol className="list-decimal pl-5">
+        <li>Blockchain wallet addresses;</li>
+        <li>Transaction information;</li>
+        <li>Recipient information;</li>
+        <li>Device identifiers and logs;</li>
+        <li>Security and behavioural analytics data.</li>
+      </ol>
       <p>4.2 Noblocks KYC/KYB Data</p>
-      <p className="pl-3">
-        a. Tiers 1 &amp; 2 (Third-Party KYC): We receive verification status, reference identifiers,
-        wallet address, and compliance metadata.
-        <br />
-        b. Tier 3 (In-House): We collect identity data, biometric confirmation (where applicable),
-        contact data, address verification, compliance documentation, sanctions screening results,
-        device and transaction data.
-        <br />
-        c. Tier 4 (Business KYB): We collect corporate documents, business addresses, beneficial
-        owner information, identity documentation, ownership structure, sanctions screening
-        results, and technical data.
+      <p>a. Tiers 1 &amp; 2 (Third-Party KYC):</p>
+      <p>
+        We receive verification status, reference identifiers, wallet address, and compliance
+        metadata.
+      </p>
+      <p>b. Tier 3 (In-House):</p>
+      <p>
+        We collect identity data, biometric confirmation (where applicable), contact data, address
+        verification, compliance documentation, sanctions screening results, device and transaction
+        data.
+      </p>
+      <p>c. Tier 4 (Business KYB):</p>
+      <p>
+        We collect corporate documents, business addresses, beneficial owner information, identity
+        documentation, ownership structure, sanctions screening results, and technical data.
       </p>
       <p>4.3 Paycrest Liquidity Providers and B2B Clients</p>
       <p>
@@ -80,24 +84,26 @@ export const PrivacyPolicy = () => {
         owner information, compliance documentation, and ownership structure details.
       </p>
 
-      <h3 className="text-base font-medium">5. Legal Bases for Processing</h3>
+      <h3 className="text-base font-bold">5. Legal Bases for Processing</h3>
       <p>
         5.1. We process Personal Data only where a lawful basis exists under applicable data
         protection laws, including the Nigeria Data Protection Act (NDPA), the GDPR (to the extent
         applicable), and comparable international frameworks. These Bases include:
       </p>
-      <p className="pl-3">
+      <p>
         a. Where such processing is necessary for the performance of a contract to which the data
         subject is a party, including the provision of access to Noblocks, the execution of
         transactions, the onboarding of Liquidity Providers, and the enablement of integrations with
         the Paycrest Protocol.
-        <br />
+      </p>
+      <p>
         b. Where such processing is required for compliance with legal and regulatory obligations,
         including obligations arising under anti-money-laundering (AML),
         counter-terrorist-financing (CFT), sanctions, financial-crime, record-keeping, and reporting
         laws. This legal basis applies particularly to the collection and verification of identity
         information, beneficial ownership information, and other compliance documentation.
-        <br />
+      </p>
+      <p>
         c. Where such processing is necessary for the purposes of Paycrest&apos;s legitimate
         interests, provided that such interests are not overridden by the rights or freedoms of the
         data subject. These legitimate interests include ensuring the security and integrity of
@@ -112,29 +118,28 @@ export const PrivacyPolicy = () => {
         prior to withdrawal.
       </p>
 
-      <h3 className="text-base font-medium">6. How We Use Personal Data</h3>
+      <h3 className="text-base font-bold">6. How We Use Personal Data</h3>
       <p>
         6.1. We use Personal Data for purposes that are lawful, proportionate, and consistent with
         the operation of the Paycrest ecosystem, including Noblocks and all related services. These
         purposes include:
       </p>
-      <p className="pl-3">
-        a. To provide, operate, and maintain our services,
-        <br />
-        b. To comply with binding legal, regulatory, and supervisory obligations,
-        <br />
+      <p>a. To provide, operate, and maintain our services,</p>
+      <p>b. To comply with binding legal, regulatory, and supervisory obligations,</p>
+      <p>
         c. To preserve the security, integrity, and lawful use of our systems, including detecting
         suspicious behaviour, preventing unauthorized access, mitigating cybersecurity threats,
         investigating fraudulent or illegal activity, and enforcing our contractual terms and
         internal policies.
-        <br />
+      </p>
+      <p>
         d. To analyze usage patterns and user interactions, allowing us to continuously improve our
         service, optimize performance, and introduce new features that meet your evolving needs.
       </p>
       <p>
         6.2. Where required, we may process Personal Data to communicate with users, respond to
-        inquiries, provide compliance notifications, deliver service-related updates, or inform users
-        about material modifications to contractual documents or regulatory disclosures.
+        inquiries, provide compliance notifications, deliver service-related updates, or inform
+        users about material modifications to contractual documents or regulatory disclosures.
       </p>
       <p>
         6.3. All processing activities are conducted in accordance with this Policy and applicable
@@ -142,49 +147,58 @@ export const PrivacyPolicy = () => {
         which it was collected or for compatible purposes permitted by law.
       </p>
 
-      <h3 className="text-base font-medium">7. Sharing and Disclosure of Personal Data</h3>
+      <h3 className="text-base font-bold">7. Sharing and Disclosure of Personal Data</h3>
       <p>7.1. All Noblocks data is accessible to Paycrest.</p>
       <p>
         7.2. We may share your information in the following circumstances to ensure the smooth
         operation of our service and to comply with legal and regulatory requirements:
       </p>
-      <p className="pl-3">
+      <p>
         a. With Third-Party Service Providers: We partner with trusted third-party service providers
         to perform essential functions on our behalf. These functions include processing payments,
-        exchanging digital assets into the recipient&apos;s preferred form of value, conducting
-        Know Your Customer (KYC) checks, and providing other services required to operate our
-        platform.
-        <br />
+        exchanging digital assets into the recipient&apos;s preferred form of value, conducting Know
+        Your Customer (KYC) checks, and providing other services required to operate our platform.
+      </p>
+      <p>
         b. For Legal and Compliance Reasons: We may disclose your information when required to
         comply with applicable laws, regulations, or legal processes. This includes responding to
         subpoenas, court orders, or government requests. Additionally, we may share your information
-        if we believe it is necessary to protect our legal rights, property, and safety, as well as
-        the rights, property, and safety of our users or the public; enforce our terms of service,
-        agreements, and policies; or investigate, prevent, or take action regarding suspected
-        illegal activities, fraud, or security threats.
-        <br />
-        c. With Your Consent: In situations where your explicit consent is required, we will ask for
-        your permission before sharing your information with third parties for purposes not covered
-        by this Privacy Policy.
-        <br />
-        d. In Business Transfers: If we are involved in a merger, acquisition, or sale of all or a
+        if we believe it is necessary to:
+      </p>
+      <p>
+        c. Protect our legal rights, property, and safety, as well as the rights, property, and
+        safety of our users or the public;
+      </p>
+      <p>d. Enforce our terms of service, agreements, and policies;</p>
+      <p>
+        e. Investigate, prevent, or take action regarding suspected illegal activities, fraud, or
+        security threats.
+      </p>
+      <p>
+        f. With Your Consent: In situations where your explicit consent is required, we will ask
+        for your permission before sharing your information with third parties for purposes not
+        covered by this Privacy Policy.
+      </p>
+      <p>
+        g. In Business Transfers: If we are involved in a merger, acquisition, or sale of all or a
         portion of our assets, your information may be transferred as part of that transaction. We
         will notify you of any such transfer and ensure that the new entity continues to protect
         your information in accordance with this Privacy Policy.
       </p>
 
-      <h3 className="text-base font-medium">8. Security of Your Information</h3>
+      <h3 className="text-base font-bold">8. Security of Your Information</h3>
       <p>
         8.1. We are committed to ensuring the security of your interactions with our Service. While
         we employ industry-standard encryption and secure servers to safeguard any information
         processed through our Service, no system can guarantee absolute security.
       </p>
       <p>8.2. Your Responsibilities</p>
-      <p className="pl-3">
+      <p>
         a. Wallet Security: You are responsible for securing your cryptocurrency wallet and any
         associated credentials. Ensure that your wallet information is kept confidential and use
         strong security practices to protect it.
-        <br />
+      </p>
+      <p>
         b. Device Security: Protect your personal devices and any access points to your
         cryptocurrency wallet from unauthorized use. This includes keeping your software and
         systems up-to-date and using secure, unique passwords.
@@ -195,39 +209,47 @@ export const PrivacyPolicy = () => {
         transactions made through it.
       </p>
 
-      <h3 className="text-base font-medium">9. Your Rights</h3>
+      <h3 className="text-base font-bold">9. Your Rights</h3>
       <p>
         9.1 You have the following rights concerning any information processed through our Service:
       </p>
-      <p className="pl-3">
-        a. Access: You may request information about any personal data collected or processed by us
-        or our third-party providers in relation to your use of the Service. We will assist in
-        facilitating such requests with the relevant third parties.
-        <br />
-        b. Correction: If you believe that any personal information held by us or our third-party
-        providers is inaccurate or incomplete, you can request that it be corrected or updated. We
-        will guide you on how to make this request directly where there are third parties involved.
-        <br />
-        c. Deletion: You have the right to request the deletion of your personal information. For
-        information that we do not store directly, any request for deletion will be directed to the
-        relevant third-party service managing your data. We will assist in this process as needed.
-        <br />
-        d. Restriction: You may request that the processing of your personal data be restricted
-        under certain conditions. For data being handled by third parties, this request should be
-        directed to the third-party service handling your data, and we will help facilitate this
-        request where possible.
-        <br />
-        e. Data Portability: If applicable, you have the right to obtain a copy of your personal
-        data in a structured, commonly used, and machine-readable format. You can also request to
-        transfer this data to another organization. For data being handled by third parties, this
-        request should be made to the third-party service responsible for managing your data, and we
-        will support you in initiating this process.
-        <br />
+      <p>
+        a. <span className="font-bold">Access</span>: You may request information about any personal
+        data collected or processed by us or our third-party providers in relation to your use of
+        the Service. We will assist in facilitating such requests with the relevant third parties.
+      </p>
+      <p>
+        b. <span className="font-bold">Correction</span>: If you believe that any personal
+        information held by us or our third-party providers is inaccurate or incomplete, you can
+        request that it be corrected or updated. We will guide you on how to make this request
+        directly where there are third parties involved.
+      </p>
+      <p>
+        c. <span className="font-bold">Deletion</span>: You have the right to request the deletion
+        of your personal information. For information that we do not store directly, any request for
+        deletion will be directed to the relevant third-party service managing your data. We will
+        assist in this process as needed.
+      </p>
+      <p>
+        d. <span className="font-bold">Restriction</span>: You may request that the processing of
+        your personal data be restricted under certain conditions. For data being handled by third
+        parties, this request should be directed to the third-party service handling your data, and
+        we will help facilitate this request where possible.
+      </p>
+      <p>
+        e. <span className="font-bold">Data Portability</span>: If applicable, you have the right to
+        obtain a copy of your personal data in a structured, commonly used, and machine-readable
+        format. You can also request to transfer this data to another organization. For data being
+        handled by third parties, this request should be made to the third-party service
+        responsible for managing your data, and we will support you in initiating this process.
+      </p>
+      <p>
         f. Where third party KYC/KYB providers are involved, please note that our role is to
         facilitate communication with the third-party services responsible for handling personal
         data. For specific details on how to exercise these rights, please refer to the privacy
         policies and contact procedures of the relevant third-party providers.
-        <br />
+      </p>
+      <p>
         g. To exercise any of these rights or for any questions related to your personal information,
         please contact us at{" "}
         <Link href="mailto:legal@paycrest.io" className="font-bold text-blue-500">
@@ -235,7 +257,7 @@ export const PrivacyPolicy = () => {
         </Link>
       </p>
 
-      <h3 className="text-base font-medium">10. International Data Transfers</h3>
+      <h3 className="text-base font-bold">10. International Data Transfers</h3>
       <p>
         10.1 As a global service, we may facilitate transactions and processes involving data that
         could be transferred to countries outside of your jurisdiction, including the United States,
@@ -244,11 +266,11 @@ export const PrivacyPolicy = () => {
       <p>
         10.2 When your data is transferred internationally, we implement appropriate measures to
         ensure that your information is protected in accordance with applicable data protection laws
-        and in alignment with this Privacy Policy. We adhere to stringent security standards and
-        data protection requirements.
+        and in alignment with this Privacy Policy. We adhere to stringent security standards and data
+        protection requirements.
       </p>
 
-      <h3 className="text-base font-medium">11. Retention of Your Information</h3>
+      <h3 className="text-base font-bold">11. Retention of Your Information</h3>
       <p>
         We retain Personal Data for compliance, operational, and legal requirements and this
         information is kept only for as long as necessary to fulfill the operational purposes
@@ -257,12 +279,7 @@ export const PrivacyPolicy = () => {
         securely delete or anonymize it, in line with applicable laws and industry standards.
       </p>
 
-      <h3
-        id="third-party-applications-and-services"
-        className="text-base font-medium"
-      >
-        12. Third-Party Applications and Services
-      </h3>
+      <h3 className="text-base font-bold">12. Third-Party Applications and Services</h3>
       <p>
         12.1 Our service may involve the use of third-party applications or services that may request
         personal information from you and use cookies or similar technologies. While these
@@ -303,11 +320,11 @@ export const PrivacyPolicy = () => {
         handled.
       </p>
 
-      <h3 className="text-base font-medium">13. Children&apos;s Privacy</h3>
+      <h3 className="text-base font-bold">13. Children&apos;s Privacy</h3>
       <p>
         13.1 Our services are not intended for use by individuals under the age of 18. We do not
-        knowingly collect personal information from children. If you are under 18, please do not
-        use our services or submit any personal information through our platform.
+        knowingly collect personal information from children. If you are under 18, please do not use
+        our services or submit any personal information through our platform.
       </p>
       <p>
         13.2 We encourage parents and guardians to review the policies of our third party KYC
@@ -323,7 +340,7 @@ export const PrivacyPolicy = () => {
         </Link>
       </p>
 
-      <h3 className="text-base font-medium">14. Automated Decision-Making and Profiling</h3>
+      <h3 className="text-base font-bold">14. Automated Decision-Making and Profiling</h3>
       <p>
         14.1 We do not engage in automated decision-making processes or profiling that produce legal
         effects or significantly affect you as an individual. Our service is designed to facilitate
@@ -334,12 +351,12 @@ export const PrivacyPolicy = () => {
       <p>
         14.2 Any decisions regarding the use of your information or the outcome of transactions are
         subject to human review and are not solely based on automated processing. If third-party
-        services integrated with our platform perform any automated decision-making, they do so
-        under their own privacy policies, and we recommend reviewing those policies for further
+        services integrated with our platform perform any automated decision-making, they do so under
+        their own privacy policies, and we recommend reviewing those policies for further
         information.
       </p>
 
-      <h3 className="text-base font-medium">15. Changes to This Privacy Policy</h3>
+      <h3 className="text-base font-bold">15. Changes to This Privacy Policy</h3>
       <p>
         We may update this Privacy Policy from time to time to reflect changes in our practices,
         technology, legal requirements, or other factors. We will notify you of any significant
@@ -349,7 +366,7 @@ export const PrivacyPolicy = () => {
         updated policy.
       </p>
 
-      <h3 className="text-base font-medium">16. Contact Us</h3>
+      <h3 className="text-base font-bold">16. Contact Us</h3>
       <p>
         If you have any questions or concerns about this Privacy Policy or our data practices,
         please contact us at{" "}

@@ -1,12 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { TermsOfService } from "../components/TermsOfService";
+import { KycPolicy } from "../components/KycPolicy";
 import { ArrowMoveUpLeftIcon } from "hugeicons-react";
 import { CookieConsent } from "../components/CookieConsent";
 import { getBannerPadding } from "../utils";
 
-const TermsClient = () => {
+const KycClient = () => {
   const router = useRouter();
 
   const handleBackClick = () => {
@@ -31,11 +31,11 @@ const TermsClient = () => {
           Go back
         </button>
 
-        <h3 className="pt-8 text-2xl font-semibold">Terms of Use</h3>
-        <TermsOfService />
+        <h3 className="pt-8 text-2xl font-semibold">KYC Policy</h3>
+        <KycPolicy />
       </div>
     </>
   );
 };
 
-export default TermsClient;
+export default KycClient;

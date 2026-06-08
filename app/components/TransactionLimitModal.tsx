@@ -188,7 +188,7 @@ export default function TransactionLimitModal({
               </span>
               . Verify your phone number to begin swapping.{" "}
               <a
-                href="https://paycrest.notion.site/KYC-Policy-10e2482d45a280e191b8d47d76a8d242"
+                href="/privacy-policy"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-medium text-lavender-500 hover:underline dark:text-lavender-400"

@@ -28,6 +28,8 @@ export { KycModal } from "./KycModal";
 export { CookieConsent } from "./CookieConsent";
 export { NetworkSelectionModal } from "./NetworkSelectionModal";
 export { Disclaimer } from "./Disclaimer";
+export { default as PhoneVerificationModal } from "./PhoneVerificationModal";
+export { default as TransactionLimitModal } from "./TransactionLimitModal";
 
 export { TransactionForm } from "../pages/TransactionForm";
 export { TransactionPreview } from "../pages/TransactionPreview";
@@ -54,6 +56,8 @@ export { PausedNetworkNotice } from "./transaction/PausedNetworkNotice";
 
 export { FundWalletForm } from "./FundWalletForm";
 export { TransferForm } from "./TransferForm";
+export { ReferralInputModal } from "./ReferralModal";
+export { ReferralCTA } from "./ReferralCTA";
 
 export { default as NoticeBanner } from "./NoticeBanner";
 export { WalletMigrationBanner } from "./WalletMigrationBanner";

@@ -265,7 +265,7 @@ export const CopyAddressWarningModal: React.FC<
                       id="acknowledge"
                       checked={dontShowAgain}
                       onChange={(e) => setDontShowAgain(e.target.checked)}
-                      className="peer size-[19px] cursor-pointer appearance-none rounded border-2 border-gray-300 bg-transparent checked:border-lavender-500 checked:bg-lavender-500 dark:border-white/30"
+                      className="peer size-[19px] cursor-pointer appearance-none rounded border-2 border-gray-300 bg-transparent checked:border-lavender-500 checked:bg-lavender-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-500 dark:border-white/30"
                     />
                     <svg
                       className="pointer-events-none absolute inset-0 m-auto size-3 stroke-white opacity-0 peer-checked:opacity-100"
@@ -405,7 +405,7 @@ export const CopyAddressWarningModal: React.FC<
                             id="acknowledge-mobile"
                             checked={dontShowAgain}
                             onChange={(e) => setDontShowAgain(e.target.checked)}
-                            className="peer size-[19px] cursor-pointer appearance-none rounded border-2 border-gray-300 bg-transparent checked:border-lavender-500 checked:bg-lavender-500 dark:border-white/30"
+                            className="peer size-[19px] cursor-pointer appearance-none rounded border-2 border-gray-300 bg-transparent checked:border-lavender-500 checked:bg-lavender-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-500 dark:border-white/30"
                           />
                           <svg
                             className="pointer-events-none absolute inset-0 m-auto size-3 stroke-white opacity-0 peer-checked:opacity-100"

@@ -7,6 +7,7 @@ import {
 } from "@/app/lib/server-analytics";
 import config, { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
 import { verifyJWT } from "@/app/lib/jwt";
+import { supabaseAdmin } from "@/app/lib/supabase";
 
 // Route handler for POST - validate order (user confirmed payment received)
 export const POST = withRateLimit(
@@ -102,6 +103,30 @@ export const POST = withRateLimit(
       }
 
       const fullPath = `/api/v1/orders/${orderId}/validate`;
+
+      // Verify the order belongs to the authenticated wallet before using sender API key
+      const { data: ownedTransaction, error: ownershipError } =
+        await supabaseAdmin
+          .from("transactions")
+          .select("id")
+          .eq("order_id", orderId)
+          .eq("wallet_address", walletAddress)
+          .maybeSingle();
+
+      if (ownershipError || !ownedTransaction) {
+        trackApiError(
+          request,
+          fullPath,
+          "POST",
+          new Error("Order not found or unauthorized"),
+          403,
+        );
+        return NextResponse.json(
+          { success: false, error: "Order not found or unauthorized" },
+          { status: 403 },
+        );
+      }
+
       trackApiRequest(request, fullPath, "POST", {
         wallet_address: walletAddress,
         order_id: orderId,

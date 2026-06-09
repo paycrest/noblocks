@@ -6,9 +6,12 @@ import {
   getTokenLogoIdentifier,
   generatePaginationItems,
   getRelativeDate,
+  isOnrampClientPaymentSessionExpired,
+  getTransactionHistoryTypeLabel,
+  formatTransactionAmountDisplay,
 } from "../../utils";
 import type { TransactionHistory } from "../../types";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useReducer } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { PiSpinnerBold } from "react-icons/pi";
 import { useActualTheme } from "../../hooks/useActualTheme";
@@ -37,7 +40,25 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   fulfilled: "text-blue-500",
   pending: "text-orange-500",
   processing: "text-yellow-500",
+  expired: "text-amber-600 dark:text-amber-500",
 };
+
+function listItemStatusLabel(transaction: TransactionHistory): string {
+  if (isOnrampClientPaymentSessionExpired(transaction)) {
+    return "expired";
+  }
+  return transaction.status;
+}
+
+function listItemStatusClassName(transaction: TransactionHistory): string {
+  if (isOnrampClientPaymentSessionExpired(transaction)) {
+    return STATUS_COLOR_MAP.expired;
+  }
+  return (
+    STATUS_COLOR_MAP[transaction.status] ||
+    "text-text-secondary dark:text-white/50"
+  );
+}
 
 // Individual transaction list item component
 export const TransactionListItem = ({
@@ -72,9 +93,12 @@ export const TransactionListItem = ({
               height={16}
               quality={90}
             />
-            <span className="capitalize dark:text-white/80">
-              {transaction.transaction_type} {transaction.amount_sent}{" "}
-              {transaction.from_currency}
+            <span className="dark:text-white/80">
+              {getTransactionHistoryTypeLabel(transaction.transaction_type)}{" "}
+              {formatTransactionAmountDisplay(
+                transaction.amount_sent,
+                transaction.from_currency,
+              )}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -85,13 +109,8 @@ export const TransactionListItem = ({
               })}
             </span>
             <span className="size-1 bg-icon-outline-disabled dark:bg-white/5"></span>
-            <span
-              className={classNames(
-                STATUS_COLOR_MAP[transaction.status] ||
-                  "text-text-secondary dark:text-white/50",
-              )}
-            >
-              {transaction.status}
+            <span className={classNames(listItemStatusClassName(transaction))}>
+              {listItemStatusLabel(transaction)}
             </span>
           </div>
         </div>
@@ -102,7 +121,10 @@ export const TransactionListItem = ({
         whileHover={{ x: -4 }}
         transition={{ duration: 0.2 }}
       >
-        {transaction.amount_received.toLocaleString()} {transaction.to_currency}
+        {formatTransactionAmountDisplay(
+          transaction.amount_received,
+          transaction.to_currency,
+        )}
       </motion.span>
     </div>
   );
@@ -134,6 +156,13 @@ export default function TransactionList({
     fetchTransactions,
     setPage,
   } = useTransactions();
+
+  /** Re-render every second so on-ramp rows flip to "expired" without an API update. */
+  const [, listRenderTick] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    const id = setInterval(() => listRenderTick(), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   // Fetch transactions when wallet address or page changes
   useEffect(() => {
@@ -284,14 +313,14 @@ export default function TransactionList({
                                 quality={90}
                                 className="rounded-full"
                               />
-                              <span className="capitalize dark:text-white/80">
-                                {transaction.transaction_type === "transfer"
-                                  ? "Transferred"
-                                  : transaction.transaction_type === "swap"
-                                    ? "Swapped"
-                                    : transaction.transaction_type}{" "}
-                                {transaction.amount_sent.toLocaleString()}{" "}
-                                {transaction.from_currency}
+                              <span className="dark:text-white/80">
+                                {getTransactionHistoryTypeLabel(
+                                  transaction.transaction_type,
+                                )}{" "}
+                                {formatTransactionAmountDisplay(
+                                  transaction.amount_sent,
+                                  transaction.from_currency,
+                                )}
                               </span>
                             </div>
                             <div className="flex items-center gap-x-2">
@@ -306,19 +335,20 @@ export default function TransactionList({
                               <span className="size-1 bg-icon-outline-disabled dark:bg-white/5"></span>
                               <span
                                 className={classNames(
-                                  STATUS_COLOR_MAP[transaction.status] ||
-                                    "text-text-secondary dark:text-white/50",
+                                  listItemStatusClassName(transaction),
                                 )}
                               >
-                                {transaction.status}
+                                {listItemStatusLabel(transaction)}
                               </span>
                             </div>
                           </div>
                         </div>
 
                         <span className="text-sm text-text-secondary dark:text-white/50">
-                          {transaction.amount_received.toLocaleString()}{" "}
-                          {transaction.to_currency}
+                          {formatTransactionAmountDisplay(
+                            transaction.amount_received,
+                            transaction.to_currency,
+                          )}
                         </span>
                       </motion.div>
                     );

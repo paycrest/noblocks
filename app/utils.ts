@@ -1,3 +1,4 @@
+import { createElement, type ReactElement } from "react";
 import JSEncrypt from "jsencrypt";
 import type {
   InstitutionProps,
@@ -5,9 +6,18 @@ import type {
   Token,
   Currency,
   APIToken,
+  RecipientDetails,
+  V2FiatProviderAccountDTO,
+  OnrampPaymentInstructions,
+  TransactionHistory,
+  TransactionHistoryType,
+  SwapMode,
 } from "./types";
 import type { SanityPost, SanityCategory } from "./blog/types";
-import { erc20Abi } from "viem";
+import { erc20Abi, createPublicClient, http } from "viem";
+import { mainnet } from "viem/chains";
+import { getEnsName } from "viem/actions";
+import { isValidEvmAddressCaseInsensitive } from "./lib/validation";
 import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
@@ -17,14 +27,41 @@ import {
   localTransferFeePercent,
   localTransferFeeCap,
 } from "./lib/config";
+import { logBalanceTelemetry } from "./lib/balanceTelemetry";
 
 /**
- * Concatenates and returns a string of class names.
+ * Type predicate to narrow RecipientDetails to bank/mobile_money types.
+ * Used for type-safe filtering and property access.
  *
- * @param classes - The class names to concatenate.
+ * @param recipient - The recipient to check.
+ * @returns True if recipient is bank or mobile_money type.
+ */
+export function isBankOrMobileMoneyRecipient(
+  recipient: RecipientDetails,
+): recipient is Extract<RecipientDetails, { type: "bank" | "mobile_money" }> {
+  return recipient.type !== "wallet";
+}
+
+/**
+ * Type predicate to narrow RecipientDetails to wallet type.
+ * Used for type-safe filtering and property access.
+ *
+ * @param recipient - The recipient to check.
+ * @returns True if recipient is wallet type.
+ */
+export function isWalletRecipient(
+  recipient: RecipientDetails,
+): recipient is Extract<RecipientDetails, { type: "wallet" }> {
+  return recipient.type === "wallet";
+}
+
+/**
+ * Concatenates class names; skips falsy entries (supports `condition && "class"`).
+ *
+ * @param classes - Strings and/or falsy placeholders.
  * @returns A string of concatenated class names.
  */
-export function classNames(...classes: string[]) {
+export function classNames(...classes: (string | false | undefined | null)[]) {
   return classes.filter(Boolean).join(" ");
 }
 
@@ -63,6 +100,14 @@ export function formatNumberWithCommas(num: string | number): string {
   return parts.join(".");
 }
 
+/** Format a USD amount for KYC limit UI (2 decimals, comma-separated). */
+export function formatUsdAmount(amount: number): string {
+  if (!Number.isFinite(amount)) return "0.00";
+  const rounded = Math.round(amount * 100) / 100;
+  if (rounded === 0) return "0.00";
+  return formatNumberWithCommas(rounded.toFixed(2));
+}
+
 /**
  * Formats a number as a currency string.
  *
@@ -76,15 +121,84 @@ export const formatCurrency = (
   currency = "NGN",
   locale = "en-NG",
 ) => {
-  // Create a new instance of Intl.NumberFormat with the 'en-US' locale and currency set to 'NGN'.
-  // This object provides methods to format numbers based on the specified locale and options.
-  return new Intl.NumberFormat(locale, {
-    // Set the style to 'currency' to format the number as a currency value.
-    style: "currency",
-    // Set the currency to 'NGN' to format the number as Nigerian Naira.
-    currency,
-  }).format(value); // Format the provided value as a currency string.
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+    }).format(value);
+  } catch {
+    return `${formatNumberWithCommas(value)} ${currency.toUpperCase()}`;
+  }
 };
+
+/**
+ * Gets the currency symbol for a given currency code.
+ * @param currency - The currency code (e.g., "NGN", "KES", "USD")
+ * @returns The currency symbol (e.g., "₦", "KSh", "$")
+ */
+export const getCurrencySymbol = (currency: string): string => {
+  const currencySymbols: Record<string, string> = {
+    NGN: "₦",
+    KES: "KSh",
+    UGX: "USh",
+    TZS: "TSh",
+    GHS: "₵",
+    BRL: "R$",
+    ARS: "$",
+    USD: "$",
+    GBP: "£",
+    EUR: "€",
+    MWK: "MK",
+    XOF: "CFA",
+    XAF: "FCFA",
+  };
+
+  return currencySymbols[currency.toUpperCase()] || currency;
+};
+
+/** Fiat codes supported in Noblocks swap (matches `mocks.acceptedCurrencies` names). */
+const NOBLOCKS_FIAT_CURRENCY_CODES = new Set([
+  "NGN",
+  "KES",
+  "UGX",
+  "TZS",
+  "MWK",
+  "GHS",
+  "BRL",
+  "ARS",
+]);
+
+export function isNoblocksFiatCurrencyCode(code: string): boolean {
+  return NOBLOCKS_FIAT_CURRENCY_CODES.has(code.toUpperCase());
+}
+
+/**
+ * List / details: fiat uses symbol prefix (e.g. ₦1,000.5); crypto uses "1.23 USDC".
+ */
+export function formatTransactionAmountDisplay(
+  amount: number,
+  currencyCode: string,
+): string {
+  if (isNoblocksFiatCurrencyCode(currencyCode)) {
+    return `${getCurrencySymbol(currencyCode)}${formatNumberWithCommas(amount)}`;
+  }
+  return `${formatNumberWithCommas(amount)} ${currencyCode}`;
+}
+
+/** User-facing label for transaction history rows (`onramp` / `offramp`). */
+export function getTransactionHistoryTypeLabel(
+  type: TransactionHistoryType,
+): string {
+  switch (type) {
+    case "transfer":
+      return "Transferred";
+    case "offramp":
+    case "onramp":
+      return "Swapped";
+    default:
+      return type;
+  }
+}
 
 /**
  * Encrypts data using the provided public key.
@@ -154,6 +268,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://blockscout.lisk.com/tx/${txHash}`;
     case "Ethereum":
       return `https://etherscan.io/tx/${txHash}`;
+    case "Starknet":
+      return `https://voyager.online/tx/${txHash}`;
     default:
       return "";
   }
@@ -173,10 +289,14 @@ export function getRpcUrl(network: string) {
       return `https://api-arbitrum-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Celo":
       return `https://api-celo-mainnet-archive.n.dwellir.com/${rpcUrlKey ?? ""}`;
+    case "Scroll":
+      return `https://api-scroll-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Lisk":
       return `https://api-lisk-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Ethereum":
       return `https://api-ethereum-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
+    case "Starknet":
+      return process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
     default:
       return undefined;
   }
@@ -254,7 +374,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
     {
-      name: "cNGN",
+      name: "Compliant Naira",
       symbol: "cNGN",
       decimals: 6,
       address: "0x46c85152bfe9f96829aa94755d9f915f9b10ef5f",
@@ -301,7 +421,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
     {
-      name: "cNGN",
+      name: "Compliant Naira",
       symbol: "cNGN",
       decimals: 6,
       address: "0x52828daa48c1a9a06f37500882b42daf0be04c3b",
@@ -324,7 +444,7 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdc-logo.svg",
     },
     {
-      name: "cNGN",
+      name: "Compliant Naira",
       symbol: "cNGN",
       decimals: 6,
       address: "0xa8aea66b361a8d53e8865c62d142167af28af058",
@@ -340,11 +460,34 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdc-logo.svg",
     },
     {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
       name: "Celo Dollar",
       symbol: "cUSD",
       decimals: 18,
       address: "0x765DE816845861e75A25fCA122bb6898B8B1282a",
       imageUrl: "/logos/cusd-logo.svg",
+    },
+  ],
+  Scroll: [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "0xf55BEC9cafDbE8730f096Aa55dad6D22d44099Df",
+      imageUrl: "/logos/usdt-logo.svg",
     },
   ],
   Lisk: [
@@ -354,6 +497,13 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       decimals: 6,
       address: "0x05D032ac25d322df992303dCa074EE7392C117b9",
       imageUrl: "/logos/usdt-logo.svg",
+    },
+    {
+      name: "Compliant Naira",
+      symbol: "cNGN",
+      decimals: 6,
+      address: "0xC7aB2C35Ea37236e644C24A4E4a1911c082887c0",
+      imageUrl: "/logos/cngn-logo.svg",
     },
   ],
   Ethereum: [
@@ -372,11 +522,29 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
     {
-      name: "cNGN",
+      name: "Compliant Naira",
       symbol: "cNGN",
       decimals: 6,
       address: "0x17CDB2a01e7a34CbB3DD4b83260B05d0274C8dab",
       imageUrl: "/logos/cngn-logo.svg",
+    },
+  ],
+  Starknet: [
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      decimals: 6,
+      address:
+        "0x033068F6539f8e6e6b131e6B2B814e6c34A5224bC66947c47DaB9dFeE93b35fb",
+      imageUrl: "/logos/usdc-logo.svg",
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address:
+        "0x068F5c6a61780768455de69077E07e89787839bf8166dEcfBf92B645209c0fB8",
+      imageUrl: "/logos/usdt-logo.svg",
     },
   ],
 };
@@ -423,41 +591,7 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
           }
           tokens[networkName].push(transformToken(apiToken));
         });
-        // Update cache with all networks
-        // Temporarily add USDT on Base for user withdrawal
-        if (tokens["Base"]) {
-          const usdtBase = {
-            name: "Tether USD",
-            symbol: "USDT",
-            decimals: 6,
-            address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
-            imageUrl: "/logos/usdt-logo.svg",
-          };
 
-          // Check if USDT is not already in the list
-          const hasUSDT = tokens["Base"].some(
-            (token) => token.symbol === "USDT",
-          );
-          if (!hasUSDT) {
-            tokens["Base"].push(usdtBase);
-          }
-
-          // Ensure native ETH is present in the target network
-          // const nativeETH = {
-          //   name: "Ethereum",
-          //   symbol: "ETH",
-          //   decimals: 18,
-          //   address: "", // Native token has no contract address
-          //   imageUrl: "/logos/eth-logo.svg",
-          //   isNative: true,
-          // };
-          // const hasNativeETH = tokens["Ethereum"].some(
-          //   (token) => token.symbol === "ETH" && token.isNative,
-          // );
-          // if (!hasNativeETH) {
-          //   tokens["Ethereum"].push(nativeETH);
-          // }
-        }
         // Merge fallback tokens for any networks missing from API response
         Object.keys(FALLBACK_TOKENS).forEach((networkName) => {
           if (!tokens[networkName] || tokens[networkName].length === 0) {
@@ -479,71 +613,385 @@ export async function getNetworkTokens(network = ""): Promise<Token[]> {
   }
 }
 
+/** One balance row per token on a single chain ({@link UnifiedWalletBalances}). */
+export type ChainBalanceEntry = {
+  chainName: string;
+  chainId?: number;
+  symbol: string;
+  address: string;
+  decimals: number;
+  /** Human-readable units (same convention as legacy `balances[symbol]`). */
+  balance: number;
+  balanceWei?: bigint;
+};
+
 /**
- * Fetches the wallet balances for the specified network and address.
- *
- * @param network - The network name.
- * @param address - The wallet address.
- * @returns An object containing the total balance and individual token balances.
+ * Canonical balance snapshot for either EVM (viem client) or Starknet (RPC provider).
  */
-export async function fetchWalletBalance(
+export type UnifiedWalletBalances = {
+  chainName: string;
+  chainId?: number;
+  entries: ChainBalanceEntry[];
+  total: number;
+  balances: Record<string, number>;
+  balancesInWei?: Record<string, bigint>;
+  /** Starknet parity: mirrors `balances` (display units), not an external oracle. */
+  balancesUsd?: Record<string, number>;
+};
+
+export type FetchBalancesForChainArgs =
+  | {
+      kind: "evm";
+      client: any;
+      walletAddress: string;
+    }
+  | {
+      kind: "starknet";
+      walletAddress: string;
+      tokens?: Token[];
+    };
+
+async function fetchEvmBalancesUnifiedUncached(
   client: any,
   address: string,
-): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
+): Promise<UnifiedWalletBalances> {
+  const t0 =
+    typeof performance !== "undefined" ? performance.now() : Date.now();
   const supportedTokens = await getNetworkTokens(client.chain?.name);
-  if (!supportedTokens) return { total: 0, balances: {}, balancesInWei: {} };
+  const chainName = client.chain?.name ?? "Unknown";
+  const chainId =
+    typeof client.chain?.id === "number" ? client.chain.id : undefined;
 
-  let totalBalance = 0;
+  const empty = (): UnifiedWalletBalances => ({
+    chainName,
+    chainId,
+    entries: [],
+    total: 0,
+    balances: {},
+    balancesInWei: {},
+  });
+
+  if (!supportedTokens) return empty();
+
   const balances: Record<string, number> = {};
   const balancesInWei: Record<string, bigint> = {};
 
+  const fillBalancesFromWei = (token: Token, balanceInWei: bigint) => {
+    balancesInWei[token.symbol] = balanceInWei;
+    const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+    balances[token.symbol] = isNaN(balance) ? 0 : balance;
+  };
+
   try {
-    // Fetch balances in parallel
-    const balancePromises = supportedTokens.map(async (token: Token) => {
+    const nativeTokens = supportedTokens.filter(
+      (t: Token) => t.isNative && t.address === "",
+    );
+    const erc20Tokens = supportedTokens.filter(
+      (t: Token) => !(t.isNative && t.address === ""),
+    );
+
+    let usedMulticall = false;
+
+    const nativePromise =
+      nativeTokens.length === 0
+        ? Promise.resolve()
+        : Promise.all(
+            nativeTokens.map(async (token: Token) => {
+              try {
+                const balanceInWei = await client.getBalance({ address });
+                fillBalancesFromWei(token, balanceInWei);
+              } catch (error) {
+                console.error(
+                  `Error fetching native balance for ${token.symbol}:`,
+                  error,
+                );
+                balances[token.symbol] = 0;
+                balancesInWei[token.symbol] = BigInt(0);
+              }
+            }),
+          );
+
+    const erc20Promise = (async () => {
+      if (erc20Tokens.length === 0) return;
       try {
-        if (token.isNative && token.address === "") {
-          // Native token balance (ETH, BNB, etc.)
-          const balanceInWei = await client.getBalance({ address });
-          balancesInWei[token.symbol] = balanceInWei;
-          const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-          balances[token.symbol] = isNaN(balance) ? 0 : balance;
-          return balances[token.symbol];
-        } else {
-          // ERC-20 token balance
-          const balanceInWei = await client.readContract({
-            address: token.address as `0x${string}`,
-            abi: erc20Abi,
-            functionName: "balanceOf",
-            args: [address as `0x${string}`],
-          });
-          balancesInWei[token.symbol] = balanceInWei as bigint;
-          const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
-          balances[token.symbol] = isNaN(balance) ? 0 : balance;
-          return balances[token.symbol];
-        }
+        const contracts = erc20Tokens.map((token: Token) => ({
+          address: token.address as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "balanceOf" as const,
+          args: [address as `0x${string}`],
+        }));
+        type MulticallEntry =
+          | { status: "success"; result: bigint }
+          | { status: "failure"; error: Error; result?: undefined };
+        const multicallResults = (await client.multicall({
+          contracts,
+          allowFailure: true,
+        })) as MulticallEntry[];
+        usedMulticall = true;
+        multicallResults.forEach((res, i) => {
+          const token = erc20Tokens[i];
+          if (res.status === "success") {
+            fillBalancesFromWei(token, res.result);
+          } else {
+            console.error(
+              `Multicall balanceOf failed for ${token.symbol}:`,
+              res.error,
+            );
+            balances[token.symbol] = 0;
+            balancesInWei[token.symbol] = BigInt(0);
+          }
+        });
       } catch (error) {
-        console.error(`Error fetching balance for ${token.symbol}:`, error);
+        console.error(
+          "ERC-20 multicall failed, falling back to sequential",
+          error,
+        );
+        for (const token of erc20Tokens) {
+          try {
+            const balanceInWei = await client.readContract({
+              address: token.address as `0x${string}`,
+              abi: erc20Abi,
+              functionName: "balanceOf",
+              args: [address as `0x${string}`],
+            });
+            fillBalancesFromWei(token, balanceInWei as bigint);
+          } catch (err) {
+            console.error(
+              `Error fetching balance for ${token.symbol}:`,
+              err,
+            );
+            balances[token.symbol] = 0;
+            balancesInWei[token.symbol] = BigInt(0);
+          }
+        }
+      }
+    })();
+
+    await Promise.all([nativePromise, erc20Promise]);
+
+    for (const token of supportedTokens) {
+      if (balances[token.symbol] === undefined) {
         balances[token.symbol] = 0;
         balancesInWei[token.symbol] = BigInt(0);
+      }
+    }
+
+    const totalBalance = supportedTokens.reduce(
+      (acc, token) => acc + (balances[token.symbol] ?? 0),
+      0,
+    );
+
+    const entries: ChainBalanceEntry[] = supportedTokens.map((token) => ({
+      chainName,
+      chainId,
+      symbol: token.symbol,
+      address: token.address ?? "",
+      decimals: token.decimals,
+      balance: balances[token.symbol] ?? 0,
+      balanceWei: balancesInWei[token.symbol],
+    }));
+
+    const elapsed =
+      (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
+    logBalanceTelemetry("evm_balances_ms", {
+      chainId,
+      chainName,
+      ms: Math.round(elapsed),
+      tokenCount: supportedTokens.length,
+      erc20Count: erc20Tokens.length,
+      usedMulticall,
+    });
+
+    return {
+      chainName,
+      chainId,
+      entries,
+      total: isNaN(totalBalance) ? 0 : totalBalance,
+      balances,
+      balancesInWei,
+    };
+  } catch {
+    return empty();
+  }
+}
+
+/**
+ * Cached, deduped EVM balance fetch (per chain + address).
+ * `bypassCache: true` skips the TTL snapshot and does not join an in-flight
+ * request (forces a fresh RPC batch); use for manual refresh.
+ */
+export async function fetchEvmBalancesForAddress(
+  client: any,
+  address: string,
+  options?: { bypassCache?: boolean },
+): Promise<UnifiedWalletBalances> {
+  /** Client-only: avoid loading walletBalanceCache in Node/server bundles. */
+  if (typeof window === "undefined") {
+    return fetchEvmBalancesUnifiedUncached(client, address);
+  }
+  const { walletBalanceCacheKey, getCachedOrFetchEvmBalances } = await import(
+    "./lib/walletBalanceCache"
+  );
+  const chainId =
+    typeof client.chain?.id === "number" ? client.chain.id : undefined;
+  const key = walletBalanceCacheKey(chainId, address);
+  return getCachedOrFetchEvmBalances(
+    key,
+    () => fetchEvmBalancesUnifiedUncached(client, address),
+    { bypassCache: options?.bypassCache },
+  );
+}
+
+async function fetchStarknetBalancesUnified(
+  address: string,
+  tokens: Token[],
+): Promise<UnifiedWalletBalances> {
+  const chainName = "Starknet";
+
+  const emptyUsd = (): UnifiedWalletBalances => ({
+    chainName,
+    entries: [],
+    total: 0,
+    balances: {},
+    balancesInWei: {},
+    balancesUsd: {},
+  });
+
+  if (!address || !tokens || tokens.length === 0) {
+    return emptyUsd();
+  }
+
+  try {
+    const { createStarknetRpcProvider } = await import("./lib/starknetRpc");
+    const rpcUrl = process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
+    const provider = createStarknetRpcProvider(rpcUrl);
+
+    const balances: Record<string, number> = {};
+    const balancesInWei: Record<string, bigint> = {};
+    const balancesUsd: Record<string, number> = {};
+
+    const balancePromises = tokens.map(async (token: Token) => {
+      try {
+        const result = await provider.callContract({
+          contractAddress: token.address,
+          entrypoint: "balanceOf",
+          calldata: [address],
+        });
+
+        let balanceInWei: bigint;
+        if (Array.isArray(result) && result.length >= 2) {
+          const low = BigInt(result[0]);
+          const high = BigInt(result[1]);
+          balanceInWei = low + (high << BigInt(128));
+        } else if (Array.isArray(result) && result.length === 1) {
+          balanceInWei = BigInt(result[0]);
+        } else {
+          balanceInWei = BigInt(0);
+        }
+
+        const balance = Number(balanceInWei) / Math.pow(10, token.decimals);
+        balances[token.symbol] = isNaN(balance) ? 0 : balance;
+        balancesInWei[token.symbol] = balanceInWei;
+        balancesUsd[token.symbol] = balances[token.symbol];
+        return balances[token.symbol];
+      } catch {
+        balances[token.symbol] = 0;
+        balancesInWei[token.symbol] = BigInt(0);
+        balancesUsd[token.symbol] = 0;
         return 0;
       }
     });
 
-    // Wait for all promises to resolve
-    const tokenBalances = await Promise.all(balancePromises);
-    totalBalance = tokenBalances.reduce(
+    const perTokenAmounts = await Promise.all(balancePromises);
+    const totalBalance = perTokenAmounts.reduce(
       (acc: number, curr: number) => (acc || 0) + (curr || 0),
       0,
     );
-  } catch (error) {
-    return { total: 0, balances: {}, balancesInWei: {} };
-  }
 
+    const entries: ChainBalanceEntry[] = tokens.map((token) => ({
+      chainName,
+      symbol: token.symbol,
+      address: token.address,
+      decimals: token.decimals,
+      balance: balances[token.symbol] ?? 0,
+      balanceWei: balancesInWei[token.symbol],
+    }));
+
+    return {
+      chainName,
+      entries,
+      total: isNaN(totalBalance) ? 0 : totalBalance,
+      balances,
+      balancesInWei,
+      balancesUsd,
+    };
+  } catch {
+    return emptyUsd();
+  }
+}
+
+/**
+ * Single entry point: load supported-token balances for an EVM client or a Starknet address.
+ * Returns one {@link ChainBalanceEntry} per token plus legacy `balances` / `total` maps.
+ */
+export async function fetchBalancesForChain(
+  args: FetchBalancesForChainArgs,
+): Promise<UnifiedWalletBalances> {
+  if (args.kind === "starknet") {
+    const tokens = args.tokens ?? (await getNetworkTokens("Starknet"));
+    return fetchStarknetBalancesUnified(args.walletAddress, tokens);
+  }
+  return fetchEvmBalancesForAddress(args.client, args.walletAddress);
+}
+
+/**
+ * Starknet balances for supported tokens (same human units as EVM).
+ * For `entries` / unified shape see {@link fetchBalancesForChain}.
+ */
+export async function fetchStarknetBalance(
+  address: string,
+  tokens: Token[],
+): Promise<{
+  total: number;
+  balances: Record<string, number>;
+  balancesInWei: Record<string, bigint>;
+  balancesUsd: Record<string, number>;
+}> {
+  const u = await fetchStarknetBalancesUnified(address, tokens);
   return {
-    total: isNaN(totalBalance) ? 0 : totalBalance,
-    balances,
-    balancesInWei,
+    total: u.total,
+    balances: u.balances,
+    balancesInWei: u.balancesInWei ?? {},
+    balancesUsd: u.balancesUsd ?? {},
   };
+}
+
+/**
+ * EVM balances via viem public client. For `entries` / unified shape see {@link fetchBalancesForChain}.
+ */
+export async function fetchWalletBalance(
+  client: any,
+  address: string,
+  options?: { bypassCache?: boolean },
+): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
+  const u = await fetchEvmBalancesForAddress(client, address, options);
+  return {
+    total: u.total,
+    balances: u.balances,
+    balancesInWei: u.balancesInWei ?? {},
+  };
+}
+
+/** Whether a cross-chain token row should be listed for a non-selected network. */
+export function tokenBalanceRowVisible(
+  rawBalances: Record<string, number> | undefined,
+  token: string,
+  balance: number,
+  isSelectedNetwork: boolean,
+): boolean {
+  if (isSelectedNetwork) return true;
+  const raw = rawBalances?.[token];
+  return (typeof raw === "number" && raw > 0) || balance > 0;
 }
 
 /**
@@ -582,17 +1030,17 @@ export function calculateCorrectedTotalBalance(
 }
 
 /**
- * Fetches wallet balance for a specific network.
- * Creates the appropriate publicClient internally based on the network chain.
+ * Fetches wallet balance for a specific EVM network (builds a viem public client).
  *
  * @param network - The Network object containing chain info
  * @param walletAddress - The wallet address to fetch balance for
- * @returns Promise with total balance and individual token balances
+ * @returns Unified shape (includes `entries`); legacy fields `total`, `balances`, `balancesInWei` preserved
  */
 export async function fetchBalanceForNetwork(
   network: { chain: any },
   walletAddress: string,
-): Promise<{ total: number; balances: Record<string, number>; balancesInWei: Record<string, bigint> }> {
+  options?: { bypassCache?: boolean },
+): Promise<UnifiedWalletBalances> {
   const { createPublicClient, http } = await import("viem");
 
   const rpcUrl = getRpcUrl(network.chain.name);
@@ -602,7 +1050,7 @@ export async function fetchBalanceForNetwork(
     transport: http(rpcUrl),
   });
 
-  return fetchWalletBalance(publicClient, walletAddress);
+  return fetchEvmBalancesForAddress(publicClient, walletAddress, options);
 }
 
 /**
@@ -624,12 +1072,123 @@ export function shortenAddress(
 }
 
 /**
+ * Resolves ENS name from wallet address for supported networks
+ * Falls back to first 5 chars if no ENS name found
+ * @param address - The wallet address to resolve
+ * @param networkName - Optional network name (Lisk doesn't support ENS)
+ * @returns Promise<string> - ENS name or shortened address (first 5 chars after 0x)
+ */
+export async function resolveEnsNameOrShorten(
+  address: string,
+  networkName?: string,
+): Promise<string> {
+  if (!address) {
+    return "";
+  }
+
+  if (!isValidEvmAddressCaseInsensitive(address)) {
+    return address.slice(0, 5);
+  }
+
+  // Lisk doesn't support ENS, return shortened address immediately
+  if (networkName === "Lisk") {
+    return address.slice(2, 7); // First 5 chars (skip 0x)
+  }
+
+  try {
+
+    // ENS reverse resolution works on Ethereum mainnet
+    // But names can resolve to addresses on L2 networks (Base, Arbitrum, Polygon)
+    const publicClient = createPublicClient({
+      chain: mainnet,
+      transport: http("https://eth.llamarpc.com"), // Public Ethereum RPC
+    });
+
+    const ensName = await getEnsName(publicClient, {
+      address: address.toLowerCase() as `0x${string}`,
+    });
+
+    if (ensName) {
+      return ensName;
+    }
+
+    // Fallback to first 5 chars (skip 0x)
+    return address.slice(2, 7);
+  } catch (error) {
+    console.error("Error resolving ENS name:", error);
+    // Fallback to first 5 chars (skip 0x)
+    return address.slice(2, 7);
+  }
+}
+
+/**
+ * Normalizes a Starknet address to ensure it's properly formatted.
+ * Ensures the address is exactly 66 characters long (0x + 64 hex chars).
+ * Pads with zeros after the 0x prefix if necessary.
+ *
+ * @param address - The Starknet address to normalize (can be shorter than 66 chars)
+ * @returns The normalized address with proper padding (0x0...address)
+ * @throws Error if the address is invalid
+ *
+ * @example
+ * normalizeStarknetAddress("0x1234") => "0x0000000000000000000000000000000000000000000000000000000000001234"
+ * normalizeStarknetAddress("0x04718f5a...") => "0x04718f5a..." (already normalized)
+ */
+export function normalizeStarknetAddress(address: string): string {
+  // Remove any whitespace
+  const trimmedAddress = address?.trim();
+
+  // Validate that address starts with 0x
+  if (!trimmedAddress?.startsWith("0x")) {
+    throw new Error("Starknet address must start with 0x");
+  }
+
+  // Extract hex part (without 0x prefix)
+  const hexPart = trimmedAddress?.slice(2);
+
+  // Validate hex characters
+  if (!/^[a-fA-F0-9]*$/.test(hexPart)) {
+    throw new Error("Invalid hex characters in Starknet address");
+  }
+
+  if (hexPart.length === 0) {
+    throw new Error("Starknet address has no hex digits after 0x");
+  }
+
+  if (/^0+$/.test(hexPart)) {
+    throw new Error("Starknet address cannot be the zero address");
+  }
+
+  // Validate length (must not exceed 64 hex chars)
+  if (hexPart.length > 64) {
+    throw new Error(
+      "Starknet address too long (max 64 hex characters after 0x)",
+    );
+  }
+
+  // Pad with zeros after 0x to make it 66 chars total
+  const paddedHex = hexPart.padStart(64, "0");
+
+  return `0x${paddedHex}`;
+}
+
+/**
  * Normalizes network name for rate fetching API.
  * @param network - The network name to normalize.
  * @returns The normalized network name for rate fetching.
  */
 export function normalizeNetworkForRateFetch(network: string): string {
   return network.toLowerCase().replace(/\s+/g, "-");
+}
+
+/** True for Starknet mainnet (mock chain + viem-style `network` slug). */
+export function isStarknetChain(chain: {
+  name?: string;
+  network?: string;
+} | null | undefined): boolean {
+  if (!chain) return false;
+  if (chain.name === "Starknet") return true;
+  return chain.network === "starknet-mainnet";
 }
 
 /**
@@ -648,6 +1207,7 @@ export function getGatewayContractAddress(network = ""): string | undefined {
     Celo: "0xf418217e3f81092ef44b81c5c8336e6a6fdb0e4b",
     Lisk: "0xff0E00E0110C1FBb5315D276243497b66D3a4d8a",
     Ethereum: "0x8d2c0d398832b814e3814802ff2dc8b8ef4381e5",
+    Starknet: "0x06ff3a3b1532da65594fc98f9ca7200af6c3dbaf37e7339b0ebd3b3f2390c583",
   }[network];
 }
 
@@ -714,6 +1274,30 @@ export function shouldUseInjectedWallet(
 ): boolean {
   const injectedParam = searchParams.get("injected");
   return Boolean(injectedParam === "true" && window.ethereum);
+}
+
+/** `?side=` for home swap form: buy = on-ramp, sell = off-ramp (matches rates API). */
+export function swapModeFromSideParam(
+  side: string | null | undefined,
+): SwapMode | undefined {
+  const raw = side?.trim().toLowerCase();
+  if (raw === "buy") return "onramp";
+  if (raw === "sell") return "offramp";
+  return undefined;
+}
+
+/**
+ * First-paint default for main transaction form `swapMode`.
+ * Explicit `side` wins; else Starknet defaults to off-ramp; else global default on-ramp.
+ */
+export function initialSwapModeForHomeForm(
+  searchParams: Pick<URLSearchParams, "get">,
+  chain: { name?: string; network?: string },
+): SwapMode {
+  const fromSide = swapModeFromSideParam(searchParams.get("side"));
+  if (fromSide !== undefined) return fromSide;
+  if (isStarknetChain(chain)) return "offramp";
+  return "onramp";
 }
 
 /**
@@ -807,6 +1391,7 @@ function getAddChainParameters(network: Network) {
  * @param setSelectedNetwork - Function to update the selected network state.
  * @param onSuccess - Callback function to execute on successful network switch.
  * @param onError - Callback function to execute on network switch failure.
+ * @param ensureWalletExists - Optional function to ensure Starknet wallet exists (for Starknet).
  */
 export const handleNetworkSwitch = async (
   network: Network,
@@ -814,7 +1399,19 @@ export const handleNetworkSwitch = async (
   setSelectedNetwork: (network: Network) => void,
   onSuccess: () => void,
   onError: (error: Error) => void,
+  ensureWalletExists?: () => Promise<void>,
 ) => {
+  // If switching to Starknet, ensure wallet exists first (do not change network on failure)
+  if (network.chain.name === "Starknet" && ensureWalletExists) {
+    try {
+      await ensureWalletExists();
+    } catch (error) {
+      console.error("Failed to ensure Starknet wallet exists:", error);
+      onError(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
+  }
+
   if (useInjectedWallet && window.ethereum) {
     if (!network.chain?.id) {
       throw new Error(`Missing chainId for network: ${network.chain?.name}`);
@@ -1270,3 +1867,225 @@ export function calculateSenderFee(
 
   return { feeAmount, feeAmountInBaseUnits, feeRecipient };
 }
+
+/**
+ * Gets the avatar image path based on index, cycling through 1-4
+ */
+export const getAvatarImage = (index: number): string => {
+  const avatarNumber = (index % 4) + 1;
+  return `/images/onramp-avatar/avatar${avatarNumber}.png`;
+};
+
+/**
+ * Avatar path from wallet address (referral leaderboard, etc.).
+ * Loops through 8 avatars (Avatar.png, Avatar1.png through Avatar7.png)
+ */
+export const getAvatarImageFromAddress = (address: string): string => {
+  const avatarCount = 8;
+  const index = parseInt(address.slice(2, 4), 16) % avatarCount;
+
+  if (index === 0) {
+    return "/images/avatar/Avatar.png";
+  }
+  return `/images/avatar/Avatar${index}.png`;
+};
+
+/**
+ * Copy referral code to clipboard
+ */
+export const handleCopyCode = (
+  referralCode: string | undefined,
+  onCopied?: (value: boolean) => void,
+): void => {
+  if (referralCode) {
+    try {
+      navigator.clipboard.writeText(referralCode);
+      if (onCopied) {
+        onCopied(true);
+        setTimeout(() => onCopied(false), 2000);
+      }
+    } catch (error) {
+      console.error("Failed to copy referral code:", error);
+    }
+  }
+};
+
+/**
+ * Copy referral invite link to clipboard
+ */
+export const handleCopyLink = (referralCode: string | undefined): void => {
+  if (referralCode) {
+    const link = `${window.location.origin}?ref=${referralCode}`;
+    try {
+      navigator.clipboard.writeText(link);
+      toast.success("Referral link copied!");
+    } catch (error) {
+      console.error("Failed to copy referral link:", error);
+      toast.error("Failed to copy link");
+    }
+  }
+};
+
+/**
+ * Generate a unique 6-character referral code (NB + 4 alphanumeric)
+ */
+export function generateReferralCode(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let code = "NB";
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+/**
+ * Copies text to clipboard and shows a toast notification.
+ * Uses `navigator.clipboard` when available; falls back to `execCommand` when the API is
+ * unavailable, non-secure context, or when `writeText` rejects.
+ * @param label - Optional label for the toast (e.g. "Address", "Link") → "{label} copied to clipboard"
+ * @returns Whether the copy succeeded
+ */
+export async function copyToClipboard(
+  text: string,
+  label?: string,
+): Promise<boolean> {
+  const fallbackCopy = () => {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+
+    try {
+      textarea.focus();
+      textarea.select();
+      const ok = document.execCommand("copy");
+      if (!ok) {
+        throw new Error("execCommand copy failed");
+      }
+    } finally {
+      textarea.remove();
+    }
+  };
+
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        fallbackCopy();
+      }
+    } else {
+      fallbackCopy();
+    }
+    toast.success(
+      label ? `${label} copied to clipboard` : "Copied to clipboard",
+    );
+    return true;
+  } catch {
+    toast.error("Failed to copy");
+    return false;
+  }
+}
+
+export function mapProviderAccountToInstructions(
+  a: V2FiatProviderAccountDTO,
+  fallbackCurrency: string,
+  fallbackAmount: number,
+): OnrampPaymentInstructions {
+  const raw = a.amountToTransfer?.replace(/,/g, "") ?? "";
+  const parsed = raw ? parseFloat(raw) : fallbackAmount;
+  return {
+    provider:
+      a.institution && a.accountName
+        ? `${a.institution} | ${a.accountName}`
+        : a.institution || a.accountName,
+    accountNumber: a.accountIdentifier,
+    amount: Number.isFinite(parsed) ? parsed : fallbackAmount,
+    currency: a.currency || fallbackCurrency,
+    expiresAt: new Date(a.validUntil),
+  };
+}
+
+/** Same window as Make payment: not API `validUntil` until backend aligns. */
+export const ONRAMP_CLIENT_PAYMENT_SESSION_MS = 30 * 60 * 1000;
+
+/**
+ * True when an on-ramp order is still pending/processing in the API but the
+ * client payment window (30 minutes from `created_at`) has ended.
+ */
+export function isOnrampClientPaymentSessionExpired(
+  transaction: Pick<
+    TransactionHistory,
+    "created_at" | "transaction_type" | "status"
+  >,
+): boolean {
+  if (
+    transaction.transaction_type !== "onramp" ||
+    (transaction.status !== "pending" && transaction.status !== "processing")
+  ) {
+    return false;
+  }
+  const t = new Date(transaction.created_at).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() >= t + ONRAMP_CLIENT_PAYMENT_SESSION_MS;
+}
+
+/**
+ * True when an on-ramp order is still **pending** (awaiting bank transfer), not yet **processing**.
+ * Dot hides once history shows `processing` or terminal statuses.
+ */
+export function isOnrampAwaitingUserBankTransfer(
+  transaction: Pick<
+    TransactionHistory,
+    "transaction_type" | "status" | "order_id" | "created_at"
+  >,
+): boolean {
+  if (transaction.transaction_type !== "onramp" || !transaction.order_id) {
+    return false;
+  }
+  const s = String(transaction.status ?? "").toLowerCase();
+  if (s !== "pending") return false;
+  const created = new Date(transaction.created_at).getTime();
+  if (
+    !Number.isNaN(created) &&
+    Date.now() >= created + ONRAMP_CLIENT_PAYMENT_SESSION_MS
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/** Whether any history row needs the user to complete a bank transfer for an on-ramp order. */
+export function hasOnrampAwaitingBankTransfer(
+  transactions: Pick<
+    TransactionHistory,
+    "transaction_type" | "status" | "order_id" | "created_at"
+  >[],
+): boolean {
+  return transactions.some(isOnrampAwaitingUserBankTransfer);
+}
+
+/**
+ * Animated pending indicator (orange): expanding ping ripple + solid core.
+ * Navbar wallet pill and Transactions tab (client components only).
+ */
+export function OnrampPendingNotificationDot(): ReactElement {
+  return createElement(
+    "span",
+    {
+      className:
+        "relative inline-flex h-3 w-3 shrink-0 items-center justify-center",
+      "aria-hidden": true,
+    },
+    createElement("span", {
+      className:
+        "absolute inline-flex h-full w-full rounded-full bg-orange-500/50 motion-safe:animate-ping",
+    }),
+    createElement("span", {
+      className:
+        "relative z-[1] h-2 w-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.75)]",
+    }),
+  );
+}
+

@@ -16,17 +16,22 @@ const faqs = [
   {
     question: "What is Noblocks?",
     answer:
-      "Noblocks is an intuitive interface that enables users to create payment orders for instant stablecoin-fiat exchanges. Built on Paycrest's decentralized liquidity network, it supports mobile money and bank settlements across multiple regions, including Kenya (KES), Uganda (UGX), Nigeria (NGN), Tanzania (TZS), and more.",
+      "Noblocks is an intuitive interface for moving between stablecoins and local currency. You can cash out stablecoins to bank or mobile money, or buy stablecoins with fiat—powered by Paycrest's decentralized liquidity network across multiple regions, including Kenya (KES), Uganda (UGX), Nigeria (NGN), Tanzania (TZS), and more.",
   },
   {
     question: "Who is Noblocks for?",
     answer:
-      "Noblocks is for anyone who wants to move money across borders, cash out stablecoins, or access local currency quickly—whether you're a crypto native, freelancer, business, or just getting started with digital payments.",
+      "Noblocks is for anyone who needs to move money across borders: cash out stablecoins, buy stablecoins with local currency, or get paid in fiat quickly—whether you're a crypto-native user, freelancer, business, or new to digital payments.",
   },
   {
     question: "How does Noblocks work?",
     answer:
-      "Simply login, fund your Noblocks wallet, enter the amount you want to cash out, select your preferred currency and token. Review the live rates, add your recipient or bank details, then confirm the transaction. Enjoy gasless transactions as our decentralized network instantly converts and deposits the local currency to your chosen account.",
+      "Stablecoin → fiat: Connect your wallet, choose the token and amount you want to sell, pick the fiat currency and add your recipient or bank details, then review the rate and confirm. Your stablecoins are converted and the local currency is sent to your chosen account.\n\nFiat → stablecoin: Switch to on-ramp, enter how much fiat you want to send and which stablecoin you want to receive, then follow the payment instructions for your bank or mobile money transfer. When your payment is confirmed, stablecoins are credited to your connected wallet.\n\nRates are shown before you confirm, and many flows use sponsored transactions so you don't pay gas in the app.",
+  },
+  {
+    question: "How do I buy stablecoins with a bank or mobile money transfer?",
+    answer:
+      'On the home screen, switch to on-ramp ("change cash to stablecoins"). Select the asset you want to receive, enter your fiat amount, and complete any verification required. You\'ll get payment instructions for your bank or mobile money transfer. Send the payment; once it\'s received and the order completes, stablecoins are delivered to your Noblocks wallet. You can track the order from your transaction history.',
   },
   {
     question: "Who is a provider?",
@@ -87,7 +92,7 @@ function AccordionItem({
             transition={{ duration: 0.3, ease: "easeInOut" }}
             className="overflow-hidden"
           >
-            <div className="rounded-bl-xl rounded-br-xl border-b border-l border-r border-[#FFFFFF1A] px-4 py-2 text-base font-normal leading-6 text-black dark:text-[#FFFFFF80]">
+            <div className="whitespace-pre-line rounded-bl-xl rounded-br-xl border-b border-l border-r border-[#FFFFFF1A] px-4 py-2 text-base font-normal leading-6 text-black dark:text-[#FFFFFF80]">
               {answer}
             </div>
           </motion.div>

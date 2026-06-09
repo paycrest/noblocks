@@ -11,10 +11,12 @@ import {
   AnimatedModal,
   slideInOut,
 } from "../components/AnimatedComponents";
+import { TransactionLimitModal, PhoneVerificationModal } from "../components";
 import { primaryBtnClasses } from "../components/Styles";
 import { FormDropdown } from "../components/FormDropdown";
 import { RecipientDetailsForm } from "../components/recipient/RecipientDetailsForm";
 import { KycModal } from "../components/KycModal";
+import { getKycModalTargetTier } from "@/app/lib/kyc-upgrade-path";
 import { FundWalletForm } from "../components/FundWalletForm";
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
@@ -34,9 +36,9 @@ import {
   currencyToCountryCode,
   reorderCurrenciesByLocation,
 } from "../utils";
-import { ArrowDown02Icon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
+import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
-import { fetchKYCStatus } from "../api/aggregator";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
@@ -45,8 +47,34 @@ import {
   useInjectedWallet,
   useNetwork,
   useTokens,
+  useKYC,
 } from "../context";
+import { validateWalletAddress } from "../lib/validation";
 import WalletMigrationModal from "../components/WalletMigrationModal";
+
+/**
+ * Monthly KYC limits are in USD. Offramp `amountSent` is token (stable ≈ USD).
+ * Onramp `amountSent` is fiat (NGN) — use crypto received as the USD notional.
+ */
+function kycUsdNotionalForLimitCheck(params: {
+  isOnramp: boolean;
+  amountSent: number;
+  amountReceived: number;
+  token: string | undefined;
+  cngnRate?: number | null;
+}): number {
+  const { isOnramp, amountSent, amountReceived, token, cngnRate } = params;
+  const rate = cngnRate ?? undefined;
+  const isCngn = token === "cNGN" || token === "CNGN";
+  if (isOnramp) {
+    const recv = Number(amountReceived) || 0;
+    if (isCngn && rate && rate > 0) return recv / rate;
+    return recv;
+  }
+  const raw = Number(amountSent) || 0;
+  if (isCngn && rate && rate > 0) return raw / rate;
+  return raw;
+}
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -78,6 +106,27 @@ export const TransactionForm = ({
   const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
+  // Network-aware "My wallet" / recipient address: Starknet wallet on Starknet,
+  // EVM embedded EOA / smart wallet on EVM (mirrors activeWallet for EVM).
+  const connectedWalletAddress = useWalletAddress();
+  const {
+    canTransact,
+    refreshStatus,
+    getKycStatusSnapshot,
+    isPhoneVerified,
+    tier,
+    phoneNumber,
+    transactionSummary,
+  } = useKYC();
+
+  const hasPriorTransactionActivity = useMemo(() => {
+    const { monthlySpent, dailySpent, lastTransactionDate } = transactionSummary;
+    return (
+      monthlySpent > 0 ||
+      dailySpent > 0 ||
+      (lastTransactionDate != null && lastTransactionDate !== "")
+    );
+  }, [transactionSummary]);
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -89,7 +138,10 @@ export const TransactionForm = ({
   const [formattedSentAmount, setFormattedSentAmount] = useState("");
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
   const isFirstRender = useRef(true);
+  const hasRestoredStateRef = useRef(false);
   const [rateError, setRateError] = useState<string | null>(null);
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
+  const [blockedTransactionAmount, setBlockedTransactionAmount] = useState(0);
 
   const currencies = useMemo(
     () =>
@@ -110,9 +162,19 @@ export const TransactionForm = ({
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors, isValid, isDirty },
   } = formMethods;
-  const { amountSent, amountReceived, token, currency } = watch();
+  const {
+    amountSent,
+    amountReceived,
+    token,
+    currency,
+    walletAddress,
+    isSwapped,
+    swapMode,
+    receiveDestinationExplicitlySelected,
+  } = watch();
 
   // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
   const { rate: cngnRate, error: cngnRateError } = useCNGNRate({
@@ -263,8 +325,12 @@ export const TransactionForm = ({
         (c: CurrencyOption) => c.name === currency && !c.disabled,
       );
 
-      if (supported)
+      if (supported) {
         formMethods.setValue("currency", currency, { shouldDirty: true });
+        formMethods.setValue("receiveDestinationExplicitlySelected", true, {
+          shouldDirty: true,
+        });
+      }
     }
     if (tokenAmount && fiatAmount) {
       formMethods.setValue("amountReceived", fiatAmount, { shouldDirty: true });
@@ -283,6 +349,7 @@ export const TransactionForm = ({
 
   useEffect(
     function initSelectedToken() {
+      if (getValues("isSwapped")) return;
       if (
         !fetchedTokens.find((t) => t.symbol === token) &&
         fetchedTokens.length > 0
@@ -295,33 +362,13 @@ export const TransactionForm = ({
   );
 
   useEffect(
-    function checkKycStatus() {
+    function refreshKycStatus() {
       const walletAddressToCheck = isInjectedWallet
         ? injectedAddress
         : embeddedWalletAddress;
       if (!walletAddressToCheck) return;
 
-      const fetchStatus = async () => {
-        try {
-          const response = await fetchKYCStatus(walletAddressToCheck);
-          if (response.data.status === "pending") {
-            setIsKycModalOpen(true);
-          } else if (response.data.status === "success") {
-            setIsUserVerified(true);
-          }
-        } catch (error) {
-          if (
-            error instanceof Error &&
-            (error as any).response?.status === 404
-          ) {
-            // silently fail if user is not found/verified
-          } else {
-            console.log("error", error);
-          }
-        }
-      };
-
-      fetchStatus();
+      void refreshStatus(true);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [embeddedWalletAddress, injectedAddress, isInjectedWallet],
@@ -346,19 +393,86 @@ export const TransactionForm = ({
   useEffect(
     function calculateReceiveAmount() {
       if (rate && (amountSent || amountReceived)) {
+        // Rate format: currency per token (e.g., 1400 NGN per 1 USDC)
+        // When NOT swapped (offramp): Send = Token, Receive = Currency
+        //   Formula: Receive = Send * Rate (1 USDC * 1400 = 1400 NGN)
+        // When swapped (onramp): Send = Currency, Receive = Token
+        //   Formula: Receive = Send / Rate (463,284 NGN / 1400 = 330.917 USDC)
+
         if (isReceiveInputActive) {
-          const calculatedAmount = Number(
-            (Number(amountReceived) / rate).toFixed(4),
-          );
-          setValue("amountSent", calculatedAmount, { shouldDirty: true });
+          // User is typing in Receive field
+          if (isSwapped) {
+            // Swapped: Receive = Token, so calculate Send (Currency)
+            // Send = Receive * Rate (20.4 USDC * 1400 = 28,560 NGN)
+            const calculatedAmount = Number(
+              (Number(amountReceived) * rate).toFixed(2),
+            );
+            setValue("amountSent", calculatedAmount, { shouldDirty: true });
+          } else {
+            // Not swapped: Receive = Currency, so calculate Send (Token)
+            // Send = Receive / Rate (1400 NGN / 1400 = 1 USDC)
+            const calculatedAmount = Number(
+              (Number(amountReceived) / rate).toFixed(4),
+            );
+            setValue("amountSent", calculatedAmount, { shouldDirty: true });
+          }
         } else {
-          const calculatedAmount = Number((rate * amountSent).toFixed(2));
-          setValue("amountReceived", calculatedAmount, { shouldDirty: true });
+          // User is typing in Send field
+          if (isSwapped) {
+            // Swapped: Send = Currency, so calculate Receive (Token)
+            // Receive = Send / Rate (463,284 NGN / 1400 = 330.917 USDC)
+            const calculatedAmount = Number(
+              (Number(amountSent) / rate).toFixed(4),
+            );
+            setValue("amountReceived", calculatedAmount, { shouldDirty: true });
+          } else {
+            // Not swapped: Send = Token, so calculate Receive (Currency)
+            // Receive = Send * Rate (1 USDC * 1400 = 1400 NGN)
+            const calculatedAmount = Number((rate * amountSent).toFixed(2));
+            setValue("amountReceived", calculatedAmount, { shouldDirty: true });
+          }
         }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [amountSent, amountReceived, rate],
+    [amountSent, amountReceived, rate, isSwapped],
+  );
+
+  // Derive swap eligibility from tier + spend limits. Always set explicitly so we
+  // never leave a stale true/false (e.g. tier ≥ 1 with no amount, or after reload).
+  useEffect(
+    function updateVerificationStatus() {
+      const rawAmount = Number(amountSent);
+      if (!Number.isFinite(rawAmount) || rawAmount <= 0) {
+        setIsUserVerified(false);
+        return;
+      }
+      if (isSwapped) {
+        const recv = Number(amountReceived);
+        if (!Number.isFinite(recv) || recv <= 0) {
+          setIsUserVerified(false);
+          return;
+        }
+      }
+      const usdAmount = kycUsdNotionalForLimitCheck({
+        isOnramp: Boolean(isSwapped),
+        amountSent: rawAmount,
+        amountReceived: Number(amountReceived) || 0,
+        token,
+        cngnRate,
+      });
+      setIsUserVerified(canTransact(usdAmount).allowed);
+    },
+    [
+      tier,
+      amountSent,
+      amountReceived,
+      isSwapped,
+      token,
+      cngnRate,
+      canTransact,
+      setIsUserVerified,
+    ],
   );
 
   // Register form fields
@@ -370,26 +484,35 @@ export const TransactionForm = ({
 
         const normalizedToken = token?.toUpperCase();
 
-        if (normalizedToken === "CNGN") {
+        if (isSwapped) {
+          // On-ramp: send NGN; min in validate.onrampFiatMin, max 2.3M NGN product cap.
+          maxAmountSentValue = 2_300_000;
+          setRateError(null);
+        } else if (normalizedToken === "CNGN") {
           if (cngnRate && cngnRate > 0) {
             // Valid rate available - calculate limits and clear errors
             maxAmountSentValue = 50000000;
             minAmountSentValue = 0.5 * cngnRate;
             setRateError(null);
           } else {
-            // cNGN selected but no valid rate - set error
             const errorMessage = cngnRateError || "No available quote";
             setRateError(errorMessage);
           }
+        } else {
+          setRateError(null);
         }
 
         formMethods.register("amountSent", {
           required: { value: true, message: "Amount is required" },
-          disabled: !token,
-          min: {
-            value: minAmountSentValue,
-            message: `Minimum amount is ${formatNumberWithCommas(minAmountSentValue)}`,
-          },
+          disabled: isSwapped ? !currency : !token,
+          ...(!isSwapped
+            ? {
+                min: {
+                  value: minAmountSentValue,
+                  message: `Minimum amount is ${formatNumberWithCommas(minAmountSentValue)}`,
+                },
+              }
+            : {}),
           max: {
             value: maxAmountSentValue,
             message: `Maximum amount is ${formatNumberWithCommas(maxAmountSentValue)}`,
@@ -403,6 +526,15 @@ export const TransactionForm = ({
                 "Maximum 4 decimal places allowed"
               );
             },
+            onrampFiatMin: (value: number) => {
+              if (!isSwapped) return true;
+              // Min fiat depends on rate; only enforce once receive token is chosen and rate exists.
+              if (!token || !rate || rate <= 0) return true;
+              const n = Number(value);
+              const floor = 0.5 * rate;
+              if (n >= floor) return true;
+              return `Minimum amount is ${formatNumberWithCommas(floor)} NGN`;
+            },
           },
         });
 
@@ -414,7 +546,15 @@ export const TransactionForm = ({
           required: { value: false, message: "Add description" },
         });
 
-        if (normalizedToken === "CNGN") {
+        if (isSwapped) {
+          // On-ramp is NGN-only for now (send side).
+          currencies.forEach((c: CurrencyOption) => {
+            c.disabled = c.name !== "NGN";
+          });
+          if (currency !== "NGN") {
+            formMethods.setValue("currency", "NGN", { shouldDirty: true });
+          }
+        } else if (normalizedToken === "CNGN") {
           // When cNGN is selected, only enable NGN
           currencies.forEach((currency: CurrencyOption) => {
             currency.disabled = currency.name !== "NGN";
@@ -423,6 +563,9 @@ export const TransactionForm = ({
           if (currency !== "NGN") {
             formMethods.setValue("currency", "NGN", { shouldDirty: true });
           }
+          formMethods.setValue("receiveDestinationExplicitlySelected", true, {
+            shouldDirty: true,
+          });
         } else {
           // Reset currencies to their default state from mocks
           currencies.forEach((currency: CurrencyOption) => {
@@ -450,6 +593,8 @@ export const TransactionForm = ({
       selectedNetwork,
       cngnRate,
       cngnRateError,
+      isSwapped,
+      rate,
     ],
   );
 
@@ -472,26 +617,190 @@ export const TransactionForm = ({
   }, [currencies]);
 
   const { isEnabled, buttonText, buttonAction, isMigrationMandatory } = useSwapButton({
-    watch,
-    balance,
-    isDirty,
-    isValid,
-    isUserVerified,
-    rate,
-    tokenDecimals,
-    needsMigration,
-    isRemainingFundsMigration,
-  });
+  watch,
+  balance,
+  isDirty,
+  isValid,
+  isUserVerified,
+  isPhoneVerified,
+  hasPriorTransactionActivity,
+  kycTier: tier,
+  rate,
+  tokenDecimals,
+  needsMigration,
+  isRemainingFundsMigration,
+  isSwapped,
+});
 
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isPhoneVerificationOpen, setIsPhoneVerificationOpen] = useState(false);
+  const [isTier2PhoneGateOpen, setIsTier2PhoneGateOpen] = useState(false);
+  /** After phone OTP, KYC context may not have updated before the next handleSwap; allow one continuation. */
+  const pendingContinueSwapAfterPhoneRef = useRef(false);
 
   const handleSwap = () => {
     if (isMigrationMandatory) {
       setIsMigrationModalOpen(true);
       return;
     }
+
+    const kyc = getKycStatusSnapshot();
+
+    // Tier 2+ (e.g. migrated ID KYC) still requires a stored phone — prompt before swap.
+    if (kyc.tier >= 2) {
+      const hasPhone = Boolean(kyc.phoneNumber?.trim());
+      if (!hasPhone && !pendingContinueSwapAfterPhoneRef.current) {
+        setIsTier2PhoneGateOpen(true);
+        return;
+      }
+      pendingContinueSwapAfterPhoneRef.current = false;
+    }
+
     setOrderId("");
+
+    // Calculate the USD equivalent for transaction limit checking (see kycUsdNotionalForLimitCheck).
+    const formData = getValues();
+    const rawAmount = Number(formData.amountSent) || 0;
+    if (formData.isSwapped) {
+      const recv = Number(formData.amountReceived) || 0;
+      if (!Number.isFinite(recv) || recv <= 0) {
+        return;
+      }
+    }
+    const usdAmount = kycUsdNotionalForLimitCheck({
+      isOnramp: Boolean(formData.isSwapped),
+      amountSent: rawAmount,
+      amountReceived: Number(formData.amountReceived) || 0,
+      token: formData.token,
+      cngnRate,
+    });
+
+    // Check transaction limits based on KYC tier
+    const limitCheck = canTransact(usdAmount);
+
+    if (!limitCheck.allowed) {
+      if (kyc.tier < 1 || !kyc.isPhoneVerified) {
+        setIsPhoneVerificationOpen(true);
+        return;
+      }
+      setBlockedTransactionAmount(usdAmount);
+      setIsLimitModalOpen(true);
+      return;
+    }
+
+    // If limits are okay, proceed with transaction
     handleSubmit(onSubmit)();
+  };
+
+  const handlePhoneVerified = async (_verifiedPhone: string) => {
+    setIsPhoneVerificationOpen(false);
+    setIsTier2PhoneGateOpen(false);
+    pendingContinueSwapAfterPhoneRef.current = true;
+    await refreshStatus(true);
+    handleSwap();
+  };
+
+  // Clear recipient when it is invalid for the selected network (EVM ↔ Starknet switches)
+  useEffect(() => {
+    const w = (getValues("walletAddress") ?? "").trim();
+    if (!w) return;
+    if (validateWalletAddress(w, selectedNetwork.chain.name) !== true) {
+      setValue("walletAddress", "", { shouldDirty: true });
+    }
+  }, [selectedNetwork.chain.name, getValues, setValue]);
+
+  useEffect(() => {
+    // Only run once to align on-ramp mode with persisted recipient (e.g. deep link / refresh)
+    if (hasRestoredStateRef.current) {
+      return;
+    }
+
+    const w = getValues("walletAddress");
+    const hasWallet = typeof w === "string" && w.trim().length > 0;
+    // Only enable on-ramp from pre-filled wallet; do not force off-ramp (avoids clobbering toggle before this runs)
+    if (hasWallet) {
+      setValue("isSwapped", true, { shouldDirty: false });
+      const t = getValues("token");
+      if (typeof t === "string" && t.trim().length > 0) {
+        setValue("receiveDestinationExplicitlySelected", true, {
+          shouldDirty: false,
+        });
+      }
+    }
+    hasRestoredStateRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Handle swap button click to switch between token/currency dropdowns
+  const handleSwapFields = () => {
+    const currentAmountSent = amountSent;
+    const currentAmountReceived = amountReceived;
+    const willBeSwapped = !isSwapped;
+
+    const hasToken = typeof token === "string" && token.trim().length > 0;
+    const hasCurrency = typeof currency === "string" && currency.trim().length > 0;
+    const hasBothAmounts =
+      Number(amountSent) > 0 && Number(amountReceived) > 0;
+    /** User picked receive asset + both fiat/crypto assets + both amount fields — keep values when toggling direction. */
+    const isCompleteFlow =
+      receiveDestinationExplicitlySelected &&
+      hasToken &&
+      hasCurrency &&
+      hasBothAmounts;
+
+    setValue("receiveDestinationExplicitlySelected", isCompleteFlow, {
+      shouldDirty: true,
+    });
+
+    // Toggle swap mode FIRST (persisted on form so parent rate fetch uses correct side)
+    setValue("isSwapped", willBeSwapped, { shouldDirty: true });
+    setValue("swapMode", willBeSwapped ? "onramp" : "offramp", {
+      shouldDirty: true,
+    });
+
+    if (isCompleteFlow) {
+      // Swap send/receive numbers and formatting; keep token & currency (and wallet) across the flip
+      setValue("amountSent", currentAmountReceived || 0, { shouldDirty: true });
+      setValue("amountReceived", currentAmountSent || 0, { shouldDirty: true });
+      setFormattedSentAmount(formattedReceivedAmount);
+      setFormattedReceivedAmount(formattedSentAmount);
+
+      if (willBeSwapped) {
+        // On-ramp send fiat is NGN-only — normalize if coming from another receive fiat
+        if (currency !== "NGN") {
+          setValue("currency", "NGN", { shouldDirty: true });
+        }
+      }
+    } else {
+      // Partial entry: clear amounts so off-ramp does not inherit lone on-ramp fiat (etc.)
+      setValue("amountSent", 0, { shouldDirty: true });
+      setValue("amountReceived", 0, { shouldDirty: true });
+      setFormattedSentAmount("");
+      setFormattedReceivedAmount("");
+
+      if (willBeSwapped) {
+        // On-ramp: fiat send is NGN-only for now. Receive token chosen on the Receive row.
+        setValue("currency", "NGN", { shouldDirty: true });
+        setValue("token", "", { shouldDirty: true });
+        if (!walletAddress) {
+          setValue("walletAddress", "", { shouldDirty: true });
+        }
+      } else {
+        // Off-ramp — clear fiat so it matches initial load (no selection until user picks)
+        setValue("currency", "", { shouldDirty: true });
+        if (!token && fetchedTokens.length > 0) {
+          const usdcToken = fetchedTokens.find((t) => t.symbol === "USDC");
+          const defaultToken = usdcToken?.symbol || fetchedTokens[0]?.symbol;
+          if (defaultToken) {
+            setValue("token", defaultToken, { shouldDirty: true });
+          }
+        }
+        setValue("walletAddress", "", { shouldDirty: true });
+      }
+    }
+
+    // Reset rate to trigger recalculation
+    stateProps.setRate(0);
   };
 
   // Handle sent amount input changes
@@ -621,20 +930,59 @@ export const TransactionForm = ({
     <div className="mx-auto max-w-[27.3125rem]">
       <motion.form
         layout
+        transition={{ duration: 0.2, ease: "easeInOut" }}
         onSubmit={handleSubmit(onSubmit)}
         className="grid gap-4 pb-20 text-sm text-text-body transition-all dark:text-white sm:gap-2"
         noValidate
       >
-        <section
-          aria-labelledby="swap-heading"
-          className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5"
-        >
-          <h3 id="swap-heading" className="px-2 py-1 text-base font-medium">
-            Swap
-          </h3>
+        <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
+          <div className="flex items-center justify-between px-2 py-1">
+            <h3 className="text-base font-medium">Swap</h3>
+
+            <div className="flex items-center gap-1">
+              {/* On-ramp button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isSwapped) {
+                    void handleSwapFields();
+                  }
+                }}
+                className={[
+                  "px-3 h-8 text-sm font-medium rounded-full transition-colors",
+                  "bg-neutral-100 dark:bg-[#141414]",
+                  isSwapped
+                    ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
+                    : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
+                ].join(" ")}
+              >
+                On-ramp
+              </button>
+
+              {/* Off-ramp button */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSwapped) {
+                    void handleSwapFields();
+                  }
+                }}
+                className={[
+                  "px-3 h-8 text-sm font-medium rounded-full transition-colors",
+                  "bg-neutral-100 dark:bg-[#141414]",
+                  !isSwapped
+                    ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
+                    : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
+                ].join(" ")}
+              >
+                Off-ramp
+              </button>
+            </div>
+          </div>
 
           <motion.div
             layout
+            transition={{ duration: 0.2, ease: "easeInOut" }}
             className="relative space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-surface-canvas"
           >
             <div className="flex items-center justify-between">
@@ -645,7 +993,7 @@ export const TransactionForm = ({
                 Send
               </label>
               <AnimatePresence>
-                {authenticated && token && activeBalance && (
+                {authenticated && token && activeBalance && !isSwapped && (
                   <AnimatedComponent
                     variant={slideInOut}
                     className="flex items-center gap-2"
@@ -714,52 +1062,68 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedSentAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${authenticated && (amountSent > balance || errors.amountSent)
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${authenticated && !isSwapped && (amountSent > balance || errors.amountSent)
                   ? "text-red-500 dark:text-red-500"
                   : "text-neutral-900 dark:text-white/80"
                   }`}
                 placeholder="0"
                 title="Enter amount to send"
               />
-              <FormDropdown
-                defaultTitle="Select token"
-                data={tokens}
-                defaultSelectedItem={token}
-                isCTA={false}
-                onSelect={(selectedToken) =>
-                  setValue("token", selectedToken, { shouldDirty: true })
-                }
-                className="min-w-32"
-                dropdownWidth={160}
-              />
+              {isSwapped ? (
+                <FormDropdown
+                  defaultTitle="Select currency"
+                  data={orderedCurrencies}
+                  defaultSelectedItem={currency}
+                  onSelect={(selectedCurrency) =>
+                    setValue("currency", selectedCurrency, { shouldDirty: true })
+                  }
+                  className="min-w-80"
+                  dropdownWidth={320}
+                  isCTA={!currency}
+                />
+              ) : (
+                <FormDropdown
+                  defaultTitle="Select token"
+                  data={tokens}
+                  defaultSelectedItem={token}
+                  isCTA={false}
+                  onSelect={(selectedToken) =>
+                    setValue("token", selectedToken, { shouldDirty: true })
+                  }
+                  className="min-w-32"
+                  dropdownWidth={160}
+                />
+              )}
             </div>
             {(errors.amountSent ||
-              (authenticated && totalRequired > balance)) && (
+              (authenticated && !isSwapped && totalRequired > balance)) && (
                 <AnimatedComponent
                   variant={slideInOut}
                   className="!mt-0 text-xs text-red-500"
                 >
                   {errors.amountSent?.message ||
-                    (authenticated && totalRequired > balance
+                    (authenticated && !isSwapped && totalRequired > balance
                       ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
                       : null)}
                 </AnimatedComponent>
               )}
 
             {/* Arrow showing swap direction */}
-            <div className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas">
+            <button
+              type="button"
+              onClick={handleSwapFields}
+              className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas"
+            >
               <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
                 {isFetchingRate ? (
                   <span className="animate-spin text-xl text-outline-gray dark:text-white/50">
                     <ImSpinner3 />
                   </span>
                 ) : (
-                  <span className="text-xl text-outline-gray dark:text-white/80">
-                    <ArrowDown02Icon />
-                  </span>
+                  <ArrowUpDownIcon className="text-xl text-outline-gray dark:text-white/40" />
                 )}
               </div>
-            </div>
+            </button>
           </motion.div>
 
           {/* Amount to receive & currency */}
@@ -777,14 +1141,6 @@ export const TransactionForm = ({
                 type="text"
                 inputMode="decimal"
                 onChange={handleReceivedAmountChange}
-                onFocus={() => {
-                  if (
-                    formattedReceivedAmount === "0" ||
-                    formattedReceivedAmount === "0.00"
-                  ) {
-                    setFormattedReceivedAmount("");
-                  }
-                }}
                 onKeyDown={(e) => {
                   // Special handling for the decimal point key
                   if (e.key === "." && !formattedReceivedAmount.includes(".")) {
@@ -811,28 +1167,51 @@ export const TransactionForm = ({
                 title="Enter amount to receive"
               />
 
-              <FormDropdown
-                defaultTitle="Select currency"
-                data={orderedCurrencies}
-                defaultSelectedItem={currency}
-                onSelect={(selectedCurrency) =>
-                  setValue("currency", selectedCurrency, { shouldDirty: true })
-                }
-                className="min-w-80"
-                isCTA={
-                  !currency &&
-                  (!authenticated ||
-                    (authenticated && !(totalRequired > balance)))
-                }
-                dropdownWidth={320}
-              />
+              {isSwapped ? (
+                <FormDropdown
+                  defaultTitle="Select token"
+                  data={tokens}
+                  defaultSelectedItem={token || undefined}
+                  isCTA={!token}
+                  onSelect={(selectedToken) => {
+                    setValue("token", selectedToken, { shouldDirty: true });
+                    setValue("receiveDestinationExplicitlySelected", true, {
+                      shouldDirty: true,
+                    });
+                  }}
+                  className="min-w-32"
+                  dropdownWidth={160}
+                />
+              ) : (
+                <FormDropdown
+                  defaultTitle="Select currency"
+                  data={orderedCurrencies}
+                  defaultSelectedItem={currency}
+                  onSelect={(selectedCurrency) => {
+                    setValue("currency", selectedCurrency, {
+                      shouldDirty: true,
+                    });
+                    setValue("receiveDestinationExplicitlySelected", true, {
+                      shouldDirty: true,
+                    });
+                  }}
+                  className="min-w-80"
+                  isCTA={
+                    !currency &&
+                    (!authenticated ||
+                      (authenticated && !(totalRequired > balance)))
+                  }
+                  dropdownWidth={320}
+                />
+              )}
             </div>
           </div>
-        </section>
+        </div>
 
         {/* Recipient and memo */}
         <AnimatePresence>
-          {currency &&
+          {receiveDestinationExplicitlySelected &&
+            currency &&
             (authenticated || isInjectedWallet) &&
             isUserVerified && (
               <AnimatedComponent
@@ -843,32 +1222,39 @@ export const TransactionForm = ({
                 <RecipientDetailsForm
                   formMethods={formMethods}
                   stateProps={stateProps}
+                  swapMode={swapMode ?? "offramp"}
+                  isSwapped={isSwapped}
+                  token={token}
+                  networkName={selectedNetwork.chain.name}
+                  connectedWalletAddress={connectedWalletAddress ?? undefined}
                 />
 
-                {/* Memo */}
-                <div className="relative">
-                  <NoteEditIcon className="absolute left-3 top-3.5 size-4 text-icon-outline-secondary dark:text-white/50" />
-                  <input
-                    type="text"
-                    id="memo"
-                    onChange={(e) => {
-                      formMethods.setValue("memo", e.target.value);
-                    }}
-                    value={formMethods.watch("memo")}
-                    className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${errors.memo
-                      ? "text-red-500 dark:text-red-500"
-                      : "text-text-body dark:text-white/80"
-                      }`}
-                    placeholder="Add description (optional)"
-                    maxLength={25}
-                  />
-                </div>
+                {/* Memo - Only show for offramp (not swapped) */}
+                {!isSwapped && (
+                  <div className="relative">
+                    <NoteEditIcon className="absolute left-3 top-3.5 size-4 text-icon-outline-secondary dark:text-white/50" />
+                    <input
+                      type="text"
+                      id="memo"
+                      onChange={(e) => {
+                        formMethods.setValue("memo", e.target.value);
+                      }}
+                      value={formMethods.watch("memo")}
+                      className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${errors.memo
+                        ? "text-red-500 dark:text-red-500"
+                        : "text-text-body dark:text-white/80"
+                        }`}
+                      placeholder="Add description (optional)"
+                      maxLength={25}
+                    />
+                  </div>
+                )}
               </AnimatedComponent>
             )}
         </AnimatePresence>
 
         <AnimatePresence>
-          {isKycModalOpen && (
+          {isKycModalOpen && tier >= 1 && (
             <AnimatedModal
               isOpen={isKycModalOpen}
               onClose={() => setIsKycModalOpen(false)}
@@ -876,10 +1262,29 @@ export const TransactionForm = ({
               <KycModal
                 setIsKycModalOpen={setIsKycModalOpen}
                 setIsUserVerified={setIsUserVerified}
+                targetTier={getKycModalTargetTier(tier)}
               />
             </AnimatedModal>
           )}
         </AnimatePresence>
+
+        <TransactionLimitModal
+          isOpen={isLimitModalOpen}
+          onClose={async () => {
+            setIsLimitModalOpen(false);
+            await refreshStatus(true);
+          }}
+          transactionAmount={blockedTransactionAmount}
+        />
+
+        <PhoneVerificationModal
+          isOpen={isPhoneVerificationOpen || isTier2PhoneGateOpen}
+          onClose={() => {
+            setIsPhoneVerificationOpen(false);
+            setIsTier2PhoneGateOpen(false);
+          }}
+          onVerified={handlePhoneVerified}
+        />
 
         {/* Loading and Submit buttons */}
         {!ready && (
@@ -911,7 +1316,9 @@ export const TransactionForm = ({
                     (fetchedTokens.find((t) => t.symbol === token)
                       ?.address as `0x${string}`) ?? "",
                   ),
-                () => setIsKycModalOpen(true),
+                () => setIsPhoneVerificationOpen(true),
+                () => setIsLimitModalOpen(true),
+                isPhoneVerified,
                 isUserVerified,
                 () => setIsMigrationModalOpen(true),
               )}
@@ -922,21 +1329,32 @@ export const TransactionForm = ({
         )}
 
         <AnimatePresence>
-          {currency && (
+          {receiveDestinationExplicitlySelected && currency && (
             <AnimatedComponent
               variant={slideInOut}
               className="flex w-full flex-col justify-between gap-2 py-3 text-xs text-text-disabled transition-all dark:text-white/30 xsm:flex-row xsm:items-center"
             >
-              <div className="min-w-fit">
+              <div className={rateError ? "" : "min-w-fit"}>
                 {rateError ? (
-                  <>No available quote</>
+                  <span className="text-orange-500 dark:text-orange-400">{rateError}</span>
                 ) : rate > 0 ? (
                   <>
-                    1 {token} ~{" "}
-                    {isFetchingRate
-                      ? "..."
-                      : formatNumberWithCommasForDisplay(rate)}{" "}
-                    {currency}
+                    {isSwapped ? (
+                      <>
+                        {isFetchingRate
+                          ? "..."
+                          : formatNumberWithCommasForDisplay(rate)}{" "}
+                        {currency} ~ 1 {token}
+                      </>
+                    ) : (
+                      <>
+                        1 {token} ~{" "}
+                        {isFetchingRate
+                          ? "..."
+                          : formatNumberWithCommasForDisplay(rate)}{" "}
+                        {currency}
+                      </>
+                    )}
                   </>
                 ) : null}
               </div>

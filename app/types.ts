@@ -1,5 +1,17 @@
 import type { ReactNode } from "react";
 
+export type MobileSheetView =
+  | "wallet"
+  | "settings"
+  | "transfer"
+  | "fund"
+  | "history"
+  | "earn"
+  | "earn-deposit"
+  | "earn-withdraw"
+  | "earn-activity-detail"
+  | "referrals";
+
 import type {
   FieldErrors,
   UseFormRegister,
@@ -13,6 +25,16 @@ export type InstitutionProps = {
   type: "bank" | "mobile_money";
 };
 
+/** Onramp refund bank account (persisted per wallet; v2 order source.refundAccount). */
+export type RefundAccountDetails = {
+  institutionCode: string;
+  institutionName: string;
+  accountName: string;
+  accountNumber: string;
+};
+
+export type SwapMode = "onramp" | "offramp";
+
 export type FormData = {
   network: string;
   token: string;
@@ -21,14 +43,22 @@ export type FormData = {
   accountIdentifier: string;
   recipientName: string;
   accountType: "bank" | "mobile_money";
+  walletAddress?: string; // For onramp: stablecoin wallet address
   memo: string;
   amountSent: number;
   amountReceived: number;
+  /** Fiat → crypto = onramp (NGN→token); crypto → fiat = offramp */
+  swapMode: SwapMode;
+  /** Legacy compatibility for extracted KYC branch components. */
+  isSwapped?: boolean;
+  /** True after user picks the Receive row asset (fiat off-ramp, token on-ramp). */
+  receiveDestinationExplicitlySelected: boolean;
 };
 
 export const STEPS = {
   FORM: "form",
   PREVIEW: "preview",
+  MAKE_PAYMENT: "make_payment",
   STATUS: "status",
 } as const;
 
@@ -49,16 +79,29 @@ export type TransactionPreviewProps = {
 export type RecipientDetailsFormProps = {
   formMethods: UseFormReturn<FormData, any, undefined>;
   stateProps: StateProps;
+  swapMode?: SwapMode;
+  isSwapped?: boolean;
+  token?: string; // Token symbol for onramp
+  networkName?: string; // Network name for display
+  /** On-ramp: address to fill when user taps "My wallet" (same as active signing wallet). */
+  connectedWalletAddress?: string;
 };
 
-export type RecipientDetails = {
-  name: string;
-  institution: string;
-  institutionCode: string;
-  accountIdentifier: string;
-  type: "bank" | "mobile_money";
-  currency?: string;
-};
+export type RecipientDetails =
+  | {
+    type: "wallet";
+    walletAddress: string;
+    name: string;
+  }
+  | {
+    type: "bank" | "mobile_money";
+    name: string;
+    institution: string;
+    institutionCode: string;
+    accountIdentifier: string;
+    currency?: string;
+    walletAddress?: never;
+  };
 
 export type FormMethods = {
   handleSubmit: UseFormHandleSubmit<FormData, undefined>;
@@ -81,7 +124,8 @@ export type TransactionStatusType =
   | "settling"
   | "settled"
   | "refunding"
-  | "refunded";
+  | "refunded"
+  | "expired";
 
 export type TransactionStatusProps = {
   transactionStatus: TransactionStatusType;
@@ -95,6 +139,7 @@ export type TransactionStatusProps = {
   supportedInstitutions: InstitutionProps[];
   setOrderId: (orderId: string) => void;
   refetchRate?: () => void;
+  isOnramp?: boolean;
 };
 
 export type SelectFieldProps = {
@@ -115,12 +160,20 @@ export type VerifyAccountPayload = {
   accountIdentifier: string;
 };
 
+/** Paycrest v2 rates: onramp uses `buy`, offramp uses `sell`. */
+export type RateSide = "buy" | "sell";
+
 export type RatePayload = {
   token: string;
+  /**
+   * Token amount used in the aggregator path (provider min/max are in token).
+   * For onramp UIs where the user types fiat first, convert to token before quoting.
+   */
   amount?: number;
   currency: string;
+  network: string;
+  side: RateSide;
   providerId?: string;
-  network?: string;
   signal?: AbortSignal;
 };
 
@@ -128,6 +181,19 @@ export type RateResponse = {
   status: string;
   data: number;
   message: string;
+};
+
+/** Aggregator v2 `data` for GET /v2/rates/... */
+export type V2RateQuoteSide = {
+  rate: string;
+  providerIds?: string[];
+  orderType?: string;
+  refundTimeoutMinutes?: number;
+};
+
+export type V2RateQuoteResponse = {
+  buy?: V2RateQuoteSide;
+  sell?: V2RateQuoteSide;
 };
 
 export type PubkeyResponse = {
@@ -168,6 +234,66 @@ type TxReceipt = {
   timestamp: string;
 };
 
+/** Fiat virtual account returned by aggregator v2 onramp (create / get order). */
+export type V2FiatProviderAccountDTO = {
+  institution: string;
+  accountIdentifier: string;
+  accountName: string;
+  validUntil: string;
+  amountToTransfer?: string;
+  currency?: string;
+};
+
+/** Display shape for virtual account / bank transfer instructions (mirrors provider/types OnrampPaymentInstructions). */
+export type OnrampPaymentInstructions = {
+  provider: string;
+  accountNumber: string;
+  amount: number;
+  currency: string;
+  expiresAt: Date;
+};
+
+export type V2PaymentOrderCreateData = {
+  id: string;
+  status: string;
+  timestamp: string;
+  amount: string;
+  rate?: string;
+  senderFee: string;
+  senderFeePercent: string;
+  transactionFee: string;
+  reference: string;
+  providerAccount: V2FiatProviderAccountDTO;
+  source: unknown;
+  destination: unknown;
+};
+
+/** Single order GET /v2/sender/orders/:id — fields used by Noblocks; rest optional. */
+export type V2PaymentOrderGetData = {
+  id: string;
+  status: string;
+  providerAccount: V2FiatProviderAccountDTO;
+  direction?: string;
+  [key: string]: unknown;
+};
+
+export type V2CreatePaymentOrderPayload = {
+  amount: string;
+  rate?: string;
+  amountIn?: "fiat" | "crypto";
+  senderFee?: string;
+  senderFeePercent?: string;
+  reference?: string;
+  source: Record<string, unknown>;
+  destination: Record<string, unknown>;
+};
+
+export type AggregatorEnvelope<T> = {
+  status: string;
+  message: string;
+  data: T;
+};
+
 export type StateProps = {
   formValues: FormData;
   setFormValues: (values: FormData) => void;
@@ -187,6 +313,8 @@ export type StateProps = {
   setTransactionStatus: (status: TransactionStatusType) => void;
   rateError: string | null;
   setRateError: (error: string | null) => void;
+  onrampPaymentAccount: V2FiatProviderAccountDTO | null;
+  setOnrampPaymentAccount: (account: V2FiatProviderAccountDTO | null) => void;
 };
 
 export type NetworkButtonProps = {
@@ -243,6 +371,15 @@ export type InitiateKYCResponse = {
   };
 };
 
+export type SmileIDSubmissionResponse = {
+  status: string;
+  message: string;
+  data?: {
+    jobId: string;
+    userId: string;
+  };
+};
+
 export type KYCStatusResponse = {
   status: string;
   message: string;
@@ -267,16 +404,21 @@ export type Config = {
   biconomyMeeApiKey: string;
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
+  referralMinQualifyingVolumeUsd: number;
+  referralRewardAmountUsd: number;
+  aggregatorSenderApiKey: string;
+  /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
+  earnEnabled: boolean;
 };
 
 export type Network = {
   chain: any;
   imageUrl:
-    | string
-    | {
-        light: string;
-        dark: string;
-      };
+  | string
+  | {
+    light: string;
+    dark: string;
+  };
 };
 
 export interface TransactionResponse {
@@ -301,8 +443,9 @@ export type TransactionStatus =
   | "processing"
   | "fulfilled"
   | "refunding"
-  | "refunded";
-export type TransactionHistoryType = "swap" | "transfer";
+  | "refunded"
+  | "expired";
+export type TransactionHistoryType = "onramp" | "offramp" | "transfer";
 
 export interface Recipient {
   account_name: string;
@@ -390,6 +533,7 @@ export interface UpdateTransactionDetailsPayload
   extends UpdateTransactionStatusPayload {
   txHash?: string;
   timeSpent?: string;
+  isOnramp?: boolean;
 }
 
 export type Currency = {
@@ -400,7 +544,7 @@ export type Currency = {
 };
 
 // Saved Recipients API Types
-export interface RecipientDetailsWithId extends RecipientDetails {
+export type RecipientDetailsWithId = RecipientDetails & {
   id: string;
 }
 
@@ -414,6 +558,50 @@ export interface SaveRecipientResponse {
   success: boolean;
   data: RecipientDetailsWithId;
 }
+
+export interface StarknetWalletState {
+  walletId: string | null;
+  address: string | null;
+  publicKey: string | null;
+  deployed: boolean;
+  isCreating: boolean;
+  error: string | null;
+}
+
+export interface StarknetContextType extends StarknetWalletState {
+  createWallet: () => Promise<void>;
+  resetError: () => void;
+  ensureWalletExists: () => Promise<void>; // Auto-create wallet if needed
+}
+
+export interface ReferralData {
+  referral_code: string;
+  total_earned: number;
+  total_pending: number;
+  total_referrals?: number;
+  earned_count?: number;
+  pending_count?: number;
+  referrals: Array<{
+    id: string;
+    role?: "referrer" | "referred";
+    wallet_address: string;
+    wallet_address_short: string;
+    status: string;
+    amount: number;
+    created_at: string;
+    completed_at?: string | null;
+  }>;
+  newly_generated?: boolean;
+}
+
+export type ApiResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error: string; status?: number; code?: string };
+
+export type SubmitReferralResult = {
+  referral_id?: string;
+  message?: string;
+};
 
 declare global {
   interface Window {

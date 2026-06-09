@@ -10,6 +10,15 @@ This document lists all environment variables required for the Noblocks applicat
 # URL of an aggregator service
 NEXT_PUBLIC_AGGREGATOR_URL=https://api.paycrest.io/v1
 
+# Sender API key UUID (aggregator dashboard). Used by the payment-orders proxy and the client for encrypted gateway.createOrder messageHash.
+NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID=
+
+# KYC tier monthly swap limits (USD). Used by the UI and POST /api/v1/transactions. Optional; defaults match production if unset.
+NEXT_PUBLIC_KYC_TIER_0_MONTHLY=0
+NEXT_PUBLIC_KYC_TIER_1_MONTHLY=0.5
+NEXT_PUBLIC_KYC_TIER_2_MONTHLY=1
+NEXT_PUBLIC_KYC_TIER_3_MONTHLY=2
+
 # Auth services
 NEXT_PUBLIC_PRIVY_APP_ID=
 NEXT_PUBLIC_THIRDWEB_CLIENT_ID=
@@ -36,6 +45,21 @@ MIXPANEL_INCLUDE_ERROR_STACKS=false
 NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS=false
 ```
 
+### Client error reporting (optional)
+
+Sentry-compatible ingest (e.g. [GlitchTip](https://glitchtip.com/)). Browser-only; no `@sentry/nextjs` plugin.
+
+```bash
+NEXT_PUBLIC_SENTRY_DSN=
+# Optional
+NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+NEXT_PUBLIC_SENTRY_RELEASE=
+# 0–1; default 0 (no performance traces)
+NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=0
+# Set to true to send events while running `next dev`
+NEXT_PUBLIC_SENTRY_ENABLE_IN_DEV=false
+```
+
 ### Security
 
 ```bash
@@ -50,6 +74,9 @@ INTERNAL_API_KEY=
 # Feature toggles (NEW)
 # Enable wallet context sync in middleware
 ENABLE_WALLET_CONTEXT_SYNC=false
+
+# Starknet Earn (Vesu / Starkzap): Earn button, deposit/withdraw UI, earn activity tab
+NEXT_PUBLIC_EARN_ENABLED=false
 ```
 
 ### Database & Authentication
@@ -59,12 +86,8 @@ ENABLE_WALLET_CONTEXT_SYNC=false
 # Get these from: Supabase Dashboard → Project Settings → API
 SUPABASE_URL=https://your-project.supabase.co
 
-# ⚠️ IMPORTANT: Use the SERVICE ROLE key, NOT the anon/public key
-# The service role key bypasses Row-Level Security (RLS) policies
-# Location: Supabase Dashboard → Project Settings → API → "service_role" secret
-# Format: Starts with "eyJ..." and contains "role":"service_role" when decoded
-# DO NOT use the "anon public" key here - it will cause RLS policy violations
-SUPABASE_SERVICE_ROLE_KEY=
+# Server (`supabaseAdmin`): Secret key sb_secret_…
+SUPABASE_SECRET_KEY=
 
 # Privy Authentication
 PRIVY_APP_SECRET=
@@ -141,12 +164,9 @@ NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS=true
 ## Security Notes
 
 ### Supabase Keys
-- **`SUPABASE_SERVICE_ROLE_KEY`**: 
-  - **CRITICAL**: Must be the service role key, not the anon key
-  - The service role key bypasses RLS and should never be exposed to clients
-  - Verify by decoding the JWT - it should contain `"role":"service_role"`
-  - Using the anon key will cause "row violates row-level security policy" errors
-  - Get it from: Supabase Dashboard → Project Settings → API → "service_role" secret
+- **`SUPABASE_SECRET_KEY`**: required for server `supabaseAdmin` — **Secret** key (`sb_secret_…`). Bypasses RLS. Do not put the publishable key here or inserts will fail with RLS errors.
+- **`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`**: only if you add a client-side Supabase client; not used by current API routes.
+- **`SUPABASE_URL`** or **`NEXT_PUBLIC_SUPABASE_URL`**: project API URL ([Connect](https://supabase.com/docs/guides/getting-started/quickstarts/nextjs)).
 
 ### Other Security
 - **`INTERNAL_API_KEY`**: Generate a strong random string (e.g., `openssl rand -hex 32`)

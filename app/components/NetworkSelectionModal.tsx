@@ -8,6 +8,7 @@ import { HelpCircleIcon, ArrowLeft02Icon, Cancel01Icon } from "hugeicons-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { networks } from "../mocks";
 import { useNetwork } from "../context/NetworksContext";
+import { useStarknet } from "../context";
 import { AnimatedModal } from "./AnimatedComponents";
 import {
   shouldUseInjectedWallet,
@@ -16,26 +17,28 @@ import {
 } from "../utils";
 import { useSearchParams } from "next/navigation";
 import { useActualTheme } from "../hooks/useActualTheme";
-import { markNetworkModalDismissed } from "../lib/networkModalStore";
 
-export const NetworkSelectionModal = () => {
+interface NetworkSelectionModalProps {
+  onNetworkSelected?: () => void;
+}
+
+// export const NetworkSelectionModal = () => {
+export const NetworkSelectionModal = ({
+  onNetworkSelected,
+}: NetworkSelectionModalProps = {}) => {
   const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
+  const { ensureWalletExists } = useStarknet();
   const { authenticated, user } = usePrivy();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
-  // Reset when user changes (including logout → login as different user)
-  useEffect(() => {
-    setHasCheckedStorage(false);
-  }, [user?.wallet?.address]);
-
   useEffect(() => {
     if (!hasCheckedStorage && authenticated && user?.wallet?.address) {
-      const storageKey = `hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`;
+      const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
       const hasSeenModal = localStorage.getItem(storageKey);
 
       if (!hasSeenModal) {
@@ -45,13 +48,28 @@ export const NetworkSelectionModal = () => {
     }
   }, [hasCheckedStorage, authenticated, user?.wallet?.address]);
 
+  // const handleClose = () => {
+  //   if (user?.wallet?.address) {
+  //     const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
+  //     localStorage.setItem(storageKey, "true");
+  //   }
+  //   setIsOpen(false);
+  // };
+
   const handleClose = () => {
     if (user?.wallet?.address) {
-      const storageKey = `hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`;
+      const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
       localStorage.setItem(storageKey, "true");
-      markNetworkModalDismissed();
     }
     setIsOpen(false);
+
+    // Trigger callback when modal closes after network selection
+    if (onNetworkSelected) {
+      // Small delay to ensure smooth transition
+      setTimeout(() => {
+        onNetworkSelected();
+      }, 300);
+    }
   };
 
   const handleNetworkSelect = async (networkName: string) => {
@@ -66,6 +84,7 @@ export const NetworkSelectionModal = () => {
           console.error("Failed to switch network:", error);
           setSelectedNetwork(selectedNetwork);
         },
+        ensureWalletExists, // Pass the Starknet wallet creation function
       );
     }
   };
@@ -109,12 +128,7 @@ export const NetworkSelectionModal = () => {
               </p>
 
               <div className="space-y-2">
-                {networks
-                  .filter((network) => {
-                    if (useInjectedWallet) return true;
-                    return network.chain.name !== "Celo";
-                  })
-                  .map((network) => (
+                {networks.map((network) => (
                     <button
                       key={network.chain.name}
                       type="button"

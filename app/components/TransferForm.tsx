@@ -1,16 +1,21 @@
 "use client";
 import React, { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
+import { useSearchParams } from "next/navigation";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
+import { useStarknet } from "../context/StarknetContext";
 import WalletMigrationModal from "./WalletMigrationModal";
 import {
   classNames,
   formatDecimalPrecision,
   fetchBalanceForNetwork,
+  normalizeStarknetAddress,
+  shouldUseInjectedWallet,
 } from "../utils";
+import { isValidEvmAddressCaseInsensitive } from "../lib/validation";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
@@ -38,13 +43,16 @@ export const TransferForm: React.FC<{
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
   onOpenMigration?: () => void;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView, onOpenMigration }) => {
+  const searchParams = useSearchParams();
+  const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const { selectedNetwork } = useNetwork();
   const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const shouldUseEOA = useShouldUseEOA();
   const { isChecking: isMigrationChecking, needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
-  const { refreshBalance } = useBalance();
+  const { refreshBalance, starknetWalletBalance } = useBalance();
   const { allTokens } = useTokens();
+  const { walletId, publicKey, address, deployed } = useStarknet();
   const isDark = useActualTheme();
 
   const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
@@ -76,12 +84,14 @@ export const TransferForm: React.FC<{
     setValue,
     watch,
     reset,
+    trigger,
     formState: { errors, isValid, isDirty },
   } = formMethods;
   const { token, amount, recipientNetwork, recipientNetworkImageUrl } = watch();
 
   // Get the Network object for the selected recipient network
-  const transferNetwork = networks.find(n => n.chain.name === recipientNetwork) || selectedNetwork;
+  const transferNetwork =
+    networks.find((n) => n.chain.name === recipientNetwork) || selectedNetwork;
 
   const fetchedTokens: Token[] = allTokens[transferNetwork.chain.name] || [];
   const tokens = fetchedTokens.map((token) => ({
@@ -90,10 +100,15 @@ export const TransferForm: React.FC<{
   }));
   const tokenBalance = Number(transferNetworkBalance?.balances?.[token]) || 0;
 
-  const recipientNetworks = networks.map((network) => ({
-    name: network.chain.name,
-    imageUrl: getNetworkImageUrl(network, isDark),
-  }));
+  const recipientNetworks = networks
+    .filter((network) => {
+      if (useInjectedWallet) return true;
+      return network.chain.name !== "Celo";
+    })
+    .map((network) => ({
+      name: network.chain.name,
+      imageUrl: getNetworkImageUrl(network, isDark),
+    }));
 
   const {
     isLoading: isConfirming,
@@ -110,6 +125,12 @@ export const TransferForm: React.FC<{
     getAccessToken,
     refreshBalance,
     onRequireMigration: onOpenMigration ?? (() => setIsMigrationModalOpen(true)),
+    starknetWallet: {
+      walletId,
+      publicKey,
+      address,
+      deployed,
+    },
   });
 
   useEffect(() => {
@@ -120,6 +141,10 @@ export const TransferForm: React.FC<{
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    void trigger("recipientAddress");
+  }, [recipientNetwork, trigger]);
 
   useEffect(() => {
     if (error) {
@@ -177,11 +202,15 @@ export const TransferForm: React.FC<{
       setIsBalanceLoading(true);
       setBalanceError(null);
       try {
-        const balance = await fetchBalanceForNetwork(
-          transferNetwork,
-          activeAddress,
-        );
-        setTransferNetworkBalance(balance);
+        if (transferNetwork.chain.name === "Starknet") {
+          setTransferNetworkBalance(starknetWalletBalance);
+        } else {
+          const balance = await fetchBalanceForNetwork(
+            transferNetwork,
+            activeAddress,
+          );
+          setTransferNetworkBalance(balance);
+        }
         setBalanceError(null);
       } catch (error) {
         console.error("Error fetching transfer network balance:", error);
@@ -195,7 +224,14 @@ export const TransferForm: React.FC<{
     };
 
     fetchBalance();
-  }, [transferNetwork, user?.linkedAccounts, wallets, shouldUseEOA, isMigrationChecking]);
+  }, [
+    transferNetwork,
+    user?.linkedAccounts,
+    wallets,
+    shouldUseEOA,
+    isMigrationChecking,
+    starknetWalletBalance,
+  ]);
 
   // Close dropdown when clicking outside or pressing Escape
   useEffect(() => {
@@ -382,15 +418,31 @@ export const TransferForm: React.FC<{
                   value: true,
                   message: "Recipient address is required",
                 },
-                pattern: {
-                  value: /^0x[a-fA-F0-9]{40}$/,
-                  message: "Invalid wallet address format",
-                },
                 validate: {
-                  length: (value) =>
-                    value.length === 42 || "Address must be 42 characters long",
-                  prefix: (value) =>
-                    value.startsWith("0x") || "Address must start with 0x",
+                  addressForNetwork: (value) => {
+                    const raw = (value || "").trim();
+                    if (!raw) return true;
+                    const net =
+                      recipientNetwork || selectedNetwork.chain.name;
+                    if (!raw.startsWith("0x")) {
+                      return "Address must start with 0x";
+                    }
+                    if (net === "Starknet") {
+                      if (isValidEvmAddressCaseInsensitive(raw)) {
+                        return "This address is an EVM address. Enter a Starknet address.";
+                      }
+                      try {
+                        normalizeStarknetAddress(raw);
+                        return true;
+                      } catch {
+                        return "Enter a valid Starknet address.";
+                      }
+                    }
+                    if (!isValidEvmAddressCaseInsensitive(raw)) {
+                      return "Enter a valid EVM address.";
+                    }
+                    return true;
+                  },
                 },
               })}
               className={classNames(
@@ -400,7 +452,7 @@ export const TransferForm: React.FC<{
                   : "text-neutral-900 dark:text-white/80",
               )}
               placeholder="Enter recipient wallet address"
-              maxLength={42}
+              maxLength={66}
             />
           </div>
           {errors.recipientAddress && (

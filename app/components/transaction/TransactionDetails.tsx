@@ -6,8 +6,6 @@ import { ImSpinner } from "react-icons/im";
 import { PiCheck } from "react-icons/pi";
 import { toast } from "sonner";
 import { usePrivy } from "@privy-io/react-auth";
-import { pdf } from "@react-pdf/renderer";
-import { PDFReceipt } from "../PDFReceipt";
 import { CopyAddressWarningModal } from "../CopyAddressWarningModal";
 import type {
   OnrampPaymentInstructions,
@@ -151,6 +149,12 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         amountReceived: transaction.amount_received,
         currency: transaction.to_currency,
       };
+      // Lazy-load PDF renderer (heavy, ~MBs of fontkit/pdfkit) only on demand
+      // so it never enters the first-load JS bundle for the transactions UI.
+      const [{ pdf }, { PDFReceipt }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("../PDFReceipt"),
+      ]);
       const blob = await pdf(
         <PDFReceipt data={orderDetailsData} formData={formData} />,
       ).toBlob();
@@ -361,11 +365,12 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                   type="button"
                   title="Copy address"
                   className="rounded-lg p-1 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
-                  onClick={() => {
-                    navigator.clipboard.writeText(
+                  onClick={async () => {
+                    const ok = await copyToClipboard(
                       transaction.recipient.account_identifier,
+                      "Address",
                     );
-                    toast.success("Address copied");
+                    if (!ok) return;
                     setIsWarningModalOpen(true);
                   }}
                 >
@@ -452,11 +457,12 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
                   type="button"
                   title="Copy address"
                   className="rounded-lg p-1 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
-                  onClick={() => {
-                    navigator.clipboard.writeText(
+                  onClick={async () => {
+                    const ok = await copyToClipboard(
                       transaction.recipient.account_identifier,
+                      "Address",
                     );
-                    toast.success("Address copied");
+                    if (!ok) return;
                     setIsWarningModalOpen(true);
                   }}
                 >
@@ -845,8 +851,12 @@ function OnrampPendingPaymentInstructions({
             type="button"
             title="Copy amount"
             className="shrink-0 rounded-lg p-1.5 transition-colors hover:bg-gray-100 dark:hover:bg-white/10"
-            onClick={() => {
-              void copyToClipboard(String(instructions.amount), "Amount");
+            onClick={async () => {
+              const ok = await copyToClipboard(
+                String(instructions.amount),
+                "Amount",
+              );
+              if (!ok) return;
               setCopiedAmt(true);
               setTimeout(() => setCopiedAmt(false), 2000);
             }}

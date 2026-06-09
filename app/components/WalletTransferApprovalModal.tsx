@@ -36,10 +36,10 @@ function getTransportForChain(chain: Chain) {
     return http(getRpcUrl(chain.name));
 }
 
-// Map network names to viem chains (migration flow only; see migrationChecklistNetworks)
+// Map network names to viem chains (migration flow only; Starknet is excluded from the checklist).
 const CHAIN_MAP = Object.fromEntries(
-    migrationChecklistNetworks.map(n => [n.chain.name, n.chain])
-);
+    migrationChecklistNetworks.map((n) => [n.chain.name, n.chain]),
+) as Record<string, Chain>;
 
 // Biconomy v2 ECDSA module address (same across chains). Signature must be ABI-encoded as (bytes moduleSig, address moduleAddress) per blog.
 const BICONOMY_V2_ECDSA_MODULE = "0x0000001c5b32F37F5beA87BDD5374eB2aC54eA8e" as const;
@@ -96,9 +96,10 @@ const WalletTransferApprovalModal: React.FC<WalletTransferApprovalModalProps> = 
             // Fetch balances for each network in the migration checklist (excluded chains omitted)
             for (const network of migrationChecklistNetworks) {
                 try {
+                    const evmChain = network.chain as Chain;
                     const publicClient = createPublicClient({
-                        chain: network.chain,
-                        transport: getTransportForChain(network.chain),
+                        chain: evmChain,
+                        transport: getTransportForChain(evmChain),
                     });
 
                     const result = await fetchWalletBalance(

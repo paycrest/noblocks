@@ -332,11 +332,12 @@ export const MakePayment = ({
                             </p>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    copyToClipboard(
+                                onClick={async () => {
+                                    const ok = await copyToClipboard(
                                         paymentDetails.accountNumber,
                                         "Account number",
                                     );
+                                    if (!ok) return;
                                     setIsAccountNumberCopied(true);
                                     setTimeout(() => setIsAccountNumberCopied(false), 2000);
                                 }}
@@ -364,11 +365,12 @@ export const MakePayment = ({
                             </p>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    copyToClipboard(
+                                onClick={async () => {
+                                    const ok = await copyToClipboard(
                                         paymentDetails.amount.toString(),
                                         "Amount",
                                     );
+                                    if (!ok) return;
                                     setIsAmountCopied(true);
                                     setTimeout(() => setIsAmountCopied(false), 2000);
                                 }}

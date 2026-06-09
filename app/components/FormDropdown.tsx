@@ -13,6 +13,7 @@ interface FormDropdownProps {
   className?: string;
   isCTA?: boolean;
   dropdownWidth?: number;
+  disabled?: boolean;
 }
 
 export const FormDropdown = ({
@@ -23,6 +24,7 @@ export const FormDropdown = ({
   className,
   isCTA = false,
   dropdownWidth,
+  disabled = false,
 }: FormDropdownProps) => {
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   return (
@@ -33,16 +35,19 @@ export const FormDropdown = ({
       className={className}
       dropdownWidth={dropdownWidth}
       mobileTitle={defaultTitle}
+      disabled={disabled}
     >
-      {({ selectedItem, isOpen, toggleDropdown }) => (
+      {({ selectedItem, isOpen, toggleDropdown, disabled: isLocked }) => (
         <button
           id="dropdown"
           aria-label="Toggle dropdown"
           aria-haspopup="true"
           type="button"
+          disabled={isLocked}
           onClick={toggleDropdown}
           className={classNames(
             "flex h-9 items-center gap-1 rounded-full p-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-95",
+            isLocked && "cursor-not-allowed opacity-60",
             selectedItem?.name
               ? "bg-gray-50 dark:bg-neutral-800"
               : isCTA

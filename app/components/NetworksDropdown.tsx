@@ -1,7 +1,6 @@
 "use client";
 import Image from "next/image";
 import { toast } from "sonner";
-import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { networks } from "../mocks";
@@ -14,7 +13,7 @@ import {
 import { toastMappedError } from "../lib/toastMappedError";
 import { FlexibleDropdown } from "./FlexibleDropdown";
 import { ArrowDown01Icon } from "hugeicons-react";
-import { useNetwork, useStep } from "../context";
+import { useNetwork, useStep, useStarknet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
 
 interface NetworksDropdownProps {
@@ -28,13 +27,11 @@ export const NetworksDropdown = ({
   const { isFormStep } = useStep();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
+  const { ensureWalletExists } = useStarknet();
 
   iconOnly = !isFormStep;
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
-  const [dropdownSelectedItem, setDropdownSelectedItem] = useState<string>(
-    selectedNetwork.chain.name,
-  );
 
   const handleNetworkSelect = async (networkName: string) => {
     const newNetwork = networks.find((net) => net.chain.name === networkName);
@@ -44,7 +41,6 @@ export const NetworksDropdown = ({
         useInjectedWallet,
         setSelectedNetwork,
         () => {
-          setDropdownSelectedItem(newNetwork.chain.name);
           if (!useInjectedWallet) {
             toast.success(`Network switched successfully`, {
               description: `You are now swapping on ${newNetwork.chain.name} network`,
@@ -58,6 +54,7 @@ export const NetworksDropdown = ({
             title: "Error switching network",
           });
         },
+        ensureWalletExists, // Pass the Starknet wallet creation function
       );
     }
   };
@@ -70,7 +67,7 @@ export const NetworksDropdown = ({
   return (
     <FlexibleDropdown
       data={dropdownNetworks}
-      selectedItem={dropdownSelectedItem}
+      selectedItem={selectedNetwork.chain.name}
       onSelect={handleNetworkSelect}
       className="max-h-max min-w-56"
       dropdownWidth={250}

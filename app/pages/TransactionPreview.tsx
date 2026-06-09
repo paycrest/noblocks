@@ -64,6 +64,7 @@ import {
   fetchAggregatorPublicKey,
   fetchTokens,
   saveTransaction,
+  precheckSwapTransaction,
   createV2SenderPaymentOrder,
   fetchRefundAccount,
   saveRefundAccount,
@@ -156,6 +157,9 @@ export const TransactionPreview = ({
   );
   const orderSubmissionBlock = useRef<bigint | null>(null);
 
+  // Ref to prevent duplicate transaction saves
+  const isSavingTransactionRef = useRef(false);
+
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -198,7 +202,7 @@ export const TransactionPreview = ({
   // After migration: use EOA (new wallet with funds)
   // Before migration: use SCW (old wallet)
   const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
+    (wallet) => wallet.walletClientType === "privy",
   );
   const smartWallet = isInjectedWallet
     ? null
@@ -547,7 +551,11 @@ export const TransactionPreview = ({
         toast.success("Order created successfully");
         refreshBalance();
         setIsPollingOrderId(true);
-        void getOrderId().finally(() => setIsPollingOrderId(false));
+        try {
+          await getOrderId();
+        } finally {
+          setIsPollingOrderId(false);
+        }
         return;
       } else {
         // Smart wallet (pre-migration)
@@ -686,6 +694,24 @@ export const TransactionPreview = ({
         const providerId =
           searchParams.get("provider") || searchParams.get("PROVIDER") || undefined;
 
+        await precheckSwapTransaction(
+          {
+            walletAddress: activeWallet.address,
+            transactionType: "onramp",
+            fromCurrency: currency,
+            toCurrency: token,
+            amountSent: Number(amountSent),
+            amountReceived: Number(amountReceived),
+            fee: Number(rate),
+            recipient: {
+              account_name: recipientName || walletAddress || "",
+              institution: "Wallet",
+              account_identifier: walletAddress || "",
+            },
+          },
+          accessToken,
+        );
+
         const payload = {
           amount: String(amountSent),
           amountIn: "fiat" as const,
@@ -779,7 +805,39 @@ export const TransactionPreview = ({
 
     try {
       setIsConfirming(true);
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        toast.error("Please sign in to continue");
+        return;
+      }
+
+      await precheckSwapTransaction(
+        {
+          walletAddress: activeWallet.address,
+          fromCurrency: token,
+          toCurrency: currency,
+          amountSent: Number(amountSent),
+          amountReceived: Number(amountReceived),
+          fee: Number(rate),
+          recipient: {
+            account_name: recipientName,
+            institution: getInstitutionNameByCode(
+              institution,
+              supportedInstitutions,
+            ) as string,
+            account_identifier: accountIdentifier,
+            ...(memo && { memo }),
+          },
+        },
+        accessToken,
+      );
+
       await createOrder();
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Unable to start this transaction.";
+      setErrorMessage(msg);
+      setErrorCount((prevCount: number) => prevCount + 1);
     } finally {
       setIsConfirming(false);
     }
@@ -795,7 +853,9 @@ export const TransactionPreview = ({
     /** Pass from create-order response so bank name is saved before React state updates. */
     providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {
-    if (!activeWallet?.address || isSavingTransaction) return;
+    if (!activeWallet?.address) return;
+    if (isSavingTransactionRef.current) return;
+    isSavingTransactionRef.current = true;
     setIsSavingTransaction(true);
 
     try {
@@ -806,7 +866,7 @@ export const TransactionPreview = ({
 
       const transaction: TransactionCreateInput = {
         walletAddress: activeWallet.address,
-        transactionType: isOnramp ? "onramp" : "swap",
+        transactionType: isOnramp ? "onramp" : "offramp",
         fromCurrency: isOnramp ? currency : token,
         toCurrency: isOnramp ? token : currency,
         amountSent: Number(amountSent),
@@ -842,12 +902,23 @@ export const TransactionPreview = ({
         throw new Error("Failed to save transaction");
       }
 
-      // Store the transaction ID in localStorage
-      localStorage.setItem("currentTransactionId", response.data.id);
+      const rawId = (response.data as { id?: unknown } | undefined)?.id;
+      const idStr =
+        typeof rawId === "string"
+          ? rawId
+          : rawId != null && String(rawId) !== "undefined"
+            ? String(rawId)
+            : "";
+      if (!idStr) {
+        throw new Error("Failed to save transaction: missing transaction id");
+      }
+
+      localStorage.setItem("currentTransactionId", idStr);
     } catch (error) {
       console.error("Error saving transaction:", error);
-      // Don't show error toast as this is a background operation
+      throw error;
     } finally {
+      isSavingTransactionRef.current = false;
       setIsSavingTransaction(false);
     }
   };

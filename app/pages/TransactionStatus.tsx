@@ -37,6 +37,7 @@ import {
   resolveOnrampOrderStatusFromV2Response,
   updateTransactionDetails,
   unwrapV2SenderOrderEnvelope,
+  validateOrder,
   fetchSavedRecipients,
   saveRecipient,
   deleteSavedRecipient,

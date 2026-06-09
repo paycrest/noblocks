@@ -758,6 +758,7 @@ export const KycModal = ({
           onClick={async () => {
             await refreshStatus(true);
             setIsKycModalOpen(false);
+            setTimeout(() => window.scrollTo({ top: 0, behavior: "instant" }), 500);
           }}
         >
           Got it
@@ -788,8 +789,9 @@ export const KycModal = ({
           await refreshStatus(true);
           setIsUserVerified(true);
           setIsKycModalOpen(false);
-          // SmileID camera displaces the document scroll position — restore after dialog unmounts
-          requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "instant" }));
+          // SmileID camera displaces the document scroll position — restore after the exit
+          // animation (spring stiffness 300 / damping 30 ≈ 500 ms) fully unmounts the camera.
+          setTimeout(() => window.scrollTo({ top: 0, behavior: "instant" }), 500);
         }}
       >
         Let&apos;s go!

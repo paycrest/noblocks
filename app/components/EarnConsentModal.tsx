@@ -67,7 +67,7 @@ export const EarnConsentModal: React.FC<EarnConsentModalProps> = ({
               className="w-full"
             >
               <DialogPanel
-                className="relative mx-auto w-full overflow-y-auto rounded-t-[30px] bg-white text-sm dark:bg-surface-overlay sm:max-h-[90vh] sm:rounded-3xl"
+                className="relative mx-auto flex w-full flex-col overflow-hidden rounded-t-[30px] bg-white text-sm dark:bg-surface-overlay max-h-[90dvh] sm:max-h-[90vh] sm:rounded-3xl"
                 style={{
                   maxWidth:
                     typeof window !== "undefined" && window.innerWidth > 640
@@ -75,8 +75,9 @@ export const EarnConsentModal: React.FC<EarnConsentModalProps> = ({
                       : undefined,
                 }}
               >
-                <div className="relative flex flex-col">
-                  <div className="relative space-y-6 px-5 pb-4 pt-5 sm:px-6 sm:pt-6">
+                <div className="relative flex min-h-0 flex-1 flex-col">
+                  {/* Static header */}
+                  <div className="relative shrink-0 px-5 pb-3 pt-5 sm:px-6 sm:pt-6">
                     <button
                       type="button"
                       aria-label="Close"
@@ -85,11 +86,13 @@ export const EarnConsentModal: React.FC<EarnConsentModalProps> = ({
                     >
                       <Cancel01Icon className="size-6 text-outline-gray dark:text-white/50" />
                     </button>
-
                     <DialogTitle className="pr-8 text-center text-lg font-semibold leading-tight text-text-body sm:text-xl dark:text-white">
                       Before you start earning
                     </DialogTitle>
+                  </div>
 
+                  {/* Scrollable risk copy */}
+                  <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4 sm:px-6">
                     <div className="rounded-3xl border border-border-light bg-accent-gray/50 px-4 py-4 dark:border-white/10 dark:bg-black/20">
                       <p className="whitespace-pre-line text-sm leading-6 text-text-body dark:text-white/50">
                         {RISK_COPY}
@@ -97,7 +100,7 @@ export const EarnConsentModal: React.FC<EarnConsentModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex w-full flex-col gap-4 rounded-t-3xl bg-[#2c2c2c] px-4 py-3 dark:bg-[#2c2c2c]">
+                  <div className="flex w-full shrink-0 flex-col gap-4 rounded-t-3xl bg-[#2c2c2c] px-4 py-3 dark:bg-[#2c2c2c]">
                     <label className="flex cursor-pointer items-start gap-3 rounded-3xl px-4 py-3 dark:bg-white/5">
                       <input
                         type="checkbox"

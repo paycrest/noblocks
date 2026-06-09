@@ -13,15 +13,19 @@ export const DELEGATION_CONTRACT_BY_CHAIN: Record<number, string> = {
 
 /** Returns the delegation contract address for the given chainId. Uses NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS if set, else DELEGATION_CONTRACT_BY_CHAIN, else "". */
 export function getDelegationContractAddress(chainId: number): string {
-  const envOverride = (process.env.NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS ?? "").trim();
-  if (envOverride) return envOverride;
   return DELEGATION_CONTRACT_BY_CHAIN[chainId] ?? "";
 }
+
+export const STARKNET_READY_ACCOUNT_CLASSHASH = "0x073414441639dcd11d1846f287650a00c60c416b9d3ba45d31c651672125b2c2";
+
+export const STARKNET_PAYMASTER_URL = "https://starknet.paymaster.avnu.fi";
+
+export const STARKNET_PAYMASTER_MODE = "sponsored";
 
 const config: Config = {
   aggregatorUrl: process.env.NEXT_PUBLIC_AGGREGATOR_URL || "",
   privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID || "",
-  thirdwebClientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID || "",
+  rpcUrlKey: process.env.NEXT_PUBLIC_RPC_URL_KEY || "",
   mixpanelToken: process.env.NEXT_PUBLIC_MIXPANEL_TOKEN || "",
   hotjarSiteId: Number(process.env.NEXT_PUBLIC_HOTJAR_SITE_ID || ""),
   googleVerificationCode:
@@ -31,9 +35,6 @@ const config: Config = {
   brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
   blockfestEndDate:
     process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
-  /** @deprecated Use getDelegationContractAddress(chainId) - delegation contract is per chain. */
-  delegationContractAddress:
-    process.env.NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS || "",
   /** @deprecated Use delegationContractAddress. Kept for backward compatibility. */
   // biconomyNexusV120:
   //   process.env.NEXT_PUBLIC_BICONOMY_NEXUS_V120 || "0x000000004f43c49e93c970e84001853a70923b03",
@@ -49,6 +50,21 @@ const config: Config = {
     !!(process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "").trim(),
   maintenanceSchedule:
     process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "",
+  referralMinQualifyingVolumeUsd: (() => {
+    const parsed = parseFloat(
+      process.env.NEXT_PUBLIC_REFERRAL_MIN_QUALIFYING_VOLUME_USD ?? "",
+    );
+    return Number.isFinite(parsed) ? parsed : 0;
+  })(),
+  referralRewardAmountUsd: (() => {
+    const parsed = parseFloat(
+      process.env.NEXT_PUBLIC_REFERRAL_REWARD_AMOUNT_USD ?? "",
+    );
+    return Number.isFinite(parsed) ? parsed : 0;
+  })(),
+  /** Sender API key UUID (aggregator dashboard). Used by server proxy and client (on-chain messageHash metadata). */
+  aggregatorSenderApiKey: (process.env.NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID || "").trim(),
+  earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
 };
 
 export default config;

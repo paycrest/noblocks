@@ -2,12 +2,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchRate } from "../api/aggregator";
 import { getPreferredRateToken, normalizeNetworkForRateFetch } from "../utils";
+import { ERROR_MESSAGES } from "../lib/errorMessages";
 
 // Constants for rate fetching configuration
 const CNGN_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
 const PRIMARY_TIMEOUT = 5000; // 5 seconds for primary network attempts
 const FALLBACK_TIMEOUT = 3000; // 3 seconds for fallback network attempts
 const RELIABLE_NETWORKS = ["Base", "BNB Smart Chain"]; // Most reliable networks for rate fallback
+
+/** NGN↔USD-stable quote corridor for cross-chain balance correction (not tied to selected chain). */
+export const CNGN_CROSS_CHAIN_QUOTE_NETWORK = RELIABLE_NETWORKS[0] ?? "Base";
 const CNGN_CACHE_KEY = "cngn_last_rate";
 const CNGN_CACHE_TIME_KEY = "cngn_cache_time";
 
@@ -66,11 +70,16 @@ function cacheRate(rate: number): void {
 function parseRateResponse(
   rateResponse: { data?: unknown } | null | undefined,
 ): number | null {
-  if (rateResponse?.data && typeof rateResponse.data === "string") {
-    const numericRate = Number(rateResponse.data);
-    if (numericRate > 0) {
-      return numericRate;
-    }
+  const raw = rateResponse?.data;
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+
+  const numericRate =
+    typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+
+  if (Number.isFinite(numericRate) && numericRate > 0) {
+    return numericRate;
   }
 
   return null;
@@ -90,6 +99,7 @@ async function fetchRateWithTimeout(
       amount: 100,
       currency: "NGN",
       network: normalizeNetworkForRateFetch(network),
+      side: "sell",
       signal: controller.signal,
     });
 
@@ -128,10 +138,13 @@ async function fetchFallbackRate(primaryNetwork: string): Promise<number | null>
 
 async function fetchCNGNRateWithFallback(
   network: string,
+  options: { bypassCache?: boolean } = {},
 ): Promise<CNGNRateFetchResult> {
-  const freshCachedRate = getFreshCachedRate();
-  if (freshCachedRate !== null) {
-    return { rate: freshCachedRate, source: "fresh-cache" };
+  if (!options.bypassCache) {
+    const freshCachedRate = getFreshCachedRate();
+    if (freshCachedRate !== null) {
+      return { rate: freshCachedRate, source: "fresh-cache" };
+    }
   }
 
   const primaryRate = await fetchRateWithTimeout(network, PRIMARY_TIMEOUT);
@@ -192,6 +205,15 @@ export function useCNGNRate({
       return;
     }
 
+    // Skip rate fetching for Starknet networks (testnet, not supported by aggregator)
+    if (network.toLowerCase().includes("starknet")) {
+      console.log("Skipping rate fetch for Starknet network:", network);
+      setRate(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -200,7 +222,7 @@ export function useCNGNRate({
       setRate(result.rate);
       if (result.source === "expired-cache") {
         setError(
-          "Using outdated cached rate (network issues - please refresh)",
+          "Rate may be outdated due to connection issues. Please refresh when possible.",
         );
       } else {
         setError(null);
@@ -210,9 +232,7 @@ export function useCNGNRate({
     }
 
     setRate(null);
-    setError(
-      "Unable to fetch CNGN rate - please check your internet connection",
-    );
+    setError(ERROR_MESSAGES.NETWORK);
     setIsLoading(false);
   }, [network]);
 
@@ -241,7 +261,12 @@ export function useCNGNRate({
  */
 export async function getCNGNRateForNetwork(
   network: string,
+  options: { bypassCache?: boolean } = {},
 ): Promise<number | null> {
-  const result = await fetchCNGNRateWithFallback(network);
+  if (!network) return null;
+  if (network.toLowerCase().includes("starknet")) {
+    return null;
+  }
+  const result = await fetchCNGNRateWithFallback(network, options);
   return result.rate;
 }

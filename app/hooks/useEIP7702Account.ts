@@ -83,11 +83,14 @@ export { useMigrationStatus, triggerMigrationStatusRefetch } from "../context/Mi
 export function useShouldUseEOA(): boolean {
     const { user } = usePrivy();
     const { isMigrationComplete, isLoading: isMigrationLoading } = useMigrationStatus();
-    const { crossChainTotal, isLoading: isBalanceLoading } = useBalance();
+    const { smartWalletCrossChainTotals, isLoading: isBalanceLoading } = useBalance();
     const lastValueRef = useRef<boolean | null>(null);
 
     const hasSmartWallet = !!user?.linkedAccounts?.find((a) => a.type === "smart_wallet");
-    const smartWalletCrossChainTotal = hasSmartWallet && !isMigrationComplete ? crossChainTotal : 0;
+    const smartWalletCrossChainTotal =
+        hasSmartWallet && !isMigrationComplete
+            ? (smartWalletCrossChainTotals?.totalMigrationRelevant ?? 0)
+            : 0;
 
     if (user == null) {
         return lastValueRef.current ?? true;
@@ -131,7 +134,11 @@ interface WalletMigrationStatus {
 export function useWalletMigrationStatus(): WalletMigrationStatus {
     const { user, authenticated } = usePrivy();
     const { isMigrationComplete, isLoading: isMigrationLoading, refetch } = useMigrationStatus();
-    const { crossChainTotal, isLoading: isBalanceLoading, smartWalletRemainingTotal } = useBalance();
+    const {
+        smartWalletCrossChainTotals,
+        isLoading: isBalanceLoading,
+        smartWalletRemainingTotal,
+    } = useBalance();
     const [needsMigration, setNeedsMigration] = useState(false);
     const [showZeroBalanceMessage, setShowZeroBalanceMessage] = useState(false);
 
@@ -154,11 +161,16 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
             setNeedsMigration(hasMeaningfulBalance(smartWalletRemainingTotal));
             setShowZeroBalanceMessage(false);
         } else {
-            const hasBalance = hasMeaningfulBalance(crossChainTotal);
-            setNeedsMigration(hasBalance);
-            setShowZeroBalanceMessage(!hasBalance);
+            const migr = smartWalletCrossChainTotals?.totalMigrationRelevant ?? 0;
+            const all = smartWalletCrossChainTotals?.totalAll ?? 0;
+            const hasMigrationBalance = hasMeaningfulBalance(migr);
+            setNeedsMigration(hasMigrationBalance);
+            // No banner/modal if SCW only has funds on excluded chains (e.g. Celo, Scroll).
+            setShowZeroBalanceMessage(
+                !hasMigrationBalance && !hasMeaningfulBalance(all),
+            );
         }
-    }, [authenticated, user, hasSmartWallet, isMigrationComplete, isMigrationLoading, crossChainTotal, isBalanceLoading, smartWalletRemainingTotal]);
+    }, [authenticated, user, hasSmartWallet, isMigrationComplete, isMigrationLoading, smartWalletCrossChainTotals, isBalanceLoading, smartWalletRemainingTotal]);
 
     const isRemainingFundsMigration =
         isMigrationComplete === true && hasMeaningfulBalance(smartWalletRemainingTotal);

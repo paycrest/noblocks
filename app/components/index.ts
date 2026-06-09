@@ -1,3 +1,4 @@
+// Prefer direct imports from source files to avoid pulling the full module graph.
 export { Navbar } from "./Navbar";
 export { Footer } from "./Footer";
 export { Preloader } from "./Preloader";
@@ -27,9 +28,12 @@ export { KycModal } from "./KycModal";
 export { CookieConsent } from "./CookieConsent";
 export { NetworkSelectionModal } from "./NetworkSelectionModal";
 export { Disclaimer } from "./Disclaimer";
+export { default as PhoneVerificationModal } from "./PhoneVerificationModal";
+export { default as TransactionLimitModal } from "./TransactionLimitModal";
 
 export { TransactionForm } from "../pages/TransactionForm";
 export { TransactionPreview } from "../pages/TransactionPreview";
+export { MakePayment } from "../pages/MakePayment";
 export { TransactionStatus } from "../pages/TransactionStatus";
 
 export { InputError } from "./InputError";
@@ -52,6 +56,8 @@ export { PausedNetworkNotice } from "./transaction/PausedNetworkNotice";
 
 export { FundWalletForm } from "./FundWalletForm";
 export { TransferForm } from "./TransferForm";
+export { ReferralInputModal } from "./ReferralModal";
+export { ReferralCTA } from "./ReferralCTA";
 
 export { default as NoticeBanner } from "./NoticeBanner";
 export { WalletMigrationBanner } from "./WalletMigrationBanner";

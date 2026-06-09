@@ -5,14 +5,29 @@ import { calculateSenderFee } from "../utils";
 
 const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
 
+/** Primary CTA when limits require upgrading verification (opens limit / KYC flow from swap). */
+function labelForNextTierVerification(tier: number): string {
+  if (tier >= 3) return "Verify to continue";
+  if (tier === 2) return "Verify address for higher limits";
+  if (tier === 1) return "Verify ID for higher limits";
+  return "Verify phone for higher limits";
+}
+
 interface UseSwapButtonProps {
   watch: UseFormWatch<any>;
   balance?: number;
   isDirty: boolean;
   isValid: boolean;
   isUserVerified: boolean;
+  /** Wallets that already have Noblocks activity need tier‑1 wording ("Verify and start"); new users keep "Get started". */
+  hasPriorTransactionActivity?: boolean;
+  /** After phone OTP, CTA should name the next verification step (ID / address), not generic "raise limit". */
+  isPhoneVerified?: boolean;
+  /** Current KYC tier (0–3); used when phone is done but swap is blocked by limits. */
+  kycTier?: number;
   rate?: number | null;
   tokenDecimals?: number;
+  isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
   needsMigration?: boolean;
   isRemainingFundsMigration?: boolean;
 }
@@ -23,16 +38,31 @@ export function useSwapButton({
   isDirty,
   isValid,
   isUserVerified,
+  hasPriorTransactionActivity = false,
+  isPhoneVerified = false,
+  kycTier = 0,
   rate,
   tokenDecimals = 18,
+  isSwapped = false,
   needsMigration = false,
   isRemainingFundsMigration = false,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
-  const { amountSent, currency, recipientName } = watch();
+  const {
+    amountSent,
+    currency,
+    recipientName,
+    walletAddress,
+    receiveDestinationExplicitlySelected,
+    token,
+  } = watch();
 
-  const isAmountValid = Number(amountSent) >= 0.5;
+  // Off-ramp: min 0.5 token. On-ramp: min fiat 0.5×rate only after receive token + rate (same as onrampFiatMin).
+  const isAmountValid = isSwapped
+    ? !token ||
+      (Number(rate) > 0 && Number(amountSent) >= 0.5 * Number(rate))
+    : Number(amountSent) >= 0.5;
   const isCurrencySelected = Boolean(currency);
 
   const isMigrationMandatory =
@@ -46,11 +76,31 @@ export function useSwapButton({
   );
   const totalRequired = (Number(amountSent) || 0) + senderFeeAmount;
 
-  const hasInsufficientBalance = totalRequired > balance;
+  // Skip balance check in onramp mode (isSwapped = true)
+  const hasInsufficientBalance = isSwapped ? false : totalRequired > balance;
+
+  // Check recipient based on mode: walletAddress for onramp, recipientName for offramp
+  const hasRecipient = isSwapped ? Boolean(walletAddress) : Boolean(recipientName);
 
   const isEnabled = (() => {
     if (needsMigration && authenticated && !isInjectedWallet) return true;
     if (isMigrationMandatory) return true;
+
+    // Phone / next-tier KYC from the main CTA must work before the user picks a
+    // recipient; otherwise the verify label appears on a permanently disabled button.
+    const rateReady = Boolean(rate) && Number(rate) > 0;
+    if (
+      !isUserVerified &&
+      (authenticated || isInjectedWallet) &&
+      Number(amountSent) > 0 &&
+      isCurrencySelected &&
+      isAmountValid &&
+      rateReady
+    ) {
+      return true;
+    }
+
+    if (!receiveDestinationExplicitlySelected) return false;
     if (!rate) return false;
     if (isInjectedWallet && hasInsufficientBalance) {
       return false;
@@ -60,25 +110,14 @@ export function useSwapButton({
       return true;
     }
 
-    if (
-      !isUserVerified &&
-      (authenticated || isInjectedWallet) &&
-      amountSent > 0 &&
-      isCurrencySelected &&
-      isAmountValid &&
-      isDirty
-    ) {
-      return true;
-    }
-
     if (isInjectedWallet) {
-      if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
+      if (!isValid || !isCurrencySelected || !isAmountValid) {
         return false;
       }
-      return Boolean(recipientName);
+      return hasRecipient;
     }
 
-    if (!isDirty || !isValid || !isCurrencySelected || !isAmountValid) {
+    if (!isValid || !isCurrencySelected || !isAmountValid) {
       return false;
     }
 
@@ -86,12 +125,12 @@ export function useSwapButton({
       return true; // Enable for login if amount and currency are valid
     }
 
-    return Boolean(recipientName); // Additional check for authenticated users
+    return hasRecipient; // Check walletAddress for onramp, recipientName for offramp
   })();
 
   const buttonText = (() => {
     if (needsMigration && authenticated && !isInjectedWallet) {
-      return "Migrate wallet to swap";
+      return "Swap";
     }
 
     if (isInjectedWallet && hasInsufficientBalance) {
@@ -107,7 +146,13 @@ export function useSwapButton({
       (authenticated || isInjectedWallet) &&
       amountSent > 0
     ) {
-      return "Get started";
+      // Not on Tier 1 yet: start phone verification (not "Increase limit").
+      if (kycTier < 1 || !isPhoneVerified) {
+        return hasPriorTransactionActivity
+          ? "Verify and start"
+          : "Get started";
+      }
+      return labelForNextTierVerification(kycTier);
     }
 
     return "Swap";
@@ -117,11 +162,13 @@ export function useSwapButton({
     handleSwap: () => void,
     login: () => void,
     handleFundWallet: () => void,
-    setIsKycModalOpen: () => void,
+    openPhoneVerification: () => void,
+    openLimitModal: () => void,
+    isPhoneVerified: boolean,
     isUserVerified: boolean,
-    openMigrationModal?: () => void,
+    openMigrationModal: () => void,
   ) => {
-    if (needsMigration && authenticated && !isInjectedWallet && openMigrationModal) {
+    if (needsMigration && authenticated && !isInjectedWallet) {
       return openMigrationModal;
     }
     if (!authenticated && !isInjectedWallet) {
@@ -130,8 +177,12 @@ export function useSwapButton({
     if (hasInsufficientBalance && !isInjectedWallet && authenticated) {
       return handleFundWallet;
     }
-    if (!isUserVerified && (authenticated || isInjectedWallet)) {
-      return setIsKycModalOpen;
+    if (!hasInsufficientBalance && !isUserVerified && (authenticated || isInjectedWallet)) {
+      // Tier 1 onboarding: phone modal. Active tier at cap: limit or ID/address upgrade.
+      if (kycTier < 1 || !isPhoneVerified) {
+        return openPhoneVerification;
+      }
+      return openLimitModal;
     }
     return handleSwap;
   };

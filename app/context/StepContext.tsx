@@ -6,12 +6,17 @@ interface StepContextType {
   currentStep: Step;
   setCurrentStep: (step: Step) => void;
   isFormStep: boolean;
+  /** True while on-ramp Make payment (provider bank details) is on screen — drives navbar pending dot immediately. */
+  isOnrampProviderDetailsOpen: boolean;
+  setIsOnrampProviderDetailsOpen: (open: boolean) => void;
 }
 
 const StepContext = createContext<StepContextType | undefined>(undefined);
 
 export function StepProvider({ children }: { children: React.ReactNode }) {
   const [currentStep, setCurrentStep] = useState<Step>(STEPS.FORM);
+  const [isOnrampProviderDetailsOpen, setIsOnrampProviderDetailsOpen] =
+    useState(false);
 
   // Scroll to top whenever the step changes
   useEffect(() => {
@@ -22,6 +27,8 @@ export function StepProvider({ children }: { children: React.ReactNode }) {
     currentStep,
     setCurrentStep,
     isFormStep: currentStep === STEPS.FORM,
+    isOnrampProviderDetailsOpen,
+    setIsOnrampProviderDetailsOpen,
   };
 
   return <StepContext.Provider value={value}>{children}</StepContext.Provider>;

@@ -11,7 +11,7 @@ import {
 } from "viem";
 import { useBalance } from "../context/BalanceContext";
 import { useMigrationStatus, triggerMigrationStatusRefetch } from "../context/MigrationStatusContext";
-import config from "../lib/config";
+import config, { getDelegationContractAddress } from "../lib/config";
 
 // Treat tiny residual balances as zero for migration UX decisions.
 const MIGRATION_DUST_USD_THRESHOLD = 0.001;
@@ -83,11 +83,14 @@ export { useMigrationStatus, triggerMigrationStatusRefetch } from "../context/Mi
 export function useShouldUseEOA(): boolean {
     const { user } = usePrivy();
     const { isMigrationComplete, isLoading: isMigrationLoading } = useMigrationStatus();
-    const { crossChainTotal, isLoading: isBalanceLoading } = useBalance();
+    const { smartWalletCrossChainTotals, isLoading: isBalanceLoading } = useBalance();
     const lastValueRef = useRef<boolean | null>(null);
 
     const hasSmartWallet = !!user?.linkedAccounts?.find((a) => a.type === "smart_wallet");
-    const smartWalletCrossChainTotal = hasSmartWallet && !isMigrationComplete ? crossChainTotal : 0;
+    const smartWalletCrossChainTotal =
+        hasSmartWallet && !isMigrationComplete
+            ? (smartWalletCrossChainTotals?.totalMigrationRelevant ?? 0)
+            : 0;
 
     if (user == null) {
         return lastValueRef.current ?? true;
@@ -131,7 +134,11 @@ interface WalletMigrationStatus {
 export function useWalletMigrationStatus(): WalletMigrationStatus {
     const { user, authenticated } = usePrivy();
     const { isMigrationComplete, isLoading: isMigrationLoading, refetch } = useMigrationStatus();
-    const { crossChainTotal, isLoading: isBalanceLoading, smartWalletRemainingTotal } = useBalance();
+    const {
+        smartWalletCrossChainTotals,
+        isLoading: isBalanceLoading,
+        smartWalletRemainingTotal,
+    } = useBalance();
     const [needsMigration, setNeedsMigration] = useState(false);
     const [showZeroBalanceMessage, setShowZeroBalanceMessage] = useState(false);
 
@@ -154,11 +161,16 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
             setNeedsMigration(hasMeaningfulBalance(smartWalletRemainingTotal));
             setShowZeroBalanceMessage(false);
         } else {
-            const hasBalance = hasMeaningfulBalance(crossChainTotal);
-            setNeedsMigration(hasBalance);
-            setShowZeroBalanceMessage(!hasBalance);
+            const migr = smartWalletCrossChainTotals?.totalMigrationRelevant ?? 0;
+            const all = smartWalletCrossChainTotals?.totalAll ?? 0;
+            const hasMigrationBalance = hasMeaningfulBalance(migr);
+            setNeedsMigration(hasMigrationBalance);
+            // No banner/modal if SCW only has funds on excluded chains (e.g. Celo, Scroll).
+            setShowZeroBalanceMessage(
+                !hasMigrationBalance && !hasMeaningfulBalance(all),
+            );
         }
-    }, [authenticated, user, hasSmartWallet, isMigrationComplete, isMigrationLoading, crossChainTotal, isBalanceLoading, smartWalletRemainingTotal]);
+    }, [authenticated, user, hasSmartWallet, isMigrationComplete, isMigrationLoading, smartWalletCrossChainTotals, isBalanceLoading, smartWalletRemainingTotal]);
 
     const isRemainingFundsMigration =
         isMigrationComplete === true && hasMeaningfulBalance(smartWalletRemainingTotal);
@@ -166,40 +178,31 @@ export function useWalletMigrationStatus(): WalletMigrationStatus {
     return { needsMigration, isChecking, showZeroBalanceMessage, isRemainingFundsMigration, refetchMigrationStatus: refetch };
 }
 
-/** Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation. */
-export const BICONOMY_NEXUS_V120 = config.biconomyNexusV120;
-
-// Warn about missing configuration but don't crash the app
-if (!BICONOMY_NEXUS_V120 || BICONOMY_NEXUS_V120 === "") {
-    console.warn("BICONOMY_NEXUS_V120 not configured - EIP-7702 migration features will be disabled. Please set NEXT_PUBLIC_BICONOMY_NEXUS_V120 in your environment.");
-}
-
 /**
- * Hook to sign EIP-7702 authorizations for Biconomy Nexus (MEE).
- * Sign with the execution chainId so MEE has authorization for that chain (e.g. 8453 for Base).
- *
- * @see https://docs.biconomy.io/new/integration-guides/wallets-and-signers/privy
+ * Hook to sign EIP-7702 authorizations for the delegation contract.
+ * Sign with the execution chainId so the account delegates to the contract on that chain.
  *
  * @example
- * const { signBiconomyAuthorization } = useBiconomy7702Auth();
- * const authorization = await signBiconomyAuthorization(chain.id);
+ * const { signDelegationAuthorization } = useDelegationContractAuth();
+ * const authorization = await signDelegationAuthorization(chain.id);
  */
-export function useBiconomy7702Auth() {
+export function useDelegationContractAuth() {
     const { signAuthorization } = useSign7702Authorization();
     const { wallets } = useWallets();
     const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
 
-    const signBiconomyAuthorization = useCallback(
+    const signDelegationAuthorization = useCallback(
         async (chainId: number): Promise<SignedAuthorization> => {
             if (!embeddedWallet?.address) {
                 throw new Error("Embedded wallet not ready for EIP-7702 signing");
             }
-            if (!BICONOMY_NEXUS_V120 || BICONOMY_NEXUS_V120 === "") {
-                throw new Error("Biconomy Nexus V1.2.0 address is not configured. Please set NEXT_PUBLIC_BICONOMY_NEXUS_V120 in your environment.");
+            const delegationAddress = getDelegationContractAddress(chainId);
+            if (!delegationAddress || delegationAddress === "") {
+                throw new Error(`Delegation contract not configured for chain ${chainId}. Add the contract for this chain or set NEXT_PUBLIC_DELEGATION_CONTRACT_ADDRESS.`);
             }
             const signed = await signAuthorization(
                 {
-                    contractAddress: BICONOMY_NEXUS_V120 as `0x${string}`,
+                    contractAddress: delegationAddress as `0x${string}`,
                     chainId,
                 },
                 { address: embeddedWallet.address as Address }
@@ -209,5 +212,5 @@ export function useBiconomy7702Auth() {
         [signAuthorization, embeddedWallet?.address]
     );
 
-    return { signBiconomyAuthorization };
+    return { signDelegationAuthorization };
 }

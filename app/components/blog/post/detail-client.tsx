@@ -21,7 +21,7 @@ import {
 } from "@/app/hooks/analytics/useMixpanel";
 import { useBlogTracking } from "@/app/hooks/analytics/use-blog-tracking";
 import { Crimson_Pro } from "next/font/google";
-import { getBannerPadding } from "@/app/utils";
+import { copyToClipboard, getBannerPadding } from "@/app/utils";
 import { urlForImage } from "@/app/lib/sanity-client";
 import config from "@/app/lib/config";
 
@@ -76,27 +76,12 @@ export default function DetailClient({ post, recent }: DetailClientProps) {
     );
   }
 
-  const handleCopyLink = () => {
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(window.location.href);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = window.location.href;
-        textarea.style.position = "fixed";
-        textarea.style.left = "-9999px";
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      }
-      setCopied(true);
-      trackCopyLink(post._id, post.title);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // no-op
-    }
+  const handleCopyLink = async () => {
+    const ok = await copyToClipboard(window.location.href, "Link");
+    if (!ok) return;
+    setCopied(true);
+    trackCopyLink(post._id, post.title);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleGetStartedClick = () => {

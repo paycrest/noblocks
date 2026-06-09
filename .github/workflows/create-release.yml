@@ -57,22 +57,22 @@ jobs:
             git log $latest_tag..HEAD --pretty=format:"%s" > commits.txt
           fi
 
-          # Count PRs with different labels
-          major_count=$(grep -c "major\|breaking" prs.txt || echo "0")
-          minor_count=$(grep -c "minor\|feature" prs.txt || echo "0")
+          # Count PRs with different labels (substring match on title/body/labels line)
+          major_count=$(grep -cE 'major|breaking' prs.txt || true)
+          minor_count=$(grep -cE 'minor|feature|enhancement' prs.txt || true)
 
-          # Count commits with different types
-          # Breaking changes (major)
-          commit_major_count=$(grep -c "^(feat!|BREAKING CHANGE)" commits.txt || echo "0")
+          # Count commits — use ERE; Conventional Commits types with optional scope
+          # Breaking (major): any type with ! before :, or footer-style subject
+          commit_major_count=$(grep -cE '^[a-z]+(\([^)]*\))?!:|^BREAKING CHANGE' commits.txt || true)
 
-          # Features (minor)
-          commit_minor_count=$(grep -c "^(feat|\[minor\])" commits.txt || echo "0")
+          # Features (minor): non-breaking feat commits, or [minor] marker
+          commit_minor_count=$(grep -cE '^feat(\([^)]*\))?:|^\[minor\]' commits.txt || true)
 
           # Fixes (patch)
-          commit_fix_count=$(grep -c "^(fix)" commits.txt || echo "0")
+          commit_fix_count=$(grep -cE '^fix(\([^)]*\))?:' commits.txt || true)
 
           # Other conventional commits (patch)
-          commit_other_count=$(grep -c "^(chore|docs|style|refactor|perf|test|ci|build|revert)" commits.txt || echo "0")
+          commit_other_count=$(grep -cE '^(chore|docs|style|refactor|perf|test|ci|build|revert)(\([^)]*\))?:' commits.txt || true)
 
           # Use the higher count between PR labels and commit messages
           if [ "$major_count" -gt 0 ] || [ "$commit_major_count" -gt 0 ]; then
@@ -107,9 +107,9 @@ jobs:
             echo "formatted_commits<<EOF"
             echo "### Breaking Changes"
             if [ "$latest_tag" = "0.0.0" ]; then
-              git log --pretty=format:"- %s" | grep -E "^- (feat!|BREAKING CHANGE)" || echo "None"
+              git log --pretty=format:"- %s" | grep -E "^- [a-z]+(\([^)]*\))?!:|^- BREAKING CHANGE" || echo "None"
             else
-              git log $latest_tag..HEAD --pretty=format:"- %s" | grep -E "^- (feat!|BREAKING CHANGE)" || echo "None"
+              git log $latest_tag..HEAD --pretty=format:"- %s" | grep -E "^- [a-z]+(\([^)]*\))?!:|^- BREAKING CHANGE" || echo "None"
             fi
             echo ""
             echo "### Features"

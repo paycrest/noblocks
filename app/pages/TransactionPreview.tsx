@@ -10,20 +10,29 @@ import {
   classNames,
   formatCurrency,
   formatNumberWithCommas,
+  getCurrencySymbol,
   getGatewayContractAddress,
   getInstitutionNameByCode,
   getNetworkImageUrl,
   getRpcUrl,
+  normalizeNetworkName,
   publicKeyEncrypt,
+  shortenAddress,
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
-import config from "../lib/config";
+import config, {
+  getDelegationContractAddress,
+  localTransferFeePercent,
+} from "../lib/config";
+import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
   Token,
   TransactionPreviewProps,
   TransactionCreateInput,
+  RefundAccountDetails,
+  V2FiatProviderAccountDTO,
 } from "../types";
-import { primaryBtnClasses, secondaryBtnClasses } from "../components";
+import { primaryBtnClasses, secondaryBtnClasses } from "../components/Styles";
 import { gatewayAbi } from "../api/abi";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -37,27 +46,40 @@ import {
   createPublicClient,
   http,
 } from "viem";
-import { useBalance, useInjectedWallet, useStep } from "../context";
+import { useBalance, useInjectedWallet, useStep, useTransactions } from "../context";
 import {
   useShouldUseEOA,
-  useBiconomy7702Auth,
+  useDelegationContractAuth,
   useMigrationStatus,
   get7702AuthorizedImplementationForAddress,
 } from "../hooks/useEIP7702Account";
 import {
-  createMeeClient,
-  toMultichainNexusAccount,
-  getMEEVersion,
-  MEEVersion,
-} from "@biconomy/abstractjs";
+  buildBatchDigest,
+  encodeExecuteBatch,
+  readBatchNonce,
+  type BatchCall,
+} from "../lib/providerBatch";
 
-import { fetchAggregatorPublicKey, saveTransaction } from "../api/aggregator";
+import {
+  fetchAggregatorPublicKey,
+  fetchTokens,
+  saveTransaction,
+  precheckSwapTransaction,
+  createV2SenderPaymentOrder,
+  fetchRefundAccount,
+  saveRefundAccount,
+} from "../api/aggregator";
 import { trackEvent } from "../hooks/analytics/client";
 import { ImSpinner } from "react-icons/im";
+import { BiEdit } from "react-icons/bi";
+import { IoAdd } from "react-icons/io5";
 import { InformationSquareIcon } from "hugeicons-react";
+import { AddRefundAccountModal } from "../components/AddRefundAccountModal";
+import { RefundAccountSuccessModal } from "../components/RefundAccountSuccessModal";
 import { PiCheckCircleFill } from "react-icons/pi";
 import { TbCircleDashed } from "react-icons/tb";
 import { useActualTheme } from "../hooks/useActualTheme";
+import axios from "axios";
 
 /**
  * Renders a preview of a transaction with the provided details.
@@ -78,12 +100,13 @@ export const TransactionPreview = ({
     useInjectedWallet();
   const shouldUseEOA = useShouldUseEOA();
   const { isLoading: isMigrationLoading } = useMigrationStatus();
-  const { signBiconomyAuthorization } = useBiconomy7702Auth();
+  const { signDelegationAuthorization } = useDelegationContractAuth();
 
 
   const { selectedNetwork } = useNetwork();
   const { allTokens } = useTokens();
-  const { currentStep, setCurrentStep } = useStep();
+  const { setCurrentStep } = useStep();
+  const { fetchTransactions } = useTransactions();
   const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance } =
     useBalance();
 
@@ -91,10 +114,13 @@ export const TransactionPreview = ({
     rate,
     formValues,
     institutions: supportedInstitutions,
+    isFetchingInstitutions,
     orderId,
     setOrderId,
     setCreatedAt,
     setTransactionStatus,
+    onrampPaymentAccount,
+    setOnrampPaymentAccount,
   } = stateProps;
 
   const {
@@ -106,19 +132,57 @@ export const TransactionPreview = ({
     recipientName,
     accountIdentifier,
     memo,
+    walletAddress,
   } = formValues;
+
+  const isOnramp = !!walletAddress;
+  const isCNGNOnramp = isOnramp && token?.toUpperCase() === "CNGN";
+  const currencySymbol = currency ? getCurrencySymbol(currency) : "";
 
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [errorCount, setErrorCount] = useState(0); // Used to trigger toast
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
+  const [isPollingOrderId, setIsPollingOrderId] = useState<boolean>(false);
   const [isOrderCreatedLogsFetched, setIsOrderCreatedLogsFetched] =
     useState<boolean>(false);
   const [isGatewayApproved, setIsGatewayApproved] = useState<boolean>(false);
   const [isOrderCreated, setIsOrderCreated] = useState<boolean>(false);
   const [isSavingTransaction, setIsSavingTransaction] = useState(false);
+  const [refundAccountModalOpen, setRefundAccountModalOpen] = useState(false);
+  const [refundAccountSuccessOpen, setRefundAccountSuccessOpen] =
+    useState(false);
+  const [refundAccountWasEdited, setRefundAccountWasEdited] = useState(false);
+  const [refundAccount, setRefundAccount] = useState<RefundAccountDetails | null>(
+    null,
+  );
   const orderSubmissionBlock = useRef<bigint | null>(null);
 
+  // Ref to prevent duplicate transaction saves
+  const isSavingTransactionRef = useRef(false);
+
   const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (!isOnramp) return;
+    // Reset on every currency change so a cached NGN account isn't submitted for KES/TZS/UGX orders.
+    setRefundAccount(null);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token || cancelled) return;
+        const saved = await fetchRefundAccount(token);
+        if (!cancelled && saved) {
+          setRefundAccount(saved);
+        }
+      } catch {
+        // No saved row or fetch failed — user can add in modal
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOnramp, currency, getAccessToken]);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
@@ -138,7 +202,7 @@ export const TransactionPreview = ({
   // After migration: use EOA (new wallet with funds)
   // Before migration: use SCW (old wallet)
   const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
+    (wallet) => wallet.walletClientType === "privy",
   );
   const smartWallet = isInjectedWallet
     ? null
@@ -173,35 +237,66 @@ export const TransactionPreview = ({
   } = calculateSenderFee(amountSent, rate, tokenDecimals ?? 18);
 
   // Rendered tsx info
-  const renderedInfo = {
-    amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
-    totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
-    recipient: recipientName
-      .toLowerCase()
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" "),
-    account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
-    ...(memo && { description: memo }),
-    ...(senderFeeAmount > 0 && {
-      fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
-    }),
-    network: selectedNetwork.chain.name,
-  };
+  const renderedInfo = isOnramp
+    ? {
+      amount: `${currencySymbol}${formatNumberWithCommas(amountSent ?? 0)}`,
+      totalValue: `${formatNumberWithCommas(amountReceived ?? 0)} ${token}`,
+      rate: `${currencySymbol}${formatNumberWithCommas(rate)} ~ 1 ${token}`,
+      ...(isCNGNOnramp && localTransferFeePercent > 0
+        ? {
+          fee: `${localTransferFeePercent}%`,
+        }
+        : {}),
+      recipient: walletAddress ? shortenAddress(walletAddress) : "",
+      network: selectedNetwork.chain.name,
+    }
+    : {
+      amount: `${formatNumberWithCommas(amountSent ?? 0)} ${token}`,
+      totalValue: `${formatCurrency(amountReceived ?? 0, currency, `en-${currency.slice(0, 2)}`)}`,
+      recipient: recipientName
+        .toLowerCase()
+        .split(" ")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+      account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
+      ...(memo && { description: memo }),
+      ...(senderFeeAmount > 0 && {
+        fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
+      }),
+      network: selectedNetwork.chain.name,
+    };
 
   const prepareCreateOrderParams = async () => {
+    const senderApiKeyId = config.aggregatorSenderApiKey?.trim();
+    if (!senderApiKeyId) {
+      throw new Error(
+        "Sender API key is not configured (set NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID)",
+      );
+    }
+    const metadata = { apiKey: senderApiKeyId };
+
     const providerId =
       searchParams.get("provider") || searchParams.get("PROVIDER");
 
-    // Prepare recipient data
-    const recipient = {
-      accountIdentifier: formValues.accountIdentifier,
-      accountName: recipientName,
-      institution: formValues.institution,
-      memo: formValues.memo,
-      ...(providerId && { providerId }),
-      nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
-    };
+    // Prepare recipient data (metadata.apiKey matches aggregator OrderEVM.CreateOrder + indexer)
+    const recipient = isOnramp
+      ? {
+        accountIdentifier: walletAddress || "",
+        accountName: recipientName || walletAddress || "",
+        institution: "Wallet",
+        ...(providerId && { providerId }),
+        nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+        metadata,
+      }
+      : {
+        accountIdentifier: formValues.accountIdentifier,
+        accountName: recipientName,
+        institution: formValues.institution,
+        memo: formValues.memo,
+        ...(providerId && { providerId }),
+        nonce: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+        metadata,
+      };
 
     // Fetch aggregator public key
     const publicKey = await fetchAggregatorPublicKey();
@@ -321,7 +416,7 @@ export const TransactionPreview = ({
           "Wallet type": "Injected wallet",
         });
       } else if (shouldUseEOA && embeddedWallet) {
-        // EIP-7702 + Biconomy MEE path (migrated EOA or 0-balance SCW)
+        // EIP-7702 + bundler (execute-sponsored): check delegationContractAddress, attach delegation with signature if needed
         const chain = selectedNetwork?.chain;
         if (!chain) throw new Error("Network not ready");
         const chainId = chain.id;
@@ -329,99 +424,63 @@ export const TransactionPreview = ({
           selectedNetwork.chain.name,
         ) as `0x${string}`;
 
-        await embeddedWallet.switchChain(chainId);
+        const delegationContractAddress = getDelegationContractAddress(chainId);
+        if (!delegationContractAddress || delegationContractAddress === "") {
+          throw new Error(
+            `Delegation contract not configured for ${selectedNetwork.chain.name}. Set the contract for chain ${chainId}.`
+          );
+        }
 
+        const bundlerUrl = "/api/bundler";
+
+        await embeddedWallet.switchChain(chainId);
         const provider = await embeddedWallet.getEthereumProvider();
 
-        // Biconomy Nexus 1.2.0 implementation address for EIP-7702 delegation
-        const biconomyNexusV120 = config.biconomyNexusV120 as `0x${string}`;
-
-        // Check if already authorized to the correct implementation to avoid unnecessary signatures
         const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
         if (!rpcUrl) {
           throw new Error(`RPC URL not configured for network: ${selectedNetwork.chain.name}`);
         }
 
+        const accountAddress = embeddedWallet.address as `0x${string}`;
+        const publicClient = createPublicClient({
+          chain,
+          transport: http(rpcUrl),
+        });
+
+        const expectedDelegation = delegationContractAddress.toLowerCase();
         const currentImplementation = await get7702AuthorizedImplementationForAddress(
           chain,
           rpcUrl,
-          embeddedWallet.address as `0x${string}`
+          accountAddress,
         );
-        let authorization;
-        if (currentImplementation === biconomyNexusV120) {
-          authorization = null; // MEE will handle existing authorization
-        } else {
-          // Need new authorization
-          authorization = await signBiconomyAuthorization(chainId);
+        // Only send authorization when EOA is not delegated, or delegated to a different contract.
+        const needsDelegation =
+          !currentImplementation ||
+          currentImplementation.toLowerCase() !== expectedDelegation;
 
-          // Wait for authorization to propagate on the network
-          await new Promise(resolve => setTimeout(resolve, 2000));
-
-          // Verify authorization worked (optional validation)
-          try {
-            const newImplementation = await get7702AuthorizedImplementationForAddress(
-              chain,
-              rpcUrl,
-              embeddedWallet.address as `0x${string}`
-            );
-
-            if (newImplementation !== biconomyNexusV120) {
-              console.warn(`EIP-7702 authorization verification failed. Expected: ${biconomyNexusV120}, Got: ${newImplementation}`);
-              console.warn("Proceeding with authorization anyway - MEE will handle validation");
-              // Don't throw error, let MEE handle the validation
-            }
-          } catch (verificationError) {
-            console.warn("EIP-7702 verification failed, but proceeding:", verificationError);
-            // Don't throw error, let MEE handle the validation
-          }
+        let authorization: Awaited<ReturnType<typeof signDelegationAuthorization>> | undefined;
+        if (needsDelegation) {
+          authorization = await signDelegationAuthorization(chainId);
         }
-
-        // Match Biconomy example: signer is EIP-1193 provider so SDK uses eth_requestAccounts (no getAddresses)
-        const nexusAccount = await toMultichainNexusAccount({
-          chainConfigurations: [
-            {
-              chain,
-              transport: http(getRpcUrl(selectedNetwork.chain.name)),
-              version: getMEEVersion(MEEVersion.V2_1_0),
-              accountAddress: embeddedWallet.address as `0x${string}`,
-            },
-          ],
-          signer: provider,
-        });
-
-
-        const biconomyApiKey = config.biconomyMeeApiKey;
-        if (!biconomyApiKey) {
-          throw new Error("Biconomy MEE API key not configured. Set NEXT_PUBLIC_BICONOMY_MEE_API_KEY.");
-        }
-
-        const meeClient = await createMeeClient({
-          account: nexusAccount,
-          apiKey: biconomyApiKey,
-        });
 
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
-
         const totalAmountToApprove = params.amount + params.senderFee;
 
-        const approveInstruction = await nexusAccount.buildComposable({
-          type: "default",
-          data: {
+        const approveCall: BatchCall = {
+          to: tokenAddress as `0x${string}`,
+          value: BigInt(0),
+          data: encodeFunctionData({
             abi: erc20Abi,
-            chainId,
-            to: tokenAddress,
             functionName: "approve",
             args: [gatewayAddress, totalAmountToApprove],
-          },
-        });
-
-        const createOrderInstruction = await nexusAccount.buildComposable({
-          type: "default",
-          data: {
+          }),
+        };
+        const createOrderCall: BatchCall = {
+          to: gatewayAddress,
+          value: BigInt(0),
+          data: encodeFunctionData({
             abi: gatewayAbi,
-            chainId,
-            to: gatewayAddress,
             functionName: "createOrder",
             args: [
               params.token,
@@ -432,26 +491,72 @@ export const TransactionPreview = ({
               params.refundAddress ?? "",
               params.messageHash,
             ],
-          },
-        });
+          }),
+        };
+
+        const nonce = await readBatchNonce(publicClient, accountAddress).catch(() => BigInt(0));
+        const digest = buildBatchDigest(nonce, [approveCall, createOrderCall]);
+        const rawSignature = (await provider.request({
+          method: "personal_sign",
+          params: [digest, accountAddress],
+        })) as string;
+        const signature = (rawSignature.startsWith("0x") ? rawSignature : `0x${rawSignature}`) as `0x${string}`;
+
+        const callData = encodeExecuteBatch([approveCall, createOrderCall], signature);
+        const payload = {
+          chainId,
+          rpcUrl,
+          accountAddress,
+          callData,
+          delegationContractAddress,
+          ...(authorization != null && { eip7702Authorization: authorization }),
+        };
 
         await captureSubmissionBlock();
-        const { hash } = await meeClient.execute({
-          authorizations: authorization ? [authorization] : [],
-          delegate: true,
-          sponsorship: true,
-          instructions: [approveInstruction, createOrderInstruction],
-        });
-        await meeClient.waitForSupertransactionReceipt({ hash });
 
-        // Set success state only after transaction is confirmed
+        const accessToken = await getAccessToken();
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+        const res = await fetch(`${bundlerUrl}/execute-sponsored`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload, (_key, value) =>
+            typeof value === "bigint" ? value.toString() : value,
+          ),
+        });
+        if (!res.ok) {
+          const errBody = await res.text();
+          let errMsg: string;
+          try {
+            const j = JSON.parse(errBody) as { error?: string };
+            errMsg = (j?.error ?? errBody) || res.statusText;
+          } catch {
+            errMsg = errBody || res.statusText;
+          }
+          throw new Error(errMsg);
+        }
+        const data = (await res.json()) as { transactionHash?: string };
+        const hash = data.transactionHash;
+        if (!hash) throw new Error("No transaction hash returned");
+
         setIsGatewayApproved(true);
         setIsOrderCreated(true);
 
         trackEvent("Swap started", {
           "Entry point": "Transaction preview",
-          "Wallet type": "EIP-7702 (MEE)",
+          "Wallet type": "EIP-7702 (bundler)",
         });
+
+        toast.success("Order created successfully");
+        refreshBalance();
+        setIsPollingOrderId(true);
+        try {
+          await getOrderId();
+        } finally {
+          setIsPollingOrderId(false);
+        }
+        return;
       } else {
         // Smart wallet (pre-migration)
         if (!client) {
@@ -520,7 +625,14 @@ export const TransactionPreview = ({
       });
     } catch (e) {
       const error = e as BaseError;
-      setErrorMessage(error.shortMessage || error.message);
+      const rawReason = error.shortMessage || error.message || "Unknown error";
+      mapReportAndAct(e, {
+        feature: "transaction-preview",
+        onUserMessage: (userMsg) => {
+          setErrorMessage(userMsg);
+          setErrorCount((prevCount: number) => prevCount + 1);
+        },
+      });
       setIsConfirming(false);
       trackEvent("Swap Failed", {
         Amount: amountSent,
@@ -532,7 +644,7 @@ export const TransactionPreview = ({
         ),
         "Wallet balance": balance,
         "Swap date": createdAt,
-        "Reason for failure": error.shortMessage || error.message,
+        "Reason for failure": rawReason,
         "Transaction duration": calculateDuration(
           createdAt,
           new Date().toISOString(),
@@ -549,7 +661,139 @@ export const TransactionPreview = ({
       return;
     }
 
-    // Check balance including sender fee
+    if (isOnramp) {
+      if (!refundAccount) {
+        toast.error("Add a refund account to continue");
+        return;
+      }
+      if (!walletAddress) {
+        toast.error("Recipient wallet is required");
+        return;
+      }
+      try {
+        setIsConfirming(true);
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          toast.error("Please sign in to continue");
+          return;
+        }
+
+        const apiTokens = await fetchTokens();
+        const networkLabel = selectedNetwork.chain.name;
+        const match = apiTokens.find(
+          (t) =>
+            t.symbol.toUpperCase() === token.toUpperCase() &&
+            normalizeNetworkName(t.network) === networkLabel,
+        );
+        if (!match?.network) {
+          throw new Error(
+            "This token is not supported on the selected network for onramp.",
+          );
+        }
+        const aggregatorNetwork = match.network;
+        const providerId =
+          searchParams.get("provider") || searchParams.get("PROVIDER") || undefined;
+
+        await precheckSwapTransaction(
+          {
+            walletAddress: activeWallet.address,
+            transactionType: "onramp",
+            fromCurrency: currency,
+            toCurrency: token,
+            amountSent: Number(amountSent),
+            amountReceived: Number(amountReceived),
+            fee: Number(rate),
+            recipient: {
+              account_name: recipientName || walletAddress || "",
+              institution: "Wallet",
+              account_identifier: walletAddress || "",
+            },
+          },
+          accessToken,
+        );
+
+        const payload = {
+          amount: String(amountSent),
+          amountIn: "fiat" as const,
+          ...(isCNGNOnramp && localTransferFeePercent > 0
+            ? { senderFeePercent: String(localTransferFeePercent) }
+            : {}),
+          source: {
+            type: "fiat" as const,
+            currency,
+            refundAccount: {
+              institution: refundAccount.institutionCode,
+              accountIdentifier: refundAccount.accountNumber,
+              accountName: refundAccount.accountName,
+            },
+          },
+          destination: {
+            type: "crypto" as const,
+            currency: token,
+            network: aggregatorNetwork,
+            ...(providerId ? { providerId } : {}),
+            recipient: {
+              address: walletAddress,
+              network: aggregatorNetwork,
+            },
+          },
+        };
+
+
+        const res = await createV2SenderPaymentOrder(payload, accessToken);
+        if (res.status !== "success" || !res.data) {
+          const msg =
+            typeof res.message === "string"
+              ? res.message
+              : "Failed to create payment order";
+          throw new Error(msg);
+        }
+
+        const created = res.data;
+        const orderIdStr =
+          typeof created.id === "string" ? created.id : String(created.id);
+        setOrderId(orderIdStr);
+        setOnrampPaymentAccount(created.providerAccount);
+        setCreatedAt(new Date().toISOString());
+        setTransactionStatus("pending");
+
+        await saveTransactionData({
+          orderId: orderIdStr,
+          txHash: undefined,
+          providerAccount: created.providerAccount,
+        });
+
+        const refreshTok = await getAccessToken();
+        if (refreshTok && activeWallet?.address) {
+          void fetchTransactions(
+            activeWallet.address,
+            refreshTok,
+            1,
+            30,
+            true,
+          );
+        }
+
+        toast.success("Payment instructions ready");
+        setCurrentStep("make_payment");
+      } catch (e) {
+        let msg: string;
+        if (axios.isAxiosError(e)) {
+          const data = e.response?.data as { message?: string } | undefined;
+          msg = data?.message || e.message;
+        } else {
+          const error = e as BaseError;
+          msg = error.shortMessage || error.message;
+        }
+        setErrorMessage(msg);
+        setErrorCount((prevCount: number) => prevCount + 1);
+      } finally {
+        setIsConfirming(false);
+      }
+      return;
+    }
+
+    // Offramp: require token balance for amount + sender fee
     const totalRequired = amountSent + senderFeeAmount;
 
     if (totalRequired > balance) {
@@ -561,11 +805,40 @@ export const TransactionPreview = ({
 
     try {
       setIsConfirming(true);
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        toast.error("Please sign in to continue");
+        return;
+      }
+
+      await precheckSwapTransaction(
+        {
+          walletAddress: activeWallet.address,
+          fromCurrency: token,
+          toCurrency: currency,
+          amountSent: Number(amountSent),
+          amountReceived: Number(amountReceived),
+          fee: Number(rate),
+          recipient: {
+            account_name: recipientName,
+            institution: getInstitutionNameByCode(
+              institution,
+              supportedInstitutions,
+            ) as string,
+            account_identifier: accountIdentifier,
+            ...(memo && { memo }),
+          },
+        },
+        accessToken,
+      );
+
       await createOrder();
     } catch (e) {
-      const error = e as BaseError;
-      setErrorMessage(error.shortMessage || error.message);
+      const msg =
+        e instanceof Error ? e.message : "Unable to start this transaction.";
+      setErrorMessage(msg);
       setErrorCount((prevCount: number) => prevCount + 1);
+    } finally {
       setIsConfirming(false);
     }
   };
@@ -573,11 +846,16 @@ export const TransactionPreview = ({
   const saveTransactionData = async ({
     orderId,
     txHash,
+    providerAccount,
   }: {
     orderId: string;
-    txHash: `0x${string}`;
+    txHash?: `0x${string}`;
+    /** Pass from create-order response so bank name is saved before React state updates. */
+    providerAccount?: V2FiatProviderAccountDTO | null;
   }) => {
-    if (!activeWallet?.address || isSavingTransaction) return;
+    if (!activeWallet?.address) return;
+    if (isSavingTransactionRef.current) return;
+    isSavingTransactionRef.current = true;
     setIsSavingTransaction(true);
 
     try {
@@ -588,25 +866,34 @@ export const TransactionPreview = ({
 
       const transaction: TransactionCreateInput = {
         walletAddress: activeWallet.address,
-        transactionType: "swap",
-        fromCurrency: token,
-        toCurrency: currency,
+        transactionType: isOnramp ? "onramp" : "offramp",
+        fromCurrency: isOnramp ? currency : token,
+        toCurrency: isOnramp ? token : currency,
         amountSent: Number(amountSent),
         amountReceived: Number(amountReceived),
         fee: Number(rate),
-        recipient: {
-          account_name: recipientName,
-          institution: getInstitutionNameByCode(
-            institution,
-            supportedInstitutions,
-          ) as string,
-          account_identifier: accountIdentifier,
-          ...(memo && { memo }),
-        },
+        recipient: isOnramp
+          ? {
+            account_name: recipientName || walletAddress || "",
+            institution:
+              providerAccount?.institution?.trim() ||
+              onrampPaymentAccount?.institution?.trim() ||
+              "Wallet",
+            account_identifier: walletAddress || "",
+          }
+          : {
+            account_name: recipientName,
+            institution: getInstitutionNameByCode(
+              institution,
+              supportedInstitutions,
+            ) as string,
+            account_identifier: accountIdentifier,
+            ...(memo && { memo }),
+          },
         status: "pending",
         network: selectedNetwork.chain.name,
         orderId: orderId,
-        txHash: txHash,
+        ...(txHash ? { txHash } : {}),
         email: user?.email?.address ?? undefined,
       };
 
@@ -615,12 +902,23 @@ export const TransactionPreview = ({
         throw new Error("Failed to save transaction");
       }
 
-      // Store the transaction ID in localStorage
-      localStorage.setItem("currentTransactionId", response.data.id);
+      const rawId = (response.data as { id?: unknown } | undefined)?.id;
+      const idStr =
+        typeof rawId === "string"
+          ? rawId
+          : rawId != null && String(rawId) !== "undefined"
+            ? String(rawId)
+            : "";
+      if (!idStr) {
+        throw new Error("Failed to save transaction: missing transaction id");
+      }
+
+      localStorage.setItem("currentTransactionId", idStr);
     } catch (error) {
       console.error("Error saving transaction:", error);
-      // Don't show error toast as this is a background operation
+      throw error;
     } finally {
+      isSavingTransactionRef.current = false;
       setIsSavingTransaction(false);
     }
   };
@@ -644,7 +942,7 @@ export const TransactionPreview = ({
         cleanup();
         reject(
           new Error(
-            "Unable to confirm order on-chain, but your transaction may still be processing. Please check your transaction history before retrying.",
+            "Unable to confirm order onchain, but your transaction may still be processing. Please check your transaction history before retrying.",
           ),
         );
       }, MAX_POLL_DURATION_MS);
@@ -736,37 +1034,49 @@ export const TransactionPreview = ({
       </div>
 
       <div className="grid gap-4">
-        {Object.entries(renderedInfo).map(([key, value]) => (
-          <div key={key} className="flex items-start justify-between gap-2">
-            <h3 className="w-full max-w-28 text-text-secondary dark:text-white/50 sm:max-w-40">
-              {key === "totalValue"
-                ? "Total value"
-                : key.charAt(0).toUpperCase() + key.slice(1)}
-            </h3>
+        {Object.entries(renderedInfo).map(([key, value]) => {
+          const showTokenLogo =
+            (isOnramp && key === "totalValue") ||
+            (!isOnramp && (key === "amount" || key === "fee"));
 
-            <p className="flex flex-grow items-center gap-1 font-medium text-text-body dark:text-white/80">
-              {(key === "amount" || key === "fee") && (
-                <Image
-                  src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
-                  alt={`${token} logo`}
-                  width={14}
-                  height={14}
-                />
-              )}
+          return (
+            <div key={key} className="flex items-start justify-between gap-2">
+              <h3 className="w-full max-w-28 text-text-secondary dark:text-white/50 sm:max-w-40">
+                {key === "totalValue"
+                  ? isOnramp
+                    ? "Receive amount"
+                    : "Total value"
+                  : key === "amount"
+                    ? isOnramp
+                      ? "You send"
+                      : "Amount"
+                    : key.charAt(0).toUpperCase() + key.slice(1)}
+              </h3>
 
-              {key === "network" && (
-                <Image
-                  src={getNetworkImageUrl(selectedNetwork, isDark)}
-                  alt={selectedNetwork.chain.name}
-                  width={14}
-                  height={14}
-                />
-              )}
+              <p className="flex flex-grow items-center gap-1 font-medium text-text-body dark:text-white/80">
+                {showTokenLogo && (
+                  <Image
+                    src={`/logos/${String(token)?.toLowerCase()}-logo.svg`}
+                    alt={`${token} logo`}
+                    width={14}
+                    height={14}
+                  />
+                )}
 
-              {value}
-            </p>
-          </div>
-        ))}
+                {key === "network" && (
+                  <Image
+                    src={getNetworkImageUrl(selectedNetwork, isDark)}
+                    alt={selectedNetwork.chain.name}
+                    width={14}
+                    height={14}
+                  />
+                )}
+
+                {value}
+              </p>
+            </div>
+          );
+        })}
       </div>
 
       {/* Transaction detail disclaimer */}
@@ -778,8 +1088,69 @@ export const TransactionPreview = ({
         </p>
       </div>
 
-      {/* Transaction Steps Indicator - Only show for injected wallet */}
-      {isInjectedWallet && (
+      {isOnramp && (
+        <>
+          <div className="space-y-2">
+            <p className="text-sm text-neutral-500 dark:text-white/50">
+              Refund account
+            </p>
+            <button
+              type="button"
+              onClick={() => setRefundAccountModalOpen(true)}
+              aria-label={refundAccount ? "Edit refund account" : "Add refund account"}
+              className="flex w-full items-center justify-between gap-3 rounded-xl border-[3.3px] border-lavender-500 bg-transparent px-3 py-3 text-left transition-colors hover:border-lavender-400 hover:bg-lavender-500/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500/35 dark:hover:border-lavender-400 dark:hover:bg-lavender-400/10 dark:focus-visible:ring-lavender-400/30"
+            >
+              <span className="text-sm text-text-body dark:text-white">
+                {refundAccount ? (
+                  <>
+                    <span>{refundAccount.accountName} </span>
+                    <span className="font-semibold">{refundAccount.accountNumber} | {refundAccount.institutionName}</span>
+                  </>
+                ) : (
+                  "Add Refund Account"
+                )}
+              </span>
+              <span
+                className="shrink-0 text-text-body dark:text-white/90"
+                aria-hidden
+              >
+                {refundAccount ? (
+                  <BiEdit className="size-5" />
+                ) : (
+                  <IoAdd className="size-5" />
+                )}
+              </span>
+            </button>
+          </div>
+          <AddRefundAccountModal
+            isOpen={refundAccountModalOpen}
+            onClose={() => setRefundAccountModalOpen(false)}
+            institutions={supportedInstitutions}
+            isFetchingInstitutions={isFetchingInstitutions}
+            currency={currency}
+            initial={refundAccount}
+            onSave={async (data: RefundAccountDetails) => {
+              const token = await getAccessToken();
+              if (!token) {
+                throw new Error("Please sign in to save your refund account.");
+              }
+              const isEdit = refundAccount !== null;
+              const saved = await saveRefundAccount(data, token);
+              setRefundAccount(saved);
+              setRefundAccountWasEdited(isEdit);
+            }}
+            onSaved={() => setRefundAccountSuccessOpen(true)}
+          />
+          <RefundAccountSuccessModal
+            isOpen={refundAccountSuccessOpen}
+            onClose={() => setRefundAccountSuccessOpen(false)}
+            isEditing={refundAccountWasEdited}
+          />
+        </>
+      )}
+
+      {/* Transaction Steps Indicator - Only for offramp + injected wallet */}
+      {isInjectedWallet && !isOnramp && (
         <>
           <hr className="w-full border-dashed border-gray-200 dark:border-white/10" />
 
@@ -799,7 +1170,7 @@ export const TransactionPreview = ({
                 ) : (
                   <TbCircleDashed
                     className={classNames(
-                      isConfirming ? "animate-spin" : "",
+                      isConfirming || isPollingOrderId ? "animate-spin" : "",
                       "text-lg",
                     )}
                   />
@@ -829,7 +1200,7 @@ export const TransactionPreview = ({
           type="button"
           onClick={handleBackButtonClick}
           className={classNames(secondaryBtnClasses)}
-          disabled={isConfirming}
+          disabled={isConfirming || isPollingOrderId}
         >
           Back
         </button>
@@ -837,9 +1208,13 @@ export const TransactionPreview = ({
           type="submit"
           className={classNames(primaryBtnClasses, "w-full")}
           onClick={handlePaymentConfirmation}
-          disabled={isConfirming}
+          disabled={
+            isConfirming ||
+            isPollingOrderId ||
+            (isOnramp && !refundAccount)
+          }
         >
-          {isConfirming ? (
+          {isConfirming || isPollingOrderId ? (
             <span className="flex items-center justify-center gap-2">
               <ImSpinner className="animate-spin text-lg" />
               Confirming...

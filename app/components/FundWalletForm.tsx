@@ -3,8 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
-import { classNames, getNetworkImageUrl, shouldUseInjectedWallet } from "../utils";
-import { useSearchParams } from "next/navigation";
+import { classNames, getNetworkImageUrl } from "../utils";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
@@ -20,18 +19,15 @@ import {
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
-import { Token } from "../types";
+import { Token, type MobileSheetView } from "../types";
 import Image from "next/image";
-
-type MobileView = "wallet" | "settings" | "transfer" | "fund" | "history";
 
 export const FundWalletForm: React.FC<{
   onClose: () => void;
   onSuccess?: () => void;
   showBackButton?: boolean;
-  setCurrentView?: React.Dispatch<React.SetStateAction<MobileView>>;
+  setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
-  const searchParams = useSearchParams();
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { refreshBalance } = useBalance();
   const { allTokens } = useTokens();
@@ -39,7 +35,6 @@ export const FundWalletForm: React.FC<{
   const { user } = usePrivy();
   const { wallets } = useWallets();
   const shouldUseEOA = useShouldUseEOA();
-  const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
   const [fundingInProgress, setFundingInProgress] = useState(false);
@@ -71,17 +66,10 @@ export const FundWalletForm: React.FC<{
     imageUrl: token.imageUrl,
   }));
 
-  // Networks for network selection
-  // Filter out Celo for non-injected wallets (smart wallets)
-  const availableNetworks = networks
-    .filter((network) => {
-      if (useInjectedWallet) return true;
-      return network.chain.name !== "Celo";
-    })
-    .map((network) => ({
-      name: network.chain.name,
-      imageUrl: getNetworkImageUrl(network, isDark),
-    }));
+  const availableNetworks = networks.map((network) => ({
+    name: network.chain.name,
+    imageUrl: getNetworkImageUrl(network, isDark),
+  }));
 
   useEffect(() => {
     if (!fundToken) {

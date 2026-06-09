@@ -33,9 +33,60 @@ function isReplacementUnderpricedError(err: unknown): boolean {
   return err.message.toLowerCase().includes('replacement transaction underpriced');
 }
 
+/** Collect all text from viem error chains, including plain-object RPC causes. */
+function stringifyViemError(err: unknown): string {
+  const parts: string[] = [];
+
+  function walk(e: unknown, depth: number): void {
+    if (depth > 14 || e == null) return;
+    if (e instanceof Error) {
+      parts.push(e.message);
+      const any = e as Error & { details?: string; shortMessage?: string; cause?: unknown };
+      if (typeof any.details === 'string') parts.push(any.details);
+      if (typeof any.shortMessage === 'string') parts.push(any.shortMessage);
+      walk(any.cause, depth + 1);
+      return;
+    }
+    if (typeof e === 'object') {
+      const o = e as Record<string, unknown>;
+      if (typeof o.message === 'string') parts.push(o.message);
+      if (typeof o.details === 'string') parts.push(o.details);
+      if (typeof o.shortMessage === 'string') parts.push(o.shortMessage);
+      walk(o.cause, depth + 1);
+    }
+  }
+
+  walk(err, 0);
+  return parts.join('\n').toLowerCase();
+}
+
+/** RPC often returns `nonce too low: next nonce 647, tx nonce 646` — use this when getTransactionCount is stale. */
+function parseNextNonceFromErrorText(text: string): number | undefined {
+  const m = text.match(/next nonce (\d+)/i);
+  if (!m) return undefined;
+  const n = Number(m[1]);
+  return Number.isSafeInteger(n) && n >= 0 ? n : undefined;
+}
+
+/** Next tx nonce: max(latest, pending) avoids archive/sequencer mismatch; some nodes return stale `pending`. */
+async function getNextTxNonce(
+  publicClient: PublicClient,
+  address: `0x${string}`
+): Promise<bigint> {
+  const [latest, pending] = await Promise.all([
+    publicClient.getTransactionCount({ address, blockTag: 'latest' }),
+    publicClient.getTransactionCount({ address, blockTag: 'pending' }),
+  ]);
+  return BigInt(Math.max(Number(latest), Number(pending)));
+}
+
 function isNonceTooLowError(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  return err.message.toLowerCase().includes('nonce too low');
+  const text = stringifyViemError(err);
+  return (
+    text.includes('nonce too low') ||
+    text.includes('lower than the current nonce') ||
+    (text.includes('nonce provided for the transaction') && text.includes('lower than'))
+  );
 }
 
 function parseAuth(a: unknown): { address: `0x${string}`; chainId: number; nonce: number; r: `0x${string}`; s: `0x${string}`; yParity: number } {
@@ -99,19 +150,6 @@ export async function executeSponsored(
   }
 
   const account = walletClient.account!;
-  let pendingNonce = await publicClient.getTransactionCount({
-    address: account.address,
-    blockTag: 'pending',
-  });
-  const fees = await publicClient.estimateFeesPerGas();
-  const maxFeePerGas =
-    typeof fees.maxFeePerGas === 'bigint'
-      ? multiplyByBps(fees.maxFeePerGas, BigInt(11000))
-      : multiplyByBps(await publicClient.getGasPrice(), BigInt(11000));
-  const maxPriorityFeePerGas =
-    typeof fees.maxPriorityFeePerGas === 'bigint'
-      ? multiplyByBps(fees.maxPriorityFeePerGas, BigInt(11000))
-      : maxFeePerGas / BigInt(10);
 
   const sendExecute = (nonce: number, maxFee: bigint, maxPri: bigint) =>
     walletClient.sendTransaction({
@@ -126,26 +164,39 @@ export async function executeSponsored(
       maxPriorityFeePerGas: maxPri,
     });
 
-  let hash: Hash;
-  try {
-    hash = await sendExecute(Number(pendingNonce), maxFeePerGas, maxPriorityFeePerGas);
-  } catch (err: unknown) {
-    if (!isNonceTooLowError(err) && !isReplacementUnderpricedError(err)) throw err;
-    pendingNonce = await publicClient.getTransactionCount({
-      address: account.address,
-      blockTag: 'pending',
-    });
-    const retryFees = await publicClient.estimateFeesPerGas();
-    const retryMaxFee =
-      typeof retryFees.maxFeePerGas === 'bigint'
-        ? multiplyByBps(retryFees.maxFeePerGas, BigInt(13000))
-        : multiplyByBps(await publicClient.getGasPrice(), BigInt(13000));
-    const retryMaxPri =
-      typeof retryFees.maxPriorityFeePerGas === 'bigint'
-        ? multiplyByBps(retryFees.maxPriorityFeePerGas, BigInt(13000))
-        : retryMaxFee / BigInt(10);
-    hash = await sendExecute(Number(pendingNonce), retryMaxFee, retryMaxPri);
+  const maxAttempts = 3;
+  let hash: Hash | undefined;
+  let suggestedNextNonce: number | undefined;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const bps = attempt === 0 ? BigInt(11000) : BigInt(13000);
+    let pendingNonce = await getNextTxNonce(publicClient, account.address);
+    if (suggestedNextNonce !== undefined) {
+      const fromErr = BigInt(suggestedNextNonce);
+      pendingNonce = pendingNonce > fromErr ? pendingNonce : fromErr;
+      suggestedNextNonce = undefined;
+    }
+    const fees = await publicClient.estimateFeesPerGas();
+    const maxFeePerGas =
+      typeof fees.maxFeePerGas === 'bigint'
+        ? multiplyByBps(fees.maxFeePerGas, bps)
+        : multiplyByBps(await publicClient.getGasPrice(), bps);
+    const maxPriorityFeePerGas =
+      typeof fees.maxPriorityFeePerGas === 'bigint'
+        ? multiplyByBps(fees.maxPriorityFeePerGas, bps)
+        : maxFeePerGas / BigInt(10);
+
+    try {
+      hash = await sendExecute(Number(pendingNonce), maxFeePerGas, maxPriorityFeePerGas);
+      break;
+    } catch (err: unknown) {
+      const retryable =
+        (isNonceTooLowError(err) || isReplacementUnderpricedError(err)) && attempt < maxAttempts - 1;
+      if (!retryable) throw err;
+      suggestedNextNonce = parseNextNonceFromErrorText(stringifyViemError(err));
+    }
   }
+
+  if (!hash) throw new Error('execute-sponsored: no transaction hash after retries');
 
   return { transactionHash: hash, delegationTransactionHash };
 }

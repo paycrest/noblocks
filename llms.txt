@@ -2,7 +2,7 @@
 
 > Noblocks is a decentralized payments interface that simplifies cryptocurrency-to-local currency conversion using a distributed liquidity protocol. It provides seamless, secure, and instant stablecoin payments to any bank or mobile wallet, powered by the Paycrest Protocol.
 
-Noblocks enables users to send USDC, USDT, DAI, and cNGN across major networks (Polygon, Base, Arbitrum, BNB Chain, Ethereum, Celo, Lisk, Optimism) with zero gas fees, thanks to gasless transaction support (Biconomy). The platform integrates compliance (Shield3) and robust wallet support (Privy smart wallets, injected wallets). Transaction history is securely managed and tracked with Supabase and Row Level Security (RLS), but actual transaction execution is handled on-chain.
+Noblocks enables users to send USDC, USDT, and cNGN across major networks (Polygon, Base, Arbitrum, BNB Chain, Ethereum, Celo, Lisk, Scroll) with zero gas fees, thanks to gasless transaction support (Biconomy). The platform integrates compliance (Shield3) and robust wallet support (Privy smart wallets, injected wallets). Transaction history is securely managed and tracked with Supabase and Row Level Security (RLS), but actual transaction execution is handled onchain.
 
 Key features:
 - Instant stablecoin transfers to banks and mobile money

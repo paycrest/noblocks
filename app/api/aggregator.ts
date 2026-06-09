@@ -2,13 +2,18 @@ import axios from "axios";
 import type {
   RatePayload,
   RateResponse,
+  RateSide,
+  V2RateQuoteResponse,
   InstitutionProps,
   PubkeyResponse,
   VerifyAccountPayload,
   InitiateKYCPayload,
   InitiateKYCResponse,
+  SmileIDSubmissionResponse,
   KYCStatusResponse,
   OrderDetailsResponse,
+  OrderDetailsData,
+  TransactionStatus,
   TransactionResponse,
   TransactionCreateInput,
   SaveTransactionResponse,
@@ -18,6 +23,14 @@ import type {
   RecipientDetails,
   RecipientDetailsWithId,
   SavedRecipientsResponse,
+  V2CreatePaymentOrderPayload,
+  V2PaymentOrderCreateData,
+  V2PaymentOrderGetData,
+  AggregatorEnvelope,
+  RefundAccountDetails,
+  ReferralData,
+  ApiResponse,
+  SubmitReferralResult,
 } from "../types";
 import {
   trackServerEvent,
@@ -25,19 +38,252 @@ import {
   trackApiRequest,
   trackApiResponse,
 } from "../lib/server-analytics";
+import config from "../lib/config";
+import {
+  isGatewayOrderId,
+  resolveChainIdFromNetworkName,
+} from "../lib/payment-order-id";
 
-const AGGREGATOR_URL = process.env.NEXT_PUBLIC_AGGREGATOR_URL;
+const AGGREGATOR_URL = config.aggregatorUrl;
+
+/** Maps aggregator order status → Supabase `transactions.status`. Swap keeps validated→completed; on-ramp keeps pending until settled. */
+export function mapAggregatorStatusToDbStatus(
+  status: string,
+  opts?: { onramp?: boolean },
+): TransactionStatus {
+  const s = String(status || "").toLowerCase();
+  const onramp = opts?.onramp === true;
+  if (s === "settled") return "completed";
+  if (s === "refunded") return "refunded";
+  if (s === "refunding") return "refunding";
+  if (s === "fulfilled") return "fulfilled";
+  if (s === "expired") return "expired";
+  if (s === "validated") return onramp ? "pending" : "completed";
+  if (["settling", "fulfilling", "pending"].includes(s)) return "pending";
+  return "pending";
+}
 
 /**
- * Fetches the current exchange rate for a given token and currency pair
- * @param {RatePayload} params - The rate request parameters
- * @param {string} params.token - The token symbol
- * @param {number} [params.amount=1] - The amount to convert
- * @param {string} params.currency - The target currency
- * @param {string} [params.providerId] - Optional provider ID
- * @param {string} [params.network] - Optional network identifier (e.g., "arbitrum-one", "polygon")
- * @returns {Promise<RateResponse>} The rate response containing exchange rate and fees
- * @throws {Error} If the API request fails or returns an error
+ * On-ramp: aggregator may still return `pending` after the VA window; if `validUntil` is in the past
+ * and no later status arrived, treat as expired (matches product expectation for unfunded orders).
+ */
+export function resolveOnrampOrderStatusFromV2Response(
+  res: AggregatorEnvelope<V2PaymentOrderGetData>,
+): string | undefined {
+  const data = res?.data;
+  if (!data || typeof data !== "object") return undefined;
+  const status = String(data.status ?? "");
+  const s = status.toLowerCase();
+  if (s !== "pending") return status;
+  const validUntil = data.providerAccount?.validUntil;
+  if (!validUntil) return status;
+  const end = new Date(validUntil).getTime();
+  if (Number.isNaN(end) || Date.now() <= end) return status;
+  return "expired";
+}
+
+export function unwrapV2SenderOrderEnvelope(
+  raw: unknown,
+): OrderDetailsData | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const inner = o.data;
+  if (inner && typeof inner === "object" && inner !== null) {
+    return inner as OrderDetailsData;
+  }
+  return o as unknown as OrderDetailsData;
+}
+
+function mapTransactionLogStatusToReceiptStatus(raw: unknown): string {
+  const s = String(raw ?? "").toLowerCase();
+  if (s === "order_created") return "pending";
+  if (s.startsWith("order_")) return s.slice(6);
+  return s;
+}
+
+/** Maps GET /v2/sender/orders/:id `data` into legacy `OrderDetailsData` used by reconciliation / status UI. */
+export function mapV2SenderOrderGetToOrderDetailsData(
+  data: unknown,
+): OrderDetailsData | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  if (typeof d.status !== "string") return null;
+
+  const logsRaw = d.transactionLogs;
+  const txReceipts: OrderDetailsData["txReceipts"] = [];
+  if (Array.isArray(logsRaw)) {
+    for (const log of logsRaw) {
+      if (!log || typeof log !== "object") continue;
+      const L = log as Record<string, unknown>;
+      const txHash = String(L.tx_hash ?? L.txHash ?? "");
+      const created = L.created_at ?? L.createdAt;
+      const timestamp =
+        typeof created === "string"
+          ? created
+          : created instanceof Date
+            ? created.toISOString()
+            : "";
+      txReceipts.push({
+        status: mapTransactionLogStatusToReceiptStatus(L.status),
+        txHash,
+        timestamp,
+      });
+    }
+  }
+
+  let network = "";
+  let token = "";
+  const src = d.source;
+  if (src && typeof src === "object") {
+    const s = src as Record<string, unknown>;
+    network = String(s.network ?? "");
+    token = String(s.currency ?? "");
+  }
+  const dest = d.destination;
+  if (dest && typeof dest === "object") {
+    const r = dest as Record<string, unknown>;
+    const recipient = r.recipient;
+    if (recipient && typeof recipient === "object") {
+      const meta = (recipient as Record<string, unknown>).metadata;
+      if (meta && typeof meta === "object") {
+        const m = meta as Record<string, unknown>;
+        if (!network) network = String(m.network ?? "");
+        if (!token) token = String(m.token ?? m.currency ?? "");
+      }
+    }
+  }
+
+  const updatedAtRaw = d.updatedAt;
+  const updatedAt =
+    typeof updatedAtRaw === "string"
+      ? updatedAtRaw
+      : updatedAtRaw instanceof Date
+        ? updatedAtRaw.toISOString()
+        : new Date().toISOString();
+
+  return {
+    orderId: String(d.id ?? ""),
+    amount: String(d.amount ?? ""),
+    token,
+    network,
+    settlePercent: String(d.percentSettled ?? "0"),
+    status: d.status,
+    txHash: String(d.txHash ?? ""),
+    settlements: [],
+    txReceipts,
+    updatedAt,
+  };
+}
+
+/** Base URL without trailing `/v1` so v2 paths are `{origin}/v2/...` not `{origin}/v1/v2/...`. */
+export function aggregatorOriginForV2(): string {
+  const raw = (AGGREGATOR_URL || "").trim();
+  if (!raw) {
+    throw new Error("NEXT_PUBLIC_AGGREGATOR_URL is not configured");
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error(
+      "NEXT_PUBLIC_AGGREGATOR_URL must be a valid absolute URL (e.g. https://api.example.com/v1)",
+    );
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(
+      "NEXT_PUBLIC_AGGREGATOR_URL must use http: or https:",
+    );
+  }
+  const basePath = parsed.pathname
+    .replace(/\/v1\/?$/i, "")
+    .replace(/\/$/, "");
+  return `${parsed.origin}${basePath}`;
+}
+
+function buildV2SenderOrderUrl(orderId: string): string {
+  return `${aggregatorOriginForV2()}/v2/sender/orders/${encodeURIComponent(orderId)}`;
+}
+
+function buildGatewayOrderStatusUrl(orderId: string, networkName: string): string {
+  const chainId = resolveChainIdFromNetworkName(networkName);
+  if (chainId == null) {
+    throw new Error(`Unknown network for order lookup: ${networkName}`);
+  }
+  return `${aggregatorOriginForV2()}/v2/orders/${chainId}/${encodeURIComponent(orderId.trim())}`;
+}
+
+/** Maps GET /v2/orders/:chainId/:id (gateway) into `OrderDetailsData`. */
+export function mapProviderOrderStatusToOrderDetailsData(
+  raw: unknown,
+): OrderDetailsData | null {
+  if (!raw || typeof raw !== "object") return null;
+  const d = raw as Record<string, unknown>;
+
+  const txReceipts: OrderDetailsData["txReceipts"] = [];
+  if (Array.isArray(d.txReceipts)) {
+    for (const item of d.txReceipts) {
+      if (!item || typeof item !== "object") continue;
+      const r = item as Record<string, unknown>;
+      txReceipts.push({
+        status: String(r.status ?? ""),
+        txHash: String(r.txHash ?? ""),
+        timestamp:
+          typeof r.timestamp === "string"
+            ? r.timestamp
+            : r.timestamp instanceof Date
+              ? r.timestamp.toISOString()
+              : String(r.timestamp ?? ""),
+      });
+    }
+  }
+
+  const settlements: OrderDetailsData["settlements"] = [];
+  if (Array.isArray(d.settlements)) {
+    for (const item of d.settlements) {
+      if (!item || typeof item !== "object") continue;
+      const s = item as Record<string, unknown>;
+      settlements.push({
+        splitOrderId: String(s.splitOrderId ?? ""),
+        amount: String(s.amount ?? ""),
+        rate: String(s.rate ?? ""),
+        orderPercent: String(s.orderPercent ?? ""),
+      });
+    }
+  }
+
+  const updatedAtRaw = d.updatedAt;
+  const updatedAt =
+    typeof updatedAtRaw === "string"
+      ? updatedAtRaw
+      : updatedAtRaw instanceof Date
+        ? updatedAtRaw.toISOString()
+        : new Date().toISOString();
+
+  return {
+    orderId: String(d.orderId ?? ""),
+    amount: String(d.amount ?? ""),
+    token: String(d.token ?? ""),
+    network: String(d.network ?? ""),
+    settlePercent: String(d.settlePercent ?? "0"),
+    status: String(d.status ?? ""),
+    txHash: String(d.txHash ?? ""),
+    settlements,
+    txReceipts,
+    updatedAt,
+  };
+}
+
+function pickV2RateQuote(
+  quotes: V2RateQuoteResponse,
+  side: RateSide,
+): { rate: string } | undefined {
+  return side === "buy" ? quotes.buy : quotes.sell;
+}
+
+/**
+ * Fetches the current exchange rate via aggregator **v2** (buy = onramp, sell = offramp).
+ * @param params.network - Required; sent as path segment (e.g. "arbitrum-one").
+ * @param params.side - `"buy"` or `"sell"`.
  */
 export const fetchRate = async ({
   token,
@@ -45,77 +291,104 @@ export const fetchRate = async ({
   currency,
   providerId,
   network,
+  side,
   signal,
 }: RatePayload): Promise<RateResponse> => {
   const startTime = Date.now();
+  const analyticsEndpoint = "/v2/rates";
+  const net = (network || "").trim().toLowerCase();
+
+  if (!net) {
+    throw new Error("network is required for rate quotes");
+  }
+
+  const origin = aggregatorOriginForV2();
+  const endpoint = `${origin}/v2/rates/${encodeURIComponent(net)}/${encodeURIComponent(token)}/${amount}/${encodeURIComponent(currency)}`;
+  const params: Record<string, string> = {
+    side,
+  };
+  if (providerId) {
+    params.provider_id = providerId;
+  }
 
   try {
-    // Track external API request
     trackServerEvent("External API Request", {
       service: "aggregator",
-      endpoint: "/rates",
+      endpoint: analyticsEndpoint,
       method: "GET",
       token,
       amount,
       currency,
       provider_id: providerId,
-      network,
+      network: net,
+      side,
     });
 
-    const endpoint = `${AGGREGATOR_URL}/rates/${token}/${amount}/${currency}`;
-    const params: Record<string, string> = {};
-
-    if (providerId) {
-      params.provider_id = providerId;
-    }
-    if (network) {
-      params.network = network;
-    }
-
     const response = await axios.get(endpoint, { params, signal });
-    const { data } = response;
+    const payload = response.data as {
+      status: string;
+      message: string;
+      data: V2RateQuoteResponse;
+    };
 
-    // Track successful response
+    if (payload.status === "error") {
+      throw new Error(payload.message || "Rate request failed");
+    }
+
+    const sideQuote = pickV2RateQuote(payload.data ?? {}, side);
+    if (!sideQuote?.rate) {
+      throw new Error(
+        payload.message || `No ${side} rate returned for this pair`,
+      );
+    }
+
+    const numericRate = Number(sideQuote.rate);
+    if (!Number.isFinite(numericRate)) {
+      throw new Error("Invalid rate value from aggregator");
+    }
+
+    const normalized: RateResponse = {
+      status: payload.status,
+      message: payload.message,
+      data: numericRate,
+    };
+
     const responseTime = Date.now() - startTime;
-    trackApiResponse("/rates", "GET", 200, responseTime, {
+    trackApiResponse(analyticsEndpoint, "GET", 200, responseTime, {
       service: "aggregator",
       token,
       amount,
       currency,
       provider_id: providerId,
-      network,
-      rate: data.data,
+      network: net,
+      side,
+      rate: numericRate,
     });
 
-    // Track business event
     trackBusinessEvent("Rate Fetched", {
       token,
       amount,
       currency,
       provider_id: providerId,
-      network,
-      rate: data.data,
+      network: net,
+      side,
+      rate: numericRate,
     });
 
-    // Check the API response status first
-    if (data.status === "error") {
-      throw new Error(data.message || "Provider not found");
-    }
-
-    return data;
+    return normalized;
   } catch (error) {
     const responseTime = Date.now() - startTime;
 
-    // Track API error
     trackServerEvent("External API Error", {
       service: "aggregator",
-      endpoint: "/rates",
+      endpoint: analyticsEndpoint,
       method: "GET",
       token,
       amount,
       currency,
       provider_id: providerId,
-      network,
+      network: net,
+      side,
       error_message: error instanceof Error ? error.message : "Unknown error",
       response_time_ms: responseTime,
     });
@@ -225,24 +498,105 @@ export const fetchAccountName = async (
 };
 
 /**
- * Fetches details of an order by chain ID and order ID
- * @param {number} chainId - The blockchain chain ID
- * @param {string} orderId - The order ID
- * @returns {Promise<OrderDetailsResponse>} The order details
- * @throws {Error} If the API request fails
+ * Fetches payment order status from the aggregator (via Noblocks proxy in the browser).
+ *
+ * - **Onramp** (UUID): `GET /v2/sender/orders/:id`
+ * - **Offramp** (gateway `0x…` bytes32): `GET /v2/orders/:chainId/:id` — requires `network`
+ *   (Noblocks `transactions.network` / chain display name).
  */
 export const fetchOrderDetails = async (
-  chainId: number,
   orderId: string,
+  accessToken?: string,
+  options?: { network?: string },
 ): Promise<OrderDetailsResponse> => {
-  try {
-    const response = await axios.get(
-      `${AGGREGATOR_URL}/orders/${chainId}/${orderId}`,
-    );
-    return response.data;
-  } catch (error) {
-    throw error;
+  const id = orderId.trim();
+  if (!id) {
+    throw new Error("orderId is required");
   }
+
+  const gatewayLookup = isGatewayOrderId(id);
+  if (gatewayLookup && !options?.network?.trim()) {
+    throw new Error(
+      "Network is required to look up an offramp order by gateway id",
+    );
+  }
+
+  let envelope: {
+    status?: string;
+    message?: string;
+    data?: unknown;
+  };
+
+  if (typeof window !== "undefined" && accessToken?.trim()) {
+    const response = await axios.get(
+      `/api/v1/payment-orders/${encodeURIComponent(id)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken.trim()}`,
+        },
+        params:
+          gatewayLookup && options?.network
+            ? { network: options.network.trim() }
+            : undefined,
+        validateStatus: () => true,
+      },
+    );
+    envelope = response.data;
+    if (response.status >= 400) {
+      throw new Error(
+        typeof envelope?.message === "string"
+          ? envelope.message
+          : `Order request failed (${response.status})`,
+      );
+    }
+  } else {
+    const url = gatewayLookup
+      ? buildGatewayOrderStatusUrl(id, options!.network!.trim())
+      : buildV2SenderOrderUrl(id);
+    const headers: Record<string, string> = {};
+    if (!gatewayLookup) {
+      const apiKey = config.aggregatorSenderApiKey?.trim();
+      if (!apiKey) {
+        throw new Error(
+          "NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID is not configured",
+        );
+      }
+      headers["API-Key"] = apiKey;
+    }
+    const response = await axios.get(url, {
+      headers,
+      validateStatus: () => true,
+    });
+    envelope = response.data;
+    if (response.status >= 400) {
+      throw new Error(
+        typeof envelope?.message === "string"
+          ? envelope.message
+          : `Order request failed (${response.status})`,
+      );
+    }
+  }
+
+  if (!envelope || envelope.status === "error") {
+    throw new Error(
+      typeof envelope?.message === "string"
+        ? envelope.message
+        : "Order fetch failed",
+    );
+  }
+
+  const mapped = gatewayLookup
+    ? mapProviderOrderStatusToOrderDetailsData(envelope.data)
+    : mapV2SenderOrderGetToOrderDetailsData(envelope.data);
+  if (!mapped) {
+    throw new Error("Invalid order payload from aggregator");
+  }
+
+  return {
+    status: String(envelope.status ?? "success"),
+    message: String(envelope.message ?? ""),
+    data: mapped,
+  };
 };
 
 /**
@@ -408,9 +762,54 @@ export async function saveTransaction(
   const response = await axios.post("/api/v1/transactions", transaction, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
+      // Same intent as middleware primary wallet; overwritten by middleware for browser,
+      // but clarifies signer for proxies and matches fetchTransactions/update patterns.
+      "x-wallet-address": String(transaction.walletAddress).toLowerCase(),
     },
   });
   return response.data;
+}
+
+export type SwapPrecheckPayload = Pick<
+  TransactionCreateInput,
+  | "walletAddress"
+  | "fromCurrency"
+  | "toCurrency"
+  | "amountSent"
+  | "amountReceived"
+  | "fee"
+> & {
+  recipient?: TransactionCreateInput["recipient"];
+  /** Defaults to offramp; pass onramp for fiat → crypto limit checks. */
+  transactionType?: "offramp" | "onramp";
+};
+
+/**
+ * Server-side monthly KYC limit check (RPC dry run) before on-chain swap steps.
+ * Throws Error with the API message when the swap would be rejected at save time.
+ */
+export async function precheckSwapTransaction(
+  payload: SwapPrecheckPayload,
+  accessToken: string,
+): Promise<void> {
+  const res = await axios.post<{ success?: boolean; error?: string }>(
+    "/api/v1/transactions/swap-precheck",
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "x-wallet-address": String(payload.walletAddress).toLowerCase(),
+      },
+      validateStatus: () => true,
+    },
+  );
+  if (!res.data?.success) {
+    const msg =
+      typeof res.data?.error === "string"
+        ? res.data.error
+        : "Unable to verify transaction limits. Please try again.";
+    throw new Error(msg);
+  }
 }
 
 /**
@@ -428,9 +827,7 @@ export async function updateTransactionStatus({
   accessToken,
   walletAddress,
 }: UpdateTransactionStatusPayload): Promise<SaveTransactionResponse> {
-  const finalStatus = ["validated", "settled"].includes(status)
-    ? "completed"
-    : status;
+  const finalStatus = mapAggregatorStatusToDbStatus(status, { onramp: false });
 
   const response = await axios.put(
     `/api/v1/transactions/status/${transactionId}`,
@@ -464,10 +861,11 @@ export async function updateTransactionDetails({
   timeSpent,
   accessToken,
   walletAddress,
+  isOnramp,
 }: UpdateTransactionDetailsPayload): Promise<SaveTransactionResponse> {
-  const finalStatus = ["validated", "settled"].includes(status)
-    ? "completed"
-    : status;
+  const finalStatus = mapAggregatorStatusToDbStatus(status, {
+    onramp: isOnramp === true,
+  });
 
   // Build the data object dynamically
   const data: Record<string, any> = { status: finalStatus };
@@ -616,6 +1014,69 @@ export const fetchTokens = async (): Promise<APIToken[]> => {
  * @returns {Promise<RecipientDetailsWithId[]>} Array of saved recipients
  * @throws {Error} If the API request fails
  */
+type RefundAccountApiEnvelope = {
+  success: boolean;
+  data: RefundAccountDetails | null;
+  error?: string;
+};
+
+type RefundAccountSaveEnvelope = {
+  success: boolean;
+  data?: RefundAccountDetails;
+  error?: string;
+};
+
+/**
+ * Loads the saved refund account for the authenticated wallet, if any.
+ */
+export async function fetchRefundAccount(
+  accessToken: string,
+): Promise<RefundAccountDetails | null> {
+  const response = await axios.get<RefundAccountApiEnvelope>(
+    "/api/v1/refund-account",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+
+  if (!response.data.success) {
+    throw new Error(response.data.error || "Failed to load refund account");
+  }
+
+  return response.data.data;
+}
+
+/**
+ * Upserts refund account details for the authenticated wallet.
+ */
+export async function saveRefundAccount(
+  detail: RefundAccountDetails,
+  accessToken: string,
+): Promise<RefundAccountDetails> {
+  const response = await axios.put<RefundAccountSaveEnvelope>(
+    "/api/v1/refund-account",
+    {
+      institution: detail.institutionName,
+      institutionCode: detail.institutionCode,
+      accountIdentifier: detail.accountNumber,
+      accountName: detail.accountName,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+
+  if (!response.data.success || !response.data.data) {
+    throw new Error(response.data.error || "Failed to save refund account");
+  }
+
+  return response.data.data;
+}
+
 export async function fetchSavedRecipients(
   accessToken: string,
 ): Promise<RecipientDetailsWithId[]> {
@@ -723,14 +1184,28 @@ export async function migrateLocalStorageRecipients(
     // First, fetch existing recipients from DB to check for duplicates
     const existingRecipients = await fetchSavedRecipients(accessToken);
     const existingKeys = new Set(
-      existingRecipients.map(
-        (r) => `${r.institutionCode}-${r.accountIdentifier}`,
-      ),
+      existingRecipients.map((r) => {
+        if (r.type === "wallet") {
+          if (!r.walletAddress) {
+            console.warn("Wallet recipient missing walletAddress", r);
+            return `wallet-invalid-${r.id}`;
+          }
+          return `wallet-${r.walletAddress}`;
+        } else {
+          if (!r.institutionCode || !r.accountIdentifier) {
+            console.warn("Bank/mobile_money recipient missing required fields", r);
+            return `${r.type}-invalid-${r.id}`;
+          }
+          return `${r.institutionCode}-${r.accountIdentifier}`;
+        }
+      }),
     );
 
     // Filter out duplicates - only migrate recipients that don't exist in DB
     const recipientsToMigrate = recipients.filter((recipient) => {
-      const key = `${recipient.institutionCode}-${recipient.accountIdentifier}`;
+      const key = recipient.type === "wallet"
+        ? `wallet-${recipient.walletAddress}`
+        : `${recipient.institutionCode}-${recipient.accountIdentifier}`;
       return !existingKeys.has(key);
     });
 
@@ -747,7 +1222,10 @@ export async function migrateLocalStorageRecipients(
         await saveRecipient(recipient, accessToken);
         return { success: true, recipient };
       } catch (error) {
-        console.error(`Failed to migrate recipient ${recipient.name}:`, error);
+        const recipientName = recipient.type === "wallet"
+          ? recipient.walletAddress
+          : recipient.name;
+        console.error(`Failed to migrate recipient ${recipientName}:`, error);
         return { success: false, recipient, error };
       }
     });
@@ -771,4 +1249,210 @@ export async function migrateLocalStorageRecipients(
     console.error("Error migrating recipients:", error);
     // Don't throw - let the app continue even if migration fails
   }
+};
+
+/**
+ * Submits Smile ID captured data for KYC verification
+ * @param {object} payload - The Smile ID data payload
+ * @param {string} accessToken - The access token for authentication
+ * @param {string} walletAddress - Wallet address for x-wallet-address header
+ * @returns {Promise<SmileIDSubmissionResponse>} The submission response
+ * @throws {Error} If the API request fails
+ */
+export const submitSmileIDData = async (
+  payload: any,
+  accessToken: string,
+  walletAddress: string,
+): Promise<SmileIDSubmissionResponse> => {
+  const startTime = Date.now();
+
+  try {
+    // Track external API request (log metadata only, no PII)
+    trackServerEvent("External API Request", {
+      service: "next-api",
+      endpoint: "/api/kyc/smile-id",
+      method: "POST",
+    });
+
+    // Call Next.js API route with JWT authentication
+    const response = await axios.post(`/api/kyc/smile-id`, payload, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "x-wallet-address": walletAddress.toLowerCase(),
+      },
+    });
+
+    // Track successful response
+    const responseTime = Date.now() - startTime;
+    trackApiResponse("/api/kyc/smile-id", "POST", 200, responseTime, {
+      service: "next-api",
+    });
+
+    // Track business event
+    trackBusinessEvent("Smile ID Data Submitted", {
+      jobId: response.data.data?.jobId,
+    });
+
+    return response.data;
+  } catch (error) {
+    const responseTime = Date.now() - startTime;
+
+    // Track API error
+    trackServerEvent("External API Error", {
+      service: "next-api",
+      endpoint: "/api/kyc/smile-id",
+      method: "POST",
+      error_message: error instanceof Error ? error.message : "Unknown error",
+      response_time_ms: responseTime,
+    });
+
+    throw error;
+  }
+};
+
+/**
+ * Creates a v2 on-ramp payment order (fiat source) via the server proxy to aggregator.
+ * POST /api/v1/payment-orders (on-ramp only) → aggregator POST /v2/sender/orders.
+ * Off-ramp orders are created on-chain (gateway.createOrder), not through this proxy.
+ */
+export async function createV2SenderPaymentOrder(
+  payload: V2CreatePaymentOrderPayload,
+  accessToken: string,
+): Promise<AggregatorEnvelope<V2PaymentOrderCreateData>> {
+  const response = await axios.post<AggregatorEnvelope<V2PaymentOrderCreateData>>(
+    "/api/v1/payment-orders",
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+  return response.data;
 }
+
+/**
+ * Fetches a single v2 sender order (e.g. to refresh fiat virtual account details).
+ */
+export async function fetchV2SenderPaymentOrderById(
+  orderId: string,
+  accessToken: string,
+): Promise<AggregatorEnvelope<V2PaymentOrderGetData>> {
+  const response = await axios.get<AggregatorEnvelope<V2PaymentOrderGetData>>(
+    `/api/v1/payment-orders/${encodeURIComponent(orderId)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  );
+  return response.data;
+}
+
+/**
+ * Submit a referral code for a new user
+ */
+export async function submitReferralCode(
+  code: string,
+  accessToken?: string,
+): Promise<ApiResponse<SubmitReferralResult>> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  try {
+    const response = await axios.post(
+      `/api/referral/submit`,
+      { referral_code: code },
+      { headers },
+    );
+
+    if (!response.data?.success) {
+      return {
+        success: false,
+        error:
+          response.data?.error ||
+          response.data?.message ||
+          "Failed to submit referral code",
+        status: response.status,
+      };
+    }
+
+    return {
+      success: true,
+      data: response.data?.data || response.data,
+    } as ApiResponse<SubmitReferralResult>;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to submit referral code";
+      return { success: false, error: message, status: error.response?.status };
+    }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Get user's referral data (code, earnings, referral list)
+ */
+export async function getReferralData(
+  accessToken: string,
+  walletAddress?: string,
+): Promise<ApiResponse<ReferralData>> {
+  if (!accessToken) {
+    return {
+      success: false,
+      error: "Authentication token is required",
+    };
+  }
+
+  const url = walletAddress
+    ? `/api/referral/referral-data?wallet_address=${encodeURIComponent(walletAddress)}`
+    : `/api/referral/referral-data`;
+
+  try {
+    const response = await axios.get<ApiResponse<ReferralData>>(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.data?.success) {
+      return {
+        success: false,
+        error: response.data?.error || "Failed to fetch referral data",
+        status: response.status,
+      };
+    }
+
+    return { success: true, data: response.data.data };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to fetch referral data";
+      return {
+        success: false,
+        error: message,
+        status: error.response?.status,
+      };
+    }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+

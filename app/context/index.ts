@@ -16,12 +16,17 @@ export {
   BlockFestModalProvider,
   useBlockFestModal,
 } from "./BlockFestModalContext";
+export { KYCProvider, useKYC } from "./KYCContext";
 export { MigrationBannerWrapper } from "./MigrationContext";
 export {
   MigrationStatusProvider,
   useMigrationStatus,
 } from "./MigrationStatusContext";
 export { StarknetProvider, useStarknet } from "./StarknetContext";
+export {
+  StarknetExportModalProvider,
+  useStarknetExportModal,
+} from "./StarknetExportModalContext";
 export {
   HomeTransactionFormModeProvider,
   useHomeTransactionFormMode,

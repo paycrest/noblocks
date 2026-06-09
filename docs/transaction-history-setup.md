@@ -9,7 +9,7 @@ To connect your app to Supabase, you'll need your project's API keys and URL. He
 1. Go to your Supabase project dashboard.
 2. In the left sidebar, click on **Settings**.
 3. Under Settings, select the **Data API** tab.
-4. Here, you'll find your Project URL and API keys (anon/public and service_role).
+4. Here, you'll find your Project URL and API keys.
 
 ![Supabase Data API Settings](https://i.ibb.co/1J7CdS3h/image.png)
 
@@ -17,7 +17,7 @@ To connect your app to Supabase, you'll need your project's API keys and URL. He
 
 ```env
 SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_SECRET_KEY=
 ```
 
 Copy these values and add them to your `.env.local` file as needed for your project.

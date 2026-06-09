@@ -15,7 +15,6 @@ import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeMo
 import SentryClientProvider from "./SentryClientProvider";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-
   return (
     <SentryClientProvider>
       <Providers>

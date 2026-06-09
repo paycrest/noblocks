@@ -70,11 +70,16 @@ function cacheRate(rate: number): void {
 function parseRateResponse(
   rateResponse: { data?: unknown } | null | undefined,
 ): number | null {
-  if (rateResponse?.data && typeof rateResponse.data === "string") {
-    const numericRate = Number(rateResponse.data);
-    if (numericRate > 0) {
-      return numericRate;
-    }
+  const raw = rateResponse?.data;
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+
+  const numericRate =
+    typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+
+  if (Number.isFinite(numericRate) && numericRate > 0) {
+    return numericRate;
   }
 
   return null;

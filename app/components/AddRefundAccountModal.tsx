@@ -9,7 +9,7 @@ import { AnimatedModal, AnimatedFeedbackItem } from "@/app/components/AnimatedCo
 import { SearchInput } from "@/app/components/recipient/SearchInput";
 import { InputError } from "@/app/components/InputError";
 import type { InstitutionProps, RefundAccountDetails } from "@/app/types";
-import { classNames } from "@/app/utils";
+import { classNames, filterAndSortInstitutions } from "@/app/utils";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "@/app/components/Styles";
 
@@ -129,17 +129,10 @@ export function AddRefundAccountModal({
     return () => clearTimeout(timeoutId);
   }, [selectedInstitution, accountNumber, currency]);
 
-  const filteredInstitutions = useMemo(() => {
-    const filtered =
-      institutions?.filter((item) =>
-        item.name.toLowerCase().includes(bankSearchTerm.toLowerCase()),
-      ) ?? [];
-    return [...filtered].sort((a, b) => {
-      if (a.type === "mobile_money" && b.type !== "mobile_money") return -1;
-      if (a.type !== "mobile_money" && b.type === "mobile_money") return 1;
-      return a.name.localeCompare(b.name);
-    });
-  }, [institutions, bankSearchTerm]);
+  const filteredInstitutions = useMemo(
+    () => filterAndSortInstitutions(institutions, bankSearchTerm),
+    [institutions, bankSearchTerm],
+  );
 
   const handleAddAccount = async () => {
     setFormError(null);

@@ -11,7 +11,7 @@ import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames } from "@/app/utils";
+import { classNames, filterAndSortInstitutions } from "@/app/utils";
 import {
   RecipientDetails,
   RecipientDetailsFormProps,
@@ -91,33 +91,10 @@ export const RecipientDetailsForm = ({
   const prevCurrencyRef = useRef(currency);
   const isDark = useActualTheme();
 
-  /**
-   * Array of institutions filtered and sorted alphabetically based on the bank search term.
-   *
-   * @type {Array<InstitutionProps>}
-   */
-  const filteredInstitutions: Array<InstitutionProps> = useMemo(() => {
-    const filtered =
-      institutions?.filter((item) =>
-        item.name.toLowerCase().includes(bankSearchTerm.toLowerCase()),
-      ) || [];
-
-    return filtered.sort((a, b) => {
-      // Sort mobile money first, then alphabetically within each type
-      if (a.type === "mobile_money" && b.type !== "mobile_money") return -1;
-      if (a.type !== "mobile_money" && b.type === "mobile_money") return 1;
-      if (a.code === "OPAYNGPC" && b.code !== "OPAYNGPC") return -1;
-      if (a.code !== "OPAYNGPC" && b.code === "OPAYNGPC") return 1;
-      if (a.code === "PALMNGPC" && b.code !== "PALMNGPC") return -1;
-      if (a.code !== "PALMNGPC" && b.code === "PALMNGPC") return 1;
-      if (a.code === "MONINGPC" && b.code !== "MONINGPC") return -1;
-      if (a.code !== "MONINGPC" && b.code === "MONINGPC") return 1;
-      if (a.code === "KUDANGPC" && b.code !== "KUDANGPC") return -1;
-      if (a.code !== "KUDANGPC" && b.code === "KUDANGPC") return 1;
-      return a.name.localeCompare(b.name);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [institutions, bankSearchTerm, currency]);
+  const filteredInstitutions = useMemo(
+    () => filterAndSortInstitutions(institutions, bankSearchTerm),
+    [institutions, bankSearchTerm],
+  );
 
   const selectSavedRecipient = (recipient: RecipientDetails) => {
     setSelectedRecipient(recipient);

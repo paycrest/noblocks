@@ -139,6 +139,7 @@ export const KycModal = ({
   const cameraHostRef = useRef<HTMLElement | null>(null);
   const smileListenerCleanupRef = useRef<(() => void) | null>(null);
   const smileThemeObserverCleanupRef = useRef<(() => void) | null>(null);
+  const scrollRestoreTimeoutRef = useRef<number | null>(null);
   const stepRef = useRef(step);
   stepRef.current = step;
   const [smileIdLoaded, setSmileIdLoaded] = useState(false);
@@ -225,6 +226,24 @@ export const KycModal = ({
     smileListenerCleanupRef.current?.();
     smileListenerCleanupRef.current = null;
   };
+
+  const scheduleScrollRestoreAfterClose = () => {
+    if (scrollRestoreTimeoutRef.current) {
+      window.clearTimeout(scrollRestoreTimeoutRef.current);
+    }
+    scrollRestoreTimeoutRef.current = window.setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      scrollRestoreTimeoutRef.current = null;
+    }, 500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (scrollRestoreTimeoutRef.current) {
+        window.clearTimeout(scrollRestoreTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleSmilePublish = async (event: Event) => {
     if (smileIdSubmitInFlightRef.current) {
@@ -758,6 +777,7 @@ export const KycModal = ({
           onClick={async () => {
             await refreshStatus(true);
             setIsKycModalOpen(false);
+            scheduleScrollRestoreAfterClose();
           }}
         >
           Got it
@@ -788,8 +808,9 @@ export const KycModal = ({
           await refreshStatus(true);
           setIsUserVerified(true);
           setIsKycModalOpen(false);
-          // SmileID camera displaces the document scroll position — restore after dialog unmounts
-          requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "instant" }));
+          // SmileID camera displaces the document scroll position — restore after the exit
+          // animation (spring stiffness 300 / damping 30 ≈ 500 ms) fully unmounts the camera.
+          scheduleScrollRestoreAfterClose();
         }}
       >
         Let&apos;s go!

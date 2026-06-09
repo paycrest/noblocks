@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { fetchKYCStatus } from "@/app/api/aggregator";
 import {
   getPrivyUserIdFromRequest,
   getWalletAddressFromPrivyUserId,
@@ -51,11 +50,14 @@ async function tryClaimOne(
   // paid when they meet the requirements — neither blocks the other.
   const qualifyingWallet = walletAddress.toLowerCase();
 
-  // ── KYC check (caller's own KYC) ───────────────────────────────────────────
-  let kyc;
-  try {
-    kyc = await fetchKYCStatus(qualifyingWallet);
-  } catch {
+  // ── KYC check — requires Tier 1 (phone verified) in Supabase ────────────────
+  const { data: kycProfile, error: kycError } = await supabaseAdmin
+    .from("user_kyc_profiles")
+    .select("tier")
+    .eq("wallet_address", qualifyingWallet)
+    .maybeSingle();
+
+  if (kycError) {
     return {
       success: false,
       code: "KYC_CHECK_FAILED",
@@ -63,11 +65,11 @@ async function tryClaimOne(
     };
   }
 
-  if (kyc?.data?.status !== "verified") {
+  if (!kycProfile || Number(kycProfile.tier ?? 0) < 1) {
     return {
       success: false,
       code: "KYC_REQUIRED",
-      message: "You must complete KYC verification before claiming your referral reward.",
+      message: "You must verify your phone number before claiming your referral reward.",
     };
   }
 

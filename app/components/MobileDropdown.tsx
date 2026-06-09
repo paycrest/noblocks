@@ -238,6 +238,11 @@ export const MobileDropdown = ({
 
   const isDark = useActualTheme();
 
+  // Reset to wallet home whenever the sheet closes so reopening always starts fresh.
+  useEffect(() => {
+    if (!isOpen) setCurrentView("wallet");
+  }, [isOpen]);
+
   // --- History state ---
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionHistory | null>(null);

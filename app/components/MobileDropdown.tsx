@@ -246,6 +246,17 @@ export const MobileDropdown = ({
     if (currentView !== "history") clearTransactions();
   }, [currentView, clearTransactions]);
 
+  // Reset nested views when the sheet closes so reopening always starts on Wallet
+  useEffect(() => {
+    if (!isOpen) {
+      setCurrentView("wallet");
+      setSelectedEarnActivity(null);
+      setEarnActivityReturnView("wallet");
+      setSelectedTransaction(null);
+      setIsNetworkListOpen(false);
+    }
+  }, [isOpen]);
+
   const { client } = useSmartWallets();
 
   const showEarnUi = isEarnUiVisible(selectedNetwork.chain.name);

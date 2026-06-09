@@ -2,6 +2,7 @@ import type {
   InstitutionProps,
   RecipientDetails,
   RecipientDetailsFormProps,
+  SwapMode,
 } from "@/app/types";
 import { UseFormSetValue } from "react-hook-form";
 
@@ -30,7 +31,7 @@ export interface SavedBeneficiariesModalProps {
   institutions: InstitutionProps[];
   isLoading?: boolean;
   error?: string | null;
-  isSwapped?: boolean; // For onramp mode
+  swapMode?: SwapMode;
   networkName?: string; // Network name for wallet recipients
 }
 

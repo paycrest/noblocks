@@ -23,7 +23,7 @@ import {
 } from "@/app/api/aggregator";
 import { SavedBeneficiariesModal } from "@/app/components/recipient/SavedBeneficiariesModal";
 import { SelectBankModal } from "@/app/components/recipient/SelectBankModal";
-import { isValidEvmAddressCaseInsensitive } from "@/app/lib/validation";
+import { validateWalletAddress } from "@/app/lib/validation";
 import { getNetworkImageUrl } from "@/app/utils";
 import { useActualTheme } from "@/app/hooks/useActualTheme";
 import { useNetwork } from "@/app/context";
@@ -36,7 +36,7 @@ export const RecipientDetailsForm = ({
     selectedRecipient,
     setSelectedRecipient,
   },
-  isSwapped = false,
+  swapMode = "offramp",
   token,
   networkName,
   connectedWalletAddress,
@@ -423,10 +423,12 @@ export const RecipientDetailsForm = ({
     [savedRecipients],
   );
 
-  const showMyWalletButton = Boolean(isSwapped && connectedWalletAddress);
+  const showMyWalletButton = Boolean(
+    swapMode === "onramp" && connectedWalletAddress,
+  );
   const showSelectBeneficiaryButton =
-    (isSwapped && walletRecipients.length > 0) ||
-    (!isSwapped && bankRecipients.length > 0);
+    (swapMode === "onramp" && walletRecipients.length > 0) ||
+    (swapMode === "offramp" && bankRecipients.length > 0);
 
   return (
     <>
@@ -473,7 +475,7 @@ export const RecipientDetailsForm = ({
           )}
         </div>
 
-        {isSwapped ? (
+        {swapMode === "onramp" ? (
           <div className="space-y-3">
             <input
               type="text"
@@ -483,13 +485,8 @@ export const RecipientDetailsForm = ({
                   value: true,
                   message: "Wallet address is required",
                 },
-                validate: (value) => {
-                  if (!value) return true;
-                  if (!isValidEvmAddressCaseInsensitive(value)) {
-                    return "Invalid wallet address format";
-                  }
-                  return true;
-                },
+                validate: (value) =>
+                  validateWalletAddress(value, networkName ?? ""),
               })}
               className={classNames(
                 "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
@@ -643,14 +640,16 @@ export const RecipientDetailsForm = ({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSelectRecipient={selectSavedRecipient}
-        savedRecipients={isSwapped ? walletRecipients : bankRecipients}
+        savedRecipients={
+          swapMode === "onramp" ? walletRecipients : bankRecipients
+        }
         onDeleteRecipient={deleteRecipient}
         recipientToDelete={recipientToDelete}
         currency={currency}
         institutions={institutions}
         isLoading={isLoadingRecipients}
         error={recipientsError}
-        isSwapped={isSwapped}
+        swapMode={swapMode}
         networkName={networkName}
       />
     </>

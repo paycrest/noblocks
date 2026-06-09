@@ -11,10 +11,12 @@ import {
   AnimatedModal,
   slideInOut,
 } from "../components/AnimatedComponents";
+import { TransactionLimitModal, PhoneVerificationModal } from "../components";
 import { primaryBtnClasses } from "../components/Styles";
 import { FormDropdown } from "../components/FormDropdown";
 import { RecipientDetailsForm } from "../components/recipient/RecipientDetailsForm";
 import { KycModal } from "../components/KycModal";
+import { getKycModalTargetTier } from "@/app/lib/kyc-upgrade-path";
 import { FundWalletForm } from "../components/FundWalletForm";
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
@@ -36,7 +38,7 @@ import {
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
-import { fetchKYCStatus } from "../api/aggregator";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
@@ -45,8 +47,34 @@ import {
   useInjectedWallet,
   useNetwork,
   useTokens,
+  useKYC,
 } from "../context";
+import { validateWalletAddress } from "../lib/validation";
 import WalletMigrationModal from "../components/WalletMigrationModal";
+
+/**
+ * Monthly KYC limits are in USD. Offramp `amountSent` is token (stable ≈ USD).
+ * Onramp `amountSent` is fiat (NGN) — use crypto received as the USD notional.
+ */
+function kycUsdNotionalForLimitCheck(params: {
+  isOnramp: boolean;
+  amountSent: number;
+  amountReceived: number;
+  token: string | undefined;
+  cngnRate?: number | null;
+}): number {
+  const { isOnramp, amountSent, amountReceived, token, cngnRate } = params;
+  const rate = cngnRate ?? undefined;
+  const isCngn = token === "cNGN" || token === "CNGN";
+  if (isOnramp) {
+    const recv = Number(amountReceived) || 0;
+    if (isCngn && rate && rate > 0) return recv / rate;
+    return recv;
+  }
+  const raw = Number(amountSent) || 0;
+  if (isCngn && rate && rate > 0) return raw / rate;
+  return raw;
+}
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -78,6 +106,27 @@ export const TransactionForm = ({
   const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
+  // Network-aware "My wallet" / recipient address: Starknet wallet on Starknet,
+  // EVM embedded EOA / smart wallet on EVM (mirrors activeWallet for EVM).
+  const connectedWalletAddress = useWalletAddress();
+  const {
+    canTransact,
+    refreshStatus,
+    getKycStatusSnapshot,
+    isPhoneVerified,
+    tier,
+    phoneNumber,
+    transactionSummary,
+  } = useKYC();
+
+  const hasPriorTransactionActivity = useMemo(() => {
+    const { monthlySpent, dailySpent, lastTransactionDate } = transactionSummary;
+    return (
+      monthlySpent > 0 ||
+      dailySpent > 0 ||
+      (lastTransactionDate != null && lastTransactionDate !== "")
+    );
+  }, [transactionSummary]);
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -91,6 +140,8 @@ export const TransactionForm = ({
   const isFirstRender = useRef(true);
   const hasRestoredStateRef = useRef(false);
   const [rateError, setRateError] = useState<string | null>(null);
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
+  const [blockedTransactionAmount, setBlockedTransactionAmount] = useState(0);
 
   const currencies = useMemo(
     () =>
@@ -121,6 +172,7 @@ export const TransactionForm = ({
     currency,
     walletAddress,
     isSwapped,
+    swapMode,
     receiveDestinationExplicitlySelected,
   } = watch();
 
@@ -310,33 +362,13 @@ export const TransactionForm = ({
   );
 
   useEffect(
-    function checkKycStatus() {
+    function refreshKycStatus() {
       const walletAddressToCheck = isInjectedWallet
         ? injectedAddress
         : embeddedWalletAddress;
       if (!walletAddressToCheck) return;
 
-      const fetchStatus = async () => {
-        try {
-          const response = await fetchKYCStatus(walletAddressToCheck);
-          if (response.data.status === "pending") {
-            setIsKycModalOpen(true);
-          } else if (response.data.status === "success") {
-            setIsUserVerified(true);
-          }
-        } catch (error) {
-          if (
-            error instanceof Error &&
-            (error as any).response?.status === 404
-          ) {
-            // silently fail if user is not found/verified
-          } else {
-            console.log("error", error);
-          }
-        }
-      };
-
-      fetchStatus();
+      void refreshStatus(true);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [embeddedWalletAddress, injectedAddress, isInjectedWallet],
@@ -404,6 +436,43 @@ export const TransactionForm = ({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [amountSent, amountReceived, rate, isSwapped],
+  );
+
+  // Derive swap eligibility from tier + spend limits. Always set explicitly so we
+  // never leave a stale true/false (e.g. tier ≥ 1 with no amount, or after reload).
+  useEffect(
+    function updateVerificationStatus() {
+      const rawAmount = Number(amountSent);
+      if (!Number.isFinite(rawAmount) || rawAmount <= 0) {
+        setIsUserVerified(false);
+        return;
+      }
+      if (isSwapped) {
+        const recv = Number(amountReceived);
+        if (!Number.isFinite(recv) || recv <= 0) {
+          setIsUserVerified(false);
+          return;
+        }
+      }
+      const usdAmount = kycUsdNotionalForLimitCheck({
+        isOnramp: Boolean(isSwapped),
+        amountSent: rawAmount,
+        amountReceived: Number(amountReceived) || 0,
+        token,
+        cngnRate,
+      });
+      setIsUserVerified(canTransact(usdAmount).allowed);
+    },
+    [
+      tier,
+      amountSent,
+      amountReceived,
+      isSwapped,
+      token,
+      cngnRate,
+      canTransact,
+      setIsUserVerified,
+    ],
   );
 
   // Register form fields
@@ -553,6 +622,9 @@ export const TransactionForm = ({
   isDirty,
   isValid,
   isUserVerified,
+  isPhoneVerified,
+  hasPriorTransactionActivity,
+  kycTier: tier,
   rate,
   tokenDecimals,
   needsMigration,
@@ -561,15 +633,81 @@ export const TransactionForm = ({
 });
 
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isPhoneVerificationOpen, setIsPhoneVerificationOpen] = useState(false);
+  const [isTier2PhoneGateOpen, setIsTier2PhoneGateOpen] = useState(false);
+  /** After phone OTP, KYC context may not have updated before the next handleSwap; allow one continuation. */
+  const pendingContinueSwapAfterPhoneRef = useRef(false);
 
   const handleSwap = () => {
     if (isMigrationMandatory) {
       setIsMigrationModalOpen(true);
       return;
     }
+
+    const kyc = getKycStatusSnapshot();
+
+    // Tier 2+ (e.g. migrated ID KYC) still requires a stored phone — prompt before swap.
+    if (kyc.tier >= 2) {
+      const hasPhone = Boolean(kyc.phoneNumber?.trim());
+      if (!hasPhone && !pendingContinueSwapAfterPhoneRef.current) {
+        setIsTier2PhoneGateOpen(true);
+        return;
+      }
+      pendingContinueSwapAfterPhoneRef.current = false;
+    }
+
     setOrderId("");
+
+    // Calculate the USD equivalent for transaction limit checking (see kycUsdNotionalForLimitCheck).
+    const formData = getValues();
+    const rawAmount = Number(formData.amountSent) || 0;
+    if (formData.isSwapped) {
+      const recv = Number(formData.amountReceived) || 0;
+      if (!Number.isFinite(recv) || recv <= 0) {
+        return;
+      }
+    }
+    const usdAmount = kycUsdNotionalForLimitCheck({
+      isOnramp: Boolean(formData.isSwapped),
+      amountSent: rawAmount,
+      amountReceived: Number(formData.amountReceived) || 0,
+      token: formData.token,
+      cngnRate,
+    });
+
+    // Check transaction limits based on KYC tier
+    const limitCheck = canTransact(usdAmount);
+
+    if (!limitCheck.allowed) {
+      if (kyc.tier < 1 || !kyc.isPhoneVerified) {
+        setIsPhoneVerificationOpen(true);
+        return;
+      }
+      setBlockedTransactionAmount(usdAmount);
+      setIsLimitModalOpen(true);
+      return;
+    }
+
+    // If limits are okay, proceed with transaction
     handleSubmit(onSubmit)();
   };
+
+  const handlePhoneVerified = async (_verifiedPhone: string) => {
+    setIsPhoneVerificationOpen(false);
+    setIsTier2PhoneGateOpen(false);
+    pendingContinueSwapAfterPhoneRef.current = true;
+    await refreshStatus(true);
+    handleSwap();
+  };
+
+  // Clear recipient when it is invalid for the selected network (EVM ↔ Starknet switches)
+  useEffect(() => {
+    const w = (getValues("walletAddress") ?? "").trim();
+    if (!w) return;
+    if (validateWalletAddress(w, selectedNetwork.chain.name) !== true) {
+      setValue("walletAddress", "", { shouldDirty: true });
+    }
+  }, [selectedNetwork.chain.name, getValues, setValue]);
 
   useEffect(() => {
     // Only run once to align on-ramp mode with persisted recipient (e.g. deep link / refresh)
@@ -616,6 +754,9 @@ export const TransactionForm = ({
 
     // Toggle swap mode FIRST (persisted on form so parent rate fetch uses correct side)
     setValue("isSwapped", willBeSwapped, { shouldDirty: true });
+    setValue("swapMode", willBeSwapped ? "onramp" : "offramp", {
+      shouldDirty: true,
+    });
 
     if (isCompleteFlow) {
       // Swap send/receive numbers and formatting; keep token & currency (and wallet) across the flip
@@ -1081,10 +1222,11 @@ export const TransactionForm = ({
                 <RecipientDetailsForm
                   formMethods={formMethods}
                   stateProps={stateProps}
+                  swapMode={swapMode ?? "offramp"}
                   isSwapped={isSwapped}
                   token={token}
                   networkName={selectedNetwork.chain.name}
-                  connectedWalletAddress={activeWallet?.address ?? undefined}
+                  connectedWalletAddress={connectedWalletAddress ?? undefined}
                 />
 
                 {/* Memo - Only show for offramp (not swapped) */}
@@ -1112,7 +1254,7 @@ export const TransactionForm = ({
         </AnimatePresence>
 
         <AnimatePresence>
-          {isKycModalOpen && (
+          {isKycModalOpen && tier >= 1 && (
             <AnimatedModal
               isOpen={isKycModalOpen}
               onClose={() => setIsKycModalOpen(false)}
@@ -1120,10 +1262,29 @@ export const TransactionForm = ({
               <KycModal
                 setIsKycModalOpen={setIsKycModalOpen}
                 setIsUserVerified={setIsUserVerified}
+                targetTier={getKycModalTargetTier(tier)}
               />
             </AnimatedModal>
           )}
         </AnimatePresence>
+
+        <TransactionLimitModal
+          isOpen={isLimitModalOpen}
+          onClose={async () => {
+            setIsLimitModalOpen(false);
+            await refreshStatus(true);
+          }}
+          transactionAmount={blockedTransactionAmount}
+        />
+
+        <PhoneVerificationModal
+          isOpen={isPhoneVerificationOpen || isTier2PhoneGateOpen}
+          onClose={() => {
+            setIsPhoneVerificationOpen(false);
+            setIsTier2PhoneGateOpen(false);
+          }}
+          onVerified={handlePhoneVerified}
+        />
 
         {/* Loading and Submit buttons */}
         {!ready && (
@@ -1155,7 +1316,9 @@ export const TransactionForm = ({
                     (fetchedTokens.find((t) => t.symbol === token)
                       ?.address as `0x${string}`) ?? "",
                   ),
-                () => setIsKycModalOpen(true),
+                () => setIsPhoneVerificationOpen(true),
+                () => setIsLimitModalOpen(true),
+                isPhoneVerified,
                 isUserVerified,
                 () => setIsMigrationModalOpen(true),
               )}

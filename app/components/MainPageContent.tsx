@@ -1,7 +1,7 @@
 "use client";
 
 import { useForm } from "react-hook-form";
-import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, useMemo, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -15,13 +15,25 @@ import {
   NetworkSelectionModal,
   CookieConsent,
   Disclaimer,
+  ReferralInputModal,
 } from "./";
 import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { BlockFestClaimGate } from "./blockfest/BlockFestClaimGate";
 import { useBlockFestReferral } from "../hooks/useBlockFestReferral";
-import { fetchRate, fetchSupportedInstitutions, migrateLocalStorageRecipients } from "../api/aggregator";
-import { normalizeNetworkForRateFetch } from "../utils";
+import {
+  fetchRate,
+  fetchSupportedInstitutions,
+  migrateLocalStorageRecipients,
+  getReferralData,
+} from "../api/aggregator";
+import {
+  normalizeNetworkForRateFetch,
+  clearFormState,
+  getBannerPadding,
+  initialSwapModeForHomeForm,
+  swapModeFromSideParam,
+} from "../utils";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
 import {
@@ -35,13 +47,36 @@ import {
 } from "../types";
 import { usePrivy } from "@privy-io/react-auth";
 import { useStep } from "../context/StepContext";
-import { clearFormState, getBannerPadding } from "../utils";
 import { useSearchParams } from "next/navigation";
 import { HomePage } from "./HomePage";
 import { useNetwork } from "../context/NetworksContext";
 import { useBlockFestModal } from "../context/BlockFestModalContext";
-import { useBalance, useInjectedWallet } from "../context";
+import {
+  useHomeTransactionFormMode,
+  useInjectedWallet,
+  useBalance,
+  useKYC,
+} from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
+import { useWalletAddress } from "../hooks/useWalletAddress";
+
+/**
+ * PageLayout component renders the main page structure including modals,
+ * disclaimers, cookie consent, and the transaction form or status view.
+ *
+ * @param props - The layout properties.
+ * @param props.authenticated - Whether the user is authenticated.
+ * @param props.ready - Whether the auth state is ready.
+ * @param props.currentStep - The current transaction step.
+ * @param props.transactionFormComponent - The transaction form or status component to render.
+ * @param props.isRecipientFormOpen - Whether the recipient form is open.
+ * @param props.isOnramp - Whether the current mode is on-ramp.
+ * @param props.isBlockFestReferral - Whether the user is a BlockFest referral.
+ * @param props.showReferralModal - Whether to show the referral input modal.
+ * @param props.onReferralModalClose - Callback when the referral modal is closed.
+ * @param props.onNetworkSelected - Callback when a network is selected.
+ * @returns The rendered page layout.
+ */
 const PageLayout = ({
   authenticated,
   ready,
@@ -50,6 +85,9 @@ const PageLayout = ({
   isRecipientFormOpen,
   isOnramp,
   isBlockFestReferral,
+  showReferralModal,
+  onReferralModalClose,
+  onNetworkSelected,
 }: {
   authenticated: boolean;
   ready: boolean;
@@ -58,23 +96,20 @@ const PageLayout = ({
   isRecipientFormOpen: boolean;
   isOnramp: boolean;
   isBlockFestReferral: boolean;
+  showReferralModal: boolean;
+  onReferralModalClose: () => void;
+  onNetworkSelected: () => void;
 }) => {
   const { claimed, resetClaim } = useBlockFestClaim();
-  const { user } = usePrivy();
   const { isOpen, openModal, closeModal } = useBlockFestModal();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isInjectedWallet } = useInjectedWallet();
+  const walletAddress = useWalletAddress();
 
-  // Clean up claim state when user logs out
   useEffect(() => {
     if (!authenticated && !isInjectedWallet) {
       resetClaim();
     }
   }, [authenticated, isInjectedWallet, resetClaim]);
-
-  const walletAddress = isInjectedWallet
-    ? injectedAddress
-    : user?.linkedAccounts.find((account) => account.type === "smart_wallet")
-      ?.address;
 
   return (
     <>
@@ -88,7 +123,17 @@ const PageLayout = ({
 
       <Disclaimer />
       <CookieConsent />
-      {!isInjectedWallet && <NetworkSelectionModal />}
+
+      {/* Network Selection Modal with callback */}
+      {!isInjectedWallet && (
+        <NetworkSelectionModal onNetworkSelected={onNetworkSelected} />
+      )}
+
+      {/* Referral Input Modal */}
+      <ReferralInputModal
+        isOpen={showReferralModal}
+        onClose={onReferralModalClose}
+      />
 
       <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
 
@@ -109,9 +154,17 @@ const PageLayout = ({
 };
 
 /**
+ * Calculates the token amount to use for on-ramp rate queries.
+ *
  * v2 `/rates/.../{token}/{amount}/{fiat}` expects `amount` in token units. On-ramp, the receive
  * (token) field is often 0 until a rate exists — use a peg-aware fiat-sized probe instead of `1`
  * so provider min/max match the user's order (e.g. CNGN ↔ NGN).
+ *
+ * @param token - The token symbol (e.g., "CNGN").
+ * @param currency - The fiat currency (e.g., "NGN").
+ * @param sentN - The amount sent in fiat units.
+ * @param recvN - The amount received in token units.
+ * @returns The calculated token amount for the rate query.
  */
 function onrampRateQueryTokenAmount(
   token: string,
@@ -128,6 +181,14 @@ function onrampRateQueryTokenAmount(
   return 1;
 }
 
+/**
+ * MainPageContent is the primary component for the home page.
+ * It manages the transaction flow, including form state, rate fetching,
+ * institution fetching, network selection, and referral modal gating.
+ * It also handles user authentication state and KYC verification.
+ *
+ * @returns The rendered main page content.
+ */
 export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready, getAccessToken, user } = usePrivy();
@@ -138,11 +199,16 @@ export function MainPageContent() {
   } = useStep();
   const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
   const { crossChainBalances, isLoading: isBalanceLoading } = useBalance();
-  const { selectedNetwork, setDisplayedNetwork } = useNetwork();
+  const { selectedNetwork, setDisplayedNetwork, setSelectedNetwork } =
+    useNetwork();
   const { isBlockFestReferral } = useBlockFestReferral();
+
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isFetchingRate, setIsFetchingRate] = useState(false);
   const [isFetchingInstitutions, setIsFetchingInstitutions] = useState(false);
+  const [showReferralModal, setShowReferralModal] = useState(false);
+  const [hasExistingReferral, setHasExistingReferral] = useState(false);
+  const [isReferralDataChecked, setIsReferralDataChecked] = useState(false);
 
   const [rate, setRate] = useState<number>(0);
   const [formValues, setFormValues] = useState<FormData>({} as FormData);
@@ -164,11 +230,10 @@ export function MainPageContent() {
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
-  const [rateRefetchTrigger, setRateRefetchTrigger] = useState(0);
 
-  const refetchRate = useCallback(() => {
-    setRateRefetchTrigger((prev) => prev + 1);
-  }, []);
+  const [initialSwapMode] = useState(() =>
+    initialSwapModeForHomeForm(searchParams, selectedNetwork.chain),
+  );
 
   const formMethods = useForm<FormData, any, undefined>({
     mode: "onChange",
@@ -176,28 +241,62 @@ export function MainPageContent() {
       token: "",
       amountSent: 0,
       amountReceived: 0,
-      // On-ramp is default: Send = fiat (NGN-only in UI); Receive = token (user picks — empty until select).
+      // Tab default: valid `side` overrides; else Starknet first paint → off-ramp (see initialSwapModeForHomeForm).
       currency: "NGN",
       recipientName: "",
       memo: "",
       institution: "",
       accountIdentifier: "",
       accountType: "bank",
-      isSwapped: true,
-      receiveDestinationExplicitlySelected: false,
+      swapMode: initialSwapMode,
+      /** Must match `swapMode` or tabs vs recipient/rates disagree (e.g. Base defaults on-ramp). */
+      isSwapped: initialSwapMode === "onramp",
+      // Off-ramp defaults already include receive fiat (NGN); without this flag the UI
+      // shows NGN but useSwapButton stays disabled until the user re-opens Receive.
+      receiveDestinationExplicitlySelected: initialSwapMode === "offramp",
     },
   });
-  const { watch } = formMethods;
+  const { watch, setValue } = formMethods;
   const {
     currency,
     amountSent,
     amountReceived,
     token,
-    isSwapped,
+    swapMode,
     receiveDestinationExplicitlySelected,
   } = watch();
-  /** On-ramp (fiat→crypto): same as TransactionForm `isSwapped` / v2 `buy` side. */
-  const isOnrampRate = Boolean(isSwapped);
+  /** On-ramp (fiat→crypto): rates API `buy` side */
+  const isOnrampRate = swapMode === "onramp";
+
+  const { setTransactionFormSwapMode } = useHomeTransactionFormMode();
+  const { refreshStatus } = useKYC();
+  const prevStepForKycRefreshRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const prev = prevStepForKycRefreshRef.current;
+    prevStepForKycRefreshRef.current = currentStep;
+    if (currentStep !== STEPS.FORM) return;
+    if (prev === null || prev === STEPS.FORM) return;
+    void refreshStatus(true);
+  }, [currentStep, refreshStatus]);
+
+  useLayoutEffect(
+    function syncSwapModeToGlobalUi() {
+      setTransactionFormSwapMode(swapMode);
+    },
+    [swapMode, setTransactionFormSwapMode],
+  );
+
+  useEffect(
+    function syncRampFromSideSearchParam() {
+      const next = swapModeFromSideParam(searchParams.get("side"));
+      if (next !== undefined) {
+        setValue("swapMode", next, { shouldDirty: true });
+        setValue("isSwapped", next === "onramp", { shouldDirty: true });
+      }
+    },
+    [searchParams, setValue],
+  );
 
   // State props for child components
   const stateProps: StateProps = {
@@ -241,6 +340,79 @@ export function MainPageContent() {
     setIsOnrampProviderDetailsOpen,
   ]);
 
+  const walletAddress = useWalletAddress();
+
+  const showReferralIfEligible = useCallback(
+    (fromNetworkSelected = false) => {
+      if (!ready || !authenticated || !walletAddress || isInjectedWallet) {
+        return;
+      }
+
+      if (!isReferralDataChecked) {
+        return;
+      }
+
+      if (hasExistingReferral) {
+        return;
+      }
+
+      // Only show referral modal to new users (account created within the last 30 days).
+      // Existing users who predate the referral feature should not be prompted.
+      if (user?.createdAt) {
+        const accountAgeDays =
+          (Date.now() - new Date(user.createdAt).getTime()) /
+          (1000 * 60 * 60 * 24);
+        if (accountAgeDays > 30) {
+          return;
+        }
+      }
+
+      // For new users, the network selection modal opens at the same time as this
+      // check would fire. Defer to handleNetworkSelected so the referral modal only
+      // shows after they've picked a network — not underneath it.
+      if (!fromNetworkSelected && user?.wallet?.address) {
+        const networkModalKey = `hasSeenNetworkModal-${user.wallet.address}`;
+        if (!localStorage.getItem(networkModalKey)) {
+          return;
+        }
+      }
+
+      const referralStorageKey = `hasSeenReferralModal-${walletAddress.toLowerCase()}`;
+      if (!localStorage.getItem(referralStorageKey)) {
+        setShowReferralModal(true);
+      }
+    },
+    [
+      ready,
+      authenticated,
+      walletAddress,
+      isInjectedWallet,
+      user?.wallet?.address,
+      user?.createdAt,
+      isReferralDataChecked,
+      hasExistingReferral,
+    ],
+  );
+
+  const handleNetworkSelected = useCallback(() => {
+    showReferralIfEligible(true);
+  }, [showReferralIfEligible]);
+
+  useEffect(() => {
+    showReferralIfEligible();
+  }, [showReferralIfEligible, isReferralDataChecked]);
+
+  const handleReferralModalClose = useCallback(() => {
+    setShowReferralModal(false);
+
+    if (walletAddress) {
+      localStorage.setItem(
+        `hasSeenReferralModal-${walletAddress.toLowerCase()}`,
+        "true",
+      );
+    }
+  }, [walletAddress]);
+
   useEffect(function setPageLoadingState() {
     setOrderId("");
     setOnrampPaymentAccount(null);
@@ -262,9 +434,8 @@ export function MainPageContent() {
 
   useEffect(function ensureDefaultToken() {
     // Off-ramp: default token to USDC. On-ramp: keep empty so Receive shows "Select token".
-    // Use === false so a transient undefined `isSwapped` is not treated as off-ramp.
     if (formMethods.getValues("token")) return;
-    if (formMethods.getValues("isSwapped") === false) {
+    if (formMethods.getValues("swapMode") === "offramp") {
       formMethods.setValue("token", "USDC", { shouldDirty: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -351,14 +522,10 @@ export function MainPageContent() {
     [currency],
   );
 
-  const prevRateRefetchTriggerRef = useRef(rateRefetchTrigger);
-
   useEffect(
     function handleRateFetch() {
       // Debounce rate fetching
       let timeoutId: NodeJS.Timeout;
-      const isExplicitRefetch = prevRateRefetchTriggerRef.current !== rateRefetchTrigger;
-      prevRateRefetchTriggerRef.current = rateRefetchTrigger;
 
       if (!currency) return;
 
@@ -443,11 +610,7 @@ export function MainPageContent() {
 
       const debounceFetchRate = () => {
         clearTimeout(timeoutId);
-        if (isExplicitRefetch) {
-          getRate();
-        } else {
-          timeoutId = setTimeout(() => getRate(), 1000);
-        }
+        timeoutId = setTimeout(() => getRate(), 1000);
       };
 
       debounceFetchRate();
@@ -461,10 +624,9 @@ export function MainPageContent() {
       amountReceived,
       currency,
       token,
-      isSwapped,
+      isOnrampRate,
       searchParams,
       selectedNetwork,
-      rateRefetchTrigger,
     ],
   );
 
@@ -490,6 +652,58 @@ export function MainPageContent() {
       runMigration();
     },
     [authenticated, ready, isInjectedWallet, getAccessToken],
+  );
+
+  // Fetch server-side referral data to gate the referral modal
+  useEffect(
+    function fetchReferralData() {
+      let isMounted = true;
+
+      async function checkReferralStatus() {
+        if (!authenticated || !ready || isInjectedWallet || !walletAddress) {
+          if (isMounted) setIsReferralDataChecked(true);
+          return;
+        }
+
+        try {
+          const accessToken = await getAccessToken();
+          if (!isMounted) return;
+
+          if (accessToken) {
+            const response = await getReferralData(accessToken, walletAddress);
+            if (!isMounted) return;
+
+            if (response.success && response.data && Array.isArray(response.data.referrals)) {
+              const hasReferred = response.data.referrals.some(
+                (r) => r.role === "referred",
+              );
+              setHasExistingReferral(hasReferred);
+            } else {
+              // Safe default: if we can't confirm they haven't been referred, assume they have
+              setHasExistingReferral(true);
+            }
+          } else {
+            if (isMounted) setHasExistingReferral(true);
+          }
+        } catch (error) {
+          if (!isMounted) return;
+          console.error("Failed to fetch referral data:", error);
+          // Safe default on error: assume they have been referred to prevent showing the modal inappropriately
+          setHasExistingReferral(true);
+        } finally {
+          if (isMounted) {
+            setIsReferralDataChecked(true);
+          }
+        }
+      }
+
+      checkReferralStatus();
+
+      return () => {
+        isMounted = false;
+      };
+    },
+    [authenticated, ready, isInjectedWallet, walletAddress, getAccessToken],
   );
 
   const handleFormSubmit = useCallback(
@@ -574,7 +788,6 @@ export function MainPageContent() {
             setCurrentStep={setCurrentStep}
             supportedInstitutions={institutions}
             setOrderId={setOrderId}
-            refetchRate={refetchRate}
           />
         );
       default:
@@ -596,7 +809,6 @@ export function MainPageContent() {
     setTransactionStatus,
     setCurrentStep,
     setOrderId,
-    refetchRate,
   ]);
 
   const transactionFormComponent = useMemo(
@@ -623,8 +835,11 @@ export function MainPageContent() {
           currentStep={currentStep}
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
-          isOnramp={isSwapped}
+          isOnramp={swapMode === "onramp"}
           isBlockFestReferral={isBlockFestReferral}
+          showReferralModal={showReferralModal}
+          onReferralModalClose={handleReferralModalClose}
+          onNetworkSelected={handleNetworkSelected}
         />
       )}
     </div>

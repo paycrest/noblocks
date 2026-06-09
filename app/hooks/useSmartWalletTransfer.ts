@@ -9,13 +9,17 @@ import { mapReportAndAct } from "../lib/toastMappedError";
 import { trackEvent } from "./analytics/useMixpanel";
 import type { Token, Network } from "../types";
 import type { User } from "@privy-io/react-auth";
+import { useStarknet } from "../context";
 import {
   useShouldUseEOA,
   useDelegationContractAuth,
   get7702AuthorizedImplementationForAddress,
 } from "./useEIP7702Account";
 import { useWallets } from "@privy-io/react-auth";
-import config, { getDelegationContractAddress } from "../lib/config";
+import config, {
+  getDelegationContractAddress,
+  STARKNET_READY_ACCOUNT_CLASSHASH,
+} from "../lib/config";
 import {
   buildBatchDigest,
   encodeExecuteBatch,
@@ -30,6 +34,12 @@ interface UseSmartWalletTransferParams {
   getAccessToken: () => Promise<string | null>;
   refreshBalance?: () => void;
   onRequireMigration?: () => void;
+  starknetWallet?: {
+    walletId: string | null;
+    publicKey: string | null;
+    address: string | null;
+    deployed: boolean;
+  };
 }
 
 interface TransferArgs {
@@ -64,10 +74,12 @@ export function useSmartWalletTransfer({
   getAccessToken,
   refreshBalance,
   onRequireMigration,
+  starknetWallet,
 }: UseSmartWalletTransferParams): UseSmartWalletTransferReturn {
   const shouldUseEOA = useShouldUseEOA();
   const { wallets } = useWallets();
   const { signDelegationAuthorization } = useDelegationContractAuth();
+  const { ensureWalletExists } = useStarknet();
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
 
   const [isLoading, setIsLoading] = useState(false);
@@ -117,6 +129,86 @@ export function useSmartWalletTransfer({
         const tokenData = availableTokens.find(
           (t) => t.symbol.toUpperCase() === searchToken,
         );
+
+        if (selectedNetwork.chain.name === "Starknet") {
+          const tokenAddress = tokenData?.address as `0x${string}` | undefined;
+          const tokenDecimals = tokenData?.decimals;
+          if (!tokenAddress || tokenDecimals === undefined) {
+            const err = `Token data not found for ${token}.`;
+            setError(err);
+            throw new Error(
+              `${err} Available: ${availableTokens.map((t) => t.symbol).join(", ")}`,
+            );
+          }
+          if (!starknetWallet?.walletId || !starknetWallet?.publicKey) {
+            const err = "Starknet wallet not configured";
+            setError(err);
+            throw new Error(err);
+          }
+          if (!starknetWallet.deployed) {
+            try {
+              await ensureWalletExists();
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            } catch {
+              // best-effort; transfer may still proceed if account is ready
+            }
+          }
+          const accessToken = await getAccessToken();
+          if (!accessToken) {
+            throw new Error("Failed to get access token");
+          }
+          const classHash = STARKNET_READY_ACCOUNT_CLASSHASH;
+          const amountInWei = parseUnits(
+            amount.toString(),
+            tokenDecimals,
+          ).toString();
+          const response = await fetch("/api/starknet/transfer", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              walletId: starknetWallet.walletId,
+              publicKey: starknetWallet.publicKey,
+              classHash,
+              tokenAddress,
+              amount: amountInWei,
+              recipientAddress,
+              address: starknetWallet.address,
+            }),
+          });
+          const data = (await response.json()) as { error?: string; transactionHash?: string };
+          if (!response.ok) {
+            throw new Error(data.error || "Transfer failed");
+          }
+          const snHash = (data.transactionHash ?? "") as `0x${string}`;
+          if (!snHash) throw new Error("No transaction hash returned");
+          setTxHash(snHash);
+          setTxNetworkName("Starknet");
+          setTransferAmount(amount.toString());
+          setTransferToken(token);
+          setIsSuccess(true);
+          setIsLoading(false);
+          toast.success(`${amount.toString()} ${token} successfully transferred`);
+          trackEvent("Transfer completed", {
+            Amount: amount,
+            "Send token": token,
+            "Recipient address": recipientAddress,
+            Network: selectedNetwork.chain.name,
+            "Transaction hash": snHash,
+            "Transfer date": new Date().toISOString(),
+          });
+          await saveTransferTransaction({
+            txHash: snHash,
+            recipientAddress,
+            amount,
+            token,
+          });
+          if (resetForm) resetForm();
+          if (refreshBalance) refreshBalance();
+          return;
+        }
 
         if (!shouldUseEOA) {
           onRequireMigration?.();
@@ -337,6 +429,8 @@ export function useSmartWalletTransfer({
       embeddedWallet,
       signDelegationAuthorization,
       onRequireMigration,
+      starknetWallet,
+      ensureWalletExists,
     ],
   );
 
@@ -353,7 +447,10 @@ export function useSmartWalletTransfer({
       token: string;
     }) => {
       try {
-        const from = getEmbeddedWalletAddress();
+        const from =
+          selectedNetwork.chain.name === "Starknet"
+            ? starknetWallet?.address ?? undefined
+            : getEmbeddedWalletAddress();
         if (!user || !from) return;
         const accessToken = await getAccessToken();
         if (!accessToken) return;
@@ -384,7 +481,7 @@ export function useSmartWalletTransfer({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user, getAccessToken, selectedNetwork],
+    [user, getAccessToken, selectedNetwork, starknetWallet],
   );
 
   const getTxExplorerLink = useCallback((): string | undefined => {

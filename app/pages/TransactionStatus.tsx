@@ -51,8 +51,6 @@ import {
 } from "../types";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/client";
-import { PDFReceipt } from "../components/PDFReceipt";
-import { pdf } from "@react-pdf/renderer";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
 import { useBalance, useInjectedWallet, useNetwork } from "../context";
 import { usePrivy } from "@privy-io/react-auth";
@@ -121,8 +119,12 @@ export function TransactionStatus({
   const { claimed } = useBlockFestClaim();
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
-  const { refreshBalance, smartWalletBalance, injectedWalletBalance } =
-    useBalance();
+  const {
+    refreshBalance,
+    smartWalletBalance,
+    injectedWalletBalance,
+    starknetWalletBalance,
+  } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user, getAccessToken } = usePrivy();
   const { setRocketStatus } = useRocketStatus();
@@ -342,19 +344,21 @@ export function TransactionStatus({
         void saveTransactionData("fulfilling", h);
       };
 
+      const sessionExpiredMessage =
+        "Session expired. Please refresh to continue tracking your transaction.";
+
       const getOrderDetails = async () => {
         try {
+          const accessToken = await getAccessToken();
+          if (!accessToken) {
+            toast.error(sessionExpiredMessage);
+            if (intervalId) clearInterval(intervalId);
+            return;
+          }
+
           let responseData: OrderDetailsData;
 
           if (isOnramp) {
-            const accessToken = await getAccessToken();
-            if (!accessToken) {
-              toast.error(
-                "Session expired. Please refresh to continue tracking your transaction.",
-              );
-              clearInterval(intervalId);
-              return;
-            }
             const res = await fetchV2SenderPaymentOrderById(orderId, accessToken);
             const resolvedStatus = resolveOnrampOrderStatusFromV2Response(res);
             responseData =
@@ -366,8 +370,9 @@ export function TransactionStatus({
             }
           } else {
             const orderDetailsResponse = await fetchOrderDetails(
-              selectedNetwork.chain.id,
               orderId,
+              accessToken,
+              { network: selectedNetwork.chain.name },
             );
             responseData = orderDetailsResponse.data;
           }
@@ -480,8 +485,15 @@ export function TransactionStatus({
         }
       };
 
-      getOrderDetails();
-      intervalId = setInterval(getOrderDetails, 5000);
+      void (async () => {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          toast.error(sessionExpiredMessage);
+          return;
+        }
+        await getOrderDetails();
+        intervalId = setInterval(getOrderDetails, 5000);
+      })();
 
       return () => {
         if (intervalId) clearInterval(intervalId);
@@ -505,8 +517,10 @@ export function TransactionStatus({
         );
 
         const balance = isInjectedWallet
-          ? smartWalletBalance?.balances[token] || 0
-          : injectedWalletBalance?.balances[token] || 0;
+          ? injectedWalletBalance?.balances[token] || 0
+          : selectedNetwork.chain.name === "Starknet"
+            ? starknetWalletBalance?.balances[token] || 0
+            : smartWalletBalance?.balances[token] || 0;
 
         const eventData = {
           Amount: amount,
@@ -972,6 +986,12 @@ export function TransactionStatus({
     setIsGettingReceipt(true);
     try {
       if (orderDetails) {
+        // Lazy-load PDF renderer (heavy, ~MBs of fontkit/pdfkit) only on demand
+        // so it never enters the first-load JS bundle for the transaction status page.
+        const [{ pdf }, { PDFReceipt }] = await Promise.all([
+          import("@react-pdf/renderer"),
+          import("../components/PDFReceipt"),
+        ]);
         const blob = await pdf(
           <PDFReceipt
             data={orderDetails as OrderDetailsData}

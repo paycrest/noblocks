@@ -221,7 +221,7 @@ export default function HomeClient({ blogPosts, categories }: HomeClientProps) {
                     onSelect={(name) => setSelectedCategory(name)}
                     mobileTitle="Select category"
                   >
-                    {({ selectedItem, toggleDropdown }) => (
+                    {({ selectedItem, toggleDropdown, disabled: _ignored }) => (
                       <button
                         type="button"
                         onClick={toggleDropdown}

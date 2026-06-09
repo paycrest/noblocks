@@ -29,6 +29,7 @@ import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -39,26 +40,30 @@ export const Navbar = () => {
   const { selectedNetwork } = useNetwork();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const isDark = useActualTheme();
+  const walletAddress = useWalletAddress();
 
   const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
   const shouldUseEOA = useShouldUseEOA();
 
-  // Get embedded wallet (EOA) and smart wallet (SCW)
   const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
+    (wallet) => wallet.walletClientType === "privy",
   );
   const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet"
+    (account) => account.type === "smart_wallet",
   );
 
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
   const activeWallet = isInjectedWallet
-    ? { address: injectedAddress, type: "injected_wallet" }
-    : shouldUseEOA
-      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
-      : smartWallet;
+    ? { address: injectedAddress, type: "injected_wallet" as const }
+    : selectedNetwork.chain.name === "Starknet"
+      ? walletAddress
+        ? { address: walletAddress, type: "smart_wallet" as const }
+        : undefined
+      : shouldUseEOA
+        ? embeddedWallet
+          ? { address: embeddedWallet.address, type: "eoa" as const }
+          : undefined
+        : smartWallet;
 
   const { login } = useLogin({
     onComplete: async ({ user, isNewUser, loginMethod }) => {
@@ -102,9 +107,11 @@ export const Navbar = () => {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target;
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
+        target instanceof Node &&
+        !dropdownRef.current.contains(target)
       ) {
         setIsDropdownOpen(false);
       }
@@ -134,11 +141,11 @@ export const Navbar = () => {
               className="flex cursor-pointer items-center gap-1"
               onMouseEnter={() => setIsDropdownOpen(true)}
               onMouseLeave={(e) => {
-                // Only close if we're not moving to the dropdown menu
-                const relatedTarget = e.relatedTarget as Node;
+                const related = e.relatedTarget;
                 if (
-                  !relatedTarget ||
-                  !dropdownRef.current?.contains(relatedTarget)
+                  !related ||
+                  !(related instanceof Node) ||
+                  !dropdownRef.current?.contains(related)
                 ) {
                   setIsDropdownOpen(false);
                 }

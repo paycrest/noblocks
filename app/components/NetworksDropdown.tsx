@@ -13,7 +13,7 @@ import {
 import { toastMappedError } from "../lib/toastMappedError";
 import { FlexibleDropdown } from "./FlexibleDropdown";
 import { ArrowDown01Icon } from "hugeicons-react";
-import { useNetwork, useStep } from "../context";
+import { useNetwork, useStep, useStarknet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
 
 interface NetworksDropdownProps {
@@ -27,6 +27,7 @@ export const NetworksDropdown = ({
   const { isFormStep } = useStep();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
+  const { ensureWalletExists } = useStarknet();
 
   iconOnly = !isFormStep;
 
@@ -53,6 +54,7 @@ export const NetworksDropdown = ({
             title: "Error switching network",
           });
         },
+        ensureWalletExists, // Pass the Starknet wallet creation function
       );
     }
   };

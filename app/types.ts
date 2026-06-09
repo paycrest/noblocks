@@ -275,8 +275,8 @@ export type Config = {
 
 export type SentryConfig = {
   serverUrl: string;
-  projectId: string;
-  publicKey: string;
+  projectId?: string;
+  publicKey?: string;
   enabled: boolean;
   sampleRate: number;
   environment: string;

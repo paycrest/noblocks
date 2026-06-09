@@ -1,10 +1,5 @@
-import type { SentryConfig, SentryEvent } from "@/app/types";
-
-function getConfig(): SentryConfig {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { sentryConfig } = require("./config");
-    return sentryConfig;
-}
+import type { SentryEvent } from "@/app/types";
+import { sentryConfig } from "./config";
 
 function parseStackTrace(error: Error) {
     if (!error.stack) return [];
@@ -64,7 +59,7 @@ function createEvent(
     const isError = error instanceof Error;
     const message = isError ? error.message : String(error);
     const errorObj = isError ? error : new Error(message);
-    const config = getConfig();
+    const config = sentryConfig;
 
     const event: SentryEvent = {
         message,
@@ -113,7 +108,7 @@ function createEvent(
 }
 
 async function sendEvent(event: SentryEvent): Promise<boolean> {
-    const config = getConfig();
+    const config = sentryConfig;
 
     if (!config.enabled) {
         return false;
@@ -178,7 +173,7 @@ function shouldIgnoreError(error: Error | string): boolean {
     const errorString = errorMessage.toLowerCase();
 
     // Filter out development-specific webpack/Next.js chunk errors
-    const config = getConfig();
+    const config = sentryConfig;
     if (config.environment === "development") {
         if (errorString.includes("webpack") || errorString.includes("next")) {
             if (
@@ -227,7 +222,7 @@ export function initErrorHandlers(): () => void {
         return () => { };
     }
 
-    const config = getConfig();
+    const config = sentryConfig;
     if (!config.enabled) {
         return () => { };
     }

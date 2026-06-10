@@ -35,6 +35,10 @@ import {
   formatDecimalPrecision,
   currencyToCountryCode,
   reorderCurrenciesByLocation,
+  isStarknetChain,
+  getCurrencySymbol,
+  getOnrampFiatMaxAmount,
+  isOnrampFiatCurrencyCode,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -484,9 +488,8 @@ export const TransactionForm = ({
 
         const normalizedToken = token?.toUpperCase();
 
-        if (isSwapped) {
-          // On-ramp: send NGN; min in validate.onrampFiatMin, max 2.3M NGN product cap.
-          maxAmountSentValue = 2_300_000;
+        if (swapMode === "onramp") {
+          maxAmountSentValue = getOnrampFiatMaxAmount(currency || "NGN");
           setRateError(null);
         } else if (normalizedToken === "CNGN") {
           if (cngnRate && cngnRate > 0) {
@@ -533,7 +536,8 @@ export const TransactionForm = ({
               const n = Number(value);
               const floor = 0.5 * rate;
               if (n >= floor) return true;
-              return `Minimum amount is ${formatNumberWithCommas(floor)} NGN`;
+              const fiat = (currency || "NGN").toUpperCase();
+              return `Minimum amount is ${getCurrencySymbol(fiat)}${formatNumberWithCommas(floor)}`;
             },
           },
         });
@@ -546,12 +550,11 @@ export const TransactionForm = ({
           required: { value: false, message: "Add description" },
         });
 
-        if (isSwapped) {
-          // On-ramp is NGN-only for now (send side).
+        if (swapMode === "onramp") {
           currencies.forEach((c: CurrencyOption) => {
-            c.disabled = c.name !== "NGN";
+            c.disabled = !isOnrampFiatCurrencyCode(c.name);
           });
-          if (currency !== "NGN") {
+          if (!isOnrampFiatCurrencyCode(currency)) {
             formMethods.setValue("currency", "NGN", { shouldDirty: true });
           }
         } else if (normalizedToken === "CNGN") {
@@ -594,6 +597,7 @@ export const TransactionForm = ({
       cngnRate,
       cngnRateError,
       isSwapped,
+      swapMode,
       rate,
     ],
   );
@@ -720,6 +724,7 @@ export const TransactionForm = ({
     // Only enable on-ramp from pre-filled wallet; do not force off-ramp (avoids clobbering toggle before this runs)
     if (hasWallet) {
       setValue("isSwapped", true, { shouldDirty: false });
+      setValue("swapMode", "onramp", { shouldDirty: false });
       const t = getValues("token");
       if (typeof t === "string" && t.trim().length > 0) {
         setValue("receiveDestinationExplicitlySelected", true, {
@@ -735,7 +740,7 @@ export const TransactionForm = ({
   const handleSwapFields = () => {
     const currentAmountSent = amountSent;
     const currentAmountReceived = amountReceived;
-    const willBeSwapped = !isSwapped;
+    const nextSwapMode = swapMode === "onramp" ? "offramp" : "onramp";
 
     const hasToken = typeof token === "string" && token.trim().length > 0;
     const hasCurrency = typeof currency === "string" && currency.trim().length > 0;
@@ -753,10 +758,8 @@ export const TransactionForm = ({
     });
 
     // Toggle swap mode FIRST (persisted on form so parent rate fetch uses correct side)
-    setValue("isSwapped", willBeSwapped, { shouldDirty: true });
-    setValue("swapMode", willBeSwapped ? "onramp" : "offramp", {
-      shouldDirty: true,
-    });
+    setValue("swapMode", nextSwapMode, { shouldDirty: true });
+    setValue("isSwapped", nextSwapMode === "onramp", { shouldDirty: true });
 
     if (isCompleteFlow) {
       // Swap send/receive numbers and formatting; keep token & currency (and wallet) across the flip
@@ -765,9 +768,8 @@ export const TransactionForm = ({
       setFormattedSentAmount(formattedReceivedAmount);
       setFormattedReceivedAmount(formattedSentAmount);
 
-      if (willBeSwapped) {
-        // On-ramp send fiat is NGN-only — normalize if coming from another receive fiat
-        if (currency !== "NGN") {
+      if (nextSwapMode === "onramp") {
+        if (!isOnrampFiatCurrencyCode(currency)) {
           setValue("currency", "NGN", { shouldDirty: true });
         }
       }
@@ -778,8 +780,7 @@ export const TransactionForm = ({
       setFormattedSentAmount("");
       setFormattedReceivedAmount("");
 
-      if (willBeSwapped) {
-        // On-ramp: fiat send is NGN-only for now. Receive token chosen on the Receive row.
+      if (nextSwapMode === "onramp") {
         setValue("currency", "NGN", { shouldDirty: true });
         setValue("token", "", { shouldDirty: true });
         if (!walletAddress) {

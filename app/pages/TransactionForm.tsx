@@ -597,6 +597,7 @@ export const TransactionForm = ({
       cngnRate,
       cngnRateError,
       isSwapped,
+      swapMode,
       rate,
     ],
   );
@@ -723,6 +724,7 @@ export const TransactionForm = ({
     // Only enable on-ramp from pre-filled wallet; do not force off-ramp (avoids clobbering toggle before this runs)
     if (hasWallet) {
       setValue("isSwapped", true, { shouldDirty: false });
+      setValue("swapMode", "onramp", { shouldDirty: false });
       const t = getValues("token");
       if (typeof t === "string" && t.trim().length > 0) {
         setValue("receiveDestinationExplicitlySelected", true, {
@@ -738,7 +740,7 @@ export const TransactionForm = ({
   const handleSwapFields = () => {
     const currentAmountSent = amountSent;
     const currentAmountReceived = amountReceived;
-    const willBeSwapped = !isSwapped;
+    const nextSwapMode = swapMode === "onramp" ? "offramp" : "onramp";
 
     const hasToken = typeof token === "string" && token.trim().length > 0;
     const hasCurrency = typeof currency === "string" && currency.trim().length > 0;
@@ -756,10 +758,8 @@ export const TransactionForm = ({
     });
 
     // Toggle swap mode FIRST (persisted on form so parent rate fetch uses correct side)
-    setValue("isSwapped", willBeSwapped, { shouldDirty: true });
-    setValue("swapMode", willBeSwapped ? "onramp" : "offramp", {
-      shouldDirty: true,
-    });
+    setValue("swapMode", nextSwapMode, { shouldDirty: true });
+    setValue("isSwapped", nextSwapMode === "onramp", { shouldDirty: true });
 
     if (isCompleteFlow) {
       // Swap send/receive numbers and formatting; keep token & currency (and wallet) across the flip

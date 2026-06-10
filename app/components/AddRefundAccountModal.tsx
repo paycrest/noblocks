@@ -261,7 +261,7 @@ export function AddRefundAccountModal({
                   onChange={(e) => setAccountNumber(e.target.value)}
                   placeholder="Account number"
                   className={classNames(
-                    "w-full rounded-xl border bg-white px-3.5 py-3 text-sm text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:ring-2 dark:bg-[#202020] dark:text-white dark:placeholder:text-white/35",
+                    "w-full rounded-xl border bg-white px-3.5 py-3 text-base text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:ring-2 dark:bg-[#202020] dark:text-white dark:placeholder:text-white/35",
                     accountNumberError
                       ? "border-red-400 focus:border-red-400 focus:ring-red-400/25 dark:border-red-500 dark:focus:border-red-500 dark:focus:ring-red-500/20"
                       : "border-neutral-200 focus:border-blue-500 focus:ring-blue-500/25 dark:border-white/[0.12] dark:focus:border-blue-500 dark:focus:ring-blue-500/35",

@@ -31,26 +31,22 @@ type ClaimSuccess = { success: true; txHash: string; amount: number };
 type ClaimFailure = { success: false; code: string; message: string };
 type ClaimResult = ClaimSuccess | ClaimFailure;
 
-// ─── Core claim logic (shared by GET auto-claim and POST manual claim) ─────────
+type QualificationResult =
+  | { ok: true; totalUsd: number }
+  | { ok: false; code: string; message: string };
 
-/**
- * Verifies KYC + volume for the invitee, handles idempotency, and executes the
- * on-chain USDC transfer to `walletAddress` (caller EOA).
- * Volume is counted only from the date the referral code was entered.
- */
-async function tryClaimOne(
-  walletAddress: string,
-  referral: Record<string, unknown>,
-): Promise<ClaimResult> {
-  const referralId = String(referral.id);
-  const referralCreatedAt = new Date(String(referral.created_at)).toISOString();
+const USD_STABLE = new Set(["USDC", "USDT"]);
+const CNGN_SYMBOLS = new Set(["cNGN", "CNGN"]);
 
-  // Each party qualifies independently based on their OWN KYC + volume.
-  // The referrer gets paid when they meet the requirements; the referred gets
-  // paid when they meet the requirements — neither blocks the other.
-  const qualifyingWallet = walletAddress.toLowerCase();
+type QualificationSubject = "claimant" | "referee";
 
-  // ── KYC check — requires Tier 1 (phone verified) in Supabase ────────────────
+async function checkPartyQualification(
+  wallet: string,
+  referralCreatedAt: string,
+  subject: QualificationSubject,
+): Promise<QualificationResult> {
+  const qualifyingWallet = wallet.toLowerCase();
+
   const { data: kycProfile, error: kycError } = await supabaseAdmin
     .from("user_kyc_profiles")
     .select("tier")
@@ -59,7 +55,7 @@ async function tryClaimOne(
 
   if (kycError) {
     return {
-      success: false,
+      ok: false,
       code: "KYC_CHECK_FAILED",
       message: "Unable to verify KYC status. Please try again later.",
     };
@@ -67,13 +63,15 @@ async function tryClaimOne(
 
   if (!kycProfile || Number(kycProfile.tier ?? 0) < 1) {
     return {
-      success: false,
+      ok: false,
       code: "KYC_REQUIRED",
-      message: "You must verify your phone number before claiming your referral reward.",
+      message:
+        subject === "referee"
+          ? "Your referee must verify their phone number before you can claim your referral reward."
+          : "You must verify your phone number before claiming your referral reward.",
     };
   }
 
-  // ── Volume check — caller's own txs from the day the code was applied ───────
   const { data: volTxs, error: volTxError } = await supabaseAdmin
     .from("transactions")
     .select("amount_sent, from_currency")
@@ -83,26 +81,24 @@ async function tryClaimOne(
 
   if (volTxError) {
     return {
-      success: false,
+      ok: false,
       code: "VERIFICATION_ERROR",
       message: `Failed to fetch transactions: ${volTxError.message}`,
     };
   }
 
-  // USD-pegged stables count 1:1; cNGN requires conversion via the NGN/USD rate.
-  const USD_STABLE = new Set(["USDC", "USDT"]);
-  const CNGN_SYMBOLS = new Set(["cNGN", "CNGN"]);
-
-  const txList = (volTxs || []) as Array<{ amount_sent: string | number; from_currency: string }>;
+  const txList = (volTxs || []) as Array<{
+    amount_sent: string | number;
+    from_currency: string;
+  }>;
   const hasCngn = txList.some((tx) => CNGN_SYMBOLS.has(tx.from_currency));
 
-  // Fetch NGN → USD rate only when needed (1 USD = rate NGN).
   let ngnPerUsd: number | null = null;
   if (hasCngn) {
     try {
       const rateUrl = `${process.env.NEXT_PUBLIC_AGGREGATOR_URL}/rates/USDC/1/NGN`;
       const rateRes = await fetch(rateUrl);
-      const rateJson = await rateRes.json() as { data?: string };
+      const rateJson = (await rateRes.json()) as { data?: string };
       const parsed = Number(rateJson?.data);
       if (parsed > 0) ngnPerUsd = parsed;
     } catch {
@@ -118,16 +114,67 @@ async function tryClaimOne(
     if (CNGN_SYMBOLS.has(tx.from_currency) && ngnPerUsd && ngnPerUsd > 0) {
       return sum + amount / ngnPerUsd;
     }
-    // Other currencies: skip (not yet supported for volume calculation).
     return sum;
   }, 0);
 
   if (totalUsd < referralMinQualifyingVolumeUsd) {
     return {
-      success: false,
+      ok: false,
       code: "VOLUME_NOT_MET",
-      message: `Your transaction volume $${totalUsd.toFixed(2)} is less than the required $${referralMinQualifyingVolumeUsd}.`,
+      message:
+        subject === "referee"
+          ? `Your referee's transaction volume $${totalUsd.toFixed(2)} is less than the required $${referralMinQualifyingVolumeUsd}.`
+          : `Your transaction volume $${totalUsd.toFixed(2)} is less than the required $${referralMinQualifyingVolumeUsd}.`,
     };
+  }
+
+  return { ok: true, totalUsd };
+}
+
+// ─── Core claim logic (shared by GET auto-claim and POST manual claim) ─────────
+
+/**
+ * Verifies KYC + volume, handles idempotency, and executes the on-chain USDC
+ * transfer to `walletAddress` (referrer or referred claimant).
+ * - Referee reward: referee must meet KYC + volume.
+ * - Referrer reward: referrer AND referee must each meet KYC + volume.
+ * Volume is counted only from the date the referral code was entered.
+ */
+async function tryClaimOne(
+  walletAddress: string,
+  referral: Record<string, unknown>,
+): Promise<ClaimResult> {
+  const referralId = String(referral.id);
+  const referralCreatedAt = new Date(String(referral.created_at)).toISOString();
+  const referrerWallet = String(referral.referrer_wallet_address).toLowerCase();
+  const referredWallet = String(referral.referred_wallet_address).toLowerCase();
+  const claimant = walletAddress.toLowerCase();
+  const isReferrerClaim = referrerWallet === claimant;
+
+  if (claimant !== referrerWallet && claimant !== referredWallet) {
+    return {
+      success: false,
+      code: "UNAUTHORIZED_REFERRAL",
+      message: "You are not authorized to claim this referral reward.",
+    };
+  }
+
+  const qualificationChecks = isReferrerClaim
+    ? [
+        checkPartyQualification(referrerWallet, referralCreatedAt, "claimant"),
+        checkPartyQualification(referredWallet, referralCreatedAt, "referee"),
+      ]
+    : [checkPartyQualification(referredWallet, referralCreatedAt, "claimant")];
+
+  for (const check of qualificationChecks) {
+    const qualification = await check;
+    if (!qualification.ok) {
+      return {
+        success: false,
+        code: qualification.code,
+        message: qualification.message,
+      };
+    }
   }
 
   // ── Idempotency ─────────────────────────────────────────────────────────────
@@ -327,9 +374,9 @@ async function tryClaimOne(
 // ─── GET — auto-claim all eligible pending referrals ─────────────────────────
 //
 // Called automatically when the referral dashboard loads. The server checks
-// KYC + volume (from referral created_at) for every pending referral and pays
-// out any that qualify. Silent skips for KYC_REQUIRED / VOLUME_NOT_MET are
-// expected until the invitee meets requirements.
+// KYC + volume (from referral created_at) for each claimant; referrers must
+// also have a qualified referee. Silent skips for KYC_REQUIRED / VOLUME_NOT_MET
+// are expected until requirements are met.
 
 export const GET = withRateLimit(async (request: NextRequest) => {
   const start = Date.now();

@@ -1,7 +1,7 @@
 "use client";
 import { AnimatePresence, motion } from "framer-motion";
 import { dropdownVariants } from "./AnimatedComponents";
-import { useEffect, useRef, useState, ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, ReactNode } from "react";
 import { SquareLock02Icon, Tick02Icon, Cancel01Icon } from "hugeicons-react";
 import FlagImage from "./FlagImage";
 import ReactDOM from "react-dom";
@@ -40,6 +40,15 @@ interface FlexibleDropdownProps {
   dropdownWidth?: number;
   /** When true, toggling the menu is blocked (e.g. Starknet on-ramp placeholders). */
   disabled?: boolean;
+  /**
+   * When the menu is open, letter/number keys jump the list to the first option
+   * whose label (or name) starts with the typed prefix (multi-key within ~500ms).
+   */
+  enableKeyboardSearch?: boolean;
+  /** When true, shows a search field and filters options by label/name (substring match). */
+  searchable?: boolean;
+  /** Placeholder for the search input when `searchable` is true. */
+  searchPlaceholder?: string;
 }
 
 function resolveDefaultSelection(
@@ -61,14 +70,48 @@ export const FlexibleDropdown = ({
   mobileTitle = "Select option",
   dropdownWidth,
   disabled = false,
+  enableKeyboardSearch = true,
+  searchable = false,
+  searchPlaceholder = "Search…",
 }: FlexibleDropdownProps) => {
   const [selectedItem, setSelectedItem] = useState<DropdownItem | undefined>(() =>
     resolveDefaultSelection(defaultSelectedItem, data),
   );
   const [isOpen, setIsOpen] = useState(false);
+  const [filterQuery, setFilterQuery] = useState("");
   const [dropdownStyles, setDropdownStyles] = useState<React.CSSProperties>({});
   const buttonRef = useRef<HTMLDivElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+  /** Scroll container for options (desktop portal or mobile sheet) — used for type-ahead scroll. */
+  const optionsListRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const typeAheadBufferRef = useRef("");
+  const typeAheadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const filteredData = useMemo(() => {
+    if (!searchable) return data;
+    const q = filterQuery.trim().toLowerCase();
+    if (!q) return data;
+    return data.filter((item) => {
+      const label = (item.label ?? item.name).toLowerCase();
+      const name = item.name.toLowerCase();
+      return label.includes(q) || name.includes(q);
+    });
+  }, [data, filterQuery, searchable]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setFilterQuery("");
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !searchable) return;
+    const id = window.requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [isOpen, searchable]);
 
   // Mobile detection
   const isMobile = () =>
@@ -92,7 +135,6 @@ export const FlexibleDropdown = ({
     setIsOpen(false);
   };
 
-  // Position dropdown on open (right-align with button)
   useEffect(() => {
     function updateDropdownPosition() {
       if (isOpen && buttonRef.current && dropdownRef.current) {
@@ -116,14 +158,32 @@ export const FlexibleDropdown = ({
         });
       }
     }
-    if (isOpen) {
-      updateDropdownPosition();
-      window.addEventListener("resize", updateDropdownPosition);
-      window.addEventListener("scroll", updateDropdownPosition, true);
+    if (!isOpen) {
+      return;
     }
+
+    updateDropdownPosition();
+    const rafId = window.requestAnimationFrame(() => {
+      updateDropdownPosition();
+    });
+
+    window.addEventListener("resize", updateDropdownPosition);
+    window.addEventListener("scroll", updateDropdownPosition, true);
+
+    const el = dropdownRef.current;
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && el) {
+      resizeObserver = new ResizeObserver(() => {
+        updateDropdownPosition();
+      });
+      resizeObserver.observe(el);
+    }
+
     return () => {
+      window.cancelAnimationFrame(rafId);
       window.removeEventListener("resize", updateDropdownPosition);
       window.removeEventListener("scroll", updateDropdownPosition, true);
+      resizeObserver?.disconnect();
     };
   }, [isOpen, dropdownWidth]);
 
@@ -136,12 +196,14 @@ export const FlexibleDropdown = ({
   // Close dropdown on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
       if (
         isOpen &&
         dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
+        !dropdownRef.current.contains(target) &&
         buttonRef.current &&
-        !buttonRef.current.contains(event.target as Node)
+        !buttonRef.current.contains(target)
       ) {
         setIsOpen(false);
       }
@@ -154,6 +216,88 @@ export const FlexibleDropdown = ({
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen || !enableKeyboardSearch || filteredData.length === 0) {
+      typeAheadBufferRef.current = "";
+      if (typeAheadTimerRef.current) {
+        clearTimeout(typeAheadTimerRef.current);
+        typeAheadTimerRef.current = null;
+      }
+      return;
+    }
+
+    const TYPE_AHEAD_IDLE_MS = 550;
+
+    const clearTypeAheadTimer = () => {
+      if (typeAheadTimerRef.current) {
+        clearTimeout(typeAheadTimerRef.current);
+        typeAheadTimerRef.current = null;
+      }
+    };
+
+    const resetBufferSoon = () => {
+      clearTypeAheadTimer();
+      typeAheadTimerRef.current = setTimeout(() => {
+        typeAheadBufferRef.current = "";
+        typeAheadTimerRef.current = null;
+      }, TYPE_AHEAD_IDLE_MS);
+    };
+
+    const labelText = (item: DropdownItem) =>
+      (item.label ?? item.name).trim().toLowerCase();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target;
+      if (
+        target instanceof Node &&
+        (target as HTMLElement).closest?.(
+          "input, textarea, select, [contenteditable=true]",
+        )
+      ) {
+        return;
+      }
+
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+
+      if (e.key === "Escape") {
+        typeAheadBufferRef.current = "";
+        clearTypeAheadTimer();
+        return;
+      }
+
+      if (e.key.length !== 1) return;
+
+      const ch = e.key;
+      if (!/[a-zA-Z0-9]/.test(ch)) return;
+
+      e.preventDefault();
+      typeAheadBufferRef.current += ch.toLowerCase();
+      resetBufferSoon();
+
+      const prefix = typeAheadBufferRef.current;
+      const match = filteredData.find(
+        (item) => !item.disabled && labelText(item).startsWith(prefix),
+      );
+      if (!match) return;
+
+      const root = optionsListRef.current;
+      if (!root) return;
+
+      const escaped = CSS.escape(match.name);
+      const optionEl = root.querySelector<HTMLElement>(
+        `[data-dropdown-option="${escaped}"]`,
+      );
+      optionEl?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    };
+
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      clearTypeAheadTimer();
+      typeAheadBufferRef.current = "";
+    };
+  }, [isOpen, enableKeyboardSearch, filteredData]);
+
   // Option rendering (shared)
   const renderOption = (
     item: DropdownItem,
@@ -162,6 +306,9 @@ export const FlexibleDropdown = ({
     <button
       key={item.name}
       type="button"
+      role="option"
+      aria-selected={selectedItem?.name === item.name}
+      data-dropdown-option={item.name}
       disabled={item.disabled}
       onClick={() => !item.disabled && handle(item)}
       className={classNames(
@@ -220,13 +367,39 @@ export const FlexibleDropdown = ({
               <Cancel01Icon className="size-5 text-outline-gray dark:text-white/50" />
             </button>
           </div>
-          <div className="max-h-[50vh] space-y-1 overflow-y-auto">
-            {data.map((item) =>
-              renderOption(item, (item) => {
-                setSelectedItem(item);
-                onSelect && onSelect(item.name);
-                setIsOpen(false);
-              }),
+          {searchable ? (
+            <input
+              ref={searchInputRef}
+              type="search"
+              role="searchbox"
+              aria-label={searchPlaceholder}
+              placeholder={searchPlaceholder}
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="w-full rounded-xl border border-border-input bg-transparent px-3 py-2.5 text-sm text-text-body placeholder:text-text-placeholder focus:border-lavender-500 focus:outline-none focus:ring-1 focus:ring-lavender-500 dark:border-white/20 dark:text-white/90 dark:placeholder:text-white/40"
+            />
+          ) : null}
+          <div
+            ref={(node) => {
+              optionsListRef.current = node;
+            }}
+            role="listbox"
+            aria-label={mobileTitle}
+            className="max-h-[50vh] space-y-1 overflow-y-auto"
+          >
+            {filteredData.length === 0 ? (
+              <p className="px-2 py-8 text-center text-sm text-text-secondary dark:text-white/50">
+                No matching options
+              </p>
+            ) : (
+              filteredData.map((item) =>
+                renderOption(item, (item) => {
+                  setSelectedItem(item);
+                  onSelect && onSelect(item.name);
+                  setIsOpen(false);
+                }),
+              )
             )}
           </div>
         </DialogPanel>
@@ -238,19 +411,50 @@ export const FlexibleDropdown = ({
   const dropdownMenu = (
     <AnimatePresence>
       <motion.div
-        ref={dropdownRef}
+        ref={(node) => {
+          dropdownRef.current = node;
+        }}
         style={dropdownStyles}
         initial="closed"
         animate="open"
         exit="closed"
         variants={dropdownVariants}
-        aria-label="Dropdown menu"
         className={classNames(
-          "mt-2 max-h-60 space-y-0.5 overflow-y-auto rounded-xl border border-border-light bg-white p-2 shadow-xl focus:outline-none dark:border-white/10 dark:bg-neutral-800",
+          "mt-2 flex max-h-60 flex-col overflow-hidden rounded-xl border border-border-light bg-white shadow-xl focus:outline-none dark:border-white/10 dark:bg-neutral-800",
           className,
         )}
       >
-        {data.map((item) => renderOption(item, handleChange))}
+        {searchable ? (
+          <div className="shrink-0 border-b border-border-light bg-white p-2 dark:border-white/10 dark:bg-neutral-800">
+            <input
+              ref={searchInputRef}
+              type="search"
+              role="searchbox"
+              aria-label={searchPlaceholder}
+              placeholder={searchPlaceholder}
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="w-full rounded-lg border border-border-input bg-transparent px-3 py-2 text-sm text-text-body placeholder:text-text-placeholder focus:border-lavender-500 focus:outline-none focus:ring-1 focus:ring-lavender-500 dark:border-white/20 dark:text-white/90 dark:placeholder:text-white/40"
+            />
+          </div>
+        ) : null}
+        <div
+          ref={(node) => {
+            optionsListRef.current = node;
+          }}
+          role="listbox"
+          aria-label="Dropdown menu"
+          className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2"
+        >
+          {filteredData.length === 0 ? (
+            <p className="px-2 py-6 text-center text-sm text-text-secondary dark:text-white/50">
+              No matching options
+            </p>
+          ) : (
+            filteredData.map((item) => renderOption(item, handleChange))
+          )}
+        </div>
       </motion.div>
     </AnimatePresence>
   );

@@ -97,12 +97,23 @@ async function checkPartyQualification(
   if (hasCngn) {
     try {
       const rateUrl = `${process.env.NEXT_PUBLIC_AGGREGATOR_URL}/rates/USDC/1/NGN`;
-      const rateRes = await fetch(rateUrl);
+      const rateRes = await fetch(rateUrl, { signal: AbortSignal.timeout(5000) });
+      if (!rateRes.ok) {
+        throw new Error(`rate lookup failed with status ${rateRes.status}`);
+      }
       const rateJson = (await rateRes.json()) as { data?: string };
       const parsed = Number(rateJson?.data);
-      if (parsed > 0) ngnPerUsd = parsed;
+      if (parsed > 0) {
+        ngnPerUsd = parsed;
+      } else {
+        throw new Error("invalid NGN rate payload");
+      }
     } catch {
-      // If rate fetch fails, cNGN txs will be skipped (counted as 0).
+      return {
+        ok: false,
+        code: "VERIFICATION_ERROR",
+        message: "Unable to verify qualifying transaction volume. Please try again later.",
+      };
     }
   }
 
@@ -159,25 +170,7 @@ async function tryClaimOne(
     };
   }
 
-  const qualificationChecks = isReferrerClaim
-    ? [
-        checkPartyQualification(referrerWallet, referralCreatedAt, "claimant"),
-        checkPartyQualification(referredWallet, referralCreatedAt, "referee"),
-      ]
-    : [checkPartyQualification(referredWallet, referralCreatedAt, "claimant")];
-
-  for (const check of qualificationChecks) {
-    const qualification = await check;
-    if (!qualification.ok) {
-      return {
-        success: false,
-        code: qualification.code,
-        message: qualification.message,
-      };
-    }
-  }
-
-  // ── Idempotency ─────────────────────────────────────────────────────────────
+  // ── Idempotency — short-circuit before expensive KYC/volume checks ──────────
   const { data: existingClaim, error: existingClaimError } = await supabaseAdmin
     .from("referral_claims")
     .select("*")
@@ -199,6 +192,24 @@ async function tryClaimOne(
       txHash: existingClaim.tx_hash,
       amount: existingClaim.reward_amount,
     };
+  }
+
+  const qualificationChecks = isReferrerClaim
+    ? [
+        checkPartyQualification(referrerWallet, referralCreatedAt, "claimant"),
+        checkPartyQualification(referredWallet, referralCreatedAt, "referee"),
+      ]
+    : [checkPartyQualification(referredWallet, referralCreatedAt, "claimant")];
+
+  for (const check of qualificationChecks) {
+    const qualification = await check;
+    if (!qualification.ok) {
+      return {
+        success: false,
+        code: qualification.code,
+        message: qualification.message,
+      };
+    }
   }
 
   let pendingClaimRow: typeof existingClaim;

@@ -661,9 +661,10 @@ export function MainPageContent() {
 
       async function checkReferralStatus() {
         if (!authenticated || !ready || isInjectedWallet || !walletAddress) {
-          if (isMounted) setIsReferralDataChecked(true);
           return;
         }
+
+        if (isMounted) setIsReferralDataChecked(false);
 
         try {
           const accessToken = await getAccessToken();

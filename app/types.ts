@@ -391,6 +391,7 @@ export type KYCStatusResponse = {
 
 export type Config = {
   aggregatorUrl: string;
+  aggregatorSenderApiKeyId: string;
   privyAppId: string;
   rpcUrlKey: string;
   mixpanelToken: string;

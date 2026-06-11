@@ -1,5 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
+import { getSmileIdJobStatus } from "@/app/lib/smileID";
+
+// The callback signature only covers timestamp + partner_id (per SmileID's
+// protocol), NOT the body. A captured (timestamp, signature) pair could be
+// replayed with an arbitrary body, so two extra defenses below:
+//  1. reject callbacks whose timestamp is outside MAX_CALLBACK_AGE_MS, and
+//  2. before any profile update, confirm the job outcome via SmileID's signed
+//     job_status API instead of trusting body fields.
+const MAX_CALLBACK_AGE_MS = 60 * 60 * 1000; // generous: SmileID retries failed deliveries
+
+function parseSmileTimestampMs(timestamp: string): number | null {
+  // smile-identity-core signs ISO-8601 timestamps; tolerate epoch seconds/millis too.
+  if (/^\d{13}$/.test(timestamp)) return Number(timestamp);
+  if (/^\d{10}$/.test(timestamp)) return Number(timestamp) * 1000;
+  const parsed = Date.parse(timestamp);
+  return Number.isNaN(parsed) ? null : parsed;
+}
 
 // SmileID sends callbacks signed with HMAC-SHA256.
 // Algorithm: base64(HMAC-SHA256(timestamp + partnerId + "sid_request", apiKey))
@@ -59,6 +76,19 @@ export async function POST(request: NextRequest) {
     console.warn("[smile-id/callback] Signature verification failed", { timestamp });
     return NextResponse.json(
       { status: "error", message: "Invalid signature" },
+      { status: 401 },
+    );
+  }
+
+  // Freshness check: the signature is replayable, so cap how old a callback may be.
+  const timestampMs = parseSmileTimestampMs(String(timestamp));
+  if (
+    timestampMs === null ||
+    Math.abs(Date.now() - timestampMs) > MAX_CALLBACK_AGE_MS
+  ) {
+    console.warn("[smile-id/callback] Stale or unparseable timestamp", { timestamp });
+    return NextResponse.json(
+      { status: "error", message: "Stale callback" },
       { status: 401 },
     );
   }
@@ -135,6 +165,50 @@ export async function POST(request: NextRequest) {
   if (existing.verified && Number(existing.tier) >= 2) {
     console.log("[smile-id/callback] Profile already verified, skipping", { walletAddress });
     return NextResponse.json({ status: "ok", action: "already_verified" });
+  }
+
+  // ── Confirm the outcome with SmileID before trusting it ────────────────────
+  // Body fields are not covered by the callback signature; only proceed if
+  // SmileID's signed job_status API reports the same success.
+  if (!jobId) {
+    console.warn("[smile-id/callback] Missing job_id, cannot confirm job — no action", {
+      walletAddress,
+    });
+    return NextResponse.json({ status: "ok", action: "none" });
+  }
+
+  try {
+    const jobStatus = await getSmileIdJobStatus(rawUserId, jobId);
+    const statusActions = jobStatus?.result?.Actions ?? {};
+    const statusIsEnhancedKyc = statusActions.Verify_ID_Number !== undefined;
+    const confirmed = statusIsEnhancedKyc
+      ? statusActions.Verify_ID_Number === "Verified"
+      : jobStatus?.job_complete === true && jobStatus?.job_success === true;
+
+    if (!confirmed) {
+      console.warn(
+        "[smile-id/callback] Callback claimed success but job_status did not confirm — no action",
+        {
+          walletAddress,
+          jobId,
+          job_complete: jobStatus?.job_complete,
+          job_success: jobStatus?.job_success,
+          ResultCode: jobStatus?.result?.ResultCode,
+        },
+      );
+      return NextResponse.json({ status: "ok", action: "none" });
+    }
+  } catch (e) {
+    console.error("[smile-id/callback] job_status confirmation failed", {
+      walletAddress,
+      jobId,
+      error: e instanceof Error ? e.message : e,
+    });
+    // 500 so SmileID retries once the status API is reachable again.
+    return NextResponse.json(
+      { status: "error", message: "Unable to confirm job status" },
+      { status: 500 },
+    );
   }
 
   // Build updated platform array, replacing any prior "id" entry.

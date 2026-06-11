@@ -266,6 +266,39 @@ export async function POST(request: NextRequest) {
         : null) ||
       null;
 
+    // One verified identity per ID document: the same document must not back
+    // multiple wallet profiles (each would get its own monthly limit).
+    const idNumberToStore = smileIdInfo.id_number || id_info.id_number || null;
+    if (idNumberToStore) {
+      const { data: idOwner, error: idOwnerError } = await supabaseAdmin
+        .from("user_kyc_profiles")
+        .select("wallet_address")
+        .eq("id_country", id_info.country)
+        .eq("id_type", id_info.id_type)
+        .eq("id_number", idNumberToStore)
+        .gte("tier", 2)
+        .neq("wallet_address", walletAddress)
+        .limit(1)
+        .maybeSingle();
+
+      if (idOwnerError) {
+        return NextResponse.json(
+          { status: "error", message: "Failed to save KYC data" },
+          { status: 500 },
+        );
+      }
+      if (idOwner) {
+        return NextResponse.json(
+          {
+            status: "error",
+            message:
+              "This ID document is already verified on another account. Please contact support if you believe this is an error.",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     const { data: updatedProfile, error: supabaseError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .update({
@@ -273,7 +306,7 @@ export async function POST(request: NextRequest) {
         ...(email && { email_address: email }),
         // ID Document fields from id_info or Smile ID response
         id_type: id_info.id_type,
-        id_number: smileIdInfo.id_number || id_info.id_number,
+        id_number: idNumberToStore,
         id_country: id_info.country,
         // Personal info from Smile ID response — only overwrite if SmileID returned a name
         ...(derivedFullName ? { full_name: derivedFullName } : {}),
@@ -287,6 +320,18 @@ export async function POST(request: NextRequest) {
       .select("wallet_address");
 
     if (supabaseError) {
+      // 23505: partial unique index on verified ID documents (concurrent
+      // verification of the same document on another wallet).
+      if (supabaseError.code === "23505") {
+        return NextResponse.json(
+          {
+            status: "error",
+            message:
+              "This ID document is already verified on another account. Please contact support if you believe this is an error.",
+          },
+          { status: 409 },
+        );
+      }
       return NextResponse.json(
         {
           status: "error",

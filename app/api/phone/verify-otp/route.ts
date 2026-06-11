@@ -12,8 +12,72 @@ import { rateLimit } from "@/app/lib/rate-limit";
 
 const MAX_ATTEMPTS = 3;
 
+const PHONE_IN_USE_ERROR =
+  "This phone number is already verified on another account. Please use a different number.";
+
 function hashOTP(otp: string): string {
   return createHash("sha256").update(otp).digest("hex");
+}
+
+/**
+ * Promotes the pending number to the verified phone_number. Enforces one
+ * verified identity per phone (friendly pre-check + 23505 from the partial
+ * unique index for the concurrent case).
+ */
+async function promoteVerifiedPhone(
+  walletAddress: string,
+  e164: string,
+  currentTier: number,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const { data: phoneOwner, error: ownerError } = await supabaseAdmin
+    .from("user_kyc_profiles")
+    .select("wallet_address")
+    .eq("phone_number", e164)
+    .gte("tier", 1)
+    .neq("wallet_address", walletAddress)
+    .limit(1)
+    .maybeSingle();
+
+  if (ownerError) {
+    return {
+      ok: false,
+      status: 500,
+      error: "Failed to update verification status",
+    };
+  }
+  if (phoneOwner) {
+    return { ok: false, status: 409, error: PHONE_IN_USE_ERROR };
+  }
+
+  const updateData: Record<string, unknown> = {
+    phone_number: e164,
+    pending_phone_number: null,
+    verified: true,
+    verified_at: new Date().toISOString(),
+    otp_code: null,
+    otp_attempts: 0,
+  };
+  if (currentTier === 0) {
+    updateData.tier = 1;
+  }
+
+  const { error: updateError } = await supabaseAdmin
+    .from("user_kyc_profiles")
+    .update(updateData)
+    .eq("wallet_address", walletAddress);
+
+  if (updateError) {
+    if (updateError.code === "23505") {
+      return { ok: false, status: 409, error: PHONE_IN_USE_ERROR };
+    }
+    return {
+      ok: false,
+      status: 500,
+      error: "Failed to update verification status",
+    };
+  }
+
+  return { ok: true };
 }
 
 export async function POST(request: NextRequest) {
@@ -80,12 +144,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get verification record using normalized E.164 format
+    // Get the profile; the pending number lives in pending_phone_number until
+    // the OTP is confirmed (phone_number only ever holds verified numbers).
     const { data: verification, error: fetchError } = await supabaseAdmin
       .from("user_kyc_profiles")
-      .select("verified, provider, tier, expires_at, otp_attempts, otp_code")
+      .select(
+        "verified, provider, tier, expires_at, otp_attempts, otp_code, phone_number, pending_phone_number",
+      )
       .eq("wallet_address", walletAddress)
-      .eq("phone_number", validation.e164Format)
       .maybeSingle();
 
     if (fetchError) {
@@ -96,7 +162,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!verification) {
+    // Already verified with this exact number — nothing to do.
+    if (
+      verification &&
+      verification.phone_number === validation.e164Format &&
+      (verification.tier >= 1 || verification.verified)
+    ) {
+      const responseTime = Date.now() - startTime;
+      trackApiResponse("/api/phone/verify-otp", "POST", 200, responseTime);
+      return NextResponse.json({
+        success: true,
+        message: "Phone number already verified",
+        verified: true,
+      });
+    }
+
+    if (
+      !verification ||
+      verification.pending_phone_number !== validation.e164Format
+    ) {
       trackApiError(
         request,
         "/api/phone/verify-otp",
@@ -108,17 +192,6 @@ export async function POST(request: NextRequest) {
         { success: false, error: "Verification record not found" },
         { status: 404 },
       );
-    }
-
-    // Check if already verified
-    if (verification.verified) {
-      const responseTime = Date.now() - startTime;
-      trackApiResponse("/api/phone/verify-otp", "POST", 200, responseTime);
-      return NextResponse.json({
-        success: true,
-        message: "Phone number already verified",
-        verified: true,
-      });
     }
 
     // Twilio Verify path: validate code via Twilio (no DB OTP comparison)
@@ -145,31 +218,23 @@ export async function POST(request: NextRequest) {
           { status: 400 },
         );
       }
-      // Twilio approved: update profile (same as below)
-      const updateData: Record<string, unknown> = {
-        verified: true,
-        verified_at: new Date().toISOString(),
-        otp_code: null,
-        otp_attempts: 0,
-      };
-      if (verification.tier === 0) {
-        updateData.tier = 1;
-      }
-      const { error: updateError } = await supabaseAdmin
-        .from("user_kyc_profiles")
-        .update(updateData)
-        .eq("wallet_address", walletAddress);
-      if (updateError) {
+      // Twilio approved: promote the pending number (same as below)
+      const promotion = await promoteVerifiedPhone(
+        walletAddress,
+        validation.e164Format,
+        Number(verification.tier) || 0,
+      );
+      if (!promotion.ok) {
         trackApiError(
           request,
           "/api/phone/verify-otp",
           "POST",
-          updateError,
-          500,
+          new Error(promotion.error),
+          promotion.status,
         );
         return NextResponse.json(
-          { success: false, error: "Failed to update verification status" },
-          { status: 500 },
+          { success: false, error: promotion.error },
+          { status: promotion.status },
         );
       }
       const responseTime = Date.now() - startTime;
@@ -258,29 +323,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Mark as verified - preserve existing tier if higher than 1
-    const updateData: Record<string, unknown> = {
-      verified: true,
-      verified_at: new Date().toISOString(),
-      otp_code: null, // Clear OTP hash after successful verification
-      otp_attempts: 0,
-    };
-
-    // Only set tier to 1 if current tier is 0 (unverified)
-    if (verification.tier === 0) {
-      updateData.tier = 1;
-    }
-
-    const { error: updateError } = await supabaseAdmin
-      .from("user_kyc_profiles")
-      .update(updateData)
-      .eq("wallet_address", walletAddress);
-
-    if (updateError) {
-      trackApiError(request, "/api/phone/verify-otp", "POST", updateError, 500);
+    // Promote the pending number to the verified phone_number (sets tier 1
+    // only when current tier is 0; clears OTP state).
+    const promotion = await promoteVerifiedPhone(
+      walletAddress,
+      validation.e164Format,
+      Number(verification.tier) || 0,
+    );
+    if (!promotion.ok) {
+      trackApiError(
+        request,
+        "/api/phone/verify-otp",
+        "POST",
+        new Error(promotion.error),
+        promotion.status,
+      );
       return NextResponse.json(
-        { success: false, error: "Failed to update verification status" },
-        { status: 500 },
+        { success: false, error: promotion.error },
+        { status: promotion.status },
       );
     }
 

@@ -59,6 +59,10 @@ import {
 } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
 import { hasSeenNetworkModalFlag } from "../lib/networkModalStore";
+import {
+  storePendingReferralCode,
+  readPendingReferralCode,
+} from "../lib/pendingReferralCode";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 
 /**
@@ -193,6 +197,14 @@ function onrampRateQueryTokenAmount(
 export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready, getAccessToken, user } = usePrivy();
+
+  // Persist ?ref=NBXXXX from referral share links immediately on landing —
+  // before login — so the code survives the auth flow (OAuth can drop the
+  // query string) and pre-fills the referral modal instead of being typed.
+  useEffect(() => {
+    storePendingReferralCode(searchParams.get("ref"));
+  }, [searchParams]);
+
   const {
     currentStep,
     setCurrentStep,
@@ -383,8 +395,13 @@ export function MainPageContent() {
         return;
       }
 
+      // A code carried in from a referral share link re-opens the modal even if
+      // this wallet dismissed it before — clicking the link is explicit intent.
       const referralStorageKey = `hasSeenReferralModal-${walletAddress.toLowerCase()}`;
-      if (!localStorage.getItem(referralStorageKey)) {
+      if (
+        !localStorage.getItem(referralStorageKey) ||
+        readPendingReferralCode()
+      ) {
         setShowReferralModal(true);
       }
     },

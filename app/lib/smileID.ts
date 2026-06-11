@@ -50,8 +50,9 @@ export function resolveSmileIdServerConfig(): {
 }
 
 export interface SmileIdJobStatusResult {
-  job_complete?: boolean;
-  job_success?: boolean;
+  // SmileID inconsistently returns booleans or "true"/"false" strings
+  job_complete?: boolean | string;
+  job_success?: boolean | string;
   result?: {
     Actions?: Record<string, string>;
     ResultCode?: string;

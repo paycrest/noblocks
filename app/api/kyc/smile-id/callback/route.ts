@@ -181,9 +181,11 @@ export async function POST(request: NextRequest) {
     const jobStatus = await getSmileIdJobStatus(rawUserId, jobId);
     const statusActions = jobStatus?.result?.Actions ?? {};
     const statusIsEnhancedKyc = statusActions.Verify_ID_Number !== undefined;
+    // SmileID returns booleans or "true"/"false" strings depending on surface
+    const flag = (v: unknown) => v === true || v === "true";
     const confirmed = statusIsEnhancedKyc
       ? statusActions.Verify_ID_Number === "Verified"
-      : jobStatus?.job_complete === true && jobStatus?.job_success === true;
+      : flag(jobStatus?.job_complete) && flag(jobStatus?.job_success);
 
     if (!confirmed) {
       console.warn(

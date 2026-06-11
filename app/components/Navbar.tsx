@@ -27,6 +27,7 @@ import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { clearNetworkModalSeen } from "../lib/networkModalStore";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useWalletAddress } from "../hooks/useWalletAddress";
@@ -78,7 +79,7 @@ export const Navbar = () => {
         localStorage.setItem("userId", user.wallet.address);
 
         if (isNewUser) {
-          localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`);
+          clearNetworkModalSeen(user.wallet.address);
 
           trackEvent("Sign up completed", {
             "Login method": loginMethod,

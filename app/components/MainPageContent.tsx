@@ -58,6 +58,7 @@ import {
   useKYC,
 } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
+import { hasSeenNetworkModalFlag } from "../lib/networkModalStore";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 
 /**
@@ -374,11 +375,12 @@ export function MainPageContent() {
       // For new users, the network selection modal opens at the same time as this
       // check would fire. Defer to handleNetworkSelected so the referral modal only
       // shows after they've picked a network — not underneath it.
-      if (!fromNetworkSelected && user?.wallet?.address) {
-        const networkModalKey = `hasSeenNetworkModal-${user.wallet.address}`;
-        if (!localStorage.getItem(networkModalKey)) {
-          return;
-        }
+      if (
+        !fromNetworkSelected &&
+        user?.wallet?.address &&
+        !hasSeenNetworkModalFlag(user.wallet.address)
+      ) {
+        return;
       }
 
       const referralStorageKey = `hasSeenReferralModal-${walletAddress.toLowerCase()}`;

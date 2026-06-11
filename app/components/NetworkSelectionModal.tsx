@@ -17,6 +17,11 @@ import {
 } from "../utils";
 import { useSearchParams } from "next/navigation";
 import { useActualTheme } from "../hooks/useActualTheme";
+import {
+  hasSeenNetworkModalFlag,
+  markNetworkModalSeen,
+  markNetworkModalDismissed,
+} from "../lib/networkModalStore";
 
 interface NetworkSelectionModalProps {
   onNetworkSelected?: () => void;
@@ -48,8 +53,7 @@ export const NetworkSelectionModal = ({
     const walletAddress = user?.wallet?.address;
     if (!walletAddress) return; // wait for the address; effect re-runs when it lands
 
-    const storageKey = `hasSeenNetworkModal-${walletAddress}`;
-    if (!localStorage.getItem(storageKey)) {
+    if (!hasSeenNetworkModalFlag(walletAddress)) {
       setIsOpen(true);
     }
     setHasCheckedStorage(true);
@@ -64,10 +68,11 @@ export const NetworkSelectionModal = ({
   // };
 
   const handleClose = () => {
-    if (user?.wallet?.address) {
-      const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
-      localStorage.setItem(storageKey, "true");
-    }
+    markNetworkModalSeen(user?.wallet?.address);
+    // Live in-session signal for MigrationBannerWrapper — this call was never
+    // wired up, so migration UI gated on it could only appear after a reload
+    // (and the storage fallback's key casing didn't match either).
+    markNetworkModalDismissed();
     setIsOpen(false);
 
     // Trigger callback when modal closes after network selection

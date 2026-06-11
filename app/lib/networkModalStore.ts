@@ -1,5 +1,50 @@
 import { useSyncExternalStore } from "react";
 
+const NETWORK_MODAL_STORAGE_KEY_PREFIX = "hasSeenNetworkModal-";
+
+/**
+ * Canonical "has seen the network modal" persistence. The key is lowercased:
+ * the modal used to write the checksummed address while MigrationContext and
+ * session-cleanup read/removed the lowercased form, so they never matched.
+ * Legacy checksummed keys are still honored on read.
+ */
+export function hasSeenNetworkModalFlag(
+  walletAddress: string | undefined,
+): boolean {
+  if (typeof window === "undefined" || !walletAddress) return false;
+  return (
+    localStorage.getItem(
+      `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress.toLowerCase()}`,
+    ) !== null ||
+    localStorage.getItem(
+      `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress}`,
+    ) !== null
+  );
+}
+
+export function markNetworkModalSeen(
+  walletAddress: string | undefined,
+): void {
+  if (typeof window === "undefined" || !walletAddress) return;
+  localStorage.setItem(
+    `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress.toLowerCase()}`,
+    "true",
+  );
+}
+
+/** Removes both canonical and legacy key forms (e.g. fresh-signup reset). */
+export function clearNetworkModalSeen(
+  walletAddress: string | undefined,
+): void {
+  if (typeof window === "undefined" || !walletAddress) return;
+  localStorage.removeItem(
+    `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress.toLowerCase()}`,
+  );
+  localStorage.removeItem(
+    `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress}`,
+  );
+}
+
 let dismissed = false;
 const listeners = new Set<() => void>();
 

@@ -268,7 +268,10 @@ export async function POST(request: NextRequest) {
 
     // One verified identity per ID document: the same document must not back
     // multiple wallet profiles (each would get its own monthly limit).
-    const idNumberToStore = smileIdInfo.id_number || id_info.id_number || null;
+    // `undefined` (not null) when absent: supabase-js drops undefined keys from
+    // the update, preserving any previously stored id_number.
+    const idNumberToStore: string | undefined =
+      smileIdInfo.id_number || id_info.id_number || undefined;
     if (idNumberToStore) {
       const { data: idOwner, error: idOwnerError } = await supabaseAdmin
         .from("user_kyc_profiles")

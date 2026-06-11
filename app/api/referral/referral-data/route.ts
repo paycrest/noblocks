@@ -183,6 +183,14 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             (myClaims || []).forEach((c) => claimedReferralIds.add(c.referral_id));
         }
 
+        // Postgres `numeric` columns deserialize as strings via PostgREST, so
+        // coerce to Number — otherwise the totals below concatenate strings
+        // (e.g. "0" + "1" → "01") and the Pending/Earned cards show wrong values.
+        const toAmount = (value: unknown): number => {
+            const n = Number(value ?? 1.0);
+            return Number.isFinite(n) ? n : 1.0;
+        };
+
         // Combine both lists and format
         const allReferrals = [
             // When user is referrer: show who they referred
@@ -193,7 +201,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
                 wallet_address_short: `${r.referred_wallet_address.slice(0, 6)}...${r.referred_wallet_address.slice(-4)}`,
                 // Per-user status: "earned" only if THIS user has a completed claim
                 status: claimedReferralIds.has(r.id) ? "earned" : "pending",
-                amount: r.reward_amount ?? 1.0,
+                amount: toAmount(r.reward_amount),
                 created_at: r.created_at,
                 completed_at: r.completed_at,
             })),
@@ -205,7 +213,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
                 wallet_address_short: `${r.referrer_wallet_address.slice(0, 6)}...${r.referrer_wallet_address.slice(-4)}`,
                 // Per-user status: "earned" only if THIS user has a completed claim
                 status: claimedReferralIds.has(r.id) ? "earned" : "pending",
-                amount: r.reward_amount ?? 1.0,
+                amount: toAmount(r.reward_amount),
                 created_at: r.created_at,
                 completed_at: r.completed_at,
             })),

@@ -32,21 +32,28 @@ export const NetworkSelectionModal = ({
   const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { ensureWalletExists } = useStarknet();
-  const { authenticated, user } = usePrivy();
+  const { authenticated, user, ready } = usePrivy();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
+  // Wait for Privy to finish hydrating before deciding whether to open. On a
+  // fresh signup the embedded wallet address arrives a tick after `authenticated`
+  // flips true; gating on `ready` (and re-running when the address settles)
+  // avoids the case where the modal evaluated too early and never opened until a
+  // manual refresh — which also blocked the referral modal that chains off it.
   useEffect(() => {
-    if (!hasCheckedStorage && authenticated && user?.wallet?.address) {
-      const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
-      const hasSeenModal = localStorage.getItem(storageKey);
+    if (hasCheckedStorage) return;
+    if (!ready || !authenticated) return;
 
-      if (!hasSeenModal) {
-        setIsOpen(true);
-      }
-      setHasCheckedStorage(true);
+    const walletAddress = user?.wallet?.address;
+    if (!walletAddress) return; // wait for the address; effect re-runs when it lands
+
+    const storageKey = `hasSeenNetworkModal-${walletAddress}`;
+    if (!localStorage.getItem(storageKey)) {
+      setIsOpen(true);
     }
-  }, [hasCheckedStorage, authenticated, user?.wallet?.address]);
+    setHasCheckedStorage(true);
+  }, [hasCheckedStorage, ready, authenticated, user?.wallet?.address]);
 
   // const handleClose = () => {
   //   if (user?.wallet?.address) {

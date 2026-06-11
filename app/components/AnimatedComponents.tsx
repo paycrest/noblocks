@@ -1,5 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import type { AnimatedComponentProps } from "../types";
@@ -297,6 +298,13 @@ type AnimatedModalProps = {
   contentClassName?: string;
   showGradientHeader?: boolean;
   backgroundImagePath?: string;
+  /**
+   * Restore the page scroll position (captured when the modal opened) once the
+   * exit animation completes. Needed for content that displaces the document
+   * scroll while open (e.g. the SmileID camera in KycModal); covers every close
+   * path — buttons, backdrop, and Esc.
+   */
+  restoreScrollOnClose?: boolean;
 };
 
 /**
@@ -339,8 +347,26 @@ export const AnimatedModal = ({
   contentClassName,
   showGradientHeader = false,
   backgroundImagePath,
-}: AnimatedModalProps) => (
-  <AnimatePresence>
+  restoreScrollOnClose = false,
+}: AnimatedModalProps) => {
+  const openScrollYRef = useRef(0);
+
+  useEffect(() => {
+    if (isOpen) {
+      openScrollYRef.current = window.scrollY;
+    }
+  }, [isOpen]);
+
+  // onExitComplete runs after the dialog (and its scroll lock) has unmounted,
+  // so the restore cannot race the close animation or component teardown.
+  const handleExitComplete = () => {
+    if (restoreScrollOnClose) {
+      window.scrollTo({ top: openScrollYRef.current, behavior: "instant" });
+    }
+  };
+
+  return (
+  <AnimatePresence onExitComplete={handleExitComplete}>
     {isOpen && (
       <Dialog open={isOpen} onClose={onClose} className="relative z-[55]">
         <motion.div
@@ -422,4 +448,5 @@ export const AnimatedModal = ({
       </Dialog>
     )}
   </AnimatePresence>
-);
+  );
+};

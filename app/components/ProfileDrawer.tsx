@@ -56,11 +56,13 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
       ? (transactionSummary.monthlySpent / monthlyLimit) * 100
       : 0;
 
-  // Refresh KYC status when drawer opens so profile stays in sync with Get started / limit modal
+  // Refresh KYC status when drawer opens so profile stays in sync with Get started / limit modal.
+  // force=true: a tier upgrade can land (via the SmileID webhook) seconds after the last fetch,
+  // and the non-forced path would serve the stale cached tier for up to 30s.
   useEffect(() => {
     if (isOpen) {
       setIsLoading(true);
-      refreshStatus().finally(() => setIsLoading(false));
+      refreshStatus(true).finally(() => setIsLoading(false));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: omit refreshStatus to avoid refetch loop
   }, [isOpen]);

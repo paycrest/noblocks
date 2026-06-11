@@ -1253,20 +1253,20 @@ export const TransactionForm = ({
             )}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {isKycModalOpen && tier >= 1 && (
-            <AnimatedModal
-              isOpen={isKycModalOpen}
-              onClose={() => setIsKycModalOpen(false)}
-            >
-              <KycModal
-                setIsKycModalOpen={setIsKycModalOpen}
-                setIsUserVerified={setIsUserVerified}
-                targetTier={getKycModalTargetTier(tier)}
-              />
-            </AnimatedModal>
-          )}
-        </AnimatePresence>
+        {/* No outer AnimatePresence/conditional: AnimatedModal manages its own
+            presence, and an outer conditional removes it before the exit
+            animation (and the scroll restore in onExitComplete) can run. */}
+        <AnimatedModal
+          isOpen={isKycModalOpen && tier >= 1}
+          onClose={() => setIsKycModalOpen(false)}
+          restoreScrollOnClose
+        >
+          <KycModal
+            setIsKycModalOpen={setIsKycModalOpen}
+            setIsUserVerified={setIsUserVerified}
+            targetTier={getKycModalTargetTier(tier)}
+          />
+        </AnimatedModal>
 
         <TransactionLimitModal
           isOpen={isLimitModalOpen}

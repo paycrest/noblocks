@@ -51,14 +51,19 @@ export const NetworkSelectionModal = ({
   useEffect(() => {
     if (!ready || !authenticated) return;
 
-    const walletAddress = user?.wallet?.address?.toLowerCase();
-    if (!walletAddress) return; // wait for the address; effect re-runs when it lands
-    if (checkedWalletRef.current === walletAddress) return;
+    // Pass the RAW address to hasSeenNetworkModalFlag: it checks the canonical
+    // lowercased key AND the legacy checksummed key. Lowercasing here first
+    // defeated the legacy lookup and re-opened the modal on login for every
+    // pre-existing account. Only the sentinel comparison is case-normalized.
+    const rawAddress = user?.wallet?.address;
+    if (!rawAddress) return; // wait for the address; effect re-runs when it lands
+    const sentinel = rawAddress.toLowerCase();
+    if (checkedWalletRef.current === sentinel) return;
 
-    if (!hasSeenNetworkModalFlag(walletAddress)) {
+    if (!hasSeenNetworkModalFlag(rawAddress)) {
       setIsOpen(true);
     }
-    checkedWalletRef.current = walletAddress;
+    checkedWalletRef.current = sentinel;
   }, [ready, authenticated, user?.wallet?.address]);
 
   // const handleClose = () => {

@@ -273,14 +273,14 @@ export default function TransactionLimitModal({
 
       {/* No outer AnimatePresence/conditional: AnimatedModal manages its own
           presence, and an outer conditional removes it before the exit
-          animation (and the scroll restore in onExitComplete) can run. */}
+          animation (and the scroll-lock release in onExitComplete) can run. */}
       <AnimatedModal
         isOpen={isOpen && isKycModalOpen && tier >= 1}
         onClose={() => {
           setIsKycModalOpen(false);
           onClose();
         }}
-        restoreScrollOnClose
+        lockBodyScroll
       >
         <KycModal
           setIsKycModalOpen={(value) => {

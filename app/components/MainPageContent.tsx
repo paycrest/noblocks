@@ -58,6 +58,7 @@ import {
   useKYC,
 } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
+import { hasSeenNetworkModalFlag } from "../lib/networkModalStore";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 
 /**
@@ -356,25 +357,30 @@ export function MainPageContent() {
         return;
       }
 
-      // Only show referral modal to new users (account created within the last 30 days).
-      // Existing users who predate the referral feature should not be prompted.
-      if (user?.createdAt) {
-        const accountAgeDays =
-          (Date.now() - new Date(user.createdAt).getTime()) /
-          (1000 * 60 * 60 * 24);
-        if (accountAgeDays > 30) {
-          return;
-        }
+      // Only show the referral modal to genuinely new users (account created
+      // within the last 30 days). If the account age is unknown, do NOT prompt —
+      // the previous code skipped the check entirely when createdAt was missing,
+      // which let existing users through.
+      const createdAtMs = user?.createdAt
+        ? new Date(user.createdAt).getTime()
+        : null;
+      if (createdAtMs === null || Number.isNaN(createdAtMs)) {
+        return;
+      }
+      const accountAgeDays = (Date.now() - createdAtMs) / (1000 * 60 * 60 * 24);
+      if (accountAgeDays > 30) {
+        return;
       }
 
       // For new users, the network selection modal opens at the same time as this
       // check would fire. Defer to handleNetworkSelected so the referral modal only
       // shows after they've picked a network — not underneath it.
-      if (!fromNetworkSelected && user?.wallet?.address) {
-        const networkModalKey = `hasSeenNetworkModal-${user.wallet.address}`;
-        if (!localStorage.getItem(networkModalKey)) {
-          return;
-        }
+      if (
+        !fromNetworkSelected &&
+        user?.wallet?.address &&
+        !hasSeenNetworkModalFlag(user.wallet.address)
+      ) {
+        return;
       }
 
       const referralStorageKey = `hasSeenReferralModal-${walletAddress.toLowerCase()}`;
@@ -675,10 +681,13 @@ export function MainPageContent() {
             if (!isMounted) return;
 
             if (response.success && response.data && Array.isArray(response.data.referrals)) {
-              const hasReferred = response.data.referrals.some(
-                (r) => r.role === "referred",
-              );
-              setHasExistingReferral(hasReferred);
+              // Suppress the modal for anyone with ANY referral relationship —
+              // whether they were referred OR have referred others. The previous
+              // check only looked at role === "referred", so existing users who
+              // had referred people still saw the modal.
+              const hasAnyReferralRelationship =
+                response.data.referrals.length > 0;
+              setHasExistingReferral(hasAnyReferralRelationship);
             } else {
               // Safe default: if we can't confirm they haven't been referred, assume they have
               setHasExistingReferral(true);

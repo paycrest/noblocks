@@ -459,7 +459,7 @@ export default function PhoneVerificationModal({
                   ),
                 )
               }
-              placeholder="enter your phone number"
+              placeholder="Enter your phone number"
               className="min-h-12 w-full rounded-xl border border-border-input bg-transparent py-3 pl-24 pr-4 text-sm text-neutral-900 transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:bg-black2 dark:text-white/80 dark:placeholder:text-white/30 dark:border-white/20 dark:focus-within:border-white/40"
               style={{
                 paddingLeft: `${selectedCountry.code.length * 8 + 60}px`,

@@ -51,14 +51,18 @@ export const NetworkSelectionModal = ({
   useEffect(() => {
     if (!ready || !authenticated) return;
 
-    const walletAddress = user?.wallet?.address?.toLowerCase();
-    if (!walletAddress) return; // wait for the address; effect re-runs when it lands
-    if (checkedWalletRef.current === walletAddress) return;
+    // hasSeenNetworkModalFlag matches keys case-insensitively, so any
+    // historical casing of the stored key (or of the address Privy hands us)
+    // is honored. The sentinel only dedupes re-checks for the same wallet.
+    const rawAddress = user?.wallet?.address;
+    if (!rawAddress) return; // wait for the address; effect re-runs when it lands
+    const sentinel = rawAddress.toLowerCase();
+    if (checkedWalletRef.current === sentinel) return;
 
-    if (!hasSeenNetworkModalFlag(walletAddress)) {
+    if (!hasSeenNetworkModalFlag(rawAddress)) {
       setIsOpen(true);
     }
-    checkedWalletRef.current = walletAddress;
+    checkedWalletRef.current = sentinel;
   }, [ready, authenticated, user?.wallet?.address]);
 
   // const handleClose = () => {

@@ -4,14 +4,6 @@ const NETWORK_MODAL_STORAGE_KEY_PREFIX = "hasSeenNetworkModal-";
 
 // localStorage can throw in restricted environments (storage disabled,
 // private modes, quota); modal gating must degrade gracefully, not crash.
-function safeGetItem(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
 function safeSetItem(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
@@ -29,21 +21,26 @@ function safeRemoveItem(key: string): void {
 }
 
 /**
- * Canonical "has seen the network modal" persistence. The key is lowercased:
- * the modal used to write the checksummed address while MigrationContext and
- * session-cleanup read/removed the lowercased form, so they never matched.
- * Legacy checksummed keys are still honored on read.
+ * Canonical "has seen the network modal" persistence. New keys are written
+ * lowercased; reads scan for a case-insensitive key match, so legacy keys
+ * written with any historical address casing (e.g. EIP-55 checksummed) are
+ * honored regardless of the casing the caller's address arrives in.
  */
 export function hasSeenNetworkModalFlag(
   walletAddress: string | undefined,
 ): boolean {
   if (typeof window === "undefined" || !walletAddress) return false;
-  return (
-    safeGetItem(
-      `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress.toLowerCase()}`,
-    ) !== null ||
-    safeGetItem(`${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress}`) !== null
-  );
+  const target =
+    `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress}`.toLowerCase();
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.toLowerCase() === target) return true;
+    }
+  } catch {
+    // ignore storage errors — treat as not seen
+  }
+  return false;
 }
 
 export function markNetworkModalSeen(
@@ -56,15 +53,23 @@ export function markNetworkModalSeen(
   );
 }
 
-/** Removes both canonical and legacy key forms (e.g. fresh-signup reset). */
+/** Removes the seen flag in any historical casing (e.g. fresh-signup reset). */
 export function clearNetworkModalSeen(
   walletAddress: string | undefined,
 ): void {
   if (typeof window === "undefined" || !walletAddress) return;
-  safeRemoveItem(
-    `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress.toLowerCase()}`,
-  );
-  safeRemoveItem(`${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress}`);
+  const target =
+    `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress}`.toLowerCase();
+  const toRemove: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.toLowerCase() === target) toRemove.push(key);
+    }
+  } catch {
+    // ignore storage errors
+  }
+  toRemove.forEach(safeRemoveItem);
 }
 
 let dismissed = false;

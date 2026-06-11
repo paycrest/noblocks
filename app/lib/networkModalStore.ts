@@ -2,6 +2,32 @@ import { useSyncExternalStore } from "react";
 
 const NETWORK_MODAL_STORAGE_KEY_PREFIX = "hasSeenNetworkModal-";
 
+// localStorage can throw in restricted environments (storage disabled,
+// private modes, quota); modal gating must degrade gracefully, not crash.
+function safeGetItem(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function safeRemoveItem(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // ignore storage errors
+  }
+}
+
 /**
  * Canonical "has seen the network modal" persistence. The key is lowercased:
  * the modal used to write the checksummed address while MigrationContext and
@@ -13,12 +39,10 @@ export function hasSeenNetworkModalFlag(
 ): boolean {
   if (typeof window === "undefined" || !walletAddress) return false;
   return (
-    localStorage.getItem(
+    safeGetItem(
       `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress.toLowerCase()}`,
     ) !== null ||
-    localStorage.getItem(
-      `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress}`,
-    ) !== null
+    safeGetItem(`${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress}`) !== null
   );
 }
 
@@ -26,7 +50,7 @@ export function markNetworkModalSeen(
   walletAddress: string | undefined,
 ): void {
   if (typeof window === "undefined" || !walletAddress) return;
-  localStorage.setItem(
+  safeSetItem(
     `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress.toLowerCase()}`,
     "true",
   );
@@ -37,12 +61,10 @@ export function clearNetworkModalSeen(
   walletAddress: string | undefined,
 ): void {
   if (typeof window === "undefined" || !walletAddress) return;
-  localStorage.removeItem(
+  safeRemoveItem(
     `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress.toLowerCase()}`,
   );
-  localStorage.removeItem(
-    `${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress}`,
-  );
+  safeRemoveItem(`${NETWORK_MODAL_STORAGE_KEY_PREFIX}${walletAddress}`);
 }
 
 let dismissed = false;

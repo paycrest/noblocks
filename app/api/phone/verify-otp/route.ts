@@ -61,10 +61,15 @@ async function promoteVerifiedPhone(
     updateData.tier = 1;
   }
 
-  const { error: updateError } = await supabaseAdmin
+  // Guard on the pending number too: a concurrent send-otp may have replaced
+  // it after our read, and a stale OTP must not promote the old number.
+  const { data: updatedRow, error: updateError } = await supabaseAdmin
     .from("user_kyc_profiles")
     .update(updateData)
-    .eq("wallet_address", walletAddress);
+    .eq("wallet_address", walletAddress)
+    .eq("pending_phone_number", e164)
+    .select("wallet_address")
+    .maybeSingle();
 
   if (updateError) {
     if (updateError.code === "23505") {
@@ -74,6 +79,15 @@ async function promoteVerifiedPhone(
       ok: false,
       status: 500,
       error: "Failed to update verification status",
+    };
+  }
+
+  if (!updatedRow) {
+    return {
+      ok: false,
+      status: 409,
+      error:
+        "This verification was superseded by a newer request. Please use the most recent code.",
     };
   }
 

@@ -21,10 +21,10 @@ UPDATE public.user_kyc_profiles
    AND phone_number IS NOT NULL;
 
 -- ─── 2. Verified-identity uniqueness ──────────────────────────────────────────
--- Created conditionally: if historical duplicates exist they need a manual,
--- compliance-reviewed cleanup first — a migration must not decide which wallet
--- keeps the identity. The app also enforces this at verification time, so new
--- duplicates cannot be created either way.
+-- Fails the migration (and deploy) if historical duplicates exist: they need a
+-- manual, compliance-reviewed cleanup first — a migration must not decide which
+-- wallet keeps the identity, and shipping without the indexes would leave a
+-- concurrent-verification race open. Re-run after cleanup.
 
 DO $$
 BEGIN
@@ -36,12 +36,12 @@ BEGIN
      GROUP BY phone_number
     HAVING COUNT(*) > 1
   ) THEN
-    RAISE WARNING 'user_kyc_profiles: duplicate verified phone numbers exist; uniq_user_kyc_profiles_verified_phone NOT created. Clean up duplicates and re-run.';
-  ELSE
-    CREATE UNIQUE INDEX IF NOT EXISTS uniq_user_kyc_profiles_verified_phone
-        ON public.user_kyc_profiles (phone_number)
-     WHERE phone_number IS NOT NULL AND tier >= 1;
+    RAISE EXCEPTION 'user_kyc_profiles: duplicate verified phone numbers exist; clean up duplicates, then re-run this migration to create uniq_user_kyc_profiles_verified_phone.';
   END IF;
+
+  CREATE UNIQUE INDEX IF NOT EXISTS uniq_user_kyc_profiles_verified_phone
+      ON public.user_kyc_profiles (phone_number)
+   WHERE phone_number IS NOT NULL AND tier >= 1;
 
   IF EXISTS (
     SELECT 1
@@ -51,10 +51,10 @@ BEGIN
      GROUP BY id_country, id_type, id_number
     HAVING COUNT(*) > 1
   ) THEN
-    RAISE WARNING 'user_kyc_profiles: duplicate verified ID documents exist; uniq_user_kyc_profiles_verified_id NOT created. Clean up duplicates and re-run.';
-  ELSE
-    CREATE UNIQUE INDEX IF NOT EXISTS uniq_user_kyc_profiles_verified_id
-        ON public.user_kyc_profiles (id_country, id_type, id_number)
-     WHERE id_number IS NOT NULL AND tier >= 2;
+    RAISE EXCEPTION 'user_kyc_profiles: duplicate verified ID documents exist; clean up duplicates, then re-run this migration to create uniq_user_kyc_profiles_verified_id.';
   END IF;
+
+  CREATE UNIQUE INDEX IF NOT EXISTS uniq_user_kyc_profiles_verified_id
+      ON public.user_kyc_profiles (id_country, id_type, id_number)
+   WHERE id_number IS NOT NULL AND tier >= 2;
 END $$;

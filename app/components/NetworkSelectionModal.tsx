@@ -2,7 +2,7 @@
 import { DialogTitle } from "@headlessui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PiCheck } from "react-icons/pi";
 import { HelpCircleIcon, ArrowLeft02Icon, Cancel01Icon } from "hugeicons-react";
 import { usePrivy } from "@privy-io/react-auth";
@@ -34,7 +34,9 @@ export const NetworkSelectionModal = ({
   const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
-  const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
+  // Wallet-scoped sentinel: a plain boolean stayed sticky across logout/login
+  // or wallet switches, so the modal never re-evaluated for the next account.
+  const checkedWalletRef = useRef<string | null>(null);
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { ensureWalletExists } = useStarknet();
   const { authenticated, user, ready } = usePrivy();
@@ -47,17 +49,17 @@ export const NetworkSelectionModal = ({
   // avoids the case where the modal evaluated too early and never opened until a
   // manual refresh — which also blocked the referral modal that chains off it.
   useEffect(() => {
-    if (hasCheckedStorage) return;
     if (!ready || !authenticated) return;
 
-    const walletAddress = user?.wallet?.address;
+    const walletAddress = user?.wallet?.address?.toLowerCase();
     if (!walletAddress) return; // wait for the address; effect re-runs when it lands
+    if (checkedWalletRef.current === walletAddress) return;
 
     if (!hasSeenNetworkModalFlag(walletAddress)) {
       setIsOpen(true);
     }
-    setHasCheckedStorage(true);
-  }, [hasCheckedStorage, ready, authenticated, user?.wallet?.address]);
+    checkedWalletRef.current = walletAddress;
+  }, [ready, authenticated, user?.wallet?.address]);
 
   // const handleClose = () => {
   //   if (user?.wallet?.address) {

@@ -22,7 +22,12 @@ export {
   type SmileIDIdInfo,
 };
 
-/** Resolves the SmileID server mode (0 = sandbox, 1 = production) from env. */
+/**
+ * Resolves the SmileID server mode (0 = sandbox, 1 = production) from env.
+ * Only "0"/"1" (or a legacy http(s) API URL) are recognized — anything else
+ * reports hasServerConfig=false so callers fail with a clear configuration
+ * error instead of silently running against sandbox in production.
+ */
 export function resolveSmileIdServerConfig(): {
   sidServerMode: "0" | "1";
   hasServerConfig: boolean;
@@ -30,23 +35,25 @@ export function resolveSmileIdServerConfig(): {
   const serverModeOverride = process.env.SMILE_IDENTITY_SERVER_MODE?.trim();
   const serverRaw = process.env.SMILE_IDENTITY_SERVER?.trim();
 
-  const hasServerConfig =
-    serverModeOverride === "0" ||
-    serverModeOverride === "1" ||
-    Boolean(serverRaw);
+  if (serverModeOverride === "0" || serverModeOverride === "1") {
+    return { sidServerMode: serverModeOverride, hasServerConfig: true };
+  }
+  if (serverRaw === "0" || serverRaw === "1") {
+    return { sidServerMode: serverRaw, hasServerConfig: true };
+  }
+  if (serverRaw && /^https?:\/\//i.test(serverRaw)) {
+    return {
+      sidServerMode: /testapi|sandbox/i.test(serverRaw) ? "0" : "1",
+      hasServerConfig: true,
+    };
+  }
 
-  const sidServerMode: "0" | "1" = (() => {
-    if (serverModeOverride === "1") return "1";
-    if (serverModeOverride === "0") return "0";
-    if (serverRaw === "1") return "1";
-    if (serverRaw === "0") return "0";
-    if (serverRaw && /^https?:\/\//i.test(serverRaw)) {
-      return /testapi|sandbox/i.test(serverRaw) ? "0" : "1";
-    }
-    return "0";
-  })();
-
-  return { sidServerMode, hasServerConfig };
+  if (serverModeOverride || serverRaw) {
+    console.error(
+      "[smileID] Unrecognized SMILE_IDENTITY_SERVER / SMILE_IDENTITY_SERVER_MODE value — expected 0, 1, or an http(s) URL",
+    );
+  }
+  return { sidServerMode: "0", hasServerConfig: false };
 }
 
 export interface SmileIdJobStatusResult {

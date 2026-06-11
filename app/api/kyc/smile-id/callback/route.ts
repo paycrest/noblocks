@@ -111,35 +111,9 @@ export async function POST(request: NextRequest) {
 
   const jobId: string = String(partnerParams.job_id ?? "");
 
-  // ── Check job outcome ───────────────────────────────────────────────────────
-  const jobComplete = body.job_complete === true || body.job_complete === "true";
-  const jobSuccessRaw = body.job_success === true || body.job_success === "true";
-
-  // Support both top-level and nested result shapes SmileID may send.
-  const result = body.result ?? body.Result ?? {};
-  const actions = result.Actions ?? result.actions ?? body.Actions ?? {};
-  const isEnhancedKyc = actions.Verify_ID_Number !== undefined;
-
-  let verificationSuccess = false;
-  if (isEnhancedKyc) {
-    verificationSuccess = actions.Verify_ID_Number === "Verified";
-  } else {
-    verificationSuccess = jobComplete && jobSuccessRaw;
-  }
-
-  if (!verificationSuccess) {
-    // SmileID may still send a callback for failed/incomplete jobs. Acknowledge
-    // with 200 so SmileID doesn't keep retrying, but take no action.
-    console.log("[smile-id/callback] Job not verified, no action taken", {
-      walletAddress,
-      jobId,
-      jobComplete,
-      jobSuccessRaw,
-      ResultCode: result.ResultCode,
-      ResultText: result.ResultText,
-    });
-    return NextResponse.json({ status: "ok", action: "none" });
-  }
+  // The body is NOT covered by the callback signature, so it is used for
+  // routing only (which user/job to look up). The job outcome and any profile
+  // enrichment below come exclusively from SmileID's signed job_status API.
 
   // ── Update KYC profile ─────────────────────────────────────────────────────
   // Fetch current profile to avoid overwriting a higher tier or clobbering
@@ -177,6 +151,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: "ok", action: "none" });
   }
 
+  let signedIdInfo: Record<string, any> = {};
   try {
     const jobStatus = await getSmileIdJobStatus(rawUserId, jobId);
     const statusActions = jobStatus?.result?.Actions ?? {};
@@ -188,18 +163,20 @@ export async function POST(request: NextRequest) {
       : flag(jobStatus?.job_complete) && flag(jobStatus?.job_success);
 
     if (!confirmed) {
-      console.warn(
-        "[smile-id/callback] Callback claimed success but job_status did not confirm — no action",
-        {
-          walletAddress,
-          jobId,
-          job_complete: jobStatus?.job_complete,
-          job_success: jobStatus?.job_success,
-          ResultCode: jobStatus?.result?.ResultCode,
-        },
-      );
+      // Covers failed/incomplete jobs too: SmileID sends callbacks for those,
+      // and the signed status is the only outcome we act on.
+      console.log("[smile-id/callback] job_status did not confirm verification — no action", {
+        walletAddress,
+        jobId,
+        job_complete: jobStatus?.job_complete,
+        job_success: jobStatus?.job_success,
+        ResultCode: jobStatus?.result?.ResultCode,
+      });
       return NextResponse.json({ status: "ok", action: "none" });
     }
+
+    const statusResult = (jobStatus?.result ?? {}) as Record<string, any>;
+    signedIdInfo = statusResult.id_info ?? statusResult.ID_Info ?? {};
   } catch (e) {
     console.error("[smile-id/callback] job_status confirmation failed", {
       walletAddress,
@@ -223,8 +200,8 @@ export async function POST(request: NextRequest) {
   const currentTier = Number(existing.tier) || 0;
   const newTier = currentTier >= 1 ? Math.max(currentTier, 2) : currentTier;
 
-  // Optionally enrich with personal info if SmileID included it in the callback.
-  const smileIdInfo = result.id_info ?? result.ID_Info ?? {};
+  // Optionally enrich with personal info from the signed job_status response.
+  const smileIdInfo = signedIdInfo;
   const derivedFullName =
     smileIdInfo.full_name ||
     (smileIdInfo.first_name && smileIdInfo.last_name

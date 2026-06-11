@@ -1,6 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import type { AnimatedComponentProps } from "../types";
@@ -311,14 +311,35 @@ type AnimatedModalProps = {
 // Module-level refcount: overlapping locked modals share one body pin, and only
 // the final release restores the scroll offset (window.scrollY reads 0 while
 // the body is fixed, so each instance must not capture its own).
+// Client components are still server-rendered; useLayoutEffect there triggers
+// React's "does nothing on the server" warning, so fall back to useEffect.
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 let bodyScrollLockCount = 0;
 let bodyScrollLockY = 0;
+// Pre-existing inline body styles, snapshotted on first acquire and restored on
+// final release (blanking them would clobber styles set by other code).
+let bodyScrollLockPrevStyles: {
+  position: string;
+  top: string;
+  left: string;
+  right: string;
+  width: string;
+} | null = null;
 
 function acquireBodyScrollLock(): void {
   if (typeof window === "undefined") return;
   if (bodyScrollLockCount === 0) {
     bodyScrollLockY = window.scrollY;
     const { style } = document.body;
+    bodyScrollLockPrevStyles = {
+      position: style.position,
+      top: style.top,
+      left: style.left,
+      right: style.right,
+      width: style.width,
+    };
     style.position = "fixed";
     style.top = `-${bodyScrollLockY}px`;
     style.left = "0";
@@ -333,11 +354,12 @@ function releaseBodyScrollLock(): void {
   bodyScrollLockCount--;
   if (bodyScrollLockCount === 0) {
     const { style } = document.body;
-    style.position = "";
-    style.top = "";
-    style.left = "";
-    style.right = "";
-    style.width = "";
+    style.position = bodyScrollLockPrevStyles?.position ?? "";
+    style.top = bodyScrollLockPrevStyles?.top ?? "";
+    style.left = bodyScrollLockPrevStyles?.left ?? "";
+    style.right = bodyScrollLockPrevStyles?.right ?? "";
+    style.width = bodyScrollLockPrevStyles?.width ?? "";
+    bodyScrollLockPrevStyles = null;
     // Invisible: the body was pinned at exactly this offset the whole time.
     window.scrollTo({ top: bodyScrollLockY, behavior: "instant" });
   }
@@ -394,7 +416,10 @@ export const AnimatedModal = ({
     }
   };
 
-  useEffect(() => {
+  // Layout effect: the pin must land synchronously before the open modal's
+  // first paint, so mount-time child behavior (autofocus, camera init) cannot
+  // scroll the document in the gap. (Isomorphic: silences React's SSR warning.)
+  useIsomorphicLayoutEffect(() => {
     if (lockBodyScroll && isOpen && !holdsLockRef.current) {
       holdsLockRef.current = true;
       acquireBodyScrollLock();

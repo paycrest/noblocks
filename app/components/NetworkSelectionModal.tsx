@@ -51,10 +51,9 @@ export const NetworkSelectionModal = ({
   useEffect(() => {
     if (!ready || !authenticated) return;
 
-    // Pass the RAW address to hasSeenNetworkModalFlag: it checks the canonical
-    // lowercased key AND the legacy checksummed key. Lowercasing here first
-    // defeated the legacy lookup and re-opened the modal on login for every
-    // pre-existing account. Only the sentinel comparison is case-normalized.
+    // hasSeenNetworkModalFlag matches keys case-insensitively, so any
+    // historical casing of the stored key (or of the address Privy hands us)
+    // is honored. The sentinel only dedupes re-checks for the same wallet.
     const rawAddress = user?.wallet?.address;
     if (!rawAddress) return; // wait for the address; effect re-runs when it lands
     const sentinel = rawAddress.toLowerCase();

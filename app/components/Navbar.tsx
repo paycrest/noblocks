@@ -27,6 +27,7 @@ import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
 import { clearNetworkModalSeen } from "../lib/networkModalStore";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
@@ -94,6 +95,10 @@ export const Navbar = () => {
       }
     },
   });
+
+  // Pin body scroll while the Privy dialog is up — its end-of-body iframe
+  // steals focus on mobile and drags the page to the bottom otherwise.
+  const loginWithScrollPin = useLoginWithScrollPin(login);
 
   useEffect(() => {
     setMounted(true);
@@ -322,7 +327,7 @@ export const Navbar = () => {
               <button
                 type="button"
                 className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}
-                onClick={() => login()}
+                onClick={() => loginWithScrollPin()}
               >
                 Sign in
               </button>

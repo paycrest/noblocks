@@ -301,9 +301,12 @@ type AnimatedModalProps = {
   /**
    * Pin the document body (position: fixed at the current offset) while the
    * modal is open, so nothing can displace the page scroll behind it — e.g.
-   * the SmileID camera in KycModal used to drag the document to the bottom.
+   * the SmileID camera in KycModal and Privy's login-time wallet iframe both
+   * dragged the document to the bottom behind open modals on mobile.
    * Released after the exit animation completes; the page never visibly moves,
    * unlike the previous restore-on-close approach which jumped after the fact.
+   * Defaults to true so no modal can forget it; pass false only when a modal
+   * genuinely needs the page behind it to stay scrollable.
    */
   lockBodyScroll?: boolean;
 };
@@ -328,7 +331,7 @@ let bodyScrollLockPrevStyles: {
   width: string;
 } | null = null;
 
-function acquireBodyScrollLock(): void {
+export function acquireBodyScrollLock(): void {
   if (typeof window === "undefined") return;
   if (bodyScrollLockCount === 0) {
     bodyScrollLockY = window.scrollY;
@@ -349,7 +352,7 @@ function acquireBodyScrollLock(): void {
   bodyScrollLockCount++;
 }
 
-function releaseBodyScrollLock(): void {
+export function releaseBodyScrollLock(): void {
   if (typeof window === "undefined" || bodyScrollLockCount === 0) return;
   bodyScrollLockCount--;
   if (bodyScrollLockCount === 0) {
@@ -405,7 +408,7 @@ export const AnimatedModal = ({
   contentClassName,
   showGradientHeader = false,
   backgroundImagePath,
-  lockBodyScroll = false,
+  lockBodyScroll = true,
 }: AnimatedModalProps) => {
   const holdsLockRef = useRef(false);
 

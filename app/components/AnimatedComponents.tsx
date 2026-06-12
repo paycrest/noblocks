@@ -1,5 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import type { AnimatedComponentProps } from "../types";
@@ -297,7 +298,72 @@ type AnimatedModalProps = {
   contentClassName?: string;
   showGradientHeader?: boolean;
   backgroundImagePath?: string;
+  /**
+   * Pin the document body (position: fixed at the current offset) while the
+   * modal is open, so nothing can displace the page scroll behind it — e.g.
+   * the SmileID camera in KycModal used to drag the document to the bottom.
+   * Released after the exit animation completes; the page never visibly moves,
+   * unlike the previous restore-on-close approach which jumped after the fact.
+   */
+  lockBodyScroll?: boolean;
 };
+
+// Module-level refcount: overlapping locked modals share one body pin, and only
+// the final release restores the scroll offset (window.scrollY reads 0 while
+// the body is fixed, so each instance must not capture its own).
+// Client components are still server-rendered; useLayoutEffect there triggers
+// React's "does nothing on the server" warning, so fall back to useEffect.
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+let bodyScrollLockCount = 0;
+let bodyScrollLockY = 0;
+// Pre-existing inline body styles, snapshotted on first acquire and restored on
+// final release (blanking them would clobber styles set by other code).
+let bodyScrollLockPrevStyles: {
+  position: string;
+  top: string;
+  left: string;
+  right: string;
+  width: string;
+} | null = null;
+
+function acquireBodyScrollLock(): void {
+  if (typeof window === "undefined") return;
+  if (bodyScrollLockCount === 0) {
+    bodyScrollLockY = window.scrollY;
+    const { style } = document.body;
+    bodyScrollLockPrevStyles = {
+      position: style.position,
+      top: style.top,
+      left: style.left,
+      right: style.right,
+      width: style.width,
+    };
+    style.position = "fixed";
+    style.top = `-${bodyScrollLockY}px`;
+    style.left = "0";
+    style.right = "0";
+    style.width = "100%";
+  }
+  bodyScrollLockCount++;
+}
+
+function releaseBodyScrollLock(): void {
+  if (typeof window === "undefined" || bodyScrollLockCount === 0) return;
+  bodyScrollLockCount--;
+  if (bodyScrollLockCount === 0) {
+    const { style } = document.body;
+    style.position = bodyScrollLockPrevStyles?.position ?? "";
+    style.top = bodyScrollLockPrevStyles?.top ?? "";
+    style.left = bodyScrollLockPrevStyles?.left ?? "";
+    style.right = bodyScrollLockPrevStyles?.right ?? "";
+    style.width = bodyScrollLockPrevStyles?.width ?? "";
+    bodyScrollLockPrevStyles = null;
+    // Invisible: the body was pinned at exactly this offset the whole time.
+    window.scrollTo({ top: bodyScrollLockY, behavior: "instant" });
+  }
+}
 
 /**
  * Enhanced AnimatedModal with gradient header and background image support
@@ -339,8 +405,40 @@ export const AnimatedModal = ({
   contentClassName,
   showGradientHeader = false,
   backgroundImagePath,
-}: AnimatedModalProps) => (
-  <AnimatePresence>
+  lockBodyScroll = false,
+}: AnimatedModalProps) => {
+  const holdsLockRef = useRef(false);
+
+  const releaseHeldLock = () => {
+    if (holdsLockRef.current) {
+      holdsLockRef.current = false;
+      releaseBodyScrollLock();
+    }
+  };
+
+  // Layout effect: the pin must land synchronously before the open modal's
+  // first paint, so mount-time child behavior (autofocus, camera init) cannot
+  // scroll the document in the gap. (Isomorphic: silences React's SSR warning.)
+  useIsomorphicLayoutEffect(() => {
+    if (lockBodyScroll && isOpen && !holdsLockRef.current) {
+      holdsLockRef.current = true;
+      acquireBodyScrollLock();
+    }
+    // Intentionally not released when isOpen flips false: the lock must hold
+    // through the exit animation (content like the camera unmounts at its end).
+  }, [lockBodyScroll, isOpen]);
+
+  // Unmount safety net — e.g. the parent disappears without an exit animation.
+  useEffect(() => releaseHeldLock, []);
+
+  // onExitComplete runs after the dialog has fully unmounted, so nothing can
+  // displace the scroll after the lock is released.
+  const handleExitComplete = () => {
+    releaseHeldLock();
+  };
+
+  return (
+  <AnimatePresence onExitComplete={handleExitComplete}>
     {isOpen && (
       <Dialog open={isOpen} onClose={onClose} className="relative z-[55]">
         <motion.div
@@ -422,4 +520,5 @@ export const AnimatedModal = ({
       </Dialog>
     )}
   </AnimatePresence>
-);
+  );
+};

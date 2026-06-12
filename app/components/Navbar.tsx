@@ -27,6 +27,7 @@ import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { clearNetworkModalSeen } from "../lib/networkModalStore";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useWalletAddress } from "../hooks/useWalletAddress";
@@ -78,7 +79,7 @@ export const Navbar = () => {
         localStorage.setItem("userId", user.wallet.address);
 
         if (isNewUser) {
-          localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`);
+          clearNetworkModalSeen(user.wallet.address);
 
           trackEvent("Sign up completed", {
             "Login method": loginMethod,
@@ -107,9 +108,11 @@ export const Navbar = () => {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target;
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
+        target instanceof Node &&
+        !dropdownRef.current.contains(target)
       ) {
         setIsDropdownOpen(false);
       }
@@ -139,11 +142,11 @@ export const Navbar = () => {
               className="flex cursor-pointer items-center gap-1"
               onMouseEnter={() => setIsDropdownOpen(true)}
               onMouseLeave={(e) => {
-                // Only close if we're not moving to the dropdown menu
-                const relatedTarget = e.relatedTarget as Node;
+                const related = e.relatedTarget;
                 if (
-                  !relatedTarget ||
-                  !dropdownRef.current?.contains(relatedTarget)
+                  !related ||
+                  !(related instanceof Node) ||
+                  !dropdownRef.current?.contains(related)
                 ) {
                   setIsDropdownOpen(false);
                 }

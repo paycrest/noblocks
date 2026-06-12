@@ -56,8 +56,13 @@ export async function GET(request: NextRequest) {
       // Rate fetch failed — cNGN transactions will be excluded below
     }
 
-    const TRACKED_SWAP_CURRENCIES = ["USDC", "USDT", "cUSD", "cNGN"];
-    const STABLE_TO_CURRENCIES = ["USDC", "USDT", "cUSD"];
+    // Currency casing varies by source (e.g. "cNGN" vs "CNGN"), so rows are
+    // normalized to uppercase at fetch time and compared against uppercase
+    // constants — matching upper(...) in insert_swap_transaction_if_within_limit.
+    const normalizeCurrency = (value: unknown) =>
+      String(value ?? "").toUpperCase();
+    const TRACKED_SWAP_CURRENCIES = new Set(["USDC", "USDT", "CUSD", "CNGN"]);
+    const STABLE_TO_CURRENCIES = new Set(["USDC", "USDT", "CUSD"]);
     // Statuses that consume the monthly limit — keep in sync with
     // insert_swap_transaction_if_within_limit. Pending orders count because funds
     // are already committed; refunded/refunding/expired/failed rows do not.
@@ -71,7 +76,6 @@ export async function GET(request: NextRequest) {
       .eq("wallet_address", walletAddress)
       .eq("transaction_type", "offramp")
       .in("status", SPEND_STATUSES)
-      .in("from_currency", TRACKED_SWAP_CURRENCIES)
       .gte("created_at", monthStart.toISOString());
 
     const { data: onrampTransactions, error: onrampError } = await supabaseAdmin
@@ -86,13 +90,20 @@ export async function GET(request: NextRequest) {
 
     const error = swapError ?? onrampError;
     const transactions = [
-      ...(swapTransactions ?? []).map((tx) => ({
-        ...tx,
-        kind: "offramp" as const,
-      })),
+      // The tracked-currency filter lives here rather than in the query because
+      // PostgREST cannot compare a column case-insensitively in .in().
+      ...(swapTransactions ?? [])
+        .map((tx) => ({
+          ...tx,
+          kind: "offramp" as const,
+          from_currency: normalizeCurrency(tx.from_currency),
+        }))
+        .filter((tx) => TRACKED_SWAP_CURRENCIES.has(tx.from_currency)),
       ...(onrampTransactions ?? []).map((tx) => ({
         ...tx,
         kind: "onramp" as const,
+        from_currency: normalizeCurrency(tx.from_currency),
+        to_currency: normalizeCurrency(tx.to_currency),
       })),
     ];
 
@@ -109,8 +120,8 @@ export async function GET(request: NextRequest) {
     // the numbers for limit enforcement.
     const hasCngnTxs = transactions?.some(
       (tx) =>
-        tx.from_currency === "cNGN" ||
-        ("to_currency" in tx && tx.to_currency === "cNGN"),
+        tx.from_currency === "CNGN" ||
+        ("to_currency" in tx && tx.to_currency === "CNGN"),
     );
     if (hasCngnTxs && cngnToUsdRate === null) {
       trackApiError(
@@ -140,12 +151,11 @@ export async function GET(request: NextRequest) {
 
       let usdAmount: number;
       if (tx.kind === "onramp") {
-        const toCur = String(tx.to_currency ?? "").toUpperCase();
         const recv = parseFloat(String(tx.amount_received)) || 0;
         const sent = parseFloat(String(tx.amount_sent)) || 0;
-        if (STABLE_TO_CURRENCIES.includes(toCur)) {
+        if (STABLE_TO_CURRENCIES.has(tx.to_currency)) {
           usdAmount = recv;
-        } else if (toCur === "CNGN" && cngnToUsdRate) {
+        } else if (tx.to_currency === "CNGN" && cngnToUsdRate) {
           usdAmount = recv / cngnToUsdRate;
         } else if (cngnToUsdRate && sent > 0) {
           usdAmount = sent / cngnToUsdRate;
@@ -154,7 +164,7 @@ export async function GET(request: NextRequest) {
         }
       } else {
         const rawAmount = parseFloat(tx.amount_sent) || 0;
-        if (tx.from_currency === "cNGN") {
+        if (tx.from_currency === "CNGN") {
           usdAmount = rawAmount / cngnToUsdRate!;
         } else {
           usdAmount = rawAmount;

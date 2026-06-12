@@ -38,7 +38,7 @@ export const CopyAddressWarningModal: React.FC<
   /** EVM deposits use a different address format — never imply Starknet deposits work on Ethereum/Base/etc. */
   const supportedNetworksDisplayed = isStarknet
     ? networks.filter((n) => n.chain.name === "Starknet")
-    : networks;
+    : networks.filter((n) => n.chain.name !== "Starknet");
 
   const modalTitle = "You just copied your wallet address!";
 

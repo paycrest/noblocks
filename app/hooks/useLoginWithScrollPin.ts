@@ -43,7 +43,10 @@ export function useLoginWithScrollPin(login: () => void): () => void {
   useEffect(() => release, [release]);
 
   return useCallback(() => {
-    if (typeof window !== "undefined" && !holdsLockRef.current) {
+    // In-flight guard: while the pin is held the login flow is already under
+    // way, so don't fire login() again on rapid repeat taps.
+    if (holdsLockRef.current) return;
+    if (typeof window !== "undefined") {
       holdsLockRef.current = true;
       acquireBodyScrollLock();
 
@@ -68,6 +71,11 @@ export function useLoginWithScrollPin(login: () => void): () => void {
         if (!dialogSeen) release();
       }, DIALOG_APPEAR_TIMEOUT_MS);
     }
-    login();
+    try {
+      login();
+    } catch (error) {
+      release();
+      throw error;
+    }
   }, [login, release]);
 }

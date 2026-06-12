@@ -37,6 +37,9 @@ type QualificationResult =
 
 const USD_STABLE = new Set(["USDC", "USDT"]);
 const CNGN_SYMBOLS = new Set(["cNGN", "CNGN"]);
+// Onramp rows store the fiat currency in from_currency and the token in to_currency,
+// so their USD value comes from the receive side (mirrors /api/kyc/transaction-summary).
+const ONRAMP_USD_STABLE_TO = new Set(["USDC", "USDT", "CUSD"]);
 
 type QualificationSubject = "claimant" | "referee";
 
@@ -74,7 +77,9 @@ async function checkPartyQualification(
 
   const { data: volTxs, error: volTxError } = await supabaseAdmin
     .from("transactions")
-    .select("amount_sent, from_currency")
+    .select(
+      "amount_sent, amount_received, from_currency, to_currency, transaction_type",
+    )
     .eq("wallet_address", qualifyingWallet)
     .eq("status", "completed")
     .gte("created_at", referralCreatedAt);
@@ -89,12 +94,21 @@ async function checkPartyQualification(
 
   const txList = (volTxs || []) as Array<{
     amount_sent: string | number;
+    amount_received: string | number | null;
     from_currency: string;
+    to_currency: string | null;
+    transaction_type: string;
   }>;
-  const hasCngn = txList.some((tx) => CNGN_SYMBOLS.has(tx.from_currency));
+  // The NGN rate is needed for cNGN legs and for onramps whose USD value must be
+  // derived from the fiat amount sent (onramp from_currency is fiat, e.g. NGN).
+  const needsNgnRate = txList.some((tx) =>
+    tx.transaction_type === "onramp"
+      ? !ONRAMP_USD_STABLE_TO.has((tx.to_currency ?? "").toUpperCase())
+      : CNGN_SYMBOLS.has(tx.from_currency),
+  );
 
   let ngnPerUsd: number | null = null;
-  if (hasCngn) {
+  if (needsNgnRate) {
     try {
       const rateUrl = `${process.env.NEXT_PUBLIC_AGGREGATOR_URL}/rates/USDC/1/NGN`;
       const rateRes = await fetch(rateUrl, { signal: AbortSignal.timeout(5000) });
@@ -119,6 +133,21 @@ async function checkPartyQualification(
 
   const totalUsd = txList.reduce((sum, tx) => {
     const amount = Number(tx.amount_sent ?? 0);
+    if (tx.transaction_type === "onramp") {
+      const toCur = (tx.to_currency ?? "").toUpperCase();
+      const received = Number(tx.amount_received ?? 0);
+      if (ONRAMP_USD_STABLE_TO.has(toCur)) {
+        return sum + received;
+      }
+      if (toCur === "CNGN" && ngnPerUsd && ngnPerUsd > 0) {
+        return sum + received / ngnPerUsd;
+      }
+      // Non-stable receive leg: fall back to the fiat amount sent (NGN).
+      if (ngnPerUsd && ngnPerUsd > 0 && amount > 0) {
+        return sum + amount / ngnPerUsd;
+      }
+      return sum;
+    }
     if (USD_STABLE.has(tx.from_currency)) {
       return sum + amount;
     }

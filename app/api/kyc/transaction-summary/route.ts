@@ -58,13 +58,19 @@ export async function GET(request: NextRequest) {
 
     const TRACKED_SWAP_CURRENCIES = ["USDC", "USDT", "cUSD", "cNGN"];
     const STABLE_TO_CURRENCIES = ["USDC", "USDT", "cUSD"];
+    // Statuses that consume the monthly limit — keep in sync with
+    // insert_swap_transaction_if_within_limit. Pending orders count because funds
+    // are already committed; refunded/refunding/expired/failed rows do not.
+    // 'fulfilling' is legacy-only (the app maps the aggregator's "fulfilling" to
+    // 'pending') but is kept in case old rows carry it.
+    const SPEND_STATUSES = ["pending", "fulfilling", "fulfilled", "completed"];
 
     const { data: swapTransactions, error: swapError } = await supabaseAdmin
       .from("transactions")
       .select("amount_sent, from_currency, created_at")
       .eq("wallet_address", walletAddress)
       .eq("transaction_type", "offramp")
-      .in("status", ["fulfilling", "completed"])
+      .in("status", SPEND_STATUSES)
       .in("from_currency", TRACKED_SWAP_CURRENCIES)
       .gte("created_at", monthStart.toISOString());
 
@@ -75,7 +81,7 @@ export async function GET(request: NextRequest) {
       )
       .eq("wallet_address", walletAddress)
       .eq("transaction_type", "onramp")
-      .in("status", ["pending", "fulfilling", "completed"])
+      .in("status", SPEND_STATUSES)
       .gte("created_at", monthStart.toISOString());
 
     const error = swapError ?? onrampError;

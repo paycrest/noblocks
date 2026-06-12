@@ -452,21 +452,21 @@ export const MobileDropdown = ({
                 </motion.div>
               </div>
             </div>
+
+            <EarnConsentModal
+              isOpen={isEarnConsentModalOpen}
+              onClose={dismissEarnConsent}
+              onAccepted={() => handleEarnConsentAccepted(onEarnAccessAction)}
+            />
+
+            <CopyAddressWarningModal
+              isOpen={isWarningModalOpen}
+              onClose={() => setIsWarningModalOpen(false)}
+              address={walletForCopy?.address ?? ""}
+            />
           </Dialog>
         )}
       </AnimatePresence>
-
-      <EarnConsentModal
-        isOpen={isEarnConsentModalOpen}
-        onClose={dismissEarnConsent}
-        onAccepted={() => handleEarnConsentAccepted(onEarnAccessAction)}
-      />
-
-      <CopyAddressWarningModal
-        isOpen={isWarningModalOpen}
-        onClose={() => setIsWarningModalOpen(false)}
-        address={walletForCopy?.address ?? ""}
-      />
 
       <WalletMigrationModal
         isOpen={isMigrationModalOpen}

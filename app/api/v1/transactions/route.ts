@@ -9,7 +9,11 @@ import {
   trackBusinessEvent 
 } from "@/app/lib/server-analytics";
 import type { TransactionHistory, TransactionResponse } from "@/app/types";
-import { getExplorerLink } from "@/app/utils";
+import {
+  getExplorerLink,
+  parseValidTransactionAmount,
+  roundAmountForCurrency,
+} from "@/app/utils";
 import {
   assertTransactionWalletAuthorized,
   executeSwapTransactionLimitCheck,
@@ -178,6 +182,28 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         ? getExplorerLink(body.network, body.txHash)
         : "";
 
+    const parsedAmountSent = parseValidTransactionAmount(body.amountSent);
+    const parsedAmountReceived = parseValidTransactionAmount(body.amountReceived);
+    if (parsedAmountSent === null || parsedAmountReceived === null) {
+      trackApiError(
+        request,
+        "/api/v1/transactions",
+        "POST",
+        new Error("Invalid amountSent or amountReceived"),
+        400,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Bad Request: amountSent and amountReceived must be valid numbers",
+        },
+        { status: 400 },
+      );
+    }
+    const amountSent = roundAmountForCurrency(parsedAmountSent);
+    const amountReceived = roundAmountForCurrency(parsedAmountReceived);
+
+    // Insert transaction
     // KYC tier enforcement for swap and onramp (not transfer).
     // Uses an atomic stored procedure to prevent race conditions where two concurrent
     // requests both pass the limit check before either insert is committed.
@@ -194,8 +220,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           transactionType: normalizedTransactionType,
           fromCurrency: body.fromCurrency,
           toCurrency: body.toCurrency,
-          amountSent: body.amountSent,
-          amountReceived: body.amountReceived,
+          amountSent,
+          amountReceived,
           fee: body.fee,
           recipient: body.recipient,
           status: body.status,
@@ -295,8 +321,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           transaction_type: normalizedTransactionType,
           from_currency: body.fromCurrency,
           to_currency: body.toCurrency,
-          amount_sent: body.amountSent,
-          amount_received: body.amountReceived,
+          amount_sent: amountSent,
+          amount_received: amountReceived,
           fee: body.fee,
           status: body.status,
           network: body.network,
@@ -318,8 +344,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         transaction_type: body.transactionType,
         from_currency: body.fromCurrency,
         to_currency: body.toCurrency,
-        amount_sent: body.amountSent,
-        amount_received: body.amountReceived,
+        amount_sent: amountSent,
+        amount_received: amountReceived,
         fee: body.fee,
         recipient: body.recipient,
         status: body.status,
@@ -358,8 +384,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       transaction_type: normalizedTransactionType,
       from_currency: body.fromCurrency,
       to_currency: body.toCurrency,
-      amount_sent: body.amountSent,
-      amount_received: body.amountReceived,
+      amount_sent: amountSent,
+      amount_received: amountReceived,
       fee: body.fee,
       status: body.status,
       network: body.network,

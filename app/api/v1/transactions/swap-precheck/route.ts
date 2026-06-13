@@ -9,6 +9,10 @@ import {
   assertTransactionWalletAuthorized,
   executeSwapTransactionLimitCheck,
 } from "@/app/lib/swap-transaction-limit-server";
+import {
+  parseValidTransactionAmount,
+  roundAmountForCurrency,
+} from "@/app/utils";
 
 const PRECHECK_PATH = "/api/v1/transactions/swap-precheck";
 
@@ -117,14 +121,35 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const transactionType: "onramp" | "offramp" =
       body.transactionType === "onramp" ? "onramp" : "offramp";
 
+    const parsedAmountSent = parseValidTransactionAmount(body.amountSent);
+    const parsedAmountReceived = parseValidTransactionAmount(body.amountReceived);
+    if (parsedAmountSent === null || parsedAmountReceived === null) {
+      trackApiError(
+        request,
+        PRECHECK_PATH,
+        "POST",
+        new Error("Invalid amountSent or amountReceived"),
+        400,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Bad Request: amountSent and amountReceived must be valid numbers",
+        },
+        { status: 400 },
+      );
+    }
+    const amountSent = roundAmountForCurrency(parsedAmountSent);
+    const amountReceived = roundAmountForCurrency(parsedAmountReceived);
+
     const swapResult = await executeSwapTransactionLimitCheck(
       normalizedBodyWalletAddress,
       {
         transactionType,
         fromCurrency: String(body.fromCurrency),
         toCurrency: String(body.toCurrency),
-        amountSent: body.amountSent,
-        amountReceived: body.amountReceived,
+        amountSent,
+        amountReceived,
         fee: body.fee,
         recipient,
         status: "pending",

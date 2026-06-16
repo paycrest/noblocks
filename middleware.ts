@@ -122,7 +122,7 @@ async function authorizationMiddleware(req: NextRequest) {
   // Return 404 for referral routes when the feature is disabled
   if (
     (endpoint === "/api/referral" || endpoint.startsWith("/api/referral/")) &&
-    process.env.NEXT_PUBLIC_IS_REFERRAL?.trim().toLowerCase() === "false"
+    process.env.NEXT_PUBLIC_REFERRAL_ENABLED?.trim().toLowerCase() === "false"
   ) {
     return NextResponse.json(
       { success: false, error: "Referral program is disabled" },

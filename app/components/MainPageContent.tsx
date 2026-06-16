@@ -63,7 +63,7 @@ import {
   storePendingReferralCode,
   readPendingReferralCode,
 } from "../lib/pendingReferralCode";
-import { isReferralEnabled } from "../lib/referralFeature";
+import { isReferralEnabled } from "../utils";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 
 /**

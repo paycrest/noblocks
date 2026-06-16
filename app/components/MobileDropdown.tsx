@@ -44,7 +44,7 @@ import ProfileDrawer from "./ProfileDrawer";
 import WalletMigrationModal from "./WalletMigrationModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
 import { isEarnUiVisible } from "../lib/earnFeature";
-import { isReferralEnabled } from "../lib/referralFeature";
+import { isReferralEnabled } from "../utils";
 import type { EarnActivityEntry } from "../hooks/useEarnHandler";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useHandleExportEmbeddedWallet } from "../hooks/useHandleExportEmbeddedWallet";

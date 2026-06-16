@@ -12,7 +12,7 @@ import { base } from "viem/chains";
 import { erc20Abi } from "viem";
 import { cashbackConfig } from "@/app/lib/server-config";
 import config from "@/app/lib/config";
-import { isReferralEnabled } from "@/app/lib/referralFeature";
+import { isReferralEnabled } from "@/app/utils";
 
 // Referral program configuration
 const referralRewardAmountUsd = config.referralRewardAmountUsd;

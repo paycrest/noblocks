@@ -56,7 +56,7 @@ import { useCNGNRate } from "../hooks/useCNGNRate";
 import { EarnConsentModal } from "./EarnConsentModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
 import { isEarnUiVisible } from "../lib/earnFeature";
-import { isReferralEnabled } from "../lib/referralFeature";
+import { isReferralEnabled } from "../utils";
 import { EarnHubView, ReferralHubView } from "./wallet-mobile-modal";
 import { ReferralCTA } from "./ReferralCTA";
 

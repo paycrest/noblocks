@@ -119,12 +119,15 @@ async function authorizationMiddleware(req: NextRequest) {
   const endpoint = req.nextUrl.pathname;
   const method = req.method;
 
-  // Skip auth for referral routes when the feature is disabled
+  // Return 404 for referral routes when the feature is disabled
   if (
     (endpoint === "/api/referral" || endpoint.startsWith("/api/referral/")) &&
-    process.env.NEXT_PUBLIC_IS_REFERRAL === "false"
+    process.env.NEXT_PUBLIC_IS_REFERRAL?.trim().toLowerCase() === "false"
   ) {
-    return NextResponse.next();
+    return NextResponse.json(
+      { success: false, error: "Referral program is disabled" },
+      { status: 404 },
+    );
   }
 
   // Track API request for analytics

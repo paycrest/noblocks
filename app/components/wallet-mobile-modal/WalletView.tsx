@@ -22,7 +22,7 @@ import {
 import type { CrossChainBalanceEntry } from "../../context";
 import TransactionList from "../transaction/TransactionList";
 import type { Network, TransactionHistory } from "../../types";
-import { isReferralEnabled } from "../../lib/referralFeature";
+import { isReferralEnabled } from "../../utils";
 import { ReferralCTA } from "../ReferralCTA";
 
 const Divider = () => (

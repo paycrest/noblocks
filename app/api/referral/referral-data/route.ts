@@ -12,7 +12,7 @@ import {
   getWalletAddressFromPrivyUserId,
 } from "@/app/lib/privy";
 import { generateReferralCode } from "@/app/utils";
-import { isReferralEnabled } from "@/app/lib/referralFeature";
+import { isReferralEnabled } from "@/app/utils";
 
 export const GET = withRateLimit(async (request: NextRequest) => {
     if (!isReferralEnabled()) {

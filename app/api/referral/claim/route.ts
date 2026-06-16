@@ -42,53 +42,38 @@ const USD_STABLE = new Set(["USDC", "USDT", "CUSD"]);
 
 type QualificationSubject = "claimant" | "referee";
 
-async function checkPartyQualification(
+/**
+ * Type guard: narrows a QualificationResult to the failed branch so callers
+ * can safely access `.code` and `.message` without `as any`.
+ */
+function qualificationFailed(r: QualificationResult): r is Extract<QualificationResult, { ok: false }> {
+  return r.ok === false;
+}
+
+/**
+ * Shared volume calculator: fetch completed txs for a wallet since a given date
+ * and sum their USD-equivalent value.
+ *
+ * When `strict` is true (qualification), a failed NGN rate lookup hard-fails.
+ * When `strict` is false (unlock), a failed rate lookup logs and continues —
+ * CNGN legs contribute $0, which may under-count but doesn't block the caller.
+ */
+async function sumQualifyingVolumeUsd(
   wallet: string,
-  referralCreatedAt: string,
-  subject: QualificationSubject,
-): Promise<QualificationResult> {
-  const qualifyingWallet = wallet.toLowerCase();
-
-  const { data: kycProfile, error: kycError } = await supabaseAdmin
-    .from("user_kyc_profiles")
-    .select("tier")
-    .eq("wallet_address", qualifyingWallet)
-    .maybeSingle();
-
-  if (kycError) {
-    return {
-      ok: false,
-      code: "KYC_CHECK_FAILED",
-      message: "Unable to verify KYC status. Please try again later.",
-    };
-  }
-
-  if (!kycProfile || Number(kycProfile.tier ?? 0) < 1) {
-    return {
-      ok: false,
-      code: "KYC_REQUIRED",
-      message:
-        subject === "referee"
-          ? "Your referee must verify their phone number before you can claim your referral reward."
-          : "You must verify your phone number before claiming your referral reward.",
-    };
-  }
+  since: string,
+  strict: boolean,
+): Promise<{ totalUsd: number } | { error: string }> {
+  const walletLower = wallet.toLowerCase();
 
   const { data: volTxs, error: volTxError } = await supabaseAdmin
     .from("transactions")
-    .select(
-      "amount_sent, amount_received, from_currency, to_currency, transaction_type",
-    )
-    .eq("wallet_address", qualifyingWallet)
+    .select("amount_sent, amount_received, from_currency, to_currency, transaction_type")
+    .eq("wallet_address", walletLower)
     .eq("status", "completed")
-    .gte("created_at", referralCreatedAt);
+    .gte("created_at", since);
 
   if (volTxError) {
-    return {
-      ok: false,
-      code: "VERIFICATION_ERROR",
-      message: `Failed to fetch transactions: ${volTxError.message}`,
-    };
+    return { error: volTxError.message };
   }
 
   const txList = (
@@ -104,12 +89,12 @@ async function checkPartyQualification(
     from_currency: normalizeCurrency(tx.from_currency),
     to_currency: normalizeCurrency(tx.to_currency),
   }));
-  // The NGN rate is needed for cNGN legs and for onramps whose USD value must be
-  // derived from the fiat amount sent (onramp from_currency is fiat, e.g. NGN).
-  const needsNgnRate = txList.some((tx) =>
-    tx.transaction_type === "onramp"
-      ? !USD_STABLE.has(tx.to_currency)
-      : tx.from_currency === "CNGN",
+
+  const needsNgnRate = txList.some(
+    (tx) =>
+      tx.transaction_type === "onramp"
+        ? !USD_STABLE.has(tx.to_currency)
+        : tx.from_currency === "CNGN",
   );
 
   let ngnPerUsd: number | null = null;
@@ -127,21 +112,19 @@ async function checkPartyQualification(
       } else {
         throw new Error("invalid NGN rate payload");
       }
-    } catch {
-      return {
-        ok: false,
-        code: "VERIFICATION_ERROR",
-        message: "Unable to verify qualifying transaction volume. Please try again later.",
-      };
+    } catch (cause) {
+      if (strict) {
+        return { error: "Unable to verify qualifying transaction volume. Please try again later." };
+      }
+      console.error("sumQualifyingVolumeUsd: Failed to fetch NGN rate, using partial calculation", cause);
     }
   }
 
   const totalUsd = txList.reduce((sum, tx) => {
     const amount = Number(tx.amount_sent ?? 0);
     if (tx.transaction_type === "onramp") {
-      // Onramp rows store the fiat currency in from_currency and the token in
-      // to_currency, so their USD value comes from the receive side (mirrors
-      // /api/kyc/transaction-summary).
+      // Onramp rows store fiat in from_currency and the token received in to_currency,
+      // so the USD value is on the receive side.
       const received = Number(tx.amount_received ?? 0);
       if (USD_STABLE.has(tx.to_currency)) {
         return sum + received;
@@ -149,7 +132,6 @@ async function checkPartyQualification(
       if (tx.to_currency === "CNGN" && ngnPerUsd && ngnPerUsd > 0) {
         return sum + received / ngnPerUsd;
       }
-      // Non-stable receive leg: fall back to the fiat amount sent (NGN).
       if (ngnPerUsd && ngnPerUsd > 0 && amount > 0) {
         return sum + amount / ngnPerUsd;
       }
@@ -164,18 +146,130 @@ async function checkPartyQualification(
     return sum;
   }, 0);
 
-  if (totalUsd < referralMinQualifyingVolumeUsd) {
+  return { totalUsd };
+}
+
+/**
+ * Referrer qualification result for unlock-first model.
+ * - unlocked: true → no further referrer volume checks needed for this wallet.
+ * - unlocked: false with totalUsd < threshold → needs more volume (post-first-referral only).
+ */
+type ReferrerUnlockResult =
+  | { ok: true; unlocked: true; kycOk: boolean }
+  | { ok: true; unlocked: false; totalUsd: number };
+
+/**
+ * Check if the referrer is unlocked (has completed the one-time qualifying volume
+ * after their first referral as referrer).
+ *
+ * Rules:
+ * - Begin referring = MIN(created_at) from referrals where referrer_wallet_address = wallet.
+ * - Cumulative completed tx volume >= threshold since that date → unlock.
+ * - Pre-referral transactions never count.
+ * - Already unlocked (referrer_rewards_unlocked_at set) → fast-path skip.
+ * - Threshold met → persist referrer_rewards_unlocked_at = now().
+ */
+async function checkReferrerUnlock(wallet: string): Promise<ReferrerUnlockResult> {
+  const walletLower = wallet.toLowerCase();
+
+  // Single profile fetch: read unlock timestamp AND tier in one query.
+  // This eliminates the separate checkReferrerKyc call.
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("user_kyc_profiles")
+    .select("referrer_rewards_unlocked_at, tier")
+    .eq("wallet_address", walletLower)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error("checkReferrerUnlock: profile fetch error:", profileError);
+    return { ok: true, unlocked: false, totalUsd: 0 };
+  }
+
+  // KYC check is always included, whether unlocked or not.
+  const kycOk = profile != null && Number(profile.tier ?? 0) >= 1;
+
+  if (profile?.referrer_rewards_unlocked_at) {
+    return { ok: true, unlocked: true, kycOk };
+  }
+
+  const { data: firstReferral, error: firstReferralError } = await supabaseAdmin
+    .from("referrals")
+    .select("created_at")
+    .eq("referrer_wallet_address", walletLower)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .single();
+
+  if (firstReferralError || !firstReferral) {
+    return { ok: true, unlocked: false, totalUsd: 0 };
+  }
+
+  const volume = await sumQualifyingVolumeUsd(walletLower, new Date(firstReferral.created_at).toISOString(), false);
+  if ("error" in volume) {
+    console.error("checkReferrerUnlock: volume sum error:", volume.error);
+    return { ok: true, unlocked: false, totalUsd: 0 };
+  }
+
+  if (volume.totalUsd >= referralMinQualifyingVolumeUsd) {
+    const { error: updateError } = await supabaseAdmin
+      .from("user_kyc_profiles")
+      .update({ referrer_rewards_unlocked_at: new Date().toISOString() })
+      .eq("wallet_address", walletLower);
+
+    if (updateError) {
+      console.error("checkReferrerUnlock: lock persist error:", updateError);
+    }
+    return { ok: true, unlocked: true, kycOk };
+  }
+
+  return { ok: true, unlocked: false, totalUsd: volume.totalUsd };
+}
+
+async function checkPartyQualification(
+  wallet: string,
+  referralCreatedAt: string,
+  subject: QualificationSubject,
+): Promise<QualificationResult> {
+  const qualifyingWallet = wallet.toLowerCase();
+
+  const { data: kycProfile, error: kycError } = await supabaseAdmin
+    .from("user_kyc_profiles")
+    .select("tier")
+    .eq("wallet_address", qualifyingWallet)
+    .maybeSingle();
+
+  if (kycError) {
+    return { ok: false, code: "KYC_CHECK_FAILED", message: "Unable to verify KYC status. Please try again later." };
+  }
+
+  if (!kycProfile || Number(kycProfile.tier ?? 0) < 1) {
+    return {
+      ok: false,
+      code: "KYC_REQUIRED",
+      message:
+        subject === "referee"
+          ? "Your referee must verify their phone number before you can claim your referral reward."
+          : "You must verify your phone number before claiming your referral reward.",
+    };
+  }
+
+  const volume = await sumQualifyingVolumeUsd(qualifyingWallet, referralCreatedAt, true);
+  if ("error" in volume) {
+    return { ok: false, code: "VERIFICATION_ERROR", message: volume.error };
+  }
+
+  if (volume.totalUsd < referralMinQualifyingVolumeUsd) {
     return {
       ok: false,
       code: "VOLUME_NOT_MET",
       message:
         subject === "referee"
-          ? `Your referee's transaction volume $${totalUsd.toFixed(2)} is less than the required $${referralMinQualifyingVolumeUsd}.`
-          : `Your transaction volume $${totalUsd.toFixed(2)} is less than the required $${referralMinQualifyingVolumeUsd}.`,
+          ? `Your referee's transaction volume $${volume.totalUsd.toFixed(2)} is less than the required $${referralMinQualifyingVolumeUsd}.`
+          : `Your transaction volume $${volume.totalUsd.toFixed(2)} is less than the required $${referralMinQualifyingVolumeUsd}.`,
     };
   }
 
-  return { ok: true, totalUsd };
+  return { ok: true, totalUsd: volume.totalUsd };
 }
 
 // ─── Core claim logic (shared by GET auto-claim and POST manual claim) ─────────
@@ -183,9 +277,11 @@ async function checkPartyQualification(
 /**
  * Verifies KYC + volume, handles idempotency, and executes the on-chain USDC
  * transfer to `walletAddress` (referrer or referred claimant).
- * - Referee reward: referee must meet KYC + volume.
- * - Referrer reward: referrer AND referee must each meet KYC + volume.
- * Volume is counted only from the date the referral code was entered.
+ *
+ * Referrer reward: referrer must be unlocked (one-time volume after first
+ * referral + KYC) and referee must meet KYC + volume per-referral window.
+ *
+ * Referee reward: referee must meet KYC + volume per-referral window.
  */
 async function tryClaimOne(
   walletAddress: string,
@@ -230,22 +326,46 @@ async function tryClaimOne(
     };
   }
 
-  const qualificationChecks = isReferrerClaim
-    ? [
-        checkPartyQualification(referrerWallet, referralCreatedAt, "claimant"),
-        checkPartyQualification(referredWallet, referralCreatedAt, "referee"),
-      ]
-    : [checkPartyQualification(referredWallet, referralCreatedAt, "claimant")];
+  // ── Build and run qualification checks ──────────────────────────────────────
+  // Referrer must unlock once (volume since first referral + KYC) before earning
+  // on any referral. After unlock, referrer volume is never checked again.
 
-  for (const check of qualificationChecks) {
-    const qualification = await check;
-    if (!qualification.ok) {
-      return {
-        success: false,
-        code: qualification.code,
-        message: qualification.message,
+  let failed: { code: string; message: string } | null = null;
+
+  if (isReferrerClaim) {
+    const unlockResult = await checkReferrerUnlock(referrerWallet);
+    if (!unlockResult.ok || !unlockResult.unlocked) {
+      const totalUsd = (unlockResult as Extract<ReferrerUnlockResult, { ok: true; unlocked: false }>).totalUsd ?? 0;
+      failed = {
+        code: "REFERRER_NOT_UNLOCKED",
+        message: `Complete $${referralMinQualifyingVolumeUsd} in transactions after your first referral to unlock referral rewards. Your volume since referring: $${totalUsd.toFixed(2)}.`,
       };
+    } else if (!unlockResult.kycOk) {
+      // Unlocked but KYC was revoked or never satisfied — fast-path reject, no volume query
+      failed = {
+        code: "KYC_REQUIRED",
+        message: "You must verify your phone number before claiming your referral reward.",
+      };
+    } else {
+      // Unlocked + KYC good: check referee KYC + volume per-referral window
+      const refereeCheck = await checkPartyQualification(referredWallet, referralCreatedAt, "referee");
+      if (qualificationFailed(refereeCheck)) {
+        failed = { code: refereeCheck.code, message: refereeCheck.message };
+      }
     }
+  } else {
+    const refereeCheck = await checkPartyQualification(referredWallet, referralCreatedAt, "claimant");
+    if (qualificationFailed(refereeCheck)) {
+      failed = { code: refereeCheck.code, message: refereeCheck.message };
+    }
+  }
+
+  if (failed) {
+    return {
+      success: false,
+      code: failed.code,
+      message: failed.message,
+    };
   }
 
   let pendingClaimRow: typeof existingClaim;
@@ -421,9 +541,9 @@ async function tryClaimOne(
 // ─── GET — auto-claim all eligible pending referrals ─────────────────────────
 //
 // Called automatically when the referral dashboard loads. The server checks
-// KYC + volume (from referral created_at) for each claimant; referrers must
-// also have a qualified referee. Silent skips for KYC_REQUIRED / VOLUME_NOT_MET
-// are expected until requirements are met.
+// referrer unlock + KYC per the unlock-first model and referee KYC + volume
+// per-referral window. Silent skips for KYC_REQUIRED / VOLUME_NOT_MET /
+// REFERRER_NOT_UNLOCKED are expected until requirements are met.
 
 export const GET = withRateLimit(async (request: NextRequest) => {
   const start = Date.now();
@@ -611,7 +731,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     if (!result.success) {
       const statusCode =
-        result.code === "KYC_REQUIRED" || result.code === "VOLUME_NOT_MET"
+        result.code === "KYC_REQUIRED" || result.code === "VOLUME_NOT_MET" || result.code === "REFERRER_NOT_UNLOCKED"
           ? 400
           : result.code === "INSUFFICIENT_BALANCE" || result.code === "SERVICE_UNAVAILABLE"
             ? 503

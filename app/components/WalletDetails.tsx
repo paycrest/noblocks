@@ -56,6 +56,7 @@ import { useCNGNRate } from "../hooks/useCNGNRate";
 import { EarnConsentModal } from "./EarnConsentModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
 import { isEarnUiVisible } from "../lib/earnFeature";
+import { isReferralEnabled } from "../lib/referralFeature";
 import { EarnHubView, ReferralHubView } from "./wallet-mobile-modal";
 import { ReferralCTA } from "./ReferralCTA";
 
@@ -363,7 +364,7 @@ export const WalletDetails = () => {
                       )}
                     </div>
                   </div>
-                ) : sidebarView === "referrals" ? (
+                ) : sidebarView === "referrals" && isReferralEnabled() ? (
                   <div className="scrollbar-hide flex h-full flex-col overflow-y-auto p-5">
                     <ReferralHubView
                       onBack={() => setSidebarView("wallet")}
@@ -501,11 +502,13 @@ export const WalletDetails = () => {
                     </div>
 
                     <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
-                    <div className="mt-8">
-                      <ReferralCTA
-                        onViewReferrals={() => setSidebarView("referrals")}
-                      />
-                    </div>
+                    {isReferralEnabled() && (
+                      <div className="mt-8">
+                        <ReferralCTA
+                          onViewReferrals={() => setSidebarView("referrals")}
+                        />
+                      </div>
+                    )}
 
                     {/* Tab navigation — sticks below Transfer/Fund/Earn when scrolled */}
                     <div className="sticky top-0 z-10 -mx-5 space-y-3 bg-white px-5 pb-2 pt-4 dark:bg-surface-overlay">

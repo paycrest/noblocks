@@ -22,6 +22,7 @@ import {
 import type { CrossChainBalanceEntry } from "../../context";
 import TransactionList from "../transaction/TransactionList";
 import type { Network, TransactionHistory } from "../../types";
+import { isReferralEnabled } from "../../lib/referralFeature";
 import { ReferralCTA } from "../ReferralCTA";
 
 const Divider = () => (
@@ -380,7 +381,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
       </div>
 
       <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
-        {!isInjectedWallet && (
+        {!isInjectedWallet && isReferralEnabled() && (
           <div className="mt-4">
             <ReferralCTA onViewReferrals={onViewReferrals ?? (() => {})} />
           </div>

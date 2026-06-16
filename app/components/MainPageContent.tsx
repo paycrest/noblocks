@@ -63,6 +63,7 @@ import {
   storePendingReferralCode,
   readPendingReferralCode,
 } from "../lib/pendingReferralCode";
+import { isReferralEnabled } from "../lib/referralFeature";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 
 /**
@@ -135,10 +136,12 @@ const PageLayout = ({
       )}
 
       {/* Referral Input Modal */}
-      <ReferralInputModal
-        isOpen={showReferralModal}
-        onClose={onReferralModalClose}
-      />
+      {isReferralEnabled() && (
+        <ReferralInputModal
+          isOpen={showReferralModal}
+          onClose={onReferralModalClose}
+        />
+      )}
 
       <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
 
@@ -357,7 +360,7 @@ export function MainPageContent() {
 
   const showReferralIfEligible = useCallback(
     (fromNetworkSelected = false) => {
-      if (!ready || !authenticated || !walletAddress || isInjectedWallet) {
+      if (!isReferralEnabled() || !ready || !authenticated || !walletAddress || isInjectedWallet) {
         return;
       }
 

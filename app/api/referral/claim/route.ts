@@ -12,6 +12,7 @@ import { base } from "viem/chains";
 import { erc20Abi } from "viem";
 import { cashbackConfig } from "@/app/lib/server-config";
 import config from "@/app/lib/config";
+import { isReferralEnabled } from "@/app/lib/referralFeature";
 
 // Referral program configuration
 const referralRewardAmountUsd = config.referralRewardAmountUsd;
@@ -426,6 +427,13 @@ async function tryClaimOne(
 // are expected until requirements are met.
 
 export const GET = withRateLimit(async (request: NextRequest) => {
+  if (!isReferralEnabled()) {
+    return NextResponse.json(
+      { success: false, error: "Referral program is disabled" },
+      { status: 404 },
+    );
+  }
+
   const start = Date.now();
   try {
     const userId = await getPrivyUserIdFromRequest(request);
@@ -504,6 +512,13 @@ export const GET = withRateLimit(async (request: NextRequest) => {
 // ─── POST — manual claim for a specific referralId ────────────────────────────
 
 export const POST = withRateLimit(async (request: NextRequest) => {
+  if (!isReferralEnabled()) {
+    return NextResponse.json(
+      { success: false, error: "Referral program is disabled" },
+      { status: 404 },
+    );
+  }
+
   const start = Date.now();
   try {
     const userId = await getPrivyUserIdFromRequest(request);

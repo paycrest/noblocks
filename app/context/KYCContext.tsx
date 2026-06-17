@@ -8,7 +8,7 @@ import React, {
   useRef,
 } from "react";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
-import { getKycMonthlyLimitsRecord } from "@/app/lib/kyc-tier-limits";
+import { getKycTierLimit } from "@/app/lib/kyc-tier-limits";
 
 export interface TransactionLimits {
   monthly: number;
@@ -24,32 +24,30 @@ export interface KYCTier {
   requirements: string[];
 }
 
-const kycMonthlyLimits = getKycMonthlyLimitsRecord();
-
 /** Product tiers: 0 = unverified (no swaps until phone), 1 = phone, 2 = ID, 3 = address. */
 export const KYC_TIERS: Record<number, KYCTier> = {
   0: {
     level: 0,
     name: "Unverified",
-    limits: { monthly: kycMonthlyLimits[0] },
+    limits: { ...getKycTierLimit(0) },
     requirements: [],
   },
   1: {
     level: 1,
     name: "Phone",
-    limits: { monthly: kycMonthlyLimits[1] },
+    limits: { ...getKycTierLimit(1) },
     requirements: ["Phone number"],
   },
   2: {
     level: 2,
     name: "ID",
-    limits: { monthly: kycMonthlyLimits[2] },
+    limits: { ...getKycTierLimit(2) },
     requirements: ["Government ID", "Selfie verification"],
   },
   3: {
     level: 3,
     name: "Address",
-    limits: { monthly: kycMonthlyLimits[3] },
+    limits: { ...getKycTierLimit(3) },
     requirements: ["Address verification"],
   },
 };

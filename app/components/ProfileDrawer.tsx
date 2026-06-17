@@ -400,19 +400,23 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
                               <div className="text-2xl font-light text-text-body dark:text-white">
                                 $
                                 {formatUsdAmount(transactionSummary.monthlySpent)}{" "}
-                                / $
-                                {formatUsdAmount(currentLimits.monthly)}
+                                /{" "}
+                                {currentLimits.unlimited
+                                  ? "Unlimited"
+                                  : `$${formatUsdAmount(currentLimits.monthly)}`}
                               </div>
 
-                              {/* Progress Bar */}
-                              <div className="flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/10">
-                                <div
-                                  className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
-                                  style={{
-                                    width: `${Math.min(monthlyProgress, 100)}%`,
-                                  }}
-                                />
-                              </div>
+                              {/* Progress Bar — unlimited tiers have no cap to fill */}
+                              {!currentLimits.unlimited && (
+                                <div className="flex h-2 w-full items-center rounded-full bg-gray-300 dark:bg-white/10">
+                                  <div
+                                    className="h-2.5 rounded-full bg-gradient-to-r from-lavender-300 to-lavender-600 transition-all duration-500 dark:from-lavender-400 dark:to-lavender-600"
+                                    style={{
+                                      width: `${Math.min(monthlyProgress, 100)}%`,
+                                    }}
+                                  />
+                                </div>
+                              )}
                             </div>
 
                             {/* Upgrade Button */}

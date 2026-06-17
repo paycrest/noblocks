@@ -409,6 +409,8 @@ export type Config = {
   aggregatorSenderApiKey: string;
   /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
   earnEnabled: boolean;
+  /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
+  referralEnabled: boolean;
 };
 
 export type Network = {

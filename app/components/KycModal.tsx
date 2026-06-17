@@ -930,7 +930,9 @@ export const KycModal = ({
                 Monthly limit{" "}
               </p>
               <span className="text-xl font-normal text-neutral-900 dark:text-white">
-                ${formatNumberWithCommas(tier3Limits.limits.monthly)}
+                {tier3Limits.limits.unlimited
+                  ? "Unlimited"
+                  : `$${formatNumberWithCommas(tier3Limits.limits.monthly)}`}
               </span>
             </div>
           </div>

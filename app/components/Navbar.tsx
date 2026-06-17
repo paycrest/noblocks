@@ -23,6 +23,8 @@ import {
 import { ArrowDown01Icon } from "hugeicons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MobileDropdown } from "./MobileDropdown";
+import { NoblocksWorldCupLogo } from "./NoblocksWorldCupLogo";
+import { NoblocksAnimatedIcon } from "./NoblocksAnimatedIcon";
 import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
@@ -170,13 +172,15 @@ export const Navbar = () => {
               >
                 {IS_MAIN_PRODUCTION_DOMAIN ? (
                   <>
-                    <NoblocksLogo className="max-sm:hidden" />
-                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                    {/* <NoblocksLogo className="max-sm:hidden" /> */}
+                    <NoblocksWorldCupLogo className="max-sm:hidden" />
+                    <NoblocksAnimatedIcon className="size-[18px] sm:hidden" />
                   </>
                 ) : (
                   <>
-                    <NoblocksBetaLogo className="max-sm:hidden" />
-                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                    {/* <NoblocksBetaLogo className="max-sm:hidden" /> */}
+                    <NoblocksWorldCupLogo className="max-sm:hidden" />
+                    <NoblocksAnimatedIcon className="size-[18px] sm:hidden" />
                   </>
                 )}
               </button>
@@ -185,7 +189,7 @@ export const Navbar = () => {
                 className={classNames(
                   "size-5 cursor-pointer text-icon-outline-secondary transition-transform duration-200 dark:text-white/50 max-sm:hidden",
                   isDropdownOpen ? "rotate-0" : "-rotate-90",
-                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[15px]", // this adjusts the arrow position for beta logo
+                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[0px]", // this adjusts the arrow position for beta logo
                 )}
                 onClick={(e) => {
                   e.preventDefault();

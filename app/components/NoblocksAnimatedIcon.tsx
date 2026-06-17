@@ -67,11 +67,36 @@ export const NoblocksAnimatedIcon = ({
     };
   }, []);
 
-  // Drive the loop (skipped entirely under reduced motion).
+  // Drive the loop, staying reactive to runtime changes of the user's motion
+  // preference (WCAG 2.3.3): if reduced motion is turned on mid-session we stop
+  // and reset to the static "n"; if turned off, we resume cycling.
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const id = setInterval(() => setPhase((p) => (p + 1) % PHASES), PHASE_MS);
-    return () => clearInterval(id);
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let id: ReturnType<typeof setInterval> | null = null;
+
+    const start = () => {
+      if (!mediaQuery.matches && id === null) {
+        id = setInterval(() => setPhase((p) => (p + 1) % PHASES), PHASE_MS);
+      }
+    };
+
+    const stop = () => {
+      if (id !== null) {
+        clearInterval(id);
+        id = null;
+      }
+      setPhase(0);
+    };
+
+    const handleChange = () => (mediaQuery.matches ? stop() : start());
+
+    mediaQuery.addEventListener("change", handleChange);
+    start();
+
+    return () => {
+      mediaQuery.removeEventListener("change", handleChange);
+      if (id !== null) clearInterval(id);
+    };
   }, []);
 
   const fallback = <NoblocksLogoIcon className="size-full" />;
@@ -91,7 +116,9 @@ export const NoblocksAnimatedIcon = ({
       {phase === 2 &&
         (trophy ? (
           <span
-            className="flex size-full items-center justify-center [&>svg]:h-full [&>svg]:w-auto"
+            // Trophy renders ~2px taller than the 18px box, overflowing evenly
+            // (centered) so the icon's fixed bounding box doesn't shift.
+            className="flex size-full items-center justify-center [&>svg]:h-[20px] [&>svg]:w-auto"
             dangerouslySetInnerHTML={{ __html: trophy }}
           />
         ) : (

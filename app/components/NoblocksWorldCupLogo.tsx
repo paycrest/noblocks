@@ -27,7 +27,7 @@ export const NoblocksWorldCupLogo = ({
   useEffect(() => {
     if (svg) return;
     let active = true;
-    fetch("/logos/noblocks-worldcup-logo.svg?v=spin")
+    fetch("/logos/noblocks-worldcup-logo.svg?v=spin2")
       .then((res) => (res.ok ? res.text() : Promise.reject(res.status)))
       .then((markup) => {
         // Drop the fixed width/height on the root <svg> so the viewBox + CSS

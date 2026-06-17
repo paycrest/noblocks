@@ -6,6 +6,8 @@
       transform-origin: center;
       animation: noblocks-ball-spin 8s linear infinite;
     }
+    /* Second "O" counter-rotates so the two balls spin opposite ways. */
+    .noblocks-ball-reverse { animation-direction: reverse; }
     @media (prefers-reduced-motion: reduce) {
       .noblocks-ball { animation: none; }
     }
@@ -2036,5 +2038,5 @@
 <path d="M336.906 10.8535C336.968 10.996 336.939 11.4978 336.918 11.6542C336.916 11.6033 336.912 11.5924 336.882 11.5511L336.9 11.4896C336.87 11.5475 336.889 11.5306 336.827 11.5526L336.822 11.3974L336.752 11.0823C336.85 10.9963 336.865 10.977 336.906 10.8535Z" fill="#E8BE6E"/>
 </g>
   <use class="noblocks-ball" href="#nb-ball"/>
-  <g transform="translate(159 0)"><use class="noblocks-ball" href="#nb-ball"/></g>
+  <g transform="translate(159 0)"><use class="noblocks-ball noblocks-ball-reverse" href="#nb-ball"/></g>
 </svg>

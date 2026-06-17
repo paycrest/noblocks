@@ -3,6 +3,7 @@ import {
   parsePhoneNumberWithError,
   parsePhoneNumberFromString,
   validatePhoneNumberLength,
+  getCountryCallingCode,
   type CountryCode,
 } from "libphonenumber-js";
 
@@ -138,9 +139,22 @@ export function validatePhoneForSelectedCountry(
     return { ok: false };
   }
 
+  // US, Canada, and the Caribbean territories all share +1 (the NANP), so
+  // libphonenumber resolves a +1 number to its specific region (e.g. 778 → CA),
+  // which won't equal a US selection. Accept any region that shares the selected
+  // dial code, and reject only a genuine mismatch (e.g. a +44 number entered
+  // under a +1 selection). The returned E.164 carries the correctly-detected region.
   const detected = parsed.country;
   if (detected && detected !== selected.country) {
-    return { ok: false };
+    let detectedDialCode: string | undefined;
+    try {
+      detectedDialCode = getCountryCallingCode(detected);
+    } catch {
+      detectedDialCode = undefined;
+    }
+    if (!detectedDialCode || `+${detectedDialCode}` !== selected.code) {
+      return { ok: false };
+    }
   }
 
   return { ok: true, e164: parsed.format("E.164") };

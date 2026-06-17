@@ -69,16 +69,17 @@ export function ExportStarknetWalletModal({
     string | null
   >(null);
 
+  const resetExportState = useCallback(() => {
+    setStatus("idle");
+    setPrivateKey(null);
+    setErrorMsg(null);
+    setCopiedKey(false);
+    setCopiedAddress(false);
+    setKeyVerificationWarning(null);
+  }, []);
+
   useEffect(() => {
-    if (!isOpen) {
-      setStatus("idle");
-      setPrivateKey(null);
-      setErrorMsg(null);
-      setCopiedKey(false);
-      setCopiedAddress(false);
-      setKeyVerificationWarning(null);
-      return;
-    }
+    if (!isOpen) return;
 
     if (!walletId) {
       setStatus("error");
@@ -216,9 +217,10 @@ export function ExportStarknetWalletModal({
     : "—";
 
   return (
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={resetExportState}>
       {isOpen && (
         <Dialog
+          key="export-starknet-wallet"
           static
           open={isOpen}
           onClose={onCloseAction}
@@ -232,13 +234,14 @@ export function ExportStarknetWalletModal({
             aria-hidden="true"
           />
           <div className="fixed inset-0 flex items-center justify-center p-4">
-            <DialogPanel className="relative w-full max-w-md overflow-hidden rounded-2xl border border-border-light bg-white shadow-xl outline-none dark:border-white/10 dark:bg-neutral-900">
-              <motion.div
-                initial={{ scale: 0.96, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.96, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 380, damping: 32 }}
-              >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              className="relative w-full max-w-md overflow-hidden rounded-2xl border border-border-light bg-white shadow-xl dark:border-white/10 dark:bg-neutral-900"
+            >
+              <DialogPanel className="outline-none">
               <div className="flex items-start justify-between border-b border-border-light px-5 py-4 dark:border-white/10">
                 <h2 className="text-lg font-semibold text-text-body dark:text-white">
                   Export wallet
@@ -338,8 +341,8 @@ export function ExportStarknetWalletModal({
                   Privy&apos;s encrypted API.
                 </p>
               </div>
-              </motion.div>
-            </DialogPanel>
+              </DialogPanel>
+            </motion.div>
           </div>
         </Dialog>
       )}

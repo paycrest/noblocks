@@ -14,10 +14,50 @@ export function isValidEvmAddress(address: string): boolean {
 /**
  * Validates Ethereum/EVM address format (case-insensitive)
  * @param address - The address to validate
- * @returns true if valid EVM address format
+ * @returns true if valid EVM address format (0x + 40 hex digits)
  */
 export function isValidEvmAddressCaseInsensitive(address: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
+}
+
+/**
+ * Validates Starknet address format (0x + 1–64 hex digits, not zero address).
+ * Matches rules used by {@link normalizeStarknetAddress} in `utils.ts`.
+ */
+export function isValidStarknetAddress(address: string): boolean {
+  const trimmed = address.trim();
+  if (!trimmed.startsWith("0x")) return false;
+  const hexPart = trimmed.slice(2);
+  if (!/^[a-fA-F0-9]+$/.test(hexPart)) return false;
+  if (hexPart.length === 0 || hexPart.length > 64) return false;
+  if (/^0+$/.test(hexPart)) return false;
+  return true;
+}
+
+/**
+ * Network-aware wallet address check for on-ramp recipient fields.
+ * @returns `true` if valid, or an error message for react-hook-form.
+ */
+export function validateWalletAddress(
+  value: string | undefined,
+  networkName: string,
+): true | string {
+  const raw = (value ?? "").trim();
+  if (!raw) return true;
+  if (!raw.startsWith("0x")) return "Address must start with 0x";
+  if (networkName === "Starknet") {
+    if (isValidEvmAddressCaseInsensitive(raw)) {
+      return "This address is an EVM address. Enter a Starknet address.";
+    }
+    if (!isValidStarknetAddress(raw)) {
+      return "Enter a valid Starknet address.";
+    }
+    return true;
+  }
+  if (!isValidEvmAddressCaseInsensitive(raw)) {
+    return "Invalid wallet address format";
+  }
+  return true;
 }
 
 /**

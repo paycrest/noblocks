@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     // Check KYC profile for phone and SmileID verification status
     const { data: kycProfile, error: kycProfileError } = await supabaseAdmin
       .from("user_kyc_profiles")
-      .select("verified, phone_number, tier")
+      .select("verified, phone_number, tier, full_name")
       .eq("wallet_address", walletAddress)
       .maybeSingle();
 
@@ -68,6 +68,7 @@ export async function GET(request: NextRequest) {
       tier,
       isPhoneVerified: phoneVerified,
       phoneNumber,
+      fullName: kycProfile?.full_name || null,
     });
   } catch (error) {
     trackApiError(request, '/api/kyc/status', 'GET', error as Error, 500);

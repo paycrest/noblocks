@@ -19,7 +19,7 @@ import {
   starkPubKeyFromPrivateKey,
 } from "../lib/starknet-export-normalize";
 import { decryptStarknetExportHpke } from "../lib/starknet-export-hpke";
-import { copyToClipboard, normalizeStarknetAddressOrNull, shortenAddress } from "../utils";
+import { copyToClipboard, normalizeStarknetAddress, shortenAddress } from "../utils";
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -49,10 +49,15 @@ export function ExportStarknetWalletModal({
   expectedPublicKey,
 }: Props) {
   const { getAccessToken } = usePrivy();
-  const canonicalAddress = useMemo(
-    () => normalizeStarknetAddressOrNull(address),
-    [address],
-  );
+  const canonicalAddress = useMemo(() => {
+    const raw = address?.trim();
+    if (!raw) return null;
+    try {
+      return normalizeStarknetAddress(raw);
+    } catch {
+      return null;
+    }
+  }, [address]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle",
   );

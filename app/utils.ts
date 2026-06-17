@@ -1172,18 +1172,6 @@ export function normalizeStarknetAddress(address: string): string {
   return `0x${paddedHex}`;
 }
 
-/** Canonical 64-hex Starknet address, or null when missing. Falls back to trimmed input if padding fails. */
-export function normalizeStarknetAddressOrNull(
-  address: string | null | undefined,
-): string | null {
-  if (!address?.trim()) return null;
-  try {
-    return normalizeStarknetAddress(address);
-  } catch {
-    return address.trim();
-  }
-}
-
 /**
  * Normalizes network name for rate fetching API.
  * @param network - The network name to normalize.

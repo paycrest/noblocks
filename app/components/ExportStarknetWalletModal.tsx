@@ -9,7 +9,7 @@ import {
   Copy01Icon,
   Key01Icon,
 } from "hugeicons-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PiCheck } from "react-icons/pi";
 import { toast } from "sonner";
 import {
@@ -19,7 +19,7 @@ import {
   starkPubKeyFromPrivateKey,
 } from "../lib/starknet-export-normalize";
 import { decryptStarknetExportHpke } from "../lib/starknet-export-hpke";
-import { copyToClipboard, shortenAddress } from "../utils";
+import { copyToClipboard, normalizeStarknetAddressOrNull, shortenAddress } from "../utils";
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -49,6 +49,10 @@ export function ExportStarknetWalletModal({
   expectedPublicKey,
 }: Props) {
   const { getAccessToken } = usePrivy();
+  const canonicalAddress = useMemo(
+    () => normalizeStarknetAddressOrNull(address),
+    [address],
+  );
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle",
   );
@@ -153,9 +157,9 @@ export function ExportStarknetWalletModal({
           ) {
             warn =
               "Exported key does not match this wallet’s signer key. Try again or contact support before moving funds.";
-          } else if (address) {
+          } else if (canonicalAddress) {
             const derivedAddr = deriveReadyAddressFromPrivateKey(normalized);
-            if (!starkHexFeltEq(derivedAddr, address)) {
+            if (!starkHexFeltEq(derivedAddr, canonicalAddress)) {
               warn =
                 "Derived Ready account address from this key differs from the address shown. If another app shows a different address, it may be using a different account type than Noblocks (Ready).";
             }
@@ -184,7 +188,7 @@ export function ExportStarknetWalletModal({
       cancelled = true;
       ac.abort();
     };
-  }, [isOpen, walletId, getAccessToken, expectedPublicKey, address]);
+  }, [isOpen, walletId, getAccessToken, expectedPublicKey, canonicalAddress]);
 
   const handleCopyKey = useCallback(async () => {
     if (!privateKey) return;
@@ -195,15 +199,15 @@ export function ExportStarknetWalletModal({
   }, [privateKey]);
 
   const handleCopyAddress = useCallback(async () => {
-    if (!address) return;
-    const ok = await copyToClipboard(address, "Address");
+    if (!canonicalAddress) return;
+    const ok = await copyToClipboard(canonicalAddress, "Address");
     if (!ok) return;
     setCopiedAddress(true);
     setTimeout(() => setCopiedAddress(false), 2000);
-  }, [address]);
+  }, [canonicalAddress]);
 
-  const displayAddress = address
-    ? shortenAddress(address, 6, 4)
+  const displayAddress = canonicalAddress
+    ? shortenAddress(canonicalAddress, 8)
     : "—";
 
   return (
@@ -278,7 +282,7 @@ export function ExportStarknetWalletModal({
                     <button
                       type="button"
                       onClick={() => void handleCopyAddress()}
-                      disabled={!address}
+                      disabled={!canonicalAddress}
                       className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-lavender-500 hover:bg-lavender-500/10 disabled:opacity-40 dark:text-lavender-400"
                     >
                       {copiedAddress ? (

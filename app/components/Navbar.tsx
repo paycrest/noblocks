@@ -170,12 +170,14 @@ export const Navbar = () => {
               >
                 {IS_MAIN_PRODUCTION_DOMAIN ? (
                   <>
-                    <NoblocksLogo className="max-sm:hidden" />
+                    {/* <NoblocksLogo className="max-sm:hidden" /> */}
+                    <Image src="/logos/noblocks-worldcup-logo.svg" alt="Noblocks Logo" className="max-sm:hidden" width={120} height={28} />
                     <NoblocksLogoIcon className="size-[18px] sm:hidden" />
                   </>
                 ) : (
                   <>
-                    <NoblocksBetaLogo className="max-sm:hidden" />
+                    {/* <NoblocksBetaLogo className="max-sm:hidden" /> */}
+                    <Image src="/logos/noblocks-worldcup-logo.svg" alt="Noblocks Logo" className="max-sm:hidden" width={120} height={14} />
                     <NoblocksLogoIcon className="size-[18px] sm:hidden" />
                   </>
                 )}
@@ -185,7 +187,7 @@ export const Navbar = () => {
                 className={classNames(
                   "size-5 cursor-pointer text-icon-outline-secondary transition-transform duration-200 dark:text-white/50 max-sm:hidden",
                   isDropdownOpen ? "rotate-0" : "-rotate-90",
-                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[15px]", // this adjusts the arrow position for beta logo
+                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[0px]", // this adjusts the arrow position for beta logo
                 )}
                 onClick={(e) => {
                   e.preventDefault();

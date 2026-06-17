@@ -5,12 +5,8 @@ import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
 import {
-  Cancel01Icon,
   CheckmarkCircle01Icon,
-  AiPhone01Icon,
-  Message01Icon,
   ArrowDown01Icon,
-  TelephoneIcon,
   InformationSquareIcon,
   ArrowLeft02Icon,
 } from "hugeicons-react";
@@ -62,7 +58,7 @@ export default function PhoneVerificationModal({
       },
       existingTier: {
         heading: "Secure your account",
-        subheading: "To comply with updated security standards and keep your Tier privileges active...",
+        subheading: "To comply with updated security standards and keep your Tier privileges active, please submit your phone number.",
         infoCard: "Your Tier status and limits will remain unaffected once confirmed.",
         cta: "Verify Number",
       },

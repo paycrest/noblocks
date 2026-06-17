@@ -44,6 +44,7 @@ import ProfileDrawer from "./ProfileDrawer";
 import WalletMigrationModal from "./WalletMigrationModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
 import { isEarnUiVisible } from "../lib/earnFeature";
+import { isReferralEnabled } from "../utils";
 import type { EarnActivityEntry } from "../hooks/useEarnHandler";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useHandleExportEmbeddedWallet } from "../hooks/useHandleExportEmbeddedWallet";
@@ -343,11 +344,11 @@ export const MobileDropdown = ({
                             setSelectedTransaction(tx);
                             setCurrentView("history");
                           }}
-                          onViewReferrals={() => setCurrentView("referrals")}
+                          onViewReferrals={isReferralEnabled() ? () => setCurrentView("referrals") : undefined}
                         />
                       )}
 
-                      {currentView === "referrals" && (
+                      {currentView === "referrals" && isReferralEnabled() && (
                         <ReferralHubView
                           onBack={() => setCurrentView("wallet")}
                           onClose={onClose}

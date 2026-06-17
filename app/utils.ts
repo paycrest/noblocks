@@ -1938,6 +1938,11 @@ export function generateReferralCode(): string {
   return code;
 }
 
+/** Client feature flag: referral program. */
+export function isReferralEnabled(): boolean {
+  return config.referralEnabled;
+}
+
 /**
  * Copies text to clipboard and shows a toast notification.
  * Uses `navigator.clipboard` when available; falls back to `execCommand` when the API is

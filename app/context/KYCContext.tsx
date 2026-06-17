@@ -65,6 +65,7 @@ export interface KYCStatusSnapshot {
   tier: KYCTierLevel;
   isPhoneVerified: boolean;
   phoneNumber: string | null;
+  fullName: string | null;
   transactionSummary: UserTransactionSummary;
 }
 
@@ -72,6 +73,7 @@ interface KYCContextType {
   tier: KYCTierLevel;
   isPhoneVerified: boolean;
   phoneNumber: string | null;
+  fullName: string | null;
   walletAddress: string | undefined;
   transactionSummary: UserTransactionSummary;
   canTransact: (amount: number) => { allowed: boolean; reason?: string };
@@ -94,6 +96,7 @@ function createEmptySnapshot(): KYCStatusSnapshot {
     tier: 0,
     isPhoneVerified: false,
     phoneNumber: null,
+    fullName: null,
     transactionSummary: { ...EMPTY_TX_SUMMARY },
   };
 }
@@ -121,6 +124,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   const [tier, setTier] = useState<KYCTierLevel>(0);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
   const [transactionSummary, setTransactionSummary] =
     useState<UserTransactionSummary>({ ...EMPTY_TX_SUMMARY });
 
@@ -133,6 +137,10 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         partial.phoneNumber !== undefined
           ? partial.phoneNumber
           : latestSnapshotRef.current.phoneNumber,
+      fullName:
+        partial.fullName !== undefined
+          ? partial.fullName
+          : latestSnapshotRef.current.fullName,
       transactionSummary:
         partial.transactionSummary ?? latestSnapshotRef.current.transactionSummary,
     };
@@ -140,6 +148,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     setTier(next.tier);
     setIsPhoneVerified(next.isPhoneVerified);
     setPhoneNumber(next.phoneNumber);
+    setFullName(next.fullName);
     setTransactionSummary(next.transactionSummary);
     return next;
   }, []);
@@ -273,6 +282,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
           tier: safeTier,
           isPhoneVerified: Boolean(data.isPhoneVerified),
           phoneNumber: data.phoneNumber ?? null,
+          fullName: data.fullName ?? null,
         });
         return true;
       } catch {
@@ -337,6 +347,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       setTier(empty.tier);
       setIsPhoneVerified(empty.isPhoneVerified);
       setPhoneNumber(empty.phoneNumber);
+      setFullName(empty.fullName);
       setTransactionSummary({ ...EMPTY_TX_SUMMARY });
       fetchGuardsRef.current = {};
       lastFetchTimeRef.current = 0;
@@ -350,6 +361,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         tier,
         isPhoneVerified,
         phoneNumber,
+        fullName,
         walletAddress,
         transactionSummary,
         canTransact,

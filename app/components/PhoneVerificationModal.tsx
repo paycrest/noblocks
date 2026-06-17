@@ -50,7 +50,28 @@ export default function PhoneVerificationModal({
     () => getKycMonthlyLimitsRecord()[1],
     [],
   );
-  const { refreshStatus } = useKYC();
+  const { tier, fullName, refreshStatus } = useKYC();
+
+  const PHONE_MODAL_COPY = useMemo(
+    () => ({
+      onboarding: {
+        heading: "Verify your number to start swapping",
+        subheading: "Enter your fullname & phone number to unlock your first swaps on Noblocks. No extra documents required.",
+        infoCard: `With just your phone number, you can swap up to $${formatNumberWithCommas(tier1MonthlyLimitUsd)}/month. Verify your ID later to unlock even higher limits.`,
+        cta: "Verify and start",
+      },
+      existingTier: {
+        heading: "Secure your account",
+        subheading: "To comply with updated security standards and keep your Tier privileges active...",
+        infoCard: "Your Tier status and limits will remain unaffected once confirmed.",
+        cta: "Verify Number",
+      },
+    }),
+    [tier1MonthlyLimitUsd],
+  );
+
+  const variant = tier >= 2 ? "existingTier" : "onboarding";
+  const copy = PHONE_MODAL_COPY[variant];
   const { wallets } = useWallets();
   const { getAccessToken, ready, authenticated } = usePrivy();
 
@@ -172,8 +193,10 @@ export default function PhoneVerificationModal({
     [phoneNumber, selectedCountry],
   );
 
+  const showFullNameField = !fullName?.trim();
+
   const handlePhoneSubmit = useCallback(async () => {
-    if (!name.trim()) {
+    if (showFullNameField && !name.trim()) {
       toast.error("Please enter your full name");
       return;
     }
@@ -197,7 +220,7 @@ export default function PhoneVerificationModal({
         },
         body: JSON.stringify({
           phoneNumber: phoneValidation.e164,
-          name: name,
+          name: showFullNameField ? name.trim() : (fullName ?? ""),
           countryIso: selectedCountry.country,
         }),
       });
@@ -218,7 +241,7 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [phoneNumber, walletAddress, selectedCountry, name, resolveAccessToken, phoneValidation]);
+  }, [phoneNumber, walletAddress, selectedCountry, name, fullName, showFullNameField, resolveAccessToken, phoneValidation]);
 
   const handleOtpSubmit = useCallback(async () => {
     if (!otpCode.trim() || otpCode.length !== 6) {
@@ -315,36 +338,39 @@ export default function PhoneVerificationModal({
     setCountrySearch("");
   };
 
-  const renderEnterPhone = () => (
-    <motion.div key="enter-phone" {...fadeInOut} className="space-y-4">
-      <div className="space-y-3 text-start">
-        <InformationSquareIcon className="h-[22.17px] w-[22.17px] text-gray-400 dark:text-white/40" />
-        <DialogTitle className="text-lg text-text-body dark:text-white">
-          Verify your number to start swapping
-        </DialogTitle>
-        <p className="text-sm font-light text-text-secondary dark:text-white/50">
-          Enter your fullname &amp; phone number to unlock your first swaps on
-          Noblocks. No extra documents required.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-4 rounded-2xl p-4 dark:bg-surface-canvas">
-        <div className="space-y-2">
-          <label
-            htmlFor="fullname"
-            className="text-sm font-medium text-text-secondary dark:text-white/70"
-          >
-            Full name
-          </label>
-          <input
-            type="text"
-            id="fullname"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Enter your fullname"
-            className="min-h-12 w-full rounded-xl border border-border-input bg-transparent px-4 py-3 text-sm text-neutral-900 transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-black2 dark:text-white/80 dark:placeholder:text-white/30 dark:focus-within:border-white/40"
-          />
+  const renderEnterPhone = () => {
+    const showFullNameField = !fullName?.trim();
+    return (
+      <motion.div key="enter-phone" {...fadeInOut} className="space-y-4">
+        <div className="space-y-3 text-start">
+          <InformationSquareIcon className="h-[22.17px] w-[22.17px] text-gray-400 dark:text-white/40" />
+          <DialogTitle className="text-lg text-text-body dark:text-white">
+            {copy.heading}
+          </DialogTitle>
+          <p className="text-sm font-light text-text-secondary dark:text-white/50">
+            {copy.subheading}
+          </p>
         </div>
+
+        <div className="flex flex-col gap-4 rounded-2xl p-4 dark:bg-surface-canvas">
+          {showFullNameField && (
+            <div className="space-y-2">
+              <label
+                htmlFor="fullname"
+                className="text-sm font-medium text-text-secondary dark:text-white/70"
+              >
+                Full name
+              </label>
+              <input
+                type="text"
+                id="fullname"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your fullname"
+                className="min-h-12 w-full rounded-xl border border-border-input bg-transparent px-4 py-3 text-sm text-neutral-900 transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-black2 dark:text-white/80 dark:placeholder:text-white/30 dark:focus-within:border-white/40"
+              />
+            </div>
+          )}
 
         <div className="space-y-2">
           <label
@@ -473,9 +499,7 @@ export default function PhoneVerificationModal({
       <div className="flex items-start gap-2 rounded-xl bg-background-neutral p-3 dark:bg-white/5">
         <InformationSquareIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-white/40" />
         <p className="text-sm font-light leading-[20px] text-text-secondary dark:text-white/50">
-          With just your phone number, you can swap up to $
-          {formatNumberWithCommas(tier1MonthlyLimitUsd)}/month. Verify your ID
-          later to unlock even higher limits.
+          {copy.infoCard}
         </p>
       </div>
 
@@ -484,16 +508,17 @@ export default function PhoneVerificationModal({
         onClick={handlePhoneSubmit}
         disabled={
           isLoading ||
-          !name.trim() ||
+          (showFullNameField && !name.trim()) ||
           !phoneNumber.trim() ||
           !phoneValidation.ok
         }
         className={`${primaryBtnClasses} w-full`}
       >
-        {isLoading ? "Sending..." : "Verify and start"}
+        {isLoading ? "Sending..." : copy.cta}
       </button>
     </motion.div>
-  );
+    );
+  };
 
   const renderEnterOtp = () => (
     <motion.div key="enter-otp" {...fadeInOut} className="space-y-4">

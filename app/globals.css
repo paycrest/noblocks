@@ -127,6 +127,26 @@ select {
   }
 }
 
+/* Spinning soccer-ball state of the animated mobile logo icon. The rotation is
+   applied to the live DOM element (not inside the SVG) so it runs in every
+   browser, including Safari/iOS. */
+@keyframes nb-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.nb-icon-spin {
+  transform-origin: center;
+  animation: nb-icon-spin 3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nb-icon-spin {
+    animation: none;
+  }
+}
+
 .walkthrough-video-container {
   border: 12px solid #fd76b3;
   background-color: #fd76b3;

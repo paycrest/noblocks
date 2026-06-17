@@ -157,7 +157,8 @@ async function sumQualifyingVolumeUsd(
  */
 type ReferrerUnlockResult =
   | { ok: true; unlocked: true; kycOk: boolean }
-  | { ok: true; unlocked: false; totalUsd: number };
+  | { ok: true; unlocked: false; totalUsd: number }
+  | { ok: false; code: string; message: string };
 
 /**
  * Check if the referrer is unlocked (has completed the one-time qualifying volume
@@ -183,7 +184,11 @@ async function checkReferrerUnlock(wallet: string): Promise<ReferrerUnlockResult
 
   if (profileError) {
     console.error("checkReferrerUnlock: profile fetch error:", profileError);
-    return { ok: true, unlocked: false, totalUsd: 0 };
+    return {
+      ok: false,
+      code: "PROFILE_FETCH_FAILED",
+      message: "Unable to verify referrer status. Please try again later.",
+    };
   }
 
   // KYC check is always included, whether unlocked or not.
@@ -208,7 +213,11 @@ async function checkReferrerUnlock(wallet: string): Promise<ReferrerUnlockResult
   const volume = await sumQualifyingVolumeUsd(walletLower, new Date(firstReferral.created_at).toISOString(), false);
   if ("error" in volume) {
     console.error("checkReferrerUnlock: volume sum error:", volume.error);
-    return { ok: true, unlocked: false, totalUsd: 0 };
+    return {
+      ok: false,
+      code: "VERIFICATION_ERROR",
+      message: "Unable to verify referrer status. Please try again later.",
+    };
   }
 
   if (volume.totalUsd >= referralMinQualifyingVolumeUsd) {
@@ -335,8 +344,12 @@ async function tryClaimOne(
 
   if (isReferrerClaim) {
     const unlockResult = await checkReferrerUnlock(referrerWallet);
-    if (!unlockResult.ok || !unlockResult.unlocked) {
-      const totalUsd = (unlockResult as Extract<ReferrerUnlockResult, { ok: true; unlocked: false }>).totalUsd ?? 0;
+    if (!unlockResult.ok) {
+      // Transient verification failure (DB error) — distinct from a genuine
+      // "not unlocked" so the caller doesn't show a misleading volume message.
+      failed = { code: unlockResult.code, message: unlockResult.message };
+    } else if (!unlockResult.unlocked) {
+      const totalUsd = unlockResult.totalUsd ?? 0;
       failed = {
         code: "REFERRER_NOT_UNLOCKED",
         message: `Complete $${referralMinQualifyingVolumeUsd} in transactions after your first referral to unlock referral rewards. Your volume since referring: $${totalUsd.toFixed(2)}.`,

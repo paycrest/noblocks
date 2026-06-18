@@ -190,7 +190,8 @@ export async function submitSmileIDJob({
         if (typeof code === "string" || typeof code === "number") {
           safeMeta.providerErrorCode = code;
         }
-        if (typeof msg === "string") safeMeta.providerErrorMessage = msg.slice(0, 200);
+        if (typeof msg === "string")
+          safeMeta.providerErrorMessage = msg.slice(0, 200);
       }
     }
     console.error("SmileID API Error:", safeMeta);

@@ -3,13 +3,10 @@
  * Docs: https://docs.dojah.io/docs/document-analysis/utility-bill
  */
 
-const DOJAH_BASE_URL =
-  process.env.DOJAH_BASE_URL || "https://api.dojah.io";
+const DOJAH_BASE_URL = process.env.DOJAH_BASE_URL || "https://api.dojah.io";
 const DOJAH_APP_ID = process.env.DOJAH_APP_ID;
 const DOJAH_SECRET_KEY = process.env.DOJAH_SECRET_KEY;
-const DOJAH_TIMEOUT_MS = Number(
-  process.env.DOJAH_TIMEOUT_MS || "25000",
-);
+const DOJAH_TIMEOUT_MS = Number(process.env.DOJAH_TIMEOUT_MS || "25000");
 
 export interface DojahUtilityBillResponse {
   entity?: {
@@ -44,13 +41,16 @@ export async function verifyUtilityBill(
   address?: AddressData,
 ): Promise<DojahUtilityBillResponse> {
   if (!DOJAH_APP_ID || !DOJAH_SECRET_KEY) {
-    throw new Error("Dojah is not configured: DOJAH_APP_ID and DOJAH_SECRET_KEY are required");
+    throw new Error(
+      "Dojah is not configured: DOJAH_APP_ID and DOJAH_SECRET_KEY are required",
+    );
   }
 
   const controller = new AbortController();
-  const timeoutMs = Number.isFinite(DOJAH_TIMEOUT_MS) && DOJAH_TIMEOUT_MS > 0
-    ? DOJAH_TIMEOUT_MS
-    : 25_000;
+  const timeoutMs =
+    Number.isFinite(DOJAH_TIMEOUT_MS) && DOJAH_TIMEOUT_MS > 0
+      ? DOJAH_TIMEOUT_MS
+      : 25_000;
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   const requestBody: Record<string, string> = {
@@ -125,7 +125,7 @@ export async function verifyUtilityBill(
  * Check if Dojah verification result indicates success.
  */
 export function isDojahVerificationSuccess(
-  data: DojahUtilityBillResponse
+  data: DojahUtilityBillResponse,
 ): boolean {
   const status = data?.entity?.result?.status;
   return status === "success";

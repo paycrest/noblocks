@@ -39,6 +39,7 @@ import {
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { useWalletAddress } from "../hooks/useWalletAddress";
+import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
@@ -99,6 +100,9 @@ export const TransactionForm = ({
   // Destructure stateProps
   const { rate, isFetchingRate, setOrderId } = stateProps;
   const { authenticated, ready, login, user } = usePrivy();
+  // Pin body scroll while the Privy dialog is up — its end-of-body iframe
+  // steals focus on mobile and drags the page to the bottom otherwise.
+  const loginWithScrollPin = useLoginWithScrollPin(login);
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
@@ -1253,20 +1257,20 @@ export const TransactionForm = ({
             )}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {isKycModalOpen && tier >= 1 && (
-            <AnimatedModal
-              isOpen={isKycModalOpen}
-              onClose={() => setIsKycModalOpen(false)}
-            >
-              <KycModal
-                setIsKycModalOpen={setIsKycModalOpen}
-                setIsUserVerified={setIsUserVerified}
-                targetTier={getKycModalTargetTier(tier)}
-              />
-            </AnimatedModal>
-          )}
-        </AnimatePresence>
+        {/* No outer AnimatePresence/conditional: AnimatedModal manages its own
+            presence, and an outer conditional removes it before the exit
+            animation (and the scroll-lock release in onExitComplete) can run. */}
+        <AnimatedModal
+          isOpen={isKycModalOpen && tier >= 1}
+          onClose={() => setIsKycModalOpen(false)}
+          lockBodyScroll
+        >
+          <KycModal
+            setIsKycModalOpen={setIsKycModalOpen}
+            setIsUserVerified={setIsUserVerified}
+            targetTier={getKycModalTargetTier(tier)}
+          />
+        </AnimatedModal>
 
         <TransactionLimitModal
           isOpen={isLimitModalOpen}
@@ -1308,7 +1312,7 @@ export const TransactionForm = ({
               disabled={!isEnabled}
               onClick={buttonAction(
                 handleSwap,
-                login,
+                loginWithScrollPin,
                 () =>
                   handleFundWallet(
                     activeWallet?.address ?? "",

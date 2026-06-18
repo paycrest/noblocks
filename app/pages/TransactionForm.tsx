@@ -953,7 +953,7 @@ export const TransactionForm = ({
                   }
                 }}
                 className={[
-                  "px-3 h-8 text-sm font-medium rounded-full transition-colors",
+                  "px-4 h-8 text-sm font-medium rounded-full transition-colors",
                   "bg-neutral-100 dark:bg-[#141414]",
                   isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
@@ -972,7 +972,7 @@ export const TransactionForm = ({
                   }
                 }}
                 className={[
-                  "px-3 h-8 text-sm font-medium rounded-full transition-colors",
+                  "px-4 h-8 text-sm font-medium rounded-full transition-colors",
                   "bg-neutral-100 dark:bg-[#141414]",
                   !isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"

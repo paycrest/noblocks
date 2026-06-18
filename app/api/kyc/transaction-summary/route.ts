@@ -70,11 +70,14 @@ export async function GET(request: NextRequest) {
     // 'pending') but is kept in case old rows carry it.
     const SPEND_STATUSES = ["pending", "fulfilling", "fulfilled", "completed"];
 
+    // "offramp" is the current label; "swap" is the legacy label used before
+    // 2026-05-29 (commit 73ebf7b normalized swap→offramp and added the
+    // transaction_type CHECK). Both denote the same sell, so include both.
     const { data: swapTransactions, error: swapError } = await supabaseAdmin
       .from("transactions")
       .select("amount_sent, from_currency, created_at")
       .eq("wallet_address", walletAddress)
-      .eq("transaction_type", "offramp")
+      .in("transaction_type", ["offramp", "swap"])
       .in("status", SPEND_STATUSES)
       .gte("created_at", monthStart.toISOString());
 

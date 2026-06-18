@@ -65,6 +65,7 @@ const config: Config = {
   /** Sender API key UUID (aggregator dashboard). Used by server proxy and client (on-chain messageHash metadata). */
   aggregatorSenderApiKey: (process.env.NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID || "").trim(),
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
+  referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
 };
 
 export default config;

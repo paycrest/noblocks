@@ -10,6 +10,7 @@ import {
 } from "@/app/lib/server-analytics";
 import { getWalletAddressFromPrivyUserId } from "@/app/lib/privy";
 import config from "@/app/lib/config";
+import { isReferralEnabled } from "@/app/utils";
 
 const referralRewardAmountUsd = config.referralRewardAmountUsd;
 
@@ -22,6 +23,13 @@ function isUniqueViolation(error: { code?: string; message?: string } | null): b
 }
 
 export const POST = withRateLimit(async (request: NextRequest) => {
+    if (!isReferralEnabled()) {
+        return NextResponse.json(
+            { success: false, error: "Referral program is disabled" },
+            { status: 404 }
+        );
+    }
+
     const startTime = Date.now();
 
     try {

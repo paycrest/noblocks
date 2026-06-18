@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Set wallet context using service-role key
+    // Set wallet context via supabaseAdmin (secret key)
     const { error } = await supabaseAdmin.rpc("set_current_wallet_address", {
       wallet_address: walletAddress,
     });

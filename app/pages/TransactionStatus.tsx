@@ -28,8 +28,10 @@ import {
   classNames,
   formatCurrency,
   formatNumberWithCommas,
+  formatRecipientNameFirstWordForPill,
   getExplorerLink,
   getInstitutionNameByCode,
+  isBlockFestActive,
 } from "../utils";
 import {
   fetchOrderDetails,
@@ -57,7 +59,6 @@ import { useConfetti } from "../hooks/useConfetti";
 import { BlockFestCashbackComponent } from "../components/blockfest";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
 import { useRocketStatus } from "../context/RocketStatusContext";
-import { isBlockFestActive } from "../utils";
 
 // Allowed tokens for BlockFest cashback
 const ALLOWED_CASHBACK_TOKENS = new Set(["USDC", "USDT"]);
@@ -344,19 +345,21 @@ export function TransactionStatus({
         void saveTransactionData("fulfilling", h);
       };
 
+      const sessionExpiredMessage =
+        "Session expired. Please refresh to continue tracking your transaction.";
+
       const getOrderDetails = async () => {
         try {
+          const accessToken = await getAccessToken();
+          if (!accessToken) {
+            toast.error(sessionExpiredMessage);
+            if (intervalId) clearInterval(intervalId);
+            return;
+          }
+
           let responseData: OrderDetailsData;
 
           if (isOnramp) {
-            const accessToken = await getAccessToken();
-            if (!accessToken) {
-              toast.error(
-                "Session expired. Please refresh to continue tracking your transaction.",
-              );
-              clearInterval(intervalId);
-              return;
-            }
             const res = await fetchV2SenderPaymentOrderById(orderId, accessToken);
             const resolvedStatus = resolveOnrampOrderStatusFromV2Response(res);
             responseData =
@@ -368,8 +371,9 @@ export function TransactionStatus({
             }
           } else {
             const orderDetailsResponse = await fetchOrderDetails(
-              selectedNetwork.chain.id,
               orderId,
+              accessToken,
+              { network: selectedNetwork.chain.name },
             );
             responseData = orderDetailsResponse.data;
           }
@@ -482,8 +486,15 @@ export function TransactionStatus({
         }
       };
 
-      getOrderDetails();
-      intervalId = setInterval(getOrderDetails, 5000);
+      void (async () => {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          toast.error(sessionExpiredMessage);
+          return;
+        }
+        await getOrderDetails();
+        intervalId = setInterval(getOrderDetails, 5000);
+      })();
 
       return () => {
         if (intervalId) clearInterval(intervalId);
@@ -1046,7 +1057,7 @@ export function TransactionStatus({
           >
             {isOnramp
               ? (recipientWalletAddress ? `${recipientWalletAddress.slice(0, 6)}...${recipientWalletAddress.slice(-4)}` : "")
-              : (recipientName ?? "").toLowerCase().split(" ")[0]}
+              : formatRecipientNameFirstWordForPill(recipientName)}
           </AnimatedComponent>
         </div>
       </div>
@@ -1110,7 +1121,7 @@ export function TransactionStatus({
           >
             {isOnramp
               ? (recipientWalletAddress ? `${recipientWalletAddress.slice(0, 6)}...${recipientWalletAddress.slice(-4)}` : "")
-              : (recipientName ?? "").toLowerCase().split(" ")[0]}
+              : formatRecipientNameFirstWordForPill(recipientName)}
           </AnimatedComponent>
         </div>
 

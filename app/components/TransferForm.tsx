@@ -85,9 +85,13 @@ export const TransferForm: React.FC<{
     watch,
     reset,
     trigger,
-    formState: { errors, isValid, isDirty },
+    getValues,
+    formState: { errors, isValid, isDirty, dirtyFields },
   } = formMethods;
   const { token, amount, recipientNetwork, recipientNetworkImageUrl } = watch();
+
+  const showRecipientAddressError =
+    Boolean(errors.recipientAddress) && Boolean(dirtyFields.recipientAddress);
 
   // Get the Network object for the selected recipient network
   const transferNetwork =
@@ -143,8 +147,11 @@ export const TransferForm: React.FC<{
   }, []);
 
   useEffect(() => {
-    void trigger("recipientAddress");
-  }, [recipientNetwork, trigger]);
+    const address = getValues("recipientAddress")?.trim();
+    if (address) {
+      void trigger("recipientAddress");
+    }
+  }, [recipientNetwork, trigger, getValues]);
 
   useEffect(() => {
     if (error) {
@@ -447,7 +454,7 @@ export const TransferForm: React.FC<{
               })}
               className={classNames(
                 "min-h-12 w-full rounded-xl border border-border-input py-3 pl-10 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-black2 dark:placeholder:text-white/30 dark:focus-within:border-white/40",
-                errors.recipientAddress
+                showRecipientAddressError
                   ? "text-red-500 dark:text-red-500"
                   : "text-neutral-900 dark:text-white/80",
               )}
@@ -455,12 +462,12 @@ export const TransferForm: React.FC<{
               maxLength={66}
             />
           </div>
-          {errors.recipientAddress && (
+          {showRecipientAddressError && (
             <AnimatedComponent
               variant={slideInOut}
               className="text-xs text-red-500"
             >
-              {errors.recipientAddress.message}
+              {errors.recipientAddress?.message}
             </AnimatedComponent>
           )}
         </div>

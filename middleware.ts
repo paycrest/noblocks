@@ -119,6 +119,17 @@ async function authorizationMiddleware(req: NextRequest) {
   const endpoint = req.nextUrl.pathname;
   const method = req.method;
 
+  // Return 404 for referral routes when the feature is disabled
+  if (
+    (endpoint === "/api/referral" || endpoint.startsWith("/api/referral/")) &&
+    process.env.NEXT_PUBLIC_REFERRAL_ENABLED?.trim().toLowerCase() === "false"
+  ) {
+    return NextResponse.json(
+      { success: false, error: "Referral program is disabled" },
+      { status: 404 },
+    );
+  }
+
   // Track API request for analytics
   trackMiddlewareAnalytics(
     "request",
@@ -342,10 +353,18 @@ export const config = {
     "/api/v1/payment-orders",
     "/api/v1/payment-orders/:path*",
     "/api/blockfest/cashback",
+    "/api/kyc/smile-id",
+    "/api/kyc/status",
+    "/api/kyc/transaction-summary",
+    "/api/kyc/tier3-verify",
+    "/api/phone/send-otp",
+    "/api/phone/verify-otp",
     "/api/bundler",
     "/api/bundler/:path*",
     "/api/starknet/transfer",
     "/api/starknet/create-order",
+    "/api/referral",
+    "/api/referral/:path*",
     // (optional) add other instrumented API routes:
     // '/api/v1/kyc/:path*', '/api/v1/rates', '/api/v1/rates/:path*'
   ],

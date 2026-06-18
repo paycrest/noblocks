@@ -6,6 +6,7 @@ import {
   useLogout,
   usePrivy,
   useMfaEnrollment,
+  useWallets,
 } from "@privy-io/react-auth";
 import { ImSpinner } from "react-icons/im";
 import { resetNetworkModalDismissed } from "../lib/networkModalStore";
@@ -20,6 +21,7 @@ import {
   Setting07Icon,
   Wallet01Icon,
   Key01Icon,
+  FaceIdIcon,
   AccessIcon,
   ColorsIcon,
 } from "hugeicons-react";
@@ -29,8 +31,8 @@ import { useNetwork } from "../context/NetworksContext";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
+import ProfileDrawer from "./ProfileDrawer";
 import { ThemeSwitch } from "./ThemeSwitch";
-import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useHandleExportEmbeddedWallet } from "../hooks/useHandleExportEmbeddedWallet";
 import { clearUserSessionData } from "../lib/session-cleanup";
@@ -50,6 +52,7 @@ export const SettingsDropdown = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
+  const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick({
@@ -57,6 +60,7 @@ export const SettingsDropdown = () => {
     handler: () => setIsOpen(false),
   });
 
+  // Get embedded wallet (EOA) and smart wallet (SCW)
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
   );
@@ -160,7 +164,7 @@ export const SettingsDropdown = () => {
         }
       }
 
-      clearUserSessionData(user?.id, user?.wallet?.address);
+      clearUserSessionData(user?.id, walletAddress ?? user?.wallet?.address);
 
       localStorage.removeItem(`starknet_walletId_${user?.id}`);
       localStorage.removeItem(`starknet_address_${user?.id}`);
@@ -313,6 +317,23 @@ export const SettingsDropdown = () => {
                   <p>Export wallet</p>
                 </li>
               )}
+              <li
+                role="menuitem"
+                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+              >
+                <button
+                  type="button"
+                  className="group flex w-full items-center gap-2.5"
+                  onClick={() => {
+                    setIsProfileDrawerOpen(true);
+                    setIsOpen(false);
+                  }}
+                >
+                  <FaceIdIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                  <p>Profile</p>
+                </button>
+              </li>
+
               {!isInjectedWallet && (
                 <li
                   role="menuitem"
@@ -343,6 +364,11 @@ export const SettingsDropdown = () => {
         isOpen={isWarningModalOpen}
         onClose={() => setIsWarningModalOpen(false)}
         address={walletAddress ?? ""}
+      />
+
+      <ProfileDrawer
+        isOpen={isProfileDrawerOpen}
+        onClose={() => setIsProfileDrawerOpen(false)}
       />
     </div>
   );

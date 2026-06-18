@@ -66,8 +66,18 @@ type CsvRow = {
   country?: string | null;
   id_type?: string | null;
   result: string;
-  /** First non-empty of Timestamp, Date, or Job Time — used for verified_at when Approved */
-  timestampRaw: string | null;
+  /** Smile export `Date` column, expected DD-MM-YYYY (e.g. "14-06-2025"). */
+  dateRaw: string | null;
+  /** Smile export `Timestamp` column, expected HH:MM:SS (e.g. "15:22:46"). */
+  timeRaw: string | null;
+};
+
+/** A single `type: 'id'` verification entry in the `platform` jsonb array. */
+type IdPlatformEntry = {
+  type: 'id';
+  identifier: 'smile_id';
+  reference?: string;
+  verified: true;
 };
 
 /** Payload shape for upsert into public.user_kyc_profiles (partial row). */
@@ -75,11 +85,8 @@ type KycProfileUpsertRow = {
   wallet_address: string;
   id_country: string | null;
   id_type: string | null;
-  platform: Array<{
-    type: 'id';
-    identifier: 'smile_id';
-    reference?: string;
-  }>;
+  /** Merged with any existing entries at upsert time (see mergeExistingPlatform). */
+  platform: unknown[];
   verified: boolean;
   verified_at: string | null;
   /** Full document KYC (Smile-approved export) */
@@ -87,12 +94,33 @@ type KycProfileUpsertRow = {
   updated_at: string;
 };
 
-/** Parse CSV date/time string to ISO; returns null if missing or invalid. */
-function parseCsvTimestampToIso(raw: string | null | undefined): string | null {
-  if (raw == null || !String(raw).trim()) return null;
-  const d = new Date(String(raw).trim());
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
+/**
+ * Build an ISO timestamp from the Smile export's separate `Date` (DD-MM-YYYY)
+ * and `Timestamp` (HH:MM:SS) columns. The native `Date` parser cannot read
+ * either format on its own, so we assemble an explicit `YYYY-MM-DDThh:mm:ssZ`
+ * string (treated as UTC for determinism). Returns null if the date is missing
+ * or unparseable.
+ */
+function parseSmileTimestampToIso(
+  dateRaw: string | null | undefined,
+  timeRaw: string | null | undefined,
+): string | null {
+  const date = (dateRaw ?? '').trim();
+  if (!date) return null;
+
+  const m = date.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (!m) {
+    // Unexpected format — fall back to native parsing as a last resort.
+    const fallback = new Date(date);
+    return Number.isNaN(fallback.getTime()) ? null : fallback.toISOString();
+  }
+
+  const [, dd, mm, yyyy] = m;
+  const time = (timeRaw ?? '').trim();
+  const hms = /^\d{2}:\d{2}:\d{2}$/.test(time) ? time : '00:00:00';
+
+  const d = new Date(`${yyyy}-${mm}-${dd}T${hms}Z`);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 // Read + normalize CSV
@@ -112,18 +140,14 @@ function readCsv(): CsvRow[] {
   console.log(`Found ${raw.length} records in CSV file.`);
 
   const rows: CsvRow[] = raw.map((r) => {
-    const ts =
-      (r['Timestamp'] && r['Timestamp'].trim()) ||
-      (r['Date'] && r['Date'].trim()) ||
-      (r['Job Time'] && r['Job Time'].trim()) ||
-      '';
     return {
       job_id: (r['Job ID'] || '').trim(),
       user_id: (r['User ID'] || '').trim(),
       country: r['Country'] ? r['Country'].trim() : null,
       id_type: r['ID Type'] ? r['ID Type'].trim() : null,
       result: (r['Result'] || '').trim(),
-      timestampRaw: ts || null,
+      dateRaw: r['Date'] ? r['Date'].trim() : null,
+      timeRaw: r['Timestamp'] ? r['Timestamp'].trim() : null,
     };
   });
 
@@ -140,20 +164,17 @@ function buildRow(r: CsvRow): KycProfileUpsertRow {
   const isApproved = r.result === 'Approved';
   const nowISO = new Date().toISOString();
 
-  const smilePlatform: {
-    type: 'id';
-    identifier: 'smile_id';
-    reference?: string;
-  } = {
+  const smilePlatform: IdPlatformEntry = {
     type: 'id',
     identifier: 'smile_id',
+    verified: true,
   };
   if (r.job_id) {
     smilePlatform.reference = r.job_id;
   }
 
   const verifiedAtIso =
-    isApproved ? parseCsvTimestampToIso(r.timestampRaw) : null;
+    isApproved ? parseSmileTimestampToIso(r.dateRaw, r.timeRaw) : null;
 
   return {
     wallet_address: r.user_id.toLowerCase(),
@@ -167,22 +188,53 @@ function buildRow(r: CsvRow): KycProfileUpsertRow {
   };
 }
 
+/**
+ * Merge this migration's `id` entry into the wallet's existing `platform`
+ * array, preserving any non-`id` verifications (e.g. phone). Mirrors the live
+ * Smile flow (app/api/kyc/smile-id/route.ts): existing `type: 'id'` entries are
+ * replaced by the freshly-migrated one. A blind upsert would instead clobber
+ * the whole array and drop a user's prior phone verification.
+ */
+async function mergeExistingPlatform(
+  row: KycProfileUpsertRow,
+): Promise<unknown[]> {
+  const { data, error } = await supabase
+    .from('user_kyc_profiles')
+    .select('platform')
+    .eq('wallet_address', row.wallet_address)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`fetch existing platform: ${error.message}`);
+  }
+
+  const existing = Array.isArray(data?.platform) ? data!.platform : [];
+  const otherVerifications = existing.filter(
+    (p: unknown) => (p as { type?: string })?.type !== 'id',
+  );
+  return [...otherVerifications, ...row.platform];
+}
+
 // Upsert — conflict target: wallet_address (PK)
 async function upsertRows(rows: KycProfileUpsertRow[]) {
   console.log(`\nUpserting ${rows.length} records into public.user_kyc_profiles...`);
   let ok = 0, failed = 0;
 
   for (const row of rows) {
-    const { error } = await supabase
-      .from('user_kyc_profiles')
-      .upsert(row, { onConflict: 'wallet_address' });
+    try {
+      row.platform = await mergeExistingPlatform(row);
 
-    if (error) {
-      console.error(`❌ ${row.wallet_address}: ${error.message}`);
-      failed++;
-    } else {
+      const { error } = await supabase
+        .from('user_kyc_profiles')
+        .upsert(row, { onConflict: 'wallet_address' });
+
+      if (error) throw new Error(error.message);
+
       console.log(`✅ ${row.wallet_address}`);
       ok++;
+    } catch (err: any) {
+      console.error(`❌ ${row.wallet_address}: ${err.message || err}`);
+      failed++;
     }
   }
   console.log(`\n Summary: OK=${ok}, Failed=${failed}`);
@@ -200,8 +252,14 @@ async function main() {
     const rows = approved.map(buildRow);
 
     if (isDryRun) {
+      // Read-only: resolve the real merged platform for the previewed rows so
+      // dry-run output reflects what would actually be written.
+      const preview = rows.slice(0, 5);
+      for (const row of preview) {
+        row.platform = await mergeExistingPlatform(row);
+      }
       console.log('--- Dry Run Output (first 5 rows) ---');
-      console.log(JSON.stringify(rows.slice(0, 5), null, 2));
+      console.log(JSON.stringify(preview, null, 2));
       console.log('-------------------------------------');
       console.log('No data will be written to the database in dry run mode.');
     } else {

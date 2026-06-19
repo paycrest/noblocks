@@ -34,7 +34,37 @@ export const CopyAddressWarningModal: React.FC<
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
-  const supportedNetworks = networks;
+  const isStarknet = selectedNetwork.chain.name === "Starknet";
+  /** EVM deposits use a different address format — never imply Starknet deposits work on Ethereum/Base/etc. */
+  const supportedNetworksDisplayed = isStarknet
+    ? networks.filter((n) => n.chain.name === "Starknet")
+    : networks.filter((n) => n.chain.name !== "Starknet");
+
+  const modalTitle = "You just copied your wallet address!";
+
+  const depositDescription = (
+    <>
+      Only deposit{" "}
+      <span className="font-semibold">supported stablecoins</span> on{" "}
+      <span className="font-semibold">supported networks</span>.
+      {isStarknet ? (
+        <>
+          {" "}
+          This is a <span className="font-semibold">Starknet</span> address, not an
+          Ethereum address, use it only with Starknet networks (
+          <span className="font-semibold">shown below</span>
+          ).
+        </>
+      ) : null}{" "}
+      Depositing unsupported tokens or using unsupported networks may result in
+      loss of funds.
+    </>
+  );
+
+  const footerWarning =
+    "Use only supported stablecoins & networks. Unsupported ones may lead to loss of funds.";
+
+  const supportedNetworksHeading = "Supported networks";
 
   // Check localStorage on mount to see if user has opted out
   useEffect(() => {
@@ -134,12 +164,12 @@ export const CopyAddressWarningModal: React.FC<
                   <Dialog.Title
                     className="mb-2 text-lg font-semibold text-text-body dark:text-white"
                   >
-                    You just copied your wallet address!
+                    {modalTitle}
                   </Dialog.Title>
                   <Dialog.Description
                     className="max-w-[95%] text-sm font-normal text-text-body dark:text-white/70"
                   >
-                    Only deposit <span className="font-semibold">supported stablecoins</span> on <span className="font-semibold">supported networks</span>. Depositing unsupported tokens or using unsupported networks may result in loss of funds.
+                    {depositDescription}
                   </Dialog.Description>
                 </div>
               </div>
@@ -193,10 +223,10 @@ export const CopyAddressWarningModal: React.FC<
                   ))}
                 </div>
                 <h4 className="mb-1 text-xs font-light text-text-secondary dark:text-white/50">
-                  Supported networks
+                  {supportedNetworksHeading}
                 </h4>
                 <div className="flex h-full w-full flex-wrap gap-2">
-                  {supportedNetworks.map((network) => (
+                  {supportedNetworksDisplayed.map((network) => (
                     <div
                       key={network.chain.id}
                       className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"
@@ -222,23 +252,30 @@ export const CopyAddressWarningModal: React.FC<
               <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
                 <InformationSquareIcon className="mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
                 <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
-                  Use only supported stablecoins & networks. Unsupported ones may lead to loss of funds.
+                  {footerWarning}
                 </p>
               </div>
 
               {/* Action button */}
               <div className="flex gap-4 items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <input 
-                    type="checkbox" 
-                    id="acknowledge" 
-                    checked={dontShowAgain}
-                    onChange={(e) => {
-                      setDontShowAgain(e.target.checked);
-                    }}
-                    className="cursor-pointer rounded-xl w-[19px] h-[19px] border-[2px] dark:border-white/30 accent-lavender-500"
-                  />
-                  <label htmlFor="acknowledge" className="text-xs text-normal text-text-body dark:text-white/70 cursor-pointer select-none">Don&apos;t show this to me again</label>
+                  <span className="relative inline-flex size-[19px] shrink-0">
+                    <input
+                      type="checkbox"
+                      id="acknowledge"
+                      checked={dontShowAgain}
+                      onChange={(e) => setDontShowAgain(e.target.checked)}
+                      className="peer size-[19px] cursor-pointer appearance-none rounded border-2 border-gray-300 bg-transparent checked:border-lavender-500 checked:bg-lavender-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-500 dark:border-white/30"
+                    />
+                    <svg
+                      className="pointer-events-none absolute inset-0 m-auto size-3 stroke-white opacity-0 peer-checked:opacity-100"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                    >
+                      <path d="M3 8L6 11L11 3.5" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                  <label htmlFor="acknowledge" className="cursor-pointer select-none text-xs text-text-body dark:text-white/70">Don&apos;t show this to me again</label>
                 </div>
                 <button
                 onClick={handleAcknowledge}
@@ -266,12 +303,12 @@ export const CopyAddressWarningModal: React.FC<
                         <Dialog.Title
                           className="mb-2 text-lg font-semibold text-text-body dark:text-white"
                         >
-                          You just copied your wallet address!
+                          {modalTitle}
                         </Dialog.Title>
                         <Dialog.Description
                           className="max-w-[95%] text-sm font-normal text-text-body dark:text-white/70"
                         >
-                          Only deposit <span className="font-semibold">supported stablecoins</span> on <span className="font-semibold">supported networks</span>. Depositing unsupported tokens or using unsupported networks may result in loss of funds.
+                          {depositDescription}
                         </Dialog.Description>
                       </div>
                     </div>
@@ -326,10 +363,10 @@ export const CopyAddressWarningModal: React.FC<
                       </div>
 
                       <h4 className="mb-1 text-xs font-light text-text-secondary dark:text-white/50">
-                        Supported networks
+                        {supportedNetworksHeading}
                       </h4>
                       <div className="flex h-full w-full flex-wrap gap-2">
-                        {supportedNetworks.map((network) => (
+                        {supportedNetworksDisplayed.map((network) => (
                           <div
                             key={network.chain.id}
                             className="flex h-[24px] w-fit items-center gap-0.5 rounded-full bg-accent-gray p-2 dark:bg-white/10"
@@ -355,23 +392,30 @@ export const CopyAddressWarningModal: React.FC<
                     <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
                       <InformationSquareIcon className="mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
                       <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
-                        Use only supported stablecoins & networks. Unsupported ones may lead to loss of funds.
+                        {footerWarning}
                       </p>
                     </div>
 
                     {/* Action button */}
                     <div className="flex gap-4 items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <input 
-                          type="checkbox" 
-                          id="acknowledge-mobile" 
-                          checked={dontShowAgain}
-                          onChange={(e) => {
-                            setDontShowAgain(e.target.checked);
-                          }}
-                          className="cursor-pointer rounded-3xl w-[19px] h-[19px] border-[2px] dark:border-white/30 accent-lavender-500"
-                        />
-                        <label htmlFor="acknowledge-mobile" className="text-xs text-normal text-text-body dark:text-white/70 cursor-pointer select-none">Don&apos;t show this to me again</label>
+                        <span className="relative inline-flex size-[19px] shrink-0">
+                          <input
+                            type="checkbox"
+                            id="acknowledge-mobile"
+                            checked={dontShowAgain}
+                            onChange={(e) => setDontShowAgain(e.target.checked)}
+                            className="peer size-[19px] cursor-pointer appearance-none rounded border-2 border-gray-300 bg-transparent checked:border-lavender-500 checked:bg-lavender-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-500 dark:border-white/30"
+                          />
+                          <svg
+                            className="pointer-events-none absolute inset-0 m-auto size-3 stroke-white opacity-0 peer-checked:opacity-100"
+                            viewBox="0 0 14 14"
+                            fill="none"
+                          >
+                            <path d="M3 8L6 11L11 3.5" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                        <label htmlFor="acknowledge-mobile" className="cursor-pointer select-none text-xs text-text-body dark:text-white/70">Don&apos;t show this to me again</label>
                       </div>
                       <button
                         onClick={handleAcknowledge}

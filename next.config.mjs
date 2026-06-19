@@ -6,6 +6,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  // Allow dev HMR / _next assets when the app is opened via ngrok (or similar)
+  // instead of localhost only. See https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+  allowedDevOrigins: [
+    "*.ngrok-free.app",
+    "*.ngrok.io",
+    "*.ngrok.app",
+  ],
   headers: async () => [
     {
       source: "/:path*",
@@ -57,8 +64,16 @@ const nextConfig = {
   experimental: {
     optimizeCss: true,
     optimizePackageImports: ["@headlessui/react", "framer-motion", "hugeicons-react", "react-icons"],
+    // Workaround for Turbopack scope-hoisting BytePos overflow panic
+    // ("The high bits of the position ... are not all 0s or 1s") that
+    // crashes `next build --turbopack` on large module graphs (e.g. Sanity).
+    // Fix landed in Next.js 16 via vercel/next.js#83399 and is not in 15.5.x.
+    // Remove this once we upgrade to a Next.js version that includes the fix.
+    turbopackScopeHoisting: false,
   },
-  serverExternalPackages: ['mixpanel', 'https-proxy-agent'],
+  // Twilio: keep on Node resolution (nested https-proxy-agent vs root dep caused
+  // "can't be external" version skew when https-proxy-agent was listed here).
+  serverExternalPackages: ["mixpanel", "twilio"],
   webpack: (config, { isServer }) => {
     // Handle both client and server-side fallbacks
     config.resolve.fallback = {
@@ -76,6 +91,23 @@ const nextConfig = {
       zlib: false,
       path: false,
       os: false,
+    };
+
+    // Stub starkzap optional peer deps we don't use (tongo confidential
+    // transfers, hyperlane Solana bridge). starkzap's barrel re-exports
+    // these modules, so the bundler must resolve them — but we never call
+    // those code paths.
+    const starkzapUnusedShim = path.resolve(
+      __dirname,
+      "app/lib/_starkzap-unused-shim.ts",
+    );
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@fatsolutions/tongo-sdk": starkzapUnusedShim,
+      "@hyperlane-xyz/sdk": starkzapUnusedShim,
+      "@hyperlane-xyz/registry": starkzapUnusedShim,
+      "@hyperlane-xyz/utils": starkzapUnusedShim,
+      "@solana/web3.js": starkzapUnusedShim,
     };
 
     // Handle Mixpanel on server-side only
@@ -126,7 +158,15 @@ const nextConfig = {
         loaders: ["@svgr/webpack"],
         as: "*.js"
       }
-    }
+    },
+    // Mirror the webpack alias above for `next dev --turbo`.
+    resolveAlias: {
+      "@fatsolutions/tongo-sdk": "./app/lib/_starkzap-unused-shim.ts",
+      "@hyperlane-xyz/sdk": "./app/lib/_starkzap-unused-shim.ts",
+      "@hyperlane-xyz/registry": "./app/lib/_starkzap-unused-shim.ts",
+      "@hyperlane-xyz/utils": "./app/lib/_starkzap-unused-shim.ts",
+      "@solana/web3.js": "./app/lib/_starkzap-unused-shim.ts",
+    },
   },
 };
 

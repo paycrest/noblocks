@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { usePrivy, useMfaEnrollment, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance, useTokens } from "../context";
+import { useBalance, useTokens, useStarknet } from "../context";
 import {
   copyToClipboard,
   detectWalletProvider,
@@ -14,24 +14,40 @@ import { useLogout } from "@privy-io/react-auth";
 import { resetNetworkModalDismissed } from "../lib/networkModalStore";
 import { toast } from "sonner";
 import { useStep } from "../context/StepContext";
-import { STEPS } from "../types";
+import { STEPS, type MobileSheetView } from "../types";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { toastMappedError } from "../lib/toastMappedError";
 import { useActualTheme } from "../hooks/useActualTheme";
 import { useSortedCrossChainBalances } from "../hooks/useSortedCrossChainBalances";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useTransactions } from "../context/TransactionsContext";
 import { networks } from "../mocks";
 import { Network, Token, TransactionHistory } from "../types";
-import { WalletView, HistoryView, SettingsView } from "./wallet-mobile-modal";
+import {
+  WalletView,
+  HistoryView,
+  SettingsView,
+  EarnHubView,
+  EarnActivityDetailView,
+  ReferralHubView,
+} from "./wallet-mobile-modal";
 import { slideUpAnimation } from "./AnimatedComponents";
 import { FundWalletForm } from "./FundWalletForm";
 import { TransferForm } from "./TransferForm";
+import { EarnWalletForm } from "./EarnWalletForm";
+import { EarnConsentModal } from "./EarnConsentModal";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
+import ProfileDrawer from "./ProfileDrawer";
 import WalletMigrationModal from "./WalletMigrationModal";
+import { useEarnAccess } from "../hooks/useEarnAccess";
+import { isEarnUiVisible } from "../lib/earnFeature";
+import { isReferralEnabled } from "../utils";
+import type { EarnActivityEntry } from "../hooks/useEarnHandler";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
+import { useHandleExportEmbeddedWallet } from "../hooks/useHandleExportEmbeddedWallet";
 import { clearUserSessionData } from "../lib/session-cleanup";
 
 export const MobileDropdown = ({
@@ -41,18 +57,25 @@ export const MobileDropdown = ({
   isOpen: boolean;
   onClose: () => void;
 }) => {
-  const [currentView, setCurrentView] = useState<
-    "wallet" | "settings" | "transfer" | "fund" | "history"
-  >("wallet");
+  const [currentView, setCurrentView] = useState<MobileSheetView>("wallet");
+  const [selectedEarnActivity, setSelectedEarnActivity] =
+    useState<EarnActivityEntry | null>(null);
+  const [earnActivityReturnView, setEarnActivityReturnView] =
+    useState<Extract<MobileSheetView, "wallet" | "earn">>("wallet");
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
-  const { user, linkEmail, updateEmail, exportWallet } = usePrivy();
-  const { allBalances, crossChainBalances, isLoading, refreshBalance } = useBalance();
+  const { currentStep } = useStep();
+
+  const { user, linkEmail, updateEmail } = usePrivy();
+  const handleExportEmbeddedWallet = useHandleExportEmbeddedWallet();
+  const { allBalances, crossChainBalances, crossChainTotal, isLoading, isRefreshing, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
+  const { ensureWalletExists } = useStarknet();
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
@@ -62,30 +85,30 @@ export const MobileDropdown = ({
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const shouldUseEOA = useShouldUseEOA();
   const { wallets } = useWallets();
+  const walletAddress = useWalletAddress();
 
-  // Get embedded wallet (EOA) and smart wallet (SCW)
   const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
+    (wallet) => wallet.walletClientType === "privy",
   );
   const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet"
+    (account) => account.type === "smart_wallet",
   );
 
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
-  // Before migration: show SCW (old wallet)
   const activeWallet = isInjectedWallet
-    ? { address: injectedAddress, type: "injected_wallet" }
-    : shouldUseEOA
-      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
-      : smartWallet;
+    ? { address: injectedAddress, type: "injected_wallet" as const }
+    : selectedNetwork.chain.name === "Starknet"
+      ? walletAddress
+        ? { address: walletAddress, type: "smart_wallet" as const }
+        : undefined
+      : shouldUseEOA
+        ? embeddedWallet
+          ? { address: embeddedWallet.address, type: "eoa" as const }
+          : undefined
+        : smartWallet;
 
   const { handleFundWallet } = useFundWalletHandler("Mobile menu");
 
-  // Use activeWallet for consistency
   const walletForCopy = activeWallet;
-
-  const { currentStep } = useStep();
 
   const { disconnectWallet } = useWalletDisconnect();
 
@@ -129,9 +152,11 @@ export const MobileDropdown = ({
   // Get appropriate balance based on migration status
   const activeBalance = isInjectedWallet
     ? allBalances.injectedWallet
-    : shouldUseEOA
-      ? allBalances.externalWallet
-      : allBalances.smartWallet;
+    : selectedNetwork.chain.name === "Starknet"
+      ? allBalances.starknetWallet
+      : shouldUseEOA
+        ? allBalances.externalWallet
+        : allBalances.smartWallet;
   // Sort cross-chain balances: selected network first, then alphabetically
   const sortedCrossChainBalances = useSortedCrossChainBalances(
     crossChainBalances,
@@ -162,25 +187,29 @@ export const MobileDropdown = ({
           title: "Error switching network",
         });
       },
+      ensureWalletExists, // Pass the Starknet wallet creation function
     );
 
     setIsNetworkListOpen(false);
   };
 
   // Helper function for fallback fetch with timeout
-  const trackLogoutWithFetch = (payload: { walletAddress: string; logoutMethod: string }) => {
+  const trackLogoutWithFetch = (payload: {
+    walletAddress: string;
+    logoutMethod: string;
+  }) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
 
-    fetch('/api/track-logout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch("/api/track-logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      signal: controller.signal
+      signal: controller.signal,
     })
-      .catch(error => {
-        if (error.name !== 'AbortError') {
-          console.warn('Logout tracking failed:', error);
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          console.warn("Logout tracking failed:", error);
         }
       })
       .finally(() => {
@@ -210,6 +239,11 @@ export const MobileDropdown = ({
 
   const isDark = useActualTheme();
 
+  // Reset to wallet home whenever the sheet closes so reopening always starts fresh.
+  useEffect(() => {
+    if (!isOpen) setCurrentView("wallet");
+  }, [isOpen]);
+
   // --- History state ---
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionHistory | null>(null);
@@ -218,7 +252,36 @@ export const MobileDropdown = ({
     if (currentView !== "history") clearTransactions();
   }, [currentView, clearTransactions]);
 
+  // Reset nested views when the sheet closes so reopening always starts on Wallet
+  useEffect(() => {
+    if (!isOpen) {
+      setCurrentView("wallet");
+      setSelectedEarnActivity(null);
+      setEarnActivityReturnView("wallet");
+      setSelectedTransaction(null);
+      setIsNetworkListOpen(false);
+    }
+  }, [isOpen]);
+
   const { client } = useSmartWallets();
+
+  const showEarnUi = isEarnUiVisible(selectedNetwork.chain.name);
+  const {
+    isConsentModalOpen: isEarnConsentModalOpen,
+    requestEarnAccess,
+    handleConsentAccepted: handleEarnConsentAccepted,
+    dismissConsent: dismissEarnConsent,
+  } = useEarnAccess();
+
+  const onEarnAccessAction = (
+    action: "earn-modal" | "earn-tab" | "earn-hub",
+  ) => {
+    if (action === "earn-hub" || action === "earn-modal") {
+      setCurrentView("earn");
+    }
+  };
+
+  const walletBalanceUsd = crossChainTotal ?? 0;
 
   return (
     <>
@@ -240,112 +303,180 @@ export const MobileDropdown = ({
             <div className="fixed inset-0">
               <div className="flex h-full items-end">
                 <motion.div {...slideUpAnimation} className="w-full">
-                  <DialogPanel className="scrollbar-hide relative max-h-[90vh] w-full overflow-visible rounded-t-[30px] border border-border-light bg-white px-5 pt-6 shadow-xl *:text-sm dark:border-white/5 dark:bg-surface-overlay">
-                    <AnimatePresence mode="wait">
-                      <motion.div
-                        key={currentView}
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{
-                          height: { duration: 0.35 },
-                          opacity: { duration: 0.2 },
-                        }}
-                        style={{ overflow: "hidden" }}
-                      >
-                        <div className="scrollbar-hide max-h-[90vh] overflow-y-scroll pb-12">
-                          {currentView === "wallet" && (
-                            <WalletView
-                              isInjectedWallet={isInjectedWallet}
-                              detectWalletProvider={detectWalletProvider}
-                              isLoading={isLoading}
-                              crossChainBalances={sortedCrossChainBalances}
-                              getTokenImageUrl={getTokenImageUrl}
-                              onTransfer={() => setCurrentView("transfer")}
-                              onFund={() => setCurrentView("fund")}
-                              smartWallet={walletForCopy}
-                              handleCopyAddress={handleCopyAddress}
-                              isNetworkListOpen={isNetworkListOpen}
-                              setIsNetworkListOpen={setIsNetworkListOpen}
-                              networks={networks}
-                              selectedNetwork={selectedNetwork}
-                              isDark={isDark}
-                              handleNetworkSwitchWrapper={
-                                handleNetworkSwitchWrapper
-                              }
-                              onSettings={() => setCurrentView("settings")}
-                              onClose={onClose}
-                              onHistory={() => setCurrentView("history")}
-                              setSelectedNetwork={setSelectedNetwork}
-                              onRefreshBalance={refreshBalance}
-                            />
-                          )}
+                  <DialogPanel className="scrollbar-hide relative max-h-[90vh] w-full overflow-hidden rounded-t-[30px] border border-border-light bg-white px-5 pt-6 shadow-xl *:text-sm dark:border-white/5 dark:bg-surface-overlay">
+                    <div
+                      className={
+                        currentView === "wallet"
+                          ? "flex max-h-[90vh] flex-col overflow-hidden pb-12"
+                          : "scrollbar-hide max-h-[90vh] overflow-y-scroll pb-12"
+                      }
+                    >
+                      {currentView === "wallet" && (
+                        <WalletView
+                          isInjectedWallet={isInjectedWallet}
+                          detectWalletProvider={detectWalletProvider}
+                          isLoading={isLoading}
+                          crossChainBalances={sortedCrossChainBalances}
+                          getTokenImageUrl={getTokenImageUrl}
+                          onTransfer={() => setCurrentView("transfer")}
+                          onFund={() => setCurrentView("fund")}
+                          smartWallet={walletForCopy}
+                          handleCopyAddress={handleCopyAddress}
+                          isNetworkListOpen={isNetworkListOpen}
+                          setIsNetworkListOpen={setIsNetworkListOpen}
+                          networks={networks}
+                          selectedNetwork={selectedNetwork}
+                          isDark={isDark}
+                          handleNetworkSwitchWrapper={
+                            handleNetworkSwitchWrapper
+                          }
+                          onSettings={() => setCurrentView("settings")}
+                          onClose={onClose}
+                          onHistory={() => setCurrentView("history")}
+                          onRefreshBalance={refreshBalance}
+                          isRefreshing={isRefreshing}
+                          showEarnUi={showEarnUi}
+                          walletBalanceUsd={walletBalanceUsd}
+                          onEarn={() =>
+                            requestEarnAccess("earn-hub", onEarnAccessAction)
+                          }
+                          onSelectTransaction={(tx) => {
+                            setSelectedTransaction(tx);
+                            setCurrentView("history");
+                          }}
+                          onViewReferrals={isReferralEnabled() ? () => setCurrentView("referrals") : undefined}
+                        />
+                      )}
 
-                          {currentView === "settings" && (
-                            <SettingsView
-                              isInjectedWallet={isInjectedWallet}
-                              showMfaEnrollmentModal={showMfaEnrollmentModal}
-                              user={user}
-                              updateEmail={updateEmail}
-                              linkEmail={linkEmail}
-                              exportWallet={exportWallet}
-                              handleLogout={handleLogout}
-                              isLoggingOut={isLoggingOut}
-                              onBack={() => setCurrentView("wallet")}
-                            />
-                          )}
+                      {currentView === "referrals" && isReferralEnabled() && (
+                        <ReferralHubView
+                          onBack={() => setCurrentView("wallet")}
+                          onClose={onClose}
+                        />
+                      )}
 
-                          {currentView === "transfer" && (
-                            <div className="space-y-6">
-                              <TransferForm
-                                onClose={onClose}
-                                showBackButton
-                                setCurrentView={setCurrentView}
-                                onOpenMigration={() => {
-                                  onClose();
-                                  setIsMigrationModalOpen(true);
-                                }}
-                              />
-                            </div>
-                          )}
+                      {currentView === "earn" && showEarnUi && (
+                        <EarnHubView
+                          onBack={() => setCurrentView("wallet")}
+                          onClose={onClose}
+                          onSettings={() => setCurrentView("settings")}
+                          onDeposit={() => setCurrentView("earn-deposit")}
+                          onWithdraw={() => setCurrentView("earn-withdraw")}
+                          onSelectActivity={(entry) => {
+                            setSelectedEarnActivity(entry);
+                            setEarnActivityReturnView("earn");
+                            setCurrentView("earn-activity-detail");
+                          }}
+                        />
+                      )}
 
-                          {currentView === "fund" && (
-                            <FundWalletForm
-                              onClose={onClose}
-                              showBackButton
-                              setCurrentView={setCurrentView}
-                            />
-                          )}
+                      {currentView === "earn-deposit" && showEarnUi && (
+                        <EarnWalletForm
+                          layout="mobile"
+                          showBackButton
+                          initialTab="deposit"
+                          onBack={() => setCurrentView("earn")}
+                          onClose={onClose}
+                        />
+                      )}
 
-                          {currentView === "history" && (
-                            <HistoryView
-                              selectedTransaction={selectedTransaction}
-                              setSelectedTransaction={setSelectedTransaction}
-                              handleHistoryClose={() =>
-                                setCurrentView("wallet")
-                              }
-                            />
-                          )}
+                      {currentView === "earn-withdraw" && showEarnUi && (
+                        <EarnWalletForm
+                          layout="mobile"
+                          showBackButton
+                          initialTab="withdraw"
+                          onBack={() => setCurrentView("earn")}
+                          onClose={onClose}
+                        />
+                      )}
+
+                      {currentView === "earn-activity-detail" &&
+                        selectedEarnActivity && (
+                          <EarnActivityDetailView
+                            entry={selectedEarnActivity}
+                            onBack={() => {
+                              setSelectedEarnActivity(null);
+                              setCurrentView(earnActivityReturnView);
+                            }}
+                          />
+                        )}
+
+                      {currentView === "settings" && (
+                        <SettingsView
+                          isInjectedWallet={isInjectedWallet}
+                          showMfaEnrollmentModal={showMfaEnrollmentModal}
+                          user={user}
+                          updateEmail={updateEmail}
+                          linkEmail={linkEmail}
+                          exportWallet={handleExportEmbeddedWallet}
+                          handleLogout={handleLogout}
+                          isLoggingOut={isLoggingOut}
+                          onBack={() => setCurrentView("wallet")}
+                          onOpenProfile={() => {
+                            onClose();
+                            setIsProfileDrawerOpen(true);
+                          }}
+                        />
+                      )}
+
+                      {currentView === "transfer" && (
+                        <div className="space-y-6">
+                          <TransferForm
+                            onClose={onClose}
+                            showBackButton
+                            setCurrentView={setCurrentView}
+                            onOpenMigration={() => {
+                              onClose();
+                              setIsMigrationModalOpen(true);
+                            }}
+                          />
                         </div>
-                      </motion.div>
-                    </AnimatePresence>
+                      )}
+
+                      {currentView === "fund" && (
+                        <FundWalletForm
+                          onClose={onClose}
+                          showBackButton
+                          setCurrentView={setCurrentView}
+                        />
+                      )}
+
+                      {currentView === "history" && (
+                        <HistoryView
+                          selectedTransaction={selectedTransaction}
+                          setSelectedTransaction={setSelectedTransaction}
+                          handleHistoryClose={() => setCurrentView("wallet")}
+                        />
+                      )}
+                    </div>
                   </DialogPanel>
                 </motion.div>
               </div>
             </div>
+
+            <EarnConsentModal
+              isOpen={isEarnConsentModalOpen}
+              onClose={dismissEarnConsent}
+              onAccepted={() => handleEarnConsentAccepted(onEarnAccessAction)}
+            />
+
+            <CopyAddressWarningModal
+              isOpen={isWarningModalOpen}
+              onClose={() => setIsWarningModalOpen(false)}
+              address={walletForCopy?.address ?? ""}
+            />
           </Dialog>
         )}
       </AnimatePresence>
 
-      <CopyAddressWarningModal
-        isOpen={isWarningModalOpen}
-        onClose={() => setIsWarningModalOpen(false)}
-        address={walletForCopy?.address ?? ""}
-      />
-
       <WalletMigrationModal
         isOpen={isMigrationModalOpen}
         onClose={() => setIsMigrationModalOpen(false)}
+      />
+
+      <ProfileDrawer
+        isOpen={isProfileDrawerOpen}
+        onClose={() => setIsProfileDrawerOpen(false)}
       />
     </>
   );

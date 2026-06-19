@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useRef,
 } from "react";
+import axios from "axios";
 import type { TransactionHistory, OrderDetailsData } from "../types";
 import {
   fetchTransactions,
@@ -16,7 +17,6 @@ import {
   resolveOnrampOrderStatusFromV2Response,
   unwrapV2SenderOrderEnvelope,
 } from "../api/aggregator";
-import { useNetwork } from "./NetworksContext";
 import { usePrivy } from "@privy-io/react-auth";
 import { reindexSingleTransaction } from "../lib/reindex";
 
@@ -60,7 +60,6 @@ export function TransactionsProvider({
       { data: TransactionHistory[]; total: number; timestamp: number }
     >
   >({});
-  const { selectedNetwork } = useNetwork();
   const { user, getAccessToken } = usePrivy();
   const reindexedTxHashesRef = useRef<Set<string>>(new Set());
   const transactionsRef = useRef<TransactionHistory[]>([]);
@@ -108,8 +107,9 @@ export function TransactionsProvider({
               }
             } else {
               const res = await fetchOrderDetails(
-                selectedNetwork.chain.id,
                 tx.order_id!,
+                accessToken,
+                { network: tx.network },
               );
               orderData = res.data;
             }
@@ -209,13 +209,15 @@ export function TransactionsProvider({
               });
             }
           } catch (err) {
-            // Fail silently
+            if (axios.isAxiosError(err) && err.response?.status === 404) {
+              return;
+            }
             console.error("Error reconciling transaction status:", err);
           }
         }),
       );
     },
-    [selectedNetwork],
+    [],
   );
 
   const fetchTransactionData = useCallback(
@@ -280,8 +282,15 @@ export function TransactionsProvider({
           );
         }
       } catch (error) {
+        if (axios.isAxiosError(error)) {
+          console.error("Error fetching transactions:", {
+            status: error.response?.status,
+            message: error.message,
+          });
+        } else {
+          console.error("Error fetching transactions:", error);
+        }
         setError(error as Error);
-        console.error("Error fetching transactions:", error);
       } finally {
         setIsLoading(false);
       }

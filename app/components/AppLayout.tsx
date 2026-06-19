@@ -16,7 +16,6 @@ import SentryClientProvider from "./SentryClientProvider";
 import { MoralisStreamRegistration } from "./MoralisStreamRegistration";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-
   return (
     <SentryClientProvider>
       <Providers>

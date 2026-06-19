@@ -23,12 +23,17 @@ import {
 import { ArrowDown01Icon } from "hugeicons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MobileDropdown } from "./MobileDropdown";
+import { NoblocksWorldCupLogo } from "./NoblocksWorldCupLogo";
+import { NoblocksAnimatedIcon } from "./NoblocksAnimatedIcon";
 import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
+import { clearNetworkModalSeen } from "../lib/networkModalStore";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -39,26 +44,30 @@ export const Navbar = () => {
   const { selectedNetwork } = useNetwork();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const isDark = useActualTheme();
+  const walletAddress = useWalletAddress();
 
   const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
   const shouldUseEOA = useShouldUseEOA();
 
-  // Get embedded wallet (EOA) and smart wallet (SCW)
   const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
+    (wallet) => wallet.walletClientType === "privy",
   );
   const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet"
+    (account) => account.type === "smart_wallet",
   );
 
-  // Determine active wallet based on migration status
-  // After migration: show EOA (new wallet with funds)
   const activeWallet = isInjectedWallet
-    ? { address: injectedAddress, type: "injected_wallet" }
-    : shouldUseEOA
-      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
-      : smartWallet;
+    ? { address: injectedAddress, type: "injected_wallet" as const }
+    : selectedNetwork.chain.name === "Starknet"
+      ? walletAddress
+        ? { address: walletAddress, type: "smart_wallet" as const }
+        : undefined
+      : shouldUseEOA
+        ? embeddedWallet
+          ? { address: embeddedWallet.address, type: "eoa" as const }
+          : undefined
+        : smartWallet;
 
   const { login } = useLogin({
     onComplete: async ({ user, isNewUser, loginMethod }) => {
@@ -73,7 +82,7 @@ export const Navbar = () => {
         localStorage.setItem("userId", user.wallet.address);
 
         if (isNewUser) {
-          localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`);
+          clearNetworkModalSeen(user.wallet.address);
 
           trackEvent("Sign up completed", {
             "Login method": loginMethod,
@@ -89,6 +98,10 @@ export const Navbar = () => {
     },
   });
 
+  // Pin body scroll while the Privy dialog is up — its end-of-body iframe
+  // steals focus on mobile and drags the page to the bottom otherwise.
+  const loginWithScrollPin = useLoginWithScrollPin(login);
+
   useEffect(() => {
     setMounted(true);
     // Register service worker for PWA
@@ -102,9 +115,11 @@ export const Navbar = () => {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target;
       if (
         dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
+        target instanceof Node &&
+        !dropdownRef.current.contains(target)
       ) {
         setIsDropdownOpen(false);
       }
@@ -134,11 +149,11 @@ export const Navbar = () => {
               className="flex cursor-pointer items-center gap-1"
               onMouseEnter={() => setIsDropdownOpen(true)}
               onMouseLeave={(e) => {
-                // Only close if we're not moving to the dropdown menu
-                const relatedTarget = e.relatedTarget as Node;
+                const related = e.relatedTarget;
                 if (
-                  !relatedTarget ||
-                  !dropdownRef.current?.contains(relatedTarget)
+                  !related ||
+                  !(related instanceof Node) ||
+                  !dropdownRef.current?.contains(related)
                 ) {
                   setIsDropdownOpen(false);
                 }
@@ -157,13 +172,15 @@ export const Navbar = () => {
               >
                 {IS_MAIN_PRODUCTION_DOMAIN ? (
                   <>
-                    <NoblocksLogo className="max-sm:hidden" />
-                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                    {/* <NoblocksLogo className="max-sm:hidden" /> */}
+                    <NoblocksWorldCupLogo className="max-sm:hidden" />
+                    <NoblocksAnimatedIcon className="size-[18px] sm:hidden" />
                   </>
                 ) : (
                   <>
-                    <NoblocksBetaLogo className="max-sm:hidden" />
-                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                    {/* <NoblocksBetaLogo className="max-sm:hidden" /> */}
+                    <NoblocksWorldCupLogo className="max-sm:hidden" />
+                    <NoblocksAnimatedIcon className="size-[18px] sm:hidden" />
                   </>
                 )}
               </button>
@@ -172,7 +189,7 @@ export const Navbar = () => {
                 className={classNames(
                   "size-5 cursor-pointer text-icon-outline-secondary transition-transform duration-200 dark:text-white/50 max-sm:hidden",
                   isDropdownOpen ? "rotate-0" : "-rotate-90",
-                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[15px]", // this adjusts the arrow position for beta logo
+                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[0px]", // this adjusts the arrow position for beta logo
                 )}
                 onClick={(e) => {
                   e.preventDefault();
@@ -314,7 +331,7 @@ export const Navbar = () => {
               <button
                 type="button"
                 className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}
-                onClick={() => login()}
+                onClick={() => loginWithScrollPin()}
               >
                 Sign in
               </button>

@@ -2,12 +2,13 @@
 import { DialogTitle } from "@headlessui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PiCheck } from "react-icons/pi";
 import { HelpCircleIcon, ArrowLeft02Icon, Cancel01Icon } from "hugeicons-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { networks } from "../mocks";
 import { useNetwork } from "../context/NetworksContext";
+import { useStarknet } from "../context";
 import { AnimatedModal } from "./AnimatedComponents";
 import {
   shouldUseInjectedWallet,
@@ -16,42 +17,77 @@ import {
 } from "../utils";
 import { useSearchParams } from "next/navigation";
 import { useActualTheme } from "../hooks/useActualTheme";
-import { markNetworkModalDismissed } from "../lib/networkModalStore";
+import {
+  hasSeenNetworkModalFlag,
+  markNetworkModalSeen,
+  markNetworkModalDismissed,
+} from "../lib/networkModalStore";
 
-export const NetworkSelectionModal = () => {
+interface NetworkSelectionModalProps {
+  onNetworkSelected?: () => void;
+}
+
+// export const NetworkSelectionModal = () => {
+export const NetworkSelectionModal = ({
+  onNetworkSelected,
+}: NetworkSelectionModalProps = {}) => {
   const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
-  const [hasCheckedStorage, setHasCheckedStorage] = useState(false);
+  // Wallet-scoped sentinel: a plain boolean stayed sticky across logout/login
+  // or wallet switches, so the modal never re-evaluated for the next account.
+  const checkedWalletRef = useRef<string | null>(null);
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
-  const { authenticated, user } = usePrivy();
+  const { ensureWalletExists } = useStarknet();
+  const { authenticated, user, ready } = usePrivy();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
 
-  // Reset when user changes (including logout → login as different user)
+  // Wait for Privy to finish hydrating before deciding whether to open. On a
+  // fresh signup the embedded wallet address arrives a tick after `authenticated`
+  // flips true; gating on `ready` (and re-running when the address settles)
+  // avoids the case where the modal evaluated too early and never opened until a
+  // manual refresh — which also blocked the referral modal that chains off it.
   useEffect(() => {
-    setHasCheckedStorage(false);
-  }, [user?.wallet?.address]);
+    if (!ready || !authenticated) return;
 
-  useEffect(() => {
-    if (!hasCheckedStorage && authenticated && user?.wallet?.address) {
-      const storageKey = `hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`;
-      const hasSeenModal = localStorage.getItem(storageKey);
+    // hasSeenNetworkModalFlag matches keys case-insensitively, so any
+    // historical casing of the stored key (or of the address Privy hands us)
+    // is honored. The sentinel only dedupes re-checks for the same wallet.
+    const rawAddress = user?.wallet?.address;
+    if (!rawAddress) return; // wait for the address; effect re-runs when it lands
+    const sentinel = rawAddress.toLowerCase();
+    if (checkedWalletRef.current === sentinel) return;
 
-      if (!hasSeenModal) {
-        setIsOpen(true);
-      }
-      setHasCheckedStorage(true);
+    if (!hasSeenNetworkModalFlag(rawAddress)) {
+      setIsOpen(true);
     }
-  }, [hasCheckedStorage, authenticated, user?.wallet?.address]);
+    checkedWalletRef.current = sentinel;
+  }, [ready, authenticated, user?.wallet?.address]);
+
+  // const handleClose = () => {
+  //   if (user?.wallet?.address) {
+  //     const storageKey = `hasSeenNetworkModal-${user.wallet.address}`;
+  //     localStorage.setItem(storageKey, "true");
+  //   }
+  //   setIsOpen(false);
+  // };
 
   const handleClose = () => {
-    if (user?.wallet?.address) {
-      const storageKey = `hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`;
-      localStorage.setItem(storageKey, "true");
-      markNetworkModalDismissed();
-    }
+    markNetworkModalSeen(user?.wallet?.address);
+    // Live in-session signal for MigrationBannerWrapper — this call was never
+    // wired up, so migration UI gated on it could only appear after a reload
+    // (and the storage fallback's key casing didn't match either).
+    markNetworkModalDismissed();
     setIsOpen(false);
+
+    // Trigger callback when modal closes after network selection
+    if (onNetworkSelected) {
+      // Small delay to ensure smooth transition
+      setTimeout(() => {
+        onNetworkSelected();
+      }, 300);
+    }
   };
 
   const handleNetworkSelect = async (networkName: string) => {
@@ -66,6 +102,7 @@ export const NetworkSelectionModal = () => {
           console.error("Failed to switch network:", error);
           setSelectedNetwork(selectedNetwork);
         },
+        ensureWalletExists, // Pass the Starknet wallet creation function
       );
     }
   };

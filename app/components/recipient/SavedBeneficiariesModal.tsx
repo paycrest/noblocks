@@ -22,16 +22,16 @@ export const SavedBeneficiariesModal = ({
   institutions,
   isLoading = false,
   error = null,
-  isSwapped = false,
+  swapMode = "offramp",
   networkName,
 }: SavedBeneficiariesModalProps) => {
   const [beneficiarySearchTerm, setBeneficiarySearchTerm] = useState("");
 
   const filteredSavedRecipients = useMemo(() => {
-    if (!currency && !isSwapped) return [];
+    if (!currency && swapMode === "offramp") return [];
     const allRecipients = [...savedRecipients];
 
-    if (isSwapped) {
+    if (swapMode === "onramp") {
       const walletRecipients = allRecipients.filter((r) => r.type === "wallet");
 
       const uniqueRecipients = walletRecipients.filter(
@@ -82,7 +82,7 @@ export const SavedBeneficiariesModal = ({
       .filter((recipient) =>
         currentBankCodes.includes(recipient.institutionCode),
       );
-  }, [savedRecipients, beneficiarySearchTerm, currency, institutions, isSwapped]);
+  }, [savedRecipients, beneficiarySearchTerm, currency, institutions, swapMode]);
 
   return (
     <AnimatedModal isOpen={isOpen} onClose={onClose} maxWidth="28.5rem">
@@ -104,7 +104,7 @@ export const SavedBeneficiariesModal = ({
         <SearchInput
           value={beneficiarySearchTerm}
           onChange={setBeneficiarySearchTerm}
-          placeholder={isSwapped ? "Search beneficiaries" : "Search by name or account number"}
+          placeholder={swapMode === "onramp" ? "Search beneficiaries" : "Search by name or account number"}
           autoFocus={isOpen}
         />
       </div>

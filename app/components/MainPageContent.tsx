@@ -603,12 +603,13 @@ export function MainPageContent() {
             ? sentN
             : 100;
 
-        try {
-          const providerId =
-            shouldUseProvider && lpParam && !shouldSkipProvider
-              ? lpParam
-              : undefined;
+        const providerId =
+          shouldUseProvider && lpParam && !shouldSkipProvider
+            ? lpParam
+            : undefined;
+        const attemptedProviderRequest = Boolean(providerId);
 
+        try {
           const rate = await fetchRate({
             token,
             amount: rateQueryAmount,
@@ -639,7 +640,7 @@ export function MainPageContent() {
               providerErrorShown.current = true;
             }
             // Retry without provider ID if one was previously used
-            if (shouldUseProvider) {
+            if (attemptedProviderRequest) {
               await getRate(false);
               return;
             }

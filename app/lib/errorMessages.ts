@@ -128,7 +128,8 @@ function isNetworkError(message: string, code: string): boolean {
 export function isNoProviderError(error: unknown): boolean {
   const message = extractMessage(error);
   const code = extractCode(error);
-  return matchesAny(message, NO_PROVIDER_PATTERNS) || matchesAny(code, NO_PROVIDER_PATTERNS);
+  const normalizedCode = code.replace(/[_-]+/g, " ");
+  return matchesAny(message, NO_PROVIDER_PATTERNS) || matchesAny(normalizedCode, NO_PROVIDER_PATTERNS);
 }
 
 /**

@@ -380,7 +380,16 @@ export const fetchRate = async ({
   } catch (error) {
     const responseTime = Date.now() - startTime;
 
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const axiosPayloadMessage =
+      axios.isAxiosError(error) &&
+      error.response?.data &&
+      typeof (error.response.data as { message?: unknown }).message === "string"
+        ? (error.response.data as { message: string }).message
+        : null;
+
+    const errorMessage =
+      axiosPayloadMessage ??
+      (error instanceof Error ? error.message : "Unknown error");
 
     trackServerEvent("External API Error", {
       service: "aggregator",
@@ -396,7 +405,11 @@ export const fetchRate = async ({
       response_time_ms: responseTime,
     });
 
-    if (isNoProviderError(error)) {
+    const errorForClassification = axiosPayloadMessage
+      ? { message: axiosPayloadMessage }
+      : error;
+
+    if (isNoProviderError(errorForClassification)) {
       trackServerEvent("No Provider Found", {
         service: "aggregator",
         endpoint: analyticsEndpoint,

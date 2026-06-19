@@ -36,6 +36,12 @@ import {
 } from "../utils";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
+import { isNoProviderError } from "../lib/errorMessages";
+import {
+  trackAnalyticsEvent,
+  ANALYTICS_EVENTS,
+  ANALYTICS_PROPERTIES,
+} from "../hooks/analytics/analytics-utils";
 import {
   STEPS,
   type FormData,
@@ -189,6 +195,14 @@ function onrampRateQueryTokenAmount(
   return 1;
 }
 
+/** Round amount to nearest significant figure for stable dedup keys. */
+function bucketAmount(amount: number): number {
+  if (amount <= 0) return 0;
+  const digits = Math.floor(Math.log10(amount));
+  const magnitude = 10 ** digits;
+  return Math.round(amount / magnitude) * magnitude;
+}
+
 /**
  * MainPageContent is the primary component for the home page.
  * It manages the transaction flow, including form state, rate fetching,
@@ -243,6 +257,7 @@ export function MainPageContent() {
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
   const autoSelectedNetworkSessionRef = useRef<string | null>(null);
+  const noProviderEventGuard = useRef<Set<string>>(new Set());
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
@@ -531,6 +546,13 @@ export function MainPageContent() {
   );
 
   useEffect(
+    function resetNoProviderEventGuard() {
+      noProviderEventGuard.current.clear();
+    },
+    [token, currency, selectedNetwork, isOnrampRate],
+  );
+
+  useEffect(
     function fetchInstitutionData() {
       async function getInstitutions(currencyValue: string) {
         if (!currencyValue) return;
@@ -562,28 +584,30 @@ export function MainPageContent() {
 
       const getRate = async (shouldUseProvider = true) => {
         setIsFetchingRate(true);
-        try {
-          const lpParam =
-            searchParams.get("provider") || searchParams.get("PROVIDER");
 
-          // Skip using provider if it's already failed
-          const shouldSkipProvider =
-            lpParam && failedProviders.current.has(lpParam);
+        const lpParam =
+          searchParams.get("provider") || searchParams.get("PROVIDER");
+
+        // Skip using provider if it's already failed
+        const shouldSkipProvider =
+          lpParam && failedProviders.current.has(lpParam);
+
+        // Aggregator GET /v2/rates/.../{token}/{amount}/{fiat} always expects `amount` in **token**
+        // units (ValidateRate / provider min-max). Off-ramp: Send = token → amountSent. On-ramp:
+        // Send = fiat → use computed token (amountReceived), else peg-aware probe, else 1.
+        const sentN = Number(amountSent) || 0;
+        const recvN = Number(amountReceived) || 0;
+        const rateQueryAmount = isOnrampRate
+          ? onrampRateQueryTokenAmount(token, currency, sentN, recvN)
+          : sentN > 0
+            ? sentN
+            : 100;
+
+        try {
           const providerId =
             shouldUseProvider && lpParam && !shouldSkipProvider
               ? lpParam
               : undefined;
-
-          // Aggregator GET /v2/rates/.../{token}/{amount}/{fiat} always expects `amount` in **token**
-          // units (ValidateRate / provider min-max). Off-ramp: Send = token → amountSent. On-ramp:
-          // Send = fiat → use computed token (amountReceived), else peg-aware probe, else 1.
-          const sentN = Number(amountSent) || 0;
-          const recvN = Number(amountReceived) || 0;
-          const rateQueryAmount = isOnrampRate
-            ? onrampRateQueryTokenAmount(token, currency, sentN, recvN)
-            : sentN > 0
-              ? sentN
-              : 100;
 
           const rate = await fetchRate({
             token,
@@ -597,8 +621,6 @@ export function MainPageContent() {
           setRateError(null); // Clear error on success
         } catch (error) {
           if (error instanceof Error) {
-            const lpParam =
-              searchParams.get("provider") || searchParams.get("PROVIDER");
             if (
               shouldUseProvider &&
               lpParam &&
@@ -620,6 +642,42 @@ export function MainPageContent() {
             if (shouldUseProvider) {
               await getRate(false);
               return;
+            }
+
+            // Emit "No Provider Found" event for terminal (public-rate) attempts
+            if (isNoProviderError(error)) {
+              const isTerminal = !lpParam || !shouldUseProvider;
+              const side = isOnrampRate ? "buy" : "sell";
+              const attemptKey = `${side}:${token}:${currency}:${normalizeNetworkForRateFetch(selectedNetwork.chain.name)}:${bucketAmount(rateQueryAmount)}`;
+
+              if (isTerminal && !noProviderEventGuard.current.has(attemptKey)) {
+                noProviderEventGuard.current.add(attemptKey);
+
+                const props = {
+                  [ANALYTICS_PROPERTIES.TOKEN_SYMBOL]: token,
+                  [ANALYTICS_PROPERTIES.TRANSACTION_CURRENCY]: currency,
+                  [ANALYTICS_PROPERTIES.NETWORK]: normalizeNetworkForRateFetch(selectedNetwork.chain.name),
+                  [ANALYTICS_PROPERTIES.CHAIN_ID]: selectedNetwork.chain.id,
+                  [ANALYTICS_PROPERTIES.ORDER_SIDE]: side,
+                  [ANALYTICS_PROPERTIES.ORDER_TYPE]: isOnrampRate ? "onramp" : "offramp",
+                  [ANALYTICS_PROPERTIES.AMOUNT_SENT]: sentN,
+                  [ANALYTICS_PROPERTIES.AMOUNT_RECEIVED]: recvN,
+                  query_amount: rateQueryAmount,
+                  [ANALYTICS_PROPERTIES.PROVIDER_ID]: lpParam ?? null,
+                  had_provider_param: !!lpParam,
+                  is_fallback_attempt: !shouldUseProvider,
+                  [ANALYTICS_PROPERTIES.WALLET_ADDRESS]: walletAddress ?? null,
+                  error_message: error.message.slice(0, 200),
+                  source: "rate_quote",
+                };
+
+                trackAnalyticsEvent(ANALYTICS_EVENTS.NO_PROVIDER_FOUND, props);
+
+                reportClientError(error, {
+                  feature: "no-provider-found",
+                  ...props,
+                });
+              }
             }
           }
           mapReportAndAct(error, {

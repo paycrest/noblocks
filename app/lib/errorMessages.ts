@@ -39,6 +39,16 @@ const USER_REJECTED_PATTERNS = [
   "action_rejected",
 ];
 
+const NO_PROVIDER_PATTERNS = [
+  "no provider",
+  "no provider found",
+  "provider not found",
+  "no available provider",
+  "no providers available",
+  "no liquidity provider",
+  "insufficient liquidity",
+];
+
 const HOTJAR_PATTERNS = [
   "hotjar",
   "_hjrecordingready",
@@ -109,6 +119,16 @@ function isRpcError(message: string, code: string): boolean {
 
 function isNetworkError(message: string, code: string): boolean {
   return matchesAny(message, NETWORK_ERROR_PATTERNS) || matchesAny(code, NETWORK_ERROR_PATTERNS);
+}
+
+/**
+ * True when an error represents "aggregator could not match a liquidity provider"
+ * for the requested corridor/amount. Matches on message OR error code.
+ */
+export function isNoProviderError(error: unknown): boolean {
+  const message = extractMessage(error);
+  const code = extractCode(error);
+  return matchesAny(message, NO_PROVIDER_PATTERNS) || matchesAny(code, NO_PROVIDER_PATTERNS);
 }
 
 /**

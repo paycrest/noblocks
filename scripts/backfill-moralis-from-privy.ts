@@ -1,7 +1,7 @@
 /**
  * One-time backfill: register Privy users (email signups) with Moralis Streams.
  *
- * Requires: MORALIS_STREAM_ID, MORALIS_API_KEY, MORALIS_BASE_URL (e.g. https://api.moralis-streams.com)
+ * Requires: MORALIS_STREAM_ID, MORALIS_API_KEY (MORALIS_BASE_URL optional; defaults to https://api.moralis-streams.com)
  * and Privy env. Output `moralis-backfill-output.json` is gitignored and stores **no raw PII**:
  * emails as truncated SHA-256 fingerprints, addresses as `0xabcd…7890` masks (plus userId, status, optional detail).
  */
@@ -142,11 +142,13 @@ function rowForJsonOutput(row: Row): OutputRow {
 async function main() {
   const streamId = process.env.MORALIS_STREAM_ID;
   const apiKey = process.env.MORALIS_API_KEY;
-  const moralisBase = (process.env.MORALIS_BASE_URL || "").trim();
+  const moralisBase = (
+    process.env.MORALIS_BASE_URL || "https://api.moralis-streams.com"
+  ).trim();
 
-  if (!DRY_RUN && (!streamId || !apiKey || !moralisBase)) {
+  if (!DRY_RUN && (!streamId || !apiKey)) {
     console.error(
-      "Set MORALIS_STREAM_ID, MORALIS_API_KEY, and MORALIS_BASE_URL, or use DRY_RUN=1 to list users only.",
+      "Set MORALIS_STREAM_ID and MORALIS_API_KEY, or use DRY_RUN=1 to list users only.",
     );
     process.exit(1);
   }

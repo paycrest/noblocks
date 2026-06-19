@@ -68,7 +68,8 @@ const config: Config = {
   activepiecesWebhookUrl: process.env.ACTIVEPIECES_WEBHOOK_URL || "",
   moralisStreamId: process.env.MORALIS_STREAM_ID || "",
   moralisApiKey: process.env.MORALIS_API_KEY || "",
-  moralisBaseUrl: process.env.MORALIS_BASE_URL || "",
+  moralisBaseUrl:
+    process.env.MORALIS_BASE_URL || "https://api.moralis-streams.com",
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
 };

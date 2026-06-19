@@ -27,9 +27,7 @@
     "sanity:dev": "sanity dev --studio studio",
     "sanity:build": "sanity build --studio studio",
     "sanity:deploy": "sanity deploy",
-    "sanity:undeploy": "sanity undeploy",
-    "backfill-moralis": "node --env-file=.env.local --import tsx ./scripts/backfill-moralis-from-privy.ts",
-    "backfill-moralis:dry": "node --env-file=.env.local --import tsx ./scripts/backfill-moralis-from-privy.ts -- --dry"
+    "sanity:undeploy": "sanity undeploy"
   },
   "dependencies": {
     "@hpke/chacha20poly1305": "^1.6.2",
@@ -107,7 +105,6 @@
     "prettier-plugin-tailwindcss": "^0.6.12",
     "supabase": "^2.98.2",
     "tailwindcss": "^3.4.17",
-    "tsx": "^4.19.3",
     "typescript": "^5.8.3"
   },
   "engines": {

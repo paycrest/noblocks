@@ -6,7 +6,7 @@ import {
   trackApiResponse,
   trackApiError,
 } from "@/app/lib/server-analytics";
-import { verifyMoralisSignature } from "@/app/lib/moralis-webhook";
+import { verifyMoralisSignature } from "@/app/utils";
 import { processMoralisDepositPayload } from "@/app/lib/moralis-deposit-processing";
 import config from "@/app/lib/config";
 import type { MoralisWebhookBody } from "@/app/types";

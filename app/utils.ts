@@ -14,7 +14,7 @@ import type {
   SwapMode,
 } from "./types";
 import type { SanityPost, SanityCategory } from "./blog/types";
-import { erc20Abi, createPublicClient, http } from "viem";
+import { erc20Abi, createPublicClient, http, keccak256, stringToBytes } from "viem";
 import { mainnet } from "viem/chains";
 import { getEnsName } from "viem/actions";
 import { isValidEvmAddressCaseInsensitive } from "./lib/validation";
@@ -378,6 +378,46 @@ export const getMoralisDepositNetworkAndExplorer = (
     txHash && name ? getExplorerLink(name, txHash) : "";
   return { network, txExplorerUrl };
 };
+
+/**
+ * Per Moralis Webhook Security: `sha3(JSON.stringify(body) + secret)` (Web3)
+ * and compare to `x-signature`. See: streams → webhook security in Moralis docs.
+ */
+export function moralisExpectedSignature(
+  rawBody: string,
+  secret: string,
+): `0x${string}` {
+  let stringToHash: string;
+  try {
+    const parsed: unknown = JSON.parse(rawBody);
+    stringToHash = JSON.stringify(parsed) + secret;
+  } catch {
+    stringToHash = rawBody + secret;
+  }
+  return keccak256(stringToBytes(stringToHash));
+}
+
+function stripMoralisSigHex(s: string): string {
+  const t = s.trim().toLowerCase();
+  return t.startsWith("0x") ? t.slice(2) : t;
+}
+
+export function verifyMoralisSignature(
+  rawBody: string,
+  xSignature: string | null | undefined,
+  secret: string,
+): boolean {
+  if (!xSignature) return false;
+  const expected = moralisExpectedSignature(rawBody, secret);
+  const a = stripMoralisSigHex(xSignature);
+  const b = stripMoralisSigHex(expected);
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) {
+    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return out === 0;
+}
 
 // write function to get rpc url for a given network
 export function getRpcUrl(network: string) {

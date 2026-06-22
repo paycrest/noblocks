@@ -785,15 +785,15 @@ export type UnifiedWalletBalances = {
 
 export type FetchBalancesForChainArgs =
   | {
-      kind: "evm";
-      client: any;
-      walletAddress: string;
-    }
+    kind: "evm";
+    client: any;
+    walletAddress: string;
+  }
   | {
-      kind: "starknet";
-      walletAddress: string;
-      tokens?: Token[];
-    };
+    kind: "starknet";
+    walletAddress: string;
+    tokens?: Token[];
+  };
 
 async function fetchEvmBalancesUnifiedUncached(
   client: any,
@@ -840,20 +840,20 @@ async function fetchEvmBalancesUnifiedUncached(
       nativeTokens.length === 0
         ? Promise.resolve()
         : Promise.all(
-            nativeTokens.map(async (token: Token) => {
-              try {
-                const balanceInWei = await client.getBalance({ address });
-                fillBalancesFromWei(token, balanceInWei);
-              } catch (error) {
-                console.error(
-                  `Error fetching native balance for ${token.symbol}:`,
-                  error,
-                );
-                balances[token.symbol] = 0;
-                balancesInWei[token.symbol] = BigInt(0);
-              }
-            }),
-          );
+          nativeTokens.map(async (token: Token) => {
+            try {
+              const balanceInWei = await client.getBalance({ address });
+              fillBalancesFromWei(token, balanceInWei);
+            } catch (error) {
+              console.error(
+                `Error fetching native balance for ${token.symbol}:`,
+                error,
+              );
+              balances[token.symbol] = 0;
+              balancesInWei[token.symbol] = BigInt(0);
+            }
+          }),
+        );
 
     const erc20Promise = (async () => {
       if (erc20Tokens.length === 0) return;

@@ -4,9 +4,10 @@ import { triggerActivepiecesDeposit } from "@/app/lib/activepieces-deposit";
 import {
   getEmailForMonitoredAddress,
   getMoralisDepositNetworkAndExplorer,
+  getNetworkTokens,
 } from "@/app/utils";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import type { MoralisWebhookBody } from "../types";
+import type { MoralisWebhookBody, Token } from "../types";
 
 type MoralisDepositIdempotencyInput =
   | { kind: "native"; chainId: string; txHash: string; to: string }
@@ -151,6 +152,38 @@ function isEmptyTestPayload(body: MoralisWebhookBody): boolean {
   return noChain && noData;
 }
 
+function isSupportedNativeDeposit(tokens: Token[]): boolean {
+  return tokens.some((t) => t.isNative);
+}
+
+function isSupportedErc20Deposit(
+  tokens: Token[],
+  contractAddress: string,
+): boolean {
+  const addr = contractAddress.trim().toLowerCase();
+  if (!addr) {
+    return false;
+  }
+  return tokens.some(
+    (t) => !t.isNative && t.address.trim().toLowerCase() === addr,
+  );
+}
+
+function createSupportedTokenLoader(): (
+  chainId: string,
+) => Promise<Token[]> {
+  const cache = new Map<string, Promise<Token[]>>();
+  return async (chainId: string) => {
+    const { network } = getMoralisDepositNetworkAndExplorer(chainId, "");
+    let pending = cache.get(network);
+    if (!pending) {
+      pending = getNetworkTokens(network);
+      cache.set(network, pending);
+    }
+    return pending;
+  };
+}
+
 /**
  * After Moralis has delivered a confirmed block payload, link recipients to Privy and Activepieces.
  */
@@ -167,6 +200,8 @@ export async function processMoralisDepositPayload(
   if (!body.confirmed) {
     return;
   }
+
+  const loadSupportedTokens = createSupportedTokenLoader();
 
   for (const tx of body.txs ?? []) {
     const to = tx.toAddress?.toLowerCase();
@@ -190,13 +225,26 @@ export async function processMoralisDepositPayload(
       continue;
     }
 
+    const supportedTokens = await loadSupportedTokens(body.chainId);
+    if (!isSupportedNativeDeposit(supportedTokens)) {
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          "[moralis deposit] unsupported native deposit on chain",
+          body.chainId,
+        );
+      }
+      continue;
+    }
+
     let amountStr: string;
     try {
       amountStr = formatUnits(BigInt(tx.value), 18);
     } catch {
       amountStr = tx.value;
     }
-    const symbol = nativeSymbol(body.chainId);
+    const symbol =
+      supportedTokens.find((t) => t.isNative)?.symbol ??
+      nativeSymbol(body.chainId);
     if (process.env.NODE_ENV === "development") {
       console.log(
         "[moralis deposit] native →",
@@ -265,6 +313,20 @@ export async function processMoralisDepositPayload(
       }
       continue;
     }
+
+    const tokenAddress = (tr.contract ?? "").trim().toLowerCase();
+    const supportedTokens = await loadSupportedTokens(body.chainId);
+    if (!isSupportedErc20Deposit(supportedTokens, tokenAddress)) {
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          "[moralis deposit] unsupported ERC-20",
+          tr.tokenSymbol,
+          tokenAddress,
+        );
+      }
+      continue;
+    }
+
     if (process.env.NODE_ENV === "development") {
       console.log(
         "[moralis deposit] erc20 →",
@@ -275,8 +337,11 @@ export async function processMoralisDepositPayload(
       );
     }
     try {
-      const token = tr.tokenSymbol || "TOKEN";
-      const tokenAddress = (tr.contract ?? "").trim().toLowerCase();
+      const matchedToken = supportedTokens.find(
+        (t) =>
+          !t.isNative && t.address.trim().toLowerCase() === tokenAddress,
+      );
+      const token = matchedToken?.symbol || tr.tokenSymbol || "TOKEN";
       await moralisDepositNotificationOnce(
         {
           kind: "erc20",

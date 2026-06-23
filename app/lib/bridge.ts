@@ -344,8 +344,16 @@ export class LifiClient {
       headers: authHeaders(token),
       validateStatus: () => true,
     });
-    // Route not found or token not supported — return null so the UI shows "no rail available"
-    if (status === 404 || (status >= 400 && status < 500)) return null;
+    // Unsupported route/token — return null so the UI shows "no rail available"
+    if (status === 404) return null;
+    // Auth/rate-limit failures are actionable, not "no route" — surface them.
+    if (status === 401 || status === 403) {
+      throw new Error("Authentication required for bridge quote");
+    }
+    if (status === 429) {
+      throw new Error("LI.FI quote rate-limited. Please retry shortly.");
+    }
+    if (status >= 400 && status < 500) return null;
     if (status >= 500) throw new Error(data?.message || `LI.FI service error (${status})`);
 
     // Extract token info from the response

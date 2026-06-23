@@ -146,6 +146,7 @@ export async function executeSponsored(
       });
       const delegationReceipt = await publicClient.waitForTransactionReceipt({
         hash: delegationTransactionHash,
+        timeout: 120_000,
       });
       // The combined delegation+execute tx carries the actual transfer; a revert here
       // must surface as an error, otherwise the caller records a "successful" transfer

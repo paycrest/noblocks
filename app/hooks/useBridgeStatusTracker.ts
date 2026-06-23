@@ -46,6 +46,7 @@ export function useBridgeStatusTracker() {
   const walletAddress = useWalletAddress();
   const [pendingBridges, setPendingBridges] = useState<BridgeSubmitInfo[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isPollingRef = useRef(false);
 
   // Load pending bridges on mount
   useEffect(() => {
@@ -68,6 +69,9 @@ export function useBridgeStatusTracker() {
     }
 
     const poll = async () => {
+      if (isPollingRef.current) return;
+      isPollingRef.current = true;
+      try {
       const token = await getAccessToken();
       if (!token) return;
 
@@ -121,6 +125,9 @@ export function useBridgeStatusTracker() {
 
       if (hasChanges) {
         setPendingBridges(updatedBridges);
+      }
+      } finally {
+        isPollingRef.current = false;
       }
     };
 

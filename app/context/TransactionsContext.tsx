@@ -378,8 +378,11 @@ export function TransactionsProvider({
     const accessToken = await getAccessToken();
     if (!accessToken) return;
 
-    // Clear cache for this page so concurrent fetches also hit the network
-    const cacheKey = `${walletAddress}-${currentPage}-10`;
+    // Clear cache for this page so concurrent fetches also hit the network.
+    // Must match the page size TransactionList fetches/paginates with (limit = 30),
+    // otherwise refresh writes/reads a different cache key than the list path.
+    const PAGE_LIMIT = 30;
+    const cacheKey = `${walletAddress}-${currentPage}-${PAGE_LIMIT}`;
     if (cacheKey in cacheRef.current) {
       const next = { ...cacheRef.current };
       delete next[cacheKey];
@@ -394,7 +397,13 @@ export function TransactionsProvider({
       return prev;
     });
 
-    await fetchTransactionData(walletAddress, accessToken, currentPage, 10, true);
+    await fetchTransactionData(
+      walletAddress,
+      accessToken,
+      currentPage,
+      PAGE_LIMIT,
+      true,
+    );
   }, [user, getAccessToken, currentPage, fetchTransactionData]);
 
   const clearTransactions = useCallback(() => {

@@ -111,8 +111,8 @@ export function useBridgeQuote({
   }, [from, to, amount, evmAddress, starknetAddress, slippageBps, getAccessToken]);
 
   const queryKey = useMemo(
-    () => ["bridge-quote", from?.token, from?.network, to?.token, to?.network, amount, evmAddress, starknetAddress],
-    [from, to, amount, evmAddress, starknetAddress],
+    () => ["bridge-quote", from?.token, from?.network, to?.token, to?.network, amount, evmAddress, starknetAddress, slippageBps],
+    [from, to, amount, evmAddress, starknetAddress, slippageBps],
   );
 
   const addressReady = !from
@@ -156,6 +156,7 @@ export function useBridgeStatus({ engine, refId, enabled, getAccessToken }: UseB
   const [result, setResult] = useState<BridgeStatusResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inFlightRef = useRef(false);
 
   const stop = useCallback(() => {
     if (intervalRef.current) {
@@ -174,6 +175,8 @@ export function useBridgeStatus({ engine, refId, enabled, getAccessToken }: UseB
     setIsLoading(true);
 
     const poll = async () => {
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
       try {
         const token = (await getAccessToken?.()) ?? null;
         const status =
@@ -188,6 +191,7 @@ export function useBridgeStatus({ engine, refId, enabled, getAccessToken }: UseB
       } catch {
         // keep polling
       } finally {
+        inFlightRef.current = false;
         setIsLoading(false);
       }
     };
@@ -307,7 +311,7 @@ export function useBridgeExecute({
             return { txHash: snHash, depositRefId: depositAddress };
           } else {
             // EVM transfer - use evmBatchExecute helper
-            if (!embeddedWallet || !allTokens || !signDelegationAuthorization) {
+            if (!embeddedWallet || !allTokens || !signDelegationAuthorization || !getAccessToken) {
               throw new Error("EVM wallet not configured");
             }
 
@@ -328,7 +332,7 @@ export function useBridgeExecute({
               amount: from.amount,
               recipientAddress: depositAddress,
               supportedTokens: chainTokens,
-              getAccessToken: getAccessToken!,
+              getAccessToken,
               embeddedWallet,
               signDelegationAuthorization,
             });

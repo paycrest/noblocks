@@ -40,10 +40,10 @@ export const BridgeQuoteCard: React.FC<BridgeQuoteCardProps> = ({
   if (isLoading) {
     return (
       <div className="animate-pulse space-y-2.5 border-t border-gray-200 dark:border-white/10 pt-4">
-        {[32, 48, 40].map((w) => (
+        {["w-32", "w-48", "w-40"].map((widthClass) => (
           <div
-            key={w}
-            className={`h-4 w-${w} rounded bg-gray-200 dark:bg-white/10`}
+            key={widthClass}
+            className={`h-4 ${widthClass} rounded bg-gray-200 dark:bg-white/10`}
           />
         ))}
       </div>

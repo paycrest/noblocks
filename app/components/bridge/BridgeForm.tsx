@@ -206,10 +206,17 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
 
   const handleConfirm = async () => {
     if (!quote || !from || !to) return;
+    const parsedAmount = Number(amount);
+    const rawAmount = toRawAmount(amount, from.decimals);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || rawAmount === "0") {
+      setFailureMessage("Enter a valid amount for the selected token.");
+      setStep("failed");
+      return;
+    }
     const fromWithAmount: BridgeLeg = {
       ...from,
       amount,
-      rawAmount: toRawAmount(amount, from.decimals),
+      rawAmount,
     };
     try {
       const { txHash, depositRefId } = await execute(quote, fromWithAmount);
@@ -224,7 +231,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
             transactionType: "bridge",
             fromCurrency: from.token,
             toCurrency: to.token,
-            amountSent: parseFloat(amount),
+            amountSent: parsedAmount,
             amountReceived: parseFloat(quote.amountOut),
             // Fee consolidated to the receiving token (existing NUMERIC column, stored in to_currency).
             fee: bridgeFeeInReceivingToken(quote),

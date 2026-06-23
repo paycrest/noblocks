@@ -8,6 +8,7 @@ import {
 } from "@/app/lib/server-analytics";
 
 const LIFI_QUOTE_URL = "https://li.quest/v1/quote";
+const UPSTREAM_TIMEOUT_MS = 15_000;
 
 export const GET = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
@@ -29,6 +30,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
       params,
       headers,
       validateStatus: () => true,
+      timeout: UPSTREAM_TIMEOUT_MS,
     });
 
     trackApiResponse("/api/bridge/lifi/quote", "GET", status, Date.now() - startTime);

@@ -28,6 +28,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     const { data, status } = await axios.get(ONE_CLICK_STATUS_URL, {
       params: { depositAddress },
       headers: jwt ? { Authorization: `Bearer ${jwt}` } : undefined,
+      timeout: 10_000,
       validateStatus: () => true,
     });
 

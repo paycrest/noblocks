@@ -8,6 +8,7 @@ import {
 } from "@/app/lib/server-analytics";
 
 const ONE_CLICK_QUOTE_URL = "https://1click.chaindefuser.com/v0/quote";
+const UPSTREAM_TIMEOUT_MS = 15_000;
 
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
@@ -20,7 +21,12 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    const body = await request.json();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
 
     trackApiRequest(request, "/api/bridge/near-intents/quote", "POST", {
       origin_asset: body.originAsset,
@@ -33,6 +39,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         Authorization: `Bearer ${jwt}`,
       },
       validateStatus: () => true,
+      timeout: UPSTREAM_TIMEOUT_MS,
     });
 
     trackApiResponse("/api/bridge/near-intents/quote", "POST", status, Date.now() - startTime);

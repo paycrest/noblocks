@@ -64,6 +64,12 @@ const config: Config = {
   })(),
   /** Sender API key UUID (aggregator dashboard). Used by server proxy and client (on-chain messageHash metadata). */
   aggregatorSenderApiKey: (process.env.NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID || "").trim(),
+  moralisWebhookSecret: process.env.MORALIS_WEBHOOK_SECRET || "",
+  activepiecesWebhookUrl: process.env.ACTIVEPIECES_WEBHOOK_URL || "",
+  moralisStreamId: process.env.MORALIS_STREAM_ID || "",
+  moralisApiKey: process.env.MORALIS_API_KEY || "",
+  moralisBaseUrl:
+    process.env.MORALIS_BASE_URL || "https://api.moralis-streams.com",
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",

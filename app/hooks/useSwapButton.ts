@@ -19,7 +19,7 @@ interface UseSwapButtonProps {
   isDirty: boolean;
   isValid: boolean;
   isUserVerified: boolean;
-  /** Wallets that already have Noblocks activity need tier‑1 wording ("Verify and start"); new users keep "Get started". */
+  /** Wallets that already have Noblocks activity show "Swap" (phone verification still opens on tap); new users keep "Get started". */
   hasPriorTransactionActivity?: boolean;
   /** After phone OTP, CTA should name the next verification step (ID / address), not generic "raise limit". */
   isPhoneVerified?: boolean;
@@ -148,9 +148,9 @@ export function useSwapButton({
     ) {
       // Not on Tier 1 yet: start phone verification (not "Increase limit").
       if (kycTier < 1 || !isPhoneVerified) {
-        return hasPriorTransactionActivity
-          ? "Verify and start"
-          : "Get started";
+        // Existing wallets show "Swap" (tapping still opens phone verification);
+        // brand-new users get "Get started".
+        return hasPriorTransactionActivity ? "Swap" : "Get started";
       }
       return labelForNextTierVerification(kycTier);
     }

@@ -7,16 +7,21 @@ export interface PhoneVerificationResult {
   error?: string;
 }
 
-
 interface TwilioVerifyApi {
   verify: {
     v2: {
       services: (serviceSid: string) => {
         verifications: {
-          create: (args: { to: string; channel: string }) => Promise<{ sid: string }>;
+          create: (args: {
+            to: string;
+            channel: string;
+          }) => Promise<{ sid: string }>;
         };
         verificationChecks: {
-          create: (args: { to: string; code: string }) => Promise<{ status: string }>;
+          create: (args: {
+            to: string;
+            code: string;
+          }) => Promise<{ status: string }>;
         };
       };
     };

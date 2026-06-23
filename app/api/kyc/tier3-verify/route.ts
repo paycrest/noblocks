@@ -10,7 +10,13 @@ import { rateLimit } from "@/app/lib/rate-limit";
 const KYC_BUCKET = process.env.KYC_DOCUMENTS_BUCKET || "kyc-documents";
 // Countries where a street address cannot be meaningfully validated (PO Box culture,
 // no formal street addressing, etc.). Expand as needed.
-const STREET_ADDRESS_OPTIONAL_COUNTRIES = new Set(["AE", "QA", "OM", "BH", "KW"]);
+const STREET_ADDRESS_OPTIONAL_COUNTRIES = new Set([
+  "AE",
+  "QA",
+  "OM",
+  "BH",
+  "KW",
+]);
 const SIGNED_URL_EXPIRY_SEC = 3600;
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5MB
 const ALLOWED_DOCUMENT_TYPE = "utility_bill";
@@ -26,7 +32,7 @@ export async function POST(request: NextRequest) {
   if (!rateLimitResult.success) {
     return NextResponse.json(
       { success: false, error: "Too many requests. Please try again later." },
-      { status: 429 }
+      { status: 429 },
     );
   }
 
@@ -34,7 +40,7 @@ export async function POST(request: NextRequest) {
   if (!walletAddress) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
-      { status: 401 }
+      { status: 401 },
     );
   }
 
@@ -59,22 +65,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Only utility bills are accepted for Tier 3 address verification",
+          error:
+            "Only utility bills are accepted for Tier 3 address verification",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (!file || file.size === 0) {
       return NextResponse.json(
         { success: false, error: "Document file is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
     if (!countryCode?.trim()) {
       return NextResponse.json(
         { success: false, error: "Country is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
     const trimmedCountry = countryCode.trim();
@@ -91,7 +98,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: "Failed to load KYC profile",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -102,7 +109,7 @@ export async function POST(request: NextRequest) {
           error:
             "No KYC profile found. Complete phone and ID verification first.",
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -114,7 +121,7 @@ export async function POST(request: NextRequest) {
           error:
             "Complete Tier 1 (phone) and Tier 2 (ID) verification before upgrading to Tier 3.",
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -122,18 +129,20 @@ export async function POST(request: NextRequest) {
     if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json(
         { success: false, error: "File too large; maximum 5 MB" },
-        { status: 413 }
+        { status: 413 },
       );
     }
     const mime = (file.type || "").toLowerCase();
-    if (!ALLOWED_MIME_TYPES.includes(mime as (typeof ALLOWED_MIME_TYPES)[number])) {
+    if (
+      !ALLOWED_MIME_TYPES.includes(mime as (typeof ALLOWED_MIME_TYPES)[number])
+    ) {
       return NextResponse.json(
         {
           success: false,
           error:
             "Invalid file type; allowed: image/jpeg, image/png, image/webp",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -143,7 +152,7 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { success: false, error: "Street address is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -155,14 +164,15 @@ export async function POST(request: NextRequest) {
     if (rpcError) {
       return NextResponse.json(
         { success: false, error: "Failed to process verification attempt." },
-        { status: 500 }
+        { status: 500 },
       );
     }
     if (newAttemptCount === -1) {
       return NextResponse.json(
         {
           success: false,
-          error: "KYC profile not found. Please complete earlier verification steps.",
+          error:
+            "KYC profile not found. Please complete earlier verification steps.",
         },
         { status: 404 },
       );
@@ -179,7 +189,8 @@ export async function POST(request: NextRequest) {
     }
 
     const nameExt = file.name?.split(".").pop();
-    const ext = (nameExt && nameExt.length <= 4 ? nameExt : MIME_TO_EXT[mime]) || "bin";
+    const ext =
+      (nameExt && nameExt.length <= 4 ? nameExt : MIME_TO_EXT[mime]) || "bin";
     const unique =
       typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
@@ -223,7 +234,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: "Failed to generate document URL",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -234,12 +245,11 @@ export async function POST(request: NextRequest) {
       county: county?.trim() || undefined,
       postalCode: postalCode?.trim() || undefined,
     };
-    const dojahResult = await verifyUtilityBill(
-      signedUrl,
-      addressData,
-    );
+    const dojahResult = await verifyUtilityBill(signedUrl, addressData);
     if (!isDojahVerificationSuccess(dojahResult)) {
-      const msg = dojahResult?.entity?.result?.message || "Document could not be verified as a valid proof of address.";
+      const msg =
+        dojahResult?.entity?.result?.message ||
+        "Document could not be verified as a valid proof of address.";
       console.error("[tier3-verify] Dojah verification failed", {
         resultStatus: dojahResult?.entity?.result?.status,
         resultMessage: dojahResult?.entity?.result?.message,
@@ -254,17 +264,14 @@ export async function POST(request: NextRequest) {
           removeError.message,
         );
       }
-      return NextResponse.json(
-        { success: false, error: msg },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: msg }, { status: 400 });
     }
 
     const existingPlatform = Array.isArray(currentProfile?.platform)
       ? currentProfile.platform
       : [];
     const otherVerifications = existingPlatform.filter(
-      (p: { type: string }) => p.type !== "address"
+      (p: { type: string }) => p.type !== "address",
     );
     const updatedPlatform = [
       ...otherVerifications,
@@ -307,7 +314,7 @@ export async function POST(request: NextRequest) {
           success: false,
           error: "Failed to update KYC profile",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -319,7 +326,7 @@ export async function POST(request: NextRequest) {
           error:
             "No KYC profile found. Complete phone and ID verification first.",
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -329,8 +336,7 @@ export async function POST(request: NextRequest) {
       data: { tier: 3 },
     });
   } catch (err) {
-    const raw =
-      err instanceof Error ? err.message : String(err);
+    const raw = err instanceof Error ? err.message : String(err);
     console.error("[tier3-verify] unexpected error", err);
     // Dojah often returns JSON in the thrown message; avoid double-encoding for clients.
     let message = raw;

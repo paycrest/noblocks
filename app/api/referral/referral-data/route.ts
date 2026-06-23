@@ -12,8 +12,16 @@ import {
   getWalletAddressFromPrivyUserId,
 } from "@/app/lib/privy";
 import { generateReferralCode } from "@/app/utils";
+import { isReferralEnabled } from "@/app/utils";
 
 export const GET = withRateLimit(async (request: NextRequest) => {
+    if (!isReferralEnabled()) {
+        return NextResponse.json(
+            { success: false, error: "Referral program is disabled" },
+            { status: 404 }
+        );
+    }
+
     const startTime = Date.now();
 
     try {

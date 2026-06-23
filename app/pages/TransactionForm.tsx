@@ -39,6 +39,7 @@ import {
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { useWalletAddress } from "../hooks/useWalletAddress";
+import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
@@ -99,6 +100,9 @@ export const TransactionForm = ({
   // Destructure stateProps
   const { rate, isFetchingRate, setOrderId } = stateProps;
   const { authenticated, ready, login, user } = usePrivy();
+  // Pin body scroll while the Privy dialog is up — its end-of-body iframe
+  // steals focus on mobile and drags the page to the bottom otherwise.
+  const loginWithScrollPin = useLoginWithScrollPin(login);
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
@@ -949,14 +953,14 @@ export const TransactionForm = ({
                   }
                 }}
                 className={[
-                  "px-3 h-8 text-sm font-medium rounded-full transition-colors",
+                  "px-4 h-8 text-sm font-medium rounded-full transition-colors",
                   "bg-neutral-100 dark:bg-[#141414]",
                   isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
                     : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
                 ].join(" ")}
               >
-                On-ramp
+                Buy
               </button>
 
               {/* Off-ramp button */}
@@ -968,14 +972,14 @@ export const TransactionForm = ({
                   }
                 }}
                 className={[
-                  "px-3 h-8 text-sm font-medium rounded-full transition-colors",
+                  "px-4 h-8 text-sm font-medium rounded-full transition-colors",
                   "bg-neutral-100 dark:bg-[#141414]",
                   !isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
                     : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
                 ].join(" ")}
               >
-                Off-ramp
+                Sell
               </button>
             </div>
           </div>
@@ -1308,7 +1312,7 @@ export const TransactionForm = ({
               disabled={!isEnabled}
               onClick={buttonAction(
                 handleSwap,
-                login,
+                loginWithScrollPin,
                 () =>
                   handleFundWallet(
                     activeWallet?.address ?? "",

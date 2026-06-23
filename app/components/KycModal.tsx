@@ -671,7 +671,7 @@ export const KycModal = ({
   );
 
   const renderCapture = () => (
-    <motion.div key="capture" {...fadeInOut} className="flex flex-col py-4" style={{ maxHeight: "min(90dvh, 48rem)" }}>
+    <motion.div key="capture" {...fadeInOut} className="flex flex-col py-4 max-h-[min(85vh,48rem)] supports-[height:100dvh]:max-h-[min(90dvh,48rem)]">
       <div className="space-y-3">
         <div className="flex items-center justify-between">
         <UserDetailsIcon />
@@ -930,7 +930,9 @@ export const KycModal = ({
                 Monthly limit{" "}
               </p>
               <span className="text-xl font-normal text-neutral-900 dark:text-white">
-                ${formatNumberWithCommas(tier3Limits.limits.monthly)}
+                {tier3Limits.limits.unlimited
+                  ? "Unlimited"
+                  : `$${formatNumberWithCommas(tier3Limits.limits.monthly)}`}
               </span>
             </div>
           </div>

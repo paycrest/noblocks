@@ -14,7 +14,7 @@ import type {
   SwapMode,
 } from "./types";
 import type { SanityPost, SanityCategory } from "./blog/types";
-import { erc20Abi, createPublicClient, http } from "viem";
+import { erc20Abi, createPublicClient, http, keccak256, stringToBytes } from "viem";
 import { mainnet } from "viem/chains";
 import { getEnsName } from "viem/actions";
 import { isValidEvmAddressCaseInsensitive } from "./lib/validation";
@@ -109,6 +109,23 @@ export function formatUsdAmount(amount: number): string {
 }
 
 /**
+ * First word of a display name with title case (e.g. success flow pill vs headline).
+ *
+ * @param name - Full recipient name (may include multiple words).
+ * @returns First word title-cased, or empty string if missing.
+ */
+export function formatRecipientNameFirstWordForPill(name: string): string {
+  const trimmed = (name ?? "").trim();
+  if (!trimmed) return "";
+  const titleCased = trimmed
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return titleCased.split(/\s+/)[0] ?? "";
+}
+
+/**
  * Formats a number as a currency string.
  *
  * @param value - The number to format.
@@ -155,6 +172,32 @@ export const getCurrencySymbol = (currency: string): string => {
 
   return currencySymbols[currency.toUpperCase()] || currency;
 };
+
+/**
+ * Off-ramp account/phone field placeholder. Banks use a generic label; mobile money
+ * uses a country-appropriate example. All mobile-money values share an "eg: " prefix
+ * (no leading space before the label) so the placeholder is aligned in the input.
+ * Examples use local-style numbers only (no international country calling prefix).
+ */
+export function getOfframpAccountIdentifierPlaceholder(
+  currency: string,
+  institutionType: "bank" | "mobile_money" | undefined,
+): string {
+  if (institutionType !== "mobile_money") {
+    return "Account number";
+  }
+  const examples: Record<string, string> = {
+    KES: "07XXXXXXXX",
+    NGN: "08XXXXXXXX",
+    UGX: "07XXXXXXXX",
+    TZS: "07XXXXXXXX",
+    MWK: "0XXXXXXXXX",
+    GHS: "0XXXXXXXXX",
+  };
+  return (
+    examples[currency.toUpperCase()] ?? "eg: phone number"
+  );
+}
 
 /** Fiat codes supported in Noblocks swap (matches `mocks.acceptedCurrencies` names). */
 const NOBLOCKS_FIAT_CURRENCY_CODES = new Set([
@@ -224,9 +267,44 @@ export function getTransactionHistoryTypeLabel(
     case "offramp":
     case "onramp":
       return "Swapped";
+    case "credit":
+      return "Funded";
     default:
       return type;
   }
+}
+
+/**
+ * Resolve a Privy user's email for an on-chain address (embedded EOA and/or smart wallet).
+ * Used by Moralis webhooks. Dynamic-imports Privy so client modules that only use other
+ * `utils` exports are not linked to the server `PRIVY_APP_SECRET` client.
+ */
+export async function getEmailForMonitoredAddress(
+  address: string,
+): Promise<string | null> {
+  const normalized = address.trim().toLowerCase();
+  if (!normalized.startsWith("0x") || normalized.length !== 42) {
+    return null;
+  }
+  const { getPrivyClient } = await import("./lib/privy");
+  const privy = getPrivyClient();
+  try {
+    const byWallet = await privy.getUserByWalletAddress(normalized);
+    if (byWallet?.email?.address) {
+      return byWallet.email.address.trim().toLowerCase();
+    }
+  } catch (e) {
+    console.warn("[privy] getUserByWalletAddress", normalized, e);
+  }
+  try {
+    const byScw = await privy.getUserBySmartWalletAddress(normalized);
+    if (byScw?.email?.address) {
+      return byScw.email.address.trim().toLowerCase();
+    }
+  } catch (e) {
+    console.warn("[privy] getUserBySmartWalletAddress", normalized, e);
+  }
+  return null;
 }
 
 /**
@@ -303,6 +381,98 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return "";
   }
 };
+
+/** Moralis / viem hex chainId (canonical) → `getExplorerLink` network name. */
+const CHAIN_ID_TO_EXPLORER_NETWORK: Record<string, string> = {
+  "0x1": "Ethereum",
+  "0x38": "BNB Smart Chain",
+  "0x89": "Polygon",
+  "0xa4b1": "Arbitrum One",
+  "0x2105": "Base",
+  "0xa": "Optimism",
+  "0x82750": "Scroll",
+  "0xa4ec": "Celo",
+  "0x46f": "Lisk",
+};
+
+/**
+ * Normalizes an EVM chain id to canonical lowercase hex (e.g. `0x0A` → `0xa`).
+ * Internal: used by {@link getMoralisDepositNetworkAndExplorer} only.
+ */
+function canonicalEvmChainIdHex(chainId: string): string {
+  const s = chainId.trim();
+  if (!s) {
+    return s;
+  }
+  try {
+    if (/^0x/i.test(s)) {
+      return `0x${BigInt(s).toString(16)}`;
+    }
+    if (/^\d+$/.test(s)) {
+      return `0x${BigInt(s).toString(16)}`;
+    }
+    return `0x${BigInt(`0x${s}`).toString(16)}`;
+  } catch {
+    return s.toLowerCase();
+  }
+}
+
+/**
+ * For Moralis webhooks: display `network` + full `txExplorerUrl` in one pass
+ * (shares the same map + `getExplorerLink` as the rest of the app).
+ * `txExplorerUrl` is `""` if the chain is unmapped or `txHash` is empty.
+ */
+export const getMoralisDepositNetworkAndExplorer = (
+  chainId: string,
+  txHash: string,
+): { network: string; txExplorerUrl: string } => {
+  const key = canonicalEvmChainIdHex(chainId);
+  const name = CHAIN_ID_TO_EXPLORER_NETWORK[key];
+  const network = name ?? chainId;
+  const txExplorerUrl =
+    txHash && name ? getExplorerLink(name, txHash) : "";
+  return { network, txExplorerUrl };
+};
+
+/**
+ * Per Moralis Webhook Security: `sha3(JSON.stringify(body) + secret)` (Web3)
+ * and compare to `x-signature`. See: streams → webhook security in Moralis docs.
+ */
+export function moralisExpectedSignature(
+  rawBody: string,
+  secret: string,
+): `0x${string}` {
+  let stringToHash: string;
+  try {
+    const parsed: unknown = JSON.parse(rawBody);
+    stringToHash = JSON.stringify(parsed) + secret;
+  } catch {
+    stringToHash = rawBody + secret;
+  }
+  return keccak256(stringToBytes(stringToHash));
+}
+
+function stripMoralisSigHex(s: string): string {
+  const t = s.trim().toLowerCase();
+  return t.startsWith("0x") ? t.slice(2) : t;
+}
+
+export function verifyMoralisSignature(
+  rawBody: string,
+  xSignature: string | null | undefined,
+  secret: string,
+): boolean {
+  if (!xSignature) return false;
+  const expected = moralisExpectedSignature(rawBody, secret);
+  const a = stripMoralisSigHex(xSignature);
+  const b = stripMoralisSigHex(expected);
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) {
+    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return out === 0;
+}
 
 // write function to get rpc url for a given network
 export function getRpcUrl(network: string) {
@@ -670,15 +840,15 @@ export type UnifiedWalletBalances = {
 
 export type FetchBalancesForChainArgs =
   | {
-      kind: "evm";
-      client: any;
-      walletAddress: string;
-    }
+    kind: "evm";
+    client: any;
+    walletAddress: string;
+  }
   | {
-      kind: "starknet";
-      walletAddress: string;
-      tokens?: Token[];
-    };
+    kind: "starknet";
+    walletAddress: string;
+    tokens?: Token[];
+  };
 
 async function fetchEvmBalancesUnifiedUncached(
   client: any,
@@ -725,20 +895,20 @@ async function fetchEvmBalancesUnifiedUncached(
       nativeTokens.length === 0
         ? Promise.resolve()
         : Promise.all(
-            nativeTokens.map(async (token: Token) => {
-              try {
-                const balanceInWei = await client.getBalance({ address });
-                fillBalancesFromWei(token, balanceInWei);
-              } catch (error) {
-                console.error(
-                  `Error fetching native balance for ${token.symbol}:`,
-                  error,
-                );
-                balances[token.symbol] = 0;
-                balancesInWei[token.symbol] = BigInt(0);
-              }
-            }),
-          );
+          nativeTokens.map(async (token: Token) => {
+            try {
+              const balanceInWei = await client.getBalance({ address });
+              fillBalancesFromWei(token, balanceInWei);
+            } catch (error) {
+              console.error(
+                `Error fetching native balance for ${token.symbol}:`,
+                error,
+              );
+              balances[token.symbol] = 0;
+              balancesInWei[token.symbol] = BigInt(0);
+            }
+          }),
+        );
 
     const erc20Promise = (async () => {
       if (erc20Tokens.length === 0) return;
@@ -1965,6 +2135,11 @@ export function generateReferralCode(): string {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return code;
+}
+
+/** Client feature flag: referral program. */
+export function isReferralEnabled(): boolean {
+  return config.referralEnabled;
 }
 
 /**

@@ -407,8 +407,15 @@ export type Config = {
   referralMinQualifyingVolumeUsd: number;
   referralRewardAmountUsd: number;
   aggregatorSenderApiKey: string;
+  moralisWebhookSecret: string;
+  activepiecesWebhookUrl: string;
+  moralisStreamId: string;
+  moralisApiKey: string;
+  moralisBaseUrl: string;
   /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
   earnEnabled: boolean;
+  /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
+  referralEnabled: boolean;
 };
 
 export type Network = {
@@ -445,7 +452,12 @@ export type TransactionStatus =
   | "refunding"
   | "refunded"
   | "expired";
-export type TransactionHistoryType = "onramp" | "offramp" | "transfer";
+export type TransactionHistoryType =
+  | "onramp"
+  | "offramp"
+  | "transfer"
+  | "swap"
+  | "credit";
 
 export interface Recipient {
   account_name: string;
@@ -610,4 +622,43 @@ declare global {
       groupId: string;
     };
   }
+}
+
+export type ActivepiecesDepositPayload = {
+  email: string;
+  amount: string;
+  symbol: string;
+  from: string;
+  txHash: string;
+  network: string;
+  txExplorerUrl: string;
+  kind: "native" | "erc20";
+};
+
+export interface MoralisNativeTx {
+  hash: string;
+  fromAddress: string;
+  toAddress: string;
+  value: string;
+}
+
+export interface MoralisErc20Transfer {
+  transactionHash?: string;
+  txHash?: string;
+  logIndex?: string;
+  contract?: string;
+  from: string;
+  to: string;
+  valueWithDecimals: string;
+  tokenSymbol: string;
+  tokenName: string;
+}
+
+export interface MoralisWebhookBody {
+  confirmed: boolean;
+  chainId: string;
+  streamId?: string;
+  tag?: string;
+  txs?: MoralisNativeTx[];
+  erc20Transfers?: MoralisErc20Transfer[];
 }

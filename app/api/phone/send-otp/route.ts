@@ -131,9 +131,7 @@ export async function POST(request: NextRequest) {
     const { data: existingProfile, error: profileFetchError } =
       await supabaseAdmin
         .from("user_kyc_profiles")
-        .select(
-          "tier, verified, verified_at, id_country, id_type, platform, full_name, phone_number",
-        )
+        .select("tier, id_country, id_type, platform, full_name")
         .eq("wallet_address", walletAddress)
         .maybeSingle();
 
@@ -165,6 +163,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // One verified identity per phone number: refuse before spending an SMS.
+    const { data: phoneOwner, error: phoneOwnerError } = await supabaseAdmin
+      .from("user_kyc_profiles")
+      .select("wallet_address")
+      .eq("phone_number", validation.e164Format)
+      .gte("tier", 1)
+      .neq("wallet_address", walletAddress)
+      .limit(1)
+      .maybeSingle();
+
+    if (phoneOwnerError) {
+      logSupabaseError("Supabase phone uniqueness check failed", phoneOwnerError);
+      return NextResponse.json(
+        { success: false, error: "Failed to validate phone number" },
+        { status: 500 },
+      );
+    }
+
+    if (phoneOwner) {
+      trackApiError(
+        request,
+        "/api/phone/send-otp",
+        "POST",
+        new Error("Phone number already verified on another account"),
+        409,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "This phone number is already verified on another account. Please use a different number.",
+        },
+        { status: 409 },
+      );
+    }
+
     const isNigerian = validation.isNigerian;
     const expiresAt = new Date(Date.now() + (isNigerian ? 5 : 10) * 60 * 1000); // 5 min KudiSMS, 10 min Twilio Verify
 
@@ -172,11 +206,7 @@ export async function POST(request: NextRequest) {
     const otp = isNigerian ? generateOtpCode() : null;
     const otpHash = otp ? hashOTP(otp) : null;
 
-    const phoneNumberChanged =
-      existingProfile?.phone_number != null &&
-      existingProfile.phone_number !== validation.e164Format;
-
-    // Send OTP via provider BEFORE persisting — do not de-verify or overwrite active
+    // Send OTP via provider BEFORE persisting — do not overwrite active
     // phone state if the provider call fails.
     let result;
     if (isNigerian) {
@@ -207,7 +237,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Provider confirmed: now persist the pending OTP state.
+    // Provider confirmed: persist the pending OTP state. The number stays in
+    // pending_phone_number until verify-otp confirms it — phone_number (and the
+    // verified flag) only ever reflect a number that passed OTP verification.
     const { error: dbError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .upsert(
@@ -215,15 +247,9 @@ export async function POST(request: NextRequest) {
           wallet_address: walletAddress,
           user_id: userId?.trim() ? userId.trim() : null,
           full_name: name || existingProfile?.full_name || null,
-          phone_number: validation.e164Format,
+          pending_phone_number: validation.e164Format,
           otp_code: otpHash,
           expires_at: expiresAt.toISOString(),
-          verified: phoneNumberChanged
-            ? false
-            : existingProfile?.verified || false,
-          verified_at: phoneNumberChanged
-            ? null
-            : existingProfile?.verified_at || null,
           tier: clampKycTier(existingProfile?.tier),
           id_country: existingProfile?.id_country || null,
           id_type: existingProfile?.id_type || null,

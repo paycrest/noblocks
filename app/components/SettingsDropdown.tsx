@@ -165,6 +165,12 @@ export const SettingsDropdown = () => {
       }
 
       clearUserSessionData(user?.id, walletAddress ?? user?.wallet?.address);
+
+      localStorage.removeItem(`starknet_walletId_${user?.id}`);
+      localStorage.removeItem(`starknet_address_${user?.id}`);
+      localStorage.removeItem(`starknet_publicKey_${user?.id}`);
+      localStorage.removeItem(`starknet_deployed_${user?.id}`);
+
       await logout();
 
       if (window.ethereum) {

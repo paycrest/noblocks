@@ -821,6 +821,29 @@ export async function precheckSwapTransaction(
  * @returns {Promise<SaveTransactionResponse>} The update response
  * @throws {Error} If the API request fails
  */
+/**
+ * Directly sets the DB status for a bridge transaction without going through
+ * mapAggregatorStatusToDbStatus (which is designed for Paycrest aggregator statuses,
+ * not NEAR Intents / LI.FI terminal states).
+ */
+export async function updateBridgeTransactionStatus(
+  transactionId: string,
+  status: "completed" | "refunded" | "failed",
+  accessToken: string,
+  walletAddress: string,
+): Promise<void> {
+  await axios.put(
+    `/api/v1/transactions/status/${transactionId}`,
+    { status },
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "x-wallet-address": walletAddress.toLowerCase(),
+      },
+    },
+  );
+}
+
 export async function updateTransactionStatus({
   transactionId,
   status,

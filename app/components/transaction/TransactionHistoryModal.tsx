@@ -38,19 +38,22 @@ export const TransactionHistoryModal = ({
 }: TransactionHistoryModalProps) => {
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionHistory | null>(null);
-  const { clearTransactions } = useTransactions();
+  const { clearTransactions, refreshTransactions } = useTransactions();
 
   const handleClose = () => {
     setSelectedTransaction(null);
     onClose();
   };
 
-  // Clear transactions when modal is closed
+  // Clear stale data when modal opens, then refresh; clear on close
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      clearTransactions();
+      refreshTransactions();
+    } else {
       clearTransactions();
     }
-  }, [isOpen, clearTransactions]);
+  }, [isOpen, clearTransactions, refreshTransactions]);
 
   return (
     <AnimatedModal isOpen={isOpen} onClose={handleClose}>

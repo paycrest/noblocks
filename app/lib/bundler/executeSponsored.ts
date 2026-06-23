@@ -109,6 +109,7 @@ export interface ExecuteSponsoredParams {
   accountAddress: `0x${string}`;
   callData: `0x${string}`;
   eip7702Authorization?: unknown;
+  gasLimit?: bigint;
 }
 
 export interface ExecuteSponsoredResult {
@@ -143,13 +144,23 @@ export async function executeSponsored(
         gas: RE_DELEGATE_GAS,
         chainId: chain.id,
       });
-      await publicClient.waitForTransactionReceipt({ hash: delegationTransactionHash });
+      const delegationReceipt = await publicClient.waitForTransactionReceipt({
+        hash: delegationTransactionHash,
+      });
+      // The combined delegation+execute tx carries the actual transfer; a revert here
+      // must surface as an error, otherwise the caller records a "successful" transfer
+      // whose funds never moved (the execute-only path below already guards this).
+      if (delegationReceipt.status === 'reverted') {
+        throw new Error(`Transaction reverted on-chain (${delegationTransactionHash})`);
+      }
       return { transactionHash: delegationTransactionHash, delegationTransactionHash };
     }
     // Already delegated to the expected contract: fall through to execute-only path (no type-4).
   }
 
   const account = walletClient.account!;
+
+  const gas = params.gasLimit ?? GAS_LIMIT;
 
   const sendExecute = (nonce: number, maxFee: bigint, maxPri: bigint) =>
     walletClient.sendTransaction({
@@ -158,7 +169,7 @@ export async function executeSponsored(
       to: params.accountAddress,
       data: params.callData,
       value: BigInt(0),
-      gas: GAS_LIMIT,
+      gas,
       nonce,
       maxFeePerGas: maxFee,
       maxPriorityFeePerGas: maxPri,
@@ -197,6 +208,11 @@ export async function executeSponsored(
   }
 
   if (!hash) throw new Error('execute-sponsored: no transaction hash after retries');
+
+  const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
+  if (receipt.status === 'reverted') {
+    throw new Error(`Transaction reverted on-chain (${hash})`);
+  }
 
   return { transactionHash: hash, delegationTransactionHash };
 }

@@ -361,6 +361,7 @@ export const config = {
     "/api/phone/verify-otp",
     "/api/bundler",
     "/api/bundler/:path*",
+    "/api/bridge/:path*",
     "/api/starknet/transfer",
     "/api/starknet/create-order",
     "/api/referral",

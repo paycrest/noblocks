@@ -66,6 +66,7 @@ const config: Config = {
   aggregatorSenderApiKey: (process.env.NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID || "").trim(),
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
+  bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
 };
 
 export default config;

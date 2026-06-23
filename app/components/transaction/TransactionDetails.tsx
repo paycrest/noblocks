@@ -32,7 +32,6 @@ import {
   fetchV2SenderPaymentOrderById,
   unwrapV2SenderOrderEnvelope,
 } from "../../api/aggregator";
-import { useNetwork } from "../../context/NetworksContext";
 import { useActualTheme } from "../../hooks/useActualTheme";
 import { networks } from "../../mocks";
 import { Copy01Icon } from "hugeicons-react";
@@ -111,7 +110,6 @@ const getNetworkFromName = (networkName: string): Network | null => {
 export function TransactionDetails({ transaction }: TransactionDetailsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
-  const { selectedNetwork } = useNetwork();
   const isDark = useActualTheme();
   const onrampClientSession = useOnrampClientPaymentSession(
     transaction?.created_at,
@@ -181,6 +179,26 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         <div className="flex items-center gap-2">
           <div className="flex -space-x-2">
             {(() => {
+              if (transaction.transaction_type === "bridge") {
+                return (
+                  <>
+                    <Image
+                      src={`/logos/${transaction.from_currency.toLowerCase()}-logo.svg`}
+                      alt={transaction.from_currency}
+                      width={20}
+                      height={20}
+                      className="rounded-full border border-white dark:border-surface-canvas"
+                    />
+                    <Image
+                      src={`/logos/${transaction.to_currency.toLowerCase()}-logo.svg`}
+                      alt={transaction.to_currency}
+                      width={20}
+                      height={20}
+                      className="rounded-full border border-white dark:border-surface-canvas"
+                    />
+                  </>
+                );
+              }
               if (transaction.transaction_type === "transfer") {
                 const networkObj = getNetworkFromName(transaction.network);
                 return (
@@ -308,7 +326,109 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
       </div>
       <Divider />
       {/* Details section 1 */}
-      {transaction.transaction_type === "transfer" ? (
+      {transaction.transaction_type === "bridge" ? (
+        <div className="flex flex-col gap-5 px-1 pb-1">
+          <DetailRow
+            label="You sent"
+            value={
+              <span className="text-text-accent-gray dark:text-white/80">
+                {formatTransactionAmountDisplay(
+                  transaction.amount_sent ?? 0,
+                  transaction.from_currency,
+                )}
+              </span>
+            }
+          />
+          <DetailRow
+            label="You received"
+            value={
+              <span className="text-text-accent-gray dark:text-white/80">
+                {formatTransactionAmountDisplay(
+                  transaction.amount_received ?? 0,
+                  transaction.to_currency,
+                )}
+              </span>
+            }
+          />
+          {(transaction.fee ?? 0) > 0 && (
+            <DetailRow
+              label="Network Fee"
+              value={
+                <span className="text-text-accent-gray dark:text-white/80">
+                  {formatTransactionAmountDisplay(
+                    transaction.fee ?? 0,
+                    transaction.to_currency,
+                  )}
+                </span>
+              }
+            />
+          )}
+          {transaction.network && (
+            <DetailRow
+              label="From"
+              value={
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const networkObj = getNetworkFromName(transaction.network);
+                    if (networkObj) {
+                      return (
+                        <>
+                          {getNetworkImageUrl(networkObj, isDark) && (
+                            <Image
+                              src={getNetworkImageUrl(networkObj, isDark)}
+                              alt={transaction.network}
+                              width={16}
+                              height={16}
+                              className="rounded-full"
+                            />
+                          )}
+                          <span className="text-text-accent-gray dark:text-white/80">
+                            {transaction.network}
+                          </span>
+                        </>
+                      );
+                    }
+                    return (
+                      <span className="text-text-accent-gray dark:text-white/80">
+                        {transaction.network}
+                      </span>
+                    );
+                  })()}
+                </div>
+              }
+            />
+          )}
+          {(transaction.recipient.to_network ?? transaction.network) && (
+            <DetailRow
+              label="To"
+              value={
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const toNetworkName =
+                      transaction.recipient.to_network ?? transaction.network;
+                    const networkObj = getNetworkFromName(toNetworkName);
+                    if (networkObj && getNetworkImageUrl(networkObj, isDark)) {
+                      return (
+                        <Image
+                          src={getNetworkImageUrl(networkObj, isDark)}
+                          alt={toNetworkName}
+                          width={16}
+                          height={16}
+                          className="rounded-full"
+                        />
+                      );
+                    }
+                    return null;
+                  })()}
+                  <span className="text-text-accent-gray dark:text-white/80">
+                    {transaction.recipient.to_network ?? transaction.network}
+                  </span>
+                </div>
+              }
+            />
+          )}
+        </div>
+      ) : transaction.transaction_type === "transfer" ? (
         <div className="flex flex-col gap-5 px-1 pb-1">
           <DetailRow
             label="Amount"

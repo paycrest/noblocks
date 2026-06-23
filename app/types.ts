@@ -10,7 +10,8 @@ export type MobileSheetView =
   | "earn-deposit"
   | "earn-withdraw"
   | "earn-activity-detail"
-  | "referrals";
+  | "referrals"
+  | "bridge";
 
 import type {
   FieldErrors,
@@ -411,6 +412,8 @@ export type Config = {
   earnEnabled: boolean;
   /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
   referralEnabled: boolean;
+  /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
+  bridgeEnabled: boolean;
 };
 
 export type Network = {
@@ -444,16 +447,20 @@ export type TransactionStatus =
   | "pending"
   | "processing"
   | "fulfilled"
+  | "fulfilling"
   | "refunding"
   | "refunded"
+  | "failed"
   | "expired";
-export type TransactionHistoryType = "onramp" | "offramp" | "transfer";
+export type TransactionHistoryType = "onramp" | "offramp" | "transfer" | "bridge";
 
 export interface Recipient {
   account_name: string;
   institution: string;
   account_identifier: string;
   memo?: string;
+  /** Bridge only: destination network (the transactions.network column holds the source). */
+  to_network?: string;
 }
 
 export interface TransactionHistory {

@@ -52,10 +52,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const gasLimit =
+      body?.gasLimit != null ? BigInt(Math.floor(Number(body.gasLimit))) : undefined;
+
     const result = await executeSponsored(publicClient, walletClient, chain, {
       accountAddress: getAddress(accountAddress) as `0x${string}`,
       callData: callData as `0x${string}`,
       eip7702Authorization: eip7702Authorization ?? undefined,
+      gasLimit,
     });
 
     return NextResponse.json({

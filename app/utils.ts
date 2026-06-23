@@ -199,7 +199,27 @@ export function formatTransactionAmountDisplay(
   if (isNoblocksFiatCurrencyCode(currencyCode)) {
     return `${getCurrencySymbol(currencyCode)}${formatNumberWithCommas(amount)}`;
   }
-  return `${formatNumberWithCommas(amount)} ${currencyCode}`;
+  // Round crypto amounts to 3 decimal places for display
+  const rounded = Math.round(amount * 1000) / 1000;
+  return `${formatNumberWithCommas(rounded)} ${currencyCode}`;
+}
+
+/**
+ * Customer-facing token amount: never scientific notation, never dust.
+ * Intl.NumberFormat never emits exponents, so values like 9.9999e-7 render as a
+ * readable "<0.0001" threshold instead of "9.9999e-7" or a misleading rounded "0".
+ * Precision scales with magnitude; true zero renders "0".
+ */
+export function formatTokenAmount(value: number | string): string {
+  const num = typeof value === "string" ? parseFloat(value) : value;
+  if (!Number.isFinite(num)) return "0";
+  if (num === 0) return "0";
+
+  const abs = Math.abs(num);
+  if (abs < 0.0001) return num > 0 ? "<0.0001" : ">-0.0001";
+
+  const maximumFractionDigits = abs >= 1000 ? 2 : abs >= 1 ? 4 : 6;
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits }).format(num);
 }
 
 /** User-facing label for transaction history rows (`onramp` / `offramp`). */
@@ -209,6 +229,8 @@ export function getTransactionHistoryTypeLabel(
   switch (type) {
     case "transfer":
       return "Transferred";
+    case "bridge":
+      return "Converted";
     case "offramp":
     case "onramp":
       return "Swapped";

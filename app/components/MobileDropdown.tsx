@@ -45,10 +45,13 @@ import WalletMigrationModal from "./WalletMigrationModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
 import { isEarnUiVisible } from "../lib/earnFeature";
 import { isReferralEnabled } from "../utils";
+import { isBridgeUiVisible } from "../lib/bridgeFeature";
+import { BridgeForm } from "./bridge/BridgeForm";
 import type { EarnActivityEntry } from "../hooks/useEarnHandler";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useHandleExportEmbeddedWallet } from "../hooks/useHandleExportEmbeddedWallet";
 import { clearUserSessionData } from "../lib/session-cleanup";
+import { useBridgeStatusTracker } from "../hooks/useBridgeStatusTracker";
 
 export const MobileDropdown = ({
   isOpen,
@@ -57,6 +60,7 @@ export const MobileDropdown = ({
   isOpen: boolean;
   onClose: () => void;
 }) => {
+  const { trackBridge } = useBridgeStatusTracker();
   const [currentView, setCurrentView] = useState<MobileSheetView>("wallet");
   const [selectedEarnActivity, setSelectedEarnActivity] =
     useState<EarnActivityEntry | null>(null);
@@ -320,6 +324,7 @@ export const MobileDropdown = ({
                           getTokenImageUrl={getTokenImageUrl}
                           onTransfer={() => setCurrentView("transfer")}
                           onFund={() => setCurrentView("fund")}
+                          onConvert={isBridgeUiVisible() ? () => setCurrentView("bridge") : undefined}
                           smartWallet={walletForCopy}
                           handleCopyAddress={handleCopyAddress}
                           isNetworkListOpen={isNetworkListOpen}
@@ -438,6 +443,16 @@ export const MobileDropdown = ({
                           onClose={onClose}
                           showBackButton
                           setCurrentView={setCurrentView}
+                        />
+                      )}
+
+                      {currentView === "bridge" && (
+                        <BridgeForm
+                          onClose={onClose}
+                          showBackButton
+                          layout="mobile"
+                          setCurrentView={setCurrentView}
+                          onBridgeSubmit={trackBridge}
                         />
                       )}
 

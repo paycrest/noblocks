@@ -86,13 +86,23 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       `${aggregatorOriginForV2()}/v2/sender/orders/${encodeURIComponent(orderId)}`,
       {
         headers: { "API-Key": config.aggregatorSenderApiKey.trim() },
+        // Fail closed quickly if the aggregator stalls, instead of hanging until the platform timeout.
+        timeout: 5_000,
         validateStatus: () => true,
       },
     );
-    if (status !== 200) {
+    if (status === 404) {
       return NextResponse.json(
         { status: "error", error: "Onramp order not found" },
         { status: 404 },
+      );
+    }
+    // Auth / rate-limit / 5xx from the aggregator are "couldn't verify", not "not found".
+    if (status !== 200) {
+      console.error(`[onramp] order verification got HTTP ${status}`);
+      return NextResponse.json(
+        { status: "error", error: "Could not verify onramp order" },
+        { status: 502 },
       );
     }
     const orderStatus = String(

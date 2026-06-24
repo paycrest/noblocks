@@ -207,6 +207,12 @@ export function TransactionStatus({
     useState<ForwardingStatus>("idle");
   const forwardTriggeredOrderRef = useRef<string | null>(null);
 
+  // Per-order reset: forwarding state must not leak from a previous onramp into the next one.
+  useEffect(() => {
+    setForwardingStatus("idle");
+    forwardTriggeredOrderRef.current = null;
+  }, [orderId]);
+
   const {
     transfer: forwardTransfer,
     isSuccess: isForwardTransferSuccess,
@@ -315,11 +321,20 @@ export function TransactionStatus({
     }
   }, [forwardingStatus, isForwardTransferSuccess, forwardTransferError]);
 
+  // When chained forwarding is active, an onramp isn't "done" until leg 2 resolves (forwarded or
+  // skipped). Until then — including while pending/forwarding or in flagged/held_review — the page
+  // must not present final success.
+  const isOnrampForwardingResolved =
+    !config.onrampChainedForwardingEnabled ||
+    !isOnramp ||
+    forwardingStatus === "completed" ||
+    forwardingStatus === "skipped";
+
   /** Off-ramp: success visuals for validated | settling | settled. On-ramp: only `settled` (loading/processing until then). */
   const showSuccessVisual =
     (!isOnramp &&
       ["validated", "settling", "settled"].includes(transactionStatus)) ||
-    (isOnramp && transactionStatus === "settled");
+    (isOnramp && transactionStatus === "settled" && isOnrampForwardingResolved);
 
   /** Order meta / dashed hr: off-ramp unchanged; on-ramp only after final or terminal failure. */
   const showOrderMetaSection =
@@ -328,7 +343,8 @@ export function TransactionStatus({
         transactionStatus,
       )) ||
     (isOnramp &&
-      ["settled", "refunded", "expired"].includes(transactionStatus));
+      ((transactionStatus === "settled" && isOnrampForwardingResolved) ||
+        ["refunded", "expired"].includes(transactionStatus)));
 
   /** Off-ramp: show during validated|settling|settled. On-ramp: only after order is done or terminal failure. */
   const showNewPaymentButton =
@@ -1214,7 +1230,7 @@ export function TransactionStatus({
                   : "Transaction successful"
                 : transactionStatus === "pending"
                   ? "Complete your payment"
-                  : transactionStatus === "settled"
+                  : transactionStatus === "settled" && isOnrampForwardingResolved
                     ? "Transaction successful"
                     : "Processing payment..."}
         </AnimatedComponent>

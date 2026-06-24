@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import axios from "axios";
 import { isAddress } from "viem";
 import { withRateLimit } from "@/app/lib/rate-limit";
 import { verifyJWT } from "@/app/lib/jwt";
 import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
 import config from "@/app/lib/config";
+import { aggregatorOriginForV2 } from "@/app/api/aggregator";
+import { isSenderPaymentOrderUuid } from "@/app/lib/payment-order-id";
 import { screenAddress } from "@/app/lib/scorechain";
 
 /**
@@ -13,6 +16,11 @@ import { screenAddress } from "@/app/lib/scorechain";
  * user's Noblocks wallet, BEFORE forwarding to the user's chosen destination. Screening runs
  * server-side so the Scorechain API key never reaches the browser. The actual transfer (leg 2) is
  * performed client-side with the same sponsored EIP-7702 flow as a normal Noblocks transfer.
+ *
+ * To stop a signed-in user from screening arbitrary addresses and burning the shared Scorechain
+ * quota, the request must reference a real onramp order (sender payment UUID) that is currently
+ * `settled`. (Full per-user order ownership binding needs the durable forwarding record tracked as
+ * a follow-up to #547; the aggregator order lookup is scoped by the sender API key.)
  *
  * FAIL-CLOSED: any screening failure (or a sanctioned hit) returns a non-"clear" status, and the
  * client must NOT forward — it surfaces a "under review — contact support" notice instead.
@@ -46,10 +54,19 @@ export const POST = withRateLimit(async (request: NextRequest) => {
   }
 
   const body = (await request.json().catch(() => ({}))) as {
+    orderId?: unknown;
     destination?: unknown;
   };
+  const orderId = typeof body.orderId === "string" ? body.orderId.trim() : "";
   const destination =
     typeof body.destination === "string" ? body.destination.trim() : "";
+
+  if (!isSenderPaymentOrderUuid(orderId)) {
+    return NextResponse.json(
+      { status: "error", error: "valid onramp orderId is required" },
+      { status: 400 },
+    );
+  }
   if (!isAddress(destination)) {
     return NextResponse.json(
       { status: "error", error: "valid destination is required" },
@@ -57,6 +74,45 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     );
   }
 
+  // Bind the screen to a real, settled onramp order.
+  if (!config.aggregatorSenderApiKey?.trim()) {
+    return NextResponse.json(
+      { status: "error", error: "Aggregator sender API key is not configured" },
+      { status: 500 },
+    );
+  }
+  try {
+    const { data, status } = await axios.get(
+      `${aggregatorOriginForV2()}/v2/sender/orders/${encodeURIComponent(orderId)}`,
+      {
+        headers: { "API-Key": config.aggregatorSenderApiKey.trim() },
+        validateStatus: () => true,
+      },
+    );
+    if (status !== 200) {
+      return NextResponse.json(
+        { status: "error", error: "Onramp order not found" },
+        { status: 404 },
+      );
+    }
+    const orderStatus = String(
+      (data as { data?: { status?: unknown } })?.data?.status ?? "",
+    ).toLowerCase();
+    if (orderStatus !== "settled") {
+      return NextResponse.json(
+        { status: "error", error: "Onramp order is not settled" },
+        { status: 409 },
+      );
+    }
+  } catch (err) {
+    console.error("[onramp] order verification failed:", err);
+    return NextResponse.json(
+      { status: "error", error: "Could not verify onramp order" },
+      { status: 502 },
+    );
+  }
+
+  // AML gate (fail-closed).
   try {
     const screen = await screenAddress(destination);
     if (screen.isSanctioned) {

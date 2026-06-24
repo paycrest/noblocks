@@ -45,11 +45,26 @@ function getApiKey(): string {
   return key;
 }
 
-/** Narrow the raw array response to our typed result. The API returns the first match (if any). */
+/**
+ * Narrow the raw array response to our typed result. The API returns an array of matches.
+ * Fail closed on malformed payloads (non-array, wrong shape, HTML/error body behind a 200) by
+ * throwing so callers land in `held_review` rather than incorrectly clearing the destination.
+ */
 function parseResponse(body: unknown): SanctionScreenResult {
-  const first = Array.isArray(body) ? body[0] : body;
-  if (!first || typeof first !== "object") {
+  if (!Array.isArray(body)) {
+    throw new Error("Scorechain returned an unexpected response shape");
+  }
+  // Empty array = no sanction record found = clean.
+  if (body.length === 0) {
     return { isSanctioned: false };
+  }
+  const first = body[0];
+  if (
+    !first ||
+    typeof first !== "object" ||
+    typeof (first as Record<string, unknown>).isSanctioned !== "boolean"
+  ) {
+    throw new Error("Scorechain returned an unexpected response shape");
   }
   const o = first as Record<string, unknown>;
   const isSanctioned = o.isSanctioned === true;

@@ -53,6 +53,26 @@ describe("screenAddress", () => {
     expect(result.details?.blockchain).toBe("Ethereum");
   });
 
+  it("treats an empty array as clean", async () => {
+    mockFetchOnce(() => ({ ok: true, status: 200, json: async () => [] }));
+    const result = await screenAddress(ADDR);
+    expect(result.isSanctioned).toBe(false);
+  });
+
+  it("throws on a malformed (non-array) 200 body so callers fail-closed", async () => {
+    mockFetchOnce(() => ({ ok: true, status: 200, json: async () => ({}) }));
+    await expect(screenAddress(ADDR)).rejects.toThrow(/unexpected response shape/i);
+  });
+
+  it("throws when the array element lacks a boolean isSanctioned", async () => {
+    mockFetchOnce(() => ({
+      ok: true,
+      status: 200,
+      json: async () => [{ foo: "bar" }],
+    }));
+    await expect(screenAddress(ADDR)).rejects.toThrow(/unexpected response shape/i);
+  });
+
   it("throws on 429 so callers fail-closed", async () => {
     mockFetchOnce(() => ({ ok: false, status: 429, json: async () => ({}) }));
     await expect(screenAddress(ADDR)).rejects.toThrow(/rate limit/i);

@@ -1199,12 +1199,16 @@ export const TransactionPreview = ({
         </>
       )}
 
-      {isOnramp && config.onrampChainedForwardingEnabled && (
-        <p className="text-center text-xs font-normal text-text-secondary dark:text-white/50">
-          Funds settle to your Noblocks wallet, then we forward them to the
-          recipient address.
-        </p>
-      )}
+      {isOnramp &&
+        config.onrampChainedForwardingEnabled &&
+        walletAddress &&
+        activeWallet?.address &&
+        walletAddress.toLowerCase() !== activeWallet.address.toLowerCase() && (
+          <p className="text-center text-xs font-normal text-text-secondary dark:text-white/50">
+            Funds settle to your Noblocks wallet, then we forward them to the
+            recipient address.
+          </p>
+        )}
 
       {/* CTAs */}
       <div className="flex gap-4 xsm:gap-6">

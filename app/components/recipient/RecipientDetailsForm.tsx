@@ -27,6 +27,7 @@ import { validateWalletAddress } from "@/app/lib/validation";
 import { getNetworkImageUrl } from "@/app/utils";
 import { useActualTheme } from "@/app/hooks/useActualTheme";
 import { useNetwork } from "@/app/context";
+import config from "@/app/lib/config";
 
 export const RecipientDetailsForm = ({
   formMethods,
@@ -427,6 +428,7 @@ export const RecipientDetailsForm = ({
   const showMyWalletButton = Boolean(
     swapMode === "onramp" && connectedWalletAddress,
   );
+
   const showSelectBeneficiaryButton =
     (swapMode === "onramp" && walletRecipients.length > 0) ||
     (swapMode === "offramp" && bankRecipients.length > 0);
@@ -498,6 +500,11 @@ export const RecipientDetailsForm = ({
             />
             {errors.walletAddress && (
               <InputError message={errors.walletAddress.message} />
+            )}
+            {config.onrampChainedForwardingEnabled && (
+              <p className="text-xs font-normal leading-4 text-text-disabled dark:text-white/30">
+                Your crypto safely routes through Noblocks to your address to protect against fraud.
+              </p>
             )}
             {networkName && (
               <div className="flex items-center gap-2 text-xs text-text-disabled dark:text-white/30">

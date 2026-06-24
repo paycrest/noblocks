@@ -733,7 +733,12 @@ export const TransactionPreview = ({
             network: aggregatorNetwork,
             ...(providerId ? { providerId } : {}),
             recipient: {
-              address: walletAddress,
+              // Fraud protection: when chained forwarding is enabled, the aggregator always
+              // settles to the user's Noblocks wallet first. The user's chosen destination
+              // (`walletAddress`) is forwarded to in leg 2, server-side, after an AML screen.
+              address: config.onrampChainedForwardingEnabled
+                ? activeWallet.address
+                : walletAddress,
               network: aggregatorNetwork,
             },
           },
@@ -1192,6 +1197,13 @@ export const TransactionPreview = ({
             </div>
           </div>
         </>
+      )}
+
+      {isOnramp && config.onrampChainedForwardingEnabled && (
+        <p className="text-center text-xs font-normal text-text-secondary dark:text-white/50">
+          Funds settle to your Noblocks wallet, then we forward them to the
+          recipient address.
+        </p>
       )}
 
       {/* CTAs */}

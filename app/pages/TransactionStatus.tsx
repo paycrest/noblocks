@@ -52,7 +52,10 @@ import {
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/client";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
-import { useBalance, useInjectedWallet, useNetwork } from "../context";
+import { useBalance, useInjectedWallet, useNetwork, useTokens } from "../context";
+import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
+import config from "../lib/config";
+import type { Token } from "../types";
 import { usePrivy } from "@privy-io/react-auth";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
@@ -120,6 +123,7 @@ export function TransactionStatus({
   const { claimed } = useBlockFestClaim();
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
+  const { allTokens } = useTokens();
   const {
     refreshBalance,
     smartWalletBalance,
@@ -182,6 +186,134 @@ export function TransactionStatus({
   const accountIdentifier = watch("accountIdentifier") || "";
   const institution = watch("institution") || "";
   const recipientWalletAddress = String(watch("walletAddress") || "");
+  const amountReceivedCrypto = Number(watch("amountReceived")) || 0;
+
+  /**
+   * Leg 2 (fraud protection): once an onramp settles into the user's Noblocks wallet, screen the
+   * chosen destination server-side (AML), then — if clean and different from the Noblocks wallet —
+   * forward the funds using the SAME sponsored EIP-7702 transfer flow as a normal Noblocks
+   * transfer (`useSmartWalletTransfer`). Fail-closed states (flagged / held_review) surface a
+   * "contact support" notice; funds stay safe in the Noblocks wallet.
+   */
+  type ForwardingStatus =
+    | "idle"
+    | "pending"
+    | "forwarding"
+    | "completed"
+    | "skipped"
+    | "flagged"
+    | "held_review";
+  const [forwardingStatus, setForwardingStatus] =
+    useState<ForwardingStatus>("idle");
+  const forwardTriggeredOrderRef = useRef<string | null>(null);
+
+  const {
+    transfer: forwardTransfer,
+    isSuccess: isForwardTransferSuccess,
+    error: forwardTransferError,
+  } = useSmartWalletTransfer({
+    selectedNetwork,
+    user,
+    supportedTokens: allTokens[selectedNetwork.chain.name] || [],
+    getAccessToken,
+    refreshBalance,
+    // Can't auto-forward if the wallet still needs migration — hold for support instead.
+    onRequireMigration: () => setForwardingStatus("held_review"),
+  });
+
+  useEffect(() => {
+    if (!config.onrampChainedForwardingEnabled) return;
+    if (!isOnramp) return;
+    if (transactionStatus !== "settled") return;
+    if (!orderId) return;
+    if (forwardTriggeredOrderRef.current === orderId) return;
+    // EVM-only for now; Starknet forwarding isn't supported by this flow.
+    if (selectedNetwork.chain.name === "Starknet") return;
+
+    const destination = recipientWalletAddress.trim();
+    if (!destination) return;
+
+    const noblocksWallet = embeddedWallet?.address ?? "";
+    // Self short-circuit: destination is the Noblocks wallet — funds already at destination.
+    if (
+      noblocksWallet &&
+      destination.toLowerCase() === noblocksWallet.toLowerCase()
+    ) {
+      forwardTriggeredOrderRef.current = orderId;
+      setForwardingStatus("skipped");
+      return;
+    }
+
+    const tokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
+    const match = tokens.find(
+      (t) => t.symbol.toUpperCase() === String(token).toUpperCase(),
+    );
+    if (!match || !(amountReceivedCrypto > 0)) return;
+
+    forwardTriggeredOrderRef.current = orderId;
+    setForwardingStatus("pending");
+
+    (async () => {
+      try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          setForwardingStatus("held_review");
+          return;
+        }
+        // 1) AML gate (server-side; fail-closed).
+        const res = await fetch("/api/onramp/screen-destination", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ orderId, destination }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          status?: string;
+        };
+        if (data.status !== "clear") {
+          // flagged / held_review / disabled / unexpected — never forward.
+          setForwardingStatus(
+            data.status === "flagged" ? "flagged" : "held_review",
+          );
+          return;
+        }
+        // 2) Forward via the standard sponsored transfer flow (client-signed).
+        setForwardingStatus("forwarding");
+        await forwardTransfer({
+          amount: amountReceivedCrypto,
+          token: String(token),
+          recipientAddress: destination,
+        });
+      } catch (err) {
+        console.error("[onramp] forwarding trigger failed:", err);
+        setForwardingStatus("held_review");
+      }
+    })();
+  }, [
+    isOnramp,
+    transactionStatus,
+    orderId,
+    recipientWalletAddress,
+    allTokens,
+    selectedNetwork.chain.name,
+    token,
+    amountReceivedCrypto,
+    embeddedWallet?.address,
+    getAccessToken,
+    forwardTransfer,
+  ]);
+
+  // Reflect the outcome of the leg-2 transfer (the hook reports success/error asynchronously).
+  useEffect(() => {
+    if (forwardingStatus !== "forwarding") return;
+    if (isForwardTransferSuccess) {
+      setForwardingStatus("completed");
+    } else if (forwardTransferError) {
+      setForwardingStatus("held_review");
+    }
+  }, [forwardingStatus, isForwardTransferSuccess, forwardTransferError]);
 
   /** Off-ramp: success visuals for validated | settling | settled. On-ramp: only `settled` (loading/processing until then). */
   const showSuccessVisual =
@@ -1134,6 +1266,27 @@ export function TransactionStatus({
         >
           {getPaymentMessage()}
         </AnimatedComponent>
+
+        {/* Onramp chained forwarding: under-review notice (fail-closed) */}
+        {isOnramp &&
+          (forwardingStatus === "flagged" ||
+            forwardingStatus === "held_review") && (
+            <AnimatedComponent
+              variant={slideInOut}
+              delay={0.4}
+              className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-normal text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300"
+            >
+              This transaction is under review and your funds are safe in your
+              Noblocks wallet. Please{" "}
+              <a
+                href="mailto:support@paycrest.io"
+                className="font-medium underline"
+              >
+                contact support
+              </a>{" "}
+              to continue.
+            </AnimatedComponent>
+          )}
 
         {/* Helper text for long-running transactions */}
         <TransactionHelperText

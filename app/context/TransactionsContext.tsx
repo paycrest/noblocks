@@ -77,9 +77,14 @@ export function TransactionsProvider({
       walletAddress: string,
       accessToken: string,
     ) => {
+      // Only onramp/offramp transactions are backed by an aggregator order that can be looked up.
+      // transfer/swap/credit carry a tx hash (or no order) in `order_id`, so reconciling them hits
+      // the gateway-order endpoint and 400s/404s — skip them.
       const nonFinalTxs = txs.filter(
         (tx) =>
           tx.order_id &&
+          (tx.transaction_type === "onramp" ||
+            tx.transaction_type === "offramp") &&
           tx.status !== "completed" &&
           tx.status !== "refunded" &&
           tx.status !== "expired",
@@ -209,7 +214,14 @@ export function TransactionsProvider({
               });
             }
           } catch (err) {
-            if (axios.isAxiosError(err) && err.response?.status === 404) {
+            // A failed order lookup must not be fatal: leave the tx status unchanged and try
+            // again on the next poll. `fetchOrderDetails` rethrows 4xx as a plain Error (not an
+            // AxiosError), so also treat "not found" / "invalid order id" messages as skippable.
+            const message = err instanceof Error ? err.message : "";
+            const isSkippableLookupFailure =
+              (axios.isAxiosError(err) && err.response?.status === 404) ||
+              /not found|invalid order id/i.test(message);
+            if (isSkippableLookupFailure) {
               return;
             }
             console.error("Error reconciling transaction status:", err);

@@ -384,7 +384,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
           />
           {(transaction.fee ?? 0) > 0 && (
             <DetailRow
-              label="Network Fee"
+              label="Transaction Fee"
               value={
                 <span className="text-text-accent-gray dark:text-white/80">
                   {formatTransactionAmountDisplay(

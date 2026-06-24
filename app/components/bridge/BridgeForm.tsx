@@ -56,6 +56,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const { signDelegationAuthorization } = useDelegationContractAuth();
 
   const [step, setStep] = useState<"form" | "status" | "failed">("form");
+  const [isFinalizing, setIsFinalizing] = useState(false);
   const [failureMessage, setFailureMessage] = useState<string | null>(null);
   const [isQuoteExpired, setIsQuoteExpired] = useState(false);
   const [statusInfo, setStatusInfo] = useState<{
@@ -219,6 +220,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
       rawAmount,
     };
     try {
+      setIsFinalizing(true);
       const { txHash, depositRefId } = await execute(quote, fromWithAmount);
       const resolvedEngine: BridgeEngine = quote.kind === "lifi-tx" ? "lifi" : "near";
 
@@ -265,6 +267,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
       }
     } catch (err) {
       setFailureMessage(err instanceof Error ? err.message : "Conversion failed");
+      setIsFinalizing(false);
       setStep("failed");
     }
   };
@@ -378,11 +381,11 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                 <>
                   <button
                     type="button"
-                    disabled={execLoading}
+                    disabled={execLoading || isFinalizing}
                     onClick={handleConfirm}
                     className={classNames(primaryBtnClasses, "w-full")}
                   >
-                    {execLoading ? "Converting…" : "Confirm"}
+                    {execLoading || isFinalizing ? "Confirming…" : "Confirm"}
                   </button>
                   <p className="text-center text-xs text-gray-400 dark:text-white/30 -mt-3">
                     By clicking Confirm, you agree to the <Link href="/terms" className="text-lavender-600 dark:text-lavender-400 hover:underline">Terms of Use</Link>.
@@ -422,6 +425,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                 onClick={() => {
                   setStep("form");
                   setFailureMessage(null);
+                  setIsFinalizing(false);
                 }}
                 className={classNames(primaryBtnClasses, "w-full")}
               >

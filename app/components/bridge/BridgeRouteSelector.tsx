@@ -130,7 +130,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
     <button
       type="button"
       onClick={() => onOpenPicker(target)}
-      className="flex items-center gap-1.5 rounded-full bg-white dark:bg-neutral-700 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-text-secondary dark:text-white/60 hover:bg-none dark:hover:bg-neutral-600 active:scale-95 transition-all"
+      className="flex items-center gap-1.5 rounded-full bg-white dark:bg-neutral-700 px-3 py-2 text-xs font-semibold capitalize tracking-wide text-text-secondary dark:text-white/60 hover:bg-none dark:hover:bg-neutral-600 active:scale-95 transition-all"
     >
       {networkObj && (
         <img

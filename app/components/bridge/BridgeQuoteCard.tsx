@@ -103,7 +103,7 @@ export const BridgeQuoteCard: React.FC<BridgeQuoteCardProps> = ({
 
       {quote.kind === "lifi-tx" && Number(quote.feeReceivingToken) > 0 && (
         <Row
-          label="Network fee"
+          label="Transaction fee"
           value={`${formatTokenAmount(quote.feeReceivingToken)} ${toToken || ""}`}
         />
       )}

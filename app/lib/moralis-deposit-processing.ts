@@ -185,14 +185,7 @@ function createSupportedTokenLoader(): (
 }
 
 /**
- * Links deposit recipients to Privy and Activepieces. Processes both Moralis
- * delivery phases (`confirmed: false` near-tip and `confirmed: true` reorg-safe)
- * so notifications fire the instant the block is mined — roughly when the wallet
- * shows the funds — instead of waiting the chain's confirmation window.
- *
- * Acting on the near-tip delivery trades a small reorg risk for instant delivery.
- * The deposit idempotency key is confirmation-agnostic, so whichever delivery
- * arrives first does the work and the other is skipped as a duplicate.
+* After Moralis has delivered a confirmed block payload, link recipients to Privy and Activepieces.
  */
 export async function processMoralisDepositPayload(
   body: MoralisWebhookBody,

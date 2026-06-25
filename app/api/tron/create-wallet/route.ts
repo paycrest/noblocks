@@ -33,7 +33,22 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     const token = authHeader.substring(7);
-    const { payload } = await verifyJWT(token, DEFAULT_PRIVY_CONFIG);
+    let payload: Awaited<ReturnType<typeof verifyJWT>>["payload"];
+    try {
+      ({ payload } = await verifyJWT(token, DEFAULT_PRIVY_CONFIG));
+    } catch (error) {
+      trackApiError(
+        request,
+        "/api/tron/create-wallet",
+        "POST",
+        error instanceof Error ? error : new Error("Invalid or expired token"),
+        401,
+      );
+      return NextResponse.json(
+        { error: "Invalid or expired token" },
+        { status: 401 },
+      );
+    }
     const authUserId = payload.sub || payload.userId;
 
     if (!authUserId) {

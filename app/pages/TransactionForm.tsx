@@ -36,6 +36,8 @@ import {
   currencyToCountryCode,
   reorderCurrenciesByLocation,
   networkSupportsOnramp,
+  isStarknetChain,
+  isTronChain,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -201,9 +203,9 @@ export const TransactionForm = ({
 
   const activeBalance = isInjectedWallet
     ? injectedWalletBalance
-    : selectedNetwork.chain.name === "Starknet"
+    : isStarknetChain(selectedNetwork.chain)
       ? starknetWalletBalance
-      : selectedNetwork.chain.name === "Tron"
+      : isTronChain(selectedNetwork.chain)
         ? tronWalletBalance
         : shouldUseEOA
           ? externalWalletBalance
@@ -964,7 +966,7 @@ export const TransactionForm = ({
               {/* On-ramp button */}
               <button
                 type="button"
-                disabled={!onrampSupported}
+                aria-disabled={!onrampSupported}
                 onClick={() => {
                   if (!onrampSupported) {
                     toast.error("Buy is not available on Tron yet", {

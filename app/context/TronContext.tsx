@@ -161,20 +161,19 @@ export function TronProvider({ children }: { children: ReactNode }) {
     if (walletId && address) return;
     if (isCreating) return;
 
-    try {
-      resetError();
-      if (!walletId) {
-        const createToastId = toast.loading("Creating Tron wallet...");
-        try {
-          await createWallet();
-          toast.success("Tron wallet created!", { id: createToastId });
-        } catch {
-          toast.error("Failed to create Tron wallet", { id: createToastId });
-          throw new Error("Failed to create Tron wallet");
-        }
+    resetError();
+    if (!walletId) {
+      const createToastId = toast.loading("Creating Tron wallet...");
+      try {
+        await createWallet();
+        toast.success("Tron wallet created!", { id: createToastId });
+      } catch (err) {
+        toast.error("Failed to create Tron wallet", { id: createToastId });
+        console.error("Failed to ensure Tron wallet exists:", err);
+        throw err instanceof Error
+          ? err
+          : new Error("Failed to create Tron wallet");
       }
-    } catch (err) {
-      console.error("Failed to ensure Tron wallet exists:", err);
     }
   };
 

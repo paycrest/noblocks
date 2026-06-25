@@ -185,7 +185,7 @@ function createSupportedTokenLoader(): (
 }
 
 /**
- * After Moralis has delivered a confirmed block payload, link recipients to Privy and Activepieces.
+* After Moralis has delivered a confirmed block payload, link recipients to Privy and Activepieces.
  */
 export async function processMoralisDepositPayload(
   body: MoralisWebhookBody,
@@ -194,10 +194,6 @@ export async function processMoralisDepositPayload(
     if (process.env.NODE_ENV === "development") {
       console.log("[moralis deposit] skipping empty test / heartbeat payload");
     }
-    return;
-  }
-
-  if (!body.confirmed) {
     return;
   }
 

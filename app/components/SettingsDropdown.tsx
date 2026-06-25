@@ -46,6 +46,8 @@ export const SettingsDropdown = () => {
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { selectedNetwork } = useNetwork();
   const isStarknet = selectedNetwork?.chain?.name === "Starknet";
+  const isTron = selectedNetwork?.chain?.name === "Tron";
+  const isTier2Network = isStarknet || isTron;
   const shouldUseEOA = useShouldUseEOA();
   const hookWalletAddress = useWalletAddress();
 
@@ -72,7 +74,7 @@ export const SettingsDropdown = () => {
   // to avoid showing an EVM address while Starknet is active.
   const walletAddress =
     hookWalletAddress ??
-    (isStarknet
+    (isTier2Network
       ? undefined
       : isInjectedWallet
         ? injectedAddress

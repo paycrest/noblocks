@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { usePrivy, useMfaEnrollment, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance, useTokens, useStarknet } from "../context";
+import { useBalance, useTokens, useStarknet, useTron } from "../context";
 import {
   copyToClipboard,
   detectWalletProvider,
@@ -75,7 +75,8 @@ export const MobileDropdown = ({
   const handleExportEmbeddedWallet = useHandleExportEmbeddedWallet();
   const { allBalances, crossChainBalances, crossChainTotal, isLoading, isRefreshing, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
-  const { ensureWalletExists } = useStarknet();
+  const { ensureWalletExists: ensureStarknetWallet } = useStarknet();
+  const { ensureWalletExists: ensureTronWallet } = useTron();
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
@@ -96,7 +97,8 @@ export const MobileDropdown = ({
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress, type: "injected_wallet" as const }
-    : selectedNetwork.chain.name === "Starknet"
+    : selectedNetwork.chain.name === "Starknet" ||
+        selectedNetwork.chain.name === "Tron"
       ? walletAddress
         ? { address: walletAddress, type: "smart_wallet" as const }
         : undefined
@@ -154,9 +156,11 @@ export const MobileDropdown = ({
     ? allBalances.injectedWallet
     : selectedNetwork.chain.name === "Starknet"
       ? allBalances.starknetWallet
-      : shouldUseEOA
-        ? allBalances.externalWallet
-        : allBalances.smartWallet;
+      : selectedNetwork.chain.name === "Tron"
+        ? allBalances.tronWallet
+        : shouldUseEOA
+          ? allBalances.externalWallet
+          : allBalances.smartWallet;
   // Sort cross-chain balances: selected network first, then alphabetically
   const sortedCrossChainBalances = useSortedCrossChainBalances(
     crossChainBalances,
@@ -187,7 +191,13 @@ export const MobileDropdown = ({
           title: "Error switching network",
         });
       },
-      ensureWalletExists, // Pass the Starknet wallet creation function
+      async () => {
+        if (network.chain.name === "Starknet") {
+          await ensureStarknetWallet();
+        } else if (network.chain.name === "Tron") {
+          await ensureTronWallet();
+        }
+      },
     );
 
     setIsNetworkListOpen(false);

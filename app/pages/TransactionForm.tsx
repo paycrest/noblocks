@@ -35,6 +35,7 @@ import {
   formatDecimalPrecision,
   currencyToCountryCode,
   reorderCurrenciesByLocation,
+  networkSupportsOnramp,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -105,7 +106,7 @@ export const TransactionForm = ({
   const loginWithScrollPin = useLoginWithScrollPin(login);
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
+  const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, starknetWalletBalance, tronWalletBalance, isLoading } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
   const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
@@ -180,6 +181,8 @@ export const TransactionForm = ({
     receiveDestinationExplicitlySelected,
   } = watch();
 
+  const onrampSupported = networkSupportsOnramp(selectedNetwork.chain);
+
   // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
   const { rate: cngnRate, error: cngnRateError } = useCNGNRate({
     network: selectedNetwork.chain.name,
@@ -190,25 +193,21 @@ export const TransactionForm = ({
   // Determine active wallet based on migration status
   // After migration: use EOA (new wallet with funds)
   // Before migration: use SCW (old wallet)
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
-  );
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet"
-  );
-
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : shouldUseEOA
-      ? (embeddedWallet ? { address: embeddedWallet.address } : undefined)
-      : smartWallet;
+    : connectedWalletAddress
+      ? { address: connectedWalletAddress }
+      : undefined;
 
-  // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
   const activeBalance = isInjectedWallet
     ? injectedWalletBalance
-    : shouldUseEOA
-      ? externalWalletBalance
-      : smartWalletBalance;
+    : selectedNetwork.chain.name === "Starknet"
+      ? starknetWalletBalance
+      : selectedNetwork.chain.name === "Tron"
+        ? tronWalletBalance
+        : shouldUseEOA
+          ? externalWalletBalance
+          : smartWalletBalance;
 
   // For CNGN, use raw balance instead of USD equivalent. If rawBalances doesn't contain
   // the token, treat as zero rather than falling back to USD-denominated balance.
@@ -713,6 +712,17 @@ export const TransactionForm = ({
     }
   }, [selectedNetwork.chain.name, getValues, setValue]);
 
+  // Tron is off-ramp only — keep form on Sell when that network is selected.
+  useEffect(() => {
+    if (!onrampSupported && isSwapped) {
+      setValue("isSwapped", false, { shouldDirty: true });
+      setValue("swapMode", "offramp", { shouldDirty: true });
+      setValue("receiveDestinationExplicitlySelected", true, {
+        shouldDirty: true,
+      });
+    }
+  }, [onrampSupported, isSwapped, setValue]);
+
   useEffect(() => {
     // Only run once to align on-ramp mode with persisted recipient (e.g. deep link / refresh)
     if (hasRestoredStateRef.current) {
@@ -737,9 +747,16 @@ export const TransactionForm = ({
 
   // Handle swap button click to switch between token/currency dropdowns
   const handleSwapFields = () => {
+    const willBeSwapped = !isSwapped;
+    if (willBeSwapped && !onrampSupported) {
+      toast.error("Buy is not available on Tron yet", {
+        description: "Switch to another network to buy crypto, or use Sell on Tron.",
+      });
+      return;
+    }
+
     const currentAmountSent = amountSent;
     const currentAmountReceived = amountReceived;
-    const willBeSwapped = !isSwapped;
 
     const hasToken = typeof token === "string" && token.trim().length > 0;
     const hasCurrency = typeof currency === "string" && currency.trim().length > 0;
@@ -947,7 +964,15 @@ export const TransactionForm = ({
               {/* On-ramp button */}
               <button
                 type="button"
+                disabled={!onrampSupported}
                 onClick={() => {
+                  if (!onrampSupported) {
+                    toast.error("Buy is not available on Tron yet", {
+                      description:
+                        "Switch to another network to buy crypto, or use Sell on Tron.",
+                    });
+                    return;
+                  }
                   if (!isSwapped) {
                     void handleSwapFields();
                   }
@@ -955,6 +980,9 @@ export const TransactionForm = ({
                 className={[
                   "px-4 h-8 text-sm font-medium rounded-full transition-colors",
                   "bg-neutral-100 dark:bg-[#141414]",
+                  !onrampSupported
+                    ? "cursor-not-allowed opacity-40"
+                    : "",
                   isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
                     : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",

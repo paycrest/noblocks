@@ -33,6 +33,7 @@ import {
   getBannerPadding,
   initialSwapModeForHomeForm,
   swapModeFromSideParam,
+  networkSupportsOnramp,
 } from "../utils";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
@@ -307,11 +308,27 @@ export function MainPageContent() {
     function syncRampFromSideSearchParam() {
       const next = swapModeFromSideParam(searchParams.get("side"));
       if (next !== undefined) {
+        if (next === "onramp" && !networkSupportsOnramp(selectedNetwork.chain)) {
+          return;
+        }
         setValue("swapMode", next, { shouldDirty: true });
         setValue("isSwapped", next === "onramp", { shouldDirty: true });
       }
     },
-    [searchParams, setValue],
+    [searchParams, setValue, selectedNetwork.chain],
+  );
+
+  useEffect(
+    function enforceTronOfframpOnly() {
+      if (!networkSupportsOnramp(selectedNetwork.chain)) {
+        setValue("swapMode", "offramp", { shouldDirty: true });
+        setValue("isSwapped", false, { shouldDirty: true });
+        setValue("receiveDestinationExplicitlySelected", true, {
+          shouldDirty: true,
+        });
+      }
+    },
+    [selectedNetwork.chain, setValue],
   );
 
   // State props for child components

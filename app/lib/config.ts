@@ -71,6 +71,7 @@ const config: Config = {
   moralisBaseUrl:
     process.env.MORALIS_BASE_URL || "https://api.moralis-streams.com",
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
+  tronEnabled: process.env.NEXT_PUBLIC_TRON_ENABLED === "true",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
 };
 

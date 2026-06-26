@@ -123,7 +123,26 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         { status: 503 },
       );
     }
-    if (kyc.fullName && !accountNameMatchesKyc(kyc.fullName, refundAccountName)) {
+    // Fail closed: reject order if KYC name is missing (null/empty). Without a verified name on file,
+    // we cannot validate the refund account belongs to the user.
+    if (!kyc.fullName) {
+      trackApiError(
+        request,
+        "/api/v1/payment-orders",
+        "POST",
+        new Error("KYC profile is missing verified full name"),
+        422,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Your identity verification is incomplete. Please complete KYC with your full name.",
+        },
+        { status: 422 },
+      );
+    }
+    // Validate the refund account name matches the verified KYC name.
+    if (!accountNameMatchesKyc(kyc.fullName, refundAccountName)) {
       trackApiError(
         request,
         "/api/v1/payment-orders",

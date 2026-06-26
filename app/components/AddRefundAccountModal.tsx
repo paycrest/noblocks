@@ -12,6 +12,11 @@ import type { InstitutionProps, RefundAccountDetails } from "@/app/types";
 import { classNames, getOfframpAccountIdentifierPlaceholder } from "@/app/utils";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "@/app/components/Styles";
+import { useKYC } from "@/app/context";
+import {
+  accountNameMatchesKyc,
+  REFUND_NAME_MISMATCH_MESSAGE,
+} from "@/app/lib/name-matching";
 
 export type { RefundAccountDetails };
 
@@ -39,6 +44,7 @@ export function AddRefundAccountModal({
   onSave,
   onSaved,
 }: AddRefundAccountModalProps) {
+  const { fullName: kycFullName } = useKYC();
   const [step, setStep] = useState<Step>("form");
   const [bankSearchTerm, setBankSearchTerm] = useState("");
   const [selectedInstitution, setSelectedInstitution] =
@@ -155,6 +161,12 @@ export function AddRefundAccountModal({
     const name = accountName.trim();
     if (!name) {
       setFormError("Account name could not be verified. Check the account number.");
+      return;
+    }
+    // Must belong to the same person as the verified KYC profile. Only block here when we already
+    // know the KYC name; otherwise the server gates (save + order creation) enforce it.
+    if (kycFullName && !accountNameMatchesKyc(kycFullName, name)) {
+      setFormError(REFUND_NAME_MISMATCH_MESSAGE);
       return;
     }
 

@@ -7,6 +7,11 @@ import {
   trackApiError,
 } from "@/app/lib/server-analytics";
 import config from "@/app/lib/config";
+import { getKycFullName } from "@/app/lib/kyc-profile-server";
+import {
+  accountNameMatchesKyc,
+  REFUND_NAME_MISMATCH_MESSAGE,
+} from "@/app/lib/name-matching";
 
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
@@ -46,7 +51,15 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const body = await request.json();
 
     // On-ramp (fiat source) only: off-ramp orders are created on-chain via gateway.createOrder, not via this proxy.
-    const sourceType = (body as { source?: { type?: string } })?.source?.type;
+    const source = (
+      body as {
+        source?: {
+          type?: string;
+          refundAccount?: { accountName?: unknown };
+        };
+      }
+    )?.source;
+    const sourceType = source?.type;
     if (sourceType !== "fiat") {
       trackApiError(
         request,
@@ -63,6 +76,31 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         },
         { status: 400 },
       );
+    }
+
+    // Refund-account name policy (authoritative gate at money time). The refund account must belong
+    // to the same person as the verified KYC profile. KYC is required to onramp, so the name is
+    // present here; if it isn't (or the refund account is absent), let the aggregator's own checks
+    // apply rather than blocking on incomplete data.
+    const refundAccountName =
+      typeof source?.refundAccount?.accountName === "string"
+        ? source.refundAccount.accountName.trim()
+        : "";
+    if (refundAccountName) {
+      const kycFullName = await getKycFullName(walletAddress);
+      if (kycFullName && !accountNameMatchesKyc(kycFullName, refundAccountName)) {
+        trackApiError(
+          request,
+          "/api/v1/payment-orders",
+          "POST",
+          new Error("Refund account name does not match KYC profile"),
+          422,
+        );
+        return NextResponse.json(
+          { success: false, error: REFUND_NAME_MISMATCH_MESSAGE },
+          { status: 422 },
+        );
+      }
     }
 
     const baseUrl = config.aggregatorUrl.replace(/\/+$/, "").replace(/\/v1$/i, "");

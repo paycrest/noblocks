@@ -2,7 +2,11 @@
 import { ImSpinner } from "react-icons/im";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown01Icon, Tick02Icon } from "hugeicons-react";
+import {
+  ArrowDown01Icon,
+  Tick02Icon,
+  InformationCircleIcon,
+} from "hugeicons-react";
 import Image from "next/image";
 
 import { AnimatedFeedbackItem } from "../AnimatedComponents";
@@ -433,6 +437,13 @@ export const RecipientDetailsForm = ({
     (swapMode === "onramp" && walletRecipients.length > 0) ||
     (swapMode === "offramp" && bankRecipients.length > 0);
 
+  // Funds only route through the Noblocks wallet when the destination is an external address.
+  // If it's the user's own Noblocks wallet, the forward is skipped — so hide the routing notice.
+  const isDestinationOwnWallet =
+    !!connectedWalletAddress &&
+    walletAddress?.trim().toLowerCase() ===
+      connectedWalletAddress.trim().toLowerCase();
+
   return (
     <>
       <div className="space-y-4 rounded-2xl bg-white p-4 text-sm dark:bg-surface-canvas">
@@ -501,11 +512,14 @@ export const RecipientDetailsForm = ({
             {errors.walletAddress && (
               <InputError message={errors.walletAddress.message} />
             )}
-            {config.onrampChainedForwardingEnabled && (
-              <p className="text-xs font-normal leading-4 text-text-disabled dark:text-white/30">
-                Your crypto safely routes through Noblocks to your address to protect against fraud.
-              </p>
-            )}
+            {config.onrampChainedForwardingEnabled &&
+              !!walletAddress?.trim() &&
+              !isDestinationOwnWallet && (
+                <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2.5 text-xs font-normal leading-4 text-text-disabled dark:bg-white/5 dark:text-white/30">
+                  <InformationCircleIcon className="size-4 flex-shrink-0" />
+                  <span>Funds will be routed through your noblocks wallet.</span>
+                </div>
+              )}
             {networkName && (
               <div className="flex items-center gap-2 text-xs text-text-disabled dark:text-white/30">
                 <div className="flex size-5 items-center justify-center">

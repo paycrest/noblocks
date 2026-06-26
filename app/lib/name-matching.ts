@@ -59,7 +59,8 @@ export function normalizeNameTokens(name: string): string[] {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // strip combining diacritics
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ") // punctuation → space
+    // Keep Unicode letters/numbers (e.g. "Ł", non-Latin scripts); only punctuation/symbols → space.
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .split(/\s+/)
     .filter((t) => t.length > 0 && !TITLE_STOPWORDS.has(t));
 }

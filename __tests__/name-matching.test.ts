@@ -28,6 +28,16 @@ describe("normalizeNameTokens", () => {
     expect(normalizeNameTokens("")).toEqual([]);
     expect(normalizeNameTokens("   ")).toEqual([]);
   });
+  it("preserves non-decomposable Latin letters and non-Latin scripts", () => {
+    expect(normalizeNameTokens("Łukasz Kowalski")).toEqual([
+      "łukasz",
+      "kowalski",
+    ]);
+    expect(normalizeNameTokens("Олена Коваленко")).toEqual([
+      "олена",
+      "коваленко",
+    ]);
+  });
 });
 
 describe("levenshtein", () => {
@@ -59,6 +69,14 @@ describe("matchAccountNameToKyc — accepts", () => {
     expect(
       accountNameMatchesKyc("Ada Ngozi Okeke", "Mrs Ada Okeke"),
     ).toBe(true);
+  });
+  it("matches non-Latin / non-decomposable names (order-independent)", () => {
+    expect(accountNameMatchesKyc("Łukasz Kowalski", "KOWALSKI ŁUKASZ")).toBe(
+      true,
+    );
+    expect(accountNameMatchesKyc("Олена Коваленко", "Коваленко Олена")).toBe(
+      true,
+    );
   });
 });
 

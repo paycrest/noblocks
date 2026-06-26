@@ -1,18 +1,22 @@
 import { supabaseAdmin } from "@/app/lib/supabase";
 
 /**
- * Server-side lookup of a user's verified KYC full name from `user_kyc_profiles`.
- *
- * Returns the trimmed full name, or `null` when there is no verified name on file OR the lookup
- * fails. Callers enforcing the refund-account name policy must treat `null` as "no name to match
- * against" and skip enforcement (don't fail closed on a transient DB error — the policy is layered
- * across the save step and order creation).
+ * Result of a server-side KYC full-name lookup.
+ * - `{ ok: true, fullName }` — the lookup succeeded; `fullName` is the verified name, or `null` when
+ *   the user genuinely has no KYC name on file (callers skip name enforcement).
+ * - `{ ok: false }` — the lookup itself failed (DB error/exception). Callers MUST fail closed
+ *   (e.g. 503) rather than treat it as "no name", otherwise a transient blip disables the gate.
  */
+export type KycFullNameResult =
+  | { ok: true; fullName: string | null }
+  | { ok: false };
+
+/** Server-side lookup of a user's verified KYC full name from `user_kyc_profiles`. */
 export async function getKycFullName(
   walletAddress: string,
-): Promise<string | null> {
+): Promise<KycFullNameResult> {
   const normalized = walletAddress.trim().toLowerCase();
-  if (!normalized) return null;
+  if (!normalized) return { ok: true, fullName: null };
 
   try {
     const { data, error } = await supabaseAdmin
@@ -23,14 +27,14 @@ export async function getKycFullName(
 
     if (error) {
       console.error("[kyc] full_name lookup failed:", error);
-      return null;
+      return { ok: false };
     }
 
     const fullName =
       typeof data?.full_name === "string" ? data.full_name.trim() : "";
-    return fullName || null;
+    return { ok: true, fullName: fullName || null };
   } catch (err) {
     console.error("[kyc] full_name lookup threw:", err);
-    return null;
+    return { ok: false };
   }
 }

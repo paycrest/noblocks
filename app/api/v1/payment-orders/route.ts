@@ -79,28 +79,62 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     }
 
     // Refund-account name policy (authoritative gate at money time). The refund account must belong
-    // to the same person as the verified KYC profile. KYC is required to onramp, so the name is
-    // present here; if it isn't (or the refund account is absent), let the aggregator's own checks
-    // apply rather than blocking on incomplete data.
+    // to the same person as the verified KYC profile. A modified client must not be able to bypass
+    // this by omitting the account name, so an onramp refund account without a RESOLVED name is
+    // rejected outright rather than proxied unvalidated.
+    const refundAccount = source?.refundAccount;
     const refundAccountName =
-      typeof source?.refundAccount?.accountName === "string"
-        ? source.refundAccount.accountName.trim()
+      typeof refundAccount?.accountName === "string"
+        ? refundAccount.accountName.trim()
         : "";
-    if (refundAccountName) {
-      const kycFullName = await getKycFullName(walletAddress);
-      if (kycFullName && !accountNameMatchesKyc(kycFullName, refundAccountName)) {
-        trackApiError(
-          request,
-          "/api/v1/payment-orders",
-          "POST",
-          new Error("Refund account name does not match KYC profile"),
-          422,
-        );
-        return NextResponse.json(
-          { success: false, error: REFUND_NAME_MISMATCH_MESSAGE },
-          { status: 422 },
-        );
-      }
+    if (!refundAccount || !refundAccountName) {
+      trackApiError(
+        request,
+        "/api/v1/payment-orders",
+        "POST",
+        new Error("Onramp order is missing a resolved refund account name"),
+        422,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "A verified refund account is required. Please add one and try again.",
+        },
+        { status: 422 },
+      );
+    }
+    // KYC is required to onramp, so the name is present; if a lookup fails, fail closed rather than
+    // proxy an unvalidated refund destination.
+    const kyc = await getKycFullName(walletAddress);
+    if (!kyc.ok) {
+      trackApiError(
+        request,
+        "/api/v1/payment-orders",
+        "POST",
+        new Error("KYC name lookup failed"),
+        503,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Could not verify your identity right now. Please try again.",
+        },
+        { status: 503 },
+      );
+    }
+    if (kyc.fullName && !accountNameMatchesKyc(kyc.fullName, refundAccountName)) {
+      trackApiError(
+        request,
+        "/api/v1/payment-orders",
+        "POST",
+        new Error("Refund account name does not match KYC profile"),
+        422,
+      );
+      return NextResponse.json(
+        { success: false, error: REFUND_NAME_MISMATCH_MESSAGE },
+        { status: 422 },
+      );
     }
 
     const baseUrl = config.aggregatorUrl.replace(/\/+$/, "").replace(/\/v1$/i, "");

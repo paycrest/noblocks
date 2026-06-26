@@ -289,16 +289,28 @@ export function TransactionStatus({
     if (!isOnramp) return;
     if (transactionStatus !== "settled") return;
     if (!orderId) return;
-    // EVM-only for now; Starknet forwarding isn't supported by this flow.
-    if (selectedNetwork.chain.name === "Starknet") return;
     if (forwardDoneRef.current) return; // already terminal
     if (forwardStartedRef.current) return; // this tab is mid-forward
     if (forwardEvalRef.current) return; // an evaluation is already running
 
+    // Permanent unsupported / misconfig cases: fail closed to a terminal state so the settled onramp
+    // resolves (funds stay safe in the Noblocks wallet) instead of spinning forever.
+    // EVM-only for now; Starknet forwarding isn't supported by this flow.
+    if (selectedNetwork.chain.name === "Starknet") {
+      forwardDoneRef.current = true;
+      setForwardingStatus("skipped");
+      return;
+    }
+    const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
+    if (!rpcUrl) {
+      forwardDoneRef.current = true;
+      setForwardingStatus("skipped");
+      return;
+    }
+
+    // Transient: embedded wallet not hydrated yet — retry on a later render/tick.
     const noblocksWallet = embeddedWallet?.address ?? "";
     if (!noblocksWallet) return;
-    const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
-    if (!rpcUrl) return;
 
     forwardEvalRef.current = true;
     let cancelled = false;
@@ -345,8 +357,17 @@ export function TransactionStatus({
 
         switch (decision.action) {
           case "skip": {
-            // Persist a terminal skip when we know the destination, so we don't re-evaluate.
-            if (existing || decision.reason === "self-destination") {
+            // Reloading after a successful leg 2 must NOT downgrade the completed record (which
+            // would also hide the transfer receipt) — restore the completed state instead.
+            if (decision.reason === "already-completed") {
+              const hash = existing?.txHash;
+              if (hash) setStoredForwardTxHash(hash);
+              forwardDoneRef.current = true;
+              setForwardingStatus("completed");
+              return;
+            }
+            // Persist a terminal skip for self-destination so a reload short-circuits via the record.
+            if (decision.reason === "self-destination") {
               upsertForwardRecord(orderId, {
                 status: "skipped",
                 destination,
@@ -372,13 +393,20 @@ export function TransactionStatus({
             return;
           }
           case "forward": {
-            forwardStartedRef.current = true;
-            upsertForwardRecord(orderId, {
+            // Claim durably BEFORE signing. If we can't persist the claim (storage disabled), a
+            // reload could resubmit while this transfer is in flight — fail closed and don't forward.
+            const claim = upsertForwardRecord(orderId, {
               status: "pending",
               destination,
               token: tokenSymbol,
               amountWei: decision.amountWei.toString(),
             });
+            if (!claim) {
+              forwardDoneRef.current = true;
+              setForwardingStatus("failed");
+              return;
+            }
+            forwardStartedRef.current = true;
             const accessToken = await getAccessToken();
             if (cancelled) return;
             if (!accessToken) {

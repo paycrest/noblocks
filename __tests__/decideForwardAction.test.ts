@@ -166,13 +166,14 @@ describe("decideForwardAction — amount capping (partial settlement)", () => {
     expect(d.action).toBe("forward");
     if (d.action === "forward") expect(d.amountWei).toBe(ORDER);
   });
-  it("falls back to full balance when order amount unknown (0n)", () => {
+  it("fails closed (skip) when order amount is unknown (0n) — never sweeps the wallet", () => {
     const d = base({ orderAmountWei: 0n, balanceWei: ORDER });
-    expect(d.action).toBe("forward");
-    if (d.action === "forward") expect(d.amountWei).toBe(ORDER);
-  });
-  it("skips when target is below dust", () => {
-    const d = base({ orderAmountWei: 0n, balanceWei: DUST });
     expect(d.action).toBe("skip");
+    expect(d.reason).toBe("unknown-order-amount");
+  });
+  it("skips when a known target is below dust (balance present, tiny order)", () => {
+    const d = base({ orderAmountWei: 5n, balanceWei: ORDER });
+    expect(d.action).toBe("skip");
+    expect(d.reason).toBe("amount-below-dust");
   });
 });

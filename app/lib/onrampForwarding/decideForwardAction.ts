@@ -134,11 +134,14 @@ export function decideForwardAction(input: DecideForwardInput): ForwardDecision 
     return { action: "skip", reason: "no-balance-no-record" };
   }
 
-  // Balance is present. Cap the intended amount by what's actually in the wallet.
-  const targetWei =
-    orderAmountWei > BigInt(0) && orderAmountWei < balanceWei
-      ? orderAmountWei
-      : balanceWei;
+  // Balance is present. Fail closed if we don't know the intended amount: forwarding the whole
+  // balance could sweep the user's pre-existing funds (e.g. after storage loss or a parse failure).
+  if (orderAmountWei <= BigInt(0)) {
+    return { action: "skip", reason: "unknown-order-amount" };
+  }
+
+  // Cap the intended amount by what's actually in the wallet (handles partial settlement).
+  const targetWei = orderAmountWei < balanceWei ? orderAmountWei : balanceWei;
 
   // G6: nothing meaningful to forward.
   if (targetWei <= dustWei) {

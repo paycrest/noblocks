@@ -309,7 +309,7 @@ export const TransactionForm = ({
     ).toFixed(2);
     const fiatAmount = +parseFloat(
       searchParams.get("fiatAmount") || "0",
-    ).toFixed(2);
+    ).toFixed(4);
 
     const supportedTokens = tokens.map((tokenElement) => tokenElement.name);
     if (token && supportedTokens.includes(token)) {
@@ -409,7 +409,7 @@ export const TransactionForm = ({
             // Swapped: Receive = Token, so calculate Send (Currency)
             // Send = Receive * Rate (20.4 USDC * 1400 = 28,560 NGN)
             const calculatedAmount = Number(
-              (Number(amountReceived) * rate).toFixed(2),
+              (Number(amountReceived) * rate).toFixed(4),
             );
             setValue("amountSent", calculatedAmount, { shouldDirty: true });
           } else {
@@ -432,7 +432,7 @@ export const TransactionForm = ({
           } else {
             // Not swapped: Send = Token, so calculate Receive (Currency)
             // Receive = Send * Rate (1 USDC * 1400 = 1400 NGN)
-            const calculatedAmount = Number((rate * amountSent).toFixed(2));
+            const calculatedAmount = Number((rate * amountSent).toFixed(4));
             setValue("amountReceived", calculatedAmount, { shouldDirty: true });
           }
         }

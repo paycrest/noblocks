@@ -10,7 +10,8 @@ export type MobileSheetView =
   | "earn-deposit"
   | "earn-withdraw"
   | "earn-activity-detail"
-  | "referrals";
+  | "referrals"
+  | "profile";
 
 import type {
   FieldErrors,
@@ -416,6 +417,12 @@ export type Config = {
   earnEnabled: boolean;
   /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
   referralEnabled: boolean;
+  /**
+   * Onramp fraud protection: when true, onramp crypto always settles to the user's Noblocks
+   * wallet first, then is auto-forwarded (server-signed, gas-sponsored, AML-screened) to the
+   * user's chosen destination if it differs. When false, the legacy direct-payout path is used.
+   */
+  onrampChainedForwardingEnabled: boolean;
 };
 
 export type Network = {

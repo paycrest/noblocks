@@ -43,6 +43,7 @@ import {
   isGatewayOrderId,
   resolveChainIdFromNetworkName,
 } from "../lib/payment-order-id";
+import { isNoProviderError } from "../lib/errorMessages";
 
 const AGGREGATOR_URL = config.aggregatorUrl;
 
@@ -379,6 +380,17 @@ export const fetchRate = async ({
   } catch (error) {
     const responseTime = Date.now() - startTime;
 
+    const axiosPayloadMessage =
+      axios.isAxiosError(error) &&
+      error.response?.data &&
+      typeof (error.response.data as { message?: unknown }).message === "string"
+        ? (error.response.data as { message: string }).message
+        : null;
+
+    const errorMessage =
+      axiosPayloadMessage ??
+      (error instanceof Error ? error.message : "Unknown error");
+
     trackServerEvent("External API Error", {
       service: "aggregator",
       endpoint: analyticsEndpoint,
@@ -389,9 +401,28 @@ export const fetchRate = async ({
       provider_id: providerId,
       network: net,
       side,
-      error_message: error instanceof Error ? error.message : "Unknown error",
+      error_message: errorMessage,
       response_time_ms: responseTime,
     });
+
+    const errorForClassification = axiosPayloadMessage
+      ? { message: axiosPayloadMessage }
+      : error;
+
+    if (isNoProviderError(errorForClassification)) {
+      trackServerEvent("No Provider Found", {
+        service: "aggregator",
+        endpoint: analyticsEndpoint,
+        token_symbol: token,
+        currency,
+        network: net,
+        side,
+        provider_id: providerId ?? null,
+        query_amount: amount,
+        error_message: errorMessage.slice(0, 200),
+        source: "rate_quote",
+      });
+    }
 
     if (axios.isAxiosError(error)) {
       const message = error.response?.data?.message || error.message;

@@ -10,7 +10,8 @@ export type MobileSheetView =
   | "earn-deposit"
   | "earn-withdraw"
   | "earn-activity-detail"
-  | "referrals";
+  | "referrals"
+  | "profile";
 
 import type {
   FieldErrors,

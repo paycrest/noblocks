@@ -22,6 +22,83 @@ export {
   type SmileIDIdInfo,
 };
 
+/**
+ * Resolves the SmileID server mode (0 = sandbox, 1 = production) from env.
+ * Only "0"/"1" (or a legacy http(s) API URL) are recognized — anything else
+ * reports hasServerConfig=false so callers fail with a clear configuration
+ * error instead of silently running against sandbox in production.
+ */
+export function resolveSmileIdServerConfig(): {
+  sidServerMode: "0" | "1";
+  hasServerConfig: boolean;
+} {
+  const serverModeOverride = process.env.SMILE_IDENTITY_SERVER_MODE?.trim();
+  const serverRaw = process.env.SMILE_IDENTITY_SERVER?.trim();
+
+  if (serverModeOverride === "0" || serverModeOverride === "1") {
+    return { sidServerMode: serverModeOverride, hasServerConfig: true };
+  }
+  if (serverRaw === "0" || serverRaw === "1") {
+    return { sidServerMode: serverRaw, hasServerConfig: true };
+  }
+  if (serverRaw && /^https?:\/\//i.test(serverRaw)) {
+    return {
+      sidServerMode: /testapi|sandbox/i.test(serverRaw) ? "0" : "1",
+      hasServerConfig: true,
+    };
+  }
+
+  if (serverModeOverride || serverRaw) {
+    console.error(
+      "[smileID] Unrecognized SMILE_IDENTITY_SERVER / SMILE_IDENTITY_SERVER_MODE value — expected 0, 1, or an http(s) URL",
+    );
+  }
+  return { sidServerMode: "0", hasServerConfig: false };
+}
+
+export interface SmileIdJobStatusResult {
+  // SmileID inconsistently returns booleans or "true"/"false" strings
+  job_complete?: boolean | string;
+  job_success?: boolean | string;
+  result?: {
+    Actions?: Record<string, string>;
+    ResultCode?: string;
+    ResultText?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+/**
+ * Authoritative job status straight from the SmileID API (signed response,
+ * verified by smile-identity-core). Callbacks must be confirmed through this
+ * before any tier promotion: the callback HMAC only covers
+ * timestamp+partner_id, not the body, so body fields alone are forgeable.
+ */
+export async function getSmileIdJobStatus(
+  userId: string,
+  jobId: string,
+): Promise<SmileIdJobStatusResult> {
+  const partnerId = process.env.SMILE_IDENTITY_PARTNER_ID;
+  const apiKey = process.env.SMILE_IDENTITY_API_KEY;
+  const { sidServerMode, hasServerConfig } = resolveSmileIdServerConfig();
+
+  if (!partnerId || !apiKey || !hasServerConfig) {
+    throw new Error(
+      "Missing SmileID environment variables (SMILE_IDENTITY_PARTNER_ID, SMILE_IDENTITY_API_KEY, and SMILE_IDENTITY_SERVER / SMILE_IDENTITY_SERVER_MODE)",
+    );
+  }
+
+  const SIDCore = await import("smile-identity-core");
+  const UtilitiesClass = (SIDCore.default as any).Utilities;
+  const utilities = new UtilitiesClass(partnerId, apiKey, sidServerMode);
+
+  return (await utilities.get_job_status(userId, jobId, {
+    return_history: false,
+    return_images: false,
+  })) as SmileIdJobStatusResult;
+}
+
 export async function submitSmileIDJob({
   images,
   partner_params,
@@ -41,24 +118,7 @@ export async function submitSmileIDJob({
   const partnerId = process.env.SMILE_IDENTITY_PARTNER_ID;
   const callbackUrl = process.env.SMILE_ID_CALLBACK_URL?.trim() ?? "";
   const apiKey = process.env.SMILE_IDENTITY_API_KEY;
-  const serverModeOverride = process.env.SMILE_IDENTITY_SERVER_MODE?.trim();
-  const serverRaw = process.env.SMILE_IDENTITY_SERVER?.trim();
-
-  const hasServerConfig =
-    serverModeOverride === "0" ||
-    serverModeOverride === "1" ||
-    Boolean(serverRaw);
-
-  const sidServerMode: "0" | "1" = (() => {
-    if (serverModeOverride === "1") return "1";
-    if (serverModeOverride === "0") return "0";
-    if (serverRaw === "1") return "1";
-    if (serverRaw === "0") return "0";
-    if (serverRaw && /^https?:\/\//i.test(serverRaw)) {
-      return /testapi|sandbox/i.test(serverRaw) ? "0" : "1";
-    }
-    return "0";
-  })();
+  const { sidServerMode, hasServerConfig } = resolveSmileIdServerConfig();
 
   if (!partnerId || !apiKey || !callbackUrl || !hasServerConfig) {
     throw new Error(
@@ -130,7 +190,8 @@ export async function submitSmileIDJob({
         if (typeof code === "string" || typeof code === "number") {
           safeMeta.providerErrorCode = code;
         }
-        if (typeof msg === "string") safeMeta.providerErrorMessage = msg.slice(0, 200);
+        if (typeof msg === "string")
+          safeMeta.providerErrorMessage = msg.slice(0, 200);
       }
     }
     console.error("SmileID API Error:", safeMeta);

@@ -22,6 +22,7 @@ import {
 import type { CrossChainBalanceEntry } from "../../context";
 import TransactionList from "../transaction/TransactionList";
 import type { Network, TransactionHistory } from "../../types";
+import { isReferralEnabled, formatTokenAmount } from "../../utils";
 import { ReferralCTA } from "../ReferralCTA";
 
 const Divider = () => (
@@ -38,6 +39,7 @@ interface WalletViewProps {
   getTokenImageUrl: (tokenName: string) => string | undefined;
   onTransfer: () => void;
   onFund: () => void;
+  onConvert?: () => void;
   smartWallet: { address?: string | null } | null | undefined;
   handleCopyAddress: () => void;
   isNetworkListOpen: boolean;
@@ -66,6 +68,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   getTokenImageUrl,
   onTransfer,
   onFund,
+  onConvert,
   smartWallet,
   handleCopyAddress,
   isNetworkListOpen,
@@ -262,7 +265,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                             />
                           </div>
                           <span className="font-medium dark:text-white/80">
-                            {isCNGN ? rawBalance : balance} {token}
+                            {formatTokenAmount(isCNGN ? rawBalance : balance)} {token}
                           </span>
                         </div>
                       </div>
@@ -351,18 +354,18 @@ export const WalletView: React.FC<WalletViewProps> = ({
             </p>
 
             {!isInjectedWallet && !showBalanceSkeleton && (
-              <div
-                className={classNames(
-                  "grid gap-3",
-                  showEarnUi ? "grid-cols-3" : "grid-cols-2",
-                )}
-              >
+              <div className="grid grid-cols-2 gap-3">
                 <button type="button" onClick={onTransfer} className={actionButtonClass}>
                   Transfer
                 </button>
                 <button type="button" onClick={onFund} className={actionButtonClass}>
                   Fund
                 </button>
+                {!!onConvert && (
+                  <button type="button" onClick={onConvert} className={actionButtonClass}>
+                    Convert
+                  </button>
+                )}
                 {showEarnUi && (
                   <button
                     type="button"
@@ -380,7 +383,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
       </div>
 
       <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
-        {!isInjectedWallet && (
+        {!isInjectedWallet && isReferralEnabled() && (
           <div className="mt-4">
             <ReferralCTA onViewReferrals={onViewReferrals ?? (() => {})} />
           </div>

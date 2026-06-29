@@ -67,7 +67,7 @@ export const EarnConsentModal: React.FC<EarnConsentModalProps> = ({
               className="w-full"
             >
               <DialogPanel
-                className="relative mx-auto flex w-full flex-col overflow-hidden rounded-t-[30px] bg-white text-sm dark:bg-surface-overlay max-h-[90dvh] sm:max-h-[90vh] sm:rounded-3xl"
+                className="relative mx-auto flex w-full flex-col overflow-hidden rounded-t-[30px] bg-white text-sm dark:bg-surface-overlay max-h-[85vh] supports-[height:100dvh]:max-h-[90dvh] sm:max-h-[90vh] sm:rounded-3xl"
                 style={{
                   maxWidth:
                     typeof window !== "undefined" && window.innerWidth > 640

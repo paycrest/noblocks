@@ -139,7 +139,6 @@ export const KycModal = ({
   const cameraHostRef = useRef<HTMLElement | null>(null);
   const smileListenerCleanupRef = useRef<(() => void) | null>(null);
   const smileThemeObserverCleanupRef = useRef<(() => void) | null>(null);
-  const scrollRestoreTimeoutRef = useRef<number | null>(null);
   const stepRef = useRef(step);
   stepRef.current = step;
   const [smileIdLoaded, setSmileIdLoaded] = useState(false);
@@ -226,24 +225,6 @@ export const KycModal = ({
     smileListenerCleanupRef.current?.();
     smileListenerCleanupRef.current = null;
   };
-
-  const scheduleScrollRestoreAfterClose = () => {
-    if (scrollRestoreTimeoutRef.current) {
-      window.clearTimeout(scrollRestoreTimeoutRef.current);
-    }
-    scrollRestoreTimeoutRef.current = window.setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: "instant" });
-      scrollRestoreTimeoutRef.current = null;
-    }, 500);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (scrollRestoreTimeoutRef.current) {
-        window.clearTimeout(scrollRestoreTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const handleSmilePublish = async (event: Event) => {
     if (smileIdSubmitInFlightRef.current) {
@@ -690,7 +671,7 @@ export const KycModal = ({
   );
 
   const renderCapture = () => (
-    <motion.div key="capture" {...fadeInOut} className="flex flex-col py-4" style={{ maxHeight: "min(90dvh, 48rem)" }}>
+    <motion.div key="capture" {...fadeInOut} className="flex flex-col py-4 max-h-[min(85vh,48rem)] supports-[height:100dvh]:max-h-[min(90dvh,48rem)]">
       <div className="space-y-3">
         <div className="flex items-center justify-between">
         <UserDetailsIcon />
@@ -777,7 +758,6 @@ export const KycModal = ({
           onClick={async () => {
             await refreshStatus(true);
             setIsKycModalOpen(false);
-            scheduleScrollRestoreAfterClose();
           }}
         >
           Got it
@@ -808,9 +788,6 @@ export const KycModal = ({
           await refreshStatus(true);
           setIsUserVerified(true);
           setIsKycModalOpen(false);
-          // SmileID camera displaces the document scroll position — restore after the exit
-          // animation (spring stiffness 300 / damping 30 ≈ 500 ms) fully unmounts the camera.
-          scheduleScrollRestoreAfterClose();
         }}
       >
         Let&apos;s go!
@@ -953,7 +930,9 @@ export const KycModal = ({
                 Monthly limit{" "}
               </p>
               <span className="text-xl font-normal text-neutral-900 dark:text-white">
-                ${formatNumberWithCommas(tier3Limits.limits.monthly)}
+                {tier3Limits.limits.unlimited
+                  ? "Unlimited"
+                  : `$${formatNumberWithCommas(tier3Limits.limits.monthly)}`}
               </span>
             </div>
           </div>
@@ -1435,6 +1414,10 @@ export const KycModal = ({
       // user is already in — a useEffect was calling fetchStatus on every `step`
       // change and forcing TERMS, which bounced users out of ID_INFO / capture.
       if (tier >= 2) {
+        // This fetch is local to the modal — push the upgrade into KYCContext too,
+        // so profile/limit UIs don't keep showing the old tier (and its 30s cache
+        // window) while the success screen is visible.
+        void refreshStatus(true);
         setStep(STEPS.STATUS.SUCCESS);
         trackEvent("Account verification", {
           "Verification status": "Success",

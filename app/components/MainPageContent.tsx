@@ -36,6 +36,12 @@ import {
 } from "../utils";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
+import { isNoProviderError } from "../lib/errorMessages";
+import {
+  trackAnalyticsEvent,
+  ANALYTICS_EVENTS,
+  ANALYTICS_PROPERTIES,
+} from "../hooks/analytics/analytics-utils";
 import {
   STEPS,
   type FormData,
@@ -58,6 +64,12 @@ import {
   useKYC,
 } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
+import { hasSeenNetworkModalFlag } from "../lib/networkModalStore";
+import {
+  storePendingReferralCode,
+  readPendingReferralCode,
+} from "../lib/pendingReferralCode";
+import { isReferralEnabled } from "../utils";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 
 /**
@@ -130,10 +142,12 @@ const PageLayout = ({
       )}
 
       {/* Referral Input Modal */}
-      <ReferralInputModal
-        isOpen={showReferralModal}
-        onClose={onReferralModalClose}
-      />
+      {isReferralEnabled() && (
+        <ReferralInputModal
+          isOpen={showReferralModal}
+          onClose={onReferralModalClose}
+        />
+      )}
 
       <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
 
@@ -181,6 +195,14 @@ function onrampRateQueryTokenAmount(
   return 1;
 }
 
+/** Round amount to nearest significant figure for stable dedup keys. */
+function bucketAmount(amount: number): number {
+  if (amount <= 0) return 0;
+  const digits = Math.floor(Math.log10(amount));
+  const magnitude = 10 ** digits;
+  return Math.round(amount / magnitude) * magnitude;
+}
+
 /**
  * MainPageContent is the primary component for the home page.
  * It manages the transaction flow, including form state, rate fetching,
@@ -192,6 +214,14 @@ function onrampRateQueryTokenAmount(
 export function MainPageContent() {
   const searchParams = useSearchParams();
   const { authenticated, ready, getAccessToken, user } = usePrivy();
+
+  // Persist ?ref=NBXXXX from referral share links immediately on landing —
+  // before login — so the code survives the auth flow (OAuth can drop the
+  // query string) and pre-fills the referral modal instead of being typed.
+  useEffect(() => {
+    storePendingReferralCode(searchParams.get("ref"));
+  }, [searchParams]);
+
   const {
     currentStep,
     setCurrentStep,
@@ -227,6 +257,7 @@ export function MainPageContent() {
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
   const autoSelectedNetworkSessionRef = useRef<string | null>(null);
+  const noProviderEventGuard = useRef<Set<string>>(new Set());
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
@@ -344,7 +375,7 @@ export function MainPageContent() {
 
   const showReferralIfEligible = useCallback(
     (fromNetworkSelected = false) => {
-      if (!ready || !authenticated || !walletAddress || isInjectedWallet) {
+      if (!isReferralEnabled() || !ready || !authenticated || !walletAddress || isInjectedWallet) {
         return;
       }
 
@@ -356,29 +387,39 @@ export function MainPageContent() {
         return;
       }
 
-      // Only show referral modal to new users (account created within the last 30 days).
-      // Existing users who predate the referral feature should not be prompted.
-      if (user?.createdAt) {
-        const accountAgeDays =
-          (Date.now() - new Date(user.createdAt).getTime()) /
-          (1000 * 60 * 60 * 24);
-        if (accountAgeDays > 30) {
-          return;
-        }
+      // Only show the referral modal to genuinely new users (account created
+      // within the last 30 days). If the account age is unknown, do NOT prompt —
+      // the previous code skipped the check entirely when createdAt was missing,
+      // which let existing users through.
+      const createdAtMs = user?.createdAt
+        ? new Date(user.createdAt).getTime()
+        : null;
+      if (createdAtMs === null || Number.isNaN(createdAtMs)) {
+        return;
+      }
+      const accountAgeDays = (Date.now() - createdAtMs) / (1000 * 60 * 60 * 24);
+      if (accountAgeDays > 30) {
+        return;
       }
 
       // For new users, the network selection modal opens at the same time as this
       // check would fire. Defer to handleNetworkSelected so the referral modal only
       // shows after they've picked a network — not underneath it.
-      if (!fromNetworkSelected && user?.wallet?.address) {
-        const networkModalKey = `hasSeenNetworkModal-${user.wallet.address}`;
-        if (!localStorage.getItem(networkModalKey)) {
-          return;
-        }
+      if (
+        !fromNetworkSelected &&
+        user?.wallet?.address &&
+        !hasSeenNetworkModalFlag(user.wallet.address)
+      ) {
+        return;
       }
 
+      // A code carried in from a referral share link re-opens the modal even if
+      // this wallet dismissed it before — clicking the link is explicit intent.
       const referralStorageKey = `hasSeenReferralModal-${walletAddress.toLowerCase()}`;
-      if (!localStorage.getItem(referralStorageKey)) {
+      if (
+        !localStorage.getItem(referralStorageKey) ||
+        readPendingReferralCode()
+      ) {
         setShowReferralModal(true);
       }
     },
@@ -505,6 +546,13 @@ export function MainPageContent() {
   );
 
   useEffect(
+    function resetNoProviderEventGuard() {
+      noProviderEventGuard.current.clear();
+    },
+    [token, currency, selectedNetwork, isOnrampRate],
+  );
+
+  useEffect(
     function fetchInstitutionData() {
       async function getInstitutions(currencyValue: string) {
         if (!currencyValue) return;
@@ -536,29 +584,32 @@ export function MainPageContent() {
 
       const getRate = async (shouldUseProvider = true) => {
         setIsFetchingRate(true);
+
+        const lpParam =
+          searchParams.get("provider") || searchParams.get("PROVIDER");
+
+        // Skip using provider if it's already failed
+        const shouldSkipProvider =
+          lpParam && failedProviders.current.has(lpParam);
+
+        // Aggregator GET /v2/rates/.../{token}/{amount}/{fiat} always expects `amount` in **token**
+        // units (ValidateRate / provider min-max). Off-ramp: Send = token → amountSent. On-ramp:
+        // Send = fiat → use computed token (amountReceived), else peg-aware probe, else 1.
+        const sentN = Number(amountSent) || 0;
+        const recvN = Number(amountReceived) || 0;
+        const rateQueryAmount = isOnrampRate
+          ? onrampRateQueryTokenAmount(token, currency, sentN, recvN)
+          : sentN > 0
+            ? sentN
+            : 100;
+
+        const providerId =
+          shouldUseProvider && lpParam && !shouldSkipProvider
+            ? lpParam
+            : undefined;
+        const attemptedProviderRequest = Boolean(providerId);
+
         try {
-          const lpParam =
-            searchParams.get("provider") || searchParams.get("PROVIDER");
-
-          // Skip using provider if it's already failed
-          const shouldSkipProvider =
-            lpParam && failedProviders.current.has(lpParam);
-          const providerId =
-            shouldUseProvider && lpParam && !shouldSkipProvider
-              ? lpParam
-              : undefined;
-
-          // Aggregator GET /v2/rates/.../{token}/{amount}/{fiat} always expects `amount` in **token**
-          // units (ValidateRate / provider min-max). Off-ramp: Send = token → amountSent. On-ramp:
-          // Send = fiat → use computed token (amountReceived), else peg-aware probe, else 1.
-          const sentN = Number(amountSent) || 0;
-          const recvN = Number(amountReceived) || 0;
-          const rateQueryAmount = isOnrampRate
-            ? onrampRateQueryTokenAmount(token, currency, sentN, recvN)
-            : sentN > 0
-              ? sentN
-              : 100;
-
           const rate = await fetchRate({
             token,
             amount: rateQueryAmount,
@@ -571,8 +622,6 @@ export function MainPageContent() {
           setRateError(null); // Clear error on success
         } catch (error) {
           if (error instanceof Error) {
-            const lpParam =
-              searchParams.get("provider") || searchParams.get("PROVIDER");
             if (
               shouldUseProvider &&
               lpParam &&
@@ -591,9 +640,45 @@ export function MainPageContent() {
               providerErrorShown.current = true;
             }
             // Retry without provider ID if one was previously used
-            if (shouldUseProvider) {
+            if (attemptedProviderRequest) {
               await getRate(false);
               return;
+            }
+
+            // Emit "No Provider Found" event for terminal (public-rate) attempts
+            if (isNoProviderError(error)) {
+              const isTerminal = !lpParam || !shouldUseProvider;
+              const side = isOnrampRate ? "buy" : "sell";
+              const attemptKey = `${side}:${token}:${currency}:${normalizeNetworkForRateFetch(selectedNetwork.chain.name)}:${bucketAmount(rateQueryAmount)}`;
+
+              if (isTerminal && !noProviderEventGuard.current.has(attemptKey)) {
+                noProviderEventGuard.current.add(attemptKey);
+
+                const props = {
+                  [ANALYTICS_PROPERTIES.TOKEN_SYMBOL]: token,
+                  [ANALYTICS_PROPERTIES.TRANSACTION_CURRENCY]: currency,
+                  [ANALYTICS_PROPERTIES.NETWORK]: normalizeNetworkForRateFetch(selectedNetwork.chain.name),
+                  [ANALYTICS_PROPERTIES.CHAIN_ID]: selectedNetwork.chain.id,
+                  [ANALYTICS_PROPERTIES.ORDER_SIDE]: side,
+                  [ANALYTICS_PROPERTIES.ORDER_TYPE]: isOnrampRate ? "onramp" : "offramp",
+                  [ANALYTICS_PROPERTIES.AMOUNT_SENT]: sentN,
+                  [ANALYTICS_PROPERTIES.AMOUNT_RECEIVED]: recvN,
+                  query_amount: rateQueryAmount,
+                  [ANALYTICS_PROPERTIES.PROVIDER_ID]: lpParam ?? null,
+                  had_provider_param: !!lpParam,
+                  is_fallback_attempt: !shouldUseProvider,
+                  [ANALYTICS_PROPERTIES.WALLET_ADDRESS]: walletAddress ?? null,
+                  error_message: error.message.slice(0, 200),
+                  source: "rate_quote",
+                };
+
+                trackAnalyticsEvent(ANALYTICS_EVENTS.NO_PROVIDER_FOUND, props);
+
+                reportClientError(error, {
+                  feature: "no-provider-found",
+                  ...props,
+                });
+              }
             }
           }
           mapReportAndAct(error, {
@@ -661,9 +746,10 @@ export function MainPageContent() {
 
       async function checkReferralStatus() {
         if (!authenticated || !ready || isInjectedWallet || !walletAddress) {
-          if (isMounted) setIsReferralDataChecked(true);
           return;
         }
+
+        if (isMounted) setIsReferralDataChecked(false);
 
         try {
           const accessToken = await getAccessToken();
@@ -674,10 +760,13 @@ export function MainPageContent() {
             if (!isMounted) return;
 
             if (response.success && response.data && Array.isArray(response.data.referrals)) {
-              const hasReferred = response.data.referrals.some(
-                (r) => r.role === "referred",
-              );
-              setHasExistingReferral(hasReferred);
+              // Suppress the modal for anyone with ANY referral relationship —
+              // whether they were referred OR have referred others. The previous
+              // check only looked at role === "referred", so existing users who
+              // had referred people still saw the modal.
+              const hasAnyReferralRelationship =
+                response.data.referrals.length > 0;
+              setHasExistingReferral(hasAnyReferralRelationship);
             } else {
               // Safe default: if we can't confirm they haven't been referred, assume they have
               setHasExistingReferral(true);

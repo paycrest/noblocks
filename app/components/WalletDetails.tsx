@@ -22,6 +22,12 @@ import {
   ArrowLeft02Icon,
   ArrowDown01Icon,
   RefreshIcon,
+  ArrowDownLeft01Icon,
+  ArrowUpRight01Icon,
+  Exchange01Icon,
+  Database01Icon,
+  CoinsSwapIcon,
+  Coins01Icon,
 } from "hugeicons-react";
 import Image from "next/image";
 import { useInjectedWallet } from "../context";
@@ -56,18 +62,24 @@ import { useCNGNRate } from "../hooks/useCNGNRate";
 import { EarnConsentModal } from "./EarnConsentModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
 import { isEarnUiVisible } from "../lib/earnFeature";
+import { isReferralEnabled, formatTokenAmount } from "../utils";
+import { isBridgeUiVisible } from "../lib/bridgeFeature";
+import { BridgeForm } from "./bridge/BridgeForm";
 import { EarnHubView, ReferralHubView } from "./wallet-mobile-modal";
 import { ReferralCTA } from "./ReferralCTA";
+import { useBridgeStatusTracker } from "../hooks/useBridgeStatusTracker";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
 );
 
 export const WalletDetails = () => {
+  const { trackBridge } = useBridgeStatusTracker();
   const [isTransferModalOpen, setIsTransferModalOpen] =
     useState<boolean>(false);
   const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
+  const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [isEarnFormOpen, setIsEarnFormOpen] = useState(false);
   const [earnFormTab, setEarnFormTab] = useState<"deposit" | "withdraw">("deposit");
   const [sidebarView, setSidebarView] = useState<
@@ -363,7 +375,7 @@ export const WalletDetails = () => {
                       )}
                     </div>
                   </div>
-                ) : sidebarView === "referrals" ? (
+                ) : sidebarView === "referrals" && isReferralEnabled() ? (
                   <div className="scrollbar-hide flex h-full flex-col overflow-y-auto p-5">
                     <ReferralHubView
                       onBack={() => setSidebarView("wallet")}
@@ -460,52 +472,107 @@ export const WalletDetails = () => {
                         </button>
                       </div>
 
-                      {!isInjectedWallet && (
-                        <div
-                          className={classNames(
-                            "grid gap-4",
-                            showEarnUi ? "grid-cols-3" : "grid-cols-2",
-                          )}
-                        >
-                          <button
-                            type="button"
-                            title="Transfer funds"
-                            onClick={() => setIsTransferModalOpen(true)}
-                            className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-all hover:scale-[0.98] hover:bg-[#EBEBEF] active:scale-95 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
-                          >
-                            Transfer
-                          </button>
-                          <button
-                            type="button"
-                            title="Fund wallet"
-                            onClick={() => setIsFundModalOpen(true)}
-                            className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-all hover:scale-[0.98] hover:bg-[#EBEBEF] active:scale-95 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
-                          >
-                            Fund
-                          </button>
-                          {showEarnUi && (
+                      {!isInjectedWallet &&
+                        (showEarnUi ? (
+                          <div className="flex flex-row items-start justify-between gap-2">
+                            <button
+                              type="button"
+                              title="Fund wallet"
+                              onClick={() => setIsFundModalOpen(true)}
+                              className="group flex flex-1 flex-col items-center gap-2"
+                            >
+                              <span className="flex size-[60px] items-center justify-center rounded-full bg-lavender-500 text-white transition-all group-hover:scale-[0.98] group-active:scale-95">
+                                <ArrowDownLeft01Icon className="size-6" strokeWidth={2} />
+                              </span>
+                              <span className="text-sm font-medium text-text-body dark:text-white">
+                                Fund
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              title="Transfer funds"
+                              onClick={() => setIsTransferModalOpen(true)}
+                              className="group flex flex-1 flex-col items-center gap-2"
+                            >
+                              <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                                <ArrowUpRight01Icon className="size-6" strokeWidth={2} />
+                              </span>
+                              <span className="text-sm font-medium text-text-body dark:text-white">
+                                Transfer
+                              </span>
+                            </button>
+                            {isBridgeUiVisible() && (
+                              <button
+                                type="button"
+                                title="Convert tokens"
+                                onClick={() => setIsConvertModalOpen(true)}
+                                className="group flex flex-1 flex-col items-center gap-2"
+                              >
+                                <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                                  <CoinsSwapIcon className="size-6" strokeWidth={2} />
+                                </span>
+                                <span className="text-sm font-medium text-text-body dark:text-white">
+                                  Convert
+                                </span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               title="Earn yield on USDC via Vesu"
                               onClick={() =>
                                 requestEarnAccess("earn-hub", onEarnAccessAction)
                               }
+                              className="group flex flex-1 flex-col items-center gap-2"
+                            >
+                              <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                                <Coins01Icon className="size-6" strokeWidth={2} />
+                              </span>
+                              <span className="text-sm font-medium text-text-body dark:text-white">
+                                Earn
+                              </span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-row gap-1">
+                            <button
+                              type="button"
+                              title="Transfer funds"
+                              onClick={() => setIsTransferModalOpen(true)}
                               className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-all hover:scale-[0.98] hover:bg-[#EBEBEF] active:scale-95 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
                             >
-                              Earn
+                              Transfer
                             </button>
-                          )}
-                        </div>
-                      )}
+                            <button
+                              type="button"
+                              title="Fund wallet"
+                              onClick={() => setIsFundModalOpen(true)}
+                              className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-all hover:scale-[0.98] hover:bg-[#EBEBEF] active:scale-95 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+                            >
+                              Fund
+                            </button>
+                            {isBridgeUiVisible() && (
+                              <button
+                                type="button"
+                                title="Convert tokens"
+                                onClick={() => setIsConvertModalOpen(true)}
+                                className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-all hover:scale-[0.98] hover:bg-[#EBEBEF] active:scale-95 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+                              >
+                                Convert
+                              </button>
+                            )}
+                          </div>
+                        ))}
                     </div>
                     </div>
 
                     <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
-                    <div className="mt-8">
-                      <ReferralCTA
-                        onViewReferrals={() => setSidebarView("referrals")}
-                      />
-                    </div>
+                    {isReferralEnabled() && (
+                      <div className="mt-8">
+                        <ReferralCTA
+                          onViewReferrals={() => setSidebarView("referrals")}
+                        />
+                      </div>
+                    )}
 
                     {/* Tab navigation — sticks below Transfer/Fund/Earn when scrolled */}
                     <div className="sticky top-0 z-10 -mx-5 space-y-3 bg-white px-5 pb-2 pt-4 dark:bg-surface-overlay">
@@ -710,7 +777,7 @@ export const WalletDetails = () => {
                                                     {token}
                                                   </span>
                                                   <span className="text-text-secondary dark:text-white/50">
-                                                    {displayBalance}
+                                                    {formatTokenAmount(displayBalance)}
                                                     {cngnUnknown ? (
                                                       <span className="block text-xs text-text-disabled dark:text-white/40">
                                                         NGN-pegged · USD quote
@@ -810,6 +877,13 @@ export const WalletDetails = () => {
               initialTab={earnFormTab}
               onClose={() => setIsEarnFormOpen(false)}
             />
+          </AnimatedModal>
+
+          <AnimatedModal
+            isOpen={isConvertModalOpen}
+            onClose={() => setIsConvertModalOpen(false)}
+          >
+            <BridgeForm onClose={() => setIsConvertModalOpen(false)} onBridgeSubmit={trackBridge} />
           </AnimatedModal>
         </>
       )}

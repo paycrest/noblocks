@@ -10,7 +10,9 @@ export type MobileSheetView =
   | "earn-deposit"
   | "earn-withdraw"
   | "earn-activity-detail"
-  | "referrals";
+  | "referrals"
+  | "bridge"
+  | "profile";
 
 import type {
   FieldErrors,
@@ -407,8 +409,18 @@ export type Config = {
   referralMinQualifyingVolumeUsd: number;
   referralRewardAmountUsd: number;
   aggregatorSenderApiKey: string;
+  moralisWebhookSecret: string;
+  activepiecesWebhookUrl: string;
+  moralisStreamId: string;
+  moralisApiKey: string;
+  moralisBaseUrl: string;
   /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
   earnEnabled: boolean;
+  /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
+  referralEnabled: boolean;
+  /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
+  bridgeEnabled: boolean;
+  onrampChainedForwardingEnabled: boolean;
 };
 
 export type Network = {
@@ -442,16 +454,25 @@ export type TransactionStatus =
   | "pending"
   | "processing"
   | "fulfilled"
+  | "fulfilling"
   | "refunding"
   | "refunded"
+  | "failed"
   | "expired";
-export type TransactionHistoryType = "onramp" | "offramp" | "transfer";
+export type TransactionHistoryType =
+  | "onramp"
+  | "offramp"
+  | "transfer"
+  | "swap"
+  | "credit" | "bridge";
 
 export interface Recipient {
   account_name: string;
   institution: string;
   account_identifier: string;
   memo?: string;
+  /** Bridge only: destination network (the transactions.network column holds the source). */
+  to_network?: string;
 }
 
 export interface TransactionHistory {
@@ -610,4 +631,43 @@ declare global {
       groupId: string;
     };
   }
+}
+
+export type ActivepiecesDepositPayload = {
+  email: string;
+  amount: string;
+  symbol: string;
+  from: string;
+  txHash: string;
+  network: string;
+  txExplorerUrl: string;
+  kind: "native" | "erc20";
+};
+
+export interface MoralisNativeTx {
+  hash: string;
+  fromAddress: string;
+  toAddress: string;
+  value: string;
+}
+
+export interface MoralisErc20Transfer {
+  transactionHash?: string;
+  txHash?: string;
+  logIndex?: string;
+  contract?: string;
+  from: string;
+  to: string;
+  valueWithDecimals: string;
+  tokenSymbol: string;
+  tokenName: string;
+}
+
+export interface MoralisWebhookBody {
+  confirmed: boolean;
+  chainId: string;
+  streamId?: string;
+  tag?: string;
+  txs?: MoralisNativeTx[];
+  erc20Transfers?: MoralisErc20Transfer[];
 }

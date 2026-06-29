@@ -11,7 +11,7 @@ import {
   formatTransactionAmountDisplay,
 } from "../../utils";
 import type { TransactionHistory } from "../../types";
-import { useEffect, useMemo, useReducer } from "react";
+import { useEffect, useMemo, useReducer, useRef } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { PiSpinnerBold } from "react-icons/pi";
 import { useActualTheme } from "../../hooks/useActualTheme";
@@ -95,9 +95,25 @@ export const TransactionListItem = ({
             />
             <span className="dark:text-white/80">
               {getTransactionHistoryTypeLabel(transaction.transaction_type)}{" "}
-              {formatTransactionAmountDisplay(
-                transaction.amount_sent,
-                transaction.from_currency,
+              {transaction.transaction_type === "credit" ? (
+                <span className="font-medium text-green-500">
+                  +{formatTransactionAmountDisplay(
+                    transaction.amount_received,
+                    transaction.from_currency,
+                  )}
+                </span>
+              ) : transaction.transaction_type === "transfer" ? (
+                <span className="font-medium text-red-500">
+                  -{formatTransactionAmountDisplay(
+                    transaction.amount_sent,
+                    transaction.from_currency,
+                  )}
+                </span>
+              ) : (
+                formatTransactionAmountDisplay(
+                  transaction.amount_sent,
+                  transaction.from_currency,
+                )
               )}
             </span>
           </div>
@@ -121,10 +137,11 @@ export const TransactionListItem = ({
         whileHover={{ x: -4 }}
         transition={{ duration: 0.2 }}
       >
-        {formatTransactionAmountDisplay(
-          transaction.amount_received,
-          transaction.to_currency,
-        )}
+        {transaction.transaction_type !== "credit" &&
+          formatTransactionAmountDisplay(
+            transaction.amount_received,
+            transaction.to_currency,
+          )}
       </motion.span>
     </div>
   );
@@ -164,16 +181,22 @@ export default function TransactionList({
     return () => clearInterval(id);
   }, []);
 
-  // Fetch transactions when wallet address or page changes
+  // Track loading state without it being a reactive dep to avoid re-fetch cycles
+  const isLoadingRef = useRef(isLoading);
+  useEffect(() => { isLoadingRef.current = isLoading; }, [isLoading]);
+
+  // Fetch transactions when wallet address or page changes.
+  // Skips if another fetch is already in-flight.
+  // Uses isLoading via ref (not reactive dep) to avoid ping-pong re-fetch cycles.
   useEffect(() => {
-    if (walletAddress) {
+    if (walletAddress && !isLoadingRef.current) {
       getAccessToken().then((accessToken) => {
         if (accessToken) {
           fetchTransactions(walletAddress, accessToken, currentPage, limit);
         }
       });
     }
-  }, [walletAddress, currentPage, fetchTransactions, getAccessToken]);
+  }, [walletAddress, currentPage, getAccessToken, fetchTransactions]);
 
   // Group transactions by date
   const groupedTransactions = useMemo(() => {

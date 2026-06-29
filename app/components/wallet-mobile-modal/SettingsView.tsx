@@ -49,6 +49,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <div className="w-10"></div>
     </div>
     <div className="space-y-2 *:min-h-11">
+      <button
+        type="button"
+        onClick={onOpenProfile}
+        className="flex w-full items-center gap-3"
+      >
+        <FaceIdIcon className="size-5 text-outline-gray dark:text-white/50" />
+        <span className="text-text-body dark:text-white/80">Profile</span>
+      </button>
       {!isInjectedWallet && (
         <button
           type="button"
@@ -112,14 +120,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <span className="text-text-body dark:text-white/80">Export wallet</span>
         </button>
       )}
-      <button
-        type="button"
-        onClick={onOpenProfile}
-        className="flex w-full items-center gap-3"
-      >
-        <FaceIdIcon className="size-5 text-outline-gray dark:text-white/50" />
-        <span className="text-text-body dark:text-white/80">Profile</span>
-      </button>
       {!isInjectedWallet && (
         <button
           type="button"

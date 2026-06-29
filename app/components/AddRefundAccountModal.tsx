@@ -9,9 +9,14 @@ import { AnimatedModal, AnimatedFeedbackItem } from "@/app/components/AnimatedCo
 import { SearchInput } from "@/app/components/recipient/SearchInput";
 import { InputError } from "@/app/components/InputError";
 import type { InstitutionProps, RefundAccountDetails } from "@/app/types";
-import { classNames } from "@/app/utils";
+import { classNames, getOfframpAccountIdentifierPlaceholder } from "@/app/utils";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "@/app/components/Styles";
+import { useKYC } from "@/app/context";
+import {
+  accountNameMatchesKyc,
+  REFUND_NAME_MISMATCH_MESSAGE,
+} from "@/app/lib/name-matching";
 
 export type { RefundAccountDetails };
 
@@ -39,6 +44,7 @@ export function AddRefundAccountModal({
   onSave,
   onSaved,
 }: AddRefundAccountModalProps) {
+  const { fullName: kycFullName } = useKYC();
   const [step, setStep] = useState<Step>("form");
   const [bankSearchTerm, setBankSearchTerm] = useState("");
   const [selectedInstitution, setSelectedInstitution] =
@@ -157,6 +163,12 @@ export function AddRefundAccountModal({
       setFormError("Account name could not be verified. Check the account number.");
       return;
     }
+    // Must belong to the same person as the verified KYC profile. Only block here when we already
+    // know the KYC name; otherwise the server gates (save + order creation) enforce it.
+    if (kycFullName && !accountNameMatchesKyc(kycFullName, name)) {
+      setFormError(REFUND_NAME_MISMATCH_MESSAGE);
+      return;
+    }
 
     const payload: RefundAccountDetails = {
       institutionCode: selectedInstitution.code,
@@ -259,7 +271,10 @@ export function AddRefundAccountModal({
                   autoComplete="off"
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
-                  placeholder="Account number"
+                  placeholder={getOfframpAccountIdentifierPlaceholder(
+                    currency,
+                    selectedInstitution?.type,
+                  )}
                   className={classNames(
                     "w-full rounded-xl border bg-white px-3.5 py-3 text-sm text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:ring-2 dark:bg-[#202020] dark:text-white dark:placeholder:text-white/35",
                     accountNumberError

@@ -43,6 +43,7 @@ import {
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { useWalletAddress } from "../hooks/useWalletAddress";
+import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
@@ -103,6 +104,9 @@ export const TransactionForm = ({
   // Destructure stateProps
   const { rate, isFetchingRate, setOrderId } = stateProps;
   const { authenticated, ready, login, user } = usePrivy();
+  // Pin body scroll while the Privy dialog is up — its end-of-body iframe
+  // steals focus on mobile and drags the page to the bottom otherwise.
+  const loginWithScrollPin = useLoginWithScrollPin(login);
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
@@ -309,7 +313,7 @@ export const TransactionForm = ({
     ).toFixed(2);
     const fiatAmount = +parseFloat(
       searchParams.get("fiatAmount") || "0",
-    ).toFixed(2);
+    ).toFixed(4);
 
     const supportedTokens = tokens.map((tokenElement) => tokenElement.name);
     if (token && supportedTokens.includes(token)) {
@@ -409,7 +413,7 @@ export const TransactionForm = ({
             // Swapped: Receive = Token, so calculate Send (Currency)
             // Send = Receive * Rate (20.4 USDC * 1400 = 28,560 NGN)
             const calculatedAmount = Number(
-              (Number(amountReceived) * rate).toFixed(2),
+              (Number(amountReceived) * rate).toFixed(4),
             );
             setValue("amountSent", calculatedAmount, { shouldDirty: true });
           } else {
@@ -432,7 +436,7 @@ export const TransactionForm = ({
           } else {
             // Not swapped: Send = Token, so calculate Receive (Currency)
             // Receive = Send * Rate (1 USDC * 1400 = 1400 NGN)
-            const calculatedAmount = Number((rate * amountSent).toFixed(2));
+            const calculatedAmount = Number((rate * amountSent).toFixed(4));
             setValue("amountReceived", calculatedAmount, { shouldDirty: true });
           }
         }
@@ -950,14 +954,14 @@ export const TransactionForm = ({
                   }
                 }}
                 className={[
-                  "px-3 h-8 text-sm font-medium rounded-full transition-colors",
+                  "px-4 h-8 text-sm font-medium rounded-full transition-colors",
                   "bg-neutral-100 dark:bg-[#141414]",
                   isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
                     : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
                 ].join(" ")}
               >
-                On-ramp
+                Buy
               </button>
 
               {/* Off-ramp button */}
@@ -969,14 +973,14 @@ export const TransactionForm = ({
                   }
                 }}
                 className={[
-                  "px-3 h-8 text-sm font-medium rounded-full transition-colors",
+                  "px-4 h-8 text-sm font-medium rounded-full transition-colors",
                   "bg-neutral-100 dark:bg-[#141414]",
                   !isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
                     : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
                 ].join(" ")}
               >
-                Off-ramp
+                Sell
               </button>
             </div>
           </div>
@@ -1254,20 +1258,20 @@ export const TransactionForm = ({
             )}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {isKycModalOpen && tier >= 1 && (
-            <AnimatedModal
-              isOpen={isKycModalOpen}
-              onClose={() => setIsKycModalOpen(false)}
-            >
-              <KycModal
-                setIsKycModalOpen={setIsKycModalOpen}
-                setIsUserVerified={setIsUserVerified}
-                targetTier={getKycModalTargetTier(tier)}
-              />
-            </AnimatedModal>
-          )}
-        </AnimatePresence>
+        {/* No outer AnimatePresence/conditional: AnimatedModal manages its own
+            presence, and an outer conditional removes it before the exit
+            animation (and the scroll-lock release in onExitComplete) can run. */}
+        <AnimatedModal
+          isOpen={isKycModalOpen && tier >= 1}
+          onClose={() => setIsKycModalOpen(false)}
+          lockBodyScroll
+        >
+          <KycModal
+            setIsKycModalOpen={setIsKycModalOpen}
+            setIsUserVerified={setIsUserVerified}
+            targetTier={getKycModalTargetTier(tier)}
+          />
+        </AnimatedModal>
 
         <TransactionLimitModal
           isOpen={isLimitModalOpen}
@@ -1309,7 +1313,7 @@ export const TransactionForm = ({
               disabled={!isEnabled}
               onClick={buttonAction(
                 handleSwap,
-                login,
+                loginWithScrollPin,
                 () =>
                   handleFundWallet(
                     activeWallet?.address ?? "",

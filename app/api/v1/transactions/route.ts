@@ -327,8 +327,6 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         time_spent: body.time_spent,
         tx_hash: body.txHash,
         order_id: body.orderId,
-        email: normalizedEmail,
-        ...(explorerLink ? { explorer_link: explorerLink } : {}),
       })
       .select()
       .single();

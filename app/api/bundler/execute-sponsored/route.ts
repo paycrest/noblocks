@@ -52,10 +52,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let gasLimit: bigint | undefined;
+    if (body?.gasLimit != null) {
+      const rawGasLimit = String(body.gasLimit);
+      if (!/^\d+$/.test(rawGasLimit) || rawGasLimit === "0") {
+        return NextResponse.json(
+          { error: "gasLimit must be a positive integer" },
+          { status: 400 },
+        );
+      }
+      gasLimit = BigInt(rawGasLimit);
+    }
+
     const result = await executeSponsored(publicClient, walletClient, chain, {
       accountAddress: getAddress(accountAddress) as `0x${string}`,
       callData: callData as `0x${string}`,
       eip7702Authorization: eip7702Authorization ?? undefined,
+      gasLimit,
     });
 
     return NextResponse.json({

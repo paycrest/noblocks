@@ -11,6 +11,7 @@ export type MobileSheetView =
   | "earn-withdraw"
   | "earn-activity-detail"
   | "referrals"
+  | "bridge"
   | "profile";
 
 import type {
@@ -417,11 +418,8 @@ export type Config = {
   earnEnabled: boolean;
   /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
   referralEnabled: boolean;
-  /**
-   * Onramp fraud protection: when true, onramp crypto always settles to the user's Noblocks
-   * wallet first, then is auto-forwarded (server-signed, gas-sponsored, AML-screened) to the
-   * user's chosen destination if it differs. When false, the legacy direct-payout path is used.
-   */
+  /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
+  bridgeEnabled: boolean;
   onrampChainedForwardingEnabled: boolean;
 };
 
@@ -456,21 +454,25 @@ export type TransactionStatus =
   | "pending"
   | "processing"
   | "fulfilled"
+  | "fulfilling"
   | "refunding"
   | "refunded"
+  | "failed"
   | "expired";
 export type TransactionHistoryType =
   | "onramp"
   | "offramp"
   | "transfer"
   | "swap"
-  | "credit";
+  | "credit" | "bridge";
 
 export interface Recipient {
   account_name: string;
   institution: string;
   account_identifier: string;
   memo?: string;
+  /** Bridge only: destination network (the transactions.network column holds the source). */
+  to_network?: string;
 }
 
 export interface TransactionHistory {

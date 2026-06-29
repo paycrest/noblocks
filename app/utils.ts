@@ -231,14 +231,14 @@ export function parseValidTransactionAmount(value: unknown): number | null {
 }
 
 /**
- * Rounds an amount for Supabase/email so stored values match what users see (2dp).
+ * Rounds an amount for Supabase/email so stored values match what users see (4dp).
  * Form state can still carry extra precision from rate math until save.
  */
 export function roundAmountForCurrency(amount: number): number {
   if (typeof amount !== "number" || !Number.isFinite(amount)) {
     return 0;
   }
-  const decimals = 2;
+  const decimals = 4;
   return Number(
     `${Math.round(Number(`${amount}e${decimals}`))}e-${decimals}`,
   );

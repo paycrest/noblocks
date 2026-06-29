@@ -1055,20 +1055,30 @@ export async function saveRefundAccount(
   detail: RefundAccountDetails,
   accessToken: string,
 ): Promise<RefundAccountDetails> {
-  const response = await axios.put<RefundAccountSaveEnvelope>(
-    "/api/v1/refund-account",
-    {
-      institution: detail.institutionName,
-      institutionCode: detail.institutionCode,
-      accountIdentifier: detail.accountNumber,
-      accountName: detail.accountName,
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
+  let response: { data: RefundAccountSaveEnvelope };
+  try {
+    response = await axios.put<RefundAccountSaveEnvelope>(
+      "/api/v1/refund-account",
+      {
+        institution: detail.institutionName,
+        institutionCode: detail.institutionCode,
+        accountIdentifier: detail.accountNumber,
+        accountName: detail.accountName,
       },
-    },
-  );
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+  } catch (err) {
+    // Surface the server's error message (e.g. the refund-account name policy rejection) instead of
+    // axios's generic "Request failed with status code 4xx".
+    if (axios.isAxiosError(err) && typeof err.response?.data?.error === "string") {
+      throw new Error(err.response.data.error);
+    }
+    throw err;
+  }
 
   if (!response.data.success || !response.data.data) {
     throw new Error(response.data.error || "Failed to save refund account");

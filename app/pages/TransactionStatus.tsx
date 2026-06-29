@@ -31,6 +31,7 @@ import {
   formatRecipientNameFirstWordForPill,
   getExplorerLink,
   getInstitutionNameByCode,
+  getRpcUrl,
   isBlockFestActive,
 } from "../utils";
 import {
@@ -52,7 +53,22 @@ import {
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/client";
 import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
-import { useBalance, useInjectedWallet, useNetwork } from "../context";
+import { useBalance, useInjectedWallet, useNetwork, useTokens } from "../context";
+import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
+import config from "../lib/config";
+import { formatUnits } from "viem";
+import {
+  decideForwardAction,
+  toAmountWei,
+  dustWeiForDecimals,
+  DEFAULT_STALENESS_MS,
+} from "../lib/onrampForwarding/decideForwardAction";
+import {
+  getForwardRecord,
+  upsertForwardRecord,
+} from "../lib/onrampForwarding/forwardRecordStore";
+import { readForwardBalanceWei } from "../lib/onrampForwarding/readForwardBalanceWei";
+import type { Token } from "../types";
 import { usePrivy } from "@privy-io/react-auth";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
@@ -120,6 +136,7 @@ export function TransactionStatus({
   const { claimed } = useBlockFestClaim();
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
+  const { allTokens } = useTokens();
   const {
     refreshBalance,
     smartWalletBalance,
@@ -182,12 +199,306 @@ export function TransactionStatus({
   const accountIdentifier = watch("accountIdentifier") || "";
   const institution = watch("institution") || "";
   const recipientWalletAddress = String(watch("walletAddress") || "");
+  const amountReceivedCrypto = Number(watch("amountReceived")) || 0;
+
+  /**
+   * Leg 2: once an onramp settles into the user's Noblocks wallet, forward the funds to the user's
+   * chosen destination (if different) using the SAME sponsored EIP-7702 transfer flow as a normal
+   * Noblocks transfer (`useSmartWalletTransfer`).
+   *
+   * Leg 2 is client-signed, so it can only run while a tab is open. To make it idempotent and
+   * resumable, the decision is centralized in the pure `decideForwardAction` and backed by a durable
+   * localStorage record (`forwardRecordStore`) plus the wallet's FRESH on-chain balance:
+   *   - the order amount is the user's received crypto (form), persisted so a reload doesn't lose it;
+   *   - the on-chain balance is the hard cap (never forward more than arrived) and the idempotency
+   *     signal (a drained balance means the funds already left → finalize, never re-forward);
+   *   - a staleness window distinguishes an in-flight transfer (wait) from a dropped one (resubmit).
+   * Any failure resolves silently — funds simply stay in the Noblocks wallet and no notice is shown.
+   */
+  type ForwardingStatus =
+    | "idle"
+    | "pending"
+    | "forwarding"
+    | "completed"
+    | "skipped"
+    | "failed";
+  const [forwardingStatus, setForwardingStatus] =
+    useState<ForwardingStatus>("idle");
+  // Leg-2 tx hash for the receipt row, persisted so it survives a reload of the status page.
+  const [storedForwardTxHash, setStoredForwardTxHash] = useState<string | null>(
+    null,
+  );
+  // Re-entrancy guards (the durable record handles cross-reload idempotency; these are per-session):
+  const forwardEvalRef = useRef(false); // an evaluation is in flight — don't overlap
+  const forwardStartedRef = useRef(false); // this tab kicked off the transfer — don't re-forward
+  const forwardDoneRef = useRef(false); // a terminal state was reached — stop evaluating
+  const recheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [forwardRecheckTick, setForwardRecheckTick] = useState(0);
+  const FORWARD_RECHECK_MS = 15_000;
+  const scheduleRecheck = () => {
+    if (recheckTimerRef.current) clearTimeout(recheckTimerRef.current);
+    recheckTimerRef.current = setTimeout(() => {
+      setForwardRecheckTick((t) => t + 1);
+    }, FORWARD_RECHECK_MS);
+  };
+
+  // Per-order reset: forwarding state must not leak from a previous onramp into the next one.
+  useEffect(() => {
+    setForwardingStatus("idle");
+    setStoredForwardTxHash(null);
+    forwardEvalRef.current = false;
+    forwardStartedRef.current = false;
+    forwardDoneRef.current = false;
+    if (recheckTimerRef.current) {
+      clearTimeout(recheckTimerRef.current);
+      recheckTimerRef.current = null;
+    }
+  }, [orderId]);
+
+  // Clear any pending re-check on unmount.
+  useEffect(
+    () => () => {
+      if (recheckTimerRef.current) clearTimeout(recheckTimerRef.current);
+    },
+    [],
+  );
+
+  const {
+    transfer: forwardTransfer,
+    isSuccess: isForwardTransferSuccess,
+    error: forwardTransferError,
+    txHash: forwardTxHash,
+  } = useSmartWalletTransfer({
+    selectedNetwork,
+    user,
+    supportedTokens: allTokens[selectedNetwork.chain.name] || [],
+    getAccessToken,
+    refreshBalance,
+    // Can't auto-forward if the wallet still needs migration — fail silently; funds stay in wallet.
+    onRequireMigration: () => {
+      forwardDoneRef.current = true;
+      if (orderId) upsertForwardRecord(orderId, { status: "failed" });
+      setForwardingStatus("failed");
+    },
+  });
+
+  // Leg-2 evaluation: durable record + fresh on-chain balance → decideForwardAction. Re-runs on a
+  // recheck tick while waiting for an in-flight transfer started in another session/tab.
+  useEffect(() => {
+    if (!config.onrampChainedForwardingEnabled) return;
+    if (!isOnramp) return;
+    if (transactionStatus !== "settled") return;
+    if (!orderId) return;
+    if (forwardDoneRef.current) return; // already terminal
+    if (forwardStartedRef.current) return; // this tab is mid-forward
+    if (forwardEvalRef.current) return; // an evaluation is already running
+
+    // Permanent unsupported / misconfig cases: fail closed to a terminal state so the settled onramp
+    // resolves (funds stay safe in the Noblocks wallet) instead of spinning forever.
+    // EVM-only for now; Starknet forwarding isn't supported by this flow.
+    if (selectedNetwork.chain.name === "Starknet") {
+      forwardDoneRef.current = true;
+      setForwardingStatus("skipped");
+      return;
+    }
+    const rpcUrl = getRpcUrl(selectedNetwork.chain.name);
+    if (!rpcUrl) {
+      forwardDoneRef.current = true;
+      setForwardingStatus("skipped");
+      return;
+    }
+
+    // Transient: embedded wallet not hydrated yet — retry on a later render/tick.
+    const noblocksWallet = embeddedWallet?.address ?? "";
+    if (!noblocksWallet) return;
+
+    forwardEvalRef.current = true;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const existing = getForwardRecord(orderId);
+        const destination = (
+          existing?.destination ||
+          recipientWalletAddress ||
+          ""
+        ).trim();
+        const tokenSymbol = existing?.token || String(token);
+
+        const tokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
+        const tokenData = tokens.find(
+          (t) => t.symbol.toUpperCase() === tokenSymbol.toUpperCase(),
+        );
+        if (!tokenData || tokenData.decimals === undefined) return;
+        const decimals = tokenData.decimals;
+
+        const orderAmountWei = existing?.amountWei
+          ? BigInt(existing.amountWei)
+          : toAmountWei(amountReceivedCrypto, decimals);
+
+        const balanceWei = await readForwardBalanceWei({
+          chain: selectedNetwork.chain,
+          rpcUrl,
+          owner: noblocksWallet as `0x${string}`,
+          token: { address: tokenData.address, isNative: tokenData.isNative },
+        });
+        if (cancelled) return;
+
+        const decision = decideForwardAction({
+          record: existing,
+          orderAmountWei,
+          balanceWei,
+          destination,
+          noblocksWallet,
+          now: Date.now(),
+          stalenessMs: DEFAULT_STALENESS_MS,
+          dustWei: dustWeiForDecimals(decimals),
+        });
+
+        switch (decision.action) {
+          case "skip": {
+            // Reloading after a successful leg 2 must NOT downgrade the completed record (which
+            // would also hide the transfer receipt) — restore the completed state instead.
+            if (decision.reason === "already-completed") {
+              const hash = existing?.txHash;
+              if (hash) setStoredForwardTxHash(hash);
+              forwardDoneRef.current = true;
+              setForwardingStatus("completed");
+              return;
+            }
+            // Persist a terminal skip for self-destination so a reload short-circuits via the record.
+            if (decision.reason === "self-destination") {
+              upsertForwardRecord(orderId, {
+                status: "skipped",
+                destination,
+                token: tokenSymbol,
+              });
+            }
+            forwardDoneRef.current = true;
+            setForwardingStatus("skipped");
+            return;
+          }
+          case "complete": {
+            const hash = decision.txHash ?? existing?.txHash;
+            upsertForwardRecord(orderId, { status: "completed", txHash: hash });
+            if (hash) setStoredForwardTxHash(hash);
+            forwardDoneRef.current = true;
+            setForwardingStatus("completed");
+            return;
+          }
+          case "wait": {
+            // Another session is mid-transfer; keep the spinner and re-check shortly.
+            setForwardingStatus("forwarding");
+            scheduleRecheck();
+            return;
+          }
+          case "forward": {
+            // Claim durably BEFORE signing. If we can't persist the claim (storage disabled), a
+            // reload could resubmit while this transfer is in flight — fail closed and don't forward.
+            const claim = upsertForwardRecord(orderId, {
+              status: "pending",
+              destination,
+              token: tokenSymbol,
+              amountWei: decision.amountWei.toString(),
+            });
+            if (!claim) {
+              forwardDoneRef.current = true;
+              setForwardingStatus("failed");
+              return;
+            }
+            forwardStartedRef.current = true;
+            const accessToken = await getAccessToken();
+            if (cancelled) return;
+            if (!accessToken) {
+              upsertForwardRecord(orderId, { status: "failed" });
+              forwardDoneRef.current = true;
+              setForwardingStatus("failed");
+              return;
+            }
+            upsertForwardRecord(orderId, { status: "forwarding" });
+            setForwardingStatus("forwarding");
+            // Forward exactly the capped amount via the standard sponsored transfer flow.
+            await forwardTransfer({
+              amount: Number(formatUnits(decision.amountWei, decimals)),
+              token: tokenSymbol,
+              recipientAddress: destination,
+            });
+            // Success/failure is finalized by the resolution effect below.
+            return;
+          }
+        }
+      } catch (err) {
+        // A read error (RPC/balance) is not a forwarding failure — never mark failed (or forward) on
+        // incomplete information. Schedule a retry so a transient RPC blip doesn't strand the spinner.
+        console.error("[onramp] forwarding evaluation failed:", err);
+        if (!cancelled && !forwardDoneRef.current && !forwardStartedRef.current) {
+          scheduleRecheck();
+        }
+      } finally {
+        forwardEvalRef.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      forwardEvalRef.current = false;
+    };
+  }, [
+    isOnramp,
+    transactionStatus,
+    orderId,
+    forwardRecheckTick,
+    recipientWalletAddress,
+    allTokens,
+    selectedNetwork.chain,
+    selectedNetwork.chain.name,
+    token,
+    amountReceivedCrypto,
+    embeddedWallet?.address,
+    getAccessToken,
+    forwardTransfer,
+  ]);
+
+  // Finalize a transfer THIS tab initiated (the hook reports success/error asynchronously).
+  useEffect(() => {
+    if (forwardingStatus !== "forwarding") return;
+    if (!forwardStartedRef.current) return; // ignore the "wait" spinner for another session's tx
+    if (isForwardTransferSuccess) {
+      upsertForwardRecord(orderId, {
+        status: "completed",
+        txHash: forwardTxHash ?? undefined,
+      });
+      if (forwardTxHash) setStoredForwardTxHash(forwardTxHash);
+      forwardDoneRef.current = true;
+      setForwardingStatus("completed");
+    } else if (forwardTransferError) {
+      upsertForwardRecord(orderId, { status: "failed" });
+      forwardDoneRef.current = true;
+      setForwardingStatus("failed");
+    }
+  }, [
+    forwardingStatus,
+    isForwardTransferSuccess,
+    forwardTransferError,
+    forwardTxHash,
+    orderId,
+  ]);
+
+  // When chained forwarding is active, an onramp isn't "done" until leg 2 resolves (forwarded,
+  // skipped, or failed). Until then — while pending/forwarding — the page must not present final
+  // success. A failed forward resolves silently; funds stay in the Noblocks wallet.
+  const isOnrampForwardingResolved =
+    !config.onrampChainedForwardingEnabled ||
+    !isOnramp ||
+    forwardingStatus === "completed" ||
+    forwardingStatus === "skipped" ||
+    forwardingStatus === "failed";
 
   /** Off-ramp: success visuals for validated | settling | settled. On-ramp: only `settled` (loading/processing until then). */
   const showSuccessVisual =
     (!isOnramp &&
       ["validated", "settling", "settled"].includes(transactionStatus)) ||
-    (isOnramp && transactionStatus === "settled");
+    (isOnramp && transactionStatus === "settled" && isOnrampForwardingResolved);
 
   /** Order meta / dashed hr: off-ramp unchanged; on-ramp only after final or terminal failure. */
   const showOrderMetaSection =
@@ -196,7 +507,8 @@ export function TransactionStatus({
         transactionStatus,
       )) ||
     (isOnramp &&
-      ["settled", "refunded", "expired"].includes(transactionStatus));
+      ((transactionStatus === "settled" && isOnrampForwardingResolved) ||
+        ["refunded", "expired"].includes(transactionStatus)));
 
   /** Off-ramp: show during validated|settling|settled. On-ramp: only after order is done or terminal failure. */
   const showNewPaymentButton =
@@ -1082,7 +1394,7 @@ export function TransactionStatus({
                   : "Transaction successful"
                 : transactionStatus === "pending"
                   ? "Complete your payment"
-                  : transactionStatus === "settled"
+                  : transactionStatus === "settled" && isOnrampForwardingResolved
                     ? "Transaction successful"
                     : "Processing payment..."}
         </AnimatedComponent>
@@ -1350,6 +1662,28 @@ export function TransactionStatus({
                     )}
                   </p>
                 </div>
+                {/* Leg 2: forward to an external wallet — show its own onchain receipt. */}
+                {isOnramp &&
+                  config.onrampChainedForwardingEnabled &&
+                  forwardingStatus === "completed" &&
+                  (forwardTxHash ?? storedForwardTxHash) && (
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="flex-1">Transfer receipt</p>
+                      <p className="flex-1">
+                        <a
+                          href={getExplorerLink(
+                            selectedNetwork.chain.name,
+                            (forwardTxHash ?? storedForwardTxHash)!,
+                          )}
+                          className="text-lavender-500 hover:underline dark:text-lavender-500"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          View in explorer
+                        </a>
+                      </p>
+                    </div>
+                  )}
               </AnimatedComponent>
             )}
         </AnimatePresence>

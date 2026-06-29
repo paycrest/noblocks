@@ -152,6 +152,11 @@ export function useSwapButton({
         // brand-new users get "Get started".
         return hasPriorTransactionActivity ? "Swap" : "Get started";
       }
+      // Max tier reached: there's no higher verification to do, so default to "Swap"
+      // (never "Verify to continue"). Any limit is enforced at order creation.
+      if (kycTier >= 3) {
+        return "Swap";
+      }
       return labelForNextTierVerification(kycTier);
     }
 
@@ -181,6 +186,10 @@ export function useSwapButton({
       // Tier 1 onboarding: phone modal. Active tier at cap: limit or ID/address upgrade.
       if (kycTier < 1 || !isPhoneVerified) {
         return openPhoneVerification;
+      }
+      // Max tier reached: nothing left to verify — proceed to swap (limit enforced on submit).
+      if (kycTier >= 3) {
+        return handleSwap;
       }
       return openLimitModal;
     }

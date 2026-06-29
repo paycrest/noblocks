@@ -49,7 +49,7 @@ export type FormData = {
   memo: string;
   amountSent: number;
   amountReceived: number;
-  /** Fiat → crypto = onramp (NGN→token); crypto → fiat = offramp */
+  /** Fiat → crypto = onramp (NGN/KES→token); crypto → fiat = offramp */
   swapMode: SwapMode;
   /** Legacy compatibility for extracted KYC branch components. */
   isSwapped?: boolean;

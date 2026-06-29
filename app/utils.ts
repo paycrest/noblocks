@@ -237,6 +237,7 @@ export function getOnrampFiatMaxAmount(currencyCode: string): number {
     default:
       throw new Error(`Unsupported on-ramp fiat currency: ${currencyCode}`);
   }
+}
 
 /**
  * Parses a transaction amount from the API body. Returns null if missing or invalid.

@@ -12,6 +12,7 @@ export type MobileSheetView =
   | "earn-activity-detail"
   | "referrals"
   | "bridge";
+  | "profile";
 
 import type {
   FieldErrors,

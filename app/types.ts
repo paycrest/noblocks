@@ -11,7 +11,7 @@ export type MobileSheetView =
   | "earn-withdraw"
   | "earn-activity-detail"
   | "referrals"
-  | "bridge";
+  | "bridge"
   | "profile";
 
 import type {

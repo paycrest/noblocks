@@ -420,6 +420,7 @@ export type Config = {
   referralEnabled: boolean;
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
   bridgeEnabled: boolean;
+  onrampChainedForwardingEnabled: boolean;
 };
 
 export type Network = {

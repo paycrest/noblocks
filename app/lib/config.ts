@@ -73,6 +73,8 @@ const config: Config = {
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
+  onrampChainedForwardingEnabled:
+    process.env.NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED === "true",
 };
 
 export default config;

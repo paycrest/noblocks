@@ -348,6 +348,8 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://etherscan.io/tx/${txHash}`;
     case "Starknet":
       return `https://voyager.online/tx/${txHash}`;
+    case "Tron":
+      return `https://tronscan.org/#/transaction/${txHash}`;
     default:
       return "";
   }
@@ -467,6 +469,10 @@ export function getRpcUrl(network: string) {
       return `https://api-ethereum-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Starknet":
       return process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
+    case "Tron":
+      return (
+        process.env.NEXT_PUBLIC_TRON_RPC_URL || "https://api.trongrid.io"
+      );
     default:
       return undefined;
   }
@@ -714,6 +720,15 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       decimals: 6,
       address:
         "0x068F5c6a61780768455de69077E07e89787839bf8166dEcfBf92B645209c0fB8",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+  ],
+  Tron: [
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
       imageUrl: "/logos/usdt-logo.svg",
     },
   ],
@@ -1136,6 +1151,132 @@ export async function fetchStarknetBalance(
   };
 }
 
+async function fetchTronBalancesUnified(
+  address: string,
+  tokens: Token[],
+): Promise<UnifiedWalletBalances> {
+  const chainName = "Tron";
+
+  const emptyUsd = (): UnifiedWalletBalances => ({
+    chainName,
+    entries: [],
+    total: 0,
+    balances: {},
+    balancesInWei: {},
+    balancesUsd: {},
+  });
+
+  if (!address || !tokens || tokens.length === 0) {
+    return emptyUsd();
+  }
+
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_TRONGRID_API_KEY;
+    const headers: Record<string, string> = {};
+    if (apiKey) {
+      headers["TRON-PRO-API-KEY"] = apiKey;
+    }
+
+    const response = await fetch(
+      `https://api.trongrid.io/v1/accounts/${encodeURIComponent(address)}`,
+      { headers },
+    );
+
+    if (!response.ok) {
+      return emptyUsd();
+    }
+
+    const payload = (await response.json()) as {
+      data?: Array<{
+        balance?: number;
+        trc20?: Array<Record<string, string>>;
+      }>;
+    };
+    const account = payload.data?.[0];
+    const trc20Balances: Record<string, string> = {};
+
+    if (Array.isArray(account?.trc20)) {
+      for (const entry of account.trc20) {
+        for (const [contract, amount] of Object.entries(entry)) {
+          trc20Balances[contract] = amount;
+        }
+      }
+    }
+
+    const balances: Record<string, number> = {};
+    const balancesInWei: Record<string, bigint> = {};
+    const balancesUsd: Record<string, number> = {};
+
+    for (const token of tokens) {
+      try {
+        let balanceInWei: bigint;
+        if (token.isNative) {
+          balanceInWei = BigInt(account?.balance ?? 0);
+        } else {
+          const contractKey = Object.keys(trc20Balances).find(
+            (key) => key.toLowerCase() === token.address.toLowerCase(),
+          );
+          balanceInWei = BigInt(trc20Balances[contractKey ?? ""] ?? 0);
+        }
+
+        const balance =
+          Number(balanceInWei) / Math.pow(10, token.decimals);
+        balances[token.symbol] = Number.isNaN(balance) ? 0 : balance;
+        balancesInWei[token.symbol] = balanceInWei;
+        balancesUsd[token.symbol] = balances[token.symbol];
+      } catch {
+        balances[token.symbol] = 0;
+        balancesInWei[token.symbol] = BigInt(0);
+        balancesUsd[token.symbol] = 0;
+      }
+    }
+
+    const total = Object.values(balances).reduce((sum, v) => sum + v, 0);
+
+    const entries: ChainBalanceEntry[] = tokens.map((token) => ({
+      chainName,
+      symbol: token.symbol,
+      address: token.address,
+      decimals: token.decimals,
+      balance: balances[token.symbol] ?? 0,
+      balanceWei: balancesInWei[token.symbol],
+    }));
+
+    return {
+      chainName,
+      entries,
+      total,
+      balances,
+      balancesInWei,
+      balancesUsd,
+    };
+  } catch (error) {
+    console.error("Error fetching Tron balances:", error);
+    return emptyUsd();
+  }
+}
+
+/**
+ * Tron balances for supported tokens (same human units as EVM).
+ */
+export async function fetchTronBalance(
+  address: string,
+  tokens: Token[],
+): Promise<{
+  total: number;
+  balances: Record<string, number>;
+  balancesInWei: Record<string, bigint>;
+  balancesUsd: Record<string, number>;
+}> {
+  const u = await fetchTronBalancesUnified(address, tokens);
+  return {
+    total: u.total,
+    balances: u.balances,
+    balancesInWei: u.balancesInWei ?? {},
+    balancesUsd: u.balancesUsd ?? {},
+  };
+}
+
 /**
  * EVM balances via viem public client. For `entries` / unified shape see {@link fetchBalancesForChain}.
  */
@@ -1361,6 +1502,27 @@ export function isStarknetChain(chain: {
   return chain.network === "starknet-mainnet";
 }
 
+/** True for Tron mainnet (mock chain + viem-style `network` slug). */
+export function isTronChain(chain: {
+  name?: string;
+  network?: string;
+} | null | undefined): boolean {
+  if (!chain) return false;
+  if (chain.name === "Tron") return true;
+  return chain.network === "tron-mainnet";
+}
+
+/** Noblocks: Tron is sell (off-ramp) only; buy (on-ramp) is not supported yet. */
+export function networkSupportsOnramp(chain: {
+  name?: string;
+  network?: string;
+} | null | undefined): boolean {
+  return !isTronChain(chain);
+}
+
+/** Valid Tron base58 address (starts with T). Re-exported from validation for convenience. */
+export { isValidTronAddress } from "./lib/validation";
+
 /**
  * Retrieves the contract address for the specified network.
  * @param network - The network for which to retrieve the contract address.
@@ -1458,12 +1620,13 @@ export function swapModeFromSideParam(
 
 /**
  * First-paint default for main transaction form `swapMode`.
- * Explicit `side` wins; else Starknet defaults to off-ramp; else global default on-ramp.
+ * Explicit `side` wins; else Tron/Starknet default to off-ramp; else global default on-ramp.
  */
 export function initialSwapModeForHomeForm(
   searchParams: Pick<URLSearchParams, "get">,
   chain: { name?: string; network?: string },
 ): SwapMode {
+  if (!networkSupportsOnramp(chain)) return "offramp";
   const fromSide = swapModeFromSideParam(searchParams.get("side"));
   if (fromSide !== undefined) return fromSide;
   if (isStarknetChain(chain)) return "offramp";
@@ -1571,18 +1734,24 @@ export const handleNetworkSwitch = async (
   onError: (error: Error) => void,
   ensureWalletExists?: () => Promise<void>,
 ) => {
-  // If switching to Starknet, ensure wallet exists first (do not change network on failure)
-  if (network.chain.name === "Starknet" && ensureWalletExists) {
+  // If switching to a tier-2 network, ensure wallet exists first (do not change network on failure)
+  if (
+    (network.chain.name === "Starknet" || network.chain.name === "Tron") &&
+    ensureWalletExists
+  ) {
     try {
       await ensureWalletExists();
     } catch (error) {
-      console.error("Failed to ensure Starknet wallet exists:", error);
+      console.error("Failed to ensure network wallet exists:", error);
       onError(error instanceof Error ? error : new Error(String(error)));
       return;
     }
   }
 
-  if (useInjectedWallet && window.ethereum) {
+  const isNonEvmNetwork =
+    network.chain.name === "Starknet" || network.chain.name === "Tron";
+
+  if (useInjectedWallet && window.ethereum && !isNonEvmNetwork) {
     if (!network.chain?.id) {
       throw new Error(`Missing chainId for network: ${network.chain?.name}`);
     }

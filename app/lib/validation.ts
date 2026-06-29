@@ -3,6 +3,13 @@
  */
 
 /**
+ * Validates Tron address format (base58, starts with T).
+ */
+export function isValidTronAddress(address: string): boolean {
+  return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address.trim());
+}
+
+/**
  * Validates Ethereum/EVM address format
  * @param address - The address to validate (should be lowercased for strict validation)
  * @returns true if valid EVM address format
@@ -44,6 +51,15 @@ export function validateWalletAddress(
 ): true | string {
   const raw = (value ?? "").trim();
   if (!raw) return true;
+  if (networkName === "Tron") {
+    if (raw.startsWith("0x")) {
+      return "This address is an EVM address. Enter a Tron address.";
+    }
+    if (!isValidTronAddress(raw)) {
+      return "Enter a valid Tron address.";
+    }
+    return true;
+  }
   if (!raw.startsWith("0x")) return "Address must start with 0x";
   if (networkName === "Starknet") {
     if (isValidEvmAddressCaseInsensitive(raw)) {

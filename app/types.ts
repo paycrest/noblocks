@@ -415,6 +415,8 @@ export type Config = {
   moralisBaseUrl: string;
   /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
   earnEnabled: boolean;
+  /** Tron network + Privy Tron wallet. Opt-in via NEXT_PUBLIC_TRON_ENABLED. */
+  tronEnabled: boolean;
   /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
   referralEnabled: boolean;
 };
@@ -585,6 +587,19 @@ export interface StarknetContextType extends StarknetWalletState {
   createWallet: () => Promise<void>;
   resetError: () => void;
   ensureWalletExists: () => Promise<void>; // Auto-create wallet if needed
+}
+
+export interface TronWalletState {
+  walletId: string | null;
+  address: string | null;
+  isCreating: boolean;
+  error: string | null;
+}
+
+export interface TronContextType extends TronWalletState {
+  createWallet: () => Promise<void>;
+  resetError: () => void;
+  ensureWalletExists: () => Promise<void>;
 }
 
 export interface ReferralData {

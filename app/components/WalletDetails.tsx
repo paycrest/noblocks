@@ -11,7 +11,7 @@ import {
   tokenBalanceRowVisible,
   handleNetworkSwitch,
 } from "../utils";
-import { useBalance, useTransactions, useStep, useStarknet } from "../context";
+import { useBalance, useTransactions, useStep, useStarknet, useTron } from "../context";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
@@ -94,7 +94,8 @@ export const WalletDetails = () => {
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { currentStep } = useStep();
-  const { ensureWalletExists } = useStarknet();
+  const { ensureWalletExists: ensureStarknetWallet } = useStarknet();
+  const { ensureWalletExists: ensureTronWallet } = useTron();
   const {
     allBalances,
     crossChainBalances,
@@ -136,7 +137,8 @@ export const WalletDetails = () => {
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : selectedNetwork.chain.name === "Starknet"
+    : selectedNetwork.chain.name === "Starknet" ||
+        selectedNetwork.chain.name === "Tron"
       ? hookWalletAddress
         ? { address: hookWalletAddress }
         : undefined
@@ -150,9 +152,11 @@ export const WalletDetails = () => {
     ? allBalances.injectedWallet
     : selectedNetwork.chain.name === "Starknet"
       ? allBalances.starknetWallet
-      : shouldUseEOA
-        ? allBalances.externalWallet
-        : allBalances.smartWallet;
+      : selectedNetwork.chain.name === "Tron"
+        ? allBalances.tronWallet
+        : shouldUseEOA
+          ? allBalances.externalWallet
+          : allBalances.smartWallet;
 
   const sortedCrossChainBalances = useSortedCrossChainBalances(
     crossChainBalances,
@@ -212,7 +216,13 @@ export const WalletDetails = () => {
           title: "Error switching network",
         });
       },
-      ensureWalletExists,
+      async () => {
+        if (network.chain.name === "Starknet") {
+          await ensureStarknetWallet();
+        } else if (network.chain.name === "Tron") {
+          await ensureTronWallet();
+        }
+      },
     );
 
     setIsNetworkListOpen(false);

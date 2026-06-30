@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { getSmileIdJobStatus } from "@/app/lib/smileID";
+import {
+  getEmailForMonitoredAddress,
+  triggerActivepiecesKycResult,
+} from "@/app/utils";
 
 // The callback signature only covers timestamp + partner_id (per SmileID's
 // protocol), NOT the body. A captured (timestamp, signature) pair could be
@@ -232,6 +236,21 @@ export async function POST(request: NextRequest) {
     jobId,
     newTier,
   });
+
+  // Notify once, only on the first promotion to tier 2. Earlier guards already
+  // return when the profile is verified at tier 2+, so this won't double-send
+  // alongside the synchronous submission path.
+  if (newTier >= 2 && currentTier < 2) {
+    const recipient = await getEmailForMonitoredAddress(walletAddress);
+    if (recipient) {
+      await triggerActivepiecesKycResult({
+        event: "kyc_result",
+        status: "success",
+        email: recipient,
+        tier: newTier,
+      });
+    }
+  }
 
   return NextResponse.json({ status: "ok", action: "verified" });
 }

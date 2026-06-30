@@ -8,6 +8,10 @@ import {
 } from "@/app/lib/smileID";
 
 import { rateLimit } from "@/app/lib/rate-limit";
+import {
+  getEmailForMonitoredAddress,
+  triggerActivepiecesKycResult,
+} from "@/app/utils";
 
 type SmileFailureCategory = "database" | "quality" | "liveness" | "mismatch" | "general";
 
@@ -225,6 +229,21 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Notify on genuine verification failures only — infrastructure ("database")
+      // outages are transient and don't count against the user, so don't email them.
+      if (category !== "database") {
+        const recipient =
+          email || (await getEmailForMonitoredAddress(walletAddress));
+        if (recipient) {
+          await triggerActivepiecesKycResult({
+            event: "kyc_result",
+            status: "failure",
+            email: recipient,
+            reason: errorMessage,
+          });
+        }
+      }
+
       return NextResponse.json(
         {
           status: "error",
@@ -361,6 +380,21 @@ export async function POST(request: NextRequest) {
       .from("user_kyc_profiles")
       .update({ attempts: 0 })
       .eq("wallet_address", walletAddress);
+
+    // Notify once, only on the first promotion to tier 2 (the async callback
+    // skips when the profile is already verified, so this won't double-send).
+    if (newTier >= 2 && currentTier < 2) {
+      const recipient =
+        email || (await getEmailForMonitoredAddress(walletAddress));
+      if (recipient) {
+        await triggerActivepiecesKycResult({
+          event: "kyc_result",
+          status: "success",
+          email: recipient,
+          tier: newTier,
+        });
+      }
+    }
 
     return NextResponse.json({
       status: "success",

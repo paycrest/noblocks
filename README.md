@@ -2,22 +2,28 @@
 
 ![image](/public/images/noblocks-bg-image.png)
 
-[![Next.js](https://img.shields.io/badge/-Next.js-61DAFB?logo=Next.js&logoColor=white&color=11172a)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/-TypeScript-FFA500?logo=TypeScript&logoColor=blue&color=11172a)](https://typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/-Tailwind%20CSS-06B6D4?logo=Tailwind%20CSS&logoColor=blue&color=11172a)](https://tailwindcss.com/)
-[![Prettier](https://img.shields.io/badge/-Prettier-1d2b34?logo=Prettier&logoColor=efbc3a&color=11172a)](https://prettier.io/)
+[![Next.js](https://img.shields.io/badge/-Next.js-222?logo=Next.js&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/-TypeScript-3178C6?logo=TypeScript&logoColor=white)](https://typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/-Tailwind%20CSS-06B6D4?logo=Tailwind%20CSS&logoColor=white)](https://tailwindcss.com/)
+[![PNPM](https://img.shields.io/badge/-pnpm-F69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
 
 > **Additional documentation is available in the [`docs/`](docs/) directory.**
 
-This branch contains the codebase for Noblocks. Noblocks simplifies cryptocurrency-to-local currency conversion using a decentralized liquidity protocol, providing a seamless user experience powered by [Paycrest Protocol](https://paycrest.io/).
+Noblocks simplifies cryptocurrency-to-local currency conversion using a decentralized liquidity protocol. Send crypto once, receive local currency instantly via bank transfer or mobile money—all powered by [Paycrest Protocol](https://paycrest.io/).
 
 Visit the live site at [noblocks.xyz](https://noblocks.xyz).
 
 ## Running Locally
 
-To run the project locally, follow these steps:
+### Prerequisites
 
-1. Clone the repository and switch to the waitlist branch:
+- Node.js 20+ installed (use `nvm` or version manager)
+- pnpm installed globally: `npm install -g pnpm`
+- Git
+
+### Setup Steps
+
+1. Clone the repository:
 
    ```bash
    git clone https://github.com/paycrest/noblocks.git
@@ -26,15 +32,19 @@ To run the project locally, follow these steps:
 
 2. Configure environment variables:
 
-   - Copy the [`env.example`](.env.example) file to `.env.local`
-
+   - Copy the [`.env.example`](.env.example) file to `.env.local`:
+     
      ```bash
      cp .env.example .env.local
      ```
 
-   - Add your privy app ID (`NEXT_PUBLIC_PRIVY_APP_ID`) to the `.env.local` file.
-   - Setup your [Privy](https://www.privy.io/) account by doing the following: - Get your app ID: ![image](https://github.com/paycrest/noblocks/blob/main/public/images/Screenshot%202025-02-06%20at%2016.12.19.png?raw=true) - Add your local domain URL: ![image](https://github.com/paycrest/noblocks/blob/main/public/images/Screenshot%202025-02-06%20at%2016.10.44.png?raw=true) - Enable smart wallet and configure chains: ![image](public/images/Screenshot%202025-02-25%20at%2001.14.22.png) - Enable funding: ![image](public/images/Screenshot%202025-02-25%20at%2002.08.23.png)
-     P.S: Check out the privy docs for more information - <https://docs.privy.io/guide/react/quickstart>
+   - Required variables to set:
+     - `NEXT_PUBLIC_PRIVY_APP_ID` – Your Privy app ID ([sign up here](https://www.privy.io/))
+     - `SUPABASE_URL` and `SUPABASE_SECRET_KEY` – From Supabase Dashboard → Project Settings → API
+     - `NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID` – From aggregator dashboard
+     - `INTERNAL_API_KEY` – Generate with `openssl rand -hex 32`
+
+   See [`.env.example`](.env.example) or [docs/environment-variables.md](docs/environment-variables.md) for all options.
 
 3. Install dependencies and start the development server:
 
@@ -43,42 +53,90 @@ To run the project locally, follow these steps:
    pnpm dev
    ```
 
-4. Visit [localhost:3000](http://localhost:3000) to view the waitlist page locally.
+4. Visit [localhost:3000](http://localhost:3000) to view the app locally.
+
+## Features
+
+### Core Functionality
+
+- **Crypto-to-Fiat Onramp**: Accept crypto deposits (USDC, ETH, etc.) and disburse local currency via bank transfer or mobile money
+- **KYC Verification**: Built-in identity verification powered by SmileID and Dojah for Tier 3 KYC
+- **Transaction History**: Full audit trail stored in Supabase with client-side retrieval
+
+### New Features
+
+| Feature | Description | Docs |
+|---------|-------------|------|
+| **Cross-Chain Bridge** | Convert and bridge assets across chains via NEAR Intents + LI.FI | [bridging.md](docs/bridging.md) |
+| **Tron Support** | Deposit and manage TRX/TRC20 tokens | [tron-support.md](docs/tron-support.md) |
+| **Chained Forwarding** | Auto-forward crypto settlements from user wallet to custom destination address | [chained-forwarding.md](docs/chained-forwarding.md) |
+| **Referral Program** | Earn USDC rewards by referring new users | See [`.env.example`](.env.example) flags |
+| **Earn Integration** | Deposit/withdraw support via Vesu/Starkzap | Feature flag: `NEXT_PUBLIC_EARN_ENABLED` |
 
 ## 📚 How It Works
 
-Noblocks streamlines the conversion process through a simple flow:
+The core onramp flow:
 
-1. **Create Order:** User creates an order on the [Gateway Smart Contract](https://github.com/paycrest/contracts) (escrow) through the Noblocks interface.
-2. **Aggregate:** Paycrest Protocol Aggregator indexes the order and assigns it to one or more [Provision Nodes](https://github.com/paycrest/provider) run by liquidity providers.
-3. **Fulfill:** The provisioning node automatically disburses funds to the recipient's local bank account or mobile money wallet via connections to payment service providers (PSP).
+1. **Create Order**: User initiates an order on the [Gateway Smart Contract](https://github.com/paycrest/contracts) through the Noblocks interface
+2. **Aggregate**: Paycrest Protocol Aggregator indexes the order and assigns it to Provision Nodes run by liquidity providers
+3. **Fulfill**: The provisioning node disburses funds to the recipient's local bank account or mobile money wallet via Payment Service Providers (PSPs)
 
 For more details, visit [paycrest.io](https://paycrest.io).
 
-### Noblocks is built on Paycrest Protocol
+## 🛠️ Technology Stack
 
-| Before                                                                                         | Now                                                                                            |
-| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| ![image](https://github.com/paycrest/zap/assets/87664239/73548ada-bde5-41f5-8af6-0f9f943c763f) | ![image](https://github.com/paycrest/zap/assets/87664239/495e166f-54cf-4951-9cdd-92b9357e8608) |
+### Frontend
 
-## 🛠️ Technologies Used
+- **Framework**: Next.js 15 (App Router, Turbopack)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **State Management**: React Query (@tanstack/react-query)
+- **Bundle/ABI Handling**: Viem, Ethers.js
 
-- [Shield3](https://shield3.com/) for OFAC compliance
-- [Biconomy](https://biconomy.io/) for gasless transactions
+### Authentication & Wallets
+
+- **Privy**: Smart wallet authentication (default) + injected wallet support
+- **EIP-7702**: Gasless transactions via Noblocks sponsor wallet
+- **Thirdweb**: Multi-chain wallet interactions
+- **TronWeb**: Tron network integration
+
+### Backend & Data
+
+- **Supabase**: PostgreSQL database, real-time subscriptions, storage
+- **Paycrest Aggregator API**: Order routing and liquidity aggregation
+- **Sentry**: Error tracking and performance monitoring
+
+### External Services
+
+| Service | Purpose |
+|---------|---------|
+| [SmileID](https://smile.id/) | Identity verification (KYC) |
+| [Dojah](https://dojah.io/) | Address verification and proof-of-address |
+| [KudiSMS](https://kudisms.com/) | African phone number verification |
+| [Twilio Verify](https://twilio.com/verify) | International SMS verification |
+| [Mixpanel](https://mixpanel.com/) | Product analytics |
+| [Brevo](https://brevo.com/) | Email marketing and conversations chat |
+| [Sanity](https://sanity.io/) | CMS for content management |
 
 ## Contributing
 
-We welcome contributions to the Paycrest noblocks app! To get started, follow these steps:
+We welcome contributions to Noblocks! Before contributing:
 
-**Important:** Before you begin contributing, please ensure you've read and understood these important documents:
+1. Read the [Contribution Guide](https://paycrest.notion.site/Contribution-Guide-1602482d45a2809a8930e6ad565c906a)
+2. Review the [Code of Conduct](https://paycrest.notion.site/Contributor-Code-of-Conduct-1602482d45a2806bab75fd314b381f4c)
 
-- [Contribution Guide](https://paycrest.notion.site/Contribution-Guide-1602482d45a2809a8930e6ad565c906a) - Critical information about development process, standards, and guidelines.
+**Getting Started:**
 
-- [Code of Conduct](https://paycrest.notion.site/Contributor-Code-of-Conduct-1602482d45a2806bab75fd314b381f4c) - Our community standards and expectations.
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feat/your-feature-name`
+3. Make your changes and commit with descriptive messages
+4. Push to your fork and open a Pull Request
 
-Our team will review your pull request and work with you to get it merged into the main branch of the repository.
+Your PR will be reviewed by the team. Feel free to reach out in the [developer Telegram](https://t.me/+Stx-wLOdj49iNDM0) if you have questions.
 
-If you encounter any issues or have questions, feel free to open an issue on the repository or leave a message in our [developer community on Telegram](https://t.me/+Stx-wLOdj49iNDM0)
+## 📄 License
+
+This project is licensed under the [AGPL-3.0 License](LICENSE).
 
 ## 📄 License
 

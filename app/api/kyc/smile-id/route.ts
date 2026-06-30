@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import {
   submitSmileIDJob,
@@ -231,17 +231,21 @@ export async function POST(request: NextRequest) {
 
       // Notify on genuine verification failures only — infrastructure ("database")
       // outages are transient and don't count against the user, so don't email them.
+      // Resolve the recipient from the authenticated wallet (never the client-supplied
+      // `email`) and dispatch after the response so webhook latency can't hold the
+      // verification flow open.
       if (category !== "database") {
-        const recipient =
-          email || (await getEmailForMonitoredAddress(walletAddress));
-        if (recipient) {
-          await triggerActivepiecesKycResult({
-            event: "kyc_result",
-            status: "failure",
-            email: recipient,
-            reason: errorMessage,
-          });
-        }
+        after(async () => {
+          const recipient = await getEmailForMonitoredAddress(walletAddress);
+          if (recipient) {
+            await triggerActivepiecesKycResult({
+              event: "kyc_result",
+              status: "failure",
+              email: recipient,
+              reason: errorMessage,
+            });
+          }
+        });
       }
 
       return NextResponse.json(
@@ -383,17 +387,20 @@ export async function POST(request: NextRequest) {
 
     // Notify once, only on the first promotion to tier 2 (the async callback
     // skips when the profile is already verified, so this won't double-send).
+    // Resolve the recipient from the authenticated wallet (never the client-supplied
+    // `email`) and dispatch after the response so webhook latency can't block KYC.
     if (newTier >= 2 && currentTier < 2) {
-      const recipient =
-        email || (await getEmailForMonitoredAddress(walletAddress));
-      if (recipient) {
-        await triggerActivepiecesKycResult({
-          event: "kyc_result",
-          status: "success",
-          email: recipient,
-          tier: newTier,
-        });
-      }
+      after(async () => {
+        const recipient = await getEmailForMonitoredAddress(walletAddress);
+        if (recipient) {
+          await triggerActivepiecesKycResult({
+            event: "kyc_result",
+            status: "success",
+            email: recipient,
+            tier: newTier,
+          });
+        }
+      });
     }
 
     return NextResponse.json({

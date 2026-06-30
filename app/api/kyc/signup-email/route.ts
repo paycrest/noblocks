@@ -65,9 +65,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         signal: controller.signal,
       });
       if (!res.ok) {
-        const body = await res.text().catch(() => "");
+        // Don't fold the upstream body into the error: Activepieces can echo the
+        // submitted email/wallet, which would leak PII into server logs.
         throw new Error(
-          `Activepieces signup webhook ${res.status} ${body.slice(0, 200)}`.trim(),
+          `Activepieces signup webhook ${res.status} ${res.statusText}`.trim(),
         );
       }
     } finally {

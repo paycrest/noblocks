@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { getSmileIdJobStatus } from "@/app/lib/smileID";
 import {
@@ -239,17 +239,20 @@ export async function POST(request: NextRequest) {
 
   // Notify once, only on the first promotion to tier 2. Earlier guards already
   // return when the profile is verified at tier 2+, so this won't double-send
-  // alongside the synchronous submission path.
+  // alongside the synchronous submission path. Dispatch after the response so
+  // webhook latency can't hold the callback acknowledgement open.
   if (newTier >= 2 && currentTier < 2) {
-    const recipient = await getEmailForMonitoredAddress(walletAddress);
-    if (recipient) {
-      await triggerActivepiecesKycResult({
-        event: "kyc_result",
-        status: "success",
-        email: recipient,
-        tier: newTier,
-      });
-    }
+    after(async () => {
+      const recipient = await getEmailForMonitoredAddress(walletAddress);
+      if (recipient) {
+        await triggerActivepiecesKycResult({
+          event: "kyc_result",
+          status: "success",
+          email: recipient,
+          tier: newTier,
+        });
+      }
+    });
   }
 
   return NextResponse.json({ status: "ok", action: "verified" });

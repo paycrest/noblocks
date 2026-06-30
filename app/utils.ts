@@ -358,9 +358,10 @@ export async function triggerActivepiecesKycResult(
       signal: controller.signal,
     });
     if (!res.ok) {
-      const t = await res.text().catch(() => "");
+      // Don't fold the upstream body into the error: Activepieces can echo the
+      // recipient email, which would leak PII into server logs.
       throw new Error(
-        `Activepieces KYC webhook ${res.status} ${t.slice(0, 200)}`.trim(),
+        `Activepieces KYC webhook ${res.status} ${res.statusText}`.trim(),
       );
     }
   } catch (error) {

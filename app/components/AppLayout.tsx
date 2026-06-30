@@ -10,7 +10,6 @@ import { Navbar } from "./Navbar";
 import { LayoutWrapper } from "./LayoutWrapper";
 import PWAInstall from "./PWAInstallManager";
 import NoticeBanner from "./NoticeBanner";
-import { MigrationBannerWrapper } from "../context";
 import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeModal";
 import SentryClientProvider from "./SentryClientProvider";
 import { MoralisStreamRegistration } from "./MoralisStreamRegistration";
@@ -30,7 +29,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <NoticeBanner textLines={config.noticeBannerText.split("|")} />
               )
             )}
-            <MigrationBannerWrapper />
           </div>
           <LayoutWrapper footer={<Footer />}>
             <MainContent>{children}</MainContent>

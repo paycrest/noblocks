@@ -35,16 +35,6 @@ const config: Config = {
   brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
   blockfestEndDate:
     process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
-  /** @deprecated Use delegationContractAddress. Kept for backward compatibility. */
-  // biconomyNexusV120:
-  //   process.env.NEXT_PUBLIC_BICONOMY_NEXUS_V120 || "0x000000004f43c49e93c970e84001853a70923b03",
-  /** MEE API key for Biconomy Supertransaction API (sponsored execution). Replaces deprecated paymaster. */
-  biconomyMeeApiKey:
-    process.env.NEXT_PUBLIC_BICONOMY_MEE_API_KEY ||
-    "",
-  /** Base URL of the Biconomy v2→Nexus upgrade server (mini bundler). e.g. http://localhost:3000 when running locally. */
-  bundlerServerUrl:
-    process.env.NEXT_PUBLIC_BUNDLER_SERVER_URL || "",
   maintenanceEnabled:
     process.env.NEXT_PUBLIC_MAINTENANCE_NOTICE_ENABLED === "true" &&
     !!(process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "").trim(),

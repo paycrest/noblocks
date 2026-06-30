@@ -3,11 +3,10 @@ import React, { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { useSearchParams } from "next/navigation";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens } from "../context";
 import { useStarknet } from "../context/StarknetContext";
-import WalletMigrationModal from "./WalletMigrationModal";
 import {
   classNames,
   formatDecimalPrecision,
@@ -41,23 +40,17 @@ export const TransferForm: React.FC<{
   onSuccess?: () => void;
   showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
-  onOpenMigration?: () => void;
-}> = ({ onClose, onSuccess, showBackButton = false, setCurrentView, onOpenMigration }) => {
+}> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
   const searchParams = useSearchParams();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const { selectedNetwork } = useNetwork();
   const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const shouldUseEOA = useShouldUseEOA();
-  const { isChecking: isMigrationChecking, needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { refreshBalance, starknetWalletBalance } = useBalance();
   const { allTokens } = useTokens();
   const { walletId, publicKey, address, deployed } = useStarknet();
   const isDark = useActualTheme();
-
-  const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
-  const isMigrationMandatory = needsMigration && !isRemainingFundsMigration && new Date() >= MIGRATION_DEADLINE;
-  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
 
   // State for network dropdown
   const [isNetworkDropdownOpen, setIsNetworkDropdownOpen] = useState(false);
@@ -128,7 +121,6 @@ export const TransferForm: React.FC<{
     supportedTokens: fetchedTokens,
     getAccessToken,
     refreshBalance,
-    onRequireMigration: onOpenMigration ?? (() => setIsMigrationModalOpen(true)),
     starknetWallet: {
       walletId,
       publicKey,
@@ -166,7 +158,7 @@ export const TransferForm: React.FC<{
   }, [isTransferSuccess, onSuccess]);
 
   // Fetch balance for the selected transfer network
-  // After migration: use EOA; before: use SCW. Wait for migration status so we don't show SCW (0) while loading.
+  // After migration: use EOA; before: use SCW. Wait for wallet selection to settle so we don't show SCW (0) while loading.
   useEffect(() => {
     const fetchBalance = async () => {
       const smartWalletAccount = user?.linkedAccounts.find(
@@ -175,11 +167,6 @@ export const TransferForm: React.FC<{
       const embeddedWallet = wallets.find(
         (w) => w.walletClientType === "privy",
       );
-
-      if (isMigrationChecking) {
-        setIsBalanceLoading(true);
-        return;
-      }
 
       if (shouldUseEOA && !embeddedWallet) {
         setIsBalanceLoading(true);
@@ -236,7 +223,6 @@ export const TransferForm: React.FC<{
     user?.linkedAccounts,
     wallets,
     shouldUseEOA,
-    isMigrationChecking,
     starknetWalletBalance,
   ]);
 
@@ -356,14 +342,6 @@ export const TransferForm: React.FC<{
   const showNetworkWarning = recipientNetwork && !networksMatch;
 
   const onFormSubmit = (data: any) => {
-    // if (!needsMigration || !isMigrationMandatory) {
-    //   if (onOpenMigration) {
-    //     onOpenMigration();
-    //   } else {
-    //     setIsMigrationModalOpen(true);
-    //   }
-    //   return;
-    // }
     transfer({ ...data, resetForm: reset });
   };
 
@@ -683,13 +661,6 @@ export const TransferForm: React.FC<{
           {isConfirming ? "Confirming..." : "Continue"}
         </button>
       </form>
-
-      {!onOpenMigration && (
-        <WalletMigrationModal
-          isOpen={isMigrationModalOpen}
-          onClose={() => setIsMigrationModalOpen(false)}
-        />
-      )}
     </>
   );
 };

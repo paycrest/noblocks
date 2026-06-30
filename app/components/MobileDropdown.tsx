@@ -41,7 +41,6 @@ import { EarnWalletForm } from "./EarnWalletForm";
 import { EarnConsentModal } from "./EarnConsentModal";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import ProfileView from "./ProfileView";
-import WalletMigrationModal from "./WalletMigrationModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
 import { isEarnUiVisible } from "../lib/earnFeature";
 import { isReferralEnabled } from "../utils";
@@ -69,7 +68,6 @@ export const MobileDropdown = ({
   const [isNetworkListOpen, setIsNetworkListOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
-  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { currentStep } = useStep();
@@ -435,10 +433,6 @@ export const MobileDropdown = ({
                             onClose={onClose}
                             showBackButton
                             setCurrentView={setCurrentView}
-                            onOpenMigration={() => {
-                              onClose();
-                              setIsMigrationModalOpen(true);
-                            }}
                           />
                         </div>
                       )}
@@ -488,12 +482,6 @@ export const MobileDropdown = ({
           </Dialog>
         )}
       </AnimatePresence>
-
-      <WalletMigrationModal
-        isOpen={isMigrationModalOpen}
-        onClose={() => setIsMigrationModalOpen(false)}
-      />
-
     </>
   );
 };

@@ -3,8 +3,6 @@ import { UseFormWatch } from "react-hook-form";
 import { useInjectedWallet } from "../context";
 import { calculateSenderFee } from "../utils";
 
-const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
-
 /** Primary CTA when limits require upgrading verification (opens limit / KYC flow from swap). */
 function labelForNextTierVerification(tier: number): string {
   if (tier >= 3) return "Verify to continue";
@@ -28,8 +26,6 @@ interface UseSwapButtonProps {
   rate?: number | null;
   tokenDecimals?: number;
   isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
-  needsMigration?: boolean;
-  isRemainingFundsMigration?: boolean;
 }
 
 export function useSwapButton({
@@ -44,8 +40,6 @@ export function useSwapButton({
   rate,
   tokenDecimals = 18,
   isSwapped = false,
-  needsMigration = false,
-  isRemainingFundsMigration = false,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
@@ -65,9 +59,6 @@ export function useSwapButton({
     : Number(amountSent) >= 0.5;
   const isCurrencySelected = Boolean(currency);
 
-  const isMigrationMandatory =
-    needsMigration && !isRemainingFundsMigration && new Date() >= MIGRATION_DEADLINE;
-
   // Calculate sender fee and include in balance check
   const { feeAmount: senderFeeAmount } = calculateSenderFee(
     Number(amountSent) || 0,
@@ -83,9 +74,6 @@ export function useSwapButton({
   const hasRecipient = isSwapped ? Boolean(walletAddress) : Boolean(recipientName);
 
   const isEnabled = (() => {
-    if (needsMigration && authenticated && !isInjectedWallet) return true;
-    if (isMigrationMandatory) return true;
-
     // Phone / next-tier KYC from the main CTA must work before the user picks a
     // recipient; otherwise the verify label appears on a permanently disabled button.
     const rateReady = Boolean(rate) && Number(rate) > 0;
@@ -129,10 +117,6 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
-    if (needsMigration && authenticated && !isInjectedWallet) {
-      return "Swap";
-    }
-
     if (isInjectedWallet && hasInsufficientBalance) {
       return "Insufficient balance";
     }
@@ -171,11 +155,7 @@ export function useSwapButton({
     openLimitModal: () => void,
     isPhoneVerified: boolean,
     isUserVerified: boolean,
-    openMigrationModal: () => void,
   ) => {
-    if (needsMigration && authenticated && !isInjectedWallet) {
-      return openMigrationModal;
-    }
     if (!authenticated && !isInjectedWallet) {
       return login;
     }
@@ -201,6 +181,5 @@ export function useSwapButton({
     buttonText,
     buttonAction,
     hasInsufficientBalance,
-    isMigrationMandatory,
   };
 }

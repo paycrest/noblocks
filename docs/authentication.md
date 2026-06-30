@@ -323,14 +323,14 @@ const { data: allUsers } = await supabaseAdmin
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Tokens that don't require auth
-const publicPaths = ['/api/public/*', '/_next/static', '/favicon.ico'];
-const authPaths = ['/api/v1/auth/*'];
+// Paths that don't require auth
+const publicPaths = ['/api/public', '/_next/static', '/favicon.ico'];
+const authPaths = ['/api/v1/auth', '/api/phone/send-otp', '/api/phone/verify-otp'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip public paths
+  // Skip public paths (check prefix match)
   if (publicPaths.some(path => pathname.startsWith(path))) {
     return NextResponse.next();
   }
@@ -530,7 +530,7 @@ Protect internal-only endpoints:
 ```typescript
 // POST /api/v1/internal/user/export-all
 export async function handleInternalExport(req: NextApiRequest, res: NextApiResponse) {
-  const incomingApiKey = req.headers['x-api-key'];
+  const incomingApiKey = req.headers['x-internal-auth'];
 
   if (incomingApiKey !== process.env.INTERNAL_API_KEY) {
     return res.status(401).json({ error: 'Internal access denied' });

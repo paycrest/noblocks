@@ -12,18 +12,18 @@ The bridge provides:
 
 ## Architecture
 
-```
+```text
 User Action (Swap/Bridge)
         ↓
-┌───────────────────────┐
-│   LI.FI Aggregator    │ ← Liquidity sourcing & rate comparison
-└───────────────────────┘
-        ↓
-┌───────────────────────┐
-│   NEAR Intents API    │ ← Cross-chain messaging & execution
-└───────────────────────┘
-        ↓
-Target Chain Execution (token transfer + optional swap)
+        ├──────────────────────┬──────────────────────┐
+        ↓                      ↓                      ↓
+┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐
+│  LI.FI Aggregator │  │  NEAR Intents API │  │  Direct Transfer  │
+└───────────────────┘  └───────────────────┘  └───────────────────┘
+        ↓                      ↓                      ↓
+        └──────────────────────┴──────────────────────┘
+                              ↓
+                Target Chain Execution
 ```
 
 ## Configuration
@@ -85,24 +85,28 @@ Commonly supported assets include:
 
 ## API Routes
 
-### GET `/api/v1/bridge/quote`
+### POST `/api/bridge/near-intents/quote`
 
-Get a bridge quote for specified parameters.
+Get a bridge quote for NEAR Intents routing.
 
-**Query Parameters:**
-- `fromToken`: Source token address
-- `toToken`: Destination token address
-- `fromAmount`: Amount in source token decimals
-- `fromChainId`: Source chain ID
-- `toChainId`: Destination chain ID
-- `slippageBps`: Optional slippage tolerance (default from env)
+**Request Body:**
+```json
+{
+  "fromToken": "0x...",
+  "toToken": "0x...",
+  "fromAmount": "1000000000",
+  "fromChainId": 1,
+  "toChainId": 137,
+  "slippageBps": 50
+}
+```
 
 **Response:**
 ```json
 {
   "quoteId": "string",
-  "fromToken": { "address", "symbol", "decimals" },
-  "toToken": { "address", "symbol", "decimals" },
+  "fromToken": { "address": "0x...", "symbol": "USDC", "decimals": 6 },
+  "toToken": { "address": "0x...", "symbol": "USDC", "decimals": 6 },
   "fromAmount": "1000000000",
   "toAmount": "995000000",
   "route": [{ "exchange": "Uniswap", "portion": 0.6 }],
@@ -112,22 +116,27 @@ Get a bridge quote for specified parameters.
 }
 ```
 
-### POST `/api/v1/bridge/execute`
+### POST `/api/bundler/execute-sponsored`
 
-Execute a bridge transaction.
+Execute a sponsored bridge transaction.
 
 **Request Body:**
 ```json
 {
   "quoteId": "string",
   "walletAddress": "0x...",
-  "signature": "signed_quote_signature"
+  "userOperation": {
+    "sender": "0x...",
+    "callData": "0x...",
+    "signature": "0x..."
+  }
 }
 ```
 
 **Response:**
 ```json
 {
+  "userOpHash": "0x...",
   "transactionHash": "0x...",
   "status": "pending",
   "trackingUrl": "https://li.fi/tx/..."

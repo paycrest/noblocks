@@ -236,7 +236,7 @@ Get detailed info for a specific transaction.
 }
 ```
 
-### PUT /api/v1/transactions/status/:id
+### PUT /api/v1/transactions/:id/status
 
 Update transaction status (internal/admin use).
 
@@ -330,7 +330,7 @@ type TransactionStatus =
 async function updateTransactionStatus(
   orderId: string,
   newStatus: TransactionStatus,
-  requestID: string
+  requestID: number
 ): Promise<void> {
   const response = await fetch(`/api/v1/transactions/${orderId}/status`, {
     method: 'PUT',
@@ -362,7 +362,10 @@ let currentRequestId = 0;
 async function setStatusWithPrevention(orderId: string, status: TransactionStatus) {
   const requestId = ++currentRequestId;
 
-  const result = await updateTransactionStatus(orderId, status, requestId);
+  // Store the request ID before making the call
+  localStorage.setItem(`lastRequestId_${orderId}`, requestId.toString());
+
+  await updateTransactionStatus(orderId, status, requestId);
 
   // Check if this was the latest request
   const currentStoredId = localStorage.getItem(`lastRequestId_${orderId}`);
@@ -390,20 +393,36 @@ async function pollForDeposits(): Promise<void> {
     const depositTx = await checkDepositReceived(order.depositAddress);
 
     if (depositTx) {
-      await db.transactions.update(order.id, {
-        status: 'RECEIVED',
-        txHash: depositTx.hash,
-        amountReceived: depositTx.amount
-      });
+      // Run fraud screening
+      const fraudResult = await runFraudCheck(depositTx.sender);
 
-      // Trigger fraud screening
-      await runFraudCheck(depositTx.sender);
+      // Update status based on fraud check result
+      const nextStatus = fraudResult.requiresReview ? 'PENDING_REVIEW' : 'RECEIVED';
+
+      await db.transactions.update(order.id, {
+        status: nextStatus,
+        txHash: depositTx.hash,
+        amountReceived: depositTx.amount,
+        fraudCheckResult: fraudResult
+      });
     }
   }
 }
 
-// Run every 30 seconds
-setInterval(pollForDeposits, 30000);
+// Self-scheduling loop to prevent overlapping runs
+async function startDepositPolling() {
+  while (true) {
+    try {
+      await pollForDeposits();
+    } catch (error) {
+      console.error('Deposit polling error:', error);
+    }
+    await new Promise(resolve => setTimeout(resolve, 30000));
+  }
+}
+
+// Start the polling loop
+startDepositPolling();
 ```
 
 ### Aggregator Callback Handler

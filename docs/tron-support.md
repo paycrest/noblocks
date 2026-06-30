@@ -236,7 +236,14 @@ async function waitForConfirmation(txHash: string, minBlocks: number = 19) {
   while (Date.now() - startTime < timeout) {
     const tx = await tronWeb.trx.getTransactionInfo(txHash);
 
-    if (!tx || tx.confirmed) {
+    // Handle missing transaction case first
+    if (!tx) {
+      await sleep(3000); // Wait 3 seconds before retry
+      continue;
+    }
+
+    // Only access blockNumber if transaction exists and is confirmed
+    if (tx.confirmed && tx.blockNumber) {
       const blockNum = tx.blockNumber;
       const latest = await tronWeb.trx.getBlockLatestConfirmed();
 
@@ -261,19 +268,25 @@ Tron withdrawals work through the same fulfillment pipeline as other chains:
 async function processTronWithdrawal(order: Order): Promise<void> {
   const destinationAddress = order.recipientAddress;
   const amount = order.amount;
+  const tokenContractAddress = order.tokenAddress;
 
-  // Use treasury wallet to send funds
+  // Use treasury wallet to send TRC20 tokens
   const treasuryPrivKey = getTreasuryPrivateKey(CHAIN_TRON);
-  const result = await tronWeb.sendToken(
-    treasuryAddress,
-    treasuryPrivKey,
-    destinationAddress,
-    amount,
-    tokenContractAddress
-  );
+
+  // Set the treasury private key for signing
+  tronWeb.setPrivateKey(treasuryPrivKey);
+
+  // Get the TRC20 token contract instance
+  const contract = await tronWeb.contract().at(tokenContractAddress);
+
+  // Call the transfer function on the TRC20 contract
+  const result = await contract.transfer(destinationAddress, amount).send({
+    feeLimit: 100_000_000, // 100 TRX fee limit
+    shouldPollResponse: true
+  });
 
   // Update order status
-  await updateOrderStatus(order.id, 'FULFILLED', { txHash: result.txid });
+  await updateOrderStatus(order.id, 'FULFILLED', { txHash: result });
 }
 ```
 

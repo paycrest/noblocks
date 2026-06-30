@@ -281,6 +281,9 @@ export function AddRefundAccountModal({
                   }}
                   placeholder={getOfframpAccountIdentifierPlaceholder(currency, selectedInstitution?.type)}
                 />
+                {accountNumberError ? (
+                  <InputError message={accountNumberError} />
+                ) : null}
               </div>
 
               {/* 3. Account name — auto-fetched */}

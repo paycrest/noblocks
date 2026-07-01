@@ -238,12 +238,13 @@ export async function POST(request: NextRequest) {
         after(async () => {
           const recipient = await getEmailForMonitoredAddress(walletAddress);
           if (recipient) {
-            await triggerActivepiecesKycResult({
-              event: "kyc_result",
-              status: "failure",
-              email: recipient,
-              reason: errorMessage,
-            });
+          await triggerActivepiecesKycResult({
+            event: "kyc_result",
+            status: "failure",
+            email: recipient,
+            tier: 2,
+            reason: errorMessage,
+          });
           }
         });
       }

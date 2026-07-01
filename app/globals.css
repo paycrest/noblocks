@@ -21,6 +21,20 @@
   }
 }
 
+/* The 16px floor above is only meant to stop iOS focus-zoom on small fields; it
+   must not shrink the large amount inputs (they should match desktop on mobile).
+   These are all ≥16px, so restoring them won't reintroduce the iOS zoom. */
+@media (max-width: 640px) {
+  #amount-sent,
+  #amount-received {
+    font-size: 1.5rem !important; /* text-2xl (swap form) */
+  }
+
+  #amount {
+    font-size: 1.875rem !important; /* text-3xl (transfer & fund forms) */
+  }
+}
+
 /* Smile ID document capture inside KYC modal — avoid 100vh clipping on mobile */
 smart-camera-web.noblocks-kyc-camera-host {
   display: block;

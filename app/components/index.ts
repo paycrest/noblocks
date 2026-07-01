@@ -60,7 +60,6 @@ export { ReferralInputModal } from "./ReferralModal";
 export { ReferralCTA } from "./ReferralCTA";
 
 export { default as NoticeBanner } from "./NoticeBanner";
-export { WalletMigrationBanner } from "./WalletMigrationBanner";
 export {
   MaintenanceNoticeModal,
   MaintenanceBanner,

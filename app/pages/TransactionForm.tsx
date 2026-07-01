@@ -46,7 +46,7 @@ import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
-import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import {
   useBalance,
   useInjectedWallet,
@@ -55,7 +55,6 @@ import {
   useKYC,
 } from "../context";
 import { validateWalletAddress } from "../lib/validation";
-import WalletMigrationModal from "../components/WalletMigrationModal";
 
 /**
  * Monthly KYC limits are in USD. Offramp `amountSent` is token (stable ≈ USD).
@@ -111,7 +110,6 @@ export const TransactionForm = ({
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
-  const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
   // Network-aware "My wallet" / recipient address: Starknet wallet on Starknet,
@@ -624,7 +622,7 @@ export const TransactionForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currencies]);
 
-  const { isEnabled, buttonText, buttonAction, isMigrationMandatory } = useSwapButton({
+  const { isEnabled, buttonText, buttonAction } = useSwapButton({
   watch,
   balance,
   isDirty,
@@ -635,22 +633,15 @@ export const TransactionForm = ({
   kycTier: tier,
   rate,
   tokenDecimals,
-  needsMigration,
-  isRemainingFundsMigration,
   isSwapped,
 });
 
-  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [isPhoneVerificationOpen, setIsPhoneVerificationOpen] = useState(false);
   const [isTier2PhoneGateOpen, setIsTier2PhoneGateOpen] = useState(false);
   /** After phone OTP, KYC context may not have updated before the next handleSwap; allow one continuation. */
   const pendingContinueSwapAfterPhoneRef = useRef(false);
 
   const handleSwap = () => {
-    if (isMigrationMandatory) {
-      setIsMigrationModalOpen(true);
-      return;
-    }
 
     const kyc = getKycStatusSnapshot();
 
@@ -1325,7 +1316,6 @@ export const TransactionForm = ({
                 () => setIsLimitModalOpen(true),
                 isPhoneVerified,
                 isUserVerified,
-                () => setIsMigrationModalOpen(true),
               )}
             >
               {buttonText}
@@ -1381,10 +1371,6 @@ export const TransactionForm = ({
         </AnimatedModal>
       )}
 
-      <WalletMigrationModal
-        isOpen={isMigrationModalOpen}
-        onClose={() => setIsMigrationModalOpen(false)}
-      />
     </div>
   );
 };

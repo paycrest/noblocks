@@ -56,7 +56,6 @@ import { FundWalletForm } from "./FundWalletForm";
 import { EarnWalletForm } from "./EarnWalletForm";
 import { TransferForm } from "./TransferForm";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
-import WalletMigrationModal from "./WalletMigrationModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { EarnConsentModal } from "./EarnConsentModal";
@@ -77,7 +76,6 @@ export const WalletDetails = () => {
   const { trackBridge } = useBridgeStatusTracker();
   const [isTransferModalOpen, setIsTransferModalOpen] =
     useState<boolean>(false);
-  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [isEarnFormOpen, setIsEarnFormOpen] = useState(false);
@@ -850,17 +848,8 @@ export const WalletDetails = () => {
           >
             <TransferForm
               onClose={() => setIsTransferModalOpen(false)}
-              onOpenMigration={() => {
-                setIsTransferModalOpen(false);
-                setIsMigrationModalOpen(true);
-              }}
             />
           </AnimatedModal>
-
-          <WalletMigrationModal
-            isOpen={isMigrationModalOpen}
-            onClose={() => setIsMigrationModalOpen(false)}
-          />
 
           <AnimatedModal
             isOpen={isFundModalOpen}

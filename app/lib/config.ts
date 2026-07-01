@@ -66,6 +66,10 @@ const config: Config = {
   aggregatorSenderApiKey: (process.env.NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID || "").trim(),
   moralisWebhookSecret: process.env.MORALIS_WEBHOOK_SECRET || "",
   activepiecesWebhookUrl: process.env.ACTIVEPIECES_WEBHOOK_URL || "",
+  activepiecesSignupVerifyWebhookUrl:
+    process.env.ACTIVEPIECES_SIGNUP_VERIFY_WEBHOOK_URL || "",
+  activepiecesKycResultWebhookUrl:
+    process.env.ACTIVEPIECES_KYC_RESULT_WEBHOOK_URL || "",
   moralisStreamId: process.env.MORALIS_STREAM_ID || "",
   moralisApiKey: process.env.MORALIS_API_KEY || "",
   moralisBaseUrl:

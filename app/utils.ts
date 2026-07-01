@@ -12,6 +12,7 @@ import type {
   TransactionHistory,
   TransactionHistoryType,
   SwapMode,
+  ActivepiecesKycResultPayload,
 } from "./types";
 import type { SanityPost, SanityCategory } from "./blog/types";
 import { erc20Abi, createPublicClient, http, keccak256, stringToBytes } from "viem";
@@ -350,6 +351,47 @@ export async function getEmailForMonitoredAddress(
     console.warn("[privy] getUserBySmartWalletAddress", normalized, e);
   }
   return null;
+}
+
+/**
+ * Forwards a SmileID identity result to the Activepieces KYC webhook (Brevo flow
+ * lives there). Payload `event` is "kyc_result" with `status` "success" | "failure".
+ * The Tier 1 signup email uses a separate webhook (see /api/kyc/signup-email).
+ * Best-effort: failures are logged and swallowed so a notification outage never
+ * breaks the KYC flow.
+ */
+export async function triggerActivepiecesKycResult(
+  payload: ActivepiecesKycResultPayload,
+): Promise<void> {
+  const url = config.activepiecesKycResultWebhookUrl;
+  if (!url) {
+    console.error(
+      "[activepieces] ACTIVEPIECES_KYC_RESULT_WEBHOOK_URL not set — skipping KYC result email",
+    );
+    return;
+  }
+  const timeoutMs = 10_000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      // Don't fold the upstream body into the error: Activepieces can echo the
+      // recipient email, which would leak PII into server logs.
+      throw new Error(
+        `Activepieces KYC webhook ${res.status} ${res.statusText}`.trim(),
+      );
+    }
+  } catch (error) {
+    console.error("[activepieces] KYC result webhook failed", error);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 /**

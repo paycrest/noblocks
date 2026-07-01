@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createHash } from "crypto";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import {
@@ -9,6 +9,10 @@ import {
 import { validatePhoneNumber } from "@/app/lib/phone-validation";
 import { checkTwilioVerifyCode } from "@/app/lib/phone-verification";
 import { rateLimit } from "@/app/lib/rate-limit";
+import {
+  getEmailForMonitoredAddress,
+  triggerActivepiecesKycResult,
+} from "@/app/utils";
 
 const MAX_ATTEMPTS = 3;
 
@@ -17,6 +21,26 @@ const PHONE_IN_USE_ERROR =
 
 function hashOTP(otp: string): string {
   return createHash("sha256").update(otp).digest("hex");
+}
+
+/**
+ * Tier 1 "phone verified" email (Activepieces → Brevo). Only on the first
+ * promotion (tier 0 → 1), resolving the recipient from the authenticated wallet,
+ * and dispatched after the response so webhook latency can't block verification.
+ */
+function notifyPhoneVerified(walletAddress: string, currentTier: number): void {
+  if (currentTier !== 0) return;
+  after(async () => {
+    const recipient = await getEmailForMonitoredAddress(walletAddress);
+    if (recipient) {
+      await triggerActivepiecesKycResult({
+        event: "kyc_result",
+        status: "success",
+        email: recipient,
+        tier: 1,
+      });
+    }
+  });
 }
 
 /**
@@ -251,6 +275,8 @@ export async function POST(request: NextRequest) {
           { status: promotion.status },
         );
       }
+      notifyPhoneVerified(walletAddress, Number(verification.tier) || 0);
+
       const responseTime = Date.now() - startTime;
       trackApiResponse("/api/phone/verify-otp", "POST", 200, responseTime);
       return NextResponse.json({
@@ -357,6 +383,8 @@ export async function POST(request: NextRequest) {
         { status: promotion.status },
       );
     }
+
+    notifyPhoneVerified(walletAddress, Number(verification.tier) || 0);
 
     const responseTime = Date.now() - startTime;
     trackApiResponse("/api/phone/verify-otp", "POST", 200, responseTime);

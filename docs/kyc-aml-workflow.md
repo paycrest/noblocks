@@ -25,18 +25,20 @@ First step for all users - prevents basic abuse patterns.
 ### Implementation
 
 ```typescript
-// POST /api/v1/kyc/phone/request
+// POST /api/phone/send-otp
 async function requestPhoneVerification(phoneNumber: string): Promise<void> {
   const country = parseCountryCode(phoneNumber);
 
   // Choose provider based on region
-  if (isAfricanNumber(country)) {
+  if (isAfricanNumber(country) || country === 'NG') {
+    // Use KudiSMS for Nigerian/African numbers
     await kudisms.sendOTP({
       phoneNumber,
       templateCode: process.env.KUDISMS_TEMPLATE_CODE,
       senderId: process.env.KUDISMS_SENDER_ID
     });
   } else {
+    // Use Twilio Verify for all other regions
     await twilio.verify.sendCode({
       serviceSid: process.env.TWILIO_VERIFY_SERVICE_SID,
       to: phoneNumber
@@ -49,20 +51,39 @@ async function requestPhoneVerification(phoneNumber: string): Promise<void> {
     type: 'PHONE',
     status: 'PENDING',
     phoneNumber,
+    provider: isAfricanNumber(country) ? 'KUDISMS' : 'TWILIO',
     expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
   });
 }
 
-// POST /api/v1/kyc/phone/verify
+// POST /api/phone/verify-otp
 async function verifyPhoneOTP(phoneNumber: string, code: string): Promise<void> {
-  const result = await twilio.verify.verifyCheck({
-    serviceSid: process.env.TWILIO_VERIFY_SERVICE_SID,
-    code,
-    to: phoneNumber
+  const verification = await db.kycVerifications.findOne({
+    phoneNumber,
+    type: 'PHONE',
+    status: 'PENDING'
   });
 
-  if (result.status === 'approved') {
-    await markPhoneVerified(userId);
+  if (!verification) {
+    throw new Error('No pending verification found');
+  }
+
+  if (verification.provider === 'KUDISMS') {
+    // Verify with KudiSMS
+    const result = await kudisms.verifyOTP({ phoneNumber, code });
+    if (result.verified) {
+      await markPhoneVerified(userId);
+    }
+  } else {
+    // Verify with Twilio
+    const result = await twilio.verify.verifyCheck({
+      serviceSid: process.env.TWILIO_VERIFY_SERVICE_SID,
+      code,
+      to: phoneNumber
+    });
+    if (result.status === 'approved') {
+      await markPhoneVerified(userId);
+    }
   }
 }
 ```
@@ -154,31 +175,50 @@ async function createSmileIDJob(
 ### Webhook Handler
 
 ```typescript
-// POST /api/v1/kyc/smile-id/callback
+// POST /api/kyc/smile-id/callback
 export async function smileIDCallback(request: Request) {
   const body = await request.json();
 
-  // Parse webhook payload
-  const { job_id, state, result, output } = body;
+  // Verify signed payload from SmileID
+  const { partner_id, timestamp, signature, job_complete, job_id } = body;
 
-  if (state !== 'completed') {
+  const expectedSignature = generateSmileIDSignature({
+    partner_id,
+    timestamp,
+    job_id
+  });
+
+  if (signature !== expectedSignature) {
+    return Response.json({ error: 'Invalid signature' }, { status: 401 });
+  }
+
+  if (!job_complete) {
     return Response.json({ status: 'processing' });
   }
 
-  const isApproved = result === 'approved';
+  // Re-check job status from SmileID API (don't trust webhook body alone)
+  const jobStatus = await smileIDClient.getJobStatus(job_id);
+
+  if (!jobStatus) {
+    return Response.json({ error: 'Job not found' }, { status: 404 });
+  }
+
+  const isApproved = jobStatus.result === 'approved' && jobStatus.state === 'completed';
 
   // Update verification record
   await db.kycVerifications.update(job_id, {
     status: isApproved ? 'VERIFIED' : 'FAILED',
-    resultData: output
+    resultData: jobStatus.output
   });
 
   if (isApproved) {
     // Promote user to Tier 1
-    await upgradeKYCTier(getUserIdByReference(job_id), 1);
+    const userId = await getUserIdByReference(job_id);
+    await upgradeKYCTier(userId, 1);
 
     // Trigger welcome notification
-    await sendEmail(userEmail, 'kyc-approved', { tier: 1 });
+    const user = await getUser(userId);
+    await sendEmail(user.email, 'kyc-approved', { tier: 1 });
   }
 
   return Response.json({ status: 'processed' });
@@ -449,22 +489,21 @@ Upload selfie for liveness detection:
 }
 ```
 
-### GET /api/v1/kyc/webhook/smile-id/callback
+### POST /api/kyc/smile-id/callback
 
 SmileID webhook endpoint (server-side only):
 
 ```json
 {
-  "job_id": "abc123",
-  "state": "completed",
-  "result": "approved",
-  "output": {
-    "first_name": "John",
-    "last_name": "Doe",
-    "match_score": 0.95
-  }
+  "partner_id": "your_partner_id",
+  "timestamp": "2026-06-30T12:00:00Z",
+  "signature": "signed_hash_of_payload",
+  "job_complete": true,
+  "job_id": "abc123"
 }
 ```
+
+Note: The handler verifies the signature and re-fetches job status from SmileID API rather than trusting webhook body fields directly.
 
 ## Frontend Components
 

@@ -14,8 +14,9 @@ This document lists all environment variables used by the Noblocks application. 
 
    - `NEXT_PUBLIC_PRIVY_APP_ID` – Your Privy app ID
    - `SUPABASE_URL` and `SUPABASE_SECRET_KEY` – From Supabase Dashboard
-   - `NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID` – Aggregator dashboard key
    - `INTERNAL_API_KEY` – Generate with `openssl rand -hex 32`
+
+   `NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID` is optional for local UI exploration; set it when you need live order creation against the aggregator.
 
 ## Variable Reference
 
@@ -25,7 +26,8 @@ This document lists all environment variables used by the Noblocks application. 
 # Aggregator API base URL
 NEXT_PUBLIC_AGGREGATOR_URL=https://api.paycrest.io/v1
 
-# Sender API key UUID (aggregator dashboard). Used by payment-orders proxy and client for encrypted gateway.createOrder messageHash.
+# Optional: Sender API key UUID (aggregator dashboard). Required for live order creation;
+# used by the payment-orders proxy and client for encrypted gateway.createOrder messageHash.
 NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID=
 
 # Local transfer fee configuration (for cNGN -> NGN, etc.)

@@ -1,18 +1,10 @@
 # Wallet Integration
 
-This document explains how different wallet types are integrated into the Noblocks application, including EVM-compatible chains (Ethereum, Polygon, Arbitrum, Base), Tron, and multi-chain management patterns.
+This document explains how different wallet types are integrated into the application.
 
 ## Overview
 
-Noblocks supports multiple wallet types across several blockchains:
-
-| Chain | Smart Wallet | Injected | Gas Sponsorship |
-|-------|--------------|----------|-----------------|
-| Ethereum | Privy (default) | MetaMask, Coinbase, etc. | EIP-7702 + sponsor wallet |
-| Polygon | Privy | All EVM wallets | EIP-7702 + sponsor wallet |
-| Arbitrum | Privy | All EVM wallets | EIP-7702 + sponsor wallet |
-| Base | Privy | All EVM wallets | EIP-7702 + sponsor wallet |
-| Tron | Embedded/Native | TronLink | Built-in |
+The application supports multiple wallet types and provides a unified interface for wallet operations.
 
 ## Supported Wallets
 

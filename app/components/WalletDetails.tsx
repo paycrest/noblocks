@@ -533,31 +533,46 @@ export const WalletDetails = () => {
                             </button>
                           </div>
                         ) : (
-                          <div className="flex flex-row gap-1">
-                            <button
-                              type="button"
-                              title="Transfer funds"
-                              onClick={() => setIsTransferModalOpen(true)}
-                              className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-all hover:scale-[0.98] hover:bg-[#EBEBEF] active:scale-95 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
-                            >
-                              Transfer
-                            </button>
+                          <div className="flex flex-row items-start justify-between gap-2">
                             <button
                               type="button"
                               title="Fund wallet"
                               onClick={() => setIsFundModalOpen(true)}
-                              className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-all hover:scale-[0.98] hover:bg-[#EBEBEF] active:scale-95 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+                              className="group flex flex-1 flex-col items-center gap-2"
                             >
-                              Fund
+                              <span className="flex size-[60px] items-center justify-center rounded-full bg-lavender-500 text-white transition-all group-hover:scale-[0.98] group-active:scale-95">
+                                <ArrowDownLeft01Icon className="size-6" strokeWidth={2} />
+                              </span>
+                              <span className="text-sm font-medium text-text-body dark:text-white">
+                                Fund
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              title="Transfer funds"
+                              onClick={() => setIsTransferModalOpen(true)}
+                              className="group flex flex-1 flex-col items-center gap-2"
+                            >
+                              <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                                <ArrowUpRight01Icon className="size-6" strokeWidth={2} />
+                              </span>
+                              <span className="text-sm font-medium text-text-body dark:text-white">
+                                Transfer
+                              </span>
                             </button>
                             {isBridgeUiVisible() && (
                               <button
                                 type="button"
                                 title="Convert tokens"
                                 onClick={() => setIsConvertModalOpen(true)}
-                                className="min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-all hover:scale-[0.98] hover:bg-[#EBEBEF] active:scale-95 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+                                className="group flex flex-1 flex-col items-center gap-2"
                               >
-                                Convert
+                                <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                                  <CoinsSwapIcon className="size-6" strokeWidth={2} />
+                                </span>
+                                <span className="text-sm font-medium text-text-body dark:text-white">
+                                  Convert
+                                </span>
                               </button>
                             )}
                           </div>

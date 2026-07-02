@@ -11,6 +11,10 @@ import {
   ArrowDown01Icon,
   RefreshIcon,
   Copy01Icon,
+  ArrowDownLeft01Icon,
+  ArrowUpRight01Icon,
+  CoinsSwapIcon,
+  Coins01Icon,
 } from "hugeicons-react";
 import { CrossChainBalanceSkeleton } from "../BalanceSkeleton";
 import {
@@ -103,9 +107,6 @@ export const WalletView: React.FC<WalletViewProps> = ({
     setIsAddressCopied(true);
     window.setTimeout(() => setIsAddressCopied(false), 2000);
   };
-
-  const actionButtonClass =
-    "min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-all hover:scale-[0.98] hover:bg-[#EBEBEF] active:scale-95 dark:bg-white/5 dark:text-white dark:hover:bg-white/10";
 
   const tabBar = (
     <div className="sticky top-0 z-10 space-y-3 bg-white pb-2 pt-3 dark:bg-surface-overlay">
@@ -354,16 +355,46 @@ export const WalletView: React.FC<WalletViewProps> = ({
             </p>
 
             {!isInjectedWallet && !showBalanceSkeleton && (
-              <div className="grid grid-cols-2 gap-3">
-                <button type="button" onClick={onTransfer} className={actionButtonClass}>
-                  Transfer
+              <div className="flex flex-row items-start justify-between gap-2">
+                <button
+                  type="button"
+                  title="Fund wallet"
+                  onClick={onFund}
+                  className="group flex flex-1 flex-col items-center gap-2"
+                >
+                  <span className="flex size-[60px] items-center justify-center rounded-full bg-lavender-500 text-white transition-all group-hover:scale-[0.98] group-active:scale-95">
+                    <ArrowDownLeft01Icon className="size-6" strokeWidth={2} />
+                  </span>
+                  <span className="text-sm font-medium text-text-body dark:text-white">
+                    Fund
+                  </span>
                 </button>
-                <button type="button" onClick={onFund} className={actionButtonClass}>
-                  Fund
+                <button
+                  type="button"
+                  title="Transfer funds"
+                  onClick={onTransfer}
+                  className="group flex flex-1 flex-col items-center gap-2"
+                >
+                  <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                    <ArrowUpRight01Icon className="size-6" strokeWidth={2} />
+                  </span>
+                  <span className="text-sm font-medium text-text-body dark:text-white">
+                    Transfer
+                  </span>
                 </button>
                 {!!onConvert && (
-                  <button type="button" onClick={onConvert} className={actionButtonClass}>
-                    Convert
+                  <button
+                    type="button"
+                    title="Convert tokens"
+                    onClick={onConvert}
+                    className="group flex flex-1 flex-col items-center gap-2"
+                  >
+                    <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                      <CoinsSwapIcon className="size-6" strokeWidth={2} />
+                    </span>
+                    <span className="text-sm font-medium text-text-body dark:text-white">
+                      Convert
+                    </span>
                   </button>
                 )}
                 {showEarnUi && (
@@ -371,9 +402,14 @@ export const WalletView: React.FC<WalletViewProps> = ({
                     type="button"
                     title="Earn yield on USDC via Vesu"
                     onClick={onEarn}
-                    className={actionButtonClass}
+                    className="group flex flex-1 flex-col items-center gap-2"
                   >
-                    Earn
+                    <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                      <Coins01Icon className="size-6" strokeWidth={2} />
+                    </span>
+                    <span className="text-sm font-medium text-text-body dark:text-white">
+                      Earn
+                    </span>
                   </button>
                 )}
               </div>

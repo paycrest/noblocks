@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import {
   submitSmileIDJob,
@@ -8,8 +8,7 @@ import {
 } from "@/app/lib/smileID";
 
 import { rateLimit } from "@/app/lib/rate-limit";
-import { getEmailForMonitoredAddress } from "@/app/utils";
-import { triggerActivepiecesKycResult } from "@/app/lib/activepieces-kyc-result";
+import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
 
 type SmileFailureCategory = "database" | "quality" | "liveness" | "mismatch" | "general";
 
@@ -233,20 +232,11 @@ export async function POST(request: NextRequest) {
       // `email`) and dispatch after the response so webhook latency can't hold the
       // verification flow open.
       if (category !== "database") {
-        after(async () => {
-          const recipient = await getEmailForMonitoredAddress(walletAddress);
-          if (recipient) {
-          await triggerActivepiecesKycResult(
-            {
-              event: "kyc_result",
-              status: "failure",
-              email: recipient,
-              tier: 2,
-              reason: errorMessage,
-            },
-            walletAddress,
-          );
-          }
+        notifyKycResultEmail(walletAddress, {
+          event: "kyc_result",
+          status: "failure",
+          tier: 2,
+          reason: errorMessage,
         });
       }
 
@@ -392,19 +382,10 @@ export async function POST(request: NextRequest) {
     // Resolve the recipient from the authenticated wallet (never the client-supplied
     // `email`) and dispatch after the response so webhook latency can't block KYC.
     if (newTier >= 2 && currentTier < 2) {
-      after(async () => {
-        const recipient = await getEmailForMonitoredAddress(walletAddress);
-        if (recipient) {
-          await triggerActivepiecesKycResult(
-            {
-              event: "kyc_result",
-              status: "success",
-              email: recipient,
-              tier: newTier,
-            },
-            walletAddress,
-          );
-        }
+      notifyKycResultEmail(walletAddress, {
+        event: "kyc_result",
+        status: "success",
+        tier: newTier,
       });
     }
 

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import {
   verifyUtilityBill,
@@ -6,9 +6,7 @@ import {
   type AddressData,
 } from "@/app/lib/dojah";
 import { rateLimit } from "@/app/lib/rate-limit";
-import { getEmailForMonitoredAddress } from "@/app/utils";
-import { triggerActivepiecesKycResult } from "@/app/lib/activepieces-kyc-result";
-
+import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
 const KYC_BUCKET = process.env.KYC_DOCUMENTS_BUCKET || "kyc-documents";
 // Countries where a street address cannot be meaningfully validated (PO Box culture,
 // no formal street addressing, etc.). Expand as needed.
@@ -266,22 +264,11 @@ export async function POST(request: NextRequest) {
           removeError.message,
         );
       }
-      // Tier 3 failure email — resolve recipient from the authenticated wallet,
-      // dispatched after the response so webhook latency can't block the flow.
-      after(async () => {
-        const recipient = await getEmailForMonitoredAddress(walletAddress);
-        if (recipient) {
-          await triggerActivepiecesKycResult(
-            {
-              event: "kyc_result",
-              status: "failure",
-              email: recipient,
-              tier: 3,
-              reason: msg,
-            },
-            walletAddress,
-          );
-        }
+      notifyKycResultEmail(walletAddress, {
+        event: "kyc_result",
+        status: "failure",
+        tier: 3,
+        reason: msg,
       });
 
       return NextResponse.json({ success: false, error: msg }, { status: 400 });
@@ -350,21 +337,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Tier 3 success email — first promotion only (route already requires
-    // currentTier === 2), dispatched after the response.
-    after(async () => {
-      const recipient = await getEmailForMonitoredAddress(walletAddress);
-      if (recipient) {
-        await triggerActivepiecesKycResult(
-          {
-            event: "kyc_result",
-            status: "success",
-            email: recipient,
-            tier: 3,
-          },
-          walletAddress,
-        );
-      }
+    notifyKycResultEmail(walletAddress, {
+      event: "kyc_result",
+      status: "success",
+      tier: 3,
     });
 
     return NextResponse.json({

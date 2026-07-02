@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import {
@@ -9,10 +9,7 @@ import {
 import { validatePhoneNumber } from "@/app/lib/phone-validation";
 import { checkTwilioVerifyCode } from "@/app/lib/phone-verification";
 import { rateLimit } from "@/app/lib/rate-limit";
-import {
-  getEmailForMonitoredAddress,
-} from "@/app/utils";
-import { triggerActivepiecesKycResult } from "@/app/lib/activepieces-kyc-result";
+import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
 
 const MAX_ATTEMPTS = 3;
 
@@ -30,19 +27,10 @@ function hashOTP(otp: string): string {
  */
 function notifyPhoneVerified(walletAddress: string, currentTier: number): void {
   if (currentTier !== 0) return;
-  after(async () => {
-    const recipient = await getEmailForMonitoredAddress(walletAddress);
-    if (recipient) {
-      await triggerActivepiecesKycResult(
-        {
-          event: "kyc_result",
-          status: "success",
-          email: recipient,
-          tier: 1,
-        },
-        walletAddress,
-      );
-    }
+  notifyKycResultEmail(walletAddress, {
+    event: "kyc_result",
+    status: "success",
+    tier: 1,
   });
 }
 

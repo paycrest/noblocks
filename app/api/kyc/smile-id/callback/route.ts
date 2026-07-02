@@ -1,8 +1,7 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { getSmileIdJobStatus } from "@/app/lib/smileID";
-import { getEmailForMonitoredAddress } from "@/app/utils";
-import { triggerActivepiecesKycResult } from "@/app/lib/activepieces-kyc-result";
+import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
 
 // The callback signature only covers timestamp + partner_id (per SmileID's
 // protocol), NOT the body. A captured (timestamp, signature) pair could be
@@ -240,19 +239,10 @@ export async function POST(request: NextRequest) {
   // alongside the synchronous submission path. Dispatch after the response so
   // webhook latency can't hold the callback acknowledgement open.
   if (newTier >= 2 && currentTier < 2) {
-    after(async () => {
-      const recipient = await getEmailForMonitoredAddress(walletAddress);
-      if (recipient) {
-        await triggerActivepiecesKycResult(
-          {
-            event: "kyc_result",
-            status: "success",
-            email: recipient,
-            tier: newTier,
-          },
-          walletAddress,
-        );
-      }
+    notifyKycResultEmail(walletAddress, {
+      event: "kyc_result",
+      status: "success",
+      tier: newTier,
     });
   }
 

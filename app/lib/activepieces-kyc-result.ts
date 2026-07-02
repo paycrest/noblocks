@@ -1,10 +1,33 @@
 import "server-only";
+import { after } from "next/server";
 import config from "@/app/lib/config";
 import type { ActivepiecesKycResultPayload } from "@/app/types";
+import { getEmailForMonitoredAddress } from "@/app/utils";
 import {
   firstNameFromFullName,
   getKycFullName,
 } from "@/app/lib/kyc-profile-server";
+
+export type KycResultEmailPayload = Omit<ActivepiecesKycResultPayload, "email">;
+
+/**
+ * Resolves the recipient from the authenticated wallet (never client-supplied
+ * email) and dispatches a KYC result email after the response via Activepieces.
+ */
+export function notifyKycResultEmail(
+  walletAddress: string,
+  payload: KycResultEmailPayload,
+): void {
+  after(async () => {
+    const recipient = await getEmailForMonitoredAddress(walletAddress);
+    if (recipient) {
+      await triggerActivepiecesKycResult(
+        { ...payload, email: recipient },
+        walletAddress,
+      );
+    }
+  });
+}
 
 export async function triggerActivepiecesKycResult(
   payload: ActivepiecesKycResultPayload,

@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { getSmileIdJobStatus } from "@/app/lib/smileID";
-import {
-  getEmailForMonitoredAddress,
-  triggerActivepiecesKycResult,
-} from "@/app/utils";
+import { getEmailForMonitoredAddress } from "@/app/utils";
+import { triggerActivepiecesKycResult } from "@/app/lib/activepieces-kyc-result";
 
 // The callback signature only covers timestamp + partner_id (per SmileID's
 // protocol), NOT the body. A captured (timestamp, signature) pair could be
@@ -245,12 +243,15 @@ export async function POST(request: NextRequest) {
     after(async () => {
       const recipient = await getEmailForMonitoredAddress(walletAddress);
       if (recipient) {
-        await triggerActivepiecesKycResult({
-          event: "kyc_result",
-          status: "success",
-          email: recipient,
-          tier: newTier,
-        });
+        await triggerActivepiecesKycResult(
+          {
+            event: "kyc_result",
+            status: "success",
+            email: recipient,
+            tier: newTier,
+          },
+          walletAddress,
+        );
       }
     });
   }

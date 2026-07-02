@@ -662,6 +662,8 @@ export type ActivepiecesKycResultPayload = {
   tier?: number;
   /** Human-readable failure reason (SmileID ResultText) on failure. */
   reason?: string;
+  /** First name from phone/KYC profile for Brevo greeting (Tier 1+ emails). */
+  first_name?: string;
 };
 
 export interface MoralisNativeTx {

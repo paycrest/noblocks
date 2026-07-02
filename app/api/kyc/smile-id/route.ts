@@ -8,10 +8,8 @@ import {
 } from "@/app/lib/smileID";
 
 import { rateLimit } from "@/app/lib/rate-limit";
-import {
-  getEmailForMonitoredAddress,
-  triggerActivepiecesKycResult,
-} from "@/app/utils";
+import { getEmailForMonitoredAddress } from "@/app/utils";
+import { triggerActivepiecesKycResult } from "@/app/lib/activepieces-kyc-result";
 
 type SmileFailureCategory = "database" | "quality" | "liveness" | "mismatch" | "general";
 
@@ -238,13 +236,16 @@ export async function POST(request: NextRequest) {
         after(async () => {
           const recipient = await getEmailForMonitoredAddress(walletAddress);
           if (recipient) {
-          await triggerActivepiecesKycResult({
-            event: "kyc_result",
-            status: "failure",
-            email: recipient,
-            tier: 2,
-            reason: errorMessage,
-          });
+          await triggerActivepiecesKycResult(
+            {
+              event: "kyc_result",
+              status: "failure",
+              email: recipient,
+              tier: 2,
+              reason: errorMessage,
+            },
+            walletAddress,
+          );
           }
         });
       }
@@ -394,12 +395,15 @@ export async function POST(request: NextRequest) {
       after(async () => {
         const recipient = await getEmailForMonitoredAddress(walletAddress);
         if (recipient) {
-          await triggerActivepiecesKycResult({
-            event: "kyc_result",
-            status: "success",
-            email: recipient,
-            tier: newTier,
-          });
+          await triggerActivepiecesKycResult(
+            {
+              event: "kyc_result",
+              status: "success",
+              email: recipient,
+              tier: newTier,
+            },
+            walletAddress,
+          );
         }
       });
     }

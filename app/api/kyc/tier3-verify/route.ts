@@ -6,10 +6,8 @@ import {
   type AddressData,
 } from "@/app/lib/dojah";
 import { rateLimit } from "@/app/lib/rate-limit";
-import {
-  getEmailForMonitoredAddress,
-  triggerActivepiecesKycResult,
-} from "@/app/utils";
+import { getEmailForMonitoredAddress } from "@/app/utils";
+import { triggerActivepiecesKycResult } from "@/app/lib/activepieces-kyc-result";
 
 const KYC_BUCKET = process.env.KYC_DOCUMENTS_BUCKET || "kyc-documents";
 // Countries where a street address cannot be meaningfully validated (PO Box culture,
@@ -273,13 +271,16 @@ export async function POST(request: NextRequest) {
       after(async () => {
         const recipient = await getEmailForMonitoredAddress(walletAddress);
         if (recipient) {
-          await triggerActivepiecesKycResult({
-            event: "kyc_result",
-            status: "failure",
-            email: recipient,
-            tier: 3,
-            reason: msg,
-          });
+          await triggerActivepiecesKycResult(
+            {
+              event: "kyc_result",
+              status: "failure",
+              email: recipient,
+              tier: 3,
+              reason: msg,
+            },
+            walletAddress,
+          );
         }
       });
 
@@ -354,12 +355,15 @@ export async function POST(request: NextRequest) {
     after(async () => {
       const recipient = await getEmailForMonitoredAddress(walletAddress);
       if (recipient) {
-        await triggerActivepiecesKycResult({
-          event: "kyc_result",
-          status: "success",
-          email: recipient,
-          tier: 3,
-        });
+        await triggerActivepiecesKycResult(
+          {
+            event: "kyc_result",
+            status: "success",
+            email: recipient,
+            tier: 3,
+          },
+          walletAddress,
+        );
       }
     });
 

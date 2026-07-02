@@ -11,8 +11,8 @@ import { checkTwilioVerifyCode } from "@/app/lib/phone-verification";
 import { rateLimit } from "@/app/lib/rate-limit";
 import {
   getEmailForMonitoredAddress,
-  triggerActivepiecesKycResult,
 } from "@/app/utils";
+import { triggerActivepiecesKycResult } from "@/app/lib/activepieces-kyc-result";
 
 const MAX_ATTEMPTS = 3;
 
@@ -33,12 +33,15 @@ function notifyPhoneVerified(walletAddress: string, currentTier: number): void {
   after(async () => {
     const recipient = await getEmailForMonitoredAddress(walletAddress);
     if (recipient) {
-      await triggerActivepiecesKycResult({
-        event: "kyc_result",
-        status: "success",
-        email: recipient,
-        tier: 1,
-      });
+      await triggerActivepiecesKycResult(
+        {
+          event: "kyc_result",
+          status: "success",
+          email: recipient,
+          tier: 1,
+        },
+        walletAddress,
+      );
     }
   });
 }

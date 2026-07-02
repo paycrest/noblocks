@@ -57,7 +57,7 @@ function PrivyConfigWrapper({
       appId={privyAppId}
       config={isDark ? darkModeConfig : lightModeConfig}
     >
-      {/* Sponsorship is handled via Biconomy MEE (Supertransaction API). */}
+      {/* EIP-7702 sponsorship via Noblocks sponsor wallet. */}
       <SmartWalletsProvider config={{}}>
         <ContextProviders>{children}</ContextProviders>
         <Toaster

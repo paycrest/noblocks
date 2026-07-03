@@ -1,16 +1,27 @@
-/** Persists one-time acceptance of the Earn (Vesu / third-party) risk disclosure. */
-const EARN_CONSENT_STORAGE_KEY = "noblocksEarnConsentAccepted";
+/**
+ * Persists one-time acceptance of the Earn (Vesu / third-party) risk disclosure.
+ *
+ * Keyed per user: the previous device-global key meant the first account that
+ * accepted suppressed the disclosure for every other account on the same
+ * device (including brand-new signups). The legacy global key is intentionally
+ * ignored so each user confirms the disclosure once themselves.
+ */
+const EARN_CONSENT_STORAGE_PREFIX = "noblocksEarnConsentAccepted";
 
-export function hasEarnConsent(): boolean {
-  if (typeof window === "undefined") return false;
-  return localStorage.getItem(EARN_CONSENT_STORAGE_KEY) === "true";
+function earnConsentKey(userId: string): string {
+  return `${EARN_CONSENT_STORAGE_PREFIX}-${userId}`;
 }
 
-export function setEarnConsentAccepted(): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(EARN_CONSENT_STORAGE_KEY, "true");
+export function hasEarnConsent(userId: string | undefined): boolean {
+  if (typeof window === "undefined" || !userId) return false;
+  return localStorage.getItem(earnConsentKey(userId)) === "true";
+}
+
+export function setEarnConsentAccepted(userId: string | undefined): void {
+  if (typeof window === "undefined" || !userId) return;
+  localStorage.setItem(earnConsentKey(userId), "true");
 }
 
 /** Earn / Vesu risk disclosure article. */
 export const EARN_LEARN_MORE_URL =
-  "https://docs.google.com/document/d/13_C1VoNiWXl0gOzcLGuOF_sz_2dEKhuKkIAjwfzC654/edit?tab=t.0#heading=h.vabjr2kta3us";
+  "https://noblocks.xyz/blog/noblocks-earn-feature-disclosure";

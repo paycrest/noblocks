@@ -2,7 +2,11 @@
 import { ImSpinner } from "react-icons/im";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown01Icon, Tick02Icon } from "hugeicons-react";
+import {
+  ArrowDown01Icon,
+  Tick02Icon,
+  InformationCircleIcon,
+} from "hugeicons-react";
 import Image from "next/image";
 
 import { AnimatedFeedbackItem } from "../AnimatedComponents";
@@ -11,7 +15,7 @@ import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames } from "@/app/utils";
+import { classNames, getOfframpAccountIdentifierPlaceholder } from "@/app/utils";
 import {
   RecipientDetails,
   RecipientDetailsFormProps,
@@ -27,6 +31,7 @@ import { validateWalletAddress } from "@/app/lib/validation";
 import { getNetworkImageUrl } from "@/app/utils";
 import { useActualTheme } from "@/app/hooks/useActualTheme";
 import { useNetwork } from "@/app/context";
+import config from "@/app/lib/config";
 
 export const RecipientDetailsForm = ({
   formMethods,
@@ -361,13 +366,14 @@ export const RecipientDetailsForm = ({
       );
       if (foundInstitution) {
         setSelectedInstitution(foundInstitution);
+        setValue("accountType", foundInstitution.type, { shouldValidate: true });
         // Only set manual entry to false if we have recipient name
         if (recipientName) {
           setIsManualEntry(false);
         }
       }
     }
-  }, [institution, institutions, selectedInstitution, recipientName]);
+  }, [institution, institutions, selectedInstitution, recipientName, setValue]);
 
   // Simplified recipient details management
   const clearRecipientDetails = () => {
@@ -426,6 +432,7 @@ export const RecipientDetailsForm = ({
   const showMyWalletButton = Boolean(
     swapMode === "onramp" && connectedWalletAddress,
   );
+
   const showSelectBeneficiaryButton =
     (swapMode === "onramp" && walletRecipients.length > 0) ||
     (swapMode === "offramp" && bankRecipients.length > 0);
@@ -438,6 +445,7 @@ export const RecipientDetailsForm = ({
     validate: (value) => {
       if (currency !== "NGN") return true;
       const digits = String(value ?? "").replace(/\D/g, "");
+      // SAFAKEPC is the sandbox NGN institution (6-digit accounts, not 10-digit NUBAN).
       const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
       if (digits.length !== requiredLen) {
         return requiredLen === 10
@@ -447,6 +455,13 @@ export const RecipientDetailsForm = ({
       return true;
     },
   });
+
+  // Funds only route through the Noblocks wallet when the destination is an external address.
+  // If it's the user's own Noblocks wallet, the forward is skipped — so hide the routing notice.
+  const isDestinationOwnWallet =
+    !!connectedWalletAddress &&
+    walletAddress?.trim().toLowerCase() ===
+      connectedWalletAddress.trim().toLowerCase();
 
   return (
     <>
@@ -516,6 +531,14 @@ export const RecipientDetailsForm = ({
             {errors.walletAddress && (
               <InputError message={errors.walletAddress.message} />
             )}
+            {config.onrampChainedForwardingEnabled &&
+              !!walletAddress?.trim() &&
+              !isDestinationOwnWallet && (
+                <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2.5 text-xs font-normal leading-4 text-text-disabled dark:bg-white/5 dark:text-white/30">
+                  <InformationCircleIcon className="size-4 flex-shrink-0" />
+                  <span>Funds will be routed through your Noblocks wallet.</span>
+                </div>
+              )}
             {networkName && (
               <div className="flex items-center gap-2 text-xs text-text-disabled dark:text-white/30">
                 <div className="flex size-5 items-center justify-center">
@@ -575,7 +598,10 @@ export const RecipientDetailsForm = ({
                   type="text"
                   inputMode="numeric"
                   autoComplete="off"
-                  placeholder="Account number"
+                  placeholder={getOfframpAccountIdentifierPlaceholder(
+                    currency,
+                    selectedInstitution?.type,
+                  )}
                   maxLength={
                     currency === "NGN"
                       ? selectedInstitution?.code === "SAFAKEPC"

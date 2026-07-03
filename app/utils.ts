@@ -247,6 +247,8 @@ export function filterAndSortInstitutions(
       item.name.toLowerCase().includes(term),
     ) ?? [];
   return [...filtered].sort(compareInstitutionsForDisplay);
+}
+
 /** Fiat codes enabled for on-ramp (send fiat → receive crypto). */
 export const ONRAMP_FIAT_CURRENCY_CODES = new Set(["NGN", "KES"]);
 

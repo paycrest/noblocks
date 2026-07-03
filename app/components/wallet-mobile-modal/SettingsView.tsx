@@ -7,6 +7,7 @@ import {
   Key01Icon,
   ArrowRight01Icon,
   AccessIcon,
+  FaceIdIcon,
 } from "hugeicons-react";
 import { ImSpinner } from "react-icons/im";
 import { ThemeSwitch } from "../ThemeSwitch";
@@ -22,6 +23,7 @@ interface SettingsViewProps {
   handleLogout: () => void;
   isLoggingOut: boolean;
   onBack: () => void;
+  onOpenProfile: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -34,6 +36,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   handleLogout,
   isLoggingOut,
   onBack,
+  onOpenProfile,
 }) => (
   <div className="space-y-6">
     <div className="flex items-center justify-between">
@@ -46,6 +49,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <div className="w-10"></div>
     </div>
     <div className="space-y-2 *:min-h-11">
+      <button
+        type="button"
+        onClick={onOpenProfile}
+        className="flex w-full items-center gap-3"
+      >
+        <FaceIdIcon className="size-5 text-outline-gray dark:text-white/50" />
+        <span className="text-text-body dark:text-white/80">Profile</span>
+      </button>
       {!isInjectedWallet && (
         <button
           type="button"

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyJWT } from "@/app/lib/jwt";
 import { DEFAULT_PRIVY_CONFIG } from "@/app/lib/config";
 import {
+  applySafetyMargin,
   buildReadyAccount,
   deployReadyAccount,
   getRpcProvider,
@@ -282,11 +283,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           calls,
           paymasterDetails,
         );
-        const withMargin15 = (v: any) => {
-          const bi = BigInt(v.toString());
-          return (bi * BigInt(3) + BigInt(1)) / BigInt(2); // ceil(1.5x)
-        };
-        maxFee = withMargin15(est.suggested_max_fee_in_gas_token);
+        maxFee = applySafetyMargin(est.suggested_max_fee_in_gas_token);
       } catch (error: any) {
         console.error("[API] Fee estimation failed:", error.message);
         trackApiError(

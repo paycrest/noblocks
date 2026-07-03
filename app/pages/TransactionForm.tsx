@@ -11,10 +11,12 @@ import {
   AnimatedModal,
   slideInOut,
 } from "../components/AnimatedComponents";
+import { TransactionLimitModal, PhoneVerificationModal } from "../components";
 import { primaryBtnClasses } from "../components/Styles";
 import { FormDropdown } from "../components/FormDropdown";
 import { RecipientDetailsForm } from "../components/recipient/RecipientDetailsForm";
 import { KycModal } from "../components/KycModal";
+import { getKycModalTargetTier } from "@/app/lib/kyc-upgrade-path";
 import { FundWalletForm } from "../components/FundWalletForm";
 import { BalanceSkeleton } from "../components/BalanceSkeleton";
 import type { TransactionFormProps, Token } from "../types";
@@ -34,23 +36,49 @@ import {
   currencyToCountryCode,
   reorderCurrenciesByLocation,
   isStarknetChain,
+  getCurrencySymbol,
+  getOnrampFiatMaxAmount,
+  isOnrampFiatCurrencyCode,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
-import { fetchKYCStatus } from "../api/aggregator";
+import { useWalletAddress } from "../hooks/useWalletAddress";
+import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
-import {
-  useShouldUseEOA,
-  useWalletMigrationStatus,
-} from "../hooks/useEIP7702Account";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import {
   useBalance,
   useInjectedWallet,
   useNetwork,
   useTokens,
+  useKYC,
 } from "../context";
-import WalletMigrationModal from "../components/WalletMigrationModal";
+import { validateWalletAddress } from "../lib/validation";
+
+/**
+ * Monthly KYC limits are in USD. Offramp `amountSent` is token (stable ≈ USD).
+ * Onramp `amountSent` is fiat (NGN) — use crypto received as the USD notional.
+ */
+function kycUsdNotionalForLimitCheck(params: {
+  isOnramp: boolean;
+  amountSent: number;
+  amountReceived: number;
+  token: string | undefined;
+  cngnRate?: number | null;
+}): number {
+  const { isOnramp, amountSent, amountReceived, token, cngnRate } = params;
+  const rate = cngnRate ?? undefined;
+  const isCngn = token === "cNGN" || token === "CNGN";
+  if (isOnramp) {
+    const recv = Number(amountReceived) || 0;
+    if (isCngn && rate && rate > 0) return recv / rate;
+    return recv;
+  }
+  const raw = Number(amountSent) || 0;
+  if (isCngn && rate && rate > 0) return raw / rate;
+  return raw;
+}
 
 /**
  * TransactionForm component renders a form for submitting a transaction.
@@ -75,20 +103,36 @@ export const TransactionForm = ({
   // Destructure stateProps
   const { rate, isFetchingRate, setOrderId } = stateProps;
   const { authenticated, ready, login, user } = usePrivy();
+  // Pin body scroll while the Privy dialog is up — its end-of-body iframe
+  // steals focus on mobile and drags the page to the bottom otherwise.
+  const loginWithScrollPin = useLoginWithScrollPin(login);
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const {
-    smartWalletBalance,
-    externalWalletBalance,
-    injectedWalletBalance,
-    starknetWalletBalance,
-    isLoading,
-  } = useBalance();
+  const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
-  const { needsMigration, isRemainingFundsMigration } =
-    useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
+  // Network-aware "My wallet" / recipient address: Starknet wallet on Starknet,
+  // EVM embedded EOA / smart wallet on EVM (mirrors activeWallet for EVM).
+  const connectedWalletAddress = useWalletAddress();
+  const {
+    canTransact,
+    refreshStatus,
+    getKycStatusSnapshot,
+    isPhoneVerified,
+    tier,
+    phoneNumber,
+    transactionSummary,
+  } = useKYC();
+
+  const hasPriorTransactionActivity = useMemo(() => {
+    const { monthlySpent, dailySpent, lastTransactionDate } = transactionSummary;
+    return (
+      monthlySpent > 0 ||
+      dailySpent > 0 ||
+      (lastTransactionDate != null && lastTransactionDate !== "")
+    );
+  }, [transactionSummary]);
 
   const embeddedWalletAddress = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -102,6 +146,8 @@ export const TransactionForm = ({
   const isFirstRender = useRef(true);
   const hasRestoredStateRef = useRef(false);
   const [rateError, setRateError] = useState<string | null>(null);
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
+  const [blockedTransactionAmount, setBlockedTransactionAmount] = useState(0);
 
   const currencies = useMemo(
     () =>
@@ -131,12 +177,10 @@ export const TransactionForm = ({
     token,
     currency,
     walletAddress,
+    isSwapped,
     swapMode,
     receiveDestinationExplicitlySelected,
   } = watch();
-
-  const starknetLocksOnrampControls =
-    isStarknetChain(selectedNetwork.chain) && swapMode === "onramp";
 
   // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
   const { rate: cngnRate, error: cngnRateError } = useCNGNRate({
@@ -149,36 +193,30 @@ export const TransactionForm = ({
   // After migration: use EOA (new wallet with funds)
   // Before migration: use SCW (old wallet)
   const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy",
+    (wallet) => wallet.walletClientType === "privy"
   );
   const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet",
+    (account) => account.type === "smart_wallet"
   );
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
     : shouldUseEOA
-      ? embeddedWallet
-        ? { address: embeddedWallet.address }
-        : undefined
+      ? (embeddedWallet ? { address: embeddedWallet.address } : undefined)
       : smartWallet;
 
   // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
   const activeBalance = isInjectedWallet
     ? injectedWalletBalance
-    : selectedNetwork.chain.name === "Starknet"
-      ? starknetWalletBalance
-      : shouldUseEOA
-        ? externalWalletBalance
-        : smartWalletBalance;
+    : shouldUseEOA
+      ? externalWalletBalance
+      : smartWalletBalance;
 
   // For CNGN, use raw balance instead of USD equivalent. If rawBalances doesn't contain
   // the token, treat as zero rather than falling back to USD-denominated balance.
   const balance =
     token === "CNGN" || token === "cNGN"
-      ? (activeBalance?.rawBalances?.[token] ??
-        activeBalance?.balances[token] ??
-        0)
+      ? (activeBalance?.rawBalances?.[token] ?? activeBalance?.balances[token] ?? 0)
       : (activeBalance?.balances[token] ?? 0);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
@@ -273,7 +311,7 @@ export const TransactionForm = ({
     ).toFixed(2);
     const fiatAmount = +parseFloat(
       searchParams.get("fiatAmount") || "0",
-    ).toFixed(2);
+    ).toFixed(4);
 
     const supportedTokens = tokens.map((tokenElement) => tokenElement.name);
     if (token && supportedTokens.includes(token)) {
@@ -317,9 +355,7 @@ export const TransactionForm = ({
 
   useEffect(
     function initSelectedToken() {
-      // Only coerce send-side token when explicitly off-ramp. If `swapMode` is briefly
-      // wrong, do not assign fetchedTokens[0] or on-ramp first paint shows USDC.
-      if (getValues("swapMode") !== "offramp") return;
+      if (getValues("isSwapped")) return;
       if (
         !fetchedTokens.find((t) => t.symbol === token) &&
         fetchedTokens.length > 0
@@ -332,33 +368,13 @@ export const TransactionForm = ({
   );
 
   useEffect(
-    function checkKycStatus() {
+    function refreshKycStatus() {
       const walletAddressToCheck = isInjectedWallet
         ? injectedAddress
         : embeddedWalletAddress;
       if (!walletAddressToCheck) return;
 
-      const fetchStatus = async () => {
-        try {
-          const response = await fetchKYCStatus(walletAddressToCheck);
-          if (response.data.status === "pending") {
-            setIsKycModalOpen(true);
-          } else if (response.data.status === "success") {
-            setIsUserVerified(true);
-          }
-        } catch (error) {
-          if (
-            error instanceof Error &&
-            (error as any).response?.status === 404
-          ) {
-            // silently fail if user is not found/verified
-          } else {
-            console.log("error", error);
-          }
-        }
-      };
-
-      fetchStatus();
+      void refreshStatus(true);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [embeddedWalletAddress, injectedAddress, isInjectedWallet],
@@ -391,11 +407,11 @@ export const TransactionForm = ({
 
         if (isReceiveInputActive) {
           // User is typing in Receive field
-          if (swapMode === "onramp") {
+          if (isSwapped) {
             // Swapped: Receive = Token, so calculate Send (Currency)
             // Send = Receive * Rate (20.4 USDC * 1400 = 28,560 NGN)
             const calculatedAmount = Number(
-              (Number(amountReceived) * rate).toFixed(2),
+              (Number(amountReceived) * rate).toFixed(4),
             );
             setValue("amountSent", calculatedAmount, { shouldDirty: true });
           } else {
@@ -408,7 +424,7 @@ export const TransactionForm = ({
           }
         } else {
           // User is typing in Send field
-          if (swapMode === "onramp") {
+          if (isSwapped) {
             // Swapped: Send = Currency, so calculate Receive (Token)
             // Receive = Send / Rate (463,284 NGN / 1400 = 330.917 USDC)
             const calculatedAmount = Number(
@@ -418,14 +434,51 @@ export const TransactionForm = ({
           } else {
             // Not swapped: Send = Token, so calculate Receive (Currency)
             // Receive = Send * Rate (1 USDC * 1400 = 1400 NGN)
-            const calculatedAmount = Number((rate * amountSent).toFixed(2));
+            const calculatedAmount = Number((rate * amountSent).toFixed(4));
             setValue("amountReceived", calculatedAmount, { shouldDirty: true });
           }
         }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [amountSent, amountReceived, rate, swapMode],
+    [amountSent, amountReceived, rate, isSwapped],
+  );
+
+  // Derive swap eligibility from tier + spend limits. Always set explicitly so we
+  // never leave a stale true/false (e.g. tier ≥ 1 with no amount, or after reload).
+  useEffect(
+    function updateVerificationStatus() {
+      const rawAmount = Number(amountSent);
+      if (!Number.isFinite(rawAmount) || rawAmount <= 0) {
+        setIsUserVerified(false);
+        return;
+      }
+      if (isSwapped) {
+        const recv = Number(amountReceived);
+        if (!Number.isFinite(recv) || recv <= 0) {
+          setIsUserVerified(false);
+          return;
+        }
+      }
+      const usdAmount = kycUsdNotionalForLimitCheck({
+        isOnramp: Boolean(isSwapped),
+        amountSent: rawAmount,
+        amountReceived: Number(amountReceived) || 0,
+        token,
+        cngnRate,
+      });
+      setIsUserVerified(canTransact(usdAmount).allowed);
+    },
+    [
+      tier,
+      amountSent,
+      amountReceived,
+      isSwapped,
+      token,
+      cngnRate,
+      canTransact,
+      setIsUserVerified,
+    ],
   );
 
   // Register form fields
@@ -438,8 +491,7 @@ export const TransactionForm = ({
         const normalizedToken = token?.toUpperCase();
 
         if (swapMode === "onramp") {
-          // On-ramp: send NGN; min in validate.onrampFiatMin, max 2.3M NGN product cap.
-          maxAmountSentValue = 2_300_000;
+          maxAmountSentValue = getOnrampFiatMaxAmount(currency || "NGN");
           setRateError(null);
         } else if (normalizedToken === "CNGN") {
           if (cngnRate && cngnRate > 0) {
@@ -457,8 +509,8 @@ export const TransactionForm = ({
 
         formMethods.register("amountSent", {
           required: { value: true, message: "Amount is required" },
-          disabled: swapMode === "onramp" ? !currency : !token,
-          ...(swapMode === "offramp"
+          disabled: isSwapped ? !currency : !token,
+          ...(!isSwapped
             ? {
                 min: {
                   value: minAmountSentValue,
@@ -480,13 +532,14 @@ export const TransactionForm = ({
               );
             },
             onrampFiatMin: (value: number) => {
-              if (swapMode === "offramp") return true;
+              if (!isSwapped) return true;
               // Min fiat depends on rate; only enforce once receive token is chosen and rate exists.
               if (!token || !rate || rate <= 0) return true;
               const n = Number(value);
               const floor = 0.5 * rate;
               if (n >= floor) return true;
-              return `Minimum amount is ${formatNumberWithCommas(floor)} NGN`;
+              const fiat = (currency || "NGN").toUpperCase();
+              return `Minimum amount is ${getCurrencySymbol(fiat)}${formatNumberWithCommas(floor)}`;
             },
           },
         });
@@ -500,11 +553,10 @@ export const TransactionForm = ({
         });
 
         if (swapMode === "onramp") {
-          // On-ramp is NGN-only for now (send side).
           currencies.forEach((c: CurrencyOption) => {
-            c.disabled = c.name !== "NGN";
+            c.disabled = !isOnrampFiatCurrencyCode(c.name);
           });
-          if (currency !== "NGN") {
+          if (!isOnrampFiatCurrencyCode(currency)) {
             formMethods.setValue("currency", "NGN", { shouldDirty: true });
           }
         } else if (normalizedToken === "CNGN") {
@@ -523,7 +575,9 @@ export const TransactionForm = ({
           // Reset currencies to their default state from mocks
           currencies.forEach((currency: CurrencyOption) => {
             // Only GHS, BRL, and ARS are disabled by default
-            currency.disabled = ["GHS", "BRL", "ARS"].includes(currency.name);
+            currency.disabled = ["GHS", "BRL", "ARS"].includes(
+              currency.name,
+            );
           });
         }
 
@@ -544,6 +598,7 @@ export const TransactionForm = ({
       selectedNetwork,
       cngnRate,
       cngnRateError,
+      isSwapped,
       swapMode,
       rate,
     ],
@@ -567,31 +622,91 @@ export const TransactionForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currencies]);
 
-  const { isEnabled, buttonText, buttonAction, isMigrationMandatory } =
-    useSwapButton({
-      watch,
-      balance,
-      isDirty,
-      isValid,
-      isUserVerified,
-      rate,
-      tokenDecimals,
-      needsMigration,
-      isRemainingFundsMigration,
-      swapMode,
-      isStarknetOnramp: starknetLocksOnrampControls,
-    });
+  const { isEnabled, buttonText, buttonAction } = useSwapButton({
+  watch,
+  balance,
+  isDirty,
+  isValid,
+  isUserVerified,
+  isPhoneVerified,
+  hasPriorTransactionActivity,
+  kycTier: tier,
+  rate,
+  tokenDecimals,
+  isSwapped,
+});
 
-  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
+  const [isPhoneVerificationOpen, setIsPhoneVerificationOpen] = useState(false);
+  const [isTier2PhoneGateOpen, setIsTier2PhoneGateOpen] = useState(false);
+  /** After phone OTP, KYC context may not have updated before the next handleSwap; allow one continuation. */
+  const pendingContinueSwapAfterPhoneRef = useRef(false);
 
   const handleSwap = () => {
-    if (isMigrationMandatory) {
-      setIsMigrationModalOpen(true);
+
+    const kyc = getKycStatusSnapshot();
+
+    // Tier 2+ (e.g. migrated ID KYC) still requires a stored phone — prompt before swap.
+    if (kyc.tier >= 2) {
+      const hasPhone = Boolean(kyc.phoneNumber?.trim());
+      if (!hasPhone && !pendingContinueSwapAfterPhoneRef.current) {
+        setIsTier2PhoneGateOpen(true);
+        return;
+      }
+      pendingContinueSwapAfterPhoneRef.current = false;
+    }
+
+    setOrderId("");
+
+    // Calculate the USD equivalent for transaction limit checking (see kycUsdNotionalForLimitCheck).
+    const formData = getValues();
+    const rawAmount = Number(formData.amountSent) || 0;
+    if (formData.isSwapped) {
+      const recv = Number(formData.amountReceived) || 0;
+      if (!Number.isFinite(recv) || recv <= 0) {
+        return;
+      }
+    }
+    const usdAmount = kycUsdNotionalForLimitCheck({
+      isOnramp: Boolean(formData.isSwapped),
+      amountSent: rawAmount,
+      amountReceived: Number(formData.amountReceived) || 0,
+      token: formData.token,
+      cngnRate,
+    });
+
+    // Check transaction limits based on KYC tier
+    const limitCheck = canTransact(usdAmount);
+
+    if (!limitCheck.allowed) {
+      if (kyc.tier < 1 || !kyc.isPhoneVerified) {
+        setIsPhoneVerificationOpen(true);
+        return;
+      }
+      setBlockedTransactionAmount(usdAmount);
+      setIsLimitModalOpen(true);
       return;
     }
-    setOrderId("");
+
+    // If limits are okay, proceed with transaction
     handleSubmit(onSubmit)();
   };
+
+  const handlePhoneVerified = async (_verifiedPhone: string) => {
+    setIsPhoneVerificationOpen(false);
+    setIsTier2PhoneGateOpen(false);
+    pendingContinueSwapAfterPhoneRef.current = true;
+    await refreshStatus(true);
+    handleSwap();
+  };
+
+  // Clear recipient when it is invalid for the selected network (EVM ↔ Starknet switches)
+  useEffect(() => {
+    const w = (getValues("walletAddress") ?? "").trim();
+    if (!w) return;
+    if (validateWalletAddress(w, selectedNetwork.chain.name) !== true) {
+      setValue("walletAddress", "", { shouldDirty: true });
+    }
+  }, [selectedNetwork.chain.name, getValues, setValue]);
 
   useEffect(() => {
     // Only run once to align on-ramp mode with persisted recipient (e.g. deep link / refresh)
@@ -603,6 +718,7 @@ export const TransactionForm = ({
     const hasWallet = typeof w === "string" && w.trim().length > 0;
     // Only enable on-ramp from pre-filled wallet; do not force off-ramp (avoids clobbering toggle before this runs)
     if (hasWallet) {
+      setValue("isSwapped", true, { shouldDirty: false });
       setValue("swapMode", "onramp", { shouldDirty: false });
       const t = getValues("token");
       if (typeof t === "string" && t.trim().length > 0) {
@@ -622,9 +738,9 @@ export const TransactionForm = ({
     const nextSwapMode = swapMode === "onramp" ? "offramp" : "onramp";
 
     const hasToken = typeof token === "string" && token.trim().length > 0;
-    const hasCurrency =
-      typeof currency === "string" && currency.trim().length > 0;
-    const hasBothAmounts = Number(amountSent) > 0 && Number(amountReceived) > 0;
+    const hasCurrency = typeof currency === "string" && currency.trim().length > 0;
+    const hasBothAmounts =
+      Number(amountSent) > 0 && Number(amountReceived) > 0;
     /** User picked receive asset + both fiat/crypto assets + both amount fields — keep values when toggling direction. */
     const isCompleteFlow =
       receiveDestinationExplicitlySelected &&
@@ -638,6 +754,7 @@ export const TransactionForm = ({
 
     // Toggle swap mode FIRST (persisted on form so parent rate fetch uses correct side)
     setValue("swapMode", nextSwapMode, { shouldDirty: true });
+    setValue("isSwapped", nextSwapMode === "onramp", { shouldDirty: true });
 
     if (isCompleteFlow) {
       // Swap send/receive numbers and formatting; keep token & currency (and wallet) across the flip
@@ -647,8 +764,7 @@ export const TransactionForm = ({
       setFormattedReceivedAmount(formattedSentAmount);
 
       if (nextSwapMode === "onramp") {
-        // On-ramp send fiat is NGN-only — normalize if coming from another receive fiat
-        if (currency !== "NGN") {
+        if (!isOnrampFiatCurrencyCode(currency)) {
           setValue("currency", "NGN", { shouldDirty: true });
         }
       }
@@ -660,7 +776,6 @@ export const TransactionForm = ({
       setFormattedReceivedAmount("");
 
       if (nextSwapMode === "onramp") {
-        // On-ramp: fiat send is NGN-only for now. Receive token chosen on the Receive row.
         setValue("currency", "NGN", { shouldDirty: true });
         setValue("token", "", { shouldDirty: true });
         if (!walletAddress) {
@@ -817,56 +932,46 @@ export const TransactionForm = ({
         noValidate
       >
         <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
-          <div className="flex items-start justify-between gap-2 px-2 py-1">
-            <div className="flex min-w-0 flex-col gap-1">
-              <h3 className="text-base font-medium">Swap</h3>
-              {starknetLocksOnrampControls && (
-                <p
-                  id="starknet-onramp-unavailable-description"
-                  className="text-xs leading-snug text-text-secondary dark:text-white/50"
-                >
-                  On-ramp isn&apos;t available on Starknet yet.
-                </p>
-              )}
-            </div>
+          <div className="flex items-center justify-between px-2 py-1">
+            <h3 className="text-base font-medium">Swap</h3>
 
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="flex items-center gap-1">
               {/* On-ramp button */}
               <button
                 type="button"
                 onClick={() => {
-                  if (swapMode === "offramp") {
+                  if (!isSwapped) {
                     void handleSwapFields();
                   }
                 }}
                 className={[
-                  "h-8 rounded-full px-3 text-sm font-medium transition-colors",
+                  "px-4 h-8 text-sm font-medium rounded-full transition-colors",
                   "bg-neutral-100 dark:bg-[#141414]",
-                  swapMode === "onramp"
+                  isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
-                    : "border border-transparent text-neutral-900/40 dark:text-white/40",
+                    : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
                 ].join(" ")}
               >
-                On-ramp
+                Buy
               </button>
 
               {/* Off-ramp button */}
               <button
                 type="button"
                 onClick={() => {
-                  if (swapMode === "onramp") {
+                  if (isSwapped) {
                     void handleSwapFields();
                   }
                 }}
                 className={[
-                  "h-8 rounded-full px-3 text-sm font-medium transition-colors",
+                  "px-4 h-8 text-sm font-medium rounded-full transition-colors",
                   "bg-neutral-100 dark:bg-[#141414]",
-                  swapMode === "offramp"
+                  !isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
-                    : "border border-transparent text-neutral-900/40 dark:text-white/40",
+                    : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
                 ].join(" ")}
               >
-                Off-ramp
+                Sell
               </button>
             </div>
           </div>
@@ -884,7 +989,7 @@ export const TransactionForm = ({
                 Send
               </label>
               <AnimatePresence>
-                {authenticated && token && activeBalance && swapMode === "offramp" && (
+                {authenticated && token && activeBalance && !isSwapped && (
                   <AnimatedComponent
                     variant={slideInOut}
                     className="flex items-center gap-2"
@@ -953,25 +1058,20 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedSentAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:placeholder:text-white/30 ${
-                  authenticated &&
-                  swapMode === "offramp" &&
-                  (amountSent > balance || errors.amountSent)
-                    ? "text-red-500 dark:text-red-500"
-                    : "text-neutral-900 dark:text-white/80"
-                }`}
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${authenticated && !isSwapped && (amountSent > balance || errors.amountSent)
+                  ? "text-red-500 dark:text-red-500"
+                  : "text-neutral-900 dark:text-white/80"
+                  }`}
                 placeholder="0"
                 title="Enter amount to send"
               />
-              {swapMode === "onramp" ? (
+              {isSwapped ? (
                 <FormDropdown
                   defaultTitle="Select currency"
                   data={orderedCurrencies}
                   defaultSelectedItem={currency}
                   onSelect={(selectedCurrency) =>
-                    setValue("currency", selectedCurrency, {
-                      shouldDirty: true,
-                    })
+                    setValue("currency", selectedCurrency, { shouldDirty: true })
                   }
                   className="min-w-80"
                   dropdownWidth={320}
@@ -992,17 +1092,17 @@ export const TransactionForm = ({
               )}
             </div>
             {(errors.amountSent ||
-              (authenticated && swapMode === "offramp" && totalRequired > balance)) && (
-              <AnimatedComponent
-                variant={slideInOut}
-                className="!mt-0 text-xs text-red-500"
-              >
-                {errors.amountSent?.message ||
-                  (authenticated && swapMode === "offramp" && totalRequired > balance
-                    ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
-                    : null)}
-              </AnimatedComponent>
-            )}
+              (authenticated && !isSwapped && totalRequired > balance)) && (
+                <AnimatedComponent
+                  variant={slideInOut}
+                  className="!mt-0 text-xs text-red-500"
+                >
+                  {errors.amountSent?.message ||
+                    (authenticated && !isSwapped && totalRequired > balance
+                      ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
+                      : null)}
+                </AnimatedComponent>
+              )}
 
             {/* Arrow showing swap direction */}
             <button
@@ -1055,22 +1155,20 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedReceivedAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 dark:placeholder:text-white/30 ${
-                  errors.amountReceived
-                    ? "text-red-500 dark:text-red-500"
-                    : "text-neutral-900 dark:text-white/80"
-                }`}
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amountReceived
+                  ? "text-red-500 dark:text-red-500"
+                  : "text-neutral-900 dark:text-white/80"
+                  }`}
                 placeholder="0"
                 title="Enter amount to receive"
               />
 
-              {swapMode === "onramp" ? (
+              {isSwapped ? (
                 <FormDropdown
                   defaultTitle="Select token"
                   data={tokens}
                   defaultSelectedItem={token || undefined}
                   isCTA={!token}
-                  disabled={starknetLocksOnrampControls}
                   onSelect={(selectedToken) => {
                     setValue("token", selectedToken, { shouldDirty: true });
                     setValue("receiveDestinationExplicitlySelected", true, {
@@ -1120,14 +1218,15 @@ export const TransactionForm = ({
                 <RecipientDetailsForm
                   formMethods={formMethods}
                   stateProps={stateProps}
-                  swapMode={swapMode}
+                  swapMode={swapMode ?? "offramp"}
+                  isSwapped={isSwapped}
                   token={token}
                   networkName={selectedNetwork.chain.name}
-                  connectedWalletAddress={activeWallet?.address ?? undefined}
+                  connectedWalletAddress={connectedWalletAddress ?? undefined}
                 />
 
                 {/* Memo - Only show for offramp (not swapped) */}
-                {swapMode === "offramp" && (
+                {!isSwapped && (
                   <div className="relative">
                     <NoteEditIcon className="absolute left-3 top-3.5 size-4 text-icon-outline-secondary dark:text-white/50" />
                     <input
@@ -1137,11 +1236,10 @@ export const TransactionForm = ({
                         formMethods.setValue("memo", e.target.value);
                       }}
                       value={formMethods.watch("memo")}
-                      className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
-                        errors.memo
-                          ? "text-red-500 dark:text-red-500"
-                          : "text-text-body dark:text-white/80"
-                      }`}
+                      className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${errors.memo
+                        ? "text-red-500 dark:text-red-500"
+                        : "text-text-body dark:text-white/80"
+                        }`}
                       placeholder="Add description (optional)"
                       maxLength={25}
                     />
@@ -1151,19 +1249,38 @@ export const TransactionForm = ({
             )}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {isKycModalOpen && (
-            <AnimatedModal
-              isOpen={isKycModalOpen}
-              onClose={() => setIsKycModalOpen(false)}
-            >
-              <KycModal
-                setIsKycModalOpen={setIsKycModalOpen}
-                setIsUserVerified={setIsUserVerified}
-              />
-            </AnimatedModal>
-          )}
-        </AnimatePresence>
+        {/* No outer AnimatePresence/conditional: AnimatedModal manages its own
+            presence, and an outer conditional removes it before the exit
+            animation (and the scroll-lock release in onExitComplete) can run. */}
+        <AnimatedModal
+          isOpen={isKycModalOpen && tier >= 1}
+          onClose={() => setIsKycModalOpen(false)}
+          lockBodyScroll
+        >
+          <KycModal
+            setIsKycModalOpen={setIsKycModalOpen}
+            setIsUserVerified={setIsUserVerified}
+            targetTier={getKycModalTargetTier(tier)}
+          />
+        </AnimatedModal>
+
+        <TransactionLimitModal
+          isOpen={isLimitModalOpen}
+          onClose={async () => {
+            setIsLimitModalOpen(false);
+            await refreshStatus(true);
+          }}
+          transactionAmount={blockedTransactionAmount}
+        />
+
+        <PhoneVerificationModal
+          isOpen={isPhoneVerificationOpen || isTier2PhoneGateOpen}
+          onClose={() => {
+            setIsPhoneVerificationOpen(false);
+            setIsTier2PhoneGateOpen(false);
+          }}
+          onVerified={handlePhoneVerified}
+        />
 
         {/* Loading and Submit buttons */}
         {!ready && (
@@ -1185,14 +1302,9 @@ export const TransactionForm = ({
               type="button"
               className={primaryBtnClasses}
               disabled={!isEnabled}
-              aria-describedby={
-                starknetLocksOnrampControls
-                  ? "starknet-onramp-unavailable-description"
-                  : undefined
-              }
               onClick={buttonAction(
                 handleSwap,
-                login,
+                loginWithScrollPin,
                 () =>
                   handleFundWallet(
                     activeWallet?.address ?? "",
@@ -1200,9 +1312,10 @@ export const TransactionForm = ({
                     (fetchedTokens.find((t) => t.symbol === token)
                       ?.address as `0x${string}`) ?? "",
                   ),
-                () => setIsKycModalOpen(true),
+                () => setIsPhoneVerificationOpen(true),
+                () => setIsLimitModalOpen(true),
+                isPhoneVerified,
                 isUserVerified,
-                () => setIsMigrationModalOpen(true),
               )}
             >
               {buttonText}
@@ -1218,12 +1331,10 @@ export const TransactionForm = ({
             >
               <div className={rateError ? "" : "min-w-fit"}>
                 {rateError ? (
-                  <span className="text-orange-500 dark:text-orange-400">
-                    {rateError}
-                  </span>
+                  <span className="text-orange-500 dark:text-orange-400">{rateError}</span>
                 ) : rate > 0 ? (
                   <>
-                    {swapMode === "onramp" ? (
+                    {isSwapped ? (
                       <>
                         {isFetchingRate
                           ? "..."
@@ -1260,10 +1371,6 @@ export const TransactionForm = ({
         </AnimatedModal>
       )}
 
-      <WalletMigrationModal
-        isOpen={isMigrationModalOpen}
-        onClose={() => setIsMigrationModalOpen(false)}
-      />
     </div>
   );
 };

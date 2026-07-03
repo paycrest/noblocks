@@ -9,6 +9,11 @@ import { erc20Abi } from "viem";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { fetchOrderDetails } from "@/app/api/aggregator";
 import { getSmartWalletAddressFromPrivyUserId } from "@/app/lib/privy";
+import {
+  isGatewayOrderId,
+  parseEvmChainPrefixedOrderId,
+  resolveNetworkNameFromChainId,
+} from "@/app/lib/payment-order-id";
 import { BLOCKFEST_END_DATE } from "@/app/utils";
 
 // Campaign configuration
@@ -71,7 +76,22 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    const { transactionId } = body;
+    const { transactionId: rawTransactionId } = body;
+    const { orderId, chainId, canonicalTransactionId } =
+      parseEvmChainPrefixedOrderId(rawTransactionId);
+
+    if (!orderId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid transaction ID",
+          code: "INVALID_TRANSACTION_ID",
+          message: "transactionId must be a non-empty order id or {chainId}-{orderId}",
+          response_time_ms: Date.now() - start,
+        },
+        { status: 400 },
+      );
+    }
 
     // Step 3: Check cashback wallet configuration
     if (!cashbackConfig.walletAddress || !cashbackConfig.walletPrivateKey) {
@@ -92,14 +112,20 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     // Step 4: Fetch transaction details from aggregator
     let orderDetails;
     try {
-      // Extract chainId from transactionId if needed (format: chainId-orderId)
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      const parts = transactionId.split("-");
-      const chainId = parts.length > 1 ? parseInt(parts[0]) : 8453; // Default to Base (8453)
-      const orderId =
-        parts.length > 1 ? parts.slice(1).join("-") : transactionId;
 
-      const orderResponse = await fetchOrderDetails(chainId, orderId);
+      const orderResponse = await fetchOrderDetails(
+        orderId,
+        undefined,
+        isGatewayOrderId(orderId)
+          ? {
+              network:
+                (chainId != null
+                  ? resolveNetworkNameFromChainId(chainId)
+                  : null) ?? "Base",
+            }
+          : undefined,
+      );
       orderDetails = orderResponse.data;
     } catch (error) {
       console.error("Failed to fetch transaction:", error);
@@ -108,7 +134,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           success: false,
           error: "Transaction not found",
           code: "TRANSACTION_NOT_FOUND",
-          message: `No transaction found with ID: ${transactionId}. Please verify the transaction ID and try again.`,
+          message: `No transaction found with ID: ${rawTransactionId}. Please verify the transaction ID and try again.`,
           response_time_ms: Date.now() - start,
         },
         { status: 404 },
@@ -124,7 +150,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           code: "INVALID_NETWORK",
           message: `Cashback is only available for transactions on Base network. Your transaction is on ${orderDetails.network}.`,
           details: {
-            transactionId,
+            transactionId: canonicalTransactionId,
             transactionNetwork: orderDetails.network,
             supportedNetwork: "Base",
           },
@@ -143,7 +169,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           code: "TRANSACTION_NOT_COMPLETE",
           message: `Transaction must be validated, settling, or settled to claim cashback. Current status: ${orderDetails.status}`,
           details: {
-            transactionId,
+            transactionId: canonicalTransactionId,
             currentStatus: orderDetails.status,
             requiredStatus: "validated, settling, settled",
           },
@@ -163,7 +189,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           code: "CAMPAIGN_ENDED",
           message: `This transaction occurred after the BlockFest campaign ended (${BLOCKFEST_END_DATE.toISOString()}).`,
           details: {
-            transactionId,
+            transactionId: canonicalTransactionId,
             transactionDate: orderDetails.updatedAt,
             campaignEndDate: BLOCKFEST_END_DATE.toISOString(),
           },
@@ -198,7 +224,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const { data: existingClaim } = await supabaseAdmin
       .from("blockfest_cashback_claims")
       .select("*")
-      .eq("transaction_id", transactionId)
+      .eq("transaction_id", canonicalTransactionId)
       .single();
 
     if (existingClaim) {
@@ -319,7 +345,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const { data: pendingClaim, error: claimError } = await supabaseAdmin
       .from("blockfest_cashback_claims")
       .insert({
-        transaction_id: transactionId,
+        transaction_id: canonicalTransactionId,
         wallet_address: walletAddress,
         amount: finalAdjustedCashback,
         token_type: orderDetails.token,

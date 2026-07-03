@@ -1,0 +1,2 @@
+-- Optional local dev seed data. Runs after migrations on `supabase db reset`.
+-- Add INSERT statements here when you need fixtures; leave empty for schema-only resets.

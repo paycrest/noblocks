@@ -1,0 +1,1 @@
+export { DocumentRequirementsModal } from "./DocumentRequirementsModal";

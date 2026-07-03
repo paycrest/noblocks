@@ -9,6 +9,41 @@
   }
 }
 
+/* Prevent iOS Safari from auto-zooming when focusing form fields.
+   iOS zooms in on any input/select/textarea whose font-size is < 16px.
+   !important is required to override per-field Tailwind classes
+   (e.g. text-sm/text-xs) that would otherwise keep fields below 16px. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* The 16px floor above is only meant to stop iOS focus-zoom on small fields; it
+   must not shrink the large amount inputs (they should match desktop on mobile).
+   These are all ≥16px, so restoring them won't reintroduce the iOS zoom. */
+@media (max-width: 640px) {
+  #amount-sent,
+  #amount-received {
+    font-size: 1.5rem !important; /* text-2xl (swap form) */
+  }
+
+  #amount {
+    font-size: 1.875rem !important; /* text-3xl (transfer & fund forms) */
+  }
+}
+
+/* Smile ID document capture inside KYC modal — avoid 100vh clipping on mobile */
+smart-camera-web.noblocks-kyc-camera-host {
+  display: block;
+  width: 100%;
+  min-height: min(70dvh, 32rem);
+  max-height: fit-content;
+  overflow: visible;
+}
+
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -99,10 +134,30 @@ select {
 @keyframes footer-bg-float {
   0%,
   100% {
-    transform: translateY(4);
+    transform: translateY(0);
   }
   50% {
     transform: translateY(32px);
+  }
+}
+
+/* Spinning soccer-ball state of the animated mobile logo icon. The rotation is
+   applied to the live DOM element (not inside the SVG) so it runs in every
+   browser, including Safari/iOS. */
+@keyframes nb-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.nb-icon-spin {
+  transform-origin: center;
+  animation: nb-icon-spin 3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nb-icon-spin {
+    animation: none;
   }
 }
 

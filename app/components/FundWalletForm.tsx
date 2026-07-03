@@ -19,16 +19,14 @@ import {
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
-import { Token } from "../types";
+import { Token, type MobileSheetView } from "../types";
 import Image from "next/image";
-
-type MobileView = "wallet" | "settings" | "transfer" | "fund" | "history";
 
 export const FundWalletForm: React.FC<{
   onClose: () => void;
   onSuccess?: () => void;
   showBackButton?: boolean;
-  setCurrentView?: React.Dispatch<React.SetStateAction<MobileView>>;
+  setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
 }> = ({ onClose, onSuccess, showBackButton = false, setCurrentView }) => {
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { refreshBalance } = useBalance();

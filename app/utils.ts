@@ -215,6 +215,58 @@ export function isNoblocksFiatCurrencyCode(code: string): boolean {
   return NOBLOCKS_FIAT_CURRENCY_CODES.has(code.toUpperCase());
 }
 
+/** Fiat codes enabled for on-ramp (send fiat → receive crypto). */
+export const ONRAMP_FIAT_CURRENCY_CODES = new Set(["NGN", "KES"]);
+
+export function isOnrampFiatCurrencyCode(code: string): boolean {
+  return ONRAMP_FIAT_CURRENCY_CODES.has(code.toUpperCase());
+}
+
+/**
+ * Max send amount for on-ramp in local fiat units (product caps per corridor).
+ * Tune KES with product/compliance when backend limits are finalized.
+ * @throws If currencyCode is not a supported on-ramp fiat (fail closed; no silent NGN cap).
+ */
+export function getOnrampFiatMaxAmount(currencyCode: string): number {
+  const code = (currencyCode ?? "").trim().toUpperCase();
+  switch (code) {
+    case "KES":
+      return 3_000_000;
+    case "NGN":
+      return 2_300_000;
+    default:
+      throw new Error(`Unsupported on-ramp fiat currency: ${currencyCode}`);
+  }
+}
+
+/**
+ * Parses a transaction amount from the API body. Returns null if missing or invalid.
+ */
+export function parseValidTransactionAmount(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    return null;
+  }
+  return n;
+}
+
+/**
+ * Rounds an amount for Supabase/email so stored values match what users see (4dp).
+ * Form state can still carry extra precision from rate math until save.
+ */
+export function roundAmountForCurrency(amount: number): number {
+  if (typeof amount !== "number" || !Number.isFinite(amount)) {
+    return 0;
+  }
+  const decimals = 4;
+  return Number(
+    `${Math.round(Number(`${amount}e${decimals}`))}e-${decimals}`,
+  );
+}
+
 /**
  * List / details: fiat uses symbol prefix (e.g. ₦1,000.5); crypto uses "1.23 USDC".
  */
@@ -225,7 +277,27 @@ export function formatTransactionAmountDisplay(
   if (isNoblocksFiatCurrencyCode(currencyCode)) {
     return `${getCurrencySymbol(currencyCode)}${formatNumberWithCommas(amount)}`;
   }
-  return `${formatNumberWithCommas(amount)} ${currencyCode}`;
+  // Round crypto amounts to 3 decimal places for display
+  const rounded = Math.round(amount * 1000) / 1000;
+  return `${formatNumberWithCommas(rounded)} ${currencyCode}`;
+}
+
+/**
+ * Customer-facing token amount: never scientific notation, never dust.
+ * Intl.NumberFormat never emits exponents, so values like 9.9999e-7 render as a
+ * readable "<0.0001" threshold instead of "9.9999e-7" or a misleading rounded "0".
+ * Precision scales with magnitude; true zero renders "0".
+ */
+export function formatTokenAmount(value: number | string): string {
+  const num = typeof value === "string" ? parseFloat(value) : value;
+  if (!Number.isFinite(num)) return "0";
+  if (num === 0) return "0";
+
+  const abs = Math.abs(num);
+  if (abs < 0.0001) return num > 0 ? "<0.0001" : ">-0.0001";
+
+  const maximumFractionDigits = abs >= 1000 ? 2 : abs >= 1 ? 4 : 6;
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits }).format(num);
 }
 
 /** User-facing label for transaction history rows (`onramp` / `offramp`). */
@@ -235,6 +307,8 @@ export function getTransactionHistoryTypeLabel(
   switch (type) {
     case "transfer":
       return "Transferred";
+    case "bridge":
+      return "Converted";
     case "offramp":
     case "onramp":
       return "Swapped";

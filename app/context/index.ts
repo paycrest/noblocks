@@ -17,7 +17,6 @@ export {
   useBlockFestModal,
 } from "./BlockFestModalContext";
 export { KYCProvider, useKYC } from "./KYCContext";
-export { MigrationBannerWrapper } from "./MigrationContext";
 export {
   MigrationStatusProvider,
   useMigrationStatus,

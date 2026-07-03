@@ -10,7 +10,9 @@ export type MobileSheetView =
   | "earn-deposit"
   | "earn-withdraw"
   | "earn-activity-detail"
-  | "referrals";
+  | "referrals"
+  | "bridge"
+  | "profile";
 
 import type {
   FieldErrors,
@@ -47,7 +49,7 @@ export type FormData = {
   memo: string;
   amountSent: number;
   amountReceived: number;
-  /** Fiat → crypto = onramp (NGN→token); crypto → fiat = offramp */
+  /** Fiat → crypto = onramp (NGN/KES→token); crypto → fiat = offramp */
   swapMode: SwapMode;
   /** Legacy compatibility for extracted KYC branch components. */
   isSwapped?: boolean;
@@ -400,8 +402,6 @@ export type Config = {
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
-  bundlerServerUrl: string; // Optional, for external bundler server
-  biconomyMeeApiKey: string;
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
   referralMinQualifyingVolumeUsd: number;
@@ -418,6 +418,9 @@ export type Config = {
   tronEnabled: boolean;
   /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
   referralEnabled: boolean;
+  /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
+  bridgeEnabled: boolean;
+  onrampChainedForwardingEnabled: boolean;
 };
 
 export type Network = {
@@ -451,21 +454,25 @@ export type TransactionStatus =
   | "pending"
   | "processing"
   | "fulfilled"
+  | "fulfilling"
   | "refunding"
   | "refunded"
+  | "failed"
   | "expired";
 export type TransactionHistoryType =
   | "onramp"
   | "offramp"
   | "transfer"
   | "swap"
-  | "credit";
+  | "credit" | "bridge";
 
 export interface Recipient {
   account_name: string;
   institution: string;
   account_identifier: string;
   memo?: string;
+  /** Bridge only: destination network (the transactions.network column holds the source). */
+  to_network?: string;
 }
 
 export interface TransactionHistory {

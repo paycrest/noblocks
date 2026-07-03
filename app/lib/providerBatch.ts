@@ -8,9 +8,7 @@
 import {
   encodeFunctionData,
   keccak256,
-  toHex,
-  concatHex,
-  padHex,
+  encodePacked,
   type Hash,
   type Address,
 } from "viem";
@@ -58,14 +56,16 @@ export type BatchCall = {
  * User signs this digest with personal_sign; the wallet adds EIP-191 prefix; contract verifies with ECDSA.toEthSignedMessageHash(digest).
  */
 export function buildBatchDigest(nonce: bigint, calls: BatchCall[]): Hash {
-  const nonceHex = padHex(toHex(nonce), { size: 32 });
-  const callParts = calls.flatMap((c) => [
-    padHex(c.to as `0x${string}`, { size: 20 }),
-    padHex(toHex(c.value), { size: 32 }),
-    c.data,
-  ]);
-  const packed = concatHex([nonceHex, ...callParts]);
-  return keccak256(packed as `0x${string}`);
+  // Matches abi.encodePacked(nonce, calls[i].to, calls[i].value, calls[i].data, ...)
+  // encodePacked mirrors Solidity: address=20 bytes, uint256=32 bytes, bytes=raw content
+  const types: string[] = ["uint256"];
+  const values: unknown[] = [nonce];
+  for (const c of calls) {
+    types.push("address", "uint256", "bytes");
+    values.push(c.to, c.value, c.data);
+  }
+  const packed = encodePacked(types as any, values as any);
+  return keccak256(packed);
 }
 
 /**

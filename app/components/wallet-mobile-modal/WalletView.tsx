@@ -11,6 +11,10 @@ import {
   ArrowDown01Icon,
   RefreshIcon,
   Copy01Icon,
+  ArrowDownLeft01Icon,
+  ArrowUpRight01Icon,
+  CoinsSwapIcon,
+  Coins01Icon,
 } from "hugeicons-react";
 import { CrossChainBalanceSkeleton } from "../BalanceSkeleton";
 import {
@@ -22,7 +26,7 @@ import {
 import type { CrossChainBalanceEntry } from "../../context";
 import TransactionList from "../transaction/TransactionList";
 import type { Network, TransactionHistory } from "../../types";
-import { isReferralEnabled } from "../../utils";
+import { isReferralEnabled, formatTokenAmount } from "../../utils";
 import { ReferralCTA } from "../ReferralCTA";
 
 const Divider = () => (
@@ -39,6 +43,7 @@ interface WalletViewProps {
   getTokenImageUrl: (tokenName: string) => string | undefined;
   onTransfer: () => void;
   onFund: () => void;
+  onConvert?: () => void;
   smartWallet: { address?: string | null } | null | undefined;
   handleCopyAddress: () => void;
   isNetworkListOpen: boolean;
@@ -67,6 +72,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   getTokenImageUrl,
   onTransfer,
   onFund,
+  onConvert,
   smartWallet,
   handleCopyAddress,
   isNetworkListOpen,
@@ -101,9 +107,6 @@ export const WalletView: React.FC<WalletViewProps> = ({
     setIsAddressCopied(true);
     window.setTimeout(() => setIsAddressCopied(false), 2000);
   };
-
-  const actionButtonClass =
-    "min-h-11 w-full rounded-xl bg-accent-gray py-2 text-sm font-medium text-gray-900 transition-all hover:scale-[0.98] hover:bg-[#EBEBEF] active:scale-95 dark:bg-white/5 dark:text-white dark:hover:bg-white/10";
 
   const tabBar = (
     <div className="sticky top-0 z-10 space-y-3 bg-white pb-2 pt-3 dark:bg-surface-overlay">
@@ -263,7 +266,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                             />
                           </div>
                           <span className="font-medium dark:text-white/80">
-                            {isCNGN ? rawBalance : balance} {token}
+                            {formatTokenAmount(isCNGN ? rawBalance : balance)} {token}
                           </span>
                         </div>
                       </div>
@@ -352,26 +355,61 @@ export const WalletView: React.FC<WalletViewProps> = ({
             </p>
 
             {!isInjectedWallet && !showBalanceSkeleton && (
-              <div
-                className={classNames(
-                  "grid gap-3",
-                  showEarnUi ? "grid-cols-3" : "grid-cols-2",
+              <div className="flex flex-row items-start justify-between gap-2">
+                <button
+                  type="button"
+                  title="Fund wallet"
+                  onClick={onFund}
+                  className="group flex flex-1 flex-col items-center gap-2"
+                >
+                  <span className="flex size-[60px] items-center justify-center rounded-full bg-lavender-500 text-white transition-all group-hover:scale-[0.98] group-active:scale-95">
+                    <ArrowDownLeft01Icon className="size-6" strokeWidth={2} />
+                  </span>
+                  <span className="text-sm font-medium text-text-body dark:text-white">
+                    Fund
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  title="Transfer funds"
+                  onClick={onTransfer}
+                  className="group flex flex-1 flex-col items-center gap-2"
+                >
+                  <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                    <ArrowUpRight01Icon className="size-6" strokeWidth={2} />
+                  </span>
+                  <span className="text-sm font-medium text-text-body dark:text-white">
+                    Transfer
+                  </span>
+                </button>
+                {!!onConvert && (
+                  <button
+                    type="button"
+                    title="Convert tokens"
+                    onClick={onConvert}
+                    className="group flex flex-1 flex-col items-center gap-2"
+                  >
+                    <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                      <CoinsSwapIcon className="size-6" strokeWidth={2} />
+                    </span>
+                    <span className="text-sm font-medium text-text-body dark:text-white">
+                      Convert
+                    </span>
+                  </button>
                 )}
-              >
-                <button type="button" onClick={onTransfer} className={actionButtonClass}>
-                  Transfer
-                </button>
-                <button type="button" onClick={onFund} className={actionButtonClass}>
-                  Fund
-                </button>
                 {showEarnUi && (
                   <button
                     type="button"
                     title="Earn yield on USDC via Vesu"
                     onClick={onEarn}
-                    className={actionButtonClass}
+                    className="group flex flex-1 flex-col items-center gap-2"
                   >
-                    Earn
+                    <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                      <Coins01Icon className="size-6" strokeWidth={2} />
+                    </span>
+                    <span className="text-sm font-medium text-text-body dark:text-white">
+                      Earn
+                    </span>
                   </button>
                 )}
               </div>

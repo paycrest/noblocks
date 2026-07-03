@@ -517,7 +517,7 @@ export const RecipientDetailsForm = ({
               !isDestinationOwnWallet && (
                 <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2.5 text-xs font-normal leading-4 text-text-disabled dark:bg-white/5 dark:text-white/30">
                   <InformationCircleIcon className="size-4 flex-shrink-0" />
-                  <span>Funds will be routed through your noblocks wallet.</span>
+                  <span>Funds will be routed through your Noblocks wallet.</span>
                 </div>
               )}
             {networkName && (

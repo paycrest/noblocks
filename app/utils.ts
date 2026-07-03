@@ -215,6 +215,29 @@ export function isNoblocksFiatCurrencyCode(code: string): boolean {
   return NOBLOCKS_FIAT_CURRENCY_CODES.has(code.toUpperCase());
 }
 
+/** Fiat codes enabled for on-ramp (send fiat → receive crypto). */
+export const ONRAMP_FIAT_CURRENCY_CODES = new Set(["NGN", "KES"]);
+
+export function isOnrampFiatCurrencyCode(code: string): boolean {
+  return ONRAMP_FIAT_CURRENCY_CODES.has(code.toUpperCase());
+}
+
+/**
+ * Max send amount for on-ramp in local fiat units (product caps per corridor).
+ * Tune KES with product/compliance when backend limits are finalized.
+ * @throws If currencyCode is not a supported on-ramp fiat (fail closed; no silent NGN cap).
+ */
+export function getOnrampFiatMaxAmount(currencyCode: string): number {
+  const code = (currencyCode ?? "").trim().toUpperCase();
+  switch (code) {
+    case "KES":
+      return 3_000_000;
+    case "NGN":
+      return 2_300_000;
+    default:
+      throw new Error(`Unsupported on-ramp fiat currency: ${currencyCode}`);
+  }
+}
 
 /**
  * Parses a transaction amount from the API body. Returns null if missing or invalid.

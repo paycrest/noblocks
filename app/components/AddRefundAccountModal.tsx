@@ -124,6 +124,11 @@ export function AddRefundAccountModal({
           accountIdentifier: digits || accountNumber,
         });
         setAccountName(name);
+        if (kycFullName && !accountNameMatchesKyc(kycFullName, name)) {
+          setFormError(REFUND_NAME_MISMATCH_MESSAGE);
+        } else {
+          setFormError(null);
+        }
         setAccountNameError(null);
       } catch {
         setAccountNameError("Account not found. Check the number and bank.");
@@ -270,21 +275,15 @@ export function AddRefundAccountModal({
                   inputMode="numeric"
                   autoComplete="off"
                   value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value)}
-                  placeholder={getOfframpAccountIdentifierPlaceholder(
-                    currency,
-                    selectedInstitution?.type,
-                  )}
-                  className={classNames(
-                    "w-full rounded-xl border bg-white px-3.5 py-3 text-sm text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:ring-2 dark:bg-[#202020] dark:text-white dark:placeholder:text-white/35",
-                    accountNumberError
-                      ? "border-red-400 focus:border-red-400 focus:ring-red-400/25 dark:border-red-500 dark:focus:border-red-500 dark:focus:ring-red-500/20"
-                      : "border-neutral-200 focus:border-blue-500 focus:ring-blue-500/25 dark:border-white/[0.12] dark:focus:border-blue-500 dark:focus:ring-blue-500/35",
-                  )}
+                  onChange={(e) => {
+                    setAccountNumber(e.target.value);
+                    setFormError(null);
+                  }}
+                  placeholder={getOfframpAccountIdentifierPlaceholder(currency, selectedInstitution?.type)}
                 />
-                {accountNumberError && (
+                {accountNumberError ? (
                   <InputError message={accountNumberError} />
-                )}
+                ) : null}
               </div>
 
               {/* 3. Account name — auto-fetched */}
@@ -351,7 +350,7 @@ export function AddRefundAccountModal({
             <button
               type="button"
               onClick={() => void handleAddAccount()}
-              disabled={isSaving || !allFieldsFilled || !hasChanges}
+              disabled={isSaving || !allFieldsFilled || !hasChanges || !!formError}
               className={classNames(primaryBtnClasses, "flex-1")}
             >
               {isSaving ? "Saving…" : initial ? "Save changes" : "Add account"}

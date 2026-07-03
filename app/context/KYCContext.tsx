@@ -8,7 +8,7 @@ import React, {
   useRef,
 } from "react";
 import { useWallets, usePrivy } from "@privy-io/react-auth";
-import { getKycMonthlyLimitsRecord } from "@/app/lib/kyc-tier-limits";
+import { getKycTierLimit } from "@/app/lib/kyc-tier-limits";
 
 export interface TransactionLimits {
   monthly: number;
@@ -24,32 +24,30 @@ export interface KYCTier {
   requirements: string[];
 }
 
-const kycMonthlyLimits = getKycMonthlyLimitsRecord();
-
 /** Product tiers: 0 = unverified (no swaps until phone), 1 = phone, 2 = ID, 3 = address. */
 export const KYC_TIERS: Record<number, KYCTier> = {
   0: {
     level: 0,
     name: "Unverified",
-    limits: { monthly: kycMonthlyLimits[0] },
+    limits: { ...getKycTierLimit(0) },
     requirements: [],
   },
   1: {
     level: 1,
     name: "Phone",
-    limits: { monthly: kycMonthlyLimits[1] },
+    limits: { ...getKycTierLimit(1) },
     requirements: ["Phone number"],
   },
   2: {
     level: 2,
     name: "ID",
-    limits: { monthly: kycMonthlyLimits[2] },
+    limits: { ...getKycTierLimit(2) },
     requirements: ["Government ID", "Selfie verification"],
   },
   3: {
     level: 3,
     name: "Address",
-    limits: { monthly: kycMonthlyLimits[3] },
+    limits: { ...getKycTierLimit(3) },
     requirements: ["Address verification"],
   },
 };
@@ -65,6 +63,7 @@ export interface KYCStatusSnapshot {
   tier: KYCTierLevel;
   isPhoneVerified: boolean;
   phoneNumber: string | null;
+  fullName: string | null;
   transactionSummary: UserTransactionSummary;
 }
 
@@ -72,6 +71,7 @@ interface KYCContextType {
   tier: KYCTierLevel;
   isPhoneVerified: boolean;
   phoneNumber: string | null;
+  fullName: string | null;
   walletAddress: string | undefined;
   transactionSummary: UserTransactionSummary;
   canTransact: (amount: number) => { allowed: boolean; reason?: string };
@@ -94,6 +94,7 @@ function createEmptySnapshot(): KYCStatusSnapshot {
     tier: 0,
     isPhoneVerified: false,
     phoneNumber: null,
+    fullName: null,
     transactionSummary: { ...EMPTY_TX_SUMMARY },
   };
 }
@@ -121,6 +122,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   const [tier, setTier] = useState<KYCTierLevel>(0);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
   const [transactionSummary, setTransactionSummary] =
     useState<UserTransactionSummary>({ ...EMPTY_TX_SUMMARY });
 
@@ -133,6 +135,10 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         partial.phoneNumber !== undefined
           ? partial.phoneNumber
           : latestSnapshotRef.current.phoneNumber,
+      fullName:
+        partial.fullName !== undefined
+          ? partial.fullName
+          : latestSnapshotRef.current.fullName,
       transactionSummary:
         partial.transactionSummary ?? latestSnapshotRef.current.transactionSummary,
     };
@@ -140,6 +146,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     setTier(next.tier);
     setIsPhoneVerified(next.isPhoneVerified);
     setPhoneNumber(next.phoneNumber);
+    setFullName(next.fullName);
     setTransactionSummary(next.transactionSummary);
     return next;
   }, []);
@@ -273,6 +280,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
           tier: safeTier,
           isPhoneVerified: Boolean(data.isPhoneVerified),
           phoneNumber: data.phoneNumber ?? null,
+          fullName: data.fullName ?? null,
         });
         return true;
       } catch {
@@ -337,6 +345,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       setTier(empty.tier);
       setIsPhoneVerified(empty.isPhoneVerified);
       setPhoneNumber(empty.phoneNumber);
+      setFullName(empty.fullName);
       setTransactionSummary({ ...EMPTY_TX_SUMMARY });
       fetchGuardsRef.current = {};
       lastFetchTimeRef.current = 0;
@@ -350,6 +359,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         tier,
         isPhoneVerified,
         phoneNumber,
+        fullName,
         walletAddress,
         transactionSummary,
         canTransact,

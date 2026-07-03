@@ -7,6 +7,11 @@ import {
   trackApiError,
 } from "@/app/lib/server-analytics";
 import config from "@/app/lib/config";
+import { getKycFullName } from "@/app/lib/kyc-profile-server";
+import {
+  accountNameMatchesKyc,
+  REFUND_NAME_MISMATCH_MESSAGE,
+} from "@/app/lib/name-matching";
 
 export const POST = withRateLimit(async (request: NextRequest) => {
   const startTime = Date.now();
@@ -46,7 +51,15 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const body = await request.json();
 
     // On-ramp (fiat source) only: off-ramp orders are created on-chain via gateway.createOrder, not via this proxy.
-    const sourceType = (body as { source?: { type?: string } })?.source?.type;
+    const source = (
+      body as {
+        source?: {
+          type?: string;
+          refundAccount?: { accountName?: unknown };
+        };
+      }
+    )?.source;
+    const sourceType = source?.type;
     if (sourceType !== "fiat") {
       trackApiError(
         request,
@@ -62,6 +75,84 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             "Only on-ramp (fiat source) orders are supported. Off-ramp uses on-chain gateway.createOrder.",
         },
         { status: 400 },
+      );
+    }
+
+    // Refund-account name policy (authoritative gate at money time). The refund account must belong
+    // to the same person as the verified KYC profile. A modified client must not be able to bypass
+    // this by omitting the account name, so an onramp refund account without a RESOLVED name is
+    // rejected outright rather than proxied unvalidated.
+    const refundAccount = source?.refundAccount;
+    const refundAccountName =
+      typeof refundAccount?.accountName === "string"
+        ? refundAccount.accountName.trim()
+        : "";
+    if (!refundAccount || !refundAccountName) {
+      trackApiError(
+        request,
+        "/api/v1/payment-orders",
+        "POST",
+        new Error("Onramp order is missing a resolved refund account name"),
+        422,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "A verified refund account is required. Please add one and try again.",
+        },
+        { status: 422 },
+      );
+    }
+    // KYC is required to onramp, so the name is present; if a lookup fails, fail closed rather than
+    // proxy an unvalidated refund destination.
+    const kyc = await getKycFullName(walletAddress);
+    if (!kyc.ok) {
+      trackApiError(
+        request,
+        "/api/v1/payment-orders",
+        "POST",
+        new Error("KYC name lookup failed"),
+        503,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Could not verify your identity right now. Please try again.",
+        },
+        { status: 503 },
+      );
+    }
+    // Fail closed: reject order if KYC name is missing (null/empty). Without a verified name on file,
+    // we cannot validate the refund account belongs to the user.
+    if (!kyc.fullName) {
+      trackApiError(
+        request,
+        "/api/v1/payment-orders",
+        "POST",
+        new Error("KYC profile is missing verified full name"),
+        422,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Your identity verification is incomplete. Please complete KYC with your full name.",
+        },
+        { status: 422 },
+      );
+    }
+    // Validate the refund account name matches the verified KYC name.
+    if (!accountNameMatchesKyc(kyc.fullName, refundAccountName)) {
+      trackApiError(
+        request,
+        "/api/v1/payment-orders",
+        "POST",
+        new Error("Refund account name does not match KYC profile"),
+        422,
+      );
+      return NextResponse.json(
+        { success: false, error: REFUND_NAME_MISMATCH_MESSAGE },
+        { status: 422 },
       );
     }
 

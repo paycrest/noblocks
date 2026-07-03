@@ -671,7 +671,7 @@ export const KycModal = ({
   );
 
   const renderCapture = () => (
-    <motion.div key="capture" {...fadeInOut} className="flex flex-col py-4" style={{ maxHeight: "min(90dvh, 48rem)" }}>
+    <motion.div key="capture" {...fadeInOut} className="flex flex-col py-4 max-h-[min(85vh,48rem)] supports-[height:100dvh]:max-h-[min(90dvh,48rem)]">
       <div className="space-y-3">
         <div className="flex items-center justify-between">
         <UserDetailsIcon />
@@ -788,8 +788,6 @@ export const KycModal = ({
           await refreshStatus(true);
           setIsUserVerified(true);
           setIsKycModalOpen(false);
-          // SmileID camera displaces the document scroll position — restore after dialog unmounts
-          requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "instant" }));
         }}
       >
         Let&apos;s go!
@@ -932,7 +930,9 @@ export const KycModal = ({
                 Monthly limit{" "}
               </p>
               <span className="text-xl font-normal text-neutral-900 dark:text-white">
-                ${formatNumberWithCommas(tier3Limits.limits.monthly)}
+                {tier3Limits.limits.unlimited
+                  ? "Unlimited"
+                  : `$${formatNumberWithCommas(tier3Limits.limits.monthly)}`}
               </span>
             </div>
           </div>
@@ -1414,6 +1414,10 @@ export const KycModal = ({
       // user is already in — a useEffect was calling fetchStatus on every `step`
       // change and forcing TERMS, which bounced users out of ID_INFO / capture.
       if (tier >= 2) {
+        // This fetch is local to the modal — push the upgrade into KYCContext too,
+        // so profile/limit UIs don't keep showing the old tier (and its 30s cache
+        // window) while the success screen is visible.
+        void refreshStatus(true);
         setStep(STEPS.STATUS.SUCCESS);
         trackEvent("Account verification", {
           "Verification status": "Success",

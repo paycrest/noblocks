@@ -23,10 +23,14 @@ import {
 import { ArrowDown01Icon } from "hugeicons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MobileDropdown } from "./MobileDropdown";
+import { NoblocksWorldCupLogo } from "./NoblocksWorldCupLogo";
+import { NoblocksAnimatedIcon } from "./NoblocksAnimatedIcon";
 import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
 import { useActualTheme } from "../hooks/useActualTheme";
+import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
+import { clearNetworkModalSeen } from "../lib/networkModalStore";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useWalletAddress } from "../hooks/useWalletAddress";
@@ -78,7 +82,7 @@ export const Navbar = () => {
         localStorage.setItem("userId", user.wallet.address);
 
         if (isNewUser) {
-          localStorage.removeItem(`hasSeenNetworkModal-${user.wallet.address.toLowerCase()}`);
+          clearNetworkModalSeen(user.wallet.address);
 
           trackEvent("Sign up completed", {
             "Login method": loginMethod,
@@ -93,6 +97,10 @@ export const Navbar = () => {
       }
     },
   });
+
+  // Pin body scroll while the Privy dialog is up — its end-of-body iframe
+  // steals focus on mobile and drags the page to the bottom otherwise.
+  const loginWithScrollPin = useLoginWithScrollPin(login);
 
   useEffect(() => {
     setMounted(true);
@@ -164,13 +172,15 @@ export const Navbar = () => {
               >
                 {IS_MAIN_PRODUCTION_DOMAIN ? (
                   <>
-                    <NoblocksLogo className="max-sm:hidden" />
-                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                    {/* <NoblocksLogo className="max-sm:hidden" /> */}
+                    <NoblocksWorldCupLogo className="max-sm:hidden" />
+                    <NoblocksAnimatedIcon className="size-[18px] sm:hidden" />
                   </>
                 ) : (
                   <>
-                    <NoblocksBetaLogo className="max-sm:hidden" />
-                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+                    {/* <NoblocksBetaLogo className="max-sm:hidden" /> */}
+                    <NoblocksWorldCupLogo className="max-sm:hidden" />
+                    <NoblocksAnimatedIcon className="size-[18px] sm:hidden" />
                   </>
                 )}
               </button>
@@ -179,7 +189,7 @@ export const Navbar = () => {
                 className={classNames(
                   "size-5 cursor-pointer text-icon-outline-secondary transition-transform duration-200 dark:text-white/50 max-sm:hidden",
                   isDropdownOpen ? "rotate-0" : "-rotate-90",
-                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[15px]", // this adjusts the arrow position for beta logo
+                  IS_MAIN_PRODUCTION_DOMAIN ? "" : "!-mt-[0px]", // this adjusts the arrow position for beta logo
                 )}
                 onClick={(e) => {
                   e.preventDefault();
@@ -321,7 +331,7 @@ export const Navbar = () => {
               <button
                 type="button"
                 className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}
-                onClick={() => login()}
+                onClick={() => loginWithScrollPin()}
               >
                 Sign in
               </button>

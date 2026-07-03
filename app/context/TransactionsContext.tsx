@@ -1,3 +1,5 @@
+"use client";
+
 import React, {
   createContext,
   useContext,
@@ -13,6 +15,7 @@ import {
   fetchOrderDetails,
   fetchV2SenderPaymentOrderById,
   updateTransactionDetails,
+  updateBridgeTransactionStatus,
   mapAggregatorStatusToDbStatus,
   resolveOnrampOrderStatusFromV2Response,
   unwrapV2SenderOrderEnvelope,
@@ -36,6 +39,7 @@ interface TransactionsContextType {
     limit: number,
     forceRefresh?: boolean,
   ) => Promise<void>;
+  refreshTransactions: () => Promise<void>;
   clearTransactions: () => void;
   setPage: (page: number) => void;
 }
@@ -64,6 +68,7 @@ export function TransactionsProvider({
   const reindexedTxHashesRef = useRef<Set<string>>(new Set());
   const transactionsRef = useRef<TransactionHistory[]>([]);
   const pollingInFlightRef = useRef(false);
+  const fetchingRef = useRef(false);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -77,9 +82,14 @@ export function TransactionsProvider({
       walletAddress: string,
       accessToken: string,
     ) => {
+      // Only onramp/offramp transactions are backed by an aggregator order that can be looked up.
+      // transfer/swap/credit carry a tx hash (or no order) in `order_id`, so reconciling them hits
+      // the gateway-order endpoint and 400s/404s — skip them.
       const nonFinalTxs = txs.filter(
         (tx) =>
           tx.order_id &&
+          (tx.transaction_type === "onramp" ||
+            tx.transaction_type === "offramp") &&
           tx.status !== "completed" &&
           tx.status !== "refunded" &&
           tx.status !== "expired",
@@ -209,16 +219,83 @@ export function TransactionsProvider({
               });
             }
           } catch (err) {
-            if (axios.isAxiosError(err) && err.response?.status === 404) {
+            // A failed order lookup must not be fatal: leave the tx status unchanged and try
+            // again on the next poll. `fetchOrderDetails` rethrows 4xx as a plain Error (not an
+            // AxiosError), so also treat "not found" / "invalid order id" messages as skippable.
+            const message = err instanceof Error ? err.message : "";
+            const isSkippableLookupFailure =
+              (axios.isAxiosError(err) && err.response?.status === 404) ||
+              /not found|invalid order id/i.test(message);
+            if (isSkippableLookupFailure) {
               return;
             }
             console.error("Error reconciling transaction status:", err);
           }
         }),
       );
+
+      // Reconcile pending bridge transactions via NEAR Intents / LI.FI status APIs.
+      // Bridge order_id is the deposit address (NEAR) or txHash (LI.FI).
+      const pendingBridgeTxs = txs.filter(
+        (tx) =>
+          tx.transaction_type === "bridge" &&
+          tx.order_id &&
+          tx.status !== "completed" &&
+          tx.status !== "refunded" &&
+          tx.status !== "failed" &&
+          tx.status !== "expired",
+      );
+
+      await Promise.all(
+        pendingBridgeTxs.map(async (tx) => {
+          try {
+            const isNear = tx.recipient?.institution === "NEAR Intents";
+            const url = isNear
+              ? `/api/bridge/near-intents/status?depositAddress=${encodeURIComponent(tx.order_id!)}`
+              : `/api/bridge/lifi/status?txHash=${encodeURIComponent(tx.order_id!)}`;
+
+            const res = await fetch(url, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+
+            const bridgeStatus: string = data.status ?? "";
+            let nextStatus: "completed" | "refunded" | "failed" | null = null;
+            if (bridgeStatus === "SUCCESS") nextStatus = "completed";
+            else if (bridgeStatus === "REFUNDED") nextStatus = "refunded";
+            else if (bridgeStatus === "FAILED") nextStatus = "failed";
+
+            if (!nextStatus || nextStatus === tx.status) return;
+
+            await updateBridgeTransactionStatus(tx.id, nextStatus, accessToken, walletAddress);
+
+            const updated = { ...tx, status: nextStatus };
+            setTransactions((prev) =>
+              prev.map((t) => (t.id === tx.id ? updated : t)),
+            );
+            setCache((prevCache) => {
+              const updatedCache = { ...prevCache };
+              Object.keys(updatedCache).forEach((key) => {
+                const cached = updatedCache[key];
+                updatedCache[key] = {
+                  ...cached,
+                  data: cached.data.map((t) => (t.id === tx.id ? updated : t)),
+                };
+              });
+              return updatedCache;
+            });
+          } catch {
+            // non-fatal — retry on next poll
+          }
+        }),
+      );
     },
     [],
   );
+
+  const cacheRef = useRef(cache);
+  cacheRef.current = cache;
 
   const fetchTransactionData = useCallback(
     async (
@@ -229,7 +306,7 @@ export function TransactionsProvider({
       forceRefresh?: boolean,
     ) => {
       const cacheKey = `${walletAddress}-${page}-${limit}`;
-      const cachedData = cache[cacheKey];
+      const cachedData = cacheRef.current[cacheKey];
       const now = Date.now();
       const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
@@ -252,6 +329,7 @@ export function TransactionsProvider({
       }
 
       setIsLoading(true);
+      fetchingRef.current = true;
       setError(null);
 
       try {
@@ -293,10 +371,51 @@ export function TransactionsProvider({
         setError(error as Error);
       } finally {
         setIsLoading(false);
+        fetchingRef.current = false;
       }
     },
-    [cache, reconcileTransactionStatuses],
+    [reconcileTransactionStatuses],
   );
+
+  const refreshTransactions = useCallback(async () => {
+    const embeddedWallet = user?.linkedAccounts.find(
+      (account) =>
+        account.type === "wallet" && account.connectorType === "embedded",
+    ) as { address: string } | undefined;
+
+    const walletAddress = embeddedWallet?.address;
+    if (!walletAddress) return;
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) return;
+
+    // Clear cache for this page so concurrent fetches also hit the network.
+    // Must match the page size TransactionList fetches/paginates with (limit = 30),
+    // otherwise refresh writes/reads a different cache key than the list path.
+    const PAGE_LIMIT = 30;
+    const cacheKey = `${walletAddress}-${currentPage}-${PAGE_LIMIT}`;
+    if (cacheKey in cacheRef.current) {
+      const next = { ...cacheRef.current };
+      delete next[cacheKey];
+      cacheRef.current = next;
+    }
+    setCache((prev) => {
+      if (cacheKey in prev) {
+        const next = { ...prev };
+        delete next[cacheKey];
+        return next;
+      }
+      return prev;
+    });
+
+    await fetchTransactionData(
+      walletAddress,
+      accessToken,
+      currentPage,
+      PAGE_LIMIT,
+      true,
+    );
+  }, [user, getAccessToken, currentPage, fetchTransactionData]);
 
   const clearTransactions = useCallback(() => {
     setTransactions([]);
@@ -388,6 +507,7 @@ export function TransactionsProvider({
         error,
         currentPage,
         fetchTransactions: fetchTransactionData,
+        refreshTransactions,
         clearTransactions,
         setPage: setCurrentPage,
       }}

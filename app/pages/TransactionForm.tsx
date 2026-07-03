@@ -35,13 +35,18 @@ import {
   formatDecimalPrecision,
   currencyToCountryCode,
   reorderCurrenciesByLocation,
+  isStarknetChain,
+  getCurrencySymbol,
+  getOnrampFiatMaxAmount,
+  isOnrampFiatCurrencyCode,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { useWalletAddress } from "../hooks/useWalletAddress";
+import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
-import { useShouldUseEOA, useWalletMigrationStatus } from "../hooks/useEIP7702Account";
+import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import {
   useBalance,
   useInjectedWallet,
@@ -50,7 +55,6 @@ import {
   useKYC,
 } from "../context";
 import { validateWalletAddress } from "../lib/validation";
-import WalletMigrationModal from "../components/WalletMigrationModal";
 
 /**
  * Monthly KYC limits are in USD. Offramp `amountSent` is token (stable ≈ USD).
@@ -99,11 +103,13 @@ export const TransactionForm = ({
   // Destructure stateProps
   const { rate, isFetchingRate, setOrderId } = stateProps;
   const { authenticated, ready, login, user } = usePrivy();
+  // Pin body scroll while the Privy dialog is up — its end-of-body iframe
+  // steals focus on mobile and drags the page to the bottom otherwise.
+  const loginWithScrollPin = useLoginWithScrollPin(login);
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
-  const { needsMigration, isRemainingFundsMigration } = useWalletMigrationStatus();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { allTokens } = useTokens();
   // Network-aware "My wallet" / recipient address: Starknet wallet on Starknet,
@@ -305,7 +311,7 @@ export const TransactionForm = ({
     ).toFixed(2);
     const fiatAmount = +parseFloat(
       searchParams.get("fiatAmount") || "0",
-    ).toFixed(2);
+    ).toFixed(4);
 
     const supportedTokens = tokens.map((tokenElement) => tokenElement.name);
     if (token && supportedTokens.includes(token)) {
@@ -405,7 +411,7 @@ export const TransactionForm = ({
             // Swapped: Receive = Token, so calculate Send (Currency)
             // Send = Receive * Rate (20.4 USDC * 1400 = 28,560 NGN)
             const calculatedAmount = Number(
-              (Number(amountReceived) * rate).toFixed(2),
+              (Number(amountReceived) * rate).toFixed(4),
             );
             setValue("amountSent", calculatedAmount, { shouldDirty: true });
           } else {
@@ -428,7 +434,7 @@ export const TransactionForm = ({
           } else {
             // Not swapped: Send = Token, so calculate Receive (Currency)
             // Receive = Send * Rate (1 USDC * 1400 = 1400 NGN)
-            const calculatedAmount = Number((rate * amountSent).toFixed(2));
+            const calculatedAmount = Number((rate * amountSent).toFixed(4));
             setValue("amountReceived", calculatedAmount, { shouldDirty: true });
           }
         }
@@ -484,9 +490,8 @@ export const TransactionForm = ({
 
         const normalizedToken = token?.toUpperCase();
 
-        if (isSwapped) {
-          // On-ramp: send NGN; min in validate.onrampFiatMin, max 2.3M NGN product cap.
-          maxAmountSentValue = 2_300_000;
+        if (swapMode === "onramp") {
+          maxAmountSentValue = getOnrampFiatMaxAmount(currency || "NGN");
           setRateError(null);
         } else if (normalizedToken === "CNGN") {
           if (cngnRate && cngnRate > 0) {
@@ -533,7 +538,8 @@ export const TransactionForm = ({
               const n = Number(value);
               const floor = 0.5 * rate;
               if (n >= floor) return true;
-              return `Minimum amount is ${formatNumberWithCommas(floor)} NGN`;
+              const fiat = (currency || "NGN").toUpperCase();
+              return `Minimum amount is ${getCurrencySymbol(fiat)}${formatNumberWithCommas(floor)}`;
             },
           },
         });
@@ -546,12 +552,11 @@ export const TransactionForm = ({
           required: { value: false, message: "Add description" },
         });
 
-        if (isSwapped) {
-          // On-ramp is NGN-only for now (send side).
+        if (swapMode === "onramp") {
           currencies.forEach((c: CurrencyOption) => {
-            c.disabled = c.name !== "NGN";
+            c.disabled = !isOnrampFiatCurrencyCode(c.name);
           });
-          if (currency !== "NGN") {
+          if (!isOnrampFiatCurrencyCode(currency)) {
             formMethods.setValue("currency", "NGN", { shouldDirty: true });
           }
         } else if (normalizedToken === "CNGN") {
@@ -594,6 +599,7 @@ export const TransactionForm = ({
       cngnRate,
       cngnRateError,
       isSwapped,
+      swapMode,
       rate,
     ],
   );
@@ -616,7 +622,7 @@ export const TransactionForm = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currencies]);
 
-  const { isEnabled, buttonText, buttonAction, isMigrationMandatory } = useSwapButton({
+  const { isEnabled, buttonText, buttonAction } = useSwapButton({
   watch,
   balance,
   isDirty,
@@ -627,22 +633,15 @@ export const TransactionForm = ({
   kycTier: tier,
   rate,
   tokenDecimals,
-  needsMigration,
-  isRemainingFundsMigration,
   isSwapped,
 });
 
-  const [isMigrationModalOpen, setIsMigrationModalOpen] = useState(false);
   const [isPhoneVerificationOpen, setIsPhoneVerificationOpen] = useState(false);
   const [isTier2PhoneGateOpen, setIsTier2PhoneGateOpen] = useState(false);
   /** After phone OTP, KYC context may not have updated before the next handleSwap; allow one continuation. */
   const pendingContinueSwapAfterPhoneRef = useRef(false);
 
   const handleSwap = () => {
-    if (isMigrationMandatory) {
-      setIsMigrationModalOpen(true);
-      return;
-    }
 
     const kyc = getKycStatusSnapshot();
 
@@ -720,6 +719,7 @@ export const TransactionForm = ({
     // Only enable on-ramp from pre-filled wallet; do not force off-ramp (avoids clobbering toggle before this runs)
     if (hasWallet) {
       setValue("isSwapped", true, { shouldDirty: false });
+      setValue("swapMode", "onramp", { shouldDirty: false });
       const t = getValues("token");
       if (typeof t === "string" && t.trim().length > 0) {
         setValue("receiveDestinationExplicitlySelected", true, {
@@ -735,7 +735,7 @@ export const TransactionForm = ({
   const handleSwapFields = () => {
     const currentAmountSent = amountSent;
     const currentAmountReceived = amountReceived;
-    const willBeSwapped = !isSwapped;
+    const nextSwapMode = swapMode === "onramp" ? "offramp" : "onramp";
 
     const hasToken = typeof token === "string" && token.trim().length > 0;
     const hasCurrency = typeof currency === "string" && currency.trim().length > 0;
@@ -753,10 +753,8 @@ export const TransactionForm = ({
     });
 
     // Toggle swap mode FIRST (persisted on form so parent rate fetch uses correct side)
-    setValue("isSwapped", willBeSwapped, { shouldDirty: true });
-    setValue("swapMode", willBeSwapped ? "onramp" : "offramp", {
-      shouldDirty: true,
-    });
+    setValue("swapMode", nextSwapMode, { shouldDirty: true });
+    setValue("isSwapped", nextSwapMode === "onramp", { shouldDirty: true });
 
     if (isCompleteFlow) {
       // Swap send/receive numbers and formatting; keep token & currency (and wallet) across the flip
@@ -765,9 +763,8 @@ export const TransactionForm = ({
       setFormattedSentAmount(formattedReceivedAmount);
       setFormattedReceivedAmount(formattedSentAmount);
 
-      if (willBeSwapped) {
-        // On-ramp send fiat is NGN-only — normalize if coming from another receive fiat
-        if (currency !== "NGN") {
+      if (nextSwapMode === "onramp") {
+        if (!isOnrampFiatCurrencyCode(currency)) {
           setValue("currency", "NGN", { shouldDirty: true });
         }
       }
@@ -778,8 +775,7 @@ export const TransactionForm = ({
       setFormattedSentAmount("");
       setFormattedReceivedAmount("");
 
-      if (willBeSwapped) {
-        // On-ramp: fiat send is NGN-only for now. Receive token chosen on the Receive row.
+      if (nextSwapMode === "onramp") {
         setValue("currency", "NGN", { shouldDirty: true });
         setValue("token", "", { shouldDirty: true });
         if (!walletAddress) {
@@ -949,14 +945,14 @@ export const TransactionForm = ({
                   }
                 }}
                 className={[
-                  "px-3 h-8 text-sm font-medium rounded-full transition-colors",
+                  "px-4 h-8 text-sm font-medium rounded-full transition-colors",
                   "bg-neutral-100 dark:bg-[#141414]",
                   isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
                     : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
                 ].join(" ")}
               >
-                On-ramp
+                Buy
               </button>
 
               {/* Off-ramp button */}
@@ -968,14 +964,14 @@ export const TransactionForm = ({
                   }
                 }}
                 className={[
-                  "px-3 h-8 text-sm font-medium rounded-full transition-colors",
+                  "px-4 h-8 text-sm font-medium rounded-full transition-colors",
                   "bg-neutral-100 dark:bg-[#141414]",
                   !isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
                     : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
                 ].join(" ")}
               >
-                Off-ramp
+                Sell
               </button>
             </div>
           </div>
@@ -1253,20 +1249,20 @@ export const TransactionForm = ({
             )}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {isKycModalOpen && tier >= 1 && (
-            <AnimatedModal
-              isOpen={isKycModalOpen}
-              onClose={() => setIsKycModalOpen(false)}
-            >
-              <KycModal
-                setIsKycModalOpen={setIsKycModalOpen}
-                setIsUserVerified={setIsUserVerified}
-                targetTier={getKycModalTargetTier(tier)}
-              />
-            </AnimatedModal>
-          )}
-        </AnimatePresence>
+        {/* No outer AnimatePresence/conditional: AnimatedModal manages its own
+            presence, and an outer conditional removes it before the exit
+            animation (and the scroll-lock release in onExitComplete) can run. */}
+        <AnimatedModal
+          isOpen={isKycModalOpen && tier >= 1}
+          onClose={() => setIsKycModalOpen(false)}
+          lockBodyScroll
+        >
+          <KycModal
+            setIsKycModalOpen={setIsKycModalOpen}
+            setIsUserVerified={setIsUserVerified}
+            targetTier={getKycModalTargetTier(tier)}
+          />
+        </AnimatedModal>
 
         <TransactionLimitModal
           isOpen={isLimitModalOpen}
@@ -1308,7 +1304,7 @@ export const TransactionForm = ({
               disabled={!isEnabled}
               onClick={buttonAction(
                 handleSwap,
-                login,
+                loginWithScrollPin,
                 () =>
                   handleFundWallet(
                     activeWallet?.address ?? "",
@@ -1320,7 +1316,6 @@ export const TransactionForm = ({
                 () => setIsLimitModalOpen(true),
                 isPhoneVerified,
                 isUserVerified,
-                () => setIsMigrationModalOpen(true),
               )}
             >
               {buttonText}
@@ -1376,10 +1371,6 @@ export const TransactionForm = ({
         </AnimatedModal>
       )}
 
-      <WalletMigrationModal
-        isOpen={isMigrationModalOpen}
-        onClose={() => setIsMigrationModalOpen(false)}
-      />
     </div>
   );
 };

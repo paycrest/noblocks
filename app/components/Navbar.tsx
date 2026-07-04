@@ -48,7 +48,7 @@ export const Navbar = () => {
   const isDark = useActualTheme();
   const walletAddress = useWalletAddress();
 
-  const { ready, authenticated, user } = usePrivy();
+  const { ready, authenticated, user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const shouldUseEOA = useShouldUseEOA();
 
@@ -87,16 +87,37 @@ export const Navbar = () => {
           if (isNewUser) {
             clearNetworkModalSeen(user.wallet.address);
 
-            trackEvent("Sign up completed", {
-              "Login method": loginMethod,
-              user_id: user.wallet.address,
-              "Email address": user.email,
-              "Sign up date": user.createdAt.toISOString(),
-              "Noblocks balance": 0, // a new user should always have 0 balance
-            });
-          } else {
-            trackEvent("Login completed", { "Login method": loginMethod });
+          trackEvent("Sign up completed", {
+            "Login method": loginMethod,
+            user_id: user.wallet.address,
+            "Email address": user.email,
+            "Sign up date": user.createdAt.toISOString(),
+            "Noblocks balance": 0, // a new user should always have 0 balance
+          });
+
+          // New email signups: trigger the Tier 1 "verify your phone" email
+          // (Activepieces → Brevo). Fire-and-forget so it never blocks the UI.
+          if (loginMethod === "email" && user.email?.address) {
+            const walletAddress = user.wallet.address;
+            try {
+              const accessToken = await getAccessToken();
+              if (accessToken) {
+                void fetch("/api/kyc/signup-email", {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    "x-wallet-address": walletAddress.toLowerCase(),
+                  },
+                }).catch((error) => {
+                  console.error("[signup-email] trigger failed", error);
+                });
+              }
+            } catch (error) {
+              console.error("[signup-email] token fetch failed", error);
+            }
           }
+        } else {
+          trackEvent("Login completed", { "Login method": loginMethod });
         }
       } catch (error) {
         reportClientError(error, {

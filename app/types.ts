@@ -409,6 +409,16 @@ export type Config = {
   aggregatorSenderApiKey: string;
   moralisWebhookSecret: string;
   activepiecesWebhookUrl: string;
+  /**
+   * Activepieces webhook for the Tier 1 "verify your phone" email (Brevo flow),
+   * triggered on new email signups. Payload `event`: "signup_verify_phone".
+   */
+  activepiecesSignupVerifyWebhookUrl: string;
+  /**
+   * Activepieces webhook for SmileID identity result emails (Brevo flow).
+   * Payload `event`: "kyc_result" with `status`: "success" | "failure".
+   */
+  activepiecesKycResultWebhookUrl: string;
   moralisStreamId: string;
   moralisApiKey: string;
   moralisBaseUrl: string;
@@ -640,6 +650,18 @@ export type ActivepiecesDepositPayload = {
   network: string;
   txExplorerUrl: string;
   kind: "native" | "erc20";
+};
+
+export type ActivepiecesKycResultPayload = {
+  event: "kyc_result";
+  status: "success" | "failure";
+  email: string;
+  /** Verified tier on success (e.g. 2 for SmileID ID verification). */
+  tier?: number;
+  /** Human-readable failure reason (SmileID ResultText) on failure. */
+  reason?: string;
+  /** First name from phone/KYC profile for Brevo greeting (Tier 1+ emails). */
+  first_name?: string;
 };
 
 export interface MoralisNativeTx {

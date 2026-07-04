@@ -20,6 +20,9 @@ import type { MobileSheetView } from "@/app/types";
 import { saveTransaction } from "@/app/api/aggregator";
 import { networks } from "@/app/mocks";
 import Link from "next/link";
+import { mapReportAndAct } from "@/app/lib/toastMappedError";
+
+const CONVERSION_FAILED_MESSAGE = "Please try again.";
 
 export interface BridgeSubmitInfo {
   savedTxId: string;
@@ -266,7 +269,11 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
         });
       }
     } catch (err) {
-      setFailureMessage(err instanceof Error ? err.message : "Conversion failed");
+      mapReportAndAct(err, {
+        feature: "bridge-convert",
+        onUserMessage: () => {},
+      });
+      setFailureMessage(null);
       setIsFinalizing(false);
       setStep("failed");
     }
@@ -414,11 +421,9 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                 <p className="text-lg font-bold text-gray-900 dark:text-white">
                   Conversion failed
                 </p>
-                {failureMessage && (
-                  <p className="max-w-sm text-sm break-words text-gray-500 dark:text-white/50">
-                    {failureMessage}
-                  </p>
-                )}
+                <p className="max-w-sm text-sm text-gray-500 dark:text-white/50">
+                  {failureMessage ?? CONVERSION_FAILED_MESSAGE}
+                </p>
               </div>
               <button
                 type="button"

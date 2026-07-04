@@ -21,6 +21,7 @@ import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { Token, type MobileSheetView } from "../types";
 import Image from "next/image";
+import { toastMappedError } from "../lib/toastMappedError";
 
 export const FundWalletForm: React.FC<{
   onClose: () => void;
@@ -157,7 +158,10 @@ export const FundWalletForm: React.FC<{
     } catch (e: any) {
       setFundingInProgress(false);
       setIsFundConfirming(false);
-      toast.error("Funding failed");
+      toastMappedError(e, {
+        feature: "wallet-funding",
+        description: "Funding failed",
+      });
     }
   };
 

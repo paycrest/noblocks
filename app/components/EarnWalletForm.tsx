@@ -18,6 +18,7 @@ import {
 import { classNames } from "../utils";
 import { FormDropdown } from "./FormDropdown";
 import { primaryBtnClasses } from "./Styles";
+import { toastMappedError } from "../lib/toastMappedError";
 const VOYAGER_TX_BASE = "https://voyager.online/tx/";
 
 const TOKEN_DECIMALS = 6;
@@ -231,10 +232,10 @@ export const EarnWalletForm: React.FC<{
         txHash: result.txHash,
       });
     } catch (err: any) {
-      toast.error(
-        tab === "deposit" ? "Deposit failed" : "Withdraw failed",
-        { id: toastId, description: err?.message },
-      );
+      toastMappedError(err, {
+        feature: tab === "deposit" ? "earn-deposit" : "earn-withdraw",
+        title: tab === "deposit" ? "Deposit failed" : "Withdraw failed",
+      });
     } finally {
       setSubmitting(false);
     }

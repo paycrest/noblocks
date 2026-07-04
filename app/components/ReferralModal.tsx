@@ -14,6 +14,7 @@ import {
     clearPendingReferralCode,
     REFERRAL_CODE_PATTERN,
 } from "../lib/pendingReferralCode";
+import { toastMappedError } from "../lib/toastMappedError";
 
 interface ReferralInputModalProps {
     isOpen: boolean;
@@ -74,13 +75,16 @@ export const ReferralInputModal = ({
                 }
             } catch (err) {
                 // Unexpected errors (should be rare since submitReferralCode returns ApiResponse)
-                const message = err instanceof Error ? err.message : "Failed to submit referral code. Please try again.";
-                toast.error(message);
+                toastMappedError(err, {
+                    feature: "referral-code-submit",
+                    title: "Referral submission failed",
+                });
             }
         } catch (error) {
-            toast.error(
-                error instanceof Error ? error.message : "Invalid referral code. Please check and try again."
-            );
+            toastMappedError(error, {
+                feature: "referral-code-validation",
+                title: "Invalid referral code",
+            });
         } finally {
             setIsSubmitting(false);
         }

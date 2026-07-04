@@ -271,9 +271,10 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     } catch (err) {
       mapReportAndAct(err, {
         feature: "bridge-convert",
-        onUserMessage: () => {},
+        onUserMessage: (message) => {
+          setFailureMessage(message);
+        },
       });
-      setFailureMessage(null);
       setIsFinalizing(false);
       setStep("failed");
     }

@@ -308,14 +308,22 @@ export const KycModal = ({
         setStep(STEPS.STATUS.FAILED);
       }
     } catch (error) {
+      let handled = false;
       mapReportAndAct(error, {
         feature: "kyc-smile-verification",
         onUserMessage: (message) => {
+          handled = true;
           setFailedReason(message);
           setFailedRetryStep(STEPS.TERMS);
           setStep(STEPS.STATUS.FAILED);
         },
       });
+      // If mapReportAndAct suppressed the error (e.g. Hotjar), still advance out of LOADING
+      if (!handled) {
+        setFailedReason(null);
+        setFailedRetryStep(STEPS.TERMS);
+        setStep(STEPS.STATUS.FAILED);
+      }
     } finally {
       smileIdSubmitInFlightRef.current = false;
     }

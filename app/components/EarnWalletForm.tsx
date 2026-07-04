@@ -232,6 +232,7 @@ export const EarnWalletForm: React.FC<{
         txHash: result.txHash,
       });
     } catch (err: any) {
+      toast.dismiss(toastId);
       toastMappedError(err, {
         feature: tab === "deposit" ? "earn-deposit" : "earn-withdraw",
         title: tab === "deposit" ? "Deposit failed" : "Withdraw failed",

@@ -160,7 +160,7 @@ export const FundWalletForm: React.FC<{
       setIsFundConfirming(false);
       toastMappedError(e, {
         feature: "wallet-funding",
-        description: "Funding failed",
+        title: "Funding failed",
       });
     }
   };

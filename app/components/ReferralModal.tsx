@@ -58,7 +58,16 @@ export const ReferralInputModal = ({
                 return;
             }
 
-            const token = await getAccessToken();
+            let token: string | null;
+            try {
+                token = await getAccessToken();
+            } catch (authError) {
+                toastMappedError(authError, {
+                    feature: "referral-code-auth",
+                    title: "Unable to submit referral code",
+                });
+                return;
+            }
 
             try {
                 const res = await submitReferralCode(code, token ?? undefined);
@@ -80,11 +89,6 @@ export const ReferralInputModal = ({
                     title: "Referral submission failed",
                 });
             }
-        } catch (error) {
-            toastMappedError(error, {
-                feature: "referral-code-validation",
-                title: "Invalid referral code",
-            });
         } finally {
             setIsSubmitting(false);
         }

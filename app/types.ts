@@ -429,6 +429,8 @@ export type Config = {
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
   bridgeEnabled: boolean;
   onrampChainedForwardingEnabled: boolean;
+  /** Noblocks Play (World Cup fantasy league) feature flag. Gates /play UI + API. */
+  fantasyEnabled: boolean;
 };
 
 export type Network = {

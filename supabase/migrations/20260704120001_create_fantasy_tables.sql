@@ -51,6 +51,7 @@ INSERT INTO public.fantasy_settings (id, config) VALUES (1, '{
   "referrals_required": 5,
   "referral_min_total_usd": 5,
   "cngn_usd_rate": 0.00065,
+  "campaign_start": "2026-07-04T00:00:00Z",
   "campaign_end": "2026-07-19T23:59:59Z",
   "features": {"emails": false, "share_cards": true, "join_open": true}
 }'::jsonb);
@@ -84,6 +85,11 @@ CREATE TABLE public.fantasy_fixtures (
     status              text    NOT NULL DEFAULT 'NS',   -- provider short status (NS/1H/HT/2H/ET/P/FT/AET/PEN…)
     home_score          integer,
     away_score          integer,
+    -- Reconciliation bookkeeping: stats are re-pulled at FT, FT+2h and FT+12h
+    -- before being frozen (provider corrections self-heal, TRD §3).
+    finished_at         timestamptz,
+    last_stats_sync     timestamptz,
+    stats_finalized     boolean NOT NULL DEFAULT false,
     updated_at          timestamptz NOT NULL DEFAULT now()
 );
 
@@ -136,6 +142,11 @@ CREATE TABLE public.fantasy_squads (
     budget_spent              numeric(5,1) NOT NULL DEFAULT 0,
     free_transfers_remaining  integer NOT NULL DEFAULT 0,
     transfer_points_deduction integer NOT NULL DEFAULT 0,
+    -- true until the squad's first lock: initial squad building is free-form
+    -- (official "unlimited transfers before your first deadline"); rolled-over
+    -- squads (created by the worker for the next matchday) set this false and
+    -- composition changes then go through the transfer flow.
+    is_initial                boolean NOT NULL DEFAULT true,
     created_at                timestamptz NOT NULL DEFAULT now(),
     updated_at                timestamptz NOT NULL DEFAULT now(),
     UNIQUE (wallet_address, matchday_id)

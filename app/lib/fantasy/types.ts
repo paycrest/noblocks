@@ -74,6 +74,7 @@ export interface FantasySettings {
   referrals_required: number;
   referral_min_total_usd: number;
   cngn_usd_rate: number;
+  campaign_start: string;
   campaign_end: string;
   features: { emails: boolean; share_cards: boolean; join_open: boolean };
 }

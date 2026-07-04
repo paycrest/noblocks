@@ -358,6 +358,7 @@ export const config = {
     "/api/kyc/status",
     "/api/kyc/transaction-summary",
     "/api/kyc/tier3-verify",
+    "/api/kyc/signup-email",
     "/api/phone/send-otp",
     "/api/phone/verify-otp",
     "/api/bundler",

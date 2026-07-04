@@ -11,6 +11,14 @@ export type KycFullNameResult =
   | { ok: true; fullName: string | null }
   | { ok: false };
 
+/** First token of a full name for email greeting (e.g. "Ada Lovelace" → "Ada"). */
+export function firstNameFromFullName(fullName: string): string | null {
+  const trimmed = fullName.trim();
+  if (!trimmed) return null;
+  const first = trimmed.split(/\s+/)[0];
+  return first || null;
+}
+
 /** Server-side lookup of a user's verified KYC full name from `user_kyc_profiles`. */
 export async function getKycFullName(
   walletAddress: string,

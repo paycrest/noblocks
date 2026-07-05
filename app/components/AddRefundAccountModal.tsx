@@ -17,6 +17,7 @@ import {
   accountNameMatchesKyc,
   REFUND_NAME_MISMATCH_MESSAGE,
 } from "@/app/lib/name-matching";
+import { mapReportAndAct } from "@/app/lib/toastMappedError";
 
 export type { RefundAccountDetails };
 
@@ -188,9 +189,12 @@ export function AddRefundAccountModal({
       onClose();
       requestAnimationFrame(() => onSaved?.());
     } catch (err) {
-      setFormError(
-        err instanceof Error ? err.message : "Could not save refund account.",
-      );
+      mapReportAndAct(err, {
+        feature: "refund-account-save",
+        onUserMessage: (message) => {
+          setFormError(message);
+        },
+      });
     } finally {
       setIsSaving(false);
     }

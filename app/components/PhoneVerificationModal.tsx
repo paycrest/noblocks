@@ -22,6 +22,7 @@ import {
   type Country,
 } from "../lib/countries";
 import { useKYC } from "../context/KYCContext";
+import { toastMappedError } from "../lib/toastMappedError";
 
 interface PhoneVerificationModalProps {
   isOpen: boolean;
@@ -233,7 +234,10 @@ export default function PhoneVerificationModal({
         toast.error(data.error || "Failed to send OTP");
       }
     } catch (error) {
-      toast.error("Failed to send OTP. Please try again.");
+      toastMappedError(error, {
+        feature: "phone-send-otp",
+        description: "Failed to send OTP. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -277,7 +281,10 @@ export default function PhoneVerificationModal({
         }
       }
     } catch (error) {
-      toast.error("Failed to verify OTP. Please try again.");
+      toastMappedError(error, {
+        feature: "phone-verify-otp",
+        description: "Failed to verify OTP. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -311,7 +318,10 @@ export default function PhoneVerificationModal({
         toast.error(data.error || "Failed to resend OTP");
       }
     } catch (error) {
-      toast.error("Failed to resend OTP");
+      toastMappedError(error, {
+        feature: "phone-resend-otp",
+        description: "Failed to resend OTP",
+      });
     } finally {
       setIsLoading(false);
     }

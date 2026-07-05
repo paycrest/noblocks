@@ -42,15 +42,17 @@ Everything is isolated behind the `fantasy_` DB prefix, `/play` pages,
 - **Frontend** — `app/play/*` pages + `app/components/play/*`.
 - **Scheduler** — a Cloudflare Worker managed directly in the Cloudflare
   dashboard (**not** part of this repo — there is no `workers/` directory).
-  One Cron Trigger (`* * * * *`) fans out to both `APP_URL_PROD` and
+  One Cron Trigger (`*/5 * * * *`) fans out to both `APP_URL_PROD` and
   `APP_URL_STAGING`, POSTing `/api/play/worker` on each with the shared
-  `FANTASY_WORKER_SECRET`. Cron Triggers can't go sub-minute, so whichever
-  domain(s) report `data.live_window_active: true` (a game is on) get a
-  second tick ~30s later — otherwise it's once a minute per domain. The CF
+  `FANTASY_WORKER_SECRET`. Whichever domain(s) report
+  `data.live_window_active: true` (a game is on) get looped every ~30s
+  in-process (bounded to just under 5 min, so it hands off cleanly to the
+  next cron firing instead of overlapping it) — otherwise it's once per 5
+  minutes per domain, matching the app's own referral-sweep cadence. The CF
   worker is only the alarm clock; all logic, including every API-Football
   call, runs in the Next.js app.
 
-### Worker tick (every minute, twice a minute while a game is live)
+### Worker tick (every 5 min idle, ~every 30s while a game is live)
 
 1. Clock transition `upcoming→live` at `lock_at`.
 2. Fixture refresh from API-Football — **provider-frugal**: every tick only
@@ -108,11 +110,13 @@ Configure on the Worker (Settings → Variables and Secrets):
 | `APP_URL_STAGING` | Plain text | staging app URL |
 | `FANTASY_WORKER_SECRET` | Encrypted | same value as the app env |
 
-Then add a Cron Trigger (Settings → Triggers): `* * * * *`.
+Then add a Cron Trigger (Settings → Triggers): `*/5 * * * *`.
 
-The script fans out to both domains every tick and gives whichever domain(s)
-report a live game a second tick ~30s later. Ask in-thread for the current
-script if it needs re-pasting — it isn't tracked in git.
+The script fans out to both domains every tick; whichever domain(s) report a
+live game get looped every ~30s in-process (bounded to just under 5 minutes,
+so it hands off to the next cron firing instead of overlapping it). Ask
+in-thread for the current script if it needs re-pasting — it isn't tracked
+in git.
 
 Manual tick (also `{"force": true}` to bypass frugality gating):
 

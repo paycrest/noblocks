@@ -49,18 +49,35 @@ function apiKey(): string {
   return key;
 }
 
+const FETCH_TIMEOUT_MS = 10_000;
+
+/** Parses a numeric header, preserving a real `0` instead of coercing it to `null`. */
+function parseRateLimitHeader(value: string | null): number | null {
+  if (value === null || value === "") return null;
+  const n = Number(value);
+  return Number.isNaN(n) ? null : n;
+}
+
 async function apiGet<T>(path: string, params: Record<string, string | number>): Promise<T[]> {
   const url = new URL(`${BASE_URL}${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v));
 
-  const res = await fetch(url, {
-    headers: { "x-apisports-key": apiKey() },
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { "x-apisports-key": apiKey() },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   lastRateLimit = {
-    remaining: Number(res.headers.get("x-ratelimit-requests-remaining")) || null,
-    limit: Number(res.headers.get("x-ratelimit-requests-limit")) || null,
+    remaining: parseRateLimitHeader(res.headers.get("x-ratelimit-requests-remaining")),
+    limit: parseRateLimitHeader(res.headers.get("x-ratelimit-requests-limit")),
   };
 
   if (!res.ok) {
@@ -274,10 +291,18 @@ export async function getTeamPlayerRatings(
     url.searchParams.set("season", String(WORLD_CUP_SEASON));
     url.searchParams.set("league", String(WORLD_CUP_LEAGUE_ID));
     url.searchParams.set("page", String(page));
-    const res = await fetch(url, {
-      headers: { "x-apisports-key": apiKey() },
-      cache: "no-store",
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: { "x-apisports-key": apiKey() },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!res.ok) break;
     const body = (await res.json()) as {
       response: RawPlayerWithStats[];

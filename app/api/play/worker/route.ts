@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { NextRequest } from "next/server";
 import { runWorkerTick } from "@/app/lib/fantasy/worker";
 import { jsonError, jsonOk } from "@/app/lib/fantasy/server";
@@ -9,8 +10,8 @@ export const maxDuration = 60;
  * POST /api/play/worker — one scoring-worker tick, fired every minute by the
  * Cloudflare scheduler (workers/fantasy-scheduler). Self-authenticated via
  * x-internal-auth (FANTASY_WORKER_SECRET, falling back to INTERNAL_API_KEY),
- * so it is intentionally NOT in the middleware matcher and keeps running even
- * while NEXT_PUBLIC_FANTASY_ENABLED hides the UI pre-launch.
+ * so it is excluded from the middleware's JWT-authorization matcher and keeps
+ * running even while NEXT_PUBLIC_FANTASY_ENABLED hides the UI pre-launch.
  *
  * Body (optional): { "force": true } bypasses the minute-of-hour gating on
  * fixture refresh and the referral sweep — for manual ops/debugging.
@@ -18,7 +19,12 @@ export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   const secret = process.env.FANTASY_WORKER_SECRET || process.env.INTERNAL_API_KEY;
   const provided = request.headers.get("x-internal-auth");
-  if (!secret || !provided || provided !== secret) {
+  if (!secret || !provided) {
+    return jsonError("Unauthorized", 401);
+  }
+  const secretBuf = Buffer.from(secret);
+  const providedBuf = Buffer.from(provided);
+  if (providedBuf.length !== secretBuf.length || !timingSafeEqual(providedBuf, secretBuf)) {
     return jsonError("Unauthorized", 401);
   }
 

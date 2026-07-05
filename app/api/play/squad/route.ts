@@ -257,46 +257,22 @@ export const PUT = withRateLimit(async (request: NextRequest) => {
       0,
     );
 
-    // Upsert squad row, then replace composition atomically enough for our
-    // scale (a partial failure is self-corrected by the next successful save).
-    let squadId = existing?.id;
-    if (!squadId) {
-      const { data, error } = await supabaseAdmin
-        .from("fantasy_squads")
-        .insert({
-          wallet_address: auth.walletAddress,
-          matchday_id: matchday.id,
-          budget_spent: budgetSpent,
-          is_initial: true,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      squadId = data.id as string;
-    } else {
-      const { error } = await supabaseAdmin
-        .from("fantasy_squads")
-        .update({ budget_spent: budgetSpent })
-        .eq("id", squadId);
-      if (error) throw error;
-    }
-
-    const { error: deleteError } = await supabaseAdmin
-      .from("fantasy_squad_players")
-      .delete()
-      .eq("squad_id", squadId);
-    if (deleteError) throw deleteError;
-
-    const { error: insertError } = await supabaseAdmin.from("fantasy_squad_players").insert(
-      selection.players.map(({ playerId, slot }) => ({
-        squad_id: squadId,
-        player_id: playerId,
+    // Upsert squad row + replace composition atomically via a single RPC
+    // call, so a mid-save failure can't leave the squad empty.
+    const { data: squadId, error: saveError } = await supabaseAdmin.rpc("fantasy_save_squad", {
+      p_squad_id: existing?.id ?? null,
+      p_wallet_address: auth.walletAddress,
+      p_matchday_id: matchday.id,
+      p_budget_spent: budgetSpent,
+      p_is_initial: true,
+      p_players: selection.players.map(({ playerId, slot }) => ({
+        playerId,
         slot,
-        is_captain: playerId === selection.captainId,
-        is_vice: playerId === selection.viceId,
+        isCaptain: playerId === selection.captainId,
+        isVice: playerId === selection.viceId,
       })),
-    );
-    if (insertError) throw insertError;
+    });
+    if (saveError) throw saveError;
 
     trackBusinessEvent("Fantasy Squad Saved", {
       wallet_address: auth.walletAddress,

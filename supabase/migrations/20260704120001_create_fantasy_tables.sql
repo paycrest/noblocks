@@ -162,14 +162,21 @@ CREATE TABLE public.fantasy_squad_players (
     is_captain  boolean NOT NULL DEFAULT false,
     is_vice     boolean NOT NULL DEFAULT false,
     PRIMARY KEY (squad_id, slot),
-    UNIQUE (squad_id, player_id)
+    UNIQUE (squad_id, player_id),
+    CHECK (NOT (is_captain AND is_vice))
 );
+
+-- Defense-in-depth: at most one captain and one vice-captain per squad.
+CREATE UNIQUE INDEX idx_fantasy_squad_players_one_captain
+    ON public.fantasy_squad_players (squad_id) WHERE is_captain;
+CREATE UNIQUE INDEX idx_fantasy_squad_players_one_vice
+    ON public.fantasy_squad_players (squad_id) WHERE is_vice;
 
 -- ─── Transfers log ────────────────────────────────────────────────────────────
 
 CREATE TABLE public.fantasy_transfers (
     id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    wallet_address text    NOT NULL,
+    wallet_address text    NOT NULL REFERENCES public.fantasy_participants(wallet_address) ON DELETE CASCADE,
     matchday_id    integer NOT NULL REFERENCES public.fantasy_matchdays(id),
     player_out     bigint  NOT NULL,
     player_in      bigint  NOT NULL,
@@ -183,7 +190,7 @@ CREATE INDEX idx_fantasy_transfers_wallet ON public.fantasy_transfers (wallet_ad
 
 CREATE TABLE public.fantasy_player_match_stats (
     provider_fixture_id bigint  NOT NULL REFERENCES public.fantasy_fixtures(provider_fixture_id) ON DELETE CASCADE,
-    player_id           bigint  NOT NULL,
+    player_id           bigint  NOT NULL REFERENCES public.fantasy_players(provider_player_id),
     stats               jsonb   NOT NULL DEFAULT '{}'::jsonb,  -- normalized raw stats
     points              integer NOT NULL DEFAULT 0,
     breakdown           jsonb   NOT NULL DEFAULT '[]'::jsonb,  -- [{reason, points}]
@@ -197,7 +204,7 @@ CREATE INDEX idx_fantasy_pms_player ON public.fantasy_player_match_stats (player
 -- ─── Matchday scores ──────────────────────────────────────────────────────────
 
 CREATE TABLE public.fantasy_matchday_scores (
-    wallet_address text    NOT NULL,
+    wallet_address text    NOT NULL REFERENCES public.fantasy_participants(wallet_address) ON DELETE CASCADE,
     matchday_id    integer NOT NULL REFERENCES public.fantasy_matchdays(id) ON DELETE CASCADE,
     points         integer NOT NULL DEFAULT 0,
     rank           integer,
@@ -307,6 +314,167 @@ BEGIN
   END LOOP;
 END;
 $$;
+
+-- ─── Atomic squad/captain/transfer writes ─────────────────────────────────────
+-- The app performs these as several related writes each (clear-then-set
+-- captain flags; delete-then-insert squad players; squad update + player
+-- replace + transfer log insert). A failure partway through could leave a
+-- squad with no captain, or briefly empty. Each of these RPCs runs as a
+-- single plpgsql function call, so Postgres executes the whole body as one
+-- transaction: any error rolls the entire operation back instead of leaving
+-- a partial write.
+
+CREATE OR REPLACE FUNCTION public.fantasy_set_captain(
+  p_squad_id   UUID,
+  p_captain_id BIGINT,
+  p_vice_id    BIGINT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  PERFORM set_config('search_path', 'public', true);
+
+  UPDATE fantasy_squad_players
+     SET is_captain = false, is_vice = false
+   WHERE squad_id = p_squad_id;
+
+  UPDATE fantasy_squad_players
+     SET is_captain = true
+   WHERE squad_id = p_squad_id AND player_id = p_captain_id;
+
+  UPDATE fantasy_squad_players
+     SET is_vice = true
+   WHERE squad_id = p_squad_id AND player_id = p_vice_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.fantasy_set_captain TO service_role;
+
+-- Squad create/save (build mode + live-round lineup edits). p_squad_id NULL
+-- creates a new fantasy_squads row; otherwise the existing row's
+-- budget_spent is updated. p_players is a JSON array of
+-- {playerId, slot, isCaptain, isVice}.
+CREATE OR REPLACE FUNCTION public.fantasy_save_squad(
+  p_squad_id       UUID,
+  p_wallet_address TEXT,
+  p_matchday_id    INTEGER,
+  p_budget_spent   NUMERIC,
+  p_is_initial     BOOLEAN,
+  p_players        JSONB
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_squad_id UUID;
+BEGIN
+  PERFORM set_config('search_path', 'public', true);
+
+  IF p_squad_id IS NULL THEN
+    INSERT INTO fantasy_squads (wallet_address, matchday_id, budget_spent, is_initial)
+    VALUES (p_wallet_address, p_matchday_id, p_budget_spent, p_is_initial)
+    RETURNING id INTO v_squad_id;
+  ELSE
+    UPDATE fantasy_squads
+       SET budget_spent = p_budget_spent
+     WHERE id = p_squad_id
+     RETURNING id INTO v_squad_id;
+  END IF;
+
+  DELETE FROM fantasy_squad_players WHERE squad_id = v_squad_id;
+
+  INSERT INTO fantasy_squad_players (squad_id, player_id, slot, is_captain, is_vice)
+  SELECT
+    v_squad_id,
+    (p->>'playerId')::BIGINT,
+    (p->>'slot')::INTEGER,
+    COALESCE((p->>'isCaptain')::BOOLEAN, false),
+    COALESCE((p->>'isVice')::BOOLEAN, false)
+  FROM jsonb_array_elements(p_players) AS p;
+
+  RETURN v_squad_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.fantasy_save_squad TO service_role;
+
+-- Transfers: squad totals + composition + transfer log, together. Locks the
+-- squad row first and recomputes free/paid transfers from the row's CURRENT
+-- free_transfers_remaining (not a value read earlier by the app), so two
+-- concurrent transfer requests can't both spend the same free transfers.
+CREATE OR REPLACE FUNCTION public.fantasy_apply_transfers(
+  p_squad_id       UUID,
+  p_wallet_address TEXT,
+  p_matchday_id    INTEGER,
+  p_budget_spent   NUMERIC,
+  p_players        JSONB,
+  p_transfers      JSONB,
+  p_penalty        INTEGER
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_free_remaining      INTEGER;
+  v_deduction           INTEGER;
+  v_transfer_count      INTEGER := jsonb_array_length(p_transfers);
+  v_free_used           INTEGER;
+  v_points_cost         INTEGER;
+BEGIN
+  PERFORM set_config('search_path', 'public', true);
+
+  SELECT free_transfers_remaining, transfer_points_deduction
+    INTO v_free_remaining, v_deduction
+    FROM fantasy_squads
+   WHERE id = p_squad_id
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('error', 'squad_not_found');
+  END IF;
+
+  v_free_used := LEAST(v_transfer_count, GREATEST(0, v_free_remaining));
+  v_points_cost := (v_transfer_count - v_free_used) * p_penalty;
+
+  UPDATE fantasy_squads
+     SET budget_spent = p_budget_spent,
+         free_transfers_remaining = v_free_remaining - v_free_used,
+         transfer_points_deduction = v_deduction + v_points_cost
+   WHERE id = p_squad_id;
+
+  DELETE FROM fantasy_squad_players WHERE squad_id = p_squad_id;
+
+  INSERT INTO fantasy_squad_players (squad_id, player_id, slot, is_captain, is_vice)
+  SELECT
+    p_squad_id,
+    (p->>'playerId')::BIGINT,
+    (p->>'slot')::INTEGER,
+    COALESCE((p->>'isCaptain')::BOOLEAN, false),
+    COALESCE((p->>'isVice')::BOOLEAN, false)
+  FROM jsonb_array_elements(p_players) AS p;
+
+  INSERT INTO fantasy_transfers (wallet_address, matchday_id, player_out, player_in, points_cost)
+  SELECT
+    p_wallet_address,
+    p_matchday_id,
+    (t->>'out')::BIGINT,
+    (t->>'in')::BIGINT,
+    CASE WHEN (ordinality - 1) < v_free_used THEN 0 ELSE p_penalty END
+  FROM jsonb_array_elements(p_transfers) WITH ORDINALITY AS t;
+
+  RETURN jsonb_build_object(
+    'free_transfers_remaining', v_free_remaining - v_free_used,
+    'points_cost', v_points_cost,
+    'total_deduction', v_deduction + v_points_cost
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.fantasy_apply_transfers TO service_role;
 
 -- ─── Row-level security ───────────────────────────────────────────────────────
 -- Same posture as the rest of the app (see blockfest_participants): deny all

@@ -80,7 +80,9 @@ export function useLeaderboard(page: number, findMe = false) {
         findMe,
         token: authenticated ? await getAccessToken() : null,
       }),
-    enabled: ready,
+    // findMe only makes sense once signed in — skip the request entirely
+    // for anonymous visits instead of issuing a tokenless findMe lookup.
+    enabled: ready && (!findMe || authenticated),
     staleTime: 30_000,
   });
 }

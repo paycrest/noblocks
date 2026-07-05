@@ -683,14 +683,33 @@ async function sendNotifications(
     return m.status === "upcoming" && now >= lock - 24 * 60 * 60_000 && now < lock;
   });
   if (reminderMd) {
-    const participants = await fetchAll<{ wallet_address: string }>((from, to) =>
-      supabaseAdmin.from("fantasy_participants").select("wallet_address").range(from, to),
+    // Pre-filter wallets already claimed for this matchday's reminder so the
+    // 24h window doesn't keep re-fetching + re-attempting duplicate-key
+    // writes for participants notified on an earlier tick.
+    const alreadyNotified = new Set(
+      (
+        await fetchAll<{ wallet_address: string }>((from, to) =>
+          supabaseAdmin
+            .from("fantasy_notifications")
+            .select("wallet_address")
+            .eq("kind", "matchday_reminder")
+            .eq("ref_id", String(reminderMd.id))
+            .range(from, to),
+        )
+      ).map((n) => n.wallet_address),
     );
-    const emails = await emailsForWallets(participants.map((p) => p.wallet_address));
-    const payload = matchdayReminderEmail(reminderMd.display_name, reminderMd.lock_at);
-    for (const [wallet, email] of emails) {
-      if (!budgetLeft()) break;
-      await trySend(wallet, "matchday_reminder", String(reminderMd.id), email, payload);
+    const participants = (
+      await fetchAll<{ wallet_address: string }>((from, to) =>
+        supabaseAdmin.from("fantasy_participants").select("wallet_address").range(from, to),
+      )
+    ).filter((p) => !alreadyNotified.has(p.wallet_address));
+    if (participants.length > 0) {
+      const emails = await emailsForWallets(participants.map((p) => p.wallet_address));
+      const payload = matchdayReminderEmail(reminderMd.display_name, reminderMd.lock_at);
+      for (const [wallet, email] of emails) {
+        if (!budgetLeft()) break;
+        await trySend(wallet, "matchday_reminder", String(reminderMd.id), email, payload);
+      }
     }
   }
 

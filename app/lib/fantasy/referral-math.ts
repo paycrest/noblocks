@@ -51,7 +51,7 @@ export function cumulativeActivation(
   let activatedAt: string | null = null;
   for (const tx of sorted) {
     total += txUsdValue(tx, settings.cngn_usd_rate);
-    if (activatedAt === null && total >= settings.referral_min_total_usd) {
+    if (activatedAt === null && total >= settings.referral_min_total_usd - 1e-9) {
       activatedAt = tx.created_at;
     }
   }

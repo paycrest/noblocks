@@ -43,19 +43,27 @@ export async function sendFantasyEmail(params: {
   subject: string;
   html: string;
 }): Promise<void> {
-  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "api-key": brevoConfig.apiKey,
-    },
-    body: JSON.stringify({
-      sender: SENDER,
-      to: [{ email: params.to }],
-      subject: params.subject,
-      htmlContent: params.html,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  let res: Response;
+  try {
+    res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": brevoConfig.apiKey,
+      },
+      body: JSON.stringify({
+        sender: SENDER,
+        to: [{ email: params.to }],
+        subject: params.subject,
+        htmlContent: params.html,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!res.ok) {
     throw new Error(`Brevo smtp/email failed: HTTP ${res.status}`);
   }

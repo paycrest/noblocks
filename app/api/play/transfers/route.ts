@@ -4,7 +4,6 @@ import { withRateLimit } from "@/app/lib/rate-limit";
 import { trackBusinessEvent } from "@/app/lib/server-analytics";
 import { getFantasySettings, matchdayLabel } from "@/app/lib/fantasy/settings";
 import { validateSquad } from "@/app/lib/fantasy/validation";
-import { computeTransferCost } from "@/app/lib/fantasy/scoring";
 import {
   fantasyDisabledResponse,
   getAuthedWallet,
@@ -99,68 +98,47 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       });
     }
 
-    const { freeUsed, pointsCost } = computeTransferCost(
-      transfers.length,
-      squad.free_transfers_remaining,
-      settings.transfer_penalty,
-    );
-
     const budgetSpent = selection.players.reduce(
       (sum, { playerId }) => sum + Number(players.get(playerId)?.price ?? 0),
       0,
     );
 
-    // Persist: squad totals, composition, and the irreversible transfer log.
-    const { error: squadError } = await supabaseAdmin
-      .from("fantasy_squads")
-      .update({
-        budget_spent: budgetSpent,
-        free_transfers_remaining: squad.free_transfers_remaining - freeUsed,
-        transfer_points_deduction: squad.transfer_points_deduction + pointsCost,
-      })
-      .eq("id", squad.id);
-    if (squadError) throw squadError;
-
-    const { error: deleteError } = await supabaseAdmin
-      .from("fantasy_squad_players")
-      .delete()
-      .eq("squad_id", squad.id);
-    if (deleteError) throw deleteError;
-
-    const { error: insertError } = await supabaseAdmin.from("fantasy_squad_players").insert(
-      updated.map((p) => ({
-        squad_id: squad.id,
-        player_id: p.player_id,
-        slot: p.slot,
-        is_captain: p.is_captain,
-        is_vice: p.is_vice,
-      })),
+    // Persist squad totals, composition, and the transfer log together in one
+    // RPC call. The function locks the squad row and recomputes free/paid
+    // transfers from its current free_transfers_remaining, so two concurrent
+    // requests can't both spend the same free transfers.
+    const { data: result, error: applyError } = await supabaseAdmin.rpc(
+      "fantasy_apply_transfers",
+      {
+        p_squad_id: squad.id,
+        p_wallet_address: auth.walletAddress,
+        p_matchday_id: matchday.id,
+        p_budget_spent: budgetSpent,
+        p_players: updated.map((p) => ({
+          playerId: p.player_id,
+          slot: p.slot,
+          isCaptain: p.is_captain,
+          isVice: p.is_vice,
+        })),
+        p_transfers: transfers.map((t) => ({ out: t.out, in: t.in })),
+        p_penalty: settings.transfer_penalty,
+      },
     );
-    if (insertError) throw insertError;
-
-    const { error: logError } = await supabaseAdmin.from("fantasy_transfers").insert(
-      transfers.map((t, i) => ({
-        wallet_address: auth.walletAddress,
-        matchday_id: matchday.id,
-        player_out: t.out,
-        player_in: t.in,
-        points_cost: i < freeUsed ? 0 : settings.transfer_penalty,
-      })),
-    );
-    if (logError) throw logError;
+    if (applyError) throw applyError;
+    if (result?.error) return jsonError("Squad not found", 404, { code: "NO_SQUAD" });
 
     trackBusinessEvent("Fantasy Transfers Made", {
       wallet_address: auth.walletAddress,
       matchday_id: matchday.id,
       count: transfers.length,
-      points_cost: pointsCost,
+      points_cost: result.points_cost,
     });
 
     return jsonOk({
       applied: transfers.length,
-      free_transfers_remaining: squad.free_transfers_remaining - freeUsed,
-      points_cost: pointsCost,
-      total_deduction: squad.transfer_points_deduction + pointsCost,
+      free_transfers_remaining: result.free_transfers_remaining,
+      points_cost: result.points_cost,
+      total_deduction: result.total_deduction,
     });
   } catch (error) {
     console.error("[play] transfers failed:", error);

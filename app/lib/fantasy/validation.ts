@@ -116,7 +116,7 @@ export function validateSquad(input: SquadValidationInput): SquadValidationResul
 
   // Per-nation cap for the stage
   const cap = settings.nation_caps[matchdayLabel];
-  if (cap) {
+  if (cap !== undefined) {
     const byNation = new Map<string, number>();
     for (const { player } of all) {
       byNation.set(player.nation, (byNation.get(player.nation) ?? 0) + 1);

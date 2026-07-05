@@ -14,16 +14,16 @@ import {
 export const GET = withRateLimit(async (request: NextRequest) => {
   if (!isFantasyEnabled()) return fantasyDisabledResponse();
 
-  const auth = await getAuthedWallet(request);
-  if (!auth) return jsonError("Unauthorized", 401);
-
-  const candidate = request.nextUrl.searchParams.get("u") ?? "";
-  const validation = validateUsername(candidate);
-  if (!validation.ok) {
-    return jsonOk({ available: false, reason: validation.error });
-  }
-
   try {
+    const auth = await getAuthedWallet(request);
+    if (!auth) return jsonError("Unauthorized", 401);
+
+    const candidate = request.nextUrl.searchParams.get("u") ?? "";
+    const validation = validateUsername(candidate);
+    if (!validation.ok) {
+      return jsonOk({ available: false, reason: validation.error });
+    }
+
     const { data, error } = await supabaseAdmin
       .from("user_kyc_profiles")
       .select("wallet_address")

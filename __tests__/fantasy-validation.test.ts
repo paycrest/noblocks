@@ -50,6 +50,7 @@ const settings: FantasySettings = {
   referrals_required: 5,
   referral_min_total_usd: 5,
   cngn_usd_rate: 0.00065,
+  campaign_start: "2026-06-01T00:00:00Z",
   campaign_end: "2026-07-19T23:59:59Z",
   features: { emails: false, share_cards: true, join_open: true },
 };

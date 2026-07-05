@@ -5,6 +5,9 @@ import { ImageResponse } from "next/og";
 import { createAvatar } from "@dicebear/core";
 import { bigSmile, openPeeps } from "@dicebear/collection";
 import config from "@/app/lib/config";
+import { withRateLimit } from "@/app/lib/rate-limit";
+
+const CACHE_CONTROL = "public, max-age=60, s-maxage=300";
 
 /** Clamp a username to the on-card format: ≤20 chars, alnum/underscore only. */
 const sanitizeUsername = (value: string | null): string => {
@@ -74,9 +77,9 @@ const PHOTO_MASK =
  * Query: username, rank, points, refs (activated referrals), code, and
  * layout — "wide" (1200×630, link previews / desktop) or "card" (640×960,
  * portrait: just the shield, big — the mobile presentation).
- * Public route (not in the middleware matcher) — gated by the feature flag.
+ * Public route, rate-limited — gated by the feature flag.
  */
-export async function GET(request: NextRequest) {
+export const GET = withRateLimit(async (request: NextRequest) => {
   if (!config.fantasyEnabled) {
     return Response.json(
       { success: false, error: "Noblocks Play is not available" },
@@ -361,6 +364,7 @@ export async function GET(request: NextRequest) {
         width: 640,
         height: 960,
         fonts: [{ name: "Anton", data: anton, style: "normal", weight: 400 }],
+        headers: { "Cache-Control": CACHE_CONTROL },
       },
     );
   }
@@ -496,6 +500,7 @@ export async function GET(request: NextRequest) {
       width: 1200,
       height: 630,
       fonts: [{ name: "Anton", data: anton, style: "normal", weight: 400 }],
+      headers: { "Cache-Control": CACHE_CONTROL },
     },
   );
-}
+});

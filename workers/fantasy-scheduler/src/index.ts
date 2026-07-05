@@ -21,6 +21,8 @@ export default {
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {
     const url = `${env.APP_URL.replace(/\/$/, "")}/api/play/worker`;
 
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 10_000);
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -29,7 +31,9 @@ export default {
           "content-type": "application/json",
         },
         body: JSON.stringify({}),
+        signal: abortController.signal,
       });
+      clearTimeout(timeoutId);
 
       const body = await res.text();
       const snippet =

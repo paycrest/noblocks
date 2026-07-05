@@ -86,23 +86,12 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       }
     }
 
-    const { error: clearError } = await supabaseAdmin
-      .from("fantasy_squad_players")
-      .update({ is_captain: false, is_vice: false })
-      .eq("squad_id", squad.id);
-    if (clearError) throw clearError;
-    const { error: captainError } = await supabaseAdmin
-      .from("fantasy_squad_players")
-      .update({ is_captain: true })
-      .eq("squad_id", squad.id)
-      .eq("player_id", captainId);
+    const { error: captainError } = await supabaseAdmin.rpc("fantasy_set_captain", {
+      p_squad_id: squad.id,
+      p_captain_id: captainId,
+      p_vice_id: viceId,
+    });
     if (captainError) throw captainError;
-    const { error: viceError } = await supabaseAdmin
-      .from("fantasy_squad_players")
-      .update({ is_vice: true })
-      .eq("squad_id", squad.id)
-      .eq("player_id", viceId);
-    if (viceError) throw viceError;
 
     return jsonOk({ captainId, viceId });
   } catch (error) {

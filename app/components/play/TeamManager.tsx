@@ -275,13 +275,13 @@ export const TeamManager = ({
     const benchValid =
       next.benched.length === 4 && isFormationValid(counts, settings);
     if (!benchValid) {
-      // Default 4-4-2: bench the 2nd GK and the last DEF/MID/FWD picked.
-      next.benched = [
-        next.byPos.GK[1],
-        next.byPos.DEF[4],
-        next.byPos.MID[4],
-        next.byPos.FWD[2],
-      ].filter((id): id is number => id != null);
+      // Default formation: bench whichever players don't fit the default XI
+      // quota per position — the tail of each position's picks — derived
+      // from settings.positions/xiQuota so this adapts to a rules change.
+      next.benched = (Object.keys(next.byPos) as Position[]).flatMap((pos) => {
+        const benchCount = settings.positions[pos] - xiQuota[pos];
+        return benchCount > 0 ? next.byPos[pos].slice(-benchCount) : [];
+      });
     }
     const xi = xiIds(next);
     const byPrice = [...xi].sort(

@@ -172,3 +172,13 @@ select {
     background-color: #fd76b3;
   }
 }
+
+/* Noblocks Play has its own fixed bottom tab bar on mobile (PlayTabs
+   "bottom" variant, visible below the lg breakpoint) that the Brevo chat
+   launcher otherwise overlaps. Scoped to /play via the body class AppLayout
+   toggles, since Brevo appends its widget directly to <body>. */
+@media (max-width: 1024px) {
+  body.play-experience #brevo-conversations {
+    transform: translateY(-4rem) !important;
+  }
+}

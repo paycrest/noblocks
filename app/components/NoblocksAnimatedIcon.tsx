@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { NoblocksLogoIcon } from "./ImageAssets";
 
 /**
- * Mobile brand icon that hard-cuts through three states on a loop:
+ * Mobile brand icon that hard-cuts through a loop of states, by default:
  *   0. the default Noblocks "n" icon
  *   1. a spinning soccer ball
  *   2. the World Cup trophy
+ * The `phases` prop picks which states to include (see below) — e.g. a spot
+ * that shouldn't show the Noblocks brand mark can cycle just ball → trophy.
  *
  * Each state is held for ~2s with an instant swap (no cross-fade), inside a
  * fixed bounding box so surrounding UI never shifts.
@@ -22,7 +24,6 @@ import { NoblocksLogoIcon } from "./ImageAssets";
  * reduced-motion users simply see the static "n".
  */
 const PHASE_MS = 2000;
-const PHASES = 3;
 
 const BALL_SRC = "/logos/worldcup/ball.svg?v=1";
 const TROPHY_SRC = "/logos/worldcup/trophy.svg?v=1";
@@ -36,12 +37,20 @@ const stripSize = (svg: string) =>
     tag.replace(/\swidth="[^"]*"/, "").replace(/\sheight="[^"]*"/, ""),
   );
 
+type Phase = "logo" | "ball" | "trophy";
+const DEFAULT_PHASES: Phase[] = ["logo", "ball", "trophy"];
+
 export const NoblocksAnimatedIcon = ({
   className = "",
+  phases = DEFAULT_PHASES,
 }: {
   className?: string;
+  /** States to cycle through, in order. Defaults to the full
+   * logo → ball → trophy loop; pass e.g. `["ball", "trophy"]` to skip the
+   * Noblocks "n" (for spots where our own brand mark isn't appropriate). */
+  phases?: Phase[];
 }) => {
-  const [phase, setPhase] = useState(0);
+  const [phaseIndex, setPhaseIndex] = useState(0);
   const [ball, setBall] = useState<string | null>(cache[BALL_SRC] ?? null);
   const [trophy, setTrophy] = useState<string | null>(cache[TROPHY_SRC] ?? null);
 
@@ -76,7 +85,7 @@ export const NoblocksAnimatedIcon = ({
 
     const start = () => {
       if (!mediaQuery.matches && id === null) {
-        id = setInterval(() => setPhase((p) => (p + 1) % PHASES), PHASE_MS);
+        id = setInterval(() => setPhaseIndex((p) => (p + 1) % phases.length), PHASE_MS);
       }
     };
 
@@ -85,7 +94,7 @@ export const NoblocksAnimatedIcon = ({
         clearInterval(id);
         id = null;
       }
-      setPhase(0);
+      setPhaseIndex(0);
     };
 
     const handleChange = () => (mediaQuery.matches ? stop() : start());
@@ -97,14 +106,15 @@ export const NoblocksAnimatedIcon = ({
       mediaQuery.removeEventListener("change", handleChange);
       if (id !== null) clearInterval(id);
     };
-  }, []);
+  }, [phases.length]);
 
   const fallback = <NoblocksLogoIcon className="size-full" />;
+  const current = phases[phaseIndex];
 
   return (
     <span aria-hidden className={`block ${className}`}>
-      {phase === 0 && fallback}
-      {phase === 1 &&
+      {current === "logo" && fallback}
+      {current === "ball" &&
         (ball ? (
           <span
             className="nb-icon-spin block size-full [&>svg]:size-full"
@@ -113,12 +123,13 @@ export const NoblocksAnimatedIcon = ({
         ) : (
           fallback
         ))}
-      {phase === 2 &&
+      {current === "trophy" &&
         (trophy ? (
           <span
-            // Trophy renders ~2px taller than the 18px box, overflowing evenly
-            // (centered) so the icon's fixed bounding box doesn't shift.
-            className="flex size-full items-center justify-center [&>svg]:h-[20px] [&>svg]:w-auto"
+            // Trophy renders ~11% taller than the box (matches its natural
+            // aspect overflowing evenly, centered) — relative so it scales
+            // correctly at any container size, not just the 18px nav icon.
+            className="flex size-full items-center justify-center [&>svg]:h-[71.11%] [&>svg]:w-auto"
             dangerouslySetInnerHTML={{ __html: trophy }}
           />
         ) : (

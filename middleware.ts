@@ -130,6 +130,17 @@ async function authorizationMiddleware(req: NextRequest) {
     );
   }
 
+  // Return 404 for Noblocks Play routes when the feature is disabled
+  if (
+    (endpoint === "/api/play" || endpoint.startsWith("/api/play/")) &&
+    process.env.NEXT_PUBLIC_FANTASY_ENABLED?.trim().toLowerCase() === "false"
+  ) {
+    return NextResponse.json(
+      { success: false, error: "Noblocks Play is not available" },
+      { status: 404 },
+    );
+  }
+
   // Track API request for analytics
   trackMiddlewareAnalytics(
     "request",
@@ -368,6 +379,13 @@ export const config = {
     "/api/starknet/create-order",
     "/api/referral",
     "/api/referral/:path*",
+    "/api/play/join",
+    "/api/play/squad",
+    "/api/play/transfers",
+    "/api/play/captain",
+    "/api/play/rewards",
+    "/api/play/opt-in",
+    "/api/play/username/:path*",
     // (optional) add other instrumented API routes:
     // '/api/v1/kyc/:path*', '/api/v1/rates', '/api/v1/rates/:path*'
   ],

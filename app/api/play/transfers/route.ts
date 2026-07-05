@@ -4,6 +4,7 @@ import { withRateLimit } from "@/app/lib/rate-limit";
 import { trackBusinessEvent } from "@/app/lib/server-analytics";
 import { getFantasySettings, matchdayLabel } from "@/app/lib/fantasy/settings";
 import { validateSquad } from "@/app/lib/fantasy/validation";
+import { computeTransferCost } from "@/app/lib/fantasy/scoring";
 import {
   fantasyDisabledResponse,
   getAuthedWallet,
@@ -98,9 +99,11 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       });
     }
 
-    const freeUsed = Math.min(transfers.length, squad.free_transfers_remaining);
-    const paidCount = transfers.length - freeUsed;
-    const pointsCost = paidCount * settings.transfer_penalty;
+    const { freeUsed, pointsCost } = computeTransferCost(
+      transfers.length,
+      squad.free_transfers_remaining,
+      settings.transfer_penalty,
+    );
 
     const budgetSpent = selection.players.reduce(
       (sum, { playerId }) => sum + Number(players.get(playerId)?.price ?? 0),

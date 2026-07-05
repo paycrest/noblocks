@@ -1,0 +1,14 @@
+# Noblocks Play — fantasy scheduler (handoff §5.5).
+# A dumb alarm clock: every minute it POSTs the Next.js worker endpoint, which
+# owns ALL sync/scoring/notification logic. Secret: FANTASY_WORKER_SECRET
+# (set via `wrangler secret put FANTASY_WORKER_SECRET`, never in this file).
+
+name = "noblocks-fantasy-scheduler"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+APP_URL = "https://noblocks.xyz"

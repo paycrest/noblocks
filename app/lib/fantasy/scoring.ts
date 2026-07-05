@@ -116,6 +116,21 @@ export function computeSquadPoints(input: SquadPointsInput): number {
   return total - transferPointsDeduction;
 }
 
+/**
+ * Transfer economics (TRD §6.4): the first `freeRemaining` transfers in a
+ * batch are free, every further one deducts the penalty from the matchday
+ * score. Irreversible once applied.
+ */
+export function computeTransferCost(
+  transferCount: number,
+  freeRemaining: number,
+  penalty: number,
+): { freeUsed: number; paidCount: number; pointsCost: number } {
+  const freeUsed = Math.min(transferCount, Math.max(0, freeRemaining));
+  const paidCount = transferCount - freeUsed;
+  return { freeUsed, paidCount, pointsCost: paidCount * penalty };
+}
+
 /** Empty stats record (safe default when the provider has no data yet). */
 export function emptyStats(): PlayerMatchStats {
   return {

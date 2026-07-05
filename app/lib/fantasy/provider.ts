@@ -15,8 +15,13 @@ const BASE_URL = "https://v3.football.api-sports.io";
 export const WORLD_CUP_LEAGUE_ID = 1;
 export const WORLD_CUP_SEASON = 2026;
 
-/** Provider round names → our matchday ids. */
+/**
+ * Provider round names → our matchday ids. MD5 (Round of 16) is only scored
+ * when its matchday row was seeded (SEED_INCLUDE_R16 — internal testing);
+ * otherwise the worker ignores its fixtures entirely.
+ */
 export const ROUND_TO_MATCHDAY: Record<string, number> = {
+  "Round of 16": 5,
   "Quarter-finals": 6,
   "Semi-finals": 7,
   "3rd Place Final": 8,
@@ -236,7 +241,7 @@ export async function getTeamSquad(
   return {
     teamName: squad.team.name,
     players: squad.players
-      .map((p) => {
+      .map((p): ProviderSquadPlayer | null => {
         const position = mapPosition(p.position);
         if (!position) return null;
         return {

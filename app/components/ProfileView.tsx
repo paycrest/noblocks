@@ -13,16 +13,25 @@ import {
   MapPinpoint01Icon,
   WorkAlertIcon,
 } from "hugeicons-react";
+import Link from "next/link";
 import { useKYC } from "../context";
 import { KYC_TIERS } from "../context/KYCContext";
 import {
   formatKycTierDisplayLabel,
   hasAssignedKycTier,
 } from "../lib/kyc-upgrade-path";
-import { formatUsdAmount, shortenAddress, classNames } from "../utils";
+import {
+  formatUsdAmount,
+  shortenAddress,
+  classNames,
+  isReferralEnabled,
+} from "../utils";
 import { PiCheck } from "react-icons/pi";
 import { TbIdBadge, TbPhoneCall } from "react-icons/tb";
 import TransactionLimitModal from "./TransactionLimitModal";
+import { ReferralCTA } from "./ReferralCTA";
+import { ReferralHubView } from "./wallet-mobile-modal";
+import config from "../lib/config";
 
 // Re-import usePrivy and useLinkAccount specifically from Privy
 import { usePrivy as usePrivyAuth, useLinkAccount as useLinkAccountAuth } from "@privy-io/react-auth";
@@ -44,6 +53,7 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
   } = useKYC();
 
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
+  const [showReferralHub, setShowReferralHub] = useState(false);
   const [expandedTierLevel, setExpandedTierLevel] = useState<number | null>(null);
   const [isAddressCopied, setIsAddressCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -258,6 +268,24 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
     );
   };
 
+  // Referral hub takes over the view (same flow as the wallet menu's ReferralCTA)
+  if (showReferralHub && isReferralEnabled()) {
+    return (
+      <div
+        className={
+          layout === "sheet"
+            ? "space-y-6"
+            : "scrollbar-hide flex h-full flex-col overflow-y-auto p-5"
+        }
+      >
+        <ReferralHubView
+          onBack={() => setShowReferralHub(false)}
+          onClose={onClose ?? (() => setShowReferralHub(false))}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={layout === "sheet" ? "space-y-6" : "flex h-full flex-col p-5"}>
       {/* Header */}
@@ -416,6 +444,22 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
                   {renderTierSection(tierData.level)}
                 </div>
               ))}
+
+            {/* Referrals (F-7) */}
+            {isReferralEnabled() && (
+              <ReferralCTA
+                onViewReferrals={() => setShowReferralHub(true)}
+              />
+            )}
+
+            {config.fantasyEnabled && (
+              <Link
+                href="/play/rewards"
+                className="block text-sm text-lavender-500 hover:underline dark:text-lavender-400"
+              >
+                Noblocks Play rewards →
+              </Link>
+            )}
           </>
         )}
       </div>

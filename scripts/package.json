@@ -1,1 +1,12 @@
-{ "type": "module" }
+{
+  "type": "module",
+  "scripts": {
+    "seed:fantasy": "tsx seed-fantasy.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.50.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}

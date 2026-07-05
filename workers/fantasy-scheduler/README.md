@@ -2,7 +2,10 @@
 
 Cloudflare Worker that acts as the **alarm clock** for the Noblocks Play
 fantasy league. Every minute (`* * * * *` cron trigger) it POSTs
-`${APP_URL}/api/play/worker` with the `x-internal-auth` shared secret.
+`${APP_URL}/api/play/worker` with the `x-internal-auth` shared secret. Cron
+Triggers can't schedule sub-minute intervals, so when the response reports a
+live game in progress (`data.live_window_active`), the worker fires one more
+tick ~30s later — halving the interval only while it's worth the extra call.
 
 **All game logic lives in the Next.js app** (fixture sync, stats, scoring,
 rollover, referral sweep, notifications). This worker holds no state and makes

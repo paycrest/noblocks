@@ -24,9 +24,10 @@ import type { FantasySettings, Position } from "./types";
 
 /**
  * Scoring worker (TRD §3): the single writer for fixtures, stats, points,
- * ranks, rollovers and the referral sweep. Invoked once a minute by the
- * Cloudflare scheduler via POST /api/play/worker — the CF worker is just the
- * alarm clock, everything lives here.
+ * ranks, rollovers and the referral sweep. Invoked once a minute (twice a
+ * minute while a game is live — see live_window_active) by the Cloudflare
+ * scheduler via POST /api/play/worker — the CF worker is just the alarm
+ * clock, everything lives here.
  *
  * Provider frugality (TRD §2.4): API-Football is only called
  *   - every tick while a matchday window is active
@@ -51,6 +52,9 @@ const PAGE = 1000;
 
 export interface WorkerReport {
   ran_at: string;
+  /** A matchday window is active — i.e. a game is on (TRD §2.4). Lets the
+   * Cloudflare scheduler decide whether to tick faster than once a minute. */
+  live_window_active: boolean;
   fixtures_refreshed: boolean;
   transitions: string[];
   stats_synced: number;
@@ -790,6 +794,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
 
   const report: WorkerReport = {
     ran_at: nowIso,
+    live_window_active: false,
     fixtures_refreshed: false,
     transitions: [],
     stats_synced: 0,
@@ -829,6 +834,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
 
     // 2. Fixture refresh (provider-frugal).
     const anyActive = matchdays.some((md) => isWindowActive(md, fixtures, now));
+    report.live_window_active = anyActive;
     const anyUpcoming = matchdays.some((md) => md.status === "upcoming");
     const refreshDue =
       force || anyActive || (anyUpcoming && minute % FIXTURE_REFRESH_MINUTES === 0);

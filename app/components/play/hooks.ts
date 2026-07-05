@@ -19,6 +19,7 @@ import {
   checkUsername,
   fetchLeaderboard,
   fetchMatchday,
+  fetchMatchdays,
   fetchPlayers,
   fetchRewards,
   fetchSquad,
@@ -58,6 +59,14 @@ export function useMatchday(id: number | string) {
     queryKey: playKeys.matchday(id),
     queryFn: () => fetchMatchday(id),
     refetchInterval: 60_000, // live scores tick over without a manual refresh
+  });
+}
+
+export function useMatchdays() {
+  return useQuery({
+    queryKey: [...playKeys.matchday("all")],
+    queryFn: fetchMatchdays,
+    staleTime: 60_000,
   });
 }
 
@@ -122,7 +131,9 @@ export function useJoinStatus(): {
     authenticated,
     joined,
     squad: squadQuery.data,
-    isLoading: authenticated && squadQuery.isLoading,
+    // isPending, not isLoading: while Privy initializes the probe query is
+    // disabled and isLoading is false, which would flash the wrong CTA.
+    isLoading: authenticated && squadQuery.isPending,
   };
 }
 
@@ -260,7 +271,7 @@ export function useUsernameAvailability(candidate: string, debounceMs = 400) {
   return { result, checking };
 }
 
-export interface CountdownParts {
+interface CountdownParts {
   days: number;
   hours: number;
   minutes: number;

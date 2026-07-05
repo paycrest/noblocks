@@ -42,7 +42,8 @@ const Movement = ({ value }: { value: number }) => {
   return (
     <span
       className="text-xs text-text-disabled dark:text-white/30"
-      aria-label="No movement"
+      aria-label="No rank movement"
+      title="No rank movement since the last round"
     >
       —
     </span>

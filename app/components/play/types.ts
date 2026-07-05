@@ -9,9 +9,10 @@ import type {
   FantasyPlayer,
   MatchdayStatus,
   Position,
+  ScoringMatrix,
 } from "@/app/lib/fantasy/types";
 
-export type { BadgeState, FantasyPlayer, MatchdayStatus, Position };
+export type { BadgeState, FantasyPlayer, MatchdayStatus, Position, ScoringMatrix };
 
 export interface PlayMatchday {
   id: number;
@@ -30,6 +31,8 @@ export interface BuilderSettings {
   formations: string[];
   nation_cap: number | null;
   transfer_penalty: number;
+  /** Full scoring matrix — drives the "How to score" panel. */
+  scoring: ScoringMatrix;
 }
 
 export interface PlayersResponse {
@@ -68,6 +71,8 @@ export interface SquadResponse {
   /** Free transfers granted for the current matchday (settings value). */
   free_transfers: number;
   total_points: number;
+  /** Own points per matchday (drives the round strip's pills). */
+  matchday_scores: { matchday_id: number; points: number }[];
 }
 
 export interface SaveSquadBody {

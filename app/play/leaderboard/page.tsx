@@ -37,7 +37,7 @@ export default function LeaderboardPage() {
   const { authenticated } = usePrivy();
   const { joined } = useJoinStatus();
 
-  const { data, isLoading, isError, refetch } = useLeaderboard(page, findMe);
+  const { data, isPending, isError, refetch } = useLeaderboard(page, findMe);
   // Own qualification progress for the self-row tooltip only (PRD §7.3).
   const rewards = useRewards(Boolean(joined));
 
@@ -93,7 +93,7 @@ export default function LeaderboardPage() {
         </span>
       </div>
 
-      {isLoading ? (
+      {isPending ? (
         <div className="space-y-2">
           {Array.from({ length: 10 }).map((_, i) => (
             <Skeleton key={i} className="h-11 w-full" />

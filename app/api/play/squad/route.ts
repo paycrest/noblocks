@@ -35,12 +35,17 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     const matchday = await getCurrentMatchday();
     if (!matchday) return jsonError("No active matchday", 404);
 
-    const [squad, lockStates, playerPoints, settings] = await Promise.all([
-      getSquad(auth.walletAddress, matchday.id),
-      getTeamLockStates(matchday.id),
-      getMatchdayPlayerPoints(matchday.id),
-      getFantasySettings(),
-    ]);
+    const [squad, lockStates, playerPoints, settings, { data: matchdayScores }] =
+      await Promise.all([
+        getSquad(auth.walletAddress, matchday.id),
+        getTeamLockStates(matchday.id),
+        getMatchdayPlayerPoints(matchday.id),
+        getFantasySettings(),
+        supabaseAdmin
+          .from("fantasy_matchday_scores")
+          .select("matchday_id, points")
+          .eq("wallet_address", auth.walletAddress),
+      ]);
 
     const players = await getPlayersMap();
 
@@ -63,6 +68,10 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         : null,
       free_transfers: settings.free_transfers[matchdayLabel(matchday.id)] ?? 0,
       total_points: participant.total_points,
+      matchday_scores: (matchdayScores ?? []).map((s) => ({
+        matchday_id: Number(s.matchday_id),
+        points: Number(s.points),
+      })),
     });
   } catch (error) {
     console.error("[play] squad fetch failed:", error);

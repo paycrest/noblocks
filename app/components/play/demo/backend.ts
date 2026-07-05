@@ -30,7 +30,7 @@ import type {
 /* ------------------------------- Settings ------------------------------- */
 
 /** Mirror of the migration's fantasy_settings.config. */
-export const DEMO_SETTINGS: FantasySettings = {
+const DEMO_SETTINGS: FantasySettings = {
   budget: 105,
   squad_size: 15,
   positions: { GK: 2, DEF: 5, MID: 5, FWD: 3 },
@@ -88,7 +88,10 @@ const BASE_PRICE: Record<Position, number> = { GK: 4.5, DEF: 5.0, MID: 5.5, FWD:
 
 const NATIONS = Object.keys(NATION_ROSTERS);
 const ELIMINATED_NATIONS = new Set(["Netherlands", "Japan"]);
-const teamIdOf = (nation: string) => NATIONS.indexOf(nation) + 1;
+// Offset keeps demo ids outside API-Football's real id space, so TeamFlag's
+// CDN lookups 404 (and hide) instead of loading the wrong nation's flag.
+const TEAM_ID_BASE = 990000;
+const teamIdOf = (nation: string) => TEAM_ID_BASE + NATIONS.indexOf(nation) + 1;
 
 function buildPool(): FantasyPlayer[] {
   const players: FantasyPlayer[] = [];
@@ -229,6 +232,8 @@ interface DemoState {
   } | null;
   stats: Map<number, PlayerMatchStats>;
   totalPoints: number;
+  /** Banked points per completed round (drives the round-strip pills). */
+  roundHistory: { matchday_id: number; points: number }[];
   simMinutes: number;
   myRank: number;
   activatedReferrals: number;
@@ -391,6 +396,7 @@ function buildState(scenario: DemoScenario): DemoState {
     squad: null,
     stats: new Map(),
     totalPoints: 0,
+    roundHistory: [],
     simMinutes: 0,
     myRank: 12,
     activatedReferrals: 3,
@@ -495,6 +501,7 @@ export class DemoBackend {
     const bankedTotal = this.totalPointsNow();
     const roundPoints = bankedTotal - s.totalPoints;
     s.totalPoints = bankedTotal;
+    s.roundHistory.push({ matchday_id: s.matchdayId, points: roundPoints });
 
     if (s.matchdayId >= 8) {
       s.campaignComplete = true;
@@ -514,7 +521,7 @@ export class DemoBackend {
     }
 
     s.matchdayId += 1;
-    const nameOf = (id: number) => NATIONS[id - 1];
+    const nameOf = (id: number) => NATIONS[id - TEAM_ID_BASE - 1];
     const mkNext = (i: number, home: number, away: number, kickoffH: number): DemoFixture => ({
       provider_fixture_id: 9100 + s.matchdayId * 10 + i,
       home_team_id: home,
@@ -720,15 +727,53 @@ export class DemoBackend {
           formations: DEMO_SETTINGS.formations,
           nation_cap: DEMO_SETTINGS.nation_caps[this.label] ?? null,
           transfer_penalty: DEMO_SETTINGS.transfer_penalty,
+          scoring: DEMO_SETTINGS.scoring,
         },
         matchday: this.matchday,
       });
     }
 
-    if (path.startsWith("/api/play/matchday/")) {
+    if (path === "/api/play/matchdays") {
+      const ids = [6, 7, 8];
       return ok({
-        matchday: this.matchday,
-        fixtures: s.fixtures.map(({ minute: _minute, ...f }) => f),
+        matchdays: ids.map((id) => ({
+          id,
+          label: `MD${id}`,
+          round: MATCHDAY_NAMES[id],
+          display_name: MATCHDAY_NAMES[id],
+          lock_at:
+            id === s.matchdayId ? s.lockAt : hoursFromNow(id < s.matchdayId ? -96 : 96),
+          status:
+            id < s.matchdayId
+              ? "final"
+              : id === s.matchdayId
+                ? s.matchdayStatus
+                : "upcoming",
+        })),
+      });
+    }
+
+    if (path.startsWith("/api/play/matchday/")) {
+      const requested = Number(path.split("/").pop());
+      if (!Number.isFinite(requested) || requested === s.matchdayId) {
+        return ok({
+          matchday: this.matchday,
+          fixtures: s.fixtures.map(({ minute: _minute, ...f }) => f),
+        });
+      }
+      if (requested < 5 || requested > 8) return err("Not found (demo)", 404);
+      // Other rounds: known meta, no fixtures yet (bracket undecided) or
+      // already archived — enough for the FixturesCard navigation.
+      return ok({
+        matchday: {
+          id: requested,
+          label: `MD${requested}`,
+          round: MATCHDAY_NAMES[requested],
+          display_name: MATCHDAY_NAMES[requested] ?? "Round of 16",
+          lock_at: hoursFromNow(requested > s.matchdayId ? 96 : -96),
+          status: requested < s.matchdayId ? "final" : "upcoming",
+        },
+        fixtures: [],
       });
     }
 
@@ -816,6 +861,10 @@ export class DemoBackend {
         : null,
       free_transfers: DEMO_SETTINGS.free_transfers[this.label] ?? 0,
       total_points: this.totalPointsNow(),
+      matchday_scores: [
+        ...s.roundHistory,
+        { matchday_id: s.matchdayId, points: this.totalPointsNow() - s.totalPoints },
+      ],
     };
   }
 

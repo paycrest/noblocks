@@ -99,12 +99,12 @@ export const Chip = ({
     neutral:
       "bg-accent-gray text-text-secondary dark:bg-white/5 dark:text-white/50",
     lavender:
-      "bg-lavender-100 text-lavender-800 dark:bg-lavender-500/15 dark:text-lavender-300",
+      "bg-lavender-100 text-lavender-800 dark:bg-lavender-500/15 dark:text-lavender-300 min-w-fit items-center justify-center",
     green:
       "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400",
     red: "bg-background-accent-red text-text-accent-red dark:bg-accent-red/10 dark:text-accent-red",
     amber:
-      "bg-yellow-secondary text-warning-foreground dark:bg-yellow-primary/10 dark:text-yellow-primary",
+      "bg-yellow-secondary text-warning-foreground dark:bg-yellow-primary/10 dark:text-yellow-primary w-40 items-center justify-center",
   };
   return (
     <span

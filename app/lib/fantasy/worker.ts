@@ -840,6 +840,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
     const dueFixtures = fixtures
       .map((f) => ({ fixture: f, pass: statsSyncDue(f, now) }))
       .filter((d): d is { fixture: FixtureRow; pass: StatsPass } => d.pass !== null);
+    const statsSyncedMatchdays = new Set<number>();
     if (dueFixtures.length > 0) {
       const playersMap = await getPlayersMap();
       const positions = new Map(
@@ -849,6 +850,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
         try {
           await syncFixtureStats(fixture, pass, settings, positions, nowIso);
           report.stats_synced++;
+          statsSyncedMatchdays.add(fixture.matchday_id);
           if (pass === "reconcile_12h") report.fixtures_finalized++;
         } catch (error) {
           report.alerts.push(
@@ -885,15 +887,27 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
       }
     }
 
-    // 5. Scores + ranks whenever stats or statuses moved.
-    const scoreTargets = matchdays
-      .filter(
-        (md) =>
-          md.status === "live" ||
-          md.status === "finalizing" ||
-          finalizedThisTick.some((f) => f.id === md.id),
-      )
-      .map((md) => md.id);
+    // 5. Scores + ranks whenever stats or statuses moved. Matchdays whose
+    // fixtures just synced are always included — even while 'upcoming'
+    // (possible when a round was seeded mid-play, e.g. R16 test mode; in a
+    // normal campaign an upcoming round has no stats, so this is a no-op).
+    const scoreTargets = [
+      ...new Set([
+        ...matchdays
+          .filter(
+            (md) =>
+              md.status === "live" ||
+              md.status === "finalizing" ||
+              finalizedThisTick.some((f) => f.id === md.id),
+          )
+          .map((md) => md.id),
+        ...statsSyncedMatchdays,
+        // Forced ticks always recompute the current round (manual ops).
+        ...(force
+          ? matchdays.filter((md) => md.status !== "final").slice(0, 1).map((md) => md.id)
+          : []),
+      ]),
+    ];
     if (report.stats_synced > 0 || report.transitions.length > 0 || force) {
       try {
         report.scores_recomputed = await recomputeScores(scoreTargets);

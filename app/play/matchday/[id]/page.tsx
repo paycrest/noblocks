@@ -10,6 +10,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { FootballIcon, SquareLock02Icon } from "hugeicons-react";
 import { useMatchday, useSquad } from "@/app/components/play/hooks";
+import { TeamFlag } from "@/app/components/play/FixturesCard";
 import {
   Chip,
   EmptyState,
@@ -49,8 +50,9 @@ const FixtureCard = ({ fixture }: { fixture: FixtureData }) => {
     fixture.away_score != null;
   return (
     <PlayCard className="flex items-center gap-3">
-      <div className="min-w-0 flex-1 text-right text-sm font-medium text-text-body dark:text-white">
-        <span className="block truncate">{fixture.home_team}</span>
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-2 text-sm font-medium text-text-body dark:text-white">
+        <span className="min-w-0 truncate">{fixture.home_team}</span>
+        <TeamFlag teamId={fixture.home_team_id} />
       </div>
       <div className="flex shrink-0 flex-col items-center gap-1">
         <span className="text-base font-bold tabular-nums text-text-body dark:text-white">
@@ -60,8 +62,9 @@ const FixtureCard = ({ fixture }: { fixture: FixtureData }) => {
         </span>
         <Chip tone={status.tone}>{status.label}</Chip>
       </div>
-      <div className="min-w-0 flex-1 text-sm font-medium text-text-body dark:text-white">
-        <span className="block truncate">{fixture.away_team}</span>
+      <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium text-text-body dark:text-white">
+        <TeamFlag teamId={fixture.away_team_id} />
+        <span className="min-w-0 truncate">{fixture.away_team}</span>
       </div>
     </PlayCard>
   );
@@ -132,9 +135,9 @@ const OwnXISection = ({ matchdayId }: { matchdayId: number }) => {
 
 export default function MatchdayPage() {
   const params = useParams<{ id: string }>();
-  const { data, isLoading, isError, refetch } = useMatchday(params.id);
+  const { data, isPending, isError, refetch } = useMatchday(params.id);
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-56" />

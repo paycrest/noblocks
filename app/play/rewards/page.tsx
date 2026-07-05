@@ -42,7 +42,7 @@ const ReferralLinkCard = () => {
   const referralData = useReferralData();
   const copy = useCopyToClipboard();
 
-  if (referralData.isLoading) {
+  if (referralData.isPending) {
     return <Skeleton className="h-36 w-full rounded-2xl" />;
   }
 
@@ -137,7 +137,7 @@ export default function RewardsPage() {
   const myPage = useLeaderboard(1, true);
   const myUsername = myPage.data?.rows.find((row) => row.is_me)?.username;
 
-  if (!ready || (authenticated && rewards.isLoading)) {
+  if (!ready || (authenticated && rewards.isPending)) {
     return <RewardsSkeleton />;
   }
 
@@ -255,6 +255,7 @@ export default function RewardsPage() {
           username={myUsername}
           rank={data.rank}
           points={data.total_points}
+          referrals={data.activated}
           code={referralData.data.referral_code}
         />
       )}

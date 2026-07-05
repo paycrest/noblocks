@@ -121,7 +121,7 @@ export const TeamManager = ({
   const saveMutation = useSaveSquad();
   const transferMutation = useMakeTransfers();
 
-  const { matchday, locked, squad, free_transfers, total_points } = squadData;
+  const { matchday, locked, squad, free_transfers } = squadData;
   const settings = poolData.settings;
   const playersById = useMemo(
     () =>
@@ -705,27 +705,9 @@ export const TeamManager = ({
     <div className="space-y-4">
       {/* Status bar */}
       <div className="flex flex-wrap items-center gap-2">
-        <Chip tone="lavender">{matchday.display_name}</Chip>
-        {locked ? (
-          <Chip tone="red">Round live — rolling lockout</Chip>
-        ) : (
-          <Chip tone="amber">
-            Locks in{" "}
-            {countdown.days > 0
-              ? `${countdown.days}d ${countdown.hours}h ${countdown.minutes}m`
-              : `${countdown.hours}h ${countdown.minutes}m ${countdown.seconds}s`}
-          </Chip>
-        )}
-        {(() => {
-          // Formation is derived, never picked: it follows XI⇄bench swaps
-          // (official-game behavior; the 7 valid shapes live in settings).
-          const counts = formationOf(view, playersById);
-          const label = `${counts.DEF}-${counts.MID}-${counts.FWD}`;
-          return xiIds(view).length === 11 && isFormationValid(counts, settings) ? (
-            <Chip>{label}</Chip>
-          ) : null;
-        })()}
-        <Chip>Total: {total_points} pts</Chip>
+        {/* Round name, countdown and points all live in the shell header and
+            round strip — this bar only carries squad-state chips. */}
+        {locked && <Chip tone="red">Round live — rolling lockout</Chip>}
         {squad && !squad.is_initial && (
           <Chip>
             {squad.free_transfers_remaining} free transfer
@@ -874,7 +856,14 @@ export const TeamManager = ({
       )}
 
       {!transferMode && (
-        <div className="sticky bottom-4 z-10">
+        // Sticky only while actionable (building / unsaved changes) so the
+        // idle "Squad saved" state never floats over the bench. Offsets
+        // clear the fixed bottom nav on mobile.
+        <div
+          className={
+            dirty || !squad ? "sticky bottom-20 z-10 lg:bottom-4" : ""
+          }
+        >
           <button
             type="button"
             onClick={handleSave}
@@ -1013,9 +1002,16 @@ export const TeamManager = ({
                               key={otherId}
                               type="button"
                               onClick={() => handleSwap(id, otherId)}
-                              className="flex w-full items-center justify-between rounded-xl bg-background-neutral px-4 py-2.5 text-sm text-text-body transition-colors hover:bg-accent-gray dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+                              className="flex w-full items-center gap-3 rounded-xl bg-background-neutral px-3 py-2 text-sm text-text-body transition-colors hover:bg-accent-gray dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
                             >
-                              <span className="truncate">
+                              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-gray text-[10px] font-bold text-text-secondary dark:bg-white/10 dark:text-white/60">
+                                <PlayerPhoto
+                                  player={other}
+                                  className="size-full object-cover object-top"
+                                  fallback={other.position}
+                                />
+                              </span>
+                              <span className="min-w-0 flex-1 truncate text-left">
                                 {other.name}{" "}
                                 <span className="text-xs text-text-secondary dark:text-white/40">
                                   {other.position}

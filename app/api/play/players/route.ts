@@ -41,6 +41,7 @@ export const GET = withRateLimit(async (_request: NextRequest) => {
             formations: settings.formations,
             nation_cap: matchday ? settings.nation_caps[`MD${matchday.id}`] ?? null : null,
             transfer_penalty: settings.transfer_penalty,
+            scoring: settings.scoring,
           },
           matchday,
         },

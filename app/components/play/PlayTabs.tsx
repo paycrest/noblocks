@@ -19,14 +19,49 @@ const TABS = [
 ];
 
 /**
- * variant "bar":  horizontal scrollable tabs (mobile).
- * variant "rail": vertical items for the collapsible desktop rail — labels
- *   are revealed by the parent `group`'s hover (see PlayShell), icons stay
- *   put so the collapsed state is a clean icon column.
+ * variant "bar":    horizontal scrollable tabs.
+ * variant "rail":   vertical items for the collapsible desktop rail — labels
+ *   are revealed by the parent `group`'s hover (see PlayShell).
+ * variant "bottom": fixed app-style bottom tab bar (mobile).
  */
-export const PlayTabs = ({ variant = "bar" }: { variant?: "bar" | "rail" }) => {
+export const PlayTabs = ({
+  variant = "bar",
+}: {
+  variant?: "bar" | "rail" | "bottom";
+}) => {
   const pathname = usePathname();
   const rail = variant === "rail";
+
+  if (variant === "bottom") {
+    return (
+      <nav
+        aria-label="Noblocks Play"
+        className="fixed inset-x-0 bottom-0 z-40 rounded-t-3xl border-t border-border-light bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur dark:border-white/10 dark:bg-neutral-900/95 lg:hidden"
+      >
+        <div className="mx-auto grid max-w-md grid-cols-4">
+          {TABS.map(({ href, label, Icon }) => {
+            const active =
+              href === "/play" ? pathname === "/play" : pathname.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
+                  active
+                    ? "text-lavender-500 dark:text-lavender-400"
+                    : "text-text-secondary dark:text-white/50"
+                }`}
+              >
+                <Icon className="size-5" />
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <nav

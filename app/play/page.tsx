@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * /play — campaign landing: hero, how it works (two tracks), prize
- * breakdown, top-5 leaderboard preview and the join flow (Privy login →
- * username modal).
+ * /play campaign landing: hero, how it works, prize breakdown, top-5
+ * leaderboard preview and the join flow (Privy login, then the username
+ * modal).
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -85,9 +85,9 @@ const JoinCTA = ({ className = "" }: { className?: string }) => {
 };
 
 const LeaderboardPreview = () => {
-  const { data, isLoading, isError, refetch } = useLeaderboard(1);
+  const { data, isPending, isError, refetch } = useLeaderboard(1);
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="space-y-2">
         {Array.from({ length: 5 }).map((_, i) => (
@@ -108,7 +108,7 @@ const LeaderboardPreview = () => {
   if (rows.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-border-light px-6 py-8 text-center text-sm text-text-secondary dark:border-white/10 dark:text-white/50">
-        No managers on the board yet — join now and claim the top spot.
+        No managers on the board yet. Join now and claim the top spot.
       </p>
     );
   }
@@ -145,9 +145,9 @@ export default function PlayLandingPage() {
             The Noblocks World Cup Fantasy League
           </h1>
           <p className="max-w-xl text-sm text-white/80 sm:text-base">
-            Build your dream XI for the business end of the tournament, rack
-            up points every matchday and refer friends to qualify for a share
-            of <span className="font-semibold text-white">300 USDC on Base</span>.
+            Build your dream XI for the knockout rounds, score points every
+            matchday, and invite friends to qualify for a share of{" "}
+            <span className="font-semibold text-white">300 USDC on Base</span>.
             Free to play.
           </p>
           <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -162,7 +162,7 @@ export default function PlayLandingPage() {
         </div>
       </motion.section>
 
-      {/* How it works — two tracks */}
+      {/* How it works */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold text-text-body dark:text-white">
           How it works
@@ -173,14 +173,15 @@ export default function PlayLandingPage() {
               <FootballIcon className="size-5 text-lavender-600 dark:text-lavender-300" />
             </div>
             <h3 className="text-sm font-semibold text-text-body dark:text-white">
-              Track 1 — Score fantasy points
+              Build your squad and score points
             </h3>
             <p className="text-sm text-text-secondary dark:text-white/50">
-              Pick 15 players within budget (2 GK, 5 DEF, 5 MID, 3 FWD), set
-              your starting XI and captain before each matchday locks. Goals,
-              assists, clean sheets and more earn points across the
-              quarter-finals, semi-finals and the Final. Your rank on the
-              global leaderboard decides your prize.
+              Pick 15 players within your budget: 2 goalkeepers, 5 defenders,
+              5 midfielders and 3 forwards. Set your starting XI and captain
+              before each round locks. Goals, assists, clean sheets and more
+              earn points through the quarter-finals, semi-finals and the
+              Final, and your rank on the global leaderboard decides your
+              prize.
             </p>
           </PlayCard>
           <PlayCard className="space-y-3">
@@ -188,13 +189,14 @@ export default function PlayLandingPage() {
               <UserGroupIcon className="size-5 text-lavender-600 dark:text-lavender-300" />
             </div>
             <h3 className="text-sm font-semibold text-text-body dark:text-white">
-              Track 2 — Qualify with referrals
+              Invite friends to unlock the prize
             </h3>
             <p className="text-sm text-text-secondary dark:text-white/50">
-              To be eligible for the giveaway, invite 5 friends who each reach
-              $5 in total completed on/off-ramp volume on Noblocks (cumulative
-              across transactions, not a single one) before the qualification
-              deadline. Points decide your rank — referrals unlock the prize.
+              Points decide where you rank, but only qualified managers can
+              win. To qualify, invite 5 friends who each complete $5 or more
+              in total on and off-ramp volume on Noblocks before the
+              deadline. The $5 adds up across all of their transactions, so
+              no single large payment is needed.
             </p>
           </PlayCard>
         </div>
@@ -203,7 +205,7 @@ export default function PlayLandingPage() {
       {/* Prize breakdown */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold text-text-body dark:text-white">
-          Prize pool — 300 USDC on Base
+          Prize pool: 300 USDC on Base
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
           {PRIZE_TIERS.map(({ ranks, amount }, index) => (
@@ -225,8 +227,9 @@ export default function PlayLandingPage() {
           ))}
         </div>
         <p className="text-xs text-text-secondary dark:text-white/50">
-          Paid to the top 10 qualified managers by final rank. Non-qualified
-          and opted-out players are skipped when prizes are assigned — see the{" "}
+          Prizes go to the top 10 qualified managers by final rank. Anyone
+          who has not qualified or has opted out is skipped when prizes are
+          assigned. Full details in the{" "}
           <Link
             href="/play/terms"
             className="text-lavender-500 underline hover:text-lavender-600"
@@ -260,8 +263,8 @@ export default function PlayLandingPage() {
           Ready to manage your way to the Final?
         </h2>
         <p className="max-w-md text-sm text-text-secondary dark:text-white/50">
-          Joining takes less than a minute — pick a username, build your squad
-          and you&apos;re on the board.
+          Joining takes less than a minute. Pick a username, build your
+          squad, and you&apos;re on the board.
         </p>
         <JoinCTA className="mt-2" />
       </section>

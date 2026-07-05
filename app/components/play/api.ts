@@ -97,6 +97,11 @@ export const fetchPlayers = () =>
 export const fetchMatchday = (id: number | string) =>
   playRequest<MatchdayResponse>(`/api/play/matchday/${id}`);
 
+export const fetchMatchdays = () =>
+  playRequest<{ matchdays: import("./types").PlayMatchday[] }>(
+    "/api/play/matchdays",
+  );
+
 export const fetchLeaderboard = (params: {
   page: number;
   findMe?: boolean;

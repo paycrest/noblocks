@@ -6,15 +6,16 @@
  * full experience, with the animated World Cup wordmark as its identity and
  * a CTA back to the main Noblocks app.
  *
- * Desktop: collapsed icon rail on the left that slides out into a labeled
- * deck on hover (overlays the content, so nothing reflows).
- * Mobile: horizontal scrollable tabs under the header.
+ * Desktop: collapsed icon rail on the left that expands in flow on hover,
+ * pushing the content right like a slide-out panel.
+ * Mobile: fixed bottom tab bar.
  */
 
 import { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowUpRight01Icon } from "hugeicons-react";
 import { NoblocksWorldCupLogo } from "../NoblocksWorldCupLogo";
+import { NoblocksAnimatedIcon } from "../NoblocksAnimatedIcon";
 import { PlayTabs } from "./PlayTabs";
 import { CountdownChip } from "./CountdownChip";
 
@@ -22,9 +23,16 @@ import { CountdownChip } from "./CountdownChip";
 export const PlayHeader = ({ right }: { right?: ReactNode }) => (
   <header className="sticky top-0 z-40 border-b border-border-light bg-white/90 backdrop-blur dark:border-white/10 dark:bg-neutral-900/90">
     <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-      <Link href="/play" aria-label="Noblocks Play home" className="shrink-0">
+      <Link
+        href="/play"
+        aria-label="Noblocks Play home"
+        className="flex shrink-0 items-center max-sm:min-h-9 max-sm:rounded-lg max-sm:bg-accent-gray max-sm:p-2 dark:max-sm:bg-white/10"
+      >
+        {/* Same split + sizing as the main Navbar: 18px animated icon in a
+            gray chip on mobile, wordmark from sm up */}
+        <NoblocksAnimatedIcon className="size-[18px] sm:hidden" />
         {/* !w overrides the component's default width safely */}
-        <NoblocksWorldCupLogo className="!w-[130px] sm:!w-[160px]" />
+        <NoblocksWorldCupLogo className="!w-[160px] max-sm:hidden" />
       </Link>
       <div className="flex items-center gap-2">
         {right}
@@ -41,7 +49,9 @@ export const PlayHeader = ({ right }: { right?: ReactNode }) => (
 );
 
 const PlayFooter = () => (
-  <footer className="border-t border-border-light py-6 dark:border-white/10">
+  // Mobile has the bottom tab bar instead — the footer only earns its keep
+  // on wider screens.
+  <footer className="border-t border-border-light py-6 max-lg:hidden dark:border-white/10">
     <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 text-xs text-text-secondary dark:text-white/40 sm:px-6">
       <span>Noblocks Play · World Cup 2026 Fantasy League</span>
       <span className="flex items-center gap-4">
@@ -64,24 +74,21 @@ const PlayFooter = () => (
 
 export const PlayShell = ({ children }: { children: ReactNode }) => (
   <div className="flex min-h-dvh flex-col">
-    <PlayHeader right={<span className="hidden sm:block"><CountdownChip /></span>} />
+    <PlayHeader />
 
-    <div className="mx-auto w-full max-w-6xl flex-1 px-4 pb-20 pt-4 sm:px-6">
-      {/* Mobile / narrow: countdown + horizontal tabs */}
-      <div className="mb-4 flex flex-col gap-3 lg:hidden">
-        <div className="flex justify-end sm:hidden">
-          <CountdownChip />
-        </div>
-        <PlayTabs />
+    <div className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-4 sm:px-6 lg:pb-20">
+      {/* The ONE countdown pill: first element under the header, right-aligned
+          (all breakpoints — it is deliberately not in the header). */}
+      <div className="mb-4 flex justify-end">
+        <CountdownChip />
       </div>
 
       <div className="lg:flex lg:items-start lg:gap-6">
-        {/* Desktop: icon rail, expands over the content on hover */}
-        <aside className="hidden lg:block lg:w-[4.25rem] lg:shrink-0">
-          <div className="group sticky top-24 z-30">
-            <div className="absolute left-0 top-0 w-[4.25rem] overflow-hidden rounded-2xl border border-border-light bg-white shadow-sm transition-[width,box-shadow] duration-200 ease-out group-hover:w-56 group-hover:shadow-xl dark:border-white/10 dark:bg-surface-overlay">
-              <PlayTabs variant="rail" />
-            </div>
+        {/* Desktop: icon rail that expands IN FLOW on hover — a slide-out
+            panel that pushes the content right, never an overlay. */}
+        <aside className="group hidden lg:block lg:w-[4.25rem] lg:shrink-0 lg:transition-[width] lg:duration-200 lg:ease-out lg:hover:w-56">
+          <div className="sticky top-24 overflow-hidden rounded-2xl border border-border-light bg-white shadow-sm dark:border-white/10 dark:bg-surface-overlay">
+            <PlayTabs variant="rail" />
           </div>
         </aside>
 
@@ -90,5 +97,7 @@ export const PlayShell = ({ children }: { children: ReactNode }) => (
     </div>
 
     <PlayFooter />
+    {/* Mobile app-style navigation */}
+    <PlayTabs variant="bottom" />
   </div>
 );

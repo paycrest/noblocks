@@ -7,9 +7,12 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * POST /api/play/worker — one scoring-worker tick, fired every minute by the
- * Cloudflare scheduler (workers/fantasy-scheduler). Self-authenticated via
- * x-internal-auth (FANTASY_WORKER_SECRET, falling back to INTERNAL_API_KEY),
+ * POST /api/play/worker — one scoring-worker tick, fired every minute (twice
+ * a minute while a game is live) by a Cloudflare Worker cron trigger managed
+ * directly in the Cloudflare dashboard (not part of this repo) — it POSTs
+ * this endpoint for both the staging and production domains. Self-
+ * authenticated via x-internal-auth (FANTASY_WORKER_SECRET, falling back to
+ * INTERNAL_API_KEY),
  * so it is excluded from the middleware's JWT-authorization matcher and keeps
  * running even while NEXT_PUBLIC_FANTASY_ENABLED hides the UI pre-launch.
  *

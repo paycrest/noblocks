@@ -40,11 +40,15 @@ Everything is isolated behind the `fantasy_` DB prefix, `/play` pages,
   leaderboard/rewards/opt-in/matchday (user-facing), `worker` (scheduler),
   `admin/*` (support), `og` (share card image).
 - **Frontend** — `app/play/*` pages + `app/components/play/*`.
-- **Scheduler** — `workers/fantasy-scheduler/` (Cloudflare Worker cron
-  `* * * * *` → `POST /api/play/worker`). Cron Triggers can't go sub-minute,
-  so the worker fires a second tick ~30s later whenever the response reports
-  `data.live_window_active: true` (a game is on) — otherwise it's once a
-  minute. The CF worker is only the alarm clock; all logic runs in the app.
+- **Scheduler** — a Cloudflare Worker managed directly in the Cloudflare
+  dashboard (**not** part of this repo — there is no `workers/` directory).
+  One Cron Trigger (`* * * * *`) fans out to both `APP_URL_PROD` and
+  `APP_URL_STAGING`, POSTing `/api/play/worker` on each with the shared
+  `FANTASY_WORKER_SECRET`. Cron Triggers can't go sub-minute, so whichever
+  domain(s) report `data.live_window_active: true` (a game is on) get a
+  second tick ~30s later — otherwise it's once a minute per domain. The CF
+  worker is only the alarm clock; all logic, including every API-Football
+  call, runs in the Next.js app.
 
 ### Worker tick (every minute, twice a minute while a game is live)
 
@@ -69,7 +73,7 @@ Everything is isolated behind the `fantasy_` DB prefix, `/play` pages,
    `fantasy_notifications`, ≤50 sends per tick.
 
 The tick returns a JSON report (transitions, sync counts, provider rate-limit
-remaining, alerts) — visible in `wrangler tail`.
+remaining, alerts) — visible in the Cloudflare dashboard's Worker logs.
 
 ## Runbook
 
@@ -92,13 +96,23 @@ Idempotent; ~50 API calls (fits the free tier). Adjust prices later with SQL:
 
 ### 3. Deploy the scheduler
 
-```bash
-cd workers/fantasy-scheduler
-pnpm install
-wrangler secret put FANTASY_WORKER_SECRET   # same value as the app env
-wrangler deploy
-wrangler tail                                # watch tick reports
-```
+The scheduler is a small Worker script pasted directly into the Cloudflare
+dashboard (Workers & Pages → Create → paste script), not deployed from this
+repo.
+
+Configure on the Worker (Settings → Variables and Secrets):
+
+| Name | Type | Value |
+| --- | --- | --- |
+| `APP_URL_PROD` | Plain text | `https://noblocks.xyz` |
+| `APP_URL_STAGING` | Plain text | staging app URL |
+| `FANTASY_WORKER_SECRET` | Encrypted | same value as the app env |
+
+Then add a Cron Trigger (Settings → Triggers): `* * * * *`.
+
+The script fans out to both domains every tick and gives whichever domain(s)
+report a live game a second tick ~30s later. Ask in-thread for the current
+script if it needs re-pasting — it isn't tracked in git.
 
 Manual tick (also `{"force": true}` to bypass frugality gating):
 
@@ -171,7 +185,8 @@ activated referrals. Support tools live at `/play/admin`.
 
 ## Teardown (post-campaign)
 
-1. Delete the CF worker: `wrangler delete` in `workers/fantasy-scheduler`.
+1. Delete the CF worker and its Cron Trigger from the Cloudflare dashboard —
+   it isn't tracked in this repo.
 2. Remove `/play` pages, `app/components/play/`, `/api/play/*`,
    `app/lib/fantasy/`, the middleware matcher entries and the fantasy flag.
 3. Drop the DB objects (order matters for views):

@@ -69,6 +69,7 @@ const config: Config = {
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
   onrampChainedForwardingEnabled:
     process.env.NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED === "true",
+  fantasyEnabled: process.env.NEXT_PUBLIC_FANTASY_ENABLED === "true",
 };
 
 export default config;

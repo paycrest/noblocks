@@ -52,7 +52,12 @@ import {
 } from "../types";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/client";
-import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
+import {
+  Cancel01Icon,
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  FootballIcon,
+} from "hugeicons-react";
 import { useBalance, useInjectedWallet, useNetwork, useTokens } from "../context";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import config from "../lib/config";
@@ -164,12 +169,29 @@ export function TransactionStatus({
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [hasReindexed, setHasReindexed] = useState(false);
+  // Noblocks Play banner — dismissed state persists via localStorage.
+  const [isFantasyBannerDismissed, setIsFantasyBannerDismissed] =
+    useState(true);
   const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
   const lastPersistedOrderStatusRef = useRef<string | null>(null);
   const lastFulfillPersistKeyRef = useRef<string | null>(null);
 
   const fireConfetti = useConfetti();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setIsFantasyBannerDismissed(
+      localStorage.getItem("fantasy-banner-dismissed") === "true",
+    );
+  }, []);
+
+  const dismissFantasyBanner = () => {
+    setIsFantasyBannerDismissed(true);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("fantasy-banner-dismissed", "true");
+    }
+  };
 
   useEffect(() => {
     lastPersistedOrderStatusRef.current = null;
@@ -1684,6 +1706,37 @@ export function TransactionStatus({
                       </p>
                     </div>
                   )}
+              </AnimatedComponent>
+            )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {config.fantasyEnabled &&
+            showSuccessVisual &&
+            !isFantasyBannerDismissed && (
+              <AnimatedComponent
+                variant={slideInOut}
+                delay={0.6}
+                className="flex w-full items-center gap-3 rounded-xl border border-border-light bg-gray-50 px-4 py-3 dark:border-white/10 dark:bg-white/5"
+              >
+                <p className="flex flex-1 items-center gap-2 text-sm text-text-body dark:text-white/80">
+                  <FootballIcon className="size-4 shrink-0 text-lavender-500" />
+                  You just transacted — join the Noblocks Play fantasy league
+                </p>
+                <a
+                  href="/play"
+                  className="whitespace-nowrap text-sm font-medium text-lavender-500 hover:underline dark:text-lavender-400"
+                >
+                  Join →
+                </a>
+                <button
+                  type="button"
+                  title="Dismiss"
+                  onClick={dismissFantasyBanner}
+                  className="rounded-lg p-1 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
+                >
+                  <Cancel01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                </button>
               </AnimatedComponent>
             )}
         </AnimatePresence>

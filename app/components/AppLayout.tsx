@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import Script from "next/script";
+import { usePathname } from "next/navigation";
 import config from "../lib/config";
 
 import Providers from "../providers";
@@ -15,10 +16,23 @@ import SentryClientProvider from "./SentryClientProvider";
 import { MoralisStreamRegistration } from "./MoralisStreamRegistration";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  // Noblocks Play is its own full-screen experience: no global Navbar/Footer
+  // (PlayShell renders the game chrome and a CTA back to the main app).
+  const isPlayExperience =
+    pathname === "/play" ||
+    pathname.startsWith("/play/") ||
+    pathname === "/play-demo";
+
   return (
     <SentryClientProvider>
       <Providers>
         <MoralisStreamRegistration />
+        {isPlayExperience ? (
+          <div className="min-h-dvh min-w-full bg-white transition-colors dark:bg-neutral-900">
+            {children}
+          </div>
+        ) : (
         <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
           <div className={`relative ${config.maintenanceEnabled ? 'mb-16' : ''}`}>
             <Navbar />
@@ -37,6 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <PWAInstall />
           <MaintenanceNoticeModal />
         </div>
+        )}
         {/* Brevo Chat Widget */}
         {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && config.brevoConversationsGroupId && (
           <>

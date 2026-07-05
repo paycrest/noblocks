@@ -18,7 +18,7 @@ Everything is isolated behind the `fantasy_` DB prefix, `/play` pages,
 | `API_FOOTBALL_KEY` | Next.js app + seed script | API-Football (api-sports.io) key. World Cup = league 1, season 2026. Dev: free tier (100 req/day). Launch: Pro, prepaid single month. |
 | `FANTASY_WORKER_SECRET` | Next.js app + CF worker secret | Auth for `POST /api/play/worker` (`x-internal-auth` header). Falls back to `INTERNAL_API_KEY` when unset. |
 | `FANTASY_ADMIN_KEY` | Next.js app | Auth for `/api/play/admin/*` (`x-admin-key` header). Unset ⇒ admin tooling is off. |
-| `NEXT_PUBLIC_FANTASY_ENABLED` | Next.js app | Feature flag. Set `"false"` to hide `/play` UI and 404 the user-facing API pre-launch. Default: enabled. Worker + admin keep working regardless. |
+| `NEXT_PUBLIC_FANTASY_ENABLED` | Next.js app | Feature flag. Explicit opt-in: must be exactly `"true"` to show `/play` UI and serve the user-facing API — unset/anything else 404s them pre-launch. Worker + admin keep working regardless. |
 | `BREVO_API_KEY` (existing) | Next.js app | Transactional emails (F-14). Emails are additionally gated by `fantasy_settings.config.features.emails`. |
 | `BREVO_SENDER_EMAIL` (optional) | Next.js app | Sender for fantasy emails; defaults to `no-reply@noblocks.xyz`. |
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` (existing) | app + seed script | Service-role DB access. |
@@ -41,10 +41,12 @@ Everything is isolated behind the `fantasy_` DB prefix, `/play` pages,
   `admin/*` (support), `og` (share card image).
 - **Frontend** — `app/play/*` pages + `app/components/play/*`.
 - **Scheduler** — `workers/fantasy-scheduler/` (Cloudflare Worker cron
-  `* * * * *` → `POST /api/play/worker`). The CF worker is only the alarm
-  clock; all logic runs in the Next.js app.
+  `* * * * *` → `POST /api/play/worker`). Cron Triggers can't go sub-minute,
+  so the worker fires a second tick ~30s later whenever the response reports
+  `data.live_window_active: true` (a game is on) — otherwise it's once a
+  minute. The CF worker is only the alarm clock; all logic runs in the app.
 
-### Worker tick (every minute)
+### Worker tick (every minute, twice a minute while a game is live)
 
 1. Clock transition `upcoming→live` at `lock_at`.
 2. Fixture refresh from API-Football — **provider-frugal**: every tick only
@@ -142,7 +144,8 @@ also clear test participants/squads entirely.)
 
 ### 4. Launch
 
-Unset `NEXT_PUBLIC_FANTASY_ENABLED` (or set to anything but `"false"`).
+Set `NEXT_PUBLIC_FANTASY_ENABLED=true` (explicit opt-in — unset or any other
+value keeps `/play` and `/api/play/*` 404ing).
 Flip emails on when ready:
 `UPDATE fantasy_settings SET config = jsonb_set(config, '{features,emails}', 'true');`
 
@@ -184,6 +187,9 @@ DROP TABLE IF EXISTS
   public.fantasy_players, public.fantasy_fixtures,
   public.fantasy_matchdays, public.fantasy_settings CASCADE;
 DROP FUNCTION IF EXISTS public.fantasy_touch_updated_at();
+DROP FUNCTION IF EXISTS public.fantasy_set_captain(uuid, bigint, bigint);
+DROP FUNCTION IF EXISTS public.fantasy_save_squad(uuid, text, integer, numeric, boolean, jsonb);
+DROP FUNCTION IF EXISTS public.fantasy_apply_transfers(uuid, text, integer, numeric, jsonb, jsonb, integer);
 ```
 
 The `user_kyc_profiles.username` column **stays** — it's a durable profile

@@ -190,7 +190,12 @@ CREATE INDEX idx_fantasy_transfers_wallet ON public.fantasy_transfers (wallet_ad
 
 CREATE TABLE public.fantasy_player_match_stats (
     provider_fixture_id bigint  NOT NULL REFERENCES public.fantasy_fixtures(provider_fixture_id) ON DELETE CASCADE,
-    player_id           bigint  NOT NULL REFERENCES public.fantasy_players(provider_player_id),
+    -- No FK to fantasy_players: the provider can return stats for a player
+    -- outside our seeded roster (late squad addition, unrostered sub who
+    -- gets minutes) — worker.ts's syncFixtureStats already tolerates this
+    -- (falls back to the raw provider position). An FK here would make the
+    -- whole stats upsert for that fixture fail every sync pass.
+    player_id           bigint  NOT NULL,
     stats               jsonb   NOT NULL DEFAULT '{}'::jsonb,  -- normalized raw stats
     points              integer NOT NULL DEFAULT 0,
     breakdown           jsonb   NOT NULL DEFAULT '[]'::jsonb,  -- [{reason, points}]

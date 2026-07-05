@@ -733,9 +733,9 @@ export const TransactionPreview = ({
             network: aggregatorNetwork,
             ...(providerId ? { providerId } : {}),
             recipient: {
-              // Fraud protection: when chained forwarding is enabled, the aggregator always
-              // settles to the user's Noblocks wallet first. The user's chosen destination
-              // (`walletAddress`) is forwarded to in leg 2, server-side, after an AML screen.
+              // When chained forwarding is enabled, the aggregator settles to the user's
+              // Noblocks wallet first. The user's chosen destination (`walletAddress`) is
+              // forwarded to in leg 2, server-side.
               address: config.onrampChainedForwardingEnabled
                 ? activeWallet.address
                 : walletAddress,

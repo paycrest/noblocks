@@ -354,7 +354,7 @@ export function PlayPromoBanner() {
               fontSize: "1.789cqw",
             }}
           >
-            Join a league
+            Join the league
           </Link>
         </div>
       </div>
@@ -417,7 +417,7 @@ export function PlayPromoBanner() {
               fontSize: "0.79cqw",
             }}
           >
-            Join a league
+            Join the league
           </Link>
         </div>
       </div>

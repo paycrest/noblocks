@@ -7,13 +7,13 @@
  *
  * Modal: shown once per visitor (dismiss = never again, via localStorage),
  * fixed to the mobile design size on every breakpoint.
- * Banner: persistent under the navbar for as long as Noblocks Play is
- * enabled (config.fantasyEnabled) — same signal that turns /play off after
- * the campaign ends, so it disappears automatically then.
+ * Banner: dismissible for the current page visit only (reappears on refresh
+ * or a new visit). Shown under the navbar while Noblocks Play is enabled.
  */
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { IoClose } from "react-icons/io5";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import config from "../lib/config";
@@ -99,6 +99,25 @@ const Collage = () => (
 // ---------------------------------------------------------------------------
 
 const MODAL_STORAGE_KEY = "noblocks_play_promo_dismissed";
+
+const BANNER_DISMISS_EVENT = "noblocks-play-promo-banner-dismiss";
+
+/** Banner visibility for AppLayout margin; resets on full page load. */
+export function usePlayPromoBannerVisible() {
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const hide = () => setVisible(false);
+    window.addEventListener(BANNER_DISMISS_EVENT, hide);
+    return () => window.removeEventListener(BANNER_DISMISS_EVENT, hide);
+  }, []);
+
+  return visible;
+}
+
+function markBannerDismissed() {
+  window.dispatchEvent(new Event(BANNER_DISMISS_EVENT));
+}
 
 function isModalDismissed(): boolean {
   if (typeof window === "undefined") return false;
@@ -285,16 +304,40 @@ const MiniCollage = () => (
 );
 
 export function PlayPromoBanner() {
-  if (!config.fantasyEnabled) return null;
+  const [dismissed, setDismissed] = useState(false);
+
+  const dismiss = useCallback(() => {
+    markBannerDismissed();
+    setDismissed(true);
+  }, []);
+
+  if (!config.fantasyEnabled || dismissed) return null;
 
   return (
     <motion.div
-      className="fixed left-0 right-0 top-16 z-30 mt-1 overflow-hidden bg-lavender-500"
+      className="fixed left-0 right-0 top-16 z-30 mt-1 bg-lavender-500"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
     >
-      <BannerBackdrop />
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Dismiss promo banner"
+        className="absolute -right-1.5 -top-1.5 z-20 flex size-6 items-center justify-center rounded-full bg-black/25 text-black shadow-sm transition-colors hover:bg-black/35 md:hidden"
+      >
+        <IoClose className="size-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Dismiss promo banner"
+        className="absolute right-4 top-1/2 z-10 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/25 text-black shadow-sm transition-colors hover:bg-black/35 md:flex"
+      >
+        <IoClose className="size-5" />
+      </button>
+      <div className="relative overflow-hidden">
+        <BannerBackdrop />
 
       {/* Mobile: pixel-exact recreation of the Figma banner (375px-wide
           reference strip, node 2135-79717). Font sizes/tracking are in cqw
@@ -420,6 +463,7 @@ export function PlayPromoBanner() {
             Join the league
           </Link>
         </div>
+      </div>
       </div>
     </motion.div>
   );

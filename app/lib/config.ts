@@ -35,6 +35,9 @@ const config: Config = {
   brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
   blockfestEndDate:
     process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
+  worldcupFooterEndDate:
+    process.env.NEXT_PUBLIC_WORLDCUP_FOOTER_END_DATE ||
+    "2026-07-19T23:59:59+01:00",
   maintenanceEnabled:
     process.env.NEXT_PUBLIC_MAINTENANCE_NOTICE_ENABLED === "true" &&
     !!(process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "").trim(),

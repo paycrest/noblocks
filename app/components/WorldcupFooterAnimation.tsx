@@ -88,6 +88,8 @@ export function WorldcupFooterAnimation({
 }: WorldcupFooterAnimationProps) {
   const lottieRef = useRef<LottieRefCurrentProps>(null);
   const goalScoredFrozenRef = useRef(false);
+  const prevPlaybackModeRef = useRef<PlaybackMode | null>(null);
+  const prevReduceMotionRef = useRef(false);
   const [animationData, setAnimationData] =
     useState<LottieComponentProps["animationData"]>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -131,13 +133,25 @@ export function WorldcupFooterAnimation({
     if (!animationReady || !lottieRef.current) return;
     if (reduceMotion) {
       lottieRef.current.goToAndStop(SEGMENTS.juggle[0], true);
+      prevReduceMotionRef.current = true;
       return;
     }
     if (playbackMode === "celebration" && goalScoredFrozenRef.current) {
       freezeGoalScoredFrame(lottieRef.current);
       return;
     }
-    applyPlayback(lottieRef.current, playbackMode, rocketStatus);
+
+    const modeChanged = prevPlaybackModeRef.current !== playbackMode;
+    const resumedFromReduceMotion = prevReduceMotionRef.current;
+
+    if (modeChanged || resumedFromReduceMotion) {
+      applyPlayback(lottieRef.current, playbackMode, rocketStatus);
+      prevPlaybackModeRef.current = playbackMode;
+    } else if (playbackMode === "juggle") {
+      lottieRef.current.setSpeed(SPEED_BY_STATUS[rocketStatus]);
+    }
+
+    prevReduceMotionRef.current = false;
   }, [animationReady, playbackMode, rocketStatus, reduceMotion]);
 
   const handleComplete = useCallback(() => {

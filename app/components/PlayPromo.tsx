@@ -315,7 +315,7 @@ export function PlayPromoBanner() {
 
   return (
     <motion.div
-      className="fixed left-0 right-0 top-16 z-30 mt-1 overflow-hidden bg-lavender-500"
+      className="fixed left-0 right-0 top-16 z-30 mt-1 bg-lavender-500"
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
@@ -324,11 +324,20 @@ export function PlayPromoBanner() {
         type="button"
         onClick={dismiss}
         aria-label="Dismiss promo banner"
-        className="absolute right-2 top-1/2 z-10 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/10 text-black transition-colors hover:bg-black/20 md:right-4"
+        className="absolute -right-1.5 -top-1.5 z-20 flex size-6 items-center justify-center rounded-full bg-black/25 text-black shadow-sm transition-colors hover:bg-black/35 md:hidden"
+      >
+        <IoClose className="size-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Dismiss promo banner"
+        className="absolute right-4 top-1/2 z-10 hidden size-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/25 text-black shadow-sm transition-colors hover:bg-black/35 md:flex"
       >
         <IoClose className="size-5" />
       </button>
-      <BannerBackdrop />
+      <div className="relative overflow-hidden">
+        <BannerBackdrop />
 
       {/* Mobile: pixel-exact recreation of the Figma banner (375px-wide
           reference strip, node 2135-79717). Font sizes/tracking are in cqw
@@ -454,6 +463,7 @@ export function PlayPromoBanner() {
             Join the league
           </Link>
         </div>
+      </div>
       </div>
     </motion.div>
   );

@@ -384,7 +384,7 @@ export function PlayPromoBanner() {
               top: "0%",
               width: "48.32%",
               height: "100%",
-              fontSize: "2.656cqw",
+              fontSize: "1.156cqw",
               letterSpacing: "-0.1259cqw",
             }}
           >
@@ -397,7 +397,7 @@ export function PlayPromoBanner() {
               top: "0%",
               width: "32.68%",
               height: "100%",
-              fontSize: "1.098cqw",
+              fontSize: "0.798cqw",
               lineHeight: 0.951,
               letterSpacing: "-0.0299cqw",
             }}
@@ -414,7 +414,7 @@ export function PlayPromoBanner() {
               width: "fit-content",
               height: "57%",
               transform: "translateY(-50%)",
-              fontSize: "1.089cqw",
+              fontSize: "0.79cqw",
             }}
           >
             Join a league

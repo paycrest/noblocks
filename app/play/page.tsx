@@ -6,9 +6,9 @@
  * modal).
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
 import {
   ArrowRight01Icon,
@@ -26,7 +26,6 @@ import {
   Skeleton,
   primaryButtonClasses,
 } from "@/app/components/play/ui";
-import { NoblocksAnimatedIcon } from "@/app/components/NoblocksAnimatedIcon";
 
 const ASSET = (name: string) => `/images/play-promo/${name}`;
 const HERO_PILL_BUTTON =
@@ -36,6 +35,74 @@ const PRIZE_TIERS = [
   { ranks: "Ranks 1–5", amount: "40 USDC each" },
   { ranks: "Ranks 6–10", amount: "20 USDC each" },
 ];
+
+// Every star photo used across the campaign (hero collage + this section) —
+// each side of the bottom CTA cycles through all of them.
+const CTA_PHOTOS = [
+  ASSET("mbappe.png"),
+  ASSET("bellingham.png"),
+  ASSET("ronaldo-3.png"),
+  ASSET("messi-2.png"),
+  ASSET("olise-3.png"),
+  ASSET("vinicius.png"),
+  ASSET("hakimi.png"),
+  ASSET("amad.png"),
+  ASSET("neymar.png"),
+];
+const CTA_ROTATE_MS = 3000;
+
+/** One side of the bottom CTA: cycles through CTA_PHOTOS with an
+ * ease-in/ease-out crossfade. `startIndex` + `delayMs` keep the two sides
+ * showing different photos and changing at different moments (stagger)
+ * instead of swapping in lockstep. */
+const RotatingPhoto = ({
+  className = "",
+  style,
+  imageClassName = "",
+  startIndex,
+  delayMs,
+}: {
+  className?: string;
+  style?: CSSProperties;
+  /** Extra classes for the <img> itself (e.g. object-position tweaks per
+   * side) — appended after the base image classes so they can override. */
+  imageClassName?: string;
+  startIndex: number;
+  delayMs: number;
+}) => {
+  const [index, setIndex] = useState(startIndex % CTA_PHOTOS.length);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const timeout = setTimeout(() => {
+      setIndex((i) => (i + 1) % CTA_PHOTOS.length);
+      interval = setInterval(() => {
+        setIndex((i) => (i + 1) % CTA_PHOTOS.length);
+      }, CTA_ROTATE_MS);
+    }, delayMs);
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
+  }, [delayMs]);
+
+  return (
+    <div aria-hidden className={`absolute ${className}`} style={style}>
+      <AnimatePresence mode="wait">
+        <motion.img
+          key={CTA_PHOTOS[index]}
+          src={CTA_PHOTOS[index]}
+          alt=""
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0.4 }}
+          transition={{ duration: 0.75, ease: "easeInOut" }}
+          className={`absolute size-full object-fit ${imageClassName}`}
+        />
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const JoinCTA = ({
   className = "",
@@ -385,16 +452,130 @@ export default function PlayLandingPage() {
         <LeaderboardPreview />
       </section>
 
-      {/* Bottom CTA */}
-      <section className="flex flex-col items-center gap-3 rounded-3xl bg-background-neutral px-6 py-10 text-center dark:bg-white/5">
-        <h2 className="text-xl font-semibold text-text-body dark:text-white">
-          Ready to manage your way to the Final?
+      {/* Bottom CTA — mobile: one rotating photo + stacked text, normal
+          flow (no Figma mobile frame exists for this section either). */}
+      <section className="relative flex flex-col items-center justify-center gap-4 overflow-hidden rounded-3xl bg-surface-overlay px-6 py-8 text-center md:hidden h-[323px]">
+        <img
+          src={ASSET("trophy.svg")}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-50 w-[20%] -translate-x-1/2 -translate-y-1/2 object-contain opacity-40"
+        />
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-0 bg-surface-overlay/70" />
+
+        <h2
+          className="absolute z-10 flex items-center justify-center text-center font-bold text-[#F5F5F5] mb-4"
+          style={{
+            left: "19.13%",
+            top: "14.46%",
+            width: "60.00%",
+            height: "24.42%",
+            fontSize: "7.638cqw",
+            lineHeight: 0.901,
+            letterSpacing: "-0.2547cqw",
+          }}
+        >
+          Ready to play your way to the top?
         </h2>
-        <p className="max-w-md text-sm text-text-secondary dark:text-white/50">
+
+        <p
+          className="absolute z-10 flex items-center justify-center text-center text-[#F5F5F5] mb-4"
+          style={{
+            left: "6.64%",
+            top: "47.84%",
+            width: "85.85%",
+            height: "11.51%",
+            fontSize: "4.499cqw",
+            lineHeight: 1.351,
+            letterSpacing: "-0.03cqw",
+          }}
+        >
           Joining takes less than a minute. Pick a username, build your
           squad, and you&apos;re on the board.
         </p>
-        <JoinCTA className="mt-2" />
+
+        <div
+          className="absolute z-10"
+          style={{ left: "15.47%", top: "71.22%", width: "65.06%", height: "12.59%" }}
+        >
+          <JoinCTA
+            className="size-full"
+            buttonClassName="flex size-full items-center justify-center gap-1 rounded-full bg-white text-[3.304cqw] font-semibold text-black transition-transform active:scale-[0.98]"
+          />
+        </div>
+      </section>
+
+      {/* Bottom CTA (Figma node 2136-101604), md+. Self-contained — doesn't
+          import from PlayPromo.tsx. */}
+      <section
+        className="relative hidden w-full overflow-hidden rounded-3xl bg-surface-overlay md:block"
+        style={{ aspectRatio: "812 / 278", containerType: "inline-size" }}
+      >
+        <img
+          src={ASSET("trophy.svg")}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute z-0 object-contain"
+          style={{ left: "45%", top: "10%", width: "12.40%", height: "75.75%" }}
+        />
+        <div aria-hidden className="pointer-events-none absolute inset-0 z-0 bg-surface-overlay/70" />
+
+        <h2
+          className="absolute z-10 flex items-center justify-center text-center font-bold text-[#F5F5F5]"
+          style={{
+            left: "33.13%",
+            top: "24.46%",
+            width: "33.00%",
+            height: "19.42%",
+            fontSize: "3.638cqw",
+            lineHeight: 0.901,
+            letterSpacing: "-0.2547cqw",
+          }}
+        >
+          Ready to play your way to the top?
+        </h2>
+
+        <p
+          className="absolute z-10 flex items-center justify-center text-center text-[#F5F5F5]"
+          style={{
+            left: "32.64%",
+            top: "47.84%",
+            width: "34.85%",
+            height: "11.51%",
+            fontSize: "1.499cqw",
+            lineHeight: 1.351,
+            letterSpacing: "-0.03cqw",
+          }}
+        >
+          Joining takes less than a minute. Pick a username, build your
+          squad, and you&apos;re on the board.
+        </p>
+
+        <div
+          className="absolute z-10"
+          style={{ left: "35.47%", top: "71.22%", width: "29.06%", height: "12.59%" }}
+        >
+          <JoinCTA
+            className="size-full"
+            buttonClassName="flex size-full items-center justify-center gap-1 rounded-full bg-white text-[1.304cqw] font-semibold text-black transition-transform active:scale-[0.98]"
+          />
+        </div>
+
+        {/* Photos last in DOM + highest explicit z-index — always render
+            above the trophy/tint and the text/button, never visually
+            clipped by them. */}
+        <RotatingPhoto
+          startIndex={0}
+          delayMs={0}
+          className="z-20 absolute"
+          style={{ left: "-2%", top: "-2%", width: "31%", height: "140%" }}
+        />
+        <RotatingPhoto
+          startIndex={Math.floor(CTA_PHOTOS.length / 4)}
+          delayMs={CTA_ROTATE_MS / 3}
+          className="z-20 absolute"
+          style={{ left: "71%", top: "-2%", width: "31%", height: "140%" }}
+        />
       </section>
     </div>
   );

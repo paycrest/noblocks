@@ -663,6 +663,7 @@ export const TransactionForm = ({
     if (formData.isSwapped) {
       const recv = Number(formData.amountReceived) || 0;
       if (!Number.isFinite(recv) || recv <= 0) {
+        toast.error("Enter a valid amount to continue.");
         return;
       }
     }
@@ -687,7 +688,13 @@ export const TransactionForm = ({
       return;
     }
 
-    // If limits are okay, proceed with transaction
+    // If limits are okay, proceed with transaction.
+    // On-ramp: bank fields are not registered yet, so form-wide isValid may stay false
+    // even when the CTA is enabled — submit with current values instead of handleSubmit.
+    if (formData.isSwapped) {
+      void onSubmit(formData);
+      return;
+    }
     handleSubmit(onSubmit)();
   };
 

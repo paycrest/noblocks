@@ -35,16 +35,6 @@ const config: Config = {
   brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
   blockfestEndDate:
     process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
-  /** @deprecated Use delegationContractAddress. Kept for backward compatibility. */
-  // biconomyNexusV120:
-  //   process.env.NEXT_PUBLIC_BICONOMY_NEXUS_V120 || "0x000000004f43c49e93c970e84001853a70923b03",
-  /** MEE API key for Biconomy Supertransaction API (sponsored execution). Replaces deprecated paymaster. */
-  biconomyMeeApiKey:
-    process.env.NEXT_PUBLIC_BICONOMY_MEE_API_KEY ||
-    "",
-  /** Base URL of the Biconomy v2→Nexus upgrade server (mini bundler). e.g. http://localhost:3000 when running locally. */
-  bundlerServerUrl:
-    process.env.NEXT_PUBLIC_BUNDLER_SERVER_URL || "",
   maintenanceEnabled:
     process.env.NEXT_PUBLIC_MAINTENANCE_NOTICE_ENABLED === "true" &&
     !!(process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "").trim(),
@@ -64,8 +54,22 @@ const config: Config = {
   })(),
   /** Sender API key UUID (aggregator dashboard). Used by server proxy and client (on-chain messageHash metadata). */
   aggregatorSenderApiKey: (process.env.NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID || "").trim(),
+  moralisWebhookSecret: process.env.MORALIS_WEBHOOK_SECRET || "",
+  activepiecesWebhookUrl: process.env.ACTIVEPIECES_WEBHOOK_URL || "",
+  activepiecesSignupVerifyWebhookUrl:
+    process.env.ACTIVEPIECES_SIGNUP_VERIFY_WEBHOOK_URL || "",
+  activepiecesKycResultWebhookUrl:
+    process.env.ACTIVEPIECES_KYC_RESULT_WEBHOOK_URL || "",
+  moralisStreamId: process.env.MORALIS_STREAM_ID || "",
+  moralisApiKey: process.env.MORALIS_API_KEY || "",
+  moralisBaseUrl:
+    process.env.MORALIS_BASE_URL || "https://api.moralis-streams.com",
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
   referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
+  bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
+  onrampChainedForwardingEnabled:
+    process.env.NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED === "true",
+  fantasyEnabled: process.env.NEXT_PUBLIC_FANTASY_ENABLED === "true",
 };
 
 export default config;

@@ -1,6 +1,6 @@
 "use client";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Cancel01Icon, ArrowLeft02Icon } from "hugeicons-react";
 import { AnimatedModal } from "../AnimatedComponents";
 import { TransactionDetails } from "./TransactionDetails";
@@ -38,19 +38,27 @@ export const TransactionHistoryModal = ({
 }: TransactionHistoryModalProps) => {
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionHistory | null>(null);
-  const { clearTransactions } = useTransactions();
+  const { clearTransactions, refreshTransactions } = useTransactions();
 
   const handleClose = () => {
     setSelectedTransaction(null);
     onClose();
   };
 
-  // Clear transactions when modal is closed
+  // Clear stale data when modal opens, then refresh; clear on close.
+  // Guard on the open→close transition so a callback identity change (e.g.
+  // refreshTransactions is recreated when currentPage changes) cannot retrigger
+  // a clear+refetch while the modal is still open mid-pagination.
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen && !wasOpenRef.current) {
+      clearTransactions();
+      void refreshTransactions();
+    } else if (!isOpen && wasOpenRef.current) {
       clearTransactions();
     }
-  }, [isOpen, clearTransactions]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen, clearTransactions, refreshTransactions]);
 
   return (
     <AnimatedModal isOpen={isOpen} onClose={handleClose}>

@@ -130,6 +130,30 @@ async function authorizationMiddleware(req: NextRequest) {
     );
   }
 
+  // Return 404 for Noblocks Play routes when the feature is disabled
+  const isPlayRoute = endpoint === "/api/play" || endpoint.startsWith("/api/play/");
+  if (isPlayRoute && process.env.NEXT_PUBLIC_FANTASY_ENABLED !== "true") {
+    return NextResponse.json(
+      { success: false, error: "Noblocks Play is not available" },
+      { status: 404 },
+    );
+  }
+
+  // Noblocks Play routes that manage their own auth (public reads, the
+  // worker's internal secret, the admin key) skip the Privy JWT requirement
+  // below - they only need the feature-flag gate above.
+  const isPlaySelfAuthedRoute =
+    endpoint === "/api/play/leaderboard" ||
+    endpoint === "/api/play/players" ||
+    endpoint === "/api/play/matchdays" ||
+    endpoint.startsWith("/api/play/matchday/") ||
+    endpoint === "/api/play/og" ||
+    endpoint === "/api/play/worker" ||
+    endpoint.startsWith("/api/play/admin/");
+  if (isPlaySelfAuthedRoute) {
+    return NextResponse.next();
+  }
+
   // Track API request for analytics
   trackMiddlewareAnalytics(
     "request",
@@ -352,19 +376,36 @@ export const config = {
     "/api/v1/refund-account",
     "/api/v1/payment-orders",
     "/api/v1/payment-orders/:path*",
+    "/api/v1/wallets/moralis-stream/register",
     "/api/blockfest/cashback",
     "/api/kyc/smile-id",
     "/api/kyc/status",
     "/api/kyc/transaction-summary",
     "/api/kyc/tier3-verify",
+    "/api/kyc/signup-email",
     "/api/phone/send-otp",
     "/api/phone/verify-otp",
     "/api/bundler",
     "/api/bundler/:path*",
+    "/api/bridge/:path*",
     "/api/starknet/transfer",
     "/api/starknet/create-order",
     "/api/referral",
     "/api/referral/:path*",
+    "/api/play/join",
+    "/api/play/squad",
+    "/api/play/transfers",
+    "/api/play/captain",
+    "/api/play/rewards",
+    "/api/play/opt-in",
+    "/api/play/username/:path*",
+    "/api/play/leaderboard",
+    "/api/play/players",
+    "/api/play/matchdays",
+    "/api/play/matchday/:path*",
+    "/api/play/og",
+    "/api/play/worker",
+    "/api/play/admin/:path*",
     // (optional) add other instrumented API routes:
     // '/api/v1/kyc/:path*', '/api/v1/rates', '/api/v1/rates/:path*'
   ],

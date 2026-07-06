@@ -6,7 +6,7 @@ import {
   type AddressData,
 } from "@/app/lib/dojah";
 import { rateLimit } from "@/app/lib/rate-limit";
-
+import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
 const KYC_BUCKET = process.env.KYC_DOCUMENTS_BUCKET || "kyc-documents";
 // Countries where a street address cannot be meaningfully validated (PO Box culture,
 // no formal street addressing, etc.). Expand as needed.
@@ -264,6 +264,13 @@ export async function POST(request: NextRequest) {
           removeError.message,
         );
       }
+      notifyKycResultEmail(walletAddress, {
+        event: "kyc_result",
+        status: "failure",
+        tier: 3,
+        reason: msg,
+      });
+
       return NextResponse.json({ success: false, error: msg }, { status: 400 });
     }
 
@@ -329,6 +336,12 @@ export async function POST(request: NextRequest) {
         { status: 404 },
       );
     }
+
+    notifyKycResultEmail(walletAddress, {
+      event: "kyc_result",
+      status: "success",
+      tier: 3,
+    });
 
     return NextResponse.json({
       success: true,

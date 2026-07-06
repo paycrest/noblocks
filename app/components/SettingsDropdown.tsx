@@ -250,6 +250,23 @@ export const SettingsDropdown = () => {
                 </button>
               </li>
 
+              <li
+                role="menuitem"
+                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+              >
+                <button
+                  type="button"
+                  className="group flex w-full items-center gap-2.5"
+                  onClick={() => {
+                    setIsProfileDrawerOpen(true);
+                    setIsOpen(false);
+                  }}
+                >
+                  <FaceIdIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                  <p>Profile</p>
+                </button>
+              </li>
+
               {!isInjectedWallet && (
                 <li
                   role="menuitem"
@@ -317,22 +334,6 @@ export const SettingsDropdown = () => {
                   <p>Export wallet</p>
                 </li>
               )}
-              <li
-                role="menuitem"
-                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
-              >
-                <button
-                  type="button"
-                  className="group flex w-full items-center gap-2.5"
-                  onClick={() => {
-                    setIsProfileDrawerOpen(true);
-                    setIsOpen(false);
-                  }}
-                >
-                  <FaceIdIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-                  <p>Profile</p>
-                </button>
-              </li>
 
               {!isInjectedWallet && (
                 <li

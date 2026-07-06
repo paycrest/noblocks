@@ -73,11 +73,22 @@ const RotatingPhoto = ({
   const [index, setIndex] = useState(startIndex % CTA_PHOTOS.length);
 
   useEffect(() => {
+    // Random next photo (never repeating the one currently shown) instead
+    // of a fixed sequential cycle — feels more like a shuffled deck.
+    const pickNext = (current: number) => {
+      if (CTA_PHOTOS.length <= 1) return current;
+      let next = current;
+      while (next === current) {
+        next = Math.floor(Math.random() * CTA_PHOTOS.length);
+      }
+      return next;
+    };
+
     let interval: ReturnType<typeof setInterval> | null = null;
     const timeout = setTimeout(() => {
-      setIndex((i) => (i + 1) % CTA_PHOTOS.length);
+      setIndex(pickNext);
       interval = setInterval(() => {
-        setIndex((i) => (i + 1) % CTA_PHOTOS.length);
+        setIndex(pickNext);
       }, CTA_ROTATE_MS);
     }, delayMs);
     return () => {
@@ -561,9 +572,6 @@ export default function PlayLandingPage() {
           />
         </div>
 
-        {/* Photos last in DOM + highest explicit z-index — always render
-            above the trophy/tint and the text/button, never visually
-            clipped by them. */}
         <RotatingPhoto
           startIndex={0}
           delayMs={0}

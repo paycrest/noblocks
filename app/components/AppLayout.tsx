@@ -12,7 +12,11 @@ import { LayoutWrapper } from "./LayoutWrapper";
 import PWAInstall from "./PWAInstallManager";
 import NoticeBanner from "./NoticeBanner";
 import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeModal";
-import { PlayPromoBanner, PlayPromoModal } from "./PlayPromo";
+import {
+  PlayPromoBanner,
+  PlayPromoModal,
+  usePlayPromoBannerVisible,
+} from "./PlayPromo";
 import SentryClientProvider from "./SentryClientProvider";
 import { MoralisStreamRegistration } from "./MoralisStreamRegistration";
 
@@ -25,7 +29,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/play/") ||
     pathname === "/play-demo";
   const isHomepage = pathname === "/";
-  const showPlayPromoBanner = isHomepage && config.fantasyEnabled;
+  const playPromoBannerVisible = usePlayPromoBannerVisible();
+  const showPlayPromoBanner =
+    isHomepage && config.fantasyEnabled && playPromoBannerVisible;
 
   // The Brevo widget appends its own container directly to <body>, outside
   // this component's tree, so a body-level class (not a wrapper div class)

@@ -487,6 +487,7 @@ export const RecipientDetailsForm = ({
                       setValue("walletAddress", connectedWalletAddress!, {
                         shouldValidate: true,
                         shouldDirty: true,
+                        shouldTouch: true,
                       })
                     }
                     className="text-sm text-lavender-500 transition-colors hover:text-lavender-400 dark:text-lavender-500 dark:hover:text-lavender-400"

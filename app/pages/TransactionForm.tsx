@@ -623,18 +623,19 @@ export const TransactionForm = ({
   }, [currencies]);
 
   const { isEnabled, buttonText, buttonAction } = useSwapButton({
-  watch,
-  balance,
-  isDirty,
-  isValid,
-  isUserVerified,
-  isPhoneVerified,
-  hasPriorTransactionActivity,
-  kycTier: tier,
-  rate,
-  tokenDecimals,
-  isSwapped,
-});
+    watch,
+    balance,
+    isDirty,
+    isValid,
+    isUserVerified,
+    isPhoneVerified,
+    hasPriorTransactionActivity,
+    kycTier: tier,
+    rate,
+    tokenDecimals,
+    isSwapped,
+    networkName: selectedNetwork.chain.name,
+  });
 
   const [isPhoneVerificationOpen, setIsPhoneVerificationOpen] = useState(false);
   const [isTier2PhoneGateOpen, setIsTier2PhoneGateOpen] = useState(false);
@@ -663,6 +664,7 @@ export const TransactionForm = ({
     if (formData.isSwapped) {
       const recv = Number(formData.amountReceived) || 0;
       if (!Number.isFinite(recv) || recv <= 0) {
+        toast.error("Enter a valid amount to continue.");
         return;
       }
     }
@@ -687,7 +689,21 @@ export const TransactionForm = ({
       return;
     }
 
-    // If limits are okay, proceed with transaction
+    // If limits are okay, proceed with transaction.
+    // On-ramp: bank fields are not registered yet, so form-wide isValid may stay false
+    // even when the CTA is enabled — submit with current values instead of handleSubmit.
+    if (formData.isSwapped) {
+      const walletCheck = validateWalletAddress(
+        formData.walletAddress,
+        selectedNetwork.chain.name,
+      );
+      if (walletCheck !== true) {
+        toast.error(walletCheck);
+        return;
+      }
+      void onSubmit(formData);
+      return;
+    }
     handleSubmit(onSubmit)();
   };
 

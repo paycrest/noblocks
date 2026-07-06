@@ -108,7 +108,7 @@ const RotatingPhoto = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0.4 }}
           transition={{ duration: 0.75, ease: "easeInOut" }}
-          className={`absolute size-full object-fit ${imageClassName}`}
+          className={`absolute size-full object-fill ${imageClassName}`}
         />
       </AnimatePresence>
     </div>
@@ -343,7 +343,7 @@ export default function PlayLandingPage() {
           <img
             src={ASSET("trophy.svg")}
             alt=""
-            className="absolute object-fit"
+            className="absolute object-auto"
             style={{ left: "56.90%", top: "-2.04%", width: "23.40%", height: "99.75%" }}
           />
           <img

@@ -279,6 +279,7 @@ export function MainPageContent() {
       institution: "",
       accountIdentifier: "",
       accountType: "bank",
+      walletAddress: "",
       swapMode: initialSwapMode,
       /** Must match `swapMode` or tabs vs recipient/rates disagree (e.g. Base defaults on-ramp). */
       isSwapped: initialSwapMode === "onramp",

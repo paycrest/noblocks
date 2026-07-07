@@ -1787,15 +1787,23 @@ export const generatePaginationItems = (
   return items;
 };
 
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+function startOfDay(d: Date): Date {
+  const copy = new Date(d);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
 /**
  * Formats a date into a relative time string (e.g., "Today", "Yesterday", "2 days ago")
  * @param date - The date to format
  * @returns A string representing the relative time
  */
 export const getRelativeDate = (date: Date): string => {
-  const now = new Date();
-  const diffTime = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const today = startOfDay(new Date());
+  const target = startOfDay(date);
+  const diffDays = Math.round((today.getTime() - target.getTime()) / DAY_MS);
 
   if (diffDays === 0) {
     return "Today";

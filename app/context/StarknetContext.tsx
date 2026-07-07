@@ -256,26 +256,23 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    try {
-      resetError();
+    resetError();
 
-      let currentWalletId = walletId;
-
-      // Create wallet if not exists
-      if (!currentWalletId) {
-        const createToastId = toast.loading("Creating Starknet wallet...");
-        try {
-          currentWalletId = await createWallet();
-          toast.success("Starknet wallet created!", { id: createToastId });
-        } catch (error) {
-          toast.error("Failed to create Starknet wallet", {
-            id: createToastId,
-          });
-          throw error;
-        }
+    // Create wallet if not exists
+    if (!walletId) {
+      const createToastId = toast.loading("Creating Starknet wallet...");
+      try {
+        await createWallet();
+        toast.success("Starknet wallet created!", { id: createToastId });
+      } catch (error) {
+        toast.error("Failed to create Starknet wallet", {
+          id: createToastId,
+        });
+        console.error("Failed to ensure Starknet wallet exists:", error);
+        throw error instanceof Error
+          ? error
+          : new Error("Failed to create Starknet wallet");
       }
-    } catch (err) {
-      console.error("Failed to ensure Starknet wallet exists:", err);
     }
   };
 

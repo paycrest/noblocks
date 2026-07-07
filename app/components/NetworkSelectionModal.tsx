@@ -8,7 +8,7 @@ import { HelpCircleIcon, ArrowLeft02Icon, Cancel01Icon } from "hugeicons-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { networks } from "../mocks";
 import { useNetwork } from "../context/NetworksContext";
-import { useStarknet } from "../context";
+import { useStarknet, useTron } from "../context";
 import { AnimatedModal } from "./AnimatedComponents";
 import {
   shouldUseInjectedWallet,
@@ -38,7 +38,8 @@ export const NetworkSelectionModal = ({
   // or wallet switches, so the modal never re-evaluated for the next account.
   const checkedWalletRef = useRef<string | null>(null);
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
-  const { ensureWalletExists } = useStarknet();
+  const { ensureWalletExists: ensureStarknetWallet } = useStarknet();
+  const { ensureWalletExists: ensureTronWallet } = useTron();
   const { authenticated, user, ready } = usePrivy();
   const useInjectedWallet = shouldUseInjectedWallet(searchParams);
   const isDark = useActualTheme();
@@ -102,7 +103,13 @@ export const NetworkSelectionModal = ({
           console.error("Failed to switch network:", error);
           setSelectedNetwork(selectedNetwork);
         },
-        ensureWalletExists, // Pass the Starknet wallet creation function
+        async () => {
+          if (newNetwork.chain.name === "Starknet") {
+            await ensureStarknetWallet();
+          } else if (newNetwork.chain.name === "Tron") {
+            await ensureTronWallet();
+          }
+        },
       );
     }
   };

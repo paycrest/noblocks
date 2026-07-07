@@ -14,6 +14,7 @@ import NoticeBanner from "./NoticeBanner";
 import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeModal";
 import {
   PlayPromoBanner,
+  PlayPromoButton,
   PlayPromoModal,
   usePlayPromoBannerVisible,
 } from "./PlayPromo";
@@ -52,8 +53,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         ) : (
           <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
             <div
-              className={`relative ${showPlayPromoBanner
-                  ? "mb-16 md:mb-20"
+              className={`relative ${              showPlayPromoBanner
+                ? "mb-16 md:mb-[64px]"
                   : config.maintenanceEnabled
                     ? "mb-16"
                     : ""
@@ -74,6 +75,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <MainContent>{children}</MainContent>
             </LayoutWrapper>
 
+            {isHomepage && <PlayPromoButton />}
             <PWAInstall />
             <MaintenanceNoticeModal />
             {isHomepage && <PlayPromoModal />}

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
 import { usePathname } from "next/navigation";
 
@@ -39,7 +40,9 @@ export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileDropdownOpen, setIsMobileDropdownOpen] = useState(false);
+  const [logoDropdownPos, setLogoDropdownPos] = useState({ top: 0, left: 0, width: 0 });
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const portaledDropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { selectedNetwork } = useNetwork();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
@@ -134,28 +137,62 @@ export const Navbar = () => {
     }
   }, []);
 
-  // Close dropdown when clicking outside
+  const updateLogoDropdownPos = useCallback(() => {
+    if (!dropdownRef.current) return;
+    const rect = dropdownRef.current.getBoundingClientRect();
+    setLogoDropdownPos({
+      top: rect.bottom + 16,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, []);
+
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target;
+    if (!isDropdownOpen) return;
+    updateLogoDropdownPos();
+    window.addEventListener("resize", updateLogoDropdownPos);
+    window.addEventListener("scroll", updateLogoDropdownPos, true);
+    return () => {
+      window.removeEventListener("resize", updateLogoDropdownPos);
+      window.removeEventListener("scroll", updateLogoDropdownPos, true);
+    };
+  }, [isDropdownOpen, updateLogoDropdownPos]);
+
+  const closeLogoDropdownUnlessHovered = useCallback(
+    (related: EventTarget | null) => {
       if (
-        dropdownRef.current &&
-        target instanceof Node &&
-        !dropdownRef.current.contains(target)
+        !related ||
+        !(related instanceof Node) ||
+        (!dropdownRef.current?.contains(related) &&
+          !portaledDropdownRef.current?.contains(related))
       ) {
         setIsDropdownOpen(false);
       }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+
+    const handlePointerDownOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      if (portaledDropdownRef.current?.contains(target)) return;
+      setIsDropdownOpen(false);
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    document.addEventListener("pointerdown", handlePointerDownOutside);
+    return () =>
+      document.removeEventListener("pointerdown", handlePointerDownOutside);
+  }, [isDropdownOpen]);
 
   if (!mounted) return null;
 
   return (
     <header
-      className="fixed left-0 top-0 z-40 w-full bg-white/95 backdrop-blur transition-all dark:bg-neutral-900/95"
+      className="fixed left-0 top-0 z-50 w-full bg-white/95 backdrop-blur transition-all dark:bg-neutral-900/95"
       role="banner"
     >
       <nav
@@ -170,16 +207,7 @@ export const Navbar = () => {
             <div
               className="flex cursor-pointer items-center gap-1"
               onMouseEnter={() => setIsDropdownOpen(true)}
-              onMouseLeave={(e) => {
-                const related = e.relatedTarget;
-                if (
-                  !related ||
-                  !(related instanceof Node) ||
-                  !dropdownRef.current?.contains(related)
-                ) {
-                  setIsDropdownOpen(false);
-                }
-              }}
+              onMouseLeave={(e) => closeLogoDropdownUnlessHovered(e.relatedTarget)}
             >
               <button
                 aria-label="Noblocks Logo Icon"
@@ -255,56 +283,80 @@ export const Navbar = () => {
                 </Link>
               </div>
             )}
-            <AnimatePresence>
-              {isDropdownOpen && (
-                <>
-                  {/* Invisible bridge to prevent dropdown from closing when moving cursor */}
-                  <div className="absolute left-0 top-[calc(100%-0.5rem)] z-40 h-6 w-full" />
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2 }}
-                    className="absolute left-0 top-full z-50 mt-4 w-48 rounded-lg border border-border-light bg-white p-2 text-sm shadow-lg dark:border-white/5 dark:bg-surface-overlay"
-                    onMouseEnter={() => setIsDropdownOpen(true)}
-                    onMouseLeave={() => setIsDropdownOpen(false)}
-                  >
-                    {pathname !== "/" && (
-                      <Link
-                        href="/"
-                        className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5"
-                        onClick={() => setIsDropdownOpen(false)}
+            {mounted &&
+              typeof document !== "undefined" &&
+              createPortal(
+                <AnimatePresence>
+                  {isDropdownOpen && (
+                    <div ref={portaledDropdownRef}>
+                      {/* Invisible bridge — portaled above promo collage (z-[55]) */}
+                      <div
+                        className="fixed z-[60]"
+                        style={{
+                          top: logoDropdownPos.top - 24,
+                          left: logoDropdownPos.left,
+                          width: Math.max(logoDropdownPos.width, 192),
+                          height: 24,
+                        }}
+                        onMouseEnter={() => setIsDropdownOpen(true)}
+                        onMouseLeave={(e) =>
+                          closeLogoDropdownUnlessHovered(e.relatedTarget)
+                        }
+                      />
+                      <motion.div
+                        id="navbar-dropdown"
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="fixed z-[60] w-48 rounded-lg border border-border-light bg-white p-2 text-sm shadow-lg dark:border-white/5 dark:bg-surface-overlay"
+                        style={{
+                          top: logoDropdownPos.top,
+                          left: logoDropdownPos.left,
+                        }}
+                        onMouseEnter={() => setIsDropdownOpen(true)}
+                        onMouseLeave={(e) =>
+                          closeLogoDropdownUnlessHovered(e.relatedTarget)
+                        }
                       >
-                        Home
-                      </Link>
-                    )}
-                    {!pathname.startsWith("/blog") && (
-                      <Link
-                        href="/blog"
-                        className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5 sm:hidden"
-                        onClick={() => setIsDropdownOpen(false)}
-                      >
-                        Blog
-                      </Link>
-                    )}
-                    <Link
-                      href="/terms"
-                      className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5"
-                      onClick={() => setIsDropdownOpen(false)}
-                    >
-                      Terms
-                    </Link>
-                    <Link
-                      href="/privacy-policy"
-                      className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5"
-                      onClick={() => setIsDropdownOpen(false)}
-                    >
-                      Privacy Policy
-                    </Link>
-                  </motion.div>
-                </>
+                        {pathname !== "/" && (
+                          <Link
+                            href="/"
+                            className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5"
+                            onClick={() => setIsDropdownOpen(false)}
+                          >
+                            Home
+                          </Link>
+                        )}
+                        {!pathname.startsWith("/blog") && (
+                          <Link
+                            href="/blog"
+                            className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5 sm:hidden"
+                            onClick={() => setIsDropdownOpen(false)}
+                          >
+                            Blog
+                          </Link>
+                        )}
+                        <Link
+                          href="/terms"
+                          className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5"
+                          onClick={() => setIsDropdownOpen(false)}
+                        >
+                          Terms
+                        </Link>
+                        <Link
+                          href="/privacy-policy"
+                          className="flex w-full rounded-lg px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-accent-gray dark:bg-surface-overlay dark:text-white/80 dark:hover:bg-white/5"
+                          onClick={() => setIsDropdownOpen(false)}
+                        >
+                          Privacy Policy
+                        </Link>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>,
+                document.body,
               )}
-            </AnimatePresence>
           </div>
         </div>
 

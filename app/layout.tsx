@@ -23,8 +23,7 @@ export const metadata: Metadata = {
     title: "Noblocks",
   },
   other: {
-    "base:app_id":
-      process.env.NEXT_PUBLIC_BASE_APP_ID ?? "69f2113a05020c0316bbbf92",
+    "base:app_id": "69f2113a05020c0316bbbf92",
     "mobile-web-app-capable": "yes",
     "msapplication-TileColor": "#317EFB",
     "msapplication-tap-highlight": "no",

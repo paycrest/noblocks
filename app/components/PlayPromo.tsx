@@ -443,7 +443,7 @@ export function PlayPromoBanner() {
       {/* Collage on its own fixed layer above the banner strip (z-30) so the trophy
         tip + heads pop over the strip's top edge. Logo dropdown is portaled at
         z-[60] in Navbar so it still appears above this layer. */}
-      <div className="pointer-events-none fixed left-0 right-0 top-16 z-[55] mt-1 overflow-visible">
+      <div className="pointer-events-none fixed left-0 right-0 top-16 z-30 mt-1 overflow-visible">
         {/* Mobile */}
         <div className="relative h-[65px] md:hidden">
           <div

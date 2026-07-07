@@ -448,7 +448,6 @@ export const MobileDropdown = ({
                       {currentView === "bridge" && (
                         <BridgeForm
                           onClose={onClose}
-                          showBackButton
                           layout="mobile"
                           setCurrentView={setCurrentView}
                           onBridgeSubmit={trackBridge}

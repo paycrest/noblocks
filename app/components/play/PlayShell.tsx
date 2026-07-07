@@ -4,7 +4,7 @@
  * Noblocks Play — standalone game chrome. The global Navbar/Footer are
  * intentionally NOT rendered on /play* (see AppLayout): the game is its own
  * full experience, with the animated World Cup wordmark as its identity and
- * a CTA back to the main Noblocks app.
+ * a CTA back to the main Noblocks homepage (swap).
  *
  * Desktop: collapsed icon rail on the left that expands in flow on hover,
  * pushing the content right like a slide-out panel.
@@ -40,7 +40,8 @@ export const PlayHeader = ({ right }: { right?: ReactNode }) => (
           href="/"
           className="flex min-h-9 items-center gap-1.5 rounded-xl border border-border-light px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-accent-gray hover:text-text-body dark:border-white/10 dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white sm:min-h-10 sm:px-4 sm:text-sm"
         >
-          Back to Noblocks
+          <span className="sm:hidden">Home</span>
+          <span className="max-sm:hidden">Back to homepage</span>
           <ArrowUpRight01Icon className="size-4" />
         </Link>
       </div>

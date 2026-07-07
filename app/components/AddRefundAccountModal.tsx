@@ -284,6 +284,12 @@ export function AddRefundAccountModal({
                     setFormError(null);
                   }}
                   placeholder={getOfframpAccountIdentifierPlaceholder(currency, selectedInstitution?.type)}
+                  className={classNames(
+                    "w-full rounded-xl border bg-white px-3.5 py-3 text-sm text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/25 dark:bg-[#202020] dark:text-white dark:placeholder:text-white/40 dark:focus:border-blue-500 dark:focus:ring-blue-500/35",
+                    accountNumberError
+                      ? "border-red-500 dark:border-red-500"
+                      : "border-neutral-200 dark:border-white/[0.12]",
+                  )}
                 />
                 {accountNumberError ? (
                   <InputError message={accountNumberError} />

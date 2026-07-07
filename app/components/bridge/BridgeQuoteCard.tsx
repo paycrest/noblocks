@@ -28,8 +28,11 @@ export const BridgeQuoteCard: React.FC<BridgeQuoteCardProps> = ({
       setSecondsLeft(null);
       return;
     }
+    // `deadline` is how long the deposit address stays open (often days), not a short-lived
+    // price guarantee — cap the displayed countdown to 5 minutes so stale rates get refreshed.
+    const cappedDeadline = Math.min(quote.deadline, Date.now() + 5 * 60 * 1000);
     const tick = () => {
-      const remaining = Math.max(0, Math.floor((quote.deadline - Date.now()) / 1000));
+      const remaining = Math.max(0, Math.floor((cappedDeadline - Date.now()) / 1000));
       setSecondsLeft(remaining);
       if (remaining === 0) onExpire?.();
     };
@@ -101,13 +104,6 @@ export const BridgeQuoteCard: React.FC<BridgeQuoteCardProps> = ({
         bold
       />
 
-      {quote.kind === "lifi-tx" && Number(quote.feeReceivingToken) > 0 && (
-        <Row
-          label="Transaction fee"
-          value={`${formatTokenAmount(quote.feeReceivingToken)} ${toToken || ""}`}
-        />
-      )}
-
       {quote.kind === "lifi-tx" &&
         parseInt(String(quote.estimate.executionDuration)) > 0 && (
           <Row
@@ -129,6 +125,13 @@ export const BridgeQuoteCard: React.FC<BridgeQuoteCardProps> = ({
               : "Expired"}
           </span>
         </div>
+      )}
+
+      {quote.kind === "lifi-tx" && Number(quote.feeReceivingToken) > 0 && (
+        <Row
+          label="Transaction fee"
+          value={`${formatTokenAmount(quote.feeReceivingToken)} ${toToken || ""}`}
+        />
       )}
     </div>
   );

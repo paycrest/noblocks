@@ -24,6 +24,7 @@ import config, {
   getDelegationContractAddress,
   localTransferFeePercent,
 } from "../lib/config";
+import { appendBaseBuilderCode } from "../lib/baseBuilderCode";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
   Token,
@@ -345,6 +346,17 @@ export const TransactionPreview = ({
         // The contract transfers amount + senderFee from the user
         const totalAmountToApprove = params.amount + params.senderFee;
 
+        const approvalData = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [
+            getGatewayContractAddress(
+              selectedNetwork.chain.name,
+            ) as `0x${string}`,
+            totalAmountToApprove,
+          ],
+        });
+
         // Send approval transaction
         const approvalTx = await injectedProvider.request({
           method: "eth_sendTransaction",
@@ -352,16 +364,10 @@ export const TransactionPreview = ({
             {
               from: injectedAddress,
               to: tokenAddress,
-              data: encodeFunctionData({
-                abi: erc20Abi,
-                functionName: "approve",
-                args: [
-                  getGatewayContractAddress(
-                    selectedNetwork.chain.name,
-                  ) as `0x${string}`,
-                  totalAmountToApprove,
-                ],
-              }),
+              data: appendBaseBuilderCode(
+                selectedNetwork.chain.id,
+                approvalData,
+              ),
             },
           ],
         });
@@ -382,6 +388,20 @@ export const TransactionPreview = ({
           throw new Error("Approval transaction failed");
         }
 
+        const createOrderData = encodeFunctionData({
+          abi: gatewayAbi,
+          functionName: "createOrder",
+          args: [
+            params.token,
+            params.amount,
+            params.rate,
+            params.senderFeeRecipient,
+            params.senderFee,
+            params.refundAddress ?? "",
+            params.messageHash,
+          ],
+        });
+
         // Create order transaction
         await captureSubmissionBlock();
         await injectedProvider.request({
@@ -392,19 +412,10 @@ export const TransactionPreview = ({
               to: getGatewayContractAddress(
                 selectedNetwork.chain.name,
               ) as `0x${string}`,
-              data: encodeFunctionData({
-                abi: gatewayAbi,
-                functionName: "createOrder",
-                args: [
-                  params.token,
-                  params.amount,
-                  params.rate,
-                  params.senderFeeRecipient,
-                  params.senderFee,
-                  params.refundAddress ?? "",
-                  params.messageHash,
-                ],
-              }),
+              data: appendBaseBuilderCode(
+                selectedNetwork.chain.id,
+                createOrderData,
+              ),
             },
           ],
         });

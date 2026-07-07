@@ -394,27 +394,37 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
 
   return (
     <div className="relative flex flex-col gap-5">
-      {/* Header */}
+      {/* Header — mobile: centered title, back arrow only on the form step, never a close icon.
+          Desktop: unaffected — title left-aligned, close icon always present. */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {showBackButton && (
+        {layout === "mobile" ? (
+          <>
+            <div className="flex size-8 shrink-0 items-center justify-center">
+              {showBackButton && step === "form" && (
+                <button
+                  type="button"
+                  onClick={() => setCurrentView?.("wallet")}
+                  className="flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 active:scale-95 dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/20"
+                >
+                  <ArrowLeft02Icon className="size-4" />
+                </button>
+              )}
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Convert</h2>
+            <div className="size-8 shrink-0" />
+          </>
+        ) : (
+          <>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Convert</h2>
             <button
               type="button"
-              onClick={() => setCurrentView?.("wallet")}
-              className="flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 active:scale-95 dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/20 sm:hidden"
+              onClick={onClose}
+              className="flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 active:scale-95 dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/20"
             >
-              <ArrowLeft02Icon className="size-4" />
+              <Cancel01Icon className="size-4" />
             </button>
-          )}
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Convert</h2>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 active:scale-95 dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/20"
-        >
-          <Cancel01Icon className="size-4" />
-        </button>
+          </>
+        )}
       </div>
 
       {!authenticated ? (

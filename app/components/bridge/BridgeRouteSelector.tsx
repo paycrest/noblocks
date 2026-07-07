@@ -245,7 +245,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
         <div className="flex items-center justify-between">
           <TokenPill symbol={to?.token} target="toToken" />
           <span className="text-xs text-text-secondary dark:text-white/40">
-            On {toNetworkName}
+            on {toNetworkName}
           </span>
         </div>
         <div className="flex items-end justify-between">

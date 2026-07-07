@@ -157,7 +157,6 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const isDone = liveStatus === "SUCCESS";
   const isRefunded = liveStatus === "REFUNDED";
   const isFailed = liveStatus === "FAILED";
-  const isTerminal = isDone || isRefunded || isFailed;
 
   // Prefer the destination-chain tx on success (where funds landed); otherwise the source tx.
   const explorerLink = statusInfo
@@ -253,7 +252,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
             amountSent: parsedAmount,
             amountReceived: parseFloat(quote.amountOut),
             // Fee consolidated to the receiving token (existing NUMERIC column, stored in to_currency).
-            fee: bridgeFeeInReceivingToken(quote, to.decimals),
+            fee: bridgeFeeInReceivingToken(quote),
             recipient: {
               account_name: "Convert",
               institution: quote.kind === "lifi-tx" ? "LI.FI" : "NEAR Intents",
@@ -282,7 +281,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
         toNetwork: to.network,
         amountSent: amount,
         amountReceived: quote.amountOut,
-        fee: bridgeFeeInReceivingToken(quote, to.decimals),
+        fee: bridgeFeeInReceivingToken(quote),
         timestamp: Date.now(),
       });
       setStep("status");
@@ -651,7 +650,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                   onClick={onClose}
                   className={classNames(primaryBtnClasses, "w-full")}
                 >
-                  {isTerminal ? "Close" : "Done"}
+                  {isDone ? "Done" : "Close"}
                 </button>
               )}
             </div>
@@ -661,9 +660,15 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
 
       {/* ── Picker overlay ── */}
       {activePicker && layout === "mobile" && (
-        <div className="absolute w-full inset-0 z-60 w-full" onClick={() => setActivePicker(null)}>
+        <div
+          className="absolute inset-0 z-40 rounded-2xl bg-black/40"
+          onClick={() => setActivePicker(null)}
+        >
           {/* True bottom sheet — docks to the bottom, doesn't cover the whole form */}
-          <div className="absolute inset-x-0 -bottom-12 z-50 flex min-h-[195px] max-h-[75%] flex-col rounded-t-2xl border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-neutral-900">
+          <div
+            className="absolute inset-x-0 bottom-0 z-50 flex min-h-[195px] max-h-[75%] flex-col rounded-t-2xl border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-neutral-900"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex shrink-0 justify-center pb-1 pt-2.5">
               <div className="h-1 w-10 rounded-full bg-gray-300 dark:bg-white/20" />
             </div>

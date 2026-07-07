@@ -217,17 +217,14 @@ export function toRawAmount(amount: string, decimals: number): string {
  * column on the transactions table. LI.FI fees come in mixed tokens and are all `included`
  * (already deducted from the amount received); we consolidate them to one USD total and
  * convert to the receiving token (see LifiClient.getQuote), already human-readable. NEAR's
- * `fee` (withdrawFee/refundFee) is a raw base-unit string and needs decimals conversion.
+ * `fee` is normalized to a human-readable string in `normalizeQuote` (withdrawFee is in
+ * destination-token units, refundFee in origin-token units — decimals differ per field).
  */
-export function bridgeFeeInReceivingToken(quote: BridgeQuote, toDecimals: number): number {
+export function bridgeFeeInReceivingToken(quote: BridgeQuote): number {
   if (quote.kind === "lifi-tx") {
     return parseFloat(quote.feeReceivingToken) || 0;
   }
-  try {
-    return parseFloat(formatUnits(BigInt(quote.fee || "0"), toDecimals)) || 0;
-  } catch {
-    return 0;
-  }
+  return parseFloat(quote.fee) || 0;
 }
 
 // ============================================================================
@@ -255,9 +252,28 @@ function authHeaders(token?: string | null): Record<string, string> {
 }
 
 export class NearIntentsClient {
-  private normalizeQuote(data: any, params: NearQuoteParams): NearDepositQuote {
+  /**
+   * `withdrawFee` is denominated in the destination asset's smallest units; `refundFee`
+   * (the fallback, charged instead when a refund path is taken) is denominated in the
+   * *origin* asset's units — each needs its own decimals to convert correctly.
+   */
+  private normalizeQuote(
+    data: any,
+    params: NearQuoteParams,
+    decimals: { origin: number; destination: number },
+  ): NearDepositQuote {
     const q = data.quote ?? data; // response nests amounts under data.quote
     const secs: number = q.timeEstimate ?? 30;
+    let fee = "0";
+    try {
+      if (q.withdrawFee) {
+        fee = formatUnits(BigInt(q.withdrawFee), decimals.destination);
+      } else if (q.refundFee) {
+        fee = formatUnits(BigInt(q.refundFee), decimals.origin);
+      }
+    } catch {
+      fee = "0";
+    }
     return {
       kind: "near-deposit",
       depositAddress: data.quote?.depositAddress ?? data.depositAddress ?? "",
@@ -266,17 +282,21 @@ export class NearIntentsClient {
         ? new Date(data.quote.deadline).getTime()
         : Date.now() + 600_000,
       timeEstimate: `~${secs} seconds`,
-      fee: q.withdrawFee ?? q.refundFee ?? "0",
+      fee,
       raw: data,
       _params: params,
     } as NearDepositQuote & { _params: NearQuoteParams };
   }
 
-  async getQuote(params: NearQuoteParams, token?: string | null): Promise<BridgeQuote> {
+  async getQuote(
+    params: NearQuoteParams,
+    token: string | null | undefined,
+    decimals: { origin: number; destination: number },
+  ): Promise<BridgeQuote> {
     const { data } = await axios.post("/api/bridge/near-intents/quote", params, {
       headers: authHeaders(token),
     });
-    return this.normalizeQuote(data, params);
+    return this.normalizeQuote(data, params, decimals);
   }
 
   /** Re-requests with dry:false to get the real deposit address for execution. */

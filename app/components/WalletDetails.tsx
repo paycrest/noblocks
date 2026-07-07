@@ -578,7 +578,7 @@ export const WalletDetails = () => {
                     </div>
                     </div>
 
-                    <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
+                    <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
                     {isReferralEnabled() && (
                       <div className="mt-8">
                         <ReferralCTA

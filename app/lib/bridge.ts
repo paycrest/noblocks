@@ -216,13 +216,18 @@ export function toRawAmount(amount: string, decimals: number): string {
  * Total conversion fee expressed in the *receiving* token, for the single NUMERIC `fee`
  * column on the transactions table. LI.FI fees come in mixed tokens and are all `included`
  * (already deducted from the amount received); we consolidate them to one USD total and
- * convert to the receiving token (see LifiClient.getQuote). NEAR exposes one fee value.
+ * convert to the receiving token (see LifiClient.getQuote), already human-readable. NEAR's
+ * `fee` (withdrawFee/refundFee) is a raw base-unit string and needs decimals conversion.
  */
-export function bridgeFeeInReceivingToken(quote: BridgeQuote): number {
+export function bridgeFeeInReceivingToken(quote: BridgeQuote, toDecimals: number): number {
   if (quote.kind === "lifi-tx") {
     return parseFloat(quote.feeReceivingToken) || 0;
   }
-  return parseFloat(quote.fee) || 0;
+  try {
+    return parseFloat(formatUnits(BigInt(quote.fee || "0"), toDecimals)) || 0;
+  } catch {
+    return 0;
+  }
 }
 
 // ============================================================================

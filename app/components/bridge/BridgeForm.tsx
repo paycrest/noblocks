@@ -39,7 +39,6 @@ export interface BridgeSubmitInfo {
 
 interface BridgeFormProps {
   onClose: () => void;
-  showBackButton?: boolean;
   setCurrentView?: React.Dispatch<React.SetStateAction<MobileSheetView>>;
   layout?: "modal" | "mobile";
   onBridgeSubmit?: (info: BridgeSubmitInfo) => void;
@@ -53,7 +52,6 @@ function getNetworkImgSrc(network: (typeof networks)[0]): string {
 
 export const BridgeForm: React.FC<BridgeFormProps> = ({
   onClose,
-  showBackButton = false,
   setCurrentView,
   layout = "modal",
   onBridgeSubmit,
@@ -255,7 +253,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
             amountSent: parsedAmount,
             amountReceived: parseFloat(quote.amountOut),
             // Fee consolidated to the receiving token (existing NUMERIC column, stored in to_currency).
-            fee: bridgeFeeInReceivingToken(quote),
+            fee: bridgeFeeInReceivingToken(quote, to.decimals),
             recipient: {
               account_name: "Convert",
               institution: quote.kind === "lifi-tx" ? "LI.FI" : "NEAR Intents",
@@ -284,7 +282,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
         toNetwork: to.network,
         amountSent: amount,
         amountReceived: quote.amountOut,
-        fee: bridgeFeeInReceivingToken(quote),
+        fee: bridgeFeeInReceivingToken(quote, to.decimals),
         timestamp: Date.now(),
       });
       setStep("status");
@@ -394,37 +392,23 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
 
   return (
     <div className="relative flex flex-col gap-5">
-      {/* Header — mobile: centered title, back arrow only on the form step, never a close icon.
-          Desktop: unaffected — title left-aligned, close icon always present. */}
+      {/* Header — centered title, back arrow only on the form step, never a close icon.
+          Same on desktop and mobile: on desktop there's no view stack to go "back" to, so the
+          arrow just closes the modal instead. */}
       <div className="flex items-center justify-between">
-        {layout === "mobile" ? (
-          <>
-            <div className="flex size-8 shrink-0 items-center justify-center">
-              {showBackButton && step === "form" && (
-                <button
-                  type="button"
-                  onClick={() => setCurrentView?.("wallet")}
-                  className="flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 active:scale-95 dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/20"
-                >
-                  <ArrowLeft02Icon className="size-4" />
-                </button>
-              )}
-            </div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Convert</h2>
-            <div className="size-8 shrink-0" />
-          </>
-        ) : (
-          <>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Convert</h2>
+        <div className="flex size-8 shrink-0 items-center justify-center">
+          {step === "form" && (
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => (setCurrentView ? setCurrentView("wallet") : onClose())}
               className="flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 active:scale-95 dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/20"
             >
-              <Cancel01Icon className="size-4" />
+              <ArrowLeft02Icon className="size-4" />
             </button>
-          </>
-        )}
+          )}
+        </div>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Convert</h2>
+        <div className="size-8 shrink-0" />
       </div>
 
       {!authenticated ? (

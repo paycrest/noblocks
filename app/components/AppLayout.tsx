@@ -12,7 +12,11 @@ import { LayoutWrapper } from "./LayoutWrapper";
 import PWAInstall from "./PWAInstallManager";
 import NoticeBanner from "./NoticeBanner";
 import { MaintenanceNoticeModal, MaintenanceBanner } from "./MaintenanceNoticeModal";
-import { PlayPromoBanner, PlayPromoModal } from "./PlayPromo";
+import {
+  PlayPromoBanner,
+  PlayPromoModal,
+  usePlayPromoBannerVisible,
+} from "./PlayPromo";
 import SentryClientProvider from "./SentryClientProvider";
 import { MoralisStreamRegistration } from "./MoralisStreamRegistration";
 
@@ -25,7 +29,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/play/") ||
     pathname === "/play-demo";
   const isHomepage = pathname === "/";
-  const showPlayPromoBanner = isHomepage && config.fantasyEnabled;
+  const playPromoBannerVisible = usePlayPromoBannerVisible();
+  const showPlayPromoBanner =
+    isHomepage && config.fantasyEnabled && playPromoBannerVisible;
 
   // The Brevo widget appends its own container directly to <body>, outside
   // this component's tree, so a body-level class (not a wrapper div class)
@@ -44,35 +50,34 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         ) : (
-        <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
-          <div
-            className={`relative ${
-              showPlayPromoBanner
-                ? "mb-16 md:mb-20"
-                : config.maintenanceEnabled
-                  ? "mb-16"
-                  : ""
-            }`}
-          >
-            <Navbar />
-            {showPlayPromoBanner ? (
-              <PlayPromoBanner />
-            ) : config.maintenanceEnabled ? (
-              <MaintenanceBanner />
-            ) : (
-              config.noticeBannerText && (
-                <NoticeBanner textLines={config.noticeBannerText.split("|")} />
-              )
-            )}
-          </div>
-          <LayoutWrapper footer={<Footer />}>
-            <MainContent>{children}</MainContent>
-          </LayoutWrapper>
+          <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
+            <div
+              className={`relative ${showPlayPromoBanner
+                  ? "mb-16 md:mb-20"
+                  : config.maintenanceEnabled
+                    ? "mb-16"
+                    : ""
+                }`}
+            >
+              <Navbar />
+              {showPlayPromoBanner ? (
+                <PlayPromoBanner />
+              ) : config.maintenanceEnabled ? (
+                <MaintenanceBanner />
+              ) : (
+                config.noticeBannerText && (
+                  <NoticeBanner textLines={config.noticeBannerText.split("|")} />
+                )
+              )}
+            </div>
+            <LayoutWrapper footer={<Footer />}>
+              <MainContent>{children}</MainContent>
+            </LayoutWrapper>
 
-          <PWAInstall />
-          <MaintenanceNoticeModal />
-          {isHomepage && <PlayPromoModal />}
-        </div>
+            <PWAInstall />
+            <MaintenanceNoticeModal />
+            {isHomepage && <PlayPromoModal />}
+          </div>
         )}
         {/* Brevo Chat Widget */}
         {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && config.brevoConversationsGroupId && (
@@ -82,9 +87,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             window.BrevoConversations=window.BrevoConversations||function(){
             (window.BrevoConversations.q=window.BrevoConversations.q||[]).push(arguments)};
             window.BrevoConversationsSetup=${config.brevoConversationsGroupId
-                ? `{groupId:${JSON.stringify(config.brevoConversationsGroupId)}}`
-                : '{}'
-              };
+                  ? `{groupId:${JSON.stringify(config.brevoConversationsGroupId)}}`
+                  : '{}'
+                };
             `}
             </Script>
             <Script

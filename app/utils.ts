@@ -2048,6 +2048,16 @@ export const isBlockFestActive = (): boolean => {
   return Date.now() <= BLOCKFEST_END_DATE.getTime();
 };
 
+export const WORLDCUP_FOOTER_END_DATE = new Date(config.worldcupFooterEndDate);
+
+/** World Cup footer Lottie: fantasy flag on and before campaign end date. */
+export const isWorldcupFooterActive = (): boolean => {
+  return (
+    config.fantasyEnabled &&
+    Date.now() <= WORLDCUP_FOOTER_END_DATE.getTime()
+  );
+};
+
 /**
  * Check if BlockFest campaign has expired
  * @returns true if campaign has expired, false if still active

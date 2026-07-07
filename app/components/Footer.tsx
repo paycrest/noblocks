@@ -8,10 +8,10 @@ import { motion } from "framer-motion";
 import { AnimatedComponent, fadeInOut } from "./AnimatedComponents";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { useStep } from "../context";
-import { classNames } from "../utils";
+import { classNames, isWorldcupFooterActive } from "../utils";
 import { STEPS } from "../types";
 import { useRocketStatus } from "../context/RocketStatusContext";
-import Link from "next/link";
+import { WorldcupFooterAnimation } from "./WorldcupFooterAnimation";
 
 const socials = [
   {
@@ -114,6 +114,7 @@ export const Footer = () => {
   };
 
   const currentYear = new Date().getFullYear();
+  const showWorldcupFooter = isWorldcupFooterActive();
 
   return (
     <AnimatedComponent variant={fadeInOut} className="w-full">
@@ -183,39 +184,47 @@ export const Footer = () => {
           </div>
         </div>
 
-        <Image
-          src="/images/footer-img-mobile.svg"
-          alt="Footer Mobile Image"
-          height={100}
-          width={100}
-          loading="lazy"
-          className="absolute -right-2 bottom-0 w-full animate-[footer-bg-float_6s_ease-in-out_infinite] md:hidden"
-        />
-        <div className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] overflow-hidden md:block 2xl:rounded-b-[84px]">
-          <Image
-            src="/images/footer-desktop-img.svg"
-            alt="Footer Desktop Image"
-            width={100}
-            height={100}
-            className="w-full animate-[footer-bg-float_6s_ease-in-out_infinite]"
-            priority
-          />
-        </div>
-        <motion.img
-          key={rocketStatus}
-          src="/images/footer-rocket-illustration.svg"
-          alt="Footer Rocket Image"
-          height={100}
-          width={100}
-          initial="pending"
-          animate={
-            rocketStatus === "pending" ? rocketVariants.pending : rocketStatus
-          }
-          variants={rocketVariants}
-          loading="lazy"
-          className="absolute bottom-7 right-8 z-10 w-full max-w-[200px] xsm:max-w-[275px] md:max-w-[350px] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[450px]"
-          style={{ willChange: "transform, filter" }}
-        />
+        {showWorldcupFooter ? (
+          <WorldcupFooterAnimation rocketStatus={rocketStatus} />
+        ) : (
+          <>
+            <Image
+              src="/images/footer-img-mobile.svg"
+              alt="Footer Mobile Image"
+              height={100}
+              width={100}
+              loading="lazy"
+              className="absolute -right-2 bottom-0 w-full animate-[footer-bg-float_6s_ease-in-out_infinite] md:hidden"
+            />
+            <div className="absolute bottom-0 right-0 z-[5] hidden max-h-[700px] w-[1000px] overflow-hidden md:block 2xl:rounded-b-[84px]">
+              <Image
+                src="/images/footer-desktop-img.svg"
+                alt="Footer Desktop Image"
+                width={100}
+                height={100}
+                className="w-full animate-[footer-bg-float_6s_ease-in-out_infinite]"
+                priority
+              />
+            </div>
+            <motion.img
+              key={rocketStatus}
+              src="/images/footer-rocket-illustration.svg"
+              alt="Footer Rocket Image"
+              height={100}
+              width={100}
+              initial="pending"
+              animate={
+                rocketStatus === "pending"
+                  ? rocketVariants.pending
+                  : rocketStatus
+              }
+              variants={rocketVariants}
+              loading="lazy"
+              className="absolute bottom-7 right-8 z-10 w-full max-w-[200px] xsm:max-w-[275px] md:max-w-[350px] lg:bottom-[7rem] lg:right-[20rem] lg:max-w-[450px]"
+              style={{ willChange: "transform, filter" }}
+            />
+          </>
+        )}
       </motion.footer>
     </AnimatedComponent>
   );

@@ -472,7 +472,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                     {execLoading || isFinalizing ? "Confirming…" : "Confirm"}
                   </button>
                   <p className="text-center text-xs text-gray-400 dark:text-white/30 -mt-3">
-                    By clicking Confirm, you agree to the <Link target="_blank" referrerPolicy="no-referrer" href="/terms" className="text-lavender-600 dark:text-lavender-400 hover:underline">Terms of Use</Link>.
+                    By clicking Confirm, you agree to the <Link target="_blank" rel="noopener noreferrer" href="/terms" className="text-lavender-600 dark:text-lavender-400 hover:underline">Terms of Use</Link>.
                   </p>
                 </>
               )}

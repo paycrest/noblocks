@@ -16,7 +16,7 @@ import Link from "next/link";
 import { IoClose } from "react-icons/io5";
 import { ArrowDown01Icon } from "hugeicons-react";
 import { Dialog, DialogPanel } from "@headlessui/react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import config from "../lib/config";
 import { NoblocksAnimatedIcon } from "./NoblocksAnimatedIcon";
 
@@ -118,11 +118,15 @@ function isBannerDismissed(): boolean {
  * across visits (localStorage); the Play button takes its place.
  */
 export function usePlayPromoBannerVisible() {
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(() =>
+    typeof window === "undefined" ? false : !isBannerDismissed(),
+  );
+  const [ready, setReady] = useState(() => typeof window !== "undefined");
 
   useEffect(() => {
     const sync = () => setVisible(!isBannerDismissed());
     sync();
+    setReady(true);
     window.addEventListener(BANNER_DISMISS_EVENT, sync);
     window.addEventListener("storage", sync);
     return () => {
@@ -131,6 +135,7 @@ export function usePlayPromoBannerVisible() {
     };
   }, []);
 
+  if (!ready) return false;
   return visible;
 }
 
@@ -185,97 +190,110 @@ export function PlayPromoModal() {
   if (!config.fantasyEnabled || !mounted) return null;
 
   return (
-    <Dialog open={isOpen} onClose={dismiss} className="relative z-[100]">
-      <div
-        className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm"
-        aria-hidden="true"
-      />
-
-      <div className="pointer-events-none fixed inset-0 z-[101] flex items-center justify-center p-4">
-        <DialogPanel className="pointer-events-auto relative w-full max-w-[450px]">
+    <AnimatePresence>
+      {isOpen && (
+        <Dialog
+          static
+          open={isOpen}
+          onClose={dismiss}
+          className="relative z-[100]"
+        >
           <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          >
-            <div
-              className="relative overflow-hidden rounded-[28px] bg-lavender-500 shadow-2xl w-[315px] h-[393px] md:w-[450px] md:h-[560px]"
-              style={{ containerType: "inline-size" }}
-            >
-              <ModalBackdrop />
-              <Collage />
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm"
+            aria-hidden="true"
+          />
 
-              <div
-                className="absolute z-20 flex items-center justify-center"
-                style={{ left: "5.99%", top: "5.52%", width: "13.71%", height: "11.13%" }}
+          <div className="pointer-events-none fixed inset-0 z-[101] flex items-center justify-center p-4">
+            <DialogPanel className="pointer-events-auto relative w-full max-w-[450px]">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
               >
-                <NoblocksAnimatedIcon phases={["ball", "trophy"]} className="size-[32px]" />
-              </div>
+                <div
+                  className="relative overflow-hidden rounded-[28px] bg-lavender-500 shadow-2xl w-[315px] h-[393px] md:w-[450px] md:h-[560px]"
+                  style={{ containerType: "inline-size" }}
+                >
+                  <ModalBackdrop />
+                  <Collage />
 
-              <button
-                type="button"
-                onClick={dismiss}
-                aria-label="Dismiss"
-                className="absolute z-30 flex items-center justify-center rounded-full border border-white/30 bg-white/30 backdrop-blur-sm transition-colors hover:bg-white/40"
-                style={{ left: "88.23%", top: "4.19%", width: "8.54%", height: "6.91%" }}
-              >
-                <img src={ASSET("close-icon.svg")} alt="" className="pointer-events-none h-1/2 w-1/2" />
-              </button>
+                  <div
+                    className="absolute z-20 flex items-center justify-center"
+                    style={{ left: "5.99%", top: "5.52%", width: "13.71%", height: "11.13%" }}
+                  >
+                    <NoblocksAnimatedIcon phases={["ball", "trophy"]} className="size-[32px]" />
+                  </div>
 
-              <h2
-                className="absolute z-10 font-bold text-[#F5F5F5]"
-                style={{
-                  left: "8.4943%",
-                  top: "54.2398%",
-                  width: "47.6834%",
-                  fontSize: "10.821cqw",
-                  lineHeight: 0.761,
-                  letterSpacing: "-0.7575cqw",
-                }}
-              >
-                Predict.
-                <br />
-                Compete.
-                <br />
-                Win.
-              </h2>
+                  <button
+                    type="button"
+                    onClick={dismiss}
+                    aria-label="Dismiss"
+                    className="absolute z-30 flex items-center justify-center rounded-full border border-white/30 bg-white/30 backdrop-blur-sm transition-colors hover:bg-white/40"
+                    style={{ left: "88.23%", top: "4.19%", width: "8.54%", height: "6.91%" }}
+                  >
+                    <img src={ASSET("close-icon.svg")} alt="" className="pointer-events-none h-1/2 w-1/2" />
+                  </button>
 
-              <p
-                className="absolute z-10 text-[#F5F5F5]"
-                style={{
-                  left: "8.4943%",
-                  top: "76.5802%",
-                  width: "53.0245%",
-                  fontSize: "2.28cqw",
-                  lineHeight: 1.351,
-                  letterSpacing: "-0.0456cqw",
-                }}
-              >
-                Build your fantasy squad, earn points from real World Cup
-                performances, climb the leaderboard, and win exclusive
-                rewards.
-              </p>
+                  <h2
+                    className="absolute z-10 font-bold text-[#F5F5F5]"
+                    style={{
+                      left: "8.4943%",
+                      top: "54.2398%",
+                      width: "47.6834%",
+                      fontSize: "10.821cqw",
+                      lineHeight: 0.761,
+                      letterSpacing: "-0.7575cqw",
+                    }}
+                  >
+                    Predict.
+                    <br />
+                    Compete.
+                    <br />
+                    Win.
+                  </h2>
 
-              <Link
-                href="/play"
-                onClick={dismiss}
-                className="absolute z-30 flex items-center justify-center rounded-full bg-white font-semibold text-black transition-transform active:scale-[0.98]"
-                style={{
-                  left: "6.9182%",
-                  top: "86.9085%",
-                  width: "86.1635%",
-                  height: "8.9036%",
-                  fontSize: "3.33cqw",
-                }}
-              >
-                Play now
-              </Link>
-            </div>
-          </motion.div>
-        </DialogPanel>
-      </div>
-    </Dialog>
+                  <p
+                    className="absolute z-10 text-[#F5F5F5]"
+                    style={{
+                      left: "8.4943%",
+                      top: "76.5802%",
+                      width: "53.0245%",
+                      fontSize: "2.28cqw",
+                      lineHeight: 1.351,
+                      letterSpacing: "-0.0456cqw",
+                    }}
+                  >
+                    Build your fantasy squad, earn points from real World Cup
+                    performances, climb the leaderboard, and win exclusive
+                    rewards.
+                  </p>
+
+                  <Link
+                    href="/play"
+                    onClick={dismiss}
+                    className="absolute z-30 flex items-center justify-center rounded-full bg-white font-semibold text-black transition-transform active:scale-[0.98]"
+                    style={{
+                      left: "6.9182%",
+                      top: "86.9085%",
+                      width: "86.1635%",
+                      height: "8.9036%",
+                      fontSize: "3.33cqw",
+                    }}
+                  >
+                    Play now
+                  </Link>
+                </div>
+              </motion.div>
+            </DialogPanel>
+          </div>
+        </Dialog>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -315,132 +333,140 @@ const MiniCollage = () => (
 );
 
 export function PlayPromoBanner() {
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() =>
+    typeof window === "undefined" ? false : isBannerDismissed(),
+  );
+  const [ready, setReady] = useState(() => typeof window !== "undefined");
+
+  useEffect(() => {
+    setDismissed(isBannerDismissed());
+    setReady(true);
+  }, []);
 
   const dismiss = useCallback(() => {
     markBannerDismissed();
     setDismissed(true);
   }, []);
 
-  if (!config.fantasyEnabled || dismissed) return null;
+  if (!config.fantasyEnabled || !ready || dismissed) return null;
 
   return (
     <>
-    <motion.div
-      // Below the navbar (z-50) so the logo dropdown shows above the banner.
-      // Still above page content; dropdowns/modals (z-50+) stay on top.
-      className="pointer-events-none fixed left-0 right-0 top-16 z-[30] mt-1 overflow-visible"
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
-    >
-      <button
-        type="button"
-        onClick={dismiss}
-        aria-label="Dismiss promo banner"
-        className="pointer-events-auto absolute right-0.5 top-1/2 z-30 flex size-8 -translate-y-1/2 items-center justify-center text-white/90 transition-colors hover:text-white md:hidden"
+      <motion.div
+        // Below the navbar (z-50) so the logo dropdown shows above the banner.
+        // Still above page content; dropdowns/modals (z-50+) stay on top.
+        className="pointer-events-none fixed left-0 right-0 top-16 z-[30] mt-1 overflow-visible"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
       >
-        <IoClose className="size-[22px]" strokeWidth={2.5} />
-      </button>
-      {/* Mobile */}
-      <div className="relative h-[65px] md:hidden">
-        <div className="absolute inset-0 overflow-hidden bg-lavender-500">
-          <BannerBackdrop />
-        </div>
-        <div className="relative z-20 flex h-full items-center gap-1 pr-[3.25rem] pl-[24%] xsm:gap-1.5 xsm:pr-[3.5rem]">
-          <h2 className="ml-1 shrink-0 text-[19px] font-bold leading-[0.76] tracking-[-0.07em] text-black xsm:text-[20px]">
-            Predict.
-            <br />
-            Compete.
-            <br />
-            Win.
-          </h2>
-          <p className="ml-0.5 min-w-0 flex-1 -translate-y-0.5 whitespace-nowrap text-[8px] font-normal leading-[1.35] tracking-[-0.02em] text-[#F5F5F5] xsm:ml-1.5 xsm:text-[9px]">
-            Build your fantasy squad, earn points
-            <br />
-            from real World Cup performances,
-            <br />
-            and win exclusive rewards.
-          </p>
-        </div>
-        <Link
-          href="/play"
+        <button
+          type="button"
           onClick={dismiss}
-          className="pointer-events-auto absolute right-8 top-1/2 z-30 -translate-y-1/2 shrink-0 rounded-md bg-white px-1.5 py-1.5 text-[8px] font-semibold leading-none text-black transition-colors hover:bg-white/90 xsm:right-9 xsm:px-2 xsm:text-[9px]"
+          aria-label="Dismiss promo banner"
+          className="pointer-events-auto absolute right-0.5 top-1/2 z-30 flex size-8 -translate-y-1/2 items-center justify-center text-white/90 transition-colors hover:text-white md:hidden"
         >
-          Join
-        </Link>
-      </div>
-
-      {/* Desktop — Figma: strip with the collage flush left, popping above */}
-      <div className="relative hidden h-[64px] items-center md:flex">
-        <div className="absolute inset-0 overflow-hidden bg-lavender-500">
-          <BannerBackdrop />
+          <IoClose className="size-[22px]" strokeWidth={2.5} />
+        </button>
+        {/* Mobile */}
+        <div className="relative h-[65px] md:hidden">
+          <div className="absolute inset-0 overflow-hidden bg-lavender-500">
+            <BannerBackdrop />
+          </div>
+          <div className="relative z-20 flex h-full items-center gap-1 pr-[3.25rem] pl-[24%] xsm:gap-1.5 xsm:pr-[3.5rem]">
+            <h2 className="ml-1 shrink-0 text-[19px] font-bold leading-[0.76] tracking-[-0.07em] text-black xsm:text-[20px]">
+              Predict.
+              <br />
+              Compete.
+              <br />
+              Win.
+            </h2>
+            <p className="ml-0.5 min-w-0 flex-1 -translate-y-0.5 whitespace-nowrap text-[8px] font-normal leading-[1.35] tracking-[-0.02em] text-[#F5F5F5] xsm:ml-1.5 xsm:text-[9px]">
+              Build your fantasy squad, earn points
+              <br />
+              from real World Cup performances,
+              <br />
+              and win exclusive rewards.
+            </p>
+          </div>
+          <Link
+            href="/play"
+            onClick={dismiss}
+            className="pointer-events-auto absolute right-8 top-1/2 z-30 -translate-y-1/2 shrink-0 rounded-md bg-white px-1.5 py-1.5 text-[8px] font-semibold leading-none text-black transition-colors hover:bg-white/90 xsm:right-9 xsm:px-2 xsm:text-[9px]"
+          >
+            Join
+          </Link>
         </div>
-        <div className="relative z-20 flex h-full w-full items-center gap-4 pl-[min(210px,16.5vw)] pr-[220px] lg:gap-5 lg:pr-[260px]">
-          <h2 className="ml-12 shrink-0 whitespace-nowrap text-[26px] font-bold leading-[0.76] tracking-[-0.07em] text-black lg:ml-24 xl:text-[35px]">
-            Predict. Compete. Win.
-          </h2>
-          <p className="max-w-[26rem] shrink-0 text-[13px] leading-[1.3] text-[#F5F5F5] xl:max-w-[28rem] xl:text-sm">
-            Build your fantasy squad, earn points from real World Cup
-            performances, climb the leaderboard, and win exclusive rewards.
-          </p>
-        </div>
 
-        {/* Align with navbar Network + Settings (same container + wallet offset) */}
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-30 hidden -translate-y-1/2 md:block">
-          <div className="mx-auto flex w-full max-w-screen-2xl justify-end px-4 lg:px-8">
-            <div className="flex items-center gap-3 sm:gap-4">
-              {/* Skip wallet chip width so actions sit under Network + Settings */}
-              <div className="hidden h-9 w-[5.75rem] shrink-0 sm:block" aria-hidden />
-              <Link
-                href="/play"
-                onClick={dismiss}
-                className="pointer-events-auto shrink-0 rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black transition-colors hover:bg-white/90"
-              >
-                Join a league
-              </Link>
-              <button
-                type="button"
-                onClick={dismiss}
-                aria-label="Dismiss promo banner"
-                className="pointer-events-auto flex size-6 shrink-0 items-center justify-center text-white/90 transition-colors hover:text-white"
-              >
-                <IoClose className="size-5" strokeWidth={2} />
-              </button>
+        {/* Desktop — Figma: strip with the collage flush left, popping above */}
+        <div className="relative hidden h-[64px] items-center md:flex">
+          <div className="absolute inset-0 overflow-hidden bg-lavender-500">
+            <BannerBackdrop />
+          </div>
+          <div className="relative z-20 flex h-full w-full items-center gap-4 pl-[min(210px,16.5vw)] pr-[220px] lg:gap-5 lg:pr-[260px]">
+            <h2 className="ml-12 shrink-0 whitespace-nowrap text-[26px] font-bold leading-[0.76] tracking-[-0.07em] text-black lg:ml-24 xl:text-[35px]">
+              Predict. Compete. Win.
+            </h2>
+            <p className="max-w-[26rem] shrink-0 text-[13px] leading-[1.3] text-[#F5F5F5] xl:max-w-[28rem] xl:text-sm">
+              Build your fantasy squad, earn points from real World Cup
+              performances, climb the leaderboard, and win exclusive rewards.
+            </p>
+          </div>
+
+          {/* Align with navbar Network + Settings (same container + wallet offset) */}
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 z-30 hidden -translate-y-1/2 md:block">
+            <div className="mx-auto flex w-full max-w-screen-2xl justify-end px-4 lg:px-8">
+              <div className="flex items-center gap-3 sm:gap-4">
+                {/* Skip wallet chip width so actions sit under Network + Settings */}
+                <div className="hidden h-9 w-[5.75rem] shrink-0 sm:block" aria-hidden />
+                <Link
+                  href="/play"
+                  onClick={dismiss}
+                  className="pointer-events-auto shrink-0 rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black transition-colors hover:bg-white/90"
+                >
+                  Join a league
+                </Link>
+                <button
+                  type="button"
+                  onClick={dismiss}
+                  aria-label="Dismiss promo banner"
+                  className="pointer-events-auto flex size-6 shrink-0 items-center justify-center text-white/90 transition-colors hover:text-white"
+                >
+                  <IoClose className="size-5" strokeWidth={2} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Collage on its own fixed layer above the banner strip (z-30) so the trophy
+        tip + heads pop over the strip's top edge. Logo dropdown is portaled at
+        z-[60] in Navbar so it still appears above this layer. */}
+      <div className="pointer-events-none fixed left-0 right-0 top-16 z-[55] mt-1 overflow-visible">
+        {/* Mobile */}
+        <div className="relative h-[65px] md:hidden">
+          <div
+            className="absolute bottom-0 left-0 w-[26%] min-w-[80px] max-w-[116px] overflow-hidden"
+            style={{ top: "-28px" }}
+          >
+            <div className="absolute inset-0" style={{ transform: "translate(-10px, 22px)" }}>
+              <MiniCollage />
+            </div>
+          </div>
+        </div>
+        {/* Desktop */}
+        <div className="relative hidden h-[64px] md:block">
+          <div
+            className="absolute bottom-0 left-0 w-[min(240px,18vw)] overflow-hidden"
+            style={{ top: "-42px" }}
+          >
+            <div className="absolute inset-0" style={{ transform: "translateY(22px)" }}>
+              <MiniCollage />
             </div>
           </div>
         </div>
       </div>
-    </motion.div>
-
-    {/* Collage on its own fixed layer above the banner strip (z-30) so the trophy
-        tip + heads pop over the strip's top edge. Logo dropdown is portaled at
-        z-[60] in Navbar so it still appears above this layer. */}
-    <div className="pointer-events-none fixed left-0 right-0 top-16 z-[55] mt-1 overflow-visible">
-      {/* Mobile */}
-      <div className="relative h-[65px] md:hidden">
-        <div
-          className="absolute bottom-0 left-0 w-[26%] min-w-[80px] max-w-[116px] overflow-hidden"
-          style={{ top: "-28px" }}
-        >
-          <div className="absolute inset-0" style={{ transform: "translate(-10px, 22px)" }}>
-            <MiniCollage />
-          </div>
-        </div>
-      </div>
-      {/* Desktop */}
-      <div className="relative hidden h-[64px] md:block">
-        <div
-          className="absolute bottom-0 left-0 w-[min(240px,18vw)] overflow-hidden"
-          style={{ top: "-42px" }}
-        >
-          <div className="absolute inset-0" style={{ transform: "translateY(22px)" }}>
-            <MiniCollage />
-          </div>
-        </div>
-      </div>
-    </div>
     </>
   );
 }

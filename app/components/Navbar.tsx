@@ -172,6 +172,22 @@ export const Navbar = () => {
     [],
   );
 
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+
+    const handlePointerDownOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      if (portaledDropdownRef.current?.contains(target)) return;
+      setIsDropdownOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDownOutside);
+    return () =>
+      document.removeEventListener("pointerdown", handlePointerDownOutside);
+  }, [isDropdownOpen]);
+
   if (!mounted) return null;
 
   return (

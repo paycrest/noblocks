@@ -129,7 +129,7 @@ export const NoblocksAnimatedIcon = ({
             // Trophy renders ~11% taller than the box (matches its natural
             // aspect overflowing evenly, centered) — relative so it scales
             // correctly at any container size, not just the 18px nav icon.
-            className="flex size-full items-center justify-center [&>svg]:h-[71.11%] [&>svg]:w-auto"
+            className="flex size-full items-center justify-center [&>svg]:h-[71.11%] [&>svg]:w-auto [&>svg]:shrink-0 [&>svg]:scale-150"
             dangerouslySetInnerHTML={{ __html: trophy }}
           />
         ) : (

@@ -29,7 +29,7 @@ import {
 
 const ASSET = (name: string) => `/images/play-promo/${name}`;
 const HERO_PILL_BUTTON =
-  "inline-flex min-h-0 items-center justify-center gap-1 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition-transform active:scale-[0.98]";
+  "inline-flex min-h-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition-transform active:scale-[0.98]";
 
 const PRIZE_TIERS = [
   { ranks: "Ranks 1–5", amount: "40 USDC each" },
@@ -318,14 +318,17 @@ export default function PlayLandingPage() {
             Free to play.
           </p>
 
+          {/* Content-sized (no fixed width): the buttons keep a fixed font
+              size, so a %-width box compresses them when the sidebar
+              expansion narrows the hero. */}
           <div
-            className="absolute flex items-center gap-[3%]"
-            style={{ left: "8.50%", top: "77.86%", width: "33.50%", height: "8.91%" }}
+            className="absolute flex items-center gap-3"
+            style={{ left: "8.50%", top: "77.86%", height: "8.91%" }}
           >
             <JoinCTA buttonClassName={HERO_PILL_BUTTON} />
             <Link
               href="/play/terms"
-              className="inline-flex min-h-0 items-center justify-center rounded-full bg-white/10 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/20"
+              className="inline-flex min-h-0 items-center justify-center whitespace-nowrap rounded-full bg-white/10 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/20"
             >
               Read the rules
             </Link>

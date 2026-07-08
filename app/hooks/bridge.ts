@@ -83,7 +83,7 @@ export function useBridgeQuote({
         refundType: "ORIGIN_CHAIN",
         deadline: new Date(Date.now() + 600000).toISOString(),
         depositType: "ORIGIN_CHAIN",
-      }, token);
+      }, token, { origin: from.decimals, destination: to.decimals });
     }
 
     const fromChain = toLifiChainId(from.network);

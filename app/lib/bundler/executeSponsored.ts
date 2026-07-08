@@ -6,6 +6,7 @@
  */
 import { getAddress, type Hash } from 'viem';
 import type { PublicClient, WalletClient, Chain } from 'viem';
+import { appendBaseBuilderCode } from '../baseBuilderCode';
 
 const RE_DELEGATE_GAS = BigInt(120000);
 const GAS_LIMIT = BigInt(500000);
@@ -123,6 +124,7 @@ export async function executeSponsored(
   chain: Chain,
   params: ExecuteSponsoredParams
 ): Promise<ExecuteSponsoredResult> {
+  const callData = appendBaseBuilderCode(chain.id, params.callData);
   let delegationTransactionHash: Hash | undefined;
 
   if (params.eip7702Authorization) {
@@ -140,7 +142,7 @@ export async function executeSponsored(
         authorizationList: [auth],
         to: params.accountAddress,
         value: BigInt(0),
-        data: params.callData,
+        data: callData,
         gas: RE_DELEGATE_GAS,
         chainId: chain.id,
       });
@@ -168,7 +170,7 @@ export async function executeSponsored(
       account,
       chain,
       to: params.accountAddress,
-      data: params.callData,
+      data: callData,
       value: BigInt(0),
       gas,
       nonce,

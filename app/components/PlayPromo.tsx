@@ -424,7 +424,7 @@ export function PlayPromoBanner() {
                   onClick={dismiss}
                   className="pointer-events-auto shrink-0 rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black transition-colors hover:bg-white/90"
                 >
-                  Join a league
+                  Join the league
                 </Link>
                 <button
                   type="button"
@@ -473,7 +473,7 @@ export function PlayPromoBanner() {
 
 // ---------------------------------------------------------------------------
 // Play button — shown in place of the banner once it has been dismissed
-// (via the X or "Join a league"). Persists across visits and links to /play.
+// (via the X or "Join the league"). Persists across visits and links to /play.
 // ---------------------------------------------------------------------------
 
 export function PlayPromoButton() {

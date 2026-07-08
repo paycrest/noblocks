@@ -59,8 +59,10 @@ Everything is isolated behind the `fantasy_` DB prefix, `/play` pages,
    inside an active window (lock → last kickoff +4h); once per 15 min while a
    round is upcoming; never otherwise. User traffic never hits the provider.
 3. Per-fixture stats sync: continuous while live and until FT+15m, then one
-   reconciliation pass at ≥FT+2h and one at ≥FT+12h, after which the fixture's
-   stats freeze (`stats_finalized`).
+   reconciliation pass at ≥FT+2h, after which the fixture's stats freeze
+   (`stats_finalized`). Late vendor corrections are recoverable by resetting
+   the fixture's `stats_finalized` + `last_stats_sync` in SQL — the next tick
+   re-pulls and rescores.
 4. Status transitions from fixture state: `live→finalizing` (all fixtures
    finished — triggers **rollover**: previous_rank snapshot, squads cloned to
    the next matchday with fresh free transfers, eliminated teams deactivated

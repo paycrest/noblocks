@@ -44,8 +44,11 @@ const STATS_MIN_INTERVAL_MS = 90_000;
 // seeding mid-round) must not burn the provider quota.
 const POST_FT_MIN_INTERVAL_MS = 5 * 60_000;
 const POST_FT_CONTINUOUS_MS = 15 * 60_000;
-const RECONCILE_1_MS = 2 * 60 * 60_000;
-const RECONCILE_2_MS = 12 * 60 * 60_000;
+// Stats freeze at FT+2h so the round can go final (and the next round's squad
+// building open) the same evening instead of ~12h later. Vendor corrections
+// landing after the freeze are recoverable by hand: reset the fixture's
+// stats_finalized + last_stats_sync and the next tick re-pulls and rescores.
+const RECONCILE_FINAL_MS = 2 * 60 * 60_000;
 const ACTIVE_WINDOW_TAIL_MS = 4 * 60 * 60_000;
 const MAX_EMAILS_PER_TICK = 50;
 const PAGE = 1000;
@@ -132,10 +135,10 @@ function isWindowActive(md: MatchdayRow, fixtures: FixtureRow[], now: number): b
   return now <= lastKickoffMs(mdFixtures) + ACTIVE_WINDOW_TAIL_MS;
 }
 
-type StatsPass = "live" | "post_ft" | "reconcile_2h" | "reconcile_12h";
+type StatsPass = "live" | "post_ft" | "reconcile_final";
 
 /** Reconciliation schedule per fixture (TRD §3): FT+15m continuous, then one
- * pass at ≥FT+2h and one at ≥FT+12h, after which stats freeze. */
+ * reconciliation pass at ≥FT+2h, after which stats freeze. */
 function statsSyncDue(f: FixtureRow, now: number): StatsPass | null {
   if (f.stats_finalized) return null;
   const lastSync = f.last_stats_sync ? new Date(f.last_stats_sync).getTime() : 0;
@@ -147,11 +150,8 @@ function statsSyncDue(f: FixtureRow, now: number): StatsPass | null {
   if (!FINISHED_STATUSES.has(f.status) || !f.finished_at) return null;
   const finished = new Date(f.finished_at).getTime();
 
-  if (now >= finished + RECONCILE_2_MS) {
-    return lastSync < finished + RECONCILE_2_MS ? "reconcile_12h" : null;
-  }
-  if (now >= finished + RECONCILE_1_MS) {
-    return lastSync < finished + RECONCILE_1_MS ? "reconcile_2h" : null;
+  if (now >= finished + RECONCILE_FINAL_MS) {
+    return lastSync < finished + RECONCILE_FINAL_MS ? "reconcile_final" : null;
   }
   if (now <= finished + POST_FT_CONTINUOUS_MS) {
     return now - lastSync >= POST_FT_MIN_INTERVAL_MS ? "post_ft" : null;
@@ -186,7 +186,7 @@ async function refreshFixturesFromProvider(
       home_score: f.homeScore,
       away_score: f.awayScore,
       // First observation of a finished status stamps finished_at (drives the
-      // FT+15m / +2h / +12h reconciliation clocks).
+      // FT+15m / +2h reconciliation clocks).
       finished_at: justFinished ? now : (prev?.finished_at ?? null),
     };
   });
@@ -236,7 +236,7 @@ async function syncFixtureStats(
   now: string,
 ): Promise<void> {
   const normalized = await getNormalizedFixtureStats(fixture.provider_fixture_id);
-  const finalize = pass === "reconcile_12h";
+  const finalize = pass === "reconcile_final";
 
   const rows: Record<string, unknown>[] = [];
   for (const [playerId, entry] of normalized.byPlayer) {
@@ -876,7 +876,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
           await syncFixtureStats(fixture, pass, settings, positions, nowIso);
           report.stats_synced++;
           statsSyncedMatchdays.add(fixture.matchday_id);
-          if (pass === "reconcile_12h") report.fixtures_finalized++;
+          if (pass === "reconcile_final") report.fixtures_finalized++;
         } catch (error) {
           report.alerts.push(
             `stats sync failed for fixture ${fixture.provider_fixture_id} (${pass}): ${String(error)}`,

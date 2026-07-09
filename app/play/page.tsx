@@ -41,79 +41,148 @@ const PRIZE_TIERS = [
 const CTA_PHOTOS = [
   ASSET("mbappe.png"),
   ASSET("bellingham.png"),
-  ASSET("ronaldo-3.png"),
+  ASSET("kane.png"),
   ASSET("messi-2.png"),
   ASSET("olise-3.png"),
-  ASSET("vinicius.png"),
+  ASSET("pickford.png"),
   ASSET("hakimi.png"),
-  ASSET("amad.png"),
-  ASSET("neymar.png"),
+  ASSET("haaland.png"),
+  ASSET("dembele.png"),
+  ASSET("yamal.png"),
+  ASSET("williams.png"),
+  ASSET("grimaldo.png"),
+  ASSET("odeergard.png"),
+  ASSET("enzo.png"),
+  ASSET("lukaku.png"),
+  ASSET("kevin.png"),
+  ASSET("doku.png"),
+  ASSET("akanji.png"),
 ];
 const CTA_ROTATE_MS = 3000;
 
-/** One side of the bottom CTA: cycles through CTA_PHOTOS with an
- * ease-in/ease-out crossfade. `startIndex` + `delayMs` keep the two sides
- * showing different photos and changing at different moments (stagger)
- * instead of swapping in lockstep. */
+/** Next index: never any index in `forbidden` (current self, other side, other
+ * side's previous — so a side can't pick what the opposite just left). */
+function pickNextCtaIndex(current: number, forbidden: number[]): number {
+  const n = CTA_PHOTOS.length;
+  if (n <= 1) return current;
+  const banned = new Set(forbidden);
+  let pool = Array.from({ length: n }, (_, i) => i).filter((i) => !banned.has(i));
+  if (pool.length === 0) {
+    pool = Array.from({ length: n }, (_, i) => i).filter((i) => i !== current);
+  }
+  return pool[Math.floor(Math.random() * pool.length)]!;
+}
+
+/** Keeps left/right CTA photos in sync: staggered ticks, no overlap, no
+ * immediate repeat on either side, and neither side may show what the other
+ * just finished. */
+function usePairedCtaPhotoIndices() {
+  const n = CTA_PHOTOS.length;
+  const [indices, setIndices] = useState(() => ({
+    left: 0,
+    right: n > 1 ? 1 : 0,
+    prevLeft: null as number | null,
+    prevRight: null as number | null,
+  }));
+
+  useEffect(() => {
+    const advanceLeft = () =>
+      setIndices((prev) => {
+        const forbidden = [prev.left, prev.right];
+        if (prev.prevRight !== null) forbidden.push(prev.prevRight);
+        return {
+          ...prev,
+          prevLeft: prev.left,
+          left: pickNextCtaIndex(prev.left, forbidden),
+        };
+      });
+
+    const advanceRight = () =>
+      setIndices((prev) => {
+        const forbidden = [prev.right, prev.left];
+        if (prev.prevLeft !== null) forbidden.push(prev.prevLeft);
+        return {
+          ...prev,
+          prevRight: prev.right,
+          right: pickNextCtaIndex(prev.right, forbidden),
+        };
+      });
+
+    const half = CTA_ROTATE_MS / 2;
+    let leftInterval: ReturnType<typeof setInterval> | null = null;
+    let rightInterval: ReturnType<typeof setInterval> | null = null;
+
+    const leftTimeout = setTimeout(() => {
+      advanceLeft();
+      leftInterval = setInterval(advanceLeft, CTA_ROTATE_MS);
+    }, 0);
+
+    const rightTimeout = setTimeout(() => {
+      advanceRight();
+      rightInterval = setInterval(advanceRight, CTA_ROTATE_MS);
+    }, half);
+
+    return () => {
+      clearTimeout(leftTimeout);
+      clearTimeout(rightTimeout);
+      if (leftInterval) clearInterval(leftInterval);
+      if (rightInterval) clearInterval(rightInterval);
+    };
+  }, [n]);
+
+  return indices;
+}
+
+/** One side of the bottom CTA: crossfade for the photo at `index`. */
 const RotatingPhoto = ({
+  index,
   className = "",
   style,
   imageClassName = "",
-  startIndex,
-  delayMs,
 }: {
+  index: number;
   className?: string;
   style?: CSSProperties;
-  /** Extra classes for the <img> itself (e.g. object-position tweaks per
-   * side) — appended after the base image classes so they can override. */
   imageClassName?: string;
-  startIndex: number;
-  delayMs: number;
 }) => {
-  const [index, setIndex] = useState(startIndex % CTA_PHOTOS.length);
-
-  useEffect(() => {
-    // Random next photo (never repeating the one currently shown) instead
-    // of a fixed sequential cycle — feels more like a shuffled deck.
-    const pickNext = (current: number) => {
-      if (CTA_PHOTOS.length <= 1) return current;
-      let next = current;
-      while (next === current) {
-        next = Math.floor(Math.random() * CTA_PHOTOS.length);
-      }
-      return next;
-    };
-
-    let interval: ReturnType<typeof setInterval> | null = null;
-    const timeout = setTimeout(() => {
-      setIndex(pickNext);
-      interval = setInterval(() => {
-        setIndex(pickNext);
-      }, CTA_ROTATE_MS);
-    }, delayMs);
-    return () => {
-      clearTimeout(timeout);
-      if (interval) clearInterval(interval);
-    };
-  }, [delayMs]);
+  const photo = CTA_PHOTOS[index % CTA_PHOTOS.length];
 
   return (
-    <div aria-hidden className={`absolute ${className}`} style={style}>
+    <div aria-hidden className={`absolute ${className} h-full w-[318px]`} style={style}>
       <AnimatePresence mode="wait">
         <motion.img
-          key={CTA_PHOTOS[index]}
-          src={CTA_PHOTOS[index]}
+          key={photo}
+          src={photo}
           alt=""
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0.4 }}
           transition={{ duration: 0.75, ease: "easeInOut" }}
-          className={`absolute size-full object-fill ${imageClassName}`}
+          className={` object-cover ${imageClassName}`}
+          style={{ aspectRatio: "318:318" }}
         />
       </AnimatePresence>
     </div>
   );
 };
+
+function PairedCtaRotatingPhotos() {
+  const { left, right } = usePairedCtaPhotoIndices();
+  return (
+    <>
+      <RotatingPhoto
+        index={left}
+        className="z-20 absolute"
+        style={{ left: "0", top: "1rem" }}
+      />
+      <RotatingPhoto
+        index={right}
+        className="z-20 absolute"
+        style={{ right: "-2rem", top: "1rem" }}
+      />
+    </>
+  );
+}
 
 const JoinCTA = ({
   className = "",
@@ -522,7 +591,7 @@ export default function PlayLandingPage() {
       {/* Bottom CTA (Figma node 2136-101604), md+. Self-contained — doesn't
           import from PlayPromo.tsx. */}
       <section
-        className="relative hidden w-full overflow-hidden rounded-3xl bg-surface-overlay md:block"
+        className="relative hidden w-full h-[328px] overflow-hidden rounded-3xl bg-surface-overlay md:block"
         style={{ aspectRatio: "812 / 278", containerType: "inline-size" }}
       >
         <img
@@ -575,18 +644,7 @@ export default function PlayLandingPage() {
           />
         </div>
 
-        <RotatingPhoto
-          startIndex={0}
-          delayMs={0}
-          className="z-20 absolute"
-          style={{ left: "-2%", top: "-2%", width: "31%", height: "140%" }}
-        />
-        <RotatingPhoto
-          startIndex={Math.floor(CTA_PHOTOS.length / 4)}
-          delayMs={CTA_ROTATE_MS / 3}
-          className="z-20 absolute"
-          style={{ left: "71%", top: "-2%", width: "31%", height: "140%" }}
-        />
+        <PairedCtaRotatingPhotos />
       </section>
     </div>
   );

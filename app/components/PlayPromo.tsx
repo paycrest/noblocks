@@ -366,33 +366,29 @@ export function PlayPromoBanner() {
           aria-label="Dismiss promo banner"
           className="pointer-events-auto absolute right-0.5 top-1/2 z-30 flex size-8 -translate-y-1/2 items-center justify-center text-white/90 transition-colors hover:text-white md:hidden"
         >
-          <IoClose className="size-[22px]" strokeWidth={2.5} />
+          <IoClose className="size-5" strokeWidth={2.5} />
         </button>
         {/* Mobile */}
         <div className="relative h-[65px] md:hidden">
           <div className="absolute inset-0 overflow-hidden bg-lavender-500">
             <BannerBackdrop />
           </div>
-          <div className="relative z-20 flex h-full items-center gap-1 pr-[3.25rem] pl-[24%] xsm:gap-1.5 xsm:pr-[3.5rem]">
-            <h2 className="ml-1 shrink-0 text-[19px] font-bold leading-[0.76] tracking-[-0.07em] text-black xsm:text-[20px]">
-              Predict.
-              <br />
-              Compete.
-              <br />
-              Win.
-            </h2>
-            <p className="ml-0.5 min-w-0 flex-1 -translate-y-0.5 whitespace-nowrap text-[8px] font-normal leading-[1.35] tracking-[-0.02em] text-[#F5F5F5] xsm:ml-1.5 xsm:text-[9px]">
-              Build your fantasy squad, earn points
-              <br />
-              from real World Cup performances,
-              <br />
-              and win exclusive rewards.
-            </p>
+          <div className="relative z-20 flex h-full items-center py-2 pr-[3.25rem] pl-[24%] xsm:pr-[3.5rem]">
+            <div className="flex min-w-0 flex-col justify-center gap-0.5">
+              <h2 className="whitespace-nowrap text-[22px] font-bold leading-[0.76] tracking-[-0.07em] text-black">
+                Predict. Compete. Win.
+              </h2>
+              <p className="translate-y-0.5 text-[8.9px] font-medium leading-[1.35] tracking-[-0.03em] text-white">
+                Build your fantasy squad, earn points from real World
+                <br />
+                Cup performances, and win exclusive rewards.
+              </p>
+            </div>
           </div>
           <Link
             href="/play"
             onClick={dismiss}
-            className="pointer-events-auto absolute right-8 top-1/2 z-30 -translate-y-1/2 shrink-0 rounded-md bg-white px-1.5 py-1.5 text-[8px] font-semibold leading-none text-black transition-colors hover:bg-white/90 xsm:right-9 xsm:px-2 xsm:text-[9px]"
+            className="pointer-events-auto absolute right-8 top-1/2 z-30 -translate-y-1/2 shrink-0 rounded-md bg-white px-1.5 py-1.5 text-[8px] font-semibold leading-none text-black transition-colors hover:bg-white/90 xsm:right-9 xsm:px-4 xsm:text-[9px]"
           >
             Join
           </Link>
@@ -403,11 +399,11 @@ export function PlayPromoBanner() {
           <div className="absolute inset-0 overflow-hidden bg-lavender-500">
             <BannerBackdrop />
           </div>
-          <div className="relative z-20 flex h-full w-full items-center gap-4 pl-[min(210px,16.5vw)] pr-[220px] lg:gap-5 lg:pr-[260px]">
+          <div className="relative z-20 flex h-full w-full items-center gap-4 py-2 pl-[min(210px,16.5vw)] pr-[220px] lg:gap-5 lg:pr-[260px]">
             <h2 className="ml-12 shrink-0 whitespace-nowrap text-[26px] font-bold leading-[0.76] tracking-[-0.07em] text-black lg:ml-24 xl:text-[35px]">
               Predict. Compete. Win.
             </h2>
-            <p className="max-w-[26rem] shrink-0 text-[13px] leading-[1.3] text-[#F5F5F5] xl:max-w-[28rem] xl:text-sm">
+            <p className="max-w-[26rem] shrink-0 translate-y-0.5 text-[13px] leading-[1.3] text-[#F5F5F5] xl:max-w-[28rem] xl:text-sm">
               Build your fantasy squad, earn points from real World Cup
               performances, climb the leaderboard, and win exclusive rewards.
             </p>

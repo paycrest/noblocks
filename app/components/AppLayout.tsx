@@ -53,11 +53,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         ) : (
           <div className="min-h-full min-w-full bg-white transition-colors dark:bg-neutral-900">
             <div
-              className={`relative ${              showPlayPromoBanner
+              className={`relative ${showPlayPromoBanner
                 ? "mb-16 md:mb-[64px]"
-                  : config.maintenanceEnabled
-                    ? "mb-16"
-                    : ""
+                : config.maintenanceEnabled
+                  ? "mb-16"
+                  : ""
                 }`}
             >
               <Navbar />

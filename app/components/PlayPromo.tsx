@@ -366,7 +366,7 @@ export function PlayPromoBanner() {
           aria-label="Dismiss promo banner"
           className="pointer-events-auto absolute right-0.5 top-1/2 z-30 flex size-8 -translate-y-1/2 items-center justify-center text-white/90 transition-colors hover:text-white md:hidden"
         >
-          <IoClose className="size-4.8" strokeWidth={2.5} />
+          <IoClose className="size-5" strokeWidth={2.5} />
         </button>
         {/* Mobile */}
         <div className="relative h-[65px] md:hidden">

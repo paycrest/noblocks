@@ -59,7 +59,7 @@ export default function LeaderboardPage() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-lg:pb-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-text-body dark:text-white">
           Leaderboard
@@ -117,9 +117,9 @@ export default function LeaderboardPage() {
             selfProgress={
               rewards.data
                 ? {
-                    activated: rewards.data.activated,
-                    required: rewards.data.required,
-                  }
+                  activated: rewards.data.activated,
+                  required: rewards.data.required,
+                }
                 : undefined
             }
           />

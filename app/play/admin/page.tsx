@@ -294,8 +294,8 @@ export default function PlayAdminPage() {
             Winners export
           </h2>
           <p className="text-sm text-text-secondary dark:text-white/50">
-            Qualified-only prize order: positions 1–5 get 40 USDC, 6–10 get 20
-            USDC (300 USDC total, paid on Base).
+            Qualified-only prize order: positions 1–5 get 50 USDC, 6–10 get 40
+            USDC, 11–20 get 15 USDC (600 USDC total, paid on Base).
           </p>
         </div>
         <div className="flex flex-wrap gap-3">

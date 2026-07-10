@@ -2,8 +2,8 @@
 
 Campaign feature (PRD "Noblocks World Cup Fantasy League" v1.2 / TRD v1.0):
 a free fantasy league over the World Cup knockout rounds (MD6 Quarter-finals,
-MD7 Semi-finals, MD8 Final + bronze) with a 300 USDC giveaway on Base for the
-top 10 **qualified** managers (ranks 1–5 ×40, 6–10 ×20). Qualification =
+MD7 Semi-finals, MD8 Final + bronze) with a 600 USDC giveaway on Base for the
+top 20 **qualified** managers (ranks 1–5 ×50, 6–10 ×40, 11–20 ×15). Qualification =
 5 activated referrals before the deadline; a referral activates when the
 referred user's **cumulative** completed on/off-ramp volume reaches $5
 USD-equivalent inside the campaign window (explicitly not a single-$5 rule).

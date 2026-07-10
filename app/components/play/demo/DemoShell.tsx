@@ -266,7 +266,8 @@ export const DemoShell = () => {
             {st.campaignComplete && (
               <p className="mt-2 text-xs text-text-secondary dark:text-white/60">
                 The Final is done — in production this is where the winners
-                export (top-5 ×40 / ranks 6–10 ×20 USDC among qualified) runs.
+                export (top-5 ×50 / ranks 6–10 ×40 / ranks 11–20 ×15 USDC
+                among qualified) runs.
               </p>
             )}
           </PlayCard>

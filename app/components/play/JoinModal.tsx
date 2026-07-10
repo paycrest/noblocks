@@ -166,7 +166,7 @@ export const JoinModal = ({
 
         <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-background-neutral px-4 py-3 dark:bg-white/5">
           <span className="text-sm text-text-body dark:text-white">
-            Enter the 300 USDC giveaway
+            Enter the 600 USDC giveaway
             <span className="block text-xs text-text-secondary dark:text-white/50">
               Turn off to play for bragging rights only
             </span>

@@ -60,6 +60,8 @@ import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { EarnConsentModal } from "./EarnConsentModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
+import { BridgeConsentModal } from "./BridgeConsentModal";
+import { useBridgeAccess } from "../hooks/useBridgeAccess";
 import { isEarnUiVisible } from "../lib/earnFeature";
 import { isReferralEnabled, formatTokenAmount } from "../utils";
 import { isBridgeUiVisible } from "../lib/bridgeFeature";
@@ -90,6 +92,12 @@ export const WalletDetails = () => {
     handleConsentAccepted: handleEarnConsentAccepted,
     dismissConsent: dismissEarnConsent,
   } = useEarnAccess();
+  const {
+    isConsentModalOpen: isBridgeConsentModalOpen,
+    requestBridgeAccess,
+    handleConsentAccepted: handleBridgeConsentAccepted,
+    dismissConsent: dismissBridgeConsent,
+  } = useBridgeAccess();
   const [activeTab, setActiveTab] = useState<"balances" | "transactions">(
     "balances",
   );
@@ -513,7 +521,11 @@ export const WalletDetails = () => {
                               <button
                                 type="button"
                                 title="Convert tokens"
-                                onClick={() => setIsConvertModalOpen(true)}
+                                onClick={() =>
+                                  requestBridgeAccess(() =>
+                                    setIsConvertModalOpen(true),
+                                  )
+                                }
                                 className="group flex flex-1 flex-col items-center gap-2"
                               >
                                 <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
@@ -572,7 +584,11 @@ export const WalletDetails = () => {
                               <button
                                 type="button"
                                 title="Convert tokens"
-                                onClick={() => setIsConvertModalOpen(true)}
+                                onClick={() =>
+                                  requestBridgeAccess(() =>
+                                    setIsConvertModalOpen(true),
+                                  )
+                                }
                                 className="group flex flex-1 flex-col items-center gap-2"
                               >
                                 <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
@@ -906,6 +922,12 @@ export const WalletDetails = () => {
         isOpen={isEarnConsentModalOpen}
         onClose={dismissEarnConsent}
         onAccepted={() => handleEarnConsentAccepted(onEarnAccessAction)}
+      />
+
+      <BridgeConsentModal
+        isOpen={isBridgeConsentModalOpen}
+        onClose={dismissBridgeConsent}
+        onAccepted={handleBridgeConsentAccepted}
       />
 
       <CopyAddressWarningModal

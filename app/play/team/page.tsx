@@ -12,6 +12,7 @@ import { useLogin, usePrivy } from "@privy-io/react-auth";
 import { Cancel01Icon, FootballIcon } from "hugeicons-react";
 import { PlayApiError } from "@/app/components/play/api";
 import { TeamManager } from "@/app/components/play/TeamManager";
+import { ShareSquadCard } from "@/app/components/play/ShareSquadCard";
 import { SquadKey } from "@/app/components/play/SquadKey";
 import { RoundStrip } from "@/app/components/play/RoundStrip";
 import { FixturesCard } from "@/app/components/play/FixturesCard";
@@ -116,6 +117,9 @@ export default function TeamPage() {
         />
         <TeamManager squadData={squadQuery.data} poolData={poolQuery.data} />
         <SquadKey onHowToScore={() => setShowScoring(true)} />
+        {squadQuery.data.username && (
+          <ShareSquadCard username={squadQuery.data.username} />
+        )}
         <FixturesCard initialMatchdayId={matchdayId} />
       </div>
       <aside className="hidden xl:sticky xl:top-24 xl:block xl:w-80 xl:shrink-0">

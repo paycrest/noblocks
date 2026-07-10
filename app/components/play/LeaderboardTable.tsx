@@ -4,9 +4,11 @@
  * Leaderboard table rows: rank, movement arrow, username, points and the
  * qualification badge. Other players' referral counts are never shown
  * (PRD §7.3) — the in-progress tooltip carries a count only for the
- * viewer's own row.
+ * viewer's own row. Rows link to the manager's public team view.
  */
 
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowDown01Icon,
   ArrowUp01Icon,
@@ -15,6 +17,9 @@ import {
   LaurelWreath01Icon,
 } from "hugeicons-react";
 import type { LeaderboardRowData } from "./types";
+
+const managerHref = (username: string) =>
+  `/play/manager/${encodeURIComponent(username)}`;
 
 const Movement = ({ value }: { value: number }) => {
   if (value > 0) {
@@ -93,7 +98,10 @@ export const LeaderboardTable = ({
   /** Own referral progress (rewards endpoint) for the self-row tooltip. */
   selfProgress?: { activated: number; required: number };
   compact?: boolean;
-}) => (
+}) => {
+  const router = useRouter();
+
+  return (
   <div className="overflow-x-auto rounded-2xl border border-border-light dark:border-white/10">
     <table className="w-full min-w-[20rem] text-left text-sm">
       <thead>
@@ -110,7 +118,16 @@ export const LeaderboardTable = ({
           <tr
             key={`${row.rank}-${row.username ?? "anon"}`}
             id={row.is_me ? "leaderboard-self-row" : undefined}
+            // Whole row navigates to the manager's public team; the username
+            // is also a real link for keyboard/screen-reader users.
+            onClick={
+              row.username
+                ? () => router.push(managerHref(row.username!))
+                : undefined
+            }
             className={`border-b border-border-light last:border-0 dark:border-white/5 ${
+              row.username ? "cursor-pointer" : ""
+            } ${
               row.is_me
                 ? "bg-lavender-50 dark:bg-lavender-500/10"
                 : compact
@@ -125,7 +142,17 @@ export const LeaderboardTable = ({
               <Movement value={row.movement} />
             </td>
             <td className="max-w-[10rem] truncate px-2 py-3 font-medium text-text-body dark:text-white sm:max-w-none">
-              {row.username ?? "—"}
+              {row.username ? (
+                <Link
+                  href={managerHref(row.username)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="hover:underline"
+                >
+                  {row.username}
+                </Link>
+              ) : (
+                "—"
+              )}
               {row.is_me && (
                 <span className="ml-1.5 rounded-full bg-lavender-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                   You
@@ -145,4 +172,5 @@ export const LeaderboardTable = ({
       </tbody>
     </table>
   </div>
-);
+  );
+};

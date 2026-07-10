@@ -83,8 +83,24 @@ export function computePoints(
   return { points, breakdown };
 }
 
+/**
+ * Whether a squad row's points count toward the matchday score: the
+ * kickoff-banked XI membership wins; the current slot only decides for
+ * fixtures that haven't kicked off yet (stamp still NULL).
+ */
+export const countsForScoring = (p: {
+  slot: number;
+  xi_at_kickoff?: boolean | null;
+}): boolean => p.xi_at_kickoff ?? p.slot <= 11;
+
 export interface SquadPointsInput {
-  /** Starting XI only — bench never auto-counts (auto-subs dropped, TRD §6.3). */
+  /**
+   * Players whose points count: XI membership is banked at each fixture's
+   * kickoff (xi_at_kickoff stamp), with the current slot deciding only for
+   * fixtures that haven't kicked off. Bench never auto-counts (auto-subs
+   * dropped, TRD §6.3), but points earned while in the XI survive a later
+   * benching — so this list can exceed 11 entries.
+   */
   startingXI: { playerId: number; isCaptain: boolean; isVice: boolean }[];
   /** playerId → summed matchday stats-derived values. */
   playerPoints: Map<number, { points: number; minutes: number }>;

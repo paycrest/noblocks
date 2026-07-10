@@ -35,17 +35,28 @@ export const GET = withRateLimit(async (request: NextRequest) => {
     const matchday = await getCurrentMatchday();
     if (!matchday) return jsonError("No active matchday", 404);
 
-    const [squad, lockStates, playerPoints, settings, { data: matchdayScores }] =
-      await Promise.all([
-        getSquad(auth.walletAddress, matchday.id),
-        getTeamLockStates(matchday.id),
-        getMatchdayPlayerPoints(matchday.id),
-        getFantasySettings(),
-        supabaseAdmin
-          .from("fantasy_matchday_scores")
-          .select("matchday_id, points")
-          .eq("wallet_address", auth.walletAddress),
-      ]);
+    const [
+      squad,
+      lockStates,
+      playerPoints,
+      settings,
+      { data: matchdayScores },
+      { data: profile },
+    ] = await Promise.all([
+      getSquad(auth.walletAddress, matchday.id),
+      getTeamLockStates(matchday.id),
+      getMatchdayPlayerPoints(matchday.id),
+      getFantasySettings(),
+      supabaseAdmin
+        .from("fantasy_matchday_scores")
+        .select("matchday_id, points")
+        .eq("wallet_address", auth.walletAddress),
+      supabaseAdmin
+        .from("user_kyc_profiles")
+        .select("username")
+        .eq("wallet_address", auth.walletAddress)
+        .maybeSingle(),
+    ]);
 
     const players = await getPlayersMap();
 
@@ -68,6 +79,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
         : null,
       free_transfers: settings.free_transfers[matchdayLabel(matchday.id)] ?? 0,
       total_points: participant.total_points,
+      username: (profile?.username as string | null) ?? null,
       matchday_scores: (matchdayScores ?? []).map((s) => ({
         matchday_id: Number(s.matchday_id),
         points: Number(s.points),
@@ -205,6 +217,8 @@ export const PUT = withRateLimit(async (request: NextRequest) => {
               { code: "PLAYER_LOCKED" },
             );
           }
+          // Moving a FINISHED player out is fine: their points are banked by
+          // the kickoff snapshot (xi_at_kickoff), not the current slots.
           if (!isXI && state(playerId) === "locked") {
             return jsonError(
               "You can't remove a player while their match is in progress",

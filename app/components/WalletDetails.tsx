@@ -28,6 +28,8 @@ import {
   Database01Icon,
   CoinsSwapIcon,
   Coins01Icon,
+  InformationCircleIcon,
+  Cancel01Icon,
 } from "hugeicons-react";
 import Image from "next/image";
 import { useInjectedWallet } from "../context";
@@ -59,8 +61,9 @@ import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { EarnConsentModal } from "./EarnConsentModal";
+import { EarnUnavailableModal } from "./EarnUnavailableModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
-import { isEarnUiVisible } from "../lib/earnFeature";
+import { isEarnEnabled, isEarnUiVisible } from "../lib/earnFeature";
 import { isReferralEnabled, formatTokenAmount } from "../utils";
 import { isBridgeUiVisible } from "../lib/bridgeFeature";
 import { BridgeForm } from "./bridge/BridgeForm";
@@ -72,6 +75,50 @@ const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
 );
 
+/** Pixel-matched callout for the Earn action-item when it's shown on a
+ * network Earn doesn't support yet (Figma node 2208:82749). Anchored to the
+ * bottom-right of the action row with an upward-pointing tail toward Earn. */
+const EarnUnavailableTooltip = ({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) => (
+  <AnimatePresence>
+    {isOpen && (
+      <motion.div
+        initial={{ opacity: 0, y: -4 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -4 }}
+        transition={{ duration: 0.15 }}
+        className="absolute right-0 top-full z-10 mt-2 w-[266px]"
+      >
+        <div
+          className="absolute -top-1.5 right-8 size-3 rotate-45 rounded-[2px] border-l border-t border-border-light bg-white dark:border-white/10 dark:bg-[#2c2c2c]"
+          aria-hidden
+        />
+        <div className="relative rounded-2xl border border-border-light bg-white p-2.5 pr-9 shadow-lg dark:border-white/10 dark:bg-[#2c2c2c]">
+          <p className="text-[11px] font-medium leading-5 text-text-body dark:text-white">
+            Earn is currently available on Starknet.
+          </p>
+          <p className="mt-[3px] text-[10px] leading-[13px] text-text-secondary dark:text-white/50">
+            Switch your wallet to Starknet to start earning on your USDC.
+          </p>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={onClose}
+            className="absolute right-2.5 top-2.5 text-text-secondary hover:text-text-body dark:text-white/50 dark:hover:text-white"
+          >
+            <Cancel01Icon className="size-4" />
+          </button>
+        </div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
 export const WalletDetails = () => {
   const { trackBridge } = useBridgeStatusTracker();
   const [isTransferModalOpen, setIsTransferModalOpen] =
@@ -80,6 +127,9 @@ export const WalletDetails = () => {
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [isEarnFormOpen, setIsEarnFormOpen] = useState(false);
   const [earnFormTab, setEarnFormTab] = useState<"deposit" | "withdraw">("deposit");
+  const [isEarnHintOpen, setIsEarnHintOpen] = useState(false);
+  const [isEarnUnavailableModalOpen, setIsEarnUnavailableModalOpen] =
+    useState(false);
   const [sidebarView, setSidebarView] = useState<
     "wallet" | "earn" | "referrals"
   >("wallet");
@@ -284,6 +334,8 @@ export const WalletDetails = () => {
     setSelectedTransaction(null);
     setSelectedEarnActivity(null);
     setIsNetworkListOpen(false);
+    setIsEarnHintOpen(false);
+    setIsEarnUnavailableModalOpen(false);
   };
 
   // Copy wallet address to clipboard with feedback
@@ -480,111 +532,95 @@ export const WalletDetails = () => {
                           </button>
                         </div>
 
-                        {!isInjectedWallet &&
-                          (showEarnUi ? (
-                            <div className="flex flex-row items-start justify-between gap-2">
+                        {!isInjectedWallet && (
+                          <div className="flex flex-row items-start justify-between gap-2">
+                            <button
+                              type="button"
+                              title="Fund wallet"
+                              onClick={() => setIsFundModalOpen(true)}
+                              className="group flex flex-1 flex-col items-center gap-2"
+                            >
+                              <span className="flex size-[60px] items-center justify-center rounded-full bg-lavender-500 text-white transition-all group-hover:scale-[0.98] group-active:scale-95">
+                                <ArrowDownLeft01Icon className="size-6" strokeWidth={2} />
+                              </span>
+                              <span className="text-sm font-medium text-text-body dark:text-white">
+                                Fund
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              title="Transfer funds"
+                              onClick={() => setIsTransferModalOpen(true)}
+                              className="group flex flex-1 flex-col items-center gap-2"
+                            >
+                              <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                                <ArrowUpRight01Icon className="size-6" strokeWidth={2} />
+                              </span>
+                              <span className="text-sm font-medium text-text-body dark:text-white">
+                                Transfer
+                              </span>
+                            </button>
+                            {isBridgeUiVisible() && (
                               <button
                                 type="button"
-                                title="Fund wallet"
-                                onClick={() => setIsFundModalOpen(true)}
-                                className="group flex flex-1 flex-col items-center gap-2"
-                              >
-                                <span className="flex size-[60px] items-center justify-center rounded-full bg-lavender-500 text-white transition-all group-hover:scale-[0.98] group-active:scale-95">
-                                  <ArrowDownLeft01Icon className="size-6" strokeWidth={2} />
-                                </span>
-                                <span className="text-sm font-medium text-text-body dark:text-white">
-                                  Fund
-                                </span>
-                              </button>
-                              <button
-                                type="button"
-                                title="Transfer funds"
-                                onClick={() => setIsTransferModalOpen(true)}
+                                title="Convert tokens"
+                                onClick={() => setIsConvertModalOpen(true)}
                                 className="group flex flex-1 flex-col items-center gap-2"
                               >
                                 <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
-                                  <ArrowUpRight01Icon className="size-6" strokeWidth={2} />
+                                  <CoinsSwapIcon className="size-6" strokeWidth={2} />
                                 </span>
                                 <span className="text-sm font-medium text-text-body dark:text-white">
-                                  Transfer
+                                  Convert
                                 </span>
                               </button>
-                              {isBridgeUiVisible() && (
-                                <button
-                                  type="button"
-                                  title="Convert tokens"
-                                  onClick={() => setIsConvertModalOpen(true)}
-                                  className="group flex flex-1 flex-col items-center gap-2"
-                                >
-                                  <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
-                                    <CoinsSwapIcon className="size-6" strokeWidth={2} />
-                                  </span>
-                                  <span className="text-sm font-medium text-text-body dark:text-white">
-                                    Convert
-                                  </span>
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                title="Earn yield on USDC via Vesu"
-                                onClick={() =>
-                                  requestEarnAccess("earn-hub", onEarnAccessAction)
+                            )}
+                            {isEarnEnabled() && (
+                              <div
+                                className="relative flex flex-1 flex-col items-center"
+                                onMouseEnter={() =>
+                                  !showEarnUi && setIsEarnHintOpen(true)
                                 }
-                                className="group flex flex-1 flex-col items-center gap-2"
+                                onMouseLeave={() => setIsEarnHintOpen(false)}
                               >
-                                <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
-                                  <Coins01Icon className="size-6" strokeWidth={2} />
-                                </span>
-                                <span className="text-sm font-medium text-text-body dark:text-white">
-                                  Earn
-                                </span>
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex flex-row items-start justify-between gap-2">
-                              <button
-                                type="button"
-                                title="Fund wallet"
-                                onClick={() => setIsFundModalOpen(true)}
-                                className="group flex flex-1 flex-col items-center gap-2"
-                              >
-                                <span className="flex size-[60px] items-center justify-center rounded-full bg-lavender-500 text-white transition-all group-hover:scale-[0.98] group-active:scale-95">
-                                  <ArrowDownLeft01Icon className="size-6" strokeWidth={2} />
-                                </span>
-                                <span className="text-sm font-medium text-text-body dark:text-white">
-                                  Fund
-                                </span>
-                              </button>
-                              <button
-                                type="button"
-                                title="Transfer funds"
-                                onClick={() => setIsTransferModalOpen(true)}
-                                className="group flex flex-1 flex-col items-center gap-2"
-                              >
-                                <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
-                                  <ArrowUpRight01Icon className="size-6" strokeWidth={2} />
-                                </span>
-                                <span className="text-sm font-medium text-text-body dark:text-white">
-                                  Transfer
-                                </span>
-                              </button>
-                              {isBridgeUiVisible() && (
                                 <button
                                   type="button"
-                                  title="Convert tokens"
-                                  onClick={() => setIsConvertModalOpen(true)}
-                                  className="group flex flex-1 flex-col items-center gap-2"
+                                  title={
+                                    showEarnUi
+                                      ? "Earn yield on USDC via Vesu"
+                                      : "Earn is currently available on Starknet"
+                                  }
+                                  onClick={() => {
+                                    if (showEarnUi) {
+                                      requestEarnAccess(
+                                        "earn-hub",
+                                        onEarnAccessAction,
+                                      );
+                                    } else {
+                                      setIsEarnHintOpen(false);
+                                      setIsEarnUnavailableModalOpen(true);
+                                    }
+                                  }}
+                                  className="group flex flex-col items-center gap-2"
                                 >
                                   <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
-                                    <CoinsSwapIcon className="size-6" strokeWidth={2} />
+                                    <Coins01Icon className="size-6" strokeWidth={2} />
                                   </span>
-                                  <span className="text-sm font-medium text-text-body dark:text-white">
-                                    Convert
+                                  <span className="flex items-center gap-1 text-sm font-medium text-text-body dark:text-white">
+                                    Earn
+                                    {!showEarnUi && (
+                                      <InformationCircleIcon className="size-4 text-text-secondary dark:text-white/50" />
+                                    )}
                                   </span>
                                 </button>
-                              )}
-                            </div>
-                          ))}
+                                <EarnUnavailableTooltip
+                                  isOpen={isEarnHintOpen}
+                                  onClose={() => setIsEarnHintOpen(false)}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -898,6 +934,11 @@ export const WalletDetails = () => {
           >
             <BridgeForm onClose={() => setIsConvertModalOpen(false)} onBridgeSubmit={trackBridge} />
           </AnimatedModal>
+
+          <EarnUnavailableModal
+            isOpen={isEarnUnavailableModalOpen}
+            onClose={() => setIsEarnUnavailableModalOpen(false)}
+          />
         </>
       )}
 

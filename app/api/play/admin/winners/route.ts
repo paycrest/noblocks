@@ -5,12 +5,16 @@ import { requireAdmin } from "@/app/lib/fantasy/admin";
 import { jsonError, jsonOk } from "@/app/lib/fantasy/server";
 
 /**
- * Prize table (PRD): 300 USDC total, paid on Base — positions 1–5 get 40 USDC
- * each, positions 6–10 get 20 USDC each, assigned over the QUALIFIED-only
- * ordering (non-qualified/opted-out/disqualified rows are skipped entirely,
- * per §6 "prize ranking skips non-qualified").
+ * Prize table (PRD): 600 USDC total, paid on Base — positions 1–5 get 50 USDC
+ * each, positions 6–10 get 40 USDC each, positions 11–20 get 15 USDC each,
+ * assigned over the QUALIFIED-only ordering (non-qualified/opted-out/
+ * disqualified rows are skipped entirely, per §6 "prize ranking skips
+ * non-qualified").
  */
-const PRIZES_USDC = [40, 40, 40, 40, 40, 20, 20, 20, 20, 20];
+const PRIZES_USDC = [
+  50, 50, 50, 50, 50, 40, 40, 40, 40, 40, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+  15,
+];
 
 const CSV_COLUMNS = [
   "position",

@@ -39,8 +39,6 @@ import { FundWalletForm } from "./FundWalletForm";
 import { TransferForm } from "./TransferForm";
 import { EarnWalletForm } from "./EarnWalletForm";
 import { EarnConsentModal } from "./EarnConsentModal";
-import { BridgeConsentModal } from "./BridgeConsentModal";
-import { useBridgeAccess } from "../hooks/useBridgeAccess";
 import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import ProfileView from "./ProfileView";
 import { useEarnAccess } from "../hooks/useEarnAccess";
@@ -101,7 +99,7 @@ export const MobileDropdown = ({
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress, type: "injected_wallet" as const }
     : selectedNetwork.chain.name === "Starknet" ||
-        selectedNetwork.chain.name === "Tron"
+      selectedNetwork.chain.name === "Tron"
       ? walletAddress
         ? { address: walletAddress, type: "smart_wallet" as const }
         : undefined
@@ -285,12 +283,6 @@ export const MobileDropdown = ({
     handleConsentAccepted: handleEarnConsentAccepted,
     dismissConsent: dismissEarnConsent,
   } = useEarnAccess();
-  const {
-    isConsentModalOpen: isBridgeConsentModalOpen,
-    requestBridgeAccess,
-    handleConsentAccepted: handleBridgeConsentAccepted,
-    dismissConsent: dismissBridgeConsent,
-  } = useBridgeAccess();
 
   const onEarnAccessAction = (
     action: "earn-modal" | "earn-tab" | "earn-hub",
@@ -342,9 +334,9 @@ export const MobileDropdown = ({
                           onConvert={
                             isBridgeUiVisible()
                               ? () =>
-                                  requestBridgeAccess(() =>
-                                    setCurrentView("bridge"),
-                                  )
+
+                                setCurrentView("bridge")
+
                               : undefined
                           }
                           smartWallet={walletForCopy}
@@ -496,12 +488,6 @@ export const MobileDropdown = ({
               isOpen={isEarnConsentModalOpen}
               onClose={dismissEarnConsent}
               onAccepted={() => handleEarnConsentAccepted(onEarnAccessAction)}
-            />
-
-            <BridgeConsentModal
-              isOpen={isBridgeConsentModalOpen}
-              onClose={dismissBridgeConsent}
-              onAccepted={handleBridgeConsentAccepted}
             />
 
             <CopyAddressWarningModal

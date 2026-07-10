@@ -9,10 +9,20 @@ import type {
   FantasyPlayer,
   MatchdayStatus,
   Position,
+  PublicManagerTeam,
+  PublicTeamPlayer,
   ScoringMatrix,
 } from "@/app/lib/fantasy/types";
 
-export type { BadgeState, FantasyPlayer, MatchdayStatus, Position, ScoringMatrix };
+export type {
+  BadgeState,
+  FantasyPlayer,
+  MatchdayStatus,
+  Position,
+  PublicManagerTeam,
+  PublicTeamPlayer,
+  ScoringMatrix,
+};
 
 export interface PlayMatchday {
   id: number;
@@ -71,6 +81,8 @@ export interface SquadResponse {
   /** Free transfers granted for the current matchday (settings value). */
   free_transfers: number;
   total_points: number;
+  /** Own leaderboard handle — drives the squad share card. */
+  username: string | null;
   /** Own points per matchday (drives the round strip's pills). */
   matchday_scores: { matchday_id: number; points: number }[];
 }

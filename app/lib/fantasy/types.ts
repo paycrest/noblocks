@@ -97,6 +97,34 @@ export interface SquadSelection {
   viceId: number;
 }
 
+export interface PublicTeamPlayer {
+  player_id: number;
+  slot: number;
+  is_captain: boolean;
+  is_vice: boolean;
+  name: string;
+  position: Position;
+  nation: string;
+  photo_url: string | null;
+  /** Effective points — includes the captain double / vice fallback. */
+  points: number;
+  minutes: number;
+}
+
+/** Public view of a manager's team (leaderboard drill-in, share links). */
+export interface PublicManagerTeam {
+  username: string;
+  rank: number | null;
+  total_points: number;
+  badge: string;
+  /** null until the manager has a squad in a locked round. */
+  team: {
+    matchday: { id: number; display_name: string; status: MatchdayStatus };
+    points: number;
+    players: PublicTeamPlayer[];
+  } | null;
+}
+
 export interface LeaderboardRow {
   rank: number;
   username: string | null;

@@ -150,7 +150,9 @@ export default function PlayTermsPage() {
             During a live round, lineup and captaincy changes follow a
             rolling lockout: a player whose match is in progress or finished
             cannot be brought into the XI, and a player cannot be moved while
-            their match is in progress.
+            their match is in progress. Points a player earns while in your
+            XI are banked for the round — benching them afterwards does not
+            remove those points.
           </li>
         </ul>
         <p>

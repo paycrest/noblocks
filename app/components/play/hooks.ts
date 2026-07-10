@@ -18,6 +18,7 @@ import {
   PlayApiError,
   checkUsername,
   fetchLeaderboard,
+  fetchManager,
   fetchMatchday,
   fetchMatchdays,
   fetchPlayers,
@@ -43,7 +44,18 @@ export const playKeys = {
   leaderboard: (page: number, findMe: boolean, authed: boolean) =>
     ["play", "leaderboard", page, findMe, authed] as const,
   matchday: (id: number | string) => ["play", "matchday", id] as const,
+  manager: (username: string) => ["play", "manager", username] as const,
 };
+
+/** Public view of a manager's team (latest locked round only). */
+export function useManagerTeam(username: string | null | undefined) {
+  return useQuery({
+    queryKey: playKeys.manager(username ?? ""),
+    queryFn: () => fetchManager(username!),
+    enabled: Boolean(username),
+    staleTime: 30_000,
+  });
+}
 
 /** Public player pool + builder settings + current matchday. */
 export function usePlayersPool() {

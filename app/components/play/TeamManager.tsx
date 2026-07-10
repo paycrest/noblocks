@@ -134,10 +134,22 @@ export const TeamManager = ({
       squad?.players.find((p) => p.player_id === id)?.lock_state ?? "unlocked",
     [squad],
   );
+  // The armband holder whose points currently count double: the captain once
+  // they've played, otherwise the vice (mirrors computeSquadPoints server-side).
+  const doubledId = useMemo(() => {
+    const captain = squad?.players.find((p) => p.is_captain);
+    const vice = squad?.players.find((p) => p.is_vice);
+    if (captain && captain.live.minutes > 0) return captain.player_id;
+    if (vice && vice.live.minutes > 0) return vice.player_id;
+    return null;
+  }, [squad]);
   const livePointsOf = useCallback(
-    (id: number) =>
-      squad?.players.find((p) => p.player_id === id)?.live.points ?? 0,
-    [squad],
+    (id: number) => {
+      const points =
+        squad?.players.find((p) => p.player_id === id)?.live.points ?? 0;
+      return id === doubledId ? points * 2 : points;
+    },
+    [squad, doubledId],
   );
 
   /* --------------------------- editor state --------------------------- */
@@ -380,7 +392,9 @@ export const TeamManager = ({
         counts[incoming.position]++;
         if (!isFormationValid(counts, settings)) return false;
         if (locked) {
-          // Rolling lockout: incoming must be pre-kickoff; outgoing not mid-match.
+          // Rolling lockout: incoming must be pre-kickoff; outgoing not
+          // mid-match. Benching a FINISHED player is allowed — the points
+          // they earned in the XI are banked at kickoff server-side.
           const incomingId = isBenched ? playerId : otherId;
           const outgoingId = isBenched ? otherId : playerId;
           if (lockStateOf(incomingId) !== "unlocked") return false;
@@ -1042,7 +1056,9 @@ export const TeamManager = ({
                     {locked && lockStateOf(id) === "played" && (
                       <p className="flex items-center gap-1.5 text-xs text-text-secondary dark:text-white/50">
                         <Tick02Icon className="size-3.5 shrink-0 text-emerald-500" />
-                        This player&apos;s match has finished.
+                        This player&apos;s match has finished — the points they
+                        earned in your XI are banked for this round, even if
+                        you bench them now.
                       </p>
                     )}
                   </div>

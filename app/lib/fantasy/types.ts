@@ -77,6 +77,12 @@ export interface FantasySettings {
   campaign_start: string;
   campaign_end: string;
   features: { emails: boolean; share_cards: boolean; join_open: boolean };
+  /**
+   * One-shot rescore queue: migrations that rewrite kickoff stamps directly
+   * (bypassing the stamp RPC) enqueue affected matchday ids here; the worker
+   * recomputes them on its next tick and clears the key.
+   */
+  pending_rescore_matchdays?: number[];
 }
 
 export interface FantasyPlayer {

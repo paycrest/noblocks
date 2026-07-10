@@ -12,10 +12,10 @@ import { ManagerTeamView } from "@/app/components/play/ManagerTeamView";
 
 export const dynamic = "force-dynamic";
 
-// Dedupe the lookup between generateMetadata and the page render.
-const getManager = cache((username: string) =>
-  getPublicManagerTeam(username).catch(() => null),
-);
+// Dedupe the lookup between generateMetadata and the page render. Returns
+// null only for a genuinely unknown manager; backend failures propagate so
+// an outage surfaces as a 500, not a misleading 404.
+const getManager = cache((username: string) => getPublicManagerTeam(username));
 
 interface Props {
   params: Promise<{ username: string }>;

@@ -9,7 +9,11 @@ import {
   getProviderRateLimit,
   getWorldCupFixtures,
 } from "./provider";
-import { getFantasySettings, matchdayLabel } from "./settings";
+import {
+  getFantasySettings,
+  invalidateFantasySettingsCache,
+  matchdayLabel,
+} from "./settings";
 import { getPlayersMap, type MatchdayRow } from "./server";
 import {
   claimNotification,
@@ -413,6 +417,34 @@ export async function recomputeScores(matchdayIds: number[]): Promise<number> {
   }
 
   return updated;
+}
+
+/**
+ * Drain the one-shot pending_rescore_matchdays queue (written by migrations
+ * that rewrite kickoff stamps directly) after a successful recompute. A
+ * failed clear just repeats the rescore next tick — recompute is idempotent.
+ */
+async function clearPendingRescore(alerts: string[]): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("fantasy_settings")
+    .select("config")
+    .eq("id", 1)
+    .single();
+  if (error || !data) {
+    alerts.push(`pending rescore clear failed: ${String(error?.message ?? "no row")}`);
+    return;
+  }
+  const { pending_rescore_matchdays: _drained, ...config } =
+    data.config as FantasySettings;
+  const { error: updateError } = await supabaseAdmin
+    .from("fantasy_settings")
+    .update({ config, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+  if (updateError) {
+    alerts.push(`pending rescore clear failed: ${String(updateError.message)}`);
+    return;
+  }
+  invalidateFantasySettingsCache();
 }
 
 /**
@@ -971,6 +1003,11 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
     // fixtures just synced are always included — even while 'upcoming'
     // (possible when a round was seeded mid-play, e.g. R16 test mode; in a
     // normal campaign an upcoming round has no stats, so this is a no-op).
+    // pending_rescore_matchdays is a one-shot queue for migrations that
+    // rewrite kickoff stamps directly (the amnesty backfill): those writes
+    // bypass the stamp RPC, and final rounds are skipped by the stamp loop
+    // above, so they'd otherwise never be rescored.
+    const pendingRescore = (settings.pending_rescore_matchdays ?? []).map(Number);
     const scoreTargets = [
       ...new Set([
         ...matchdays
@@ -983,6 +1020,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
           .map((md) => md.id),
         ...statsSyncedMatchdays,
         ...stampedMatchdays,
+        ...pendingRescore,
         // Forced ticks always recompute the current round (manual ops).
         ...(force
           ? matchdays.filter((md) => md.status !== "final").slice(0, 1).map((md) => md.id)
@@ -993,10 +1031,12 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
       report.stats_synced > 0 ||
       report.transitions.length > 0 ||
       stampedMatchdays.size > 0 ||
+      pendingRescore.length > 0 ||
       force
     ) {
       try {
         report.scores_recomputed = await recomputeScores(scoreTargets);
+        if (pendingRescore.length > 0) await clearPendingRescore(report.alerts);
       } catch (error) {
         report.alerts.push(`score recompute failed: ${String(error)}`);
       }

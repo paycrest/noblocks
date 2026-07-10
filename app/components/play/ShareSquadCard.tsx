@@ -35,21 +35,27 @@ export const ShareSquadCard = ({ username }: { username: string }) => {
   const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(pageUrl)}`;
 
   const handleNativeShare = async () => {
-    try {
-      if (navigator.share) {
+    if (navigator.share) {
+      try {
         await navigator.share({
           title: "Noblocks Play",
           text: shareText,
           url: pageUrl,
         });
-      } else {
+      } catch {
+        // user dismissed the share sheet — not an error
+        return;
+      }
+    } else {
+      try {
         await navigator.clipboard.writeText(`${shareText} ${pageUrl}`);
         toast.success("Share text copied to clipboard");
+      } catch {
+        toast.error("Couldn't copy to clipboard — try the Post on X button");
+        return;
       }
-      trackEvent("squad_shared", { source: "native" });
-    } catch {
-      // user dismissed the share sheet — not an error
     }
+    trackEvent("squad_shared", { source: "native" });
   };
 
   return (

@@ -12,26 +12,46 @@ ALTER TABLE public.fantasy_squad_players
 
 -- One-time amnesty backfill for rounds damaged BEFORE this deploy: a bench
 -- player with positive points this matchday is treated as XI-at-kickoff, so
--- points forfeited by pre-fix bench moves come back on the next rescore
--- (the worker rescores automatically when stamps change). The pre-fix data
--- cannot distinguish these from players who genuinely played from the bench,
--- so those count too — a uniform, one-time generosity. Rows with points <= 0
--- stay NULL so the restore can never lower a score.
-UPDATE public.fantasy_squad_players sp
-   SET xi_at_kickoff = true
-  FROM public.fantasy_squads s
- WHERE sp.squad_id = s.id
-   AND sp.slot >= 12
-   AND sp.xi_at_kickoff IS NULL
-   AND EXISTS (
-     SELECT 1
-       FROM public.fantasy_player_match_stats pms
-       JOIN public.fantasy_fixtures f
-         ON f.provider_fixture_id = pms.provider_fixture_id
-      WHERE pms.player_id = sp.player_id
-        AND f.matchday_id = s.matchday_id
-        AND pms.points > 0
-   );
+-- points forfeited by pre-fix bench moves come back on the next rescore.
+-- The pre-fix data cannot distinguish these from players who genuinely
+-- played from the bench, so those count too — a uniform, one-time
+-- generosity. Rows with points <= 0 stay NULL so the restore can never
+-- lower a score.
+--
+-- The worker only rescores matchdays whose stamps change through the
+-- fantasy_stamp_kickoff RPC, and skips 'final' matchdays entirely — so this
+-- direct UPDATE would leave already-final rounds' totals stale. Enqueue
+-- every affected matchday in fantasy_settings.config->pending_rescore_matchdays;
+-- the worker drains that queue (recomputeScores) on its next tick.
+WITH restored AS (
+  UPDATE public.fantasy_squad_players sp
+     SET xi_at_kickoff = true
+    FROM public.fantasy_squads s
+   WHERE sp.squad_id = s.id
+     AND sp.slot >= 12
+     AND sp.xi_at_kickoff IS NULL
+     AND EXISTS (
+       SELECT 1
+         FROM public.fantasy_player_match_stats pms
+         JOIN public.fantasy_fixtures f
+           ON f.provider_fixture_id = pms.provider_fixture_id
+        WHERE pms.player_id = sp.player_id
+          AND f.matchday_id = s.matchday_id
+          AND pms.points > 0
+     )
+  RETURNING s.matchday_id
+)
+UPDATE public.fantasy_settings
+   SET config = jsonb_set(
+         config,
+         '{pending_rescore_matchdays}',
+         COALESCE(config->'pending_rescore_matchdays', '[]'::jsonb)
+           || (SELECT COALESCE(jsonb_agg(DISTINCT matchday_id), '[]'::jsonb)
+                 FROM restored)
+       ),
+       updated_at = now()
+ WHERE id = 1
+   AND EXISTS (SELECT 1 FROM restored);
 
 -- Stamp all squad players of a matchday whose team's fixture has kicked off.
 -- Idempotent: only NULL rows are stamped, so later lineup edits can never
@@ -63,6 +83,11 @@ BEGIN
 END;
 $$;
 
+-- SECURITY DEFINER + default PUBLIC EXECUTE would let any RPC caller stamp
+-- kickoff state and permanently alter scoring history — worker only.
+REVOKE EXECUTE ON FUNCTION public.fantasy_stamp_kickoff(INTEGER, BIGINT[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.fantasy_stamp_kickoff(INTEGER, BIGINT[]) TO service_role;
+
 -- fantasy_save_squad replaces the composition via delete + reinsert; it must
 -- carry the kickoff stamps across, or every lineup save during a live round
 -- would wipe the banked history.
@@ -93,6 +118,25 @@ BEGIN
      WHERE id = p_squad_id
      RETURNING id INTO v_squad_id;
   END IF;
+
+  -- Stamp any not-yet-stamped player whose fixture has kicked off BEFORE
+  -- replacing the composition. The worker's stamp can lag a tick behind
+  -- kickoff; without this, benching a played player in that gap carries a
+  -- NULL stamp into the new bench slot and the later worker stamp records
+  -- false — forfeiting points already earned in the XI. Same kicked-off
+  -- test as the worker: live/finished status, or kickoff time reached.
+  UPDATE fantasy_squad_players sp
+     SET xi_at_kickoff = (sp.slot <= 11)
+    FROM fantasy_players pl, fantasy_fixtures f
+   WHERE sp.squad_id = v_squad_id
+     AND sp.xi_at_kickoff IS NULL
+     AND pl.provider_player_id = sp.player_id
+     AND f.matchday_id = p_matchday_id
+     AND pl.team_id IN (f.home_team_id, f.away_team_id)
+     AND (
+       f.status IN ('1H', 'HT', '2H', 'ET', 'BT', 'P', 'LIVE', 'INT', 'FT', 'AET', 'PEN')
+       OR now() >= f.kickoff
+     );
 
   WITH old AS (
     DELETE FROM fantasy_squad_players

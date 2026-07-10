@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../supabase";
 import config from "../config";
 import { getPrivyUserIdFromRequest, getWalletAddressFromPrivyUserId } from "../privy";
 import { LIVE_STATUSES, FINISHED_STATUSES } from "./provider";
+import { countsForScoring } from "./scoring";
 import type {
   FantasyPlayer,
   MatchdayStatus,
@@ -212,7 +213,7 @@ export async function getPublicManagerTeam(
     const { data: squadRow, error: squadError } = await supabaseAdmin
       .from("fantasy_squads")
       .select(
-        "matchday_id, players:fantasy_squad_players(player_id, slot, is_captain, is_vice)",
+        "matchday_id, players:fantasy_squad_players(player_id, slot, is_captain, is_vice, xi_at_kickoff)",
       )
       .eq("wallet_address", row.wallet_address)
       .lte("matchday_id", ceilingId)
@@ -224,7 +225,7 @@ export async function getPublicManagerTeam(
     if (squadRow) {
       const matchdayId = Number(squadRow.matchday_id);
       const matchday = matchdays.find((md) => md.id === matchdayId)!;
-      const [players, playerPoints, { data: score }] = await Promise.all([
+      const [players, playerPoints, scoreResult] = await Promise.all([
         getPlayersMap(),
         getMatchdayPlayerPoints(matchdayId),
         supabaseAdmin
@@ -234,19 +235,24 @@ export async function getPublicManagerTeam(
           .eq("matchday_id", matchdayId)
           .maybeSingle(),
       ]);
+      if (scoreResult.error) throw scoreResult.error;
+      const score = scoreResult.data;
 
       const entries = (squadRow.players ?? []).map((p) => ({
         player_id: Number(p.player_id),
         slot: Number(p.slot),
         is_captain: Boolean(p.is_captain),
         is_vice: Boolean(p.is_vice),
+        xi_at_kickoff: (p.xi_at_kickoff ?? null) as boolean | null,
       }));
       const live = (id: number) =>
         playerPoints.get(id) ?? { points: 0, minutes: 0 };
-      const captain = entries.find((p) => p.is_captain);
-      const vice = entries.find((p) => p.is_vice);
-      // Same doubling rule as computeSquadPoints: captain once they've
-      // played, otherwise the vice.
+      // Same rules as recomputeScores/computeSquadPoints: a player's points
+      // count only per the kickoff-banked stamp (current slot decides for
+      // fixtures not kicked off yet), and the captain doubles once they've
+      // played, otherwise the vice — both only while they count for scoring.
+      const captain = entries.find((p) => p.is_captain && countsForScoring(p));
+      const vice = entries.find((p) => p.is_vice && countsForScoring(p));
       const doubledId =
         captain && live(captain.player_id).minutes > 0
           ? captain.player_id
@@ -263,17 +269,25 @@ export async function getPublicManagerTeam(
         points: Number(score?.points ?? 0),
         players: entries
           .sort((a, b) => a.slot - b.slot)
-          .map((entry) => {
+          .map(({ xi_at_kickoff: _stamp, ...entry }) => {
             const player = players.get(entry.player_id);
             const stats = live(entry.player_id);
+            // Effective points: zero for a player whose points are excluded
+            // from team.points (e.g. moved into the XI after kickoff), so
+            // the public card always sums to the banked score.
+            const counts = countsForScoring({
+              slot: entry.slot,
+              xi_at_kickoff: _stamp,
+            });
             return {
               ...entry,
               name: player?.name ?? "Unknown",
               position: player?.position ?? ("MID" as Position),
               nation: player?.nation ?? "",
               photo_url: player?.photo_url ?? null,
-              points:
-                stats.points * (entry.player_id === doubledId ? 2 : 1),
+              points: counts
+                ? stats.points * (entry.player_id === doubledId ? 2 : 1)
+                : 0,
               minutes: stats.minutes,
             };
           }),

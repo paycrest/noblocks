@@ -18,8 +18,6 @@ import type {
 } from "./types";
 import { Chip, secondaryButtonClasses } from "./ui";
 
-const POS_ORDER: Position[] = ["GK", "DEF", "MID", "FWD"];
-
 /** Minimal FantasyPlayer for the slot card (price/team never shown here). */
 const toFantasyPlayer = (p: PublicTeamPlayer): FantasyPlayer => ({
   provider_player_id: p.player_id,
@@ -55,12 +53,11 @@ export const ManagerTeamView = ({
     FWD: [],
   };
   const bench: SlotView[] = [];
-  for (const pos of POS_ORDER) {
-    for (const p of team?.players ?? []) {
-      if (p.position !== pos) continue;
-      if (p.slot <= 11) rows[pos].push(toSlotView(p));
-      else bench.push(toSlotView(p));
-    }
+  // Players arrive sorted by slot; a single pass keeps the bench in slot
+  // order (12–15) while the XI still groups by position via `rows`.
+  for (const p of team?.players ?? []) {
+    if (p.slot <= 11) rows[p.position].push(toSlotView(p));
+    else bench.push(toSlotView(p));
   }
 
   return (

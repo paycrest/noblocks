@@ -10,6 +10,7 @@ import type {
   LeaderboardResponse,
   MatchdayResponse,
   PlayersResponse,
+  PublicManagerTeam,
   RewardsResponse,
   SaveSquadBody,
   SquadResponse,
@@ -114,6 +115,11 @@ export const fetchLeaderboard = (params: {
     { token: params.token },
   );
 };
+
+export const fetchManager = (username: string) =>
+  playRequest<PublicManagerTeam>(
+    `/api/play/manager/${encodeURIComponent(username)}`,
+  );
 
 /* ----------------------------- Authenticated ---------------------------- */
 

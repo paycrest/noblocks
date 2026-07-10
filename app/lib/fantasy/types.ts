@@ -77,6 +77,12 @@ export interface FantasySettings {
   campaign_start: string;
   campaign_end: string;
   features: { emails: boolean; share_cards: boolean; join_open: boolean };
+  /**
+   * One-shot rescore queue: migrations that rewrite kickoff stamps directly
+   * (bypassing the stamp RPC) enqueue affected matchday ids here; the worker
+   * recomputes them on its next tick and clears the key.
+   */
+  pending_rescore_matchdays?: number[];
 }
 
 export interface FantasyPlayer {
@@ -95,6 +101,34 @@ export interface SquadSelection {
   players: { playerId: number; slot: number }[];
   captainId: number;
   viceId: number;
+}
+
+export interface PublicTeamPlayer {
+  player_id: number;
+  slot: number;
+  is_captain: boolean;
+  is_vice: boolean;
+  name: string;
+  position: Position;
+  nation: string;
+  photo_url: string | null;
+  /** Effective points — includes the captain double / vice fallback. */
+  points: number;
+  minutes: number;
+}
+
+/** Public view of a manager's team (leaderboard drill-in, share links). */
+export interface PublicManagerTeam {
+  username: string;
+  rank: number | null;
+  total_points: number;
+  badge: string;
+  /** null until the manager has a squad in a locked round. */
+  team: {
+    matchday: { id: number; display_name: string; status: MatchdayStatus };
+    points: number;
+    players: PublicTeamPlayer[];
+  } | null;
 }
 
 export interface LeaderboardRow {

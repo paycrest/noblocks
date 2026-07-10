@@ -4,7 +4,7 @@
  * pipeline app/lib/fantasy/worker.ts runs on every stats sync.
  */
 import { getNormalizedFixtureStats } from "@/app/lib/fantasy/provider";
-import { computePoints, computeSquadPoints } from "@/app/lib/fantasy/scoring";
+import { computePoints, computeSquadPoints, countsForScoring } from "@/app/lib/fantasy/scoring";
 import type { ScoringMatrix } from "@/app/lib/fantasy/types";
 
 const matrix: ScoringMatrix = {
@@ -229,5 +229,23 @@ describe("stats normalization from stubbed provider", () => {
     });
     // 13 + 8 + 3 − 1 = 23, +13 captain double, −3 transfers = 33
     expect(total).toBe(33);
+  });
+});
+
+describe("countsForScoring (XI membership banked at kickoff)", () => {
+  it("uses the current slot while the fixture hasn't kicked off", () => {
+    expect(countsForScoring({ slot: 5, xi_at_kickoff: null })).toBe(true);
+    expect(countsForScoring({ slot: 12, xi_at_kickoff: null })).toBe(false);
+    expect(countsForScoring({ slot: 11 })).toBe(true);
+  });
+
+  it("keeps points for an XI-at-kickoff player benched after playing", () => {
+    expect(countsForScoring({ slot: 14, xi_at_kickoff: true })).toBe(true);
+  });
+
+  it("never counts a player who was on the bench at kickoff", () => {
+    expect(countsForScoring({ slot: 13, xi_at_kickoff: false })).toBe(false);
+    // Can't happen under the rolling lockout, but the stamp must still win.
+    expect(countsForScoring({ slot: 3, xi_at_kickoff: false })).toBe(false);
   });
 });

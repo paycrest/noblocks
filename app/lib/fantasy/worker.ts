@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "../supabase";
-import { computePoints, computeSquadPoints } from "./scoring";
+import { computePoints, computeSquadPoints, countsForScoring } from "./scoring";
 import {
   FINISHED_STATUSES,
   LIVE_STATUSES,
@@ -9,7 +9,11 @@ import {
   getProviderRateLimit,
   getWorldCupFixtures,
 } from "./provider";
-import { getFantasySettings, matchdayLabel } from "./settings";
+import {
+  getFantasySettings,
+  invalidateFantasySettingsCache,
+  matchdayLabel,
+} from "./settings";
 import { getPlayersMap, type MatchdayRow } from "./server";
 import {
   claimNotification,
@@ -60,6 +64,8 @@ export interface WorkerReport {
   live_window_active: boolean;
   fixtures_refreshed: boolean;
   transitions: string[];
+  /** Squad-player rows stamped with their XI/bench state at kickoff this tick. */
+  kickoff_stamps: number;
   stats_synced: number;
   fixtures_finalized: number;
   scores_recomputed: number;
@@ -267,8 +273,9 @@ async function syncFixtureStats(
   if (error) throw error;
 }
 
-/** Recompute matchday scores, participant totals and ranks (idempotent). */
-async function recomputeScores(matchdayIds: number[]): Promise<number> {
+/** Recompute matchday scores, participant totals and ranks (idempotent).
+ * Exported for the admin restore-banked repair route. */
+export async function recomputeScores(matchdayIds: number[]): Promise<number> {
   if (matchdayIds.length === 0) return 0;
   let updated = 0;
 
@@ -305,12 +312,18 @@ async function recomputeScores(matchdayIds: number[]): Promise<number> {
     const squads = await fetchAll<{
       wallet_address: string;
       transfer_points_deduction: number;
-      players: { player_id: number; slot: number; is_captain: boolean; is_vice: boolean }[];
+      players: {
+        player_id: number;
+        slot: number;
+        is_captain: boolean;
+        is_vice: boolean;
+        xi_at_kickoff: boolean | null;
+      }[];
     }>((from, to) =>
       supabaseAdmin
         .from("fantasy_squads")
         .select(
-          "wallet_address, transfer_points_deduction, players:fantasy_squad_players(player_id, slot, is_captain, is_vice)",
+          "wallet_address, transfer_points_deduction, players:fantasy_squad_players(player_id, slot, is_captain, is_vice, xi_at_kickoff)",
         )
         .eq("matchday_id", matchdayId)
         .range(from, to),
@@ -320,8 +333,12 @@ async function recomputeScores(matchdayIds: number[]): Promise<number> {
       wallet_address: squad.wallet_address,
       matchday_id: matchdayId,
       points: computeSquadPoints({
+        // Points count for players who were in the XI when their fixture
+        // kicked off (banked stamp); current slot only decides for fixtures
+        // that haven't kicked off yet. Benching a played player keeps the
+        // points they already earned.
         startingXI: (squad.players ?? [])
-          .filter((p) => p.slot <= 11)
+          .filter(countsForScoring)
           .map((p) => ({
             playerId: Number(p.player_id),
             isCaptain: p.is_captain,
@@ -400,6 +417,34 @@ async function recomputeScores(matchdayIds: number[]): Promise<number> {
   }
 
   return updated;
+}
+
+/**
+ * Drain the one-shot pending_rescore_matchdays queue (written by migrations
+ * that rewrite kickoff stamps directly) after a successful recompute. A
+ * failed clear just repeats the rescore next tick — recompute is idempotent.
+ */
+async function clearPendingRescore(alerts: string[]): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("fantasy_settings")
+    .select("config")
+    .eq("id", 1)
+    .single();
+  if (error || !data) {
+    alerts.push(`pending rescore clear failed: ${String(error?.message ?? "no row")}`);
+    return;
+  }
+  const { pending_rescore_matchdays: _drained, ...config } =
+    data.config as FantasySettings;
+  const { error: updateError } = await supabaseAdmin
+    .from("fantasy_settings")
+    .update({ config, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+  if (updateError) {
+    alerts.push(`pending rescore clear failed: ${String(updateError.message)}`);
+    return;
+  }
+  invalidateFantasySettingsCache();
 }
 
 /**
@@ -797,6 +842,7 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
     live_window_active: false,
     fixtures_refreshed: false,
     transitions: [],
+    kickoff_stamps: 0,
     stats_synced: 0,
     fixtures_finalized: 0,
     scores_recomputed: 0,
@@ -886,6 +932,47 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
       fixtures = await loadFixtures();
     }
 
+    // 3.5 Bank XI membership at kickoff (fairness): stamp squad players of
+    // teams whose fixture has kicked off so later bench moves can't erase
+    // points already earned in the XI. Row-idempotent (NULL-only stamping),
+    // and DB-cheap once a round is fully stamped (0-row updates) — so this
+    // runs on every tick a non-final matchday has kicked-off fixtures, not
+    // just inside the active window, so late bench moves during a long
+    // 'finalizing' tail can't dodge the stamp. Matchdays whose stamps
+    // changed are rescored below — that's also what folds the migration's
+    // amnesty backfill into the leaderboard automatically on the first tick
+    // after deploy.
+    const stampedMatchdays = new Set<number>();
+    for (const md of matchdays) {
+      if (md.status === "final") continue;
+      const kickedOffTeams = [
+        ...new Set(
+          fixtures
+            .filter(
+              (f) =>
+                f.matchday_id === md.id &&
+                (LIVE_STATUSES.has(f.status) ||
+                  FINISHED_STATUSES.has(f.status) ||
+                  new Date(f.kickoff).getTime() <= now),
+            )
+            .flatMap((f) => [f.home_team_id, f.away_team_id]),
+        ),
+      ].filter(Boolean);
+      if (kickedOffTeams.length === 0) continue;
+      const { data: stamped, error } = await supabaseAdmin.rpc(
+        "fantasy_stamp_kickoff",
+        { p_matchday_id: md.id, p_team_ids: kickedOffTeams },
+      );
+      if (error) {
+        report.alerts.push(`kickoff stamp failed for MD${md.id}: ${String(error.message)}`);
+        continue;
+      }
+      if (Number(stamped ?? 0) > 0) {
+        report.kickoff_stamps += Number(stamped);
+        stampedMatchdays.add(md.id);
+      }
+    }
+
     // 4. Status-based transitions from fresh fixture state.
     const finalizedThisTick: MatchdayRow[] = [];
     for (const md of matchdays) {
@@ -916,6 +1003,11 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
     // fixtures just synced are always included — even while 'upcoming'
     // (possible when a round was seeded mid-play, e.g. R16 test mode; in a
     // normal campaign an upcoming round has no stats, so this is a no-op).
+    // pending_rescore_matchdays is a one-shot queue for migrations that
+    // rewrite kickoff stamps directly (the amnesty backfill): those writes
+    // bypass the stamp RPC, and final rounds are skipped by the stamp loop
+    // above, so they'd otherwise never be rescored.
+    const pendingRescore = (settings.pending_rescore_matchdays ?? []).map(Number);
     const scoreTargets = [
       ...new Set([
         ...matchdays
@@ -927,15 +1019,24 @@ export async function runWorkerTick(options?: { force?: boolean }): Promise<Work
           )
           .map((md) => md.id),
         ...statsSyncedMatchdays,
+        ...stampedMatchdays,
+        ...pendingRescore,
         // Forced ticks always recompute the current round (manual ops).
         ...(force
           ? matchdays.filter((md) => md.status !== "final").slice(0, 1).map((md) => md.id)
           : []),
       ]),
     ];
-    if (report.stats_synced > 0 || report.transitions.length > 0 || force) {
+    if (
+      report.stats_synced > 0 ||
+      report.transitions.length > 0 ||
+      stampedMatchdays.size > 0 ||
+      pendingRescore.length > 0 ||
+      force
+    ) {
       try {
         report.scores_recomputed = await recomputeScores(scoreTargets);
+        if (pendingRescore.length > 0) await clearPendingRescore(report.alerts);
       } catch (error) {
         report.alerts.push(`score recompute failed: ${String(error)}`);
       }

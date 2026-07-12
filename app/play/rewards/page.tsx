@@ -168,7 +168,7 @@ export default function RewardsPage() {
       <EmptyState
         icon={<ChampionIcon className="size-8 text-lavender-500" />}
         title="Join the league to unlock rewards"
-        description="The 300 USDC giveaway is for league participants — joining takes under a minute."
+        description="The 600 USDC giveaway is for league participants — joining takes under a minute."
         action={
           <Link href="/play" className={primaryButtonClasses}>
             Join the league
@@ -222,7 +222,7 @@ export default function RewardsPage() {
       <PlayCard className="flex items-center justify-between gap-4">
         <div>
           <p className="text-sm font-semibold text-text-body dark:text-white">
-            300 USDC giveaway
+            600 USDC giveaway
           </p>
           <p className="text-xs text-text-secondary dark:text-white/50">
             {data.giveaway_opt_in

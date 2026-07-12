@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Terms & Conditions — Noblocks Play",
   description:
-    "Terms and conditions for the Noblocks Play World Cup 2026 fantasy league and 300 USDC giveaway.",
+    "Terms and conditions for the Noblocks Play World Cup 2026 fantasy league and 600 USDC giveaway.",
 };
 
 const Section = ({
@@ -32,7 +32,7 @@ export default function PlayTermsPage() {
           Noblocks Play — Terms &amp; Conditions
         </h1>
         <p className="text-sm text-text-secondary dark:text-white/50">
-          World Cup 2026 Fantasy League &amp; 300 USDC giveaway. By joining
+          World Cup 2026 Fantasy League &amp; 600 USDC giveaway. By joining
           the league you accept these terms.
         </p>
       </header>
@@ -65,17 +65,21 @@ export default function PlayTermsPage() {
 
       <Section title="3. Prizes">
         <p>
-          The prize pool is <strong>300 USDC, paid on the Base network</strong>{" "}
+          The prize pool is <strong>600 USDC, paid on the Base network</strong>{" "}
           to the wallet associated with your Noblocks account:
         </p>
         <ul className="list-disc space-y-1 pl-5">
           <li>
             Final leaderboard ranks 1–5 among qualified participants:{" "}
-            <strong>40 USDC each</strong>.
+            <strong>50 USDC each</strong>.
           </li>
           <li>
             Final leaderboard ranks 6–10 among qualified participants:{" "}
-            <strong>20 USDC each</strong>.
+            <strong>40 USDC each</strong>.
+          </li>
+          <li>
+            Final leaderboard ranks 11–20 among qualified participants:{" "}
+            <strong>15 USDC each</strong>.
           </li>
         </ul>
         <p>

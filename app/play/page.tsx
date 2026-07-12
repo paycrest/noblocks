@@ -32,8 +32,9 @@ const HERO_PILL_BUTTON =
   "inline-flex min-h-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition-transform active:scale-[0.98]";
 
 const PRIZE_TIERS = [
-  { ranks: "Ranks 1–5", amount: "40 USDC each" },
-  { ranks: "Ranks 6–10", amount: "20 USDC each" },
+  { ranks: "Ranks 1–5", amount: "50 USDC each" },
+  { ranks: "Ranks 6–10", amount: "40 USDC each" },
+  { ranks: "Ranks 11–20", amount: "15 USDC each" },
 ];
 
 // Every star photo used across the campaign (hero collage + this section) —
@@ -317,7 +318,7 @@ export default function PlayLandingPage() {
           <p className="max-w-xl text-sm text-white/80 sm:text-base">
             Build your dream XI for the knockout rounds, score points every
             matchday, and invite friends to qualify for a share of{" "}
-            <span className="font-semibold text-white">300 USDC on Base</span>.
+            <span className="font-semibold text-white">600 USDC on Base</span>.
             Free to play.
           </p>
           <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -383,7 +384,7 @@ export default function PlayLandingPage() {
           >
             Build your dream XI for the knockout rounds, score points every
             matchday, and invite friends to qualify for a share of{" "}
-            <span className="font-semibold text-white">300 USDC on Base</span>.
+            <span className="font-semibold text-white">600 USDC on Base</span>.
             Free to play.
           </p>
 
@@ -483,9 +484,9 @@ export default function PlayLandingPage() {
       {/* Prize breakdown */}
       <section className="space-y-4">
         <h2 className="text-lg font-semibold text-text-body dark:text-white">
-          Prize pool: 300 USDC on Base
+          Prize pool: 600 USDC on Base
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           {PRIZE_TIERS.map(({ ranks, amount }, index) => (
             <PlayCard key={ranks} className="flex items-center gap-4">
               <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-yellow-secondary dark:bg-yellow-primary/10">
@@ -505,7 +506,7 @@ export default function PlayLandingPage() {
           ))}
         </div>
         <p className="text-xs text-text-secondary dark:text-white/50">
-          Prizes go to the top 10 qualified managers by final rank. Anyone
+          Prizes go to the top 20 qualified managers by final rank. Anyone
           who has not qualified or has opted out is skipped when prizes are
           assigned. Full details in the{" "}
           <Link

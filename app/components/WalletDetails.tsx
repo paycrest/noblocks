@@ -28,6 +28,8 @@ import {
   Database01Icon,
   CoinsSwapIcon,
   Coins01Icon,
+  InformationCircleIcon,
+  Cancel01Icon,
 } from "hugeicons-react";
 import Image from "next/image";
 import { useInjectedWallet } from "../context";
@@ -59,10 +61,9 @@ import { CopyAddressWarningModal } from "./CopyAddressWarningModal";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { EarnConsentModal } from "./EarnConsentModal";
+import { EarnUnavailableModal } from "./EarnUnavailableModal";
 import { useEarnAccess } from "../hooks/useEarnAccess";
-import { BridgeConsentModal } from "./BridgeConsentModal";
-import { useBridgeAccess } from "../hooks/useBridgeAccess";
-import { isEarnUiVisible } from "../lib/earnFeature";
+import { isEarnEnabled, isEarnUiVisible } from "../lib/earnFeature";
 import { isReferralEnabled, formatTokenAmount } from "../utils";
 import { isBridgeUiVisible } from "../lib/bridgeFeature";
 import { BridgeForm } from "./bridge/BridgeForm";
@@ -74,6 +75,50 @@ const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
 );
 
+/** Pixel-matched callout for the Earn action-item when it's shown on a
+ * network Earn doesn't support yet (Figma node 2208:82749). Anchored to the
+ * bottom-right of the action row with an upward-pointing tail toward Earn. */
+const EarnUnavailableTooltip = ({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) => (
+  <AnimatePresence>
+    {isOpen && (
+      <motion.div
+        initial={{ opacity: 0, y: -4 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -4 }}
+        transition={{ duration: 0.15 }}
+        className="absolute right-0 top-full z-10 mt-2 w-[266px]"
+      >
+        <div
+          className="absolute -top-1.5 right-8 size-3 rotate-45 rounded-[2px] border-l border-t border-border-light bg-white dark:border-white/10 dark:bg-[#2c2c2c]"
+          aria-hidden
+        />
+        <div className="relative rounded-2xl border border-border-light bg-white p-2.5 pr-9 shadow-lg dark:border-white/10 dark:bg-[#2c2c2c]">
+          <p className="text-[11px] font-medium leading-5 text-text-body dark:text-white">
+            Earn is currently available on Starknet.
+          </p>
+          <p className="mt-[3px] text-[10px] leading-[13px] text-text-secondary dark:text-white/50">
+            Switch your wallet to Starknet to start earning on your USDC.
+          </p>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={onClose}
+            className="absolute right-2.5 top-2.5 text-text-secondary hover:text-text-body dark:text-white/50 dark:hover:text-white"
+          >
+            <Cancel01Icon className="size-4" />
+          </button>
+        </div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
 export const WalletDetails = () => {
   const { trackBridge } = useBridgeStatusTracker();
   const [isTransferModalOpen, setIsTransferModalOpen] =
@@ -82,6 +127,9 @@ export const WalletDetails = () => {
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [isEarnFormOpen, setIsEarnFormOpen] = useState(false);
   const [earnFormTab, setEarnFormTab] = useState<"deposit" | "withdraw">("deposit");
+  const [isEarnHintOpen, setIsEarnHintOpen] = useState(false);
+  const [isEarnUnavailableModalOpen, setIsEarnUnavailableModalOpen] =
+    useState(false);
   const [sidebarView, setSidebarView] = useState<
     "wallet" | "earn" | "referrals"
   >("wallet");
@@ -92,12 +140,6 @@ export const WalletDetails = () => {
     handleConsentAccepted: handleEarnConsentAccepted,
     dismissConsent: dismissEarnConsent,
   } = useEarnAccess();
-  const {
-    isConsentModalOpen: isBridgeConsentModalOpen,
-    requestBridgeAccess,
-    handleConsentAccepted: handleBridgeConsentAccepted,
-    dismissConsent: dismissBridgeConsent,
-  } = useBridgeAccess();
   const [activeTab, setActiveTab] = useState<"balances" | "transactions">(
     "balances",
   );
@@ -155,7 +197,7 @@ export const WalletDetails = () => {
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
     : selectedNetwork.chain.name === "Starknet" ||
-        selectedNetwork.chain.name === "Tron"
+      selectedNetwork.chain.name === "Tron"
       ? hookWalletAddress
         ? { address: hookWalletAddress }
         : undefined
@@ -292,6 +334,8 @@ export const WalletDetails = () => {
     setSelectedTransaction(null);
     setSelectedEarnActivity(null);
     setIsNetworkListOpen(false);
+    setIsEarnHintOpen(false);
+    setIsEarnUnavailableModalOpen(false);
   };
 
   // Copy wallet address to clipboard with feedback
@@ -418,141 +462,77 @@ export const WalletDetails = () => {
                   // Main wallet view
                   <div className="flex h-full min-h-0 flex-col overflow-hidden p-5">
                     <div className="flex-shrink-0">
-                    {/* Header with close button */}
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-semibold text-text-body dark:text-white">
-                        Wallet
-                      </h2>
-                      <button
-                        type="button"
-                        title="Close wallet details"
-                        onClick={handleSidebarClose}
-                        className="rounded-lg p-2 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
-                      >
-                        <ArrowRight03Icon className="size-5 text-outline-gray dark:text-white/50" />
-                      </button>
-                    </div>
-
-                    {/* Wallet info card */}
-                    <div className="mt-6 space-y-6 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/10">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                          <p className="text-text-body dark:text-white/80">
-                            {shortenAddress(activeWallet?.address ?? "", 8)}
-                          </p>
-                        </div>
+                      {/* Header with close button */}
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-semibold text-text-body dark:text-white">
+                          Wallet
+                        </h2>
                         <button
                           type="button"
-                          onClick={handleCopyAddress}
-                          title="Copy wallet address"
+                          title="Close wallet details"
+                          onClick={handleSidebarClose}
                           className="rounded-lg p-2 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
                         >
-                          {isAddressCopied ? (
-                            <PiCheck className="size-4 text-green-500" />
-                          ) : (
-                            <Copy01Icon className="size-4 text-outline-gray dark:text-white/50" />
-                          )}
+                          <ArrowRight03Icon className="size-5 text-outline-gray dark:text-white/50" />
                         </button>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <div className="text-2xl font-medium text-text-body dark:text-white">
-                          {showBalanceSkeleton ? (
-                            <BalanceSkeleton className="w-24" />
-                          ) : showEarnUi ? (
-                            formatCurrency(crossChainTotal, "USD", "en-US")
-                          ) : selectedNetwork.chain.name === "Starknet" ? (
-                            `$${(activeBalance?.total ?? 0).toFixed(2)}`
-                          ) : (
-                            formatCurrency(crossChainTotal, "USD", "en-US")
-                          )}
+                      {/* Wallet info card */}
+                      <div className="mt-6 space-y-6 rounded-[20px] border border-border-light bg-transparent p-4 dark:border-white/10">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Wallet01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                            <p className="text-text-body dark:text-white/80">
+                              {shortenAddress(activeWallet?.address ?? "", 8)}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleCopyAddress}
+                            title="Copy wallet address"
+                            className="rounded-lg p-2 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
+                          >
+                            {isAddressCopied ? (
+                              <PiCheck className="size-4 text-green-500" />
+                            ) : (
+                              <Copy01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                            )}
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              await refreshBalance();
-                            } catch (error) {
-                              console.error("Error refreshing balance:", error);
-                            }
-                          }}
-                          title="Refresh balance"
-                          aria-label="Refresh balance"
-                          disabled={isLoading}
-                          className="rounded-lg p-2 transition-colors hover:bg-accent-gray disabled:opacity-50 dark:hover:bg-white/10"
-                        >
-                          <RefreshIcon
-                            className={`size-5 text-outline-gray dark:text-white/50 ${isLoading || isRefreshing ? "animate-spin" : ""}`}
-                          />
-                        </button>
-                      </div>
 
-                      {!isInjectedWallet &&
-                        (showEarnUi ? (
-                          <div className="flex flex-row items-start justify-between gap-2">
-                            <button
-                              type="button"
-                              title="Fund wallet"
-                              onClick={() => setIsFundModalOpen(true)}
-                              className="group flex flex-1 flex-col items-center gap-2"
-                            >
-                              <span className="flex size-[60px] items-center justify-center rounded-full bg-lavender-500 text-white transition-all group-hover:scale-[0.98] group-active:scale-95">
-                                <ArrowDownLeft01Icon className="size-6" strokeWidth={2} />
-                              </span>
-                              <span className="text-sm font-medium text-text-body dark:text-white">
-                                Fund
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              title="Transfer funds"
-                              onClick={() => setIsTransferModalOpen(true)}
-                              className="group flex flex-1 flex-col items-center gap-2"
-                            >
-                              <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
-                                <ArrowUpRight01Icon className="size-6" strokeWidth={2} />
-                              </span>
-                              <span className="text-sm font-medium text-text-body dark:text-white">
-                                Transfer
-                              </span>
-                            </button>
-                            {isBridgeUiVisible() && (
-                              <button
-                                type="button"
-                                title="Convert tokens"
-                                onClick={() =>
-                                  requestBridgeAccess(() =>
-                                    setIsConvertModalOpen(true),
-                                  )
-                                }
-                                className="group flex flex-1 flex-col items-center gap-2"
-                              >
-                                <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
-                                  <CoinsSwapIcon className="size-6" strokeWidth={2} />
-                                </span>
-                                <span className="text-sm font-medium text-text-body dark:text-white">
-                                  Convert
-                                </span>
-                              </button>
+                        <div className="flex items-center justify-between">
+                          <div className="text-2xl font-medium text-text-body dark:text-white">
+                            {showBalanceSkeleton ? (
+                              <BalanceSkeleton className="w-24" />
+                            ) : showEarnUi ? (
+                              formatCurrency(crossChainTotal, "USD", "en-US")
+                            ) : selectedNetwork.chain.name === "Starknet" ? (
+                              `$${(activeBalance?.total ?? 0).toFixed(2)}`
+                            ) : (
+                              formatCurrency(crossChainTotal, "USD", "en-US")
                             )}
-                            <button
-                              type="button"
-                              title="Earn yield on USDC via Vesu"
-                              onClick={() =>
-                                requestEarnAccess("earn-hub", onEarnAccessAction)
+                          </div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await refreshBalance();
+                              } catch (error) {
+                                console.error("Error refreshing balance:", error);
                               }
-                              className="group flex flex-1 flex-col items-center gap-2"
-                            >
-                              <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
-                                <Coins01Icon className="size-6" strokeWidth={2} />
-                              </span>
-                              <span className="text-sm font-medium text-text-body dark:text-white">
-                                Earn
-                              </span>
-                            </button>
-                          </div>
-                        ) : (
+                            }}
+                            title="Refresh balance"
+                            aria-label="Refresh balance"
+                            disabled={isLoading}
+                            className="rounded-lg p-2 transition-colors hover:bg-accent-gray disabled:opacity-50 dark:hover:bg-white/10"
+                          >
+                            <RefreshIcon
+                              className={`size-5 text-outline-gray dark:text-white/50 ${isLoading || isRefreshing ? "animate-spin" : ""}`}
+                            />
+                          </button>
+                        </div>
+
+                        {!isInjectedWallet && (
                           <div className="flex flex-row items-start justify-between gap-2">
                             <button
                               type="button"
@@ -584,11 +564,7 @@ export const WalletDetails = () => {
                               <button
                                 type="button"
                                 title="Convert tokens"
-                                onClick={() =>
-                                  requestBridgeAccess(() =>
-                                    setIsConvertModalOpen(true),
-                                  )
-                                }
+                                onClick={() => setIsConvertModalOpen(true)}
                                 className="group flex flex-1 flex-col items-center gap-2"
                               >
                                 <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
@@ -599,149 +575,193 @@ export const WalletDetails = () => {
                                 </span>
                               </button>
                             )}
+                            {isEarnEnabled() && (
+                              <div
+                                className="relative flex flex-1 flex-col items-center"
+                                onMouseEnter={() =>
+                                  !showEarnUi && setIsEarnHintOpen(true)
+                                }
+                                onMouseLeave={() => setIsEarnHintOpen(false)}
+                              >
+                                <button
+                                  type="button"
+                                  title={
+                                    showEarnUi
+                                      ? "Earn yield on USDC via Vesu"
+                                      : "Earn is currently available on Starknet"
+                                  }
+                                  onClick={() => {
+                                    if (showEarnUi) {
+                                      requestEarnAccess(
+                                        "earn-hub",
+                                        onEarnAccessAction,
+                                      );
+                                    } else {
+                                      setIsEarnHintOpen(false);
+                                      setIsEarnUnavailableModalOpen(true);
+                                    }
+                                  }}
+                                  className="group flex flex-col items-center gap-2"
+                                >
+                                  <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                                    <Coins01Icon className="size-6" strokeWidth={2} />
+                                  </span>
+                                  <span className="flex items-center gap-1 text-sm font-medium text-text-body dark:text-white">
+                                    Earn
+                                    {!showEarnUi && (
+                                      <InformationCircleIcon className="size-4 text-text-secondary dark:text-white/50" />
+                                    )}
+                                  </span>
+                                </button>
+                                <EarnUnavailableTooltip
+                                  isOpen={isEarnHintOpen}
+                                  onClose={() => setIsEarnHintOpen(false)}
+                                />
+                              </div>
+                            )}
                           </div>
-                        ))}
-                    </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-                    {isReferralEnabled() && (
-                      <div className="mt-8">
-                        <ReferralCTA
-                          onViewReferrals={() => setSidebarView("referrals")}
-                        />
-                      </div>
-                    )}
+                      {isReferralEnabled() && (
+                        <div className="mt-8">
+                          <ReferralCTA
+                            onViewReferrals={() => setSidebarView("referrals")}
+                          />
+                        </div>
+                      )}
 
-                    {/* Tab navigation — sticks below Transfer/Fund/Earn when scrolled */}
-                    <div className="sticky top-0 z-10 -mx-5 space-y-3 bg-white px-5 pb-2 pt-4 dark:bg-surface-overlay">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-6">
+                      {/* Tab navigation — sticks below Transfer/Fund/Earn when scrolled */}
+                      <div className="sticky top-0 z-10 -mx-5 space-y-3 bg-white px-5 pb-2 pt-4 dark:bg-surface-overlay">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-6">
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab("balances")}
+                              title="View balances"
+                              className={classNames(
+                                "text-sm font-medium transition-colors",
+                                activeTab === "balances"
+                                  ? "text-text-body dark:text-white"
+                                  : "text-text-disabled dark:text-white/30",
+                              )}
+                            >
+                              Balances
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab("transactions")}
+                              title="View transactions"
+                              className={classNames(
+                                "inline-flex items-center gap-2 text-sm font-medium transition-colors",
+                                activeTab === "transactions"
+                                  ? "text-text-body dark:text-white"
+                                  : "text-text-disabled dark:text-white/30",
+                              )}
+                            >
+                              Transactions
+                              {showOnrampAwaitingDot ? (
+                                <OnrampPendingNotificationDot />
+                              ) : null}
+                            </button>
+                          </div>
                           <button
                             type="button"
-                            onClick={() => setActiveTab("balances")}
-                            title="View balances"
-                            className={classNames(
-                              "text-sm font-medium transition-colors",
-                              activeTab === "balances"
-                                ? "text-text-body dark:text-white"
-                                : "text-text-disabled dark:text-white/30",
-                            )}
+                            title="Select network"
+                            onClick={() => setIsNetworkListOpen(!isNetworkListOpen)}
+                            className="flex shrink-0 items-center gap-1.5 rounded-lg py-1 pl-1 pr-0.5 hover:bg-accent-gray dark:hover:bg-white/10"
                           >
-                            Balances
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setActiveTab("transactions")}
-                            title="View transactions"
-                            className={classNames(
-                              "inline-flex items-center gap-2 text-sm font-medium transition-colors",
-                              activeTab === "transactions"
-                                ? "text-text-body dark:text-white"
-                                : "text-text-disabled dark:text-white/30",
-                            )}
-                          >
-                            Transactions
-                            {showOnrampAwaitingDot ? (
-                              <OnrampPendingNotificationDot />
-                            ) : null}
+                            <Image
+                              src={getNetworkImageUrl(selectedNetwork, isDark)}
+                              alt={selectedNetwork.chain.name}
+                              width={16}
+                              height={16}
+                              className="size-4 rounded-full"
+                            />
+                            <span className="max-w-[5.5rem] truncate text-sm font-medium text-text-body dark:text-white">
+                              {selectedNetwork.chain.name}
+                            </span>
+                            <ArrowDown01Icon
+                              className={classNames(
+                                "size-4 text-outline-gray transition-transform dark:text-white/50",
+                                isNetworkListOpen && "rotate-180",
+                              )}
+                            />
                           </button>
                         </div>
-                        <button
-                          type="button"
-                          title="Select network"
-                          onClick={() => setIsNetworkListOpen(!isNetworkListOpen)}
-                          className="flex shrink-0 items-center gap-1.5 rounded-lg py-1 pl-1 pr-0.5 hover:bg-accent-gray dark:hover:bg-white/10"
-                        >
-                          <Image
-                            src={getNetworkImageUrl(selectedNetwork, isDark)}
-                            alt={selectedNetwork.chain.name}
-                            width={16}
-                            height={16}
-                            className="size-4 rounded-full"
-                          />
-                          <span className="max-w-[5.5rem] truncate text-sm font-medium text-text-body dark:text-white">
-                            {selectedNetwork.chain.name}
-                          </span>
-                          <ArrowDown01Icon
-                            className={classNames(
-                              "size-4 text-outline-gray transition-transform dark:text-white/50",
-                              isNetworkListOpen && "rotate-180",
-                            )}
-                          />
-                        </button>
+
+                        <AnimatePresence>
+                          {isNetworkListOpen && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="space-y-1 overflow-hidden rounded-xl border border-border-light p-2 dark:border-white/10"
+                            >
+                              {networks.map((network) => (
+                                <button
+                                  type="button"
+                                  key={network.chain.name}
+                                  onClick={() => handleNetworkSwitchWrapper(network)}
+                                  className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 hover:bg-accent-gray dark:hover:bg-white/5"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Image
+                                      src={getNetworkImageUrl(network, isDark)}
+                                      alt={network.chain.name}
+                                      width={24}
+                                      height={24}
+                                      className="size-6"
+                                    />
+                                    <span className="text-text-body dark:text-white/80">
+                                      {network.chain.name}
+                                    </span>
+                                  </div>
+                                  {selectedNetwork.chain.name ===
+                                    network.chain.name && (
+                                      <PiCheck
+                                        className="size-5 text-green-900 dark:text-green-500"
+                                        strokeWidth={2}
+                                      />
+                                    )}
+                                </button>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
 
-                      <AnimatePresence>
-                        {isNetworkListOpen && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="space-y-1 overflow-hidden rounded-xl border border-border-light p-2 dark:border-white/10"
-                          >
-                            {networks.map((network) => (
-                              <button
-                                type="button"
-                                key={network.chain.name}
-                                onClick={() => handleNetworkSwitchWrapper(network)}
-                                className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 hover:bg-accent-gray dark:hover:bg-white/5"
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Image
-                                    src={getNetworkImageUrl(network, isDark)}
-                                    alt={network.chain.name}
-                                    width={24}
-                                    height={24}
-                                    className="size-6"
-                                  />
-                                  <span className="text-text-body dark:text-white/80">
-                                    {network.chain.name}
-                                  </span>
-                                </div>
-                                {selectedNetwork.chain.name ===
-                                  network.chain.name && (
-                                  <PiCheck
-                                    className="size-5 text-green-900 dark:text-green-500"
-                                    strokeWidth={2}
-                                  />
-                                )}
-                              </button>
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
+                      {/* Tab content */}
+                      <div className="mt-2 w-full pb-16">
+                        <AnimatePresence mode="wait">
+                          {activeTab === "balances" ? (
+                            // Balances tab content with cross-chain grouping
+                            <motion.div
+                              key="balances"
+                              variants={fadeInOut}
+                              initial="initial"
+                              animate="animate"
+                              exit="exit"
+                              className="space-y-6"
+                            >
+                              {showBalanceSkeleton ? (
+                                <CrossChainBalanceSkeleton />
+                              ) : (
+                                sortedCrossChainBalances.map((entry) => {
+                                  const isSelectedNetwork =
+                                    entry.network.chain.name ===
+                                    selectedNetwork.chain.name;
+                                  const balanceEntries = Object.entries(
+                                    entry.balances.balances || {},
+                                  );
 
-                    {/* Tab content */}
-                    <div className="mt-2 w-full pb-16">
-                      <AnimatePresence mode="wait">
-                        {activeTab === "balances" ? (
-                          // Balances tab content with cross-chain grouping
-                          <motion.div
-                            key="balances"
-                            variants={fadeInOut}
-                            initial="initial"
-                            animate="animate"
-                            exit="exit"
-                            className="space-y-6"
-                          >
-                            {showBalanceSkeleton ? (
-                              <CrossChainBalanceSkeleton />
-                            ) : (
-                              sortedCrossChainBalances.map((entry) => {
-                                const isSelectedNetwork =
-                                  entry.network.chain.name ===
-                                  selectedNetwork.chain.name;
-                                const balanceEntries = Object.entries(
-                                  entry.balances.balances || {},
-                                );
-
-                                // For selected network: show ALL balances (including zeros)
-                                // For other networks: only show non-zero balances
-                                const filteredBalances = isSelectedNetwork
-                                  ? balanceEntries
-                                  : balanceEntries.filter(([t, balance]) =>
+                                  // For selected network: show ALL balances (including zeros)
+                                  // For other networks: only show non-zero balances
+                                  const filteredBalances = isSelectedNetwork
+                                    ? balanceEntries
+                                    : balanceEntries.filter(([t, balance]) =>
                                       tokenBalanceRowVisible(
                                         entry.balances.rawBalances,
                                         t,
@@ -750,127 +770,126 @@ export const WalletDetails = () => {
                                       ),
                                     );
 
-                                // Skip networks with no balances to show
-                                if (filteredBalances.length === 0) return null;
+                                  // Skip networks with no balances to show
+                                  if (filteredBalances.length === 0) return null;
 
-                                return (
-                                  <div
-                                    key={entry.network.chain.name}
-                                    className="space-y-3"
-                                  >
-                                    {/* Network header with divider */}
-                                    <div className="flex items-center justify-between gap-x-6">
-                                      <h3 className="whitespace-nowrap text-sm font-medium text-text-secondary dark:text-white/50">
-                                        {entry.network.chain.name}
-                                      </h3>
-                                      <Divider />
-                                    </div>
+                                  return (
+                                    <div
+                                      key={entry.network.chain.name}
+                                      className="space-y-3"
+                                    >
+                                      {/* Network header with divider */}
+                                      <div className="flex items-center justify-between gap-x-6">
+                                        <h3 className="whitespace-nowrap text-sm font-medium text-text-secondary dark:text-white/50">
+                                          {entry.network.chain.name}
+                                        </h3>
+                                        <Divider />
+                                      </div>
 
-                                    <div className="space-y-4">
-                                      {filteredBalances.map(
-                                        ([token, balance]) => {
-                                          const isCngn =
-                                            token === "CNGN" ||
-                                            token === "cNGN";
-                                          const displayBalance =
-                                            isCngn
-                                              ? (entry.balances.rawBalances?.[
+                                      <div className="space-y-4">
+                                        {filteredBalances.map(
+                                          ([token, balance]) => {
+                                            const isCngn =
+                                              token === "CNGN" ||
+                                              token === "cNGN";
+                                            const displayBalance =
+                                              isCngn
+                                                ? (entry.balances.rawBalances?.[
                                                   token
                                                 ] ?? balance)
-                                              : balance;
-                                          const usdEquivalent = balance;
-                                          const cngnUnknown =
-                                            isCngn &&
-                                            entry.balances.cngnUsdUnknown;
+                                                : balance;
+                                            const usdEquivalent = balance;
+                                            const cngnUnknown =
+                                              isCngn &&
+                                              entry.balances.cngnUsdUnknown;
 
-                                          return (
-                                            <div
-                                              key={`${entry.network.chain.name}-${token}`}
-                                              className="flex items-center justify-between text-sm"
-                                            >
-                                              <div className="flex items-center gap-3">
-                                                <div className="relative">
-                                                  <Image
-                                                    src={`/logos/${token.toLowerCase()}-logo.svg`}
-                                                    alt={token}
-                                                    width={32}
-                                                    height={32}
-                                                    className="size-8 rounded-full"
-                                                    priority
-                                                  />
-                                                  <Image
-                                                    src={getNetworkImageUrl(
-                                                      entry.network,
-                                                      isDark,
-                                                    )}
-                                                    alt={
-                                                      entry.network.chain.name
-                                                    }
-                                                    width={16}
-                                                    height={16}
-                                                    className="absolute -bottom-1 -right-1 size-4 rounded-full"
-                                                  />
+                                            return (
+                                              <div
+                                                key={`${entry.network.chain.name}-${token}`}
+                                                className="flex items-center justify-between text-sm"
+                                              >
+                                                <div className="flex items-center gap-3">
+                                                  <div className="relative">
+                                                    <Image
+                                                      src={`/logos/${token.toLowerCase()}-logo.svg`}
+                                                      alt={token}
+                                                      width={32}
+                                                      height={32}
+                                                      className="size-8 rounded-full"
+                                                      priority
+                                                    />
+                                                    <Image
+                                                      src={getNetworkImageUrl(
+                                                        entry.network,
+                                                        isDark,
+                                                      )}
+                                                      alt={
+                                                        entry.network.chain.name
+                                                      }
+                                                      width={16}
+                                                      height={16}
+                                                      className="absolute -bottom-1 -right-1 size-4 rounded-full"
+                                                    />
+                                                  </div>
+                                                  <div className="flex flex-col">
+                                                    <span className="text-text-body dark:text-white/80">
+                                                      {token}
+                                                    </span>
+                                                    <span className="text-text-secondary dark:text-white/50">
+                                                      {formatTokenAmount(displayBalance)}
+                                                      {cngnUnknown ? (
+                                                        <span className="block text-xs text-text-disabled dark:text-white/40">
+                                                          NGN-pegged · USD quote
+                                                          unavailable
+                                                        </span>
+                                                      ) : null}
+                                                    </span>
+                                                  </div>
                                                 </div>
-                                                <div className="flex flex-col">
-                                                  <span className="text-text-body dark:text-white/80">
-                                                    {token}
-                                                  </span>
-                                                  <span className="text-text-secondary dark:text-white/50">
-                                                    {formatTokenAmount(displayBalance)}
-                                                    {cngnUnknown ? (
-                                                      <span className="block text-xs text-text-disabled dark:text-white/40">
-                                                        NGN-pegged · USD quote
-                                                        unavailable
-                                                      </span>
-                                                    ) : null}
-                                                  </span>
+                                                <div className="flex flex-col items-end">
+                                                  {cngnUnknown ? (
+                                                    <span className="text-text-secondary dark:text-white/45">
+                                                      —
+                                                    </span>
+                                                  ) : (
+                                                    <span
+                                                      className={`${usdEquivalent === 0 &&
+                                                          displayBalance > 0
+                                                          ? "text-red-500"
+                                                          : "text-text-body dark:text-white/80"
+                                                        }`}
+                                                    >
+                                                      ${usdEquivalent.toFixed(2)}
+                                                    </span>
+                                                  )}
                                                 </div>
                                               </div>
-                                              <div className="flex flex-col items-end">
-                                                {cngnUnknown ? (
-                                                  <span className="text-text-secondary dark:text-white/45">
-                                                    —
-                                                  </span>
-                                                ) : (
-                                                  <span
-                                                    className={`${
-                                                      usdEquivalent === 0 &&
-                                                      displayBalance > 0
-                                                        ? "text-red-500"
-                                                        : "text-text-body dark:text-white/80"
-                                                    }`}
-                                                  >
-                                                    ${usdEquivalent.toFixed(2)}
-                                                  </span>
-                                                )}
-                                              </div>
-                                            </div>
-                                          );
-                                        },
-                                      )}
+                                            );
+                                          },
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                );
-                              })
-                            )}
-                          </motion.div>
-                        ) : (
-                          // Transactions tab content
-                          <motion.div
-                            key="transactions"
-                            variants={fadeInOut}
-                            initial="initial"
-                            animate="animate"
-                            exit="exit"
-                            className="flex flex-col items-center gap-4 text-center"
-                          >
-                            <TransactionList
-                              onSelectTransaction={setSelectedTransaction}
-                            />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
+                                  );
+                                })
+                              )}
+                            </motion.div>
+                          ) : (
+                            // Transactions tab content
+                            <motion.div
+                              key="transactions"
+                              variants={fadeInOut}
+                              initial="initial"
+                              animate="animate"
+                              exit="exit"
+                              className="flex flex-col items-center gap-4 text-center"
+                            >
+                              <TransactionList
+                                onSelectTransaction={setSelectedTransaction}
+                              />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -915,6 +934,11 @@ export const WalletDetails = () => {
           >
             <BridgeForm onClose={() => setIsConvertModalOpen(false)} onBridgeSubmit={trackBridge} />
           </AnimatedModal>
+
+          <EarnUnavailableModal
+            isOpen={isEarnUnavailableModalOpen}
+            onClose={() => setIsEarnUnavailableModalOpen(false)}
+          />
         </>
       )}
 
@@ -922,12 +946,6 @@ export const WalletDetails = () => {
         isOpen={isEarnConsentModalOpen}
         onClose={dismissEarnConsent}
         onAccepted={() => handleEarnConsentAccepted(onEarnAccessAction)}
-      />
-
-      <BridgeConsentModal
-        isOpen={isBridgeConsentModalOpen}
-        onClose={dismissBridgeConsent}
-        onAccepted={handleBridgeConsentAccepted}
       />
 
       <CopyAddressWarningModal

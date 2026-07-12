@@ -396,7 +396,7 @@ async function squadImage(usernameParam: string, anton: Buffer) {
                 color: INK,
               }}
             >
-              300 USDC IN PRIZES
+              600 USDC IN PRIZES
             </div>
             <div
               style={{
@@ -722,8 +722,8 @@ export const GET = withRateLimit(async (request: NextRequest) => {
             }}
           >
             {code
-              ? `300 USDC IN PRIZES · noblocks.xyz?ref=${code}`
-              : "300 USDC IN PRIZES · noblocks.xyz/play"}
+              ? `600 USDC IN PRIZES · noblocks.xyz?ref=${code}`
+              : "600 USDC IN PRIZES · noblocks.xyz/play"}
           </div>
         </div>
       ),
@@ -847,7 +847,7 @@ export const GET = withRateLimit(async (request: NextRequest) => {
                 color: INK,
               }}
             >
-              300 USDC IN PRIZES
+              600 USDC IN PRIZES
             </div>
             <div
               style={{

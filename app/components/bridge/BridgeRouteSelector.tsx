@@ -97,7 +97,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
   };
 
   const cardCls =
-    "rounded-2xl bg-gray-100 dark:bg-neutral-800/60 border border-gray-200 dark:border-white/5 p-4 space-y-3";
+    "rounded-2xl bg-gray-100 dark:bg-surface-canvas border border-gray-200 dark:border-white/5 p-4 space-y-3";
 
   const TokenPill = ({
     symbol,

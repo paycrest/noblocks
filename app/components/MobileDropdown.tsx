@@ -311,15 +311,14 @@ export const MobileDropdown = ({
               className="fixed inset-0 bg-black/30 backdrop-blur-sm"
             />
 
-            <div className="fixed inset-0">
-              <div className="flex h-full items-end">
-                <motion.div {...slideUpAnimation} className="w-full">
-                  <DialogPanel className="scrollbar-hide relative max-h-[90vh] w-full overflow-hidden rounded-t-[30px] border border-border-light bg-white px-5 pt-6 shadow-xl *:text-sm dark:border-white/5 dark:bg-surface-overlay">
+            <div className="fixed inset-0 flex items-end justify-center">
+              <motion.div {...slideUpAnimation} className="w-full">
+                  <DialogPanel className="scrollbar-hide relative max-h-[90dvh] w-full overflow-hidden rounded-t-[30px] border border-border-light bg-white px-5 pt-6 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-xl *:text-sm dark:border-white/5 dark:bg-surface-overlay">
                     <div
                       className={
                         currentView === "wallet"
-                          ? "flex max-h-[90vh] flex-col overflow-hidden pb-12"
-                          : "scrollbar-hide max-h-[90vh] overflow-y-scroll pb-12"
+                          ? "flex max-h-[90dvh] flex-col overflow-hidden pb-12"
+                          : "scrollbar-hide max-h-[90dvh] overflow-y-scroll pb-12"
                       }
                     >
                       {currentView === "wallet" && (
@@ -480,8 +479,7 @@ export const MobileDropdown = ({
                       )}
                     </div>
                   </DialogPanel>
-                </motion.div>
-              </div>
+              </motion.div>
             </div>
 
             <EarnConsentModal

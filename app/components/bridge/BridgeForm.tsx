@@ -7,10 +7,9 @@ import { useNetwork } from "@/app/context/NetworksContext";
 import { useStarknet } from "@/app/context/StarknetContext";
 import { useTokens } from "@/app/context";
 import { useBridgeQuote, useBridgeExecute, useBridgeStatus } from "@/app/hooks/bridge";
-import { selectEngine, toRawAmount, isRouteSupported, bridgeFeeInReceivingToken } from "@/app/lib/bridge";
+import { selectEngine, toRawAmount, bridgeFeeInReceivingToken } from "@/app/lib/bridge";
 import type { BridgeLeg, BridgeEngine } from "@/app/lib/bridge";
 import { BridgeRouteSelector } from "./BridgeRouteSelector";
-import type { PickerTarget } from "./BridgeRouteSelector";
 import { BridgeQuoteCard } from "./BridgeQuoteCard";
 import {
   ArrowLeft02Icon,
@@ -44,16 +43,9 @@ interface BridgeFormProps {
   onBridgeSubmit?: (info: BridgeSubmitInfo) => void;
 }
 
-function getNetworkImgSrc(network: (typeof networks)[0]): string {
-  return typeof network.imageUrl === "string"
-    ? network.imageUrl
-    : (network.imageUrl as { light: string; dark: string }).dark;
-}
-
 export const BridgeForm: React.FC<BridgeFormProps> = ({
   onClose,
   setCurrentView,
-  layout = "modal",
   onBridgeSubmit,
 }) => {
   const { authenticated, getAccessToken } = usePrivy();
@@ -87,9 +79,6 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const [amount, setAmount] = useState("");
   const [fromNetworkName, setFromNetworkName] = useState(selectedNetwork.chain.name);
   const [toNetworkName, setToNetworkName] = useState(selectedNetwork.chain.name);
-
-  // Picker overlay state — null means closed
-  const [activePicker, setActivePicker] = useState<PickerTarget | null>(null);
 
   const fromNetworkObj = useMemo(
     () => networks.find((n) => n.chain.name === fromNetworkName) ?? selectedNetwork,
@@ -169,55 +158,6 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
 
   const timeEstimate =
     quote?.kind === "near-deposit" ? quote.timeEstimate : undefined;
-
-  // ── Picker handlers ──────────────────────────────────────────────────────────
-
-  const handlePickerSelect = (value: string) => {
-    if (!activePicker) return;
-
-    if (activePicker === "fromNet") {
-      setFromNetworkName(value);
-      setFrom(null);
-    } else if (activePicker === "toNet") {
-      setToNetworkName(value);
-      setTo(null);
-    } else if (activePicker === "fromToken") {
-      const network = networks.find((n) => n.chain.name === fromNetworkName);
-      const tokens = allTokens[fromNetworkName] ?? [];
-      const t = tokens.find((tk) => tk.symbol === value);
-      if (t && network) {
-        const leg: BridgeLeg = {
-          network: network.chain.name,
-          chainId: network.chain.id,
-          token: t.symbol,
-          tokenAddress: t.address,
-          decimals: t.decimals,
-          amount: "0",
-          rawAmount: "0",
-        };
-        setFrom(leg);
-        if (to && !isRouteSupported(leg, to)) setTo(null);
-      }
-    } else if (activePicker === "toToken") {
-      const network = networks.find((n) => n.chain.name === toNetworkName);
-      const tokens = allTokens[toNetworkName] ?? [];
-      const t = tokens.find((tk) => tk.symbol === value);
-      if (t && network) {
-        const leg: BridgeLeg = {
-          network: network.chain.name,
-          chainId: network.chain.id,
-          token: t.symbol,
-          tokenAddress: t.address,
-          decimals: t.decimals,
-          amount: "0",
-          rawAmount: "0",
-        };
-        setTo(leg);
-      }
-    }
-
-    setActivePicker(null);
-  };
 
   // ── Execution ────────────────────────────────────────────────────────────────
 
@@ -325,68 +265,6 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     !!from &&
     !!to;
 
-  // ── Picker overlay content ───────────────────────────────────────────────────
-
-  const isNetworkPicker = activePicker === "fromNet" || activePicker === "toNet";
-  const pickerHeaderText =
-    activePicker === "fromNet"
-      ? "Select 'from' network"
-      : activePicker === "toNet"
-        ? "Select 'to' network"
-        : activePicker === "fromToken"
-          ? "Select 'from' token"
-          : activePicker === "toToken"
-            ? "Select 'to' token"
-            : "";
-  const pickerItems = isNetworkPicker
-    ? networks.map((n) => ({
-        id: n.chain.name,
-        label: n.chain.name,
-        imgSrc: getNetworkImgSrc(n),
-        sub: "",
-      }))
-    : (allTokens[activePicker === "fromToken" ? fromNetworkName : toNetworkName] ?? []).map(
-        (t) => ({
-          id: t.symbol,
-          label: t.symbol,
-          imgSrc: `/logos/${t.symbol.toLowerCase()}-logo.svg`,
-          sub: t.name,
-        }),
-      );
-
-  const pickerListContent =
-    pickerItems.length === 0 ? (
-      <p className="px-4 py-3 text-sm text-gray-400 dark:text-white/40">
-        No options available for this network.
-      </p>
-    ) : (
-      pickerItems.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          onClick={() => handlePickerSelect(item.id)}
-          className="flex w-full items-center gap-3 px-4 py-3 text-left text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-white/5 active:bg-gray-100 dark:active:bg-white/10 transition-colors"
-        >
-          <img
-            src={item.imgSrc}
-            alt={item.label}
-            className="size-8 rounded-full shrink-0 bg-gray-100 dark:bg-white/10"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-          <div className="min-w-0">
-            <p className="font-semibold text-sm leading-tight">{item.label}</p>
-            {item.sub && (
-              <p className="text-xs text-gray-400 dark:text-white/40 truncate">
-                {item.sub}
-              </p>
-            )}
-          </div>
-        </button>
-      ))
-    );
-
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -429,7 +307,6 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                 onAmountChange={setAmount}
                 onFromNetworkChange={setFromNetworkName}
                 onToNetworkChange={setToNetworkName}
-                onOpenPicker={setActivePicker}
                 outputAmount={quote?.amountOut ?? undefined}
                 engine={engine}
                 timeEstimate={timeEstimate}
@@ -656,49 +533,6 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
             </div>
           )}
         </>
-      )}
-
-      {/* ── Picker overlay ── */}
-      {activePicker && layout === "mobile" && (
-        <div
-          className="absolute inset-0 z-40 rounded-2xl bg-black/40"
-          onClick={() => setActivePicker(null)}
-        >
-          {/* True bottom sheet — docks to the bottom, doesn't cover the whole form */}
-          <div
-            className="absolute inset-x-0 bottom-0 z-50 flex min-h-[195px] max-h-[75%] flex-col rounded-t-2xl border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-neutral-900"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex shrink-0 justify-center pb-1 pt-2.5">
-              <div className="h-1 w-10 rounded-full bg-gray-300 dark:bg-white/20" />
-            </div>
-            <div className="shrink-0 px-4 pb-3 pt-1">
-              <span className="font-semibold text-gray-900 dark:text-white">
-                {pickerHeaderText}
-              </span>
-            </div>
-            <div className="flex-1 overflow-y-auto pb-2">{pickerListContent}</div>
-          </div>
-        </div>
-      )}
-
-      {activePicker && layout !== "mobile" && (
-        <div className="absolute inset-0 z-50 flex flex-col rounded-2xl bg-white dark:bg-neutral-900 border border-gray-200 dark:border-white/10 overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-gray-200 dark:border-white/10 p-4 shrink-0">
-            <button
-              type="button"
-              onClick={() => setActivePicker(null)}
-              className="flex size-8 items-center justify-center rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-white/60 hover:bg-gray-200 dark:hover:bg-white/20 active:scale-95 transition-all"
-            >
-              <ArrowLeft02Icon className="size-4" />
-            </button>
-            <span className="font-semibold text-gray-900 dark:text-white">
-              {isNetworkPicker ? "Select Network" : "Select Token"}
-            </span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto py-1.5">{pickerListContent}</div>
-        </div>
       )}
     </div>
   );

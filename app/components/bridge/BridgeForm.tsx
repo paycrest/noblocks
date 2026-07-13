@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { Dialog, DialogPanel } from "@headlessui/react";
+import { AnimatePresence, motion } from "framer-motion";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useWalletAddress } from "@/app/hooks/useWalletAddress";
 import { useNetwork } from "@/app/context/NetworksContext";
@@ -28,6 +30,7 @@ import { networks } from "@/app/mocks";
 import Link from "next/link";
 import { mapReportAndAct } from "@/app/lib/toastMappedError";
 import { format } from "date-fns";
+import { slideUpAnimation } from "../AnimatedComponents";
 
 const CONVERSION_FAILED_MESSAGE = "Please try again.";
 
@@ -658,37 +661,14 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
         </>
       )}
 
-      {/* ── Picker overlay ── */}
-      {activePicker && layout === "mobile" && (
-        <div
-          className="absolute inset-0 z-40 rounded-2xl bg-black/40"
-          onClick={() => setActivePicker(null)}
-        >
-          {/* True bottom sheet — docks to the bottom, doesn't cover the whole form */}
-          <div
-            className="absolute inset-x-0 bottom-0 z-50 flex min-h-[195px] max-h-[75%] flex-col rounded-t-2xl border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-neutral-900"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex shrink-0 justify-center pb-1 pt-2.5">
-              <div className="h-1 w-10 rounded-full bg-gray-300 dark:bg-white/20" />
-            </div>
-            <div className="shrink-0 px-4 pb-3 pt-1">
-              <span className="font-semibold text-gray-900 dark:text-white">
-                {pickerHeaderText}
-              </span>
-            </div>
-            <div className="flex-1 overflow-y-auto pb-2">{pickerListContent}</div>
-          </div>
-        </div>
-      )}
-
+      {/* Desktop: in-form full overlay */}
       {activePicker && layout !== "mobile" && (
-        <div className="absolute inset-0 z-50 flex flex-col rounded-2xl bg-white dark:bg-neutral-900 border border-gray-200 dark:border-white/10 overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-gray-200 dark:border-white/10 p-4 shrink-0">
+        <div className="absolute inset-0 z-50 flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/10 dark:bg-neutral-900">
+          <div className="flex shrink-0 items-center gap-3 border-b border-gray-200 p-4 dark:border-white/10">
             <button
               type="button"
               onClick={() => setActivePicker(null)}
-              className="flex size-8 items-center justify-center rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-white/60 hover:bg-gray-200 dark:hover:bg-white/20 active:scale-95 transition-all"
+              className="flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 active:scale-95 dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/20"
             >
               <ArrowLeft02Icon className="size-4" />
             </button>
@@ -700,6 +680,43 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
           <div className="flex-1 overflow-y-auto py-1.5">{pickerListContent}</div>
         </div>
       )}
+
+      {/* Mobile: viewport-fixed bottom sheet (above wallet sheet z-60) */}
+      <AnimatePresence>
+        {activePicker && layout === "mobile" && (
+          <Dialog
+            static
+            open
+            onClose={() => setActivePicker(null)}
+            className="relative z-[70]"
+          >
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-black/40"
+            />
+            <div className="fixed inset-0 flex items-end justify-center">
+              <motion.div {...slideUpAnimation} className="w-full">
+                <DialogPanel className="flex max-h-[75dvh] min-h-[195px] w-full flex-col rounded-t-[30px] border border-gray-200 bg-white shadow-xl dark:border-white/10 dark:bg-neutral-900">
+                  <div className="flex shrink-0 justify-center pb-1 pt-2.5">
+                    <div className="h-1 w-10 rounded-full bg-gray-300 dark:bg-white/20" />
+                  </div>
+                  <div className="shrink-0 px-5 pb-3 pt-1">
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      {pickerHeaderText}
+                    </span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+                    {pickerListContent}
+                  </div>
+                </DialogPanel>
+              </motion.div>
+            </div>
+          </Dialog>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

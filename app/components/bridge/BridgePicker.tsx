@@ -237,8 +237,9 @@ export function BridgePicker({
 export function BridgePickerChevron({ isOpen }: { isOpen: boolean }) {
   return (
     <ArrowDown01Icon
+      strokeWidth={1.5}
       className={classNames(
-        "size-3.5 shrink-0 text-gray-400 transition-transform dark:text-white/40",
+        "size-5 shrink-0 text-gray-400 transition-transform dark:text-white/40",
         isOpen ? "rotate-180" : "",
       )}
     />

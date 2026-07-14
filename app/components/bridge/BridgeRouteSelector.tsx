@@ -3,8 +3,8 @@
 import React, { useMemo } from "react";
 import { classNames, formatDecimalPrecision, formatTokenAmount } from "@/app/utils";
 import {
-  ArrowRight03Icon,
-  ArrowUpDownIcon,
+  ArrowDataTransferVerticalIcon,
+  ArrowRight01Icon,
   Wallet01Icon,
 } from "hugeicons-react";
 import { useBalance } from "@/app/context/BalanceContext";
@@ -62,6 +62,13 @@ const chipButtonClass =
 
 const tokenPillClass =
   "flex items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm transition-all hover:bg-gray-50 active:scale-95 dark:bg-neutral-700 dark:text-white dark:hover:bg-neutral-600";
+
+/** From/to amount cards — 24px corners, 1px border, design spacing. */
+const amountCardCls =
+  "rounded-[24px] border border-gray-200 bg-gray-100 dark:border-white/5 dark:bg-surface-canvas";
+
+const amountInputCls =
+  "w-full min-w-0 bg-transparent text-2xl font-normal text-gray-900 outline-none placeholder-gray-300 dark:text-white dark:placeholder-white/20";
 
 export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
   from,
@@ -172,13 +179,10 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
     if (leg) onToChange(leg);
   };
 
-  const cardCls =
-    "space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-4 dark:border-white/5 dark:bg-surface-canvas";
-
   return (
-    <div className="space-y-2">
-      {/* Network route bar */}
-      <div className="space-y-2 rounded-2xl border border-gray-200 bg-gray-100 p-4 dark:border-white/5 dark:bg-neutral-800/60">
+    <div className="space-y-3">
+      {/* Network route — 24px corners; pt/pl 12, pr 16 */}
+      <div className="space-y-2 rounded-[24px] border border-gray-200 bg-gray-100 pb-3 pl-3 pr-4 pt-3 dark:border-white/5 dark:bg-neutral-800/60">
         <p className="text-xs text-text-secondary dark:text-white/40">
           Select network route
         </p>
@@ -201,7 +205,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
                     <img
                       src={getNetworkImgSrc(fromNetworkObj)}
                       alt={fromNetworkName}
-                      className="size-3.5 shrink-0 rounded-full"
+                      className="size-5 shrink-0 rounded-full"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
                       }}
@@ -215,7 +219,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
           </div>
 
           <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-400 dark:bg-neutral-700 dark:text-white/40">
-            <ArrowRight03Icon className="size-4" />
+            <ArrowRight01Icon className="size-5" strokeWidth={1.5} />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -236,7 +240,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
                     <img
                       src={getNetworkImgSrc(toNetworkObj)}
                       alt={toNetworkName}
-                      className="size-3.5 shrink-0 rounded-full"
+                      className="size-5 shrink-0 rounded-full"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = "none";
                       }}
@@ -256,9 +260,9 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
         <span className="text-xs text-text-secondary dark:text-white/40">From</span>
       </div>
 
-      {/* FROM card */}
-      <div className={cardCls}>
-        <div className="flex items-center justify-between">
+      {/* FROM card — compact token row + amount (matches design) */}
+      <div className={amountCardCls}>
+        <div className="flex items-center justify-between pb-4 pl-3 pr-2.5 pt-3">
           <BridgePicker
             title="Select 'from' token"
             items={fromTokenItems}
@@ -291,19 +295,24 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
             on {fromNetworkName}
           </span>
         </div>
-        <div className="flex items-end justify-between gap-2">
+        <div
+          aria-hidden
+          className="w-full bg-gray-200 dark:bg-white/10"
+          style={{ height: "0.3px" }}
+        />
+        <div className="flex items-center justify-between gap-2 px-3 pb-5 pt-4">
           <input
             type="text"
             inputMode="decimal"
             value={amount}
             onChange={(e) => onAmountChange(e.target.value)}
             placeholder="0.00"
-            className="w-full min-w-0 bg-transparent text-3xl font-light text-gray-900 outline-none placeholder-gray-300 dark:text-white dark:placeholder-white/20"
+            className={amountInputCls}
           />
           {from && fromBalance > 0 && (
-            <div className="mb-1 flex shrink-0 flex-col items-end gap-1">
+            <div className="flex shrink-0 flex-col items-end gap-1">
               <span className="flex items-center gap-1 text-xs text-text-secondary dark:text-white/40">
-                <Wallet01Icon className="size-3.5" />
+                <Wallet01Icon className="size-5" strokeWidth={1.5} />
                 {formatTokenAmount(fromBalance)} {from.token}
               </span>
               <button
@@ -318,18 +327,22 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
         </div>
       </div>
 
-      {/* Flip control */}
+      {/* Flip — design uses ↓↑ parallel transfer arrows, not ↑↓ sort icon */}
       <div className="relative flex items-center justify-center py-0.5">
-        <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-gray-200 dark:bg-white/10" />
+        <div
+          aria-hidden
+          className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-gray-200 dark:bg-white/10"
+          style={{ height: "0.3px" }}
+        />
         <button
           type="button"
           onClick={handleFlip}
-          className="relative flex size-10 items-center justify-center rounded-full bg-gray-200 text-gray-500 transition-all hover:bg-gray-300 active:scale-95 dark:bg-neutral-700 dark:text-white/60 dark:hover:bg-neutral-600"
+          className="relative flex size-8 items-center justify-center rounded-lg bg-gray-200 text-gray-500 transition-all hover:bg-gray-300 active:scale-95 dark:bg-surface-canvas dark:text-white/60 dark:hover:bg-neutral-600"
         >
           {isQuoteLoading ? (
-            <div className="size-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent dark:border-white/40 dark:border-t-transparent" />
+            <div className="size-5 animate-spin rounded-full border-2 border-gray-400 border-t-transparent dark:border-white/40 dark:border-t-transparent" />
           ) : (
-            <ArrowUpDownIcon className="size-4" />
+            <ArrowDataTransferVerticalIcon className="size-5" strokeWidth={1.5} />
           )}
         </button>
       </div>
@@ -340,8 +353,8 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
       </div>
 
       {/* TO card */}
-      <div className={cardCls}>
-        <div className="flex items-center justify-between">
+      <div className={amountCardCls}>
+        <div className="flex items-center justify-between pb-4 pl-3 pr-2.5 pt-3">
           <BridgePicker
             title="Select 'to' token"
             items={toTokenItems}
@@ -374,10 +387,16 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
             on {toNetworkName}
           </span>
         </div>
-        <div className="flex items-end justify-between">
+        <div
+          aria-hidden
+          className="w-full bg-gray-200 dark:bg-white/10"
+          style={{ height: "0.3px" }}
+        />
+        <div className="flex items-center justify-between px-3 pb-5 pt-4">
           <span
             className={classNames(
-              "text-3xl font-light",
+              amountInputCls,
+              "flex items-center",
               outputAmount
                 ? "text-gray-900 dark:text-white"
                 : "text-gray-300 dark:text-white/20",

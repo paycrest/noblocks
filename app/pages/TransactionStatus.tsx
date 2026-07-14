@@ -539,8 +539,11 @@ export function TransactionStatus({
     ["settled", "refunded", "expired"].includes(transactionStatus);
 
   const showGetReceiptButton =
-    !isOnramp &&
-    ["validated", "settling", "settled"].includes(transactionStatus);
+    (!isOnramp &&
+      ["validated", "settling", "settled"].includes(transactionStatus)) ||
+    (isOnramp &&
+      transactionStatus === "settled" &&
+      isOnrampForwardingResolved);
 
   /** Off-ramp: same as always — order created → completed. */
   const offRampTimeSpentLabel = calculateDuration(createdAt, completedAt);
@@ -1330,20 +1333,42 @@ export function TransactionStatus({
           import("@react-pdf/renderer"),
           import("../components/PDFReceipt"),
         ]);
+        const paidAmount = Number(amount) || 0;
+        const receivedAmount = Number(
+          formMethods.watch("amountReceived") || 0,
+        );
+        const derivedRate =
+          isOnramp && receivedAmount > 0 ? paidAmount / receivedAmount : 0;
+
         const blob = await pdf(
           <PDFReceipt
             data={orderDetails as OrderDetailsData}
             formData={{
-              recipientName,
-              accountIdentifier: formMethods.watch(
-                "accountIdentifier",
-              ) as string,
-              institution: formMethods.watch("institution") as string,
-              memo: formMethods.watch("memo") as string,
-              amountReceived: formMethods.watch("amountReceived") as number,
-              currency: formMethods.watch("currency") as string,
+              recipientName: isOnramp
+                ? recipientWalletAddress || recipientName
+                : recipientName,
+              accountIdentifier: isOnramp
+                ? recipientWalletAddress || String(accountIdentifier)
+                : String(accountIdentifier),
+              institution: isOnramp
+                ? orderDetails.network || String(institution)
+                : String(institution),
+              memo: isOnramp
+                ? ""
+                : String(formMethods.watch("memo") || ""),
+              amountReceived: receivedAmount,
+              currency: isOnramp ? token : currency,
+              ...(isOnramp
+                ? {
+                    typeLabel: "Buy",
+                    amountPaid: paidAmount,
+                    paidCurrency: currency,
+                    rate: derivedRate,
+                  }
+                : {}),
             }}
             supportedInstitutions={supportedInstitutions}
+            isOnramp={isOnramp}
           />,
         ).toBlob();
         const pdfUrl = URL.createObjectURL(blob);

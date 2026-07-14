@@ -1357,7 +1357,7 @@ export function TransactionStatus({
                 ? ""
                 : String(formMethods.watch("memo") || ""),
               amountReceived: receivedAmount,
-              currency: isOnramp ? token : currency,
+              currency: isOnramp ? String(token || "") : currency,
               ...(isOnramp
                 ? {
                     typeLabel: "Buy",

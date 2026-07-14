@@ -1337,8 +1337,12 @@ export function TransactionStatus({
         const receivedAmount = Number(
           formMethods.watch("amountReceived") || 0,
         );
-        const derivedRate =
-          isOnramp && receivedAmount > 0 ? paidAmount / receivedAmount : 0;
+        // Same persisted quote history stores as `transaction.fee` (not live form math).
+        const persistedRate = Number(orderDetails.rate);
+        const receiptRate =
+          Number.isFinite(persistedRate) && persistedRate > 0
+            ? persistedRate
+            : undefined;
 
         const blob = await pdf(
           <PDFReceipt
@@ -1363,7 +1367,7 @@ export function TransactionStatus({
                     typeLabel: "Buy",
                     amountPaid: paidAmount,
                     paidCurrency: currency,
-                    rate: derivedRate,
+                    ...(receiptRate != null ? { rate: receiptRate } : {}),
                   }
                 : {}),
             }}

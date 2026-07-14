@@ -162,6 +162,12 @@ export function mapV2SenderOrderGetToOrderDetailsData(
         ? updatedAtRaw.toISOString()
         : new Date().toISOString();
 
+  const rateRaw = d.rate;
+  const rate =
+    rateRaw != null && String(rateRaw).trim() !== ""
+      ? String(rateRaw)
+      : undefined;
+
   return {
     orderId: String(d.id ?? ""),
     amount: String(d.amount ?? ""),
@@ -170,6 +176,7 @@ export function mapV2SenderOrderGetToOrderDetailsData(
     settlePercent: String(d.percentSettled ?? "0"),
     status: d.status,
     txHash: String(d.txHash ?? ""),
+    rate,
     settlements: [],
     txReceipts,
     updatedAt,
@@ -260,6 +267,16 @@ export function mapProviderOrderStatusToOrderDetailsData(
         ? updatedAtRaw.toISOString()
         : new Date().toISOString();
 
+  const rateRaw = d.rate;
+  let rate =
+    rateRaw != null && String(rateRaw).trim() !== ""
+      ? String(rateRaw)
+      : undefined;
+  if (!rate && settlements[0]?.rate) {
+    const settlementRate = settlements[0].rate.trim();
+    if (settlementRate !== "") rate = settlementRate;
+  }
+
   return {
     orderId: String(d.orderId ?? ""),
     amount: String(d.amount ?? ""),
@@ -268,6 +285,7 @@ export function mapProviderOrderStatusToOrderDetailsData(
     settlePercent: String(d.settlePercent ?? "0"),
     status: String(d.status ?? ""),
     txHash: String(d.txHash ?? ""),
+    rate,
     settlements,
     txReceipts,
     updatedAt,

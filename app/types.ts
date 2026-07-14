@@ -218,6 +218,8 @@ export type OrderDetailsData = {
   settlePercent: string;
   status: string;
   txHash: string;
+  /** Persisted FX quote (fiat per 1 token); same source history stores as `fee`. */
+  rate?: string;
   settlements: Settlement[];
   txReceipts: TxReceipt[];
   updatedAt: string;

@@ -124,13 +124,20 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
       ? getExplorerLink(transaction.network, transaction.tx_hash)
       : undefined;
 
+  const isCryptoInReceipt =
+    transaction.transaction_type === "onramp" ||
+    transaction.transaction_type === "credit";
+  const isOnrampReceipt = transaction.transaction_type === "onramp";
+
   const handleGetReceipt = async () => {
     setIsLoading(true);
     try {
       const orderDetailsData = {
         orderId: transaction.order_id || "",
         amount: transaction.amount_sent.toString(),
-        token: transaction.from_currency,
+        token: isCryptoInReceipt
+          ? transaction.to_currency
+          : transaction.from_currency,
         network: transaction.network || "",
         settlePercent: "100",
         status: transaction.status,
@@ -143,9 +150,17 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         recipientName: transaction.recipient.account_name,
         accountIdentifier: transaction.recipient.account_identifier,
         institution: transaction.recipient.institution,
-        memo: transaction.recipient.memo || "No memo",
+        memo: transaction.recipient.memo || "",
         amountReceived: transaction.amount_received,
         currency: transaction.to_currency,
+        typeLabel: "Buy",
+        ...(isOnrampReceipt
+          ? {
+              amountPaid: transaction.amount_sent,
+              paidCurrency: transaction.from_currency,
+              rate: transaction.fee,
+            }
+          : {}),
       };
       // Lazy-load PDF renderer (heavy, ~MBs of fontkit/pdfkit) only on demand
       // so it never enters the first-load JS bundle for the transactions UI.
@@ -154,7 +169,11 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         import("../PDFReceipt"),
       ]);
       const blob = await pdf(
-        <PDFReceipt data={orderDetailsData} formData={formData} />,
+        <PDFReceipt
+          data={orderDetailsData}
+          formData={formData}
+          isOnramp={isCryptoInReceipt}
+        />,
       ).toBlob();
       const pdfUrl = URL.createObjectURL(blob);
       window.open(pdfUrl, "_blank");
@@ -898,19 +917,8 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         )}
       </div>
       <div className="flex-1" />
-      {transaction.status === "completed" &&
-        (transaction.transaction_type === "onramp" ? (
-          explorerUrl ? (
-            <a
-              href={explorerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex w-full items-center justify-center rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-text-body transition-all hover:bg-[#EBEBEF] focus:outline-none dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
-            >
-              View receipt
-            </a>
-          ) : null
-        ) : (
+      {transaction.status === "completed" && (
+        <div className="flex w-full flex-col gap-2">
           <button
             type="button"
             title="Download transaction receipt"
@@ -927,7 +935,18 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
               "Get receipt"
             )}
           </button>
-        ))}
+          {transaction.transaction_type === "onramp" && explorerUrl && (
+            <a
+              href={explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex w-full items-center justify-center rounded-xl border border-border-light py-2.5 text-sm font-medium text-text-body transition-all hover:bg-accent-gray focus:outline-none dark:border-white/10 dark:text-white dark:hover:bg-white/10"
+            >
+              View on explorer
+            </a>
+          )}
+        </div>
+      )}
 
       <CopyAddressWarningModal 
             isOpen={isWarningModalOpen}

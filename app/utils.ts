@@ -100,6 +100,19 @@ export function formatNumberWithCommas(num: string | number): string {
   return parts.join(".");
 }
 
+/**
+ * Formats an amount for PDF receipts with adaptive decimal places.
+ */
+export function formatReceiptAmount(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  const abs = Math.abs(value);
+  const decimals = abs > 0 && abs < 1 ? 6 : abs < 100 ? 4 : 2;
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: 0,
+  });
+}
+
 /** Format a USD amount for KYC limit UI (2 decimals, comma-separated). */
 export function formatUsdAmount(amount: number): string {
   if (!Number.isFinite(amount)) return "0.00";

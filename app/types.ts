@@ -223,6 +223,23 @@ export type OrderDetailsData = {
   updatedAt: string;
 };
 
+/** Form payload for `PDFReceipt` (offramp + onramp/credit fields). */
+export type PDFReceiptFormData = {
+  recipientName: string;
+  accountIdentifier: string;
+  institution: string;
+  memo: string;
+  amountReceived: number;
+  currency: string;
+  /** Onramp/credit inbound crypto: shown as "Buy". */
+  typeLabel?: string;
+  /** Fiat paid on onramp (e.g. NGN). */
+  amountPaid?: number;
+  paidCurrency?: string;
+  /** Fiat per 1 token (e.g. 1600 NGN ~ 1 USDC). */
+  rate?: number;
+};
+
 type Settlement = {
   splitOrderId: string;
   amount: string;

@@ -9,8 +9,12 @@ import {
   Font,
 } from "@react-pdf/renderer";
 import { format } from "date-fns";
-import { getInstitutionNameByCode } from "../utils";
-import type { OrderDetailsData, InstitutionProps } from "../types";
+import { formatReceiptAmount, getInstitutionNameByCode } from "../utils";
+import type {
+  OrderDetailsData,
+  InstitutionProps,
+  PDFReceiptFormData,
+} from "../types";
 
 Font.register({
   family: "Inter",
@@ -135,32 +139,6 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
 });
-
-export type PDFReceiptFormData = {
-  recipientName: string;
-  accountIdentifier: string;
-  institution: string;
-  memo: string;
-  amountReceived: number;
-  currency: string;
-  /** Onramp/credit inbound crypto: shown as "Buy". */
-  typeLabel?: string;
-  /** Fiat paid on onramp (e.g. NGN). */
-  amountPaid?: number;
-  paidCurrency?: string;
-  /** Fiat per 1 token (e.g. 1600 NGN ~ 1 USDC). */
-  rate?: number;
-};
-
-function formatReceiptAmount(value: number): string {
-  if (!Number.isFinite(value)) return "0";
-  const abs = Math.abs(value);
-  const decimals = abs > 0 && abs < 1 ? 6 : abs < 100 ? 4 : 2;
-  return value.toLocaleString(undefined, {
-    maximumFractionDigits: decimals,
-    minimumFractionDigits: 0,
-  });
-}
 
 export const PDFReceipt = ({
   data,

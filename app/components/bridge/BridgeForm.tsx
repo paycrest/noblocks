@@ -280,7 +280,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
               onClick={() => (setCurrentView ? setCurrentView("wallet") : onClose())}
               className="flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 active:scale-95 dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/20"
             >
-              <ArrowLeft02Icon className="size-4" />
+              <ArrowLeft02Icon className="size-5" strokeWidth={1.5} />
             </button>
           )}
         </div>
@@ -314,8 +314,8 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
               />
 
               {fromNetworkName !== toNetworkName && (
-                <div className="flex items-start gap-2 rounded-xl bg-gray-100 dark:bg-neutral-800/60 border border-gray-200 dark:border-white/5 p-3 text-sm text-text-secondary dark:text-white/50">
-                  <InformationSquareIcon className="size-4 shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2 rounded-[24px] border border-gray-200 bg-gray-100 p-3 text-sm text-text-secondary dark:border-white/5 dark:bg-neutral-800/60 dark:text-white/50">
+                  <InformationSquareIcon className="mt-0.5 size-5 shrink-0" strokeWidth={1.5} />
                   <span>
                     Funds route through {fromNetworkName} to {toNetworkName} and
                     may take a few minutes longer.

@@ -3,17 +3,17 @@
 import React, { useMemo } from "react";
 import { classNames, formatDecimalPrecision, formatTokenAmount } from "@/app/utils";
 import {
-  ArrowDown01Icon,
+  ArrowDataTransferVerticalIcon,
   ArrowRight01Icon,
-  ArrowRight03Icon,
-  ArrowUpDownIcon,
   Wallet01Icon,
 } from "hugeicons-react";
 import { useBalance } from "@/app/context/BalanceContext";
+import { useTokens } from "@/app/context";
 import { networks } from "@/app/mocks";
 import type { BridgeLeg } from "@/app/lib/bridge";
-
-export type PickerTarget = "fromToken" | "toToken" | "fromNet" | "toNet";
+import { isRouteSupported } from "@/app/lib/bridge";
+import { BridgePicker, BridgePickerChevron } from "./BridgePicker";
+import type { BridgePickerItem } from "./BridgePicker";
 
 interface BridgeRouteSelectorProps {
   from: BridgeLeg | null;
@@ -26,7 +26,6 @@ interface BridgeRouteSelectorProps {
   onAmountChange: (amount: string) => void;
   onFromNetworkChange: (name: string) => void;
   onToNetworkChange: (name: string) => void;
-  onOpenPicker: (target: PickerTarget) => void;
   outputAmount?: string;
   engine?: "near" | "lifi" | null;
   timeEstimate?: string;
@@ -39,6 +38,38 @@ function getNetworkImgSrc(network: (typeof networks)[0]): string {
     : (network.imageUrl as { light: string; dark: string }).dark;
 }
 
+function buildTokenLeg(
+  networkName: string,
+  symbol: string,
+  allTokens: ReturnType<typeof useTokens>["allTokens"],
+): BridgeLeg | null {
+  const network = networks.find((n) => n.chain.name === networkName);
+  const token = (allTokens[networkName] ?? []).find((t) => t.symbol === symbol);
+  if (!network || !token) return null;
+  return {
+    network: network.chain.name,
+    chainId: network.chain.id,
+    token: token.symbol,
+    tokenAddress: token.address,
+    decimals: token.decimals,
+    amount: "0",
+    rawAmount: "0",
+  };
+}
+
+const chipButtonClass =
+  "flex min-w-0 max-w-full items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-semibold capitalize tracking-wide text-text-secondary transition-all hover:bg-gray-50 active:scale-95 dark:bg-neutral-700 dark:text-white/60 dark:hover:bg-neutral-600";
+
+const tokenPillClass =
+  "flex items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm transition-all hover:bg-gray-50 active:scale-95 dark:bg-neutral-700 dark:text-white dark:hover:bg-neutral-600";
+
+/** From/to amount cards — 24px corners, 1px border, design spacing. */
+const amountCardCls =
+  "rounded-[24px] border border-gray-200 bg-gray-100 dark:border-white/5 dark:bg-surface-canvas";
+
+const amountInputCls =
+  "w-full min-w-0 bg-transparent text-2xl font-normal text-gray-900 outline-none placeholder-gray-300 dark:text-white dark:placeholder-white/20";
+
 export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
   from,
   to,
@@ -50,13 +81,43 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
   onAmountChange,
   onFromNetworkChange,
   onToNetworkChange,
-  onOpenPicker,
   outputAmount,
-  engine,
-  timeEstimate,
   isQuoteLoading,
 }) => {
   const { crossChainBalances } = useBalance();
+  const { allTokens } = useTokens();
+
+  const networkItems: BridgePickerItem[] = useMemo(
+    () =>
+      networks.map((n) => ({
+        id: n.chain.name,
+        label: n.chain.name,
+        imgSrc: getNetworkImgSrc(n),
+      })),
+    [],
+  );
+
+  const fromTokenItems: BridgePickerItem[] = useMemo(
+    () =>
+      (allTokens[fromNetworkName] ?? []).map((t) => ({
+        id: t.symbol,
+        label: t.symbol,
+        imgSrc: `/logos/${t.symbol.toLowerCase()}-logo.svg`,
+        sub: t.name,
+      })),
+    [allTokens, fromNetworkName],
+  );
+
+  const toTokenItems: BridgePickerItem[] = useMemo(
+    () =>
+      (allTokens[toNetworkName] ?? []).map((t) => ({
+        id: t.symbol,
+        label: t.symbol,
+        imgSrc: `/logos/${t.symbol.toLowerCase()}-logo.svg`,
+        sub: t.name,
+      })),
+    [allTokens, toNetworkName],
+  );
 
   const fromNetworkObj = useMemo(
     () => networks.find((n) => n.chain.name === fromNetworkName),
@@ -96,86 +157,101 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
     if (fromBalance > 0) onAmountChange(String(formatDecimalPrecision(fromBalance, 6)));
   };
 
-  const cardCls =
-    "rounded-2xl bg-gray-100 dark:bg-neutral-800/60 border border-gray-200 dark:border-white/5 p-4 space-y-3";
+  const handleFromNetworkSelect = (name: string) => {
+    onFromNetworkChange(name);
+    onFromChange(null);
+  };
 
-  const TokenPill = ({
-    symbol,
-    target,
-  }: {
-    symbol?: string;
-    target: PickerTarget;
-  }) => (
-    <button
-      type="button"
-      onClick={() => onOpenPicker(target)}
-      className="flex items-center gap-2 rounded-full bg-white dark:bg-neutral-700 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm hover:bg-gray-50 dark:hover:bg-neutral-600 active:scale-95 transition-all"
-    >
-      {symbol && (
-        <img
-          src={`/logos/${symbol.toLowerCase()}-logo.svg`}
-          alt={symbol}
-          className="size-5 rounded-full"
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = "none";
-          }}
-        />
-      )}
-      <span>{symbol || "Select token"}</span>
-      <ArrowDown01Icon className="size-3.5 text-gray-400 dark:text-white/40" />
-    </button>
-  );
+  const handleToNetworkSelect = (name: string) => {
+    onToNetworkChange(name);
+    onToChange(null);
+  };
 
-  const NetworkChip = ({
-    networkName,
-    networkObj,
-    target,
-  }: {
-    networkName: string;
-    networkObj?: (typeof networks)[0];
-    target: PickerTarget;
-  }) => (
-    <button
-      type="button"
-      onClick={() => onOpenPicker(target)}
-      className="flex min-w-0 max-w-[45%] items-center gap-1.5 rounded-full bg-white dark:bg-neutral-700 px-3 py-2 text-xs font-semibold capitalize tracking-wide text-text-secondary dark:text-white/60 hover:bg-none dark:hover:bg-neutral-600 active:scale-95 transition-all"
-    >
-      {networkObj && (
-        <img
-          src={getNetworkImgSrc(networkObj)}
-          alt={networkName}
-          className="size-3.5 shrink-0 rounded-full"
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = "none";
-          }}
-        />
-      )}
-      <span className="min-w-0 truncate">{networkName}</span>
-      <ArrowDown01Icon className="size-3 shrink-0 text-gray-400 dark:text-white/40" />
-    </button>
-  );
+  const handleFromTokenSelect = (symbol: string) => {
+    const leg = buildTokenLeg(fromNetworkName, symbol, allTokens);
+    if (!leg) return;
+    onFromChange(leg);
+    if (to && !isRouteSupported(leg, to)) onToChange(null);
+  };
+
+  const handleToTokenSelect = (symbol: string) => {
+    const leg = buildTokenLeg(toNetworkName, symbol, allTokens);
+    if (leg) onToChange(leg);
+  };
 
   return (
-    <div className="space-y-2">
-      {/* Network route bar */}
-      <div className="rounded-2xl bg-gray-100 dark:bg-neutral-800/60 border border-gray-200 dark:border-white/5 p-4 space-y-2">
+    <div className="space-y-3">
+      {/* Network route — 24px corners; pt/pl 12, pr 16 */}
+      <div className="space-y-2 rounded-[24px] border border-gray-200 bg-gray-100 pb-3 pl-3 pr-4 pt-3 dark:border-white/5 dark:bg-neutral-800/60">
         <p className="text-xs text-text-secondary dark:text-white/40">
           Select network route
         </p>
         <div className="flex items-center justify-between gap-2">
-          <NetworkChip
-            networkName={fromNetworkName}
-            networkObj={fromNetworkObj}
-            target="fromNet"
-          />
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-200 dark:bg-neutral-700 text-gray-400 dark:text-white/40">
-            <ArrowRight03Icon className="size-4" />
+          <div className="min-w-0 flex-1">
+            <BridgePicker
+              title="Select source network"
+              items={networkItems}
+              selectedId={fromNetworkName}
+              onSelect={handleFromNetworkSelect}
+              menuWidth={260}
+              trigger={({ isOpen, toggle }) => (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  aria-expanded={isOpen}
+                  className={classNames(chipButtonClass, "w-full")}
+                >
+                  {fromNetworkObj && (
+                    <img
+                      src={getNetworkImgSrc(fromNetworkObj)}
+                      alt={fromNetworkName}
+                      className="size-5 shrink-0 rounded-full"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  )}
+                  <span className="min-w-0 truncate">{fromNetworkName}</span>
+                  <BridgePickerChevron isOpen={isOpen} />
+                </button>
+              )}
+            />
           </div>
-          <NetworkChip
-            networkName={toNetworkName}
-            networkObj={toNetworkObj}
-            target="toNet"
-          />
+
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-400 dark:bg-neutral-700 dark:text-white/40">
+            <ArrowRight01Icon className="size-5" strokeWidth={1.5} />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <BridgePicker
+              title="Select destination network"
+              items={networkItems}
+              selectedId={toNetworkName}
+              onSelect={handleToNetworkSelect}
+              menuWidth={260}
+              trigger={({ isOpen, toggle }) => (
+                <button
+                  type="button"
+                  onClick={toggle}
+                  aria-expanded={isOpen}
+                  className={classNames(chipButtonClass, "w-full")}
+                >
+                  {toNetworkObj && (
+                    <img
+                      src={getNetworkImgSrc(toNetworkObj)}
+                      alt={toNetworkName}
+                      className="size-5 shrink-0 rounded-full"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  )}
+                  <span className="min-w-0 truncate">{toNetworkName}</span>
+                  <BridgePickerChevron isOpen={isOpen} />
+                </button>
+              )}
+            />
+          </div>
         </div>
       </div>
 
@@ -184,33 +260,65 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
         <span className="text-xs text-text-secondary dark:text-white/40">From</span>
       </div>
 
-      {/* FROM card */}
-      <div className={cardCls}>
-        <div className="flex items-center justify-between">
-          <TokenPill symbol={from?.token} target="fromToken" />
+      {/* FROM card — compact token row + amount (matches design) */}
+      <div className={amountCardCls}>
+        <div className="flex items-center justify-between pb-4 pl-3 pr-2.5 pt-3">
+          <BridgePicker
+            title="Select 'from' token"
+            items={fromTokenItems}
+            selectedId={from?.token}
+            onSelect={handleFromTokenSelect}
+            menuWidth={240}
+            trigger={({ isOpen, toggle }) => (
+              <button
+                type="button"
+                onClick={toggle}
+                aria-expanded={isOpen}
+                className={tokenPillClass}
+              >
+                {from?.token && (
+                  <img
+                    src={`/logos/${from.token.toLowerCase()}-logo.svg`}
+                    alt={from.token}
+                    className="size-5 rounded-full"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                )}
+                <span>{from?.token || "Select token"}</span>
+                <BridgePickerChevron isOpen={isOpen} />
+              </button>
+            )}
+          />
           <span className="text-xs text-text-secondary dark:text-white/40">
             on {fromNetworkName}
           </span>
         </div>
-        <div className="flex items-end justify-between gap-2">
+        <div
+          aria-hidden
+          className="w-full bg-gray-200 dark:bg-white/10"
+          style={{ height: "0.3px" }}
+        />
+        <div className="flex items-center justify-between gap-2 px-3 pb-5 pt-4">
           <input
             type="text"
             inputMode="decimal"
             value={amount}
             onChange={(e) => onAmountChange(e.target.value)}
             placeholder="0.00"
-            className="text-3xl font-light bg-transparent text-gray-900 dark:text-white placeholder-gray-300 dark:placeholder-white/20 outline-none w-full min-w-0"
+            className={amountInputCls}
           />
           {from && fromBalance > 0 && (
-            <div className="mb-1 flex shrink-0 flex-col items-end gap-1">
+            <div className="flex shrink-0 flex-col items-end gap-1">
               <span className="flex items-center gap-1 text-xs text-text-secondary dark:text-white/40">
-                <Wallet01Icon className="size-3.5" />
+                <Wallet01Icon className="size-5" strokeWidth={1.5} />
                 {formatTokenAmount(fromBalance)} {from.token}
               </span>
               <button
                 type="button"
                 onClick={handleMax}
-                className="text-xs font-bold text-lavender-600 dark:text-lavender-400 hover:underline"
+                className="text-xs font-bold text-lavender-600 hover:underline dark:text-lavender-400"
               >
                 Max
               </button>
@@ -219,18 +327,22 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
         </div>
       </div>
 
-      {/* Flip control */}
+      {/* Flip — design uses ↓↑ parallel transfer arrows, not ↑↓ sort icon */}
       <div className="relative flex items-center justify-center py-0.5">
-        <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-gray-200 dark:bg-white/10" />
+        <div
+          aria-hidden
+          className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-gray-200 dark:bg-white/10"
+          style={{ height: "0.3px" }}
+        />
         <button
           type="button"
           onClick={handleFlip}
-          className="relative flex size-10 items-center justify-center rounded-full bg-gray-200 dark:bg-neutral-700 text-gray-500 dark:text-white/60 hover:bg-gray-300 dark:hover:bg-neutral-600 active:scale-95 transition-all"
+          className="relative flex size-8 items-center justify-center rounded-lg bg-gray-200 text-gray-500 transition-all hover:bg-gray-300 active:scale-95 dark:bg-surface-canvas dark:text-white/60 dark:hover:bg-neutral-600"
         >
           {isQuoteLoading ? (
-            <div className="size-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent dark:border-white/40 dark:border-t-transparent" />
+            <div className="size-5 animate-spin rounded-full border-2 border-gray-400 border-t-transparent dark:border-white/40 dark:border-t-transparent" />
           ) : (
-            <ArrowUpDownIcon className="size-4" />
+            <ArrowDataTransferVerticalIcon className="size-5" strokeWidth={1.5} />
           )}
         </button>
       </div>
@@ -241,17 +353,50 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
       </div>
 
       {/* TO card */}
-      <div className={cardCls}>
-        <div className="flex items-center justify-between">
-          <TokenPill symbol={to?.token} target="toToken" />
+      <div className={amountCardCls}>
+        <div className="flex items-center justify-between pb-4 pl-3 pr-2.5 pt-3">
+          <BridgePicker
+            title="Select 'to' token"
+            items={toTokenItems}
+            selectedId={to?.token}
+            onSelect={handleToTokenSelect}
+            menuWidth={240}
+            trigger={({ isOpen, toggle }) => (
+              <button
+                type="button"
+                onClick={toggle}
+                aria-expanded={isOpen}
+                className={tokenPillClass}
+              >
+                {to?.token && (
+                  <img
+                    src={`/logos/${to.token.toLowerCase()}-logo.svg`}
+                    alt={to.token}
+                    className="size-5 rounded-full"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                )}
+                <span>{to?.token || "Select token"}</span>
+                <BridgePickerChevron isOpen={isOpen} />
+              </button>
+            )}
+          />
           <span className="text-xs text-text-secondary dark:text-white/40">
             on {toNetworkName}
           </span>
         </div>
-        <div className="flex items-end justify-between">
+        <div
+          aria-hidden
+          className="w-full bg-gray-200 dark:bg-white/10"
+          style={{ height: "0.3px" }}
+        />
+        <div className="flex items-center justify-between px-3 pb-5 pt-4">
           <span
             className={classNames(
-              "text-3xl font-light",
+              amountInputCls,
+              "flex items-center",
               outputAmount
                 ? "text-gray-900 dark:text-white"
                 : "text-gray-300 dark:text-white/20",

@@ -100,12 +100,16 @@ export function BridgePicker({
     };
   }, [isOpen, menuWidth, items.length]);
 
+  // Desktop only — mobile uses Headless UI Dialog (handles backdrop dismiss).
+  // On mobile menuRef is unset, so this listener would close on mousedown before
+  // the option's click fires and selection never applies.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isMobileViewport()) return;
     const onPointer = (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (menuRef.current?.contains(target)) return;
+      if (!menuRef.current) return;
+      if (menuRef.current.contains(target)) return;
       if (buttonRef.current?.contains(target)) return;
       close();
     };

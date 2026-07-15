@@ -193,7 +193,7 @@ export const FlexibleDropdown = ({
     }
   }, [disabled, isOpen]);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click (desktop only — mobile uses Dialog)
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target;
@@ -209,10 +209,11 @@ export const FlexibleDropdown = ({
       }
     }
     if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
+      // `click` not `mousedown`: avoid unmounting before option onClick on touch
+      document.addEventListener("click", handleClickOutside);
     }
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("click", handleClickOutside);
     };
   }, [isOpen]);
 

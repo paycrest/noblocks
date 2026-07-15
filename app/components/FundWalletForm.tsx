@@ -83,6 +83,8 @@ export const FundWalletForm: React.FC<{
 
   // Close dropdown when clicking outside or pressing Escape
   useEffect(() => {
+    if (!isNetworkDropdownOpen) return;
+
     const handleClickOutside = (event: MouseEvent) => {
       if (
         networkDropdownRef.current &&
@@ -93,15 +95,15 @@ export const FundWalletForm: React.FC<{
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && isNetworkDropdownOpen) {
+      if (event.key === "Escape") {
         setIsNetworkDropdownOpen(false);
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("click", handleClickOutside);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("click", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isNetworkDropdownOpen]);

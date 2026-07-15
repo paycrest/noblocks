@@ -5,7 +5,7 @@ import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useWalletAddress } from "@/app/hooks/useWalletAddress";
 import { useNetwork } from "@/app/context/NetworksContext";
 import { useStarknet } from "@/app/context/StarknetContext";
-import { useTokens } from "@/app/context";
+import { useBalance, useTokens } from "@/app/context";
 import { useBridgeQuote, useBridgeExecute, useBridgeStatus } from "@/app/hooks/bridge";
 import { selectEngine, toRawAmount, bridgeFeeInReceivingToken } from "@/app/lib/bridge";
 import type { BridgeLeg, BridgeEngine } from "@/app/lib/bridge";
@@ -55,7 +55,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
   const starknet = useStarknet();
   const { allTokens } = useTokens();
   const { signDelegationAuthorization } = useDelegationContractAuth();
-
+  const { refreshBalance } = useBalance();
   const [step, setStep] = useState<"form" | "status" | "failed">("form");
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [failureMessage, setFailureMessage] = useState<string | null>(null);
@@ -242,6 +242,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
         },
       });
       setIsFinalizing(false);
+      refreshBalance();
       setStep("failed");
     }
   };
@@ -278,7 +279,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
             <button
               type="button"
               onClick={() => (setCurrentView ? setCurrentView("wallet") : onClose())}
-              className="flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-all hover:bg-gray-200 active:scale-95 dark:bg-white/10 dark:text-white/60 dark:hover:bg-white/20"
+              className="flex size-8 items-center justify-center  text-gray-500 transition-all active:scale-95 dark:text-white/60 "
             >
               <ArrowLeft02Icon className="size-5" strokeWidth={1.5} />
             </button>
@@ -515,7 +516,10 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
                   </a>
                   <button
                     type="button"
-                    onClick={onClose}
+                    onClick={() => {
+                      refreshBalance();
+                      onClose();
+                    }}
                     className={classNames(primaryBtnClasses, "flex-1")}
                   >
                     Done
@@ -524,7 +528,10 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
               ) : (
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={() => {
+                    refreshBalance();
+                    onClose();
+                  }}
                   className={classNames(primaryBtnClasses, "w-full")}
                 >
                   {isDone ? "Done" : "Close"}

@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import { classNames, formatDecimalPrecision, formatTokenAmount } from "@/app/utils";
 import {
   ArrowDataTransferVerticalIcon,
-  ArrowRight01Icon,
+  ArrowRight02Icon,
   Wallet01Icon,
 } from "hugeicons-react";
 import { useBalance } from "@/app/context/BalanceContext";
@@ -61,14 +61,14 @@ const chipButtonClass =
   "flex min-w-0 max-w-full items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-semibold capitalize tracking-wide text-text-secondary transition-all hover:bg-gray-50 active:scale-95 dark:bg-neutral-700 dark:text-white/60 dark:hover:bg-neutral-600";
 
 const tokenPillClass =
-  "flex items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm transition-all hover:bg-gray-50 active:scale-95 dark:bg-neutral-700 dark:text-white dark:hover:bg-neutral-600";
+  "flex items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-normal text-gray-900 shadow-sm transition-all hover:bg-gray-50 active:scale-95 dark:bg-neutral-700 dark:text-white dark:hover:bg-neutral-600 min-h-[40px]";
 
 /** From/to amount cards — 24px corners, 1px border, design spacing. */
 const amountCardCls =
-  "rounded-[24px] border border-gray-200 bg-gray-100 dark:border-white/5 dark:bg-surface-canvas";
+  "rounded-[24px] border border-gray-200 bg-gray-100 dark:border-white/5 dark:bg-surface-canvas min-h-[130px] md:min-h-[160px]";
 
 const amountInputCls =
-  "w-full min-w-0 bg-transparent text-2xl font-normal text-gray-900 outline-none placeholder-gray-300 dark:text-white dark:placeholder-white/20";
+  "w-full min-w-0 bg-transparent text-2xl !important font-normal text-gray-900 outline-none placeholder-gray-300 dark:text-white dark:placeholder-white/20";
 
 export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
   from,
@@ -186,7 +186,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
         <p className="text-xs text-text-secondary dark:text-white/40">
           Select network route
         </p>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-6">
           <div className="min-w-0 flex-1">
             <BridgePicker
               title="Select source network"
@@ -199,7 +199,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
                   type="button"
                   onClick={toggle}
                   aria-expanded={isOpen}
-                  className={classNames(chipButtonClass, "w-full")}
+                  className={classNames(chipButtonClass, "w-fit max-w-[2/3] border border-gray-200 dark:border-white/5")}
                 >
                   {fromNetworkObj && (
                     <img
@@ -218,8 +218,8 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
             />
           </div>
 
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-400 dark:bg-neutral-700 dark:text-white/40">
-            <ArrowRight01Icon className="size-5" strokeWidth={1.5} />
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-400 dark:bg-neutral-700 dark:text-white/40 border border-gray-200 dark:border-white/5">
+            <ArrowRight02Icon className="size-5" strokeWidth={1.5} />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -234,7 +234,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
                   type="button"
                   onClick={toggle}
                   aria-expanded={isOpen}
-                  className={classNames(chipButtonClass, "w-full")}
+                  className={classNames(chipButtonClass, "w-full border border-gray-200 dark:border-white/5")}
                 >
                   {toNetworkObj && (
                     <img
@@ -262,7 +262,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
 
       {/* FROM card — compact token row + amount (matches design) */}
       <div className={amountCardCls}>
-        <div className="flex items-center justify-between pb-4 pl-3 pr-2.5 pt-3">
+        <div className="flex items-center justify-between pb-4 px-3 pt-3">
           <BridgePicker
             title="Select 'from' token"
             items={fromTokenItems}
@@ -300,7 +300,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
           className="w-full bg-gray-200 dark:bg-white/10"
           style={{ height: "0.3px" }}
         />
-        <div className="flex items-center justify-between gap-2 px-3 pb-5 pt-4">
+        <div className="flex items-center justify-between gap-2 pl-6 pr-3 pb-4 pt-3 md:pb-[30px] md:pt-[40px]">
           <input
             type="text"
             inputMode="decimal"
@@ -327,7 +327,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
         </div>
       </div>
 
-      {/* Flip — design uses ↓↑ parallel transfer arrows, not ↑↓ sort icon */}
+      {/* Flip */}
       <div className="relative flex items-center justify-center py-0.5">
         <div
           aria-hidden
@@ -354,7 +354,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
 
       {/* TO card */}
       <div className={amountCardCls}>
-        <div className="flex items-center justify-between pb-4 pl-3 pr-2.5 pt-3">
+        <div className="flex items-center justify-between pb-4 px-3 pt-3">
           <BridgePicker
             title="Select 'to' token"
             items={toTokenItems}
@@ -378,7 +378,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
                     }}
                   />
                 )}
-                <span>{to?.token || "Select token"}</span>
+                <span className="text-sm">{to?.token || "Select token"}</span>
                 <BridgePickerChevron isOpen={isOpen} />
               </button>
             )}
@@ -392,7 +392,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
           className="w-full bg-gray-200 dark:bg-white/10"
           style={{ height: "0.3px" }}
         />
-        <div className="flex items-center justify-between px-3 pb-5 pt-4">
+        <div className="flex items-center justify-between pl-6 pr-3 pb-4 pt-3 md:pb-[30px] md:pt-[40px]">
           <span
             className={classNames(
               amountInputCls,

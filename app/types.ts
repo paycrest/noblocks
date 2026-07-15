@@ -336,6 +336,8 @@ export type StateProps = {
   setRateError: (error: string | null) => void;
   onrampPaymentAccount: V2FiatProviderAccountDTO | null;
   setOnrampPaymentAccount: (account: V2FiatProviderAccountDTO | null) => void;
+  /** Locked when the current order is created; not tied to live swapMode. */
+  setActiveOrderIsOnramp: (isOnramp: boolean) => void;
 };
 
 export type NetworkButtonProps = {

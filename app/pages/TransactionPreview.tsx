@@ -122,6 +122,7 @@ export const TransactionPreview = ({
     setTransactionStatus,
     onrampPaymentAccount,
     setOnrampPaymentAccount,
+    setActiveOrderIsOnramp,
   } = stateProps;
 
   const {
@@ -770,6 +771,7 @@ export const TransactionPreview = ({
           typeof created.id === "string" ? created.id : String(created.id);
         setOrderId(orderIdStr);
         setOnrampPaymentAccount(created.providerAccount);
+        setActiveOrderIsOnramp(true);
         setCreatedAt(new Date().toISOString());
         setTransactionStatus("pending");
 
@@ -1005,6 +1007,7 @@ export const TransactionPreview = ({
 
               setIsOrderCreatedLogsFetched(true);
               setOrderId(decodedLog.args.orderId);
+              setActiveOrderIsOnramp(false);
 
               await saveTransactionData({
                 orderId: decodedLog.args.orderId,

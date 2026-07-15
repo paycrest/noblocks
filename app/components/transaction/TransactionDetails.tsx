@@ -124,20 +124,24 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
       ? getExplorerLink(transaction.network, transaction.tx_hash)
       : undefined;
 
-  const isCryptoInReceipt =
-    transaction.transaction_type === "onramp" ||
-    transaction.transaction_type === "credit";
-  const isOnrampReceipt = transaction.transaction_type === "onramp";
+  const showGetReceiptButton =
+    transaction.status === "completed" &&
+    transaction.transaction_type !== "onramp" &&
+    transaction.transaction_type !== "credit";
 
   const handleGetReceipt = async () => {
+    if (
+      transaction.transaction_type === "onramp" ||
+      transaction.transaction_type === "credit"
+    ) {
+      return;
+    }
     setIsLoading(true);
     try {
       const orderDetailsData = {
         orderId: transaction.order_id || "",
         amount: transaction.amount_sent.toString(),
-        token: isCryptoInReceipt
-          ? transaction.to_currency
-          : transaction.from_currency,
+        token: transaction.from_currency,
         network: transaction.network || "",
         settlePercent: "100",
         status: transaction.status,
@@ -153,14 +157,6 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         memo: transaction.recipient.memo || "",
         amountReceived: transaction.amount_received,
         currency: transaction.to_currency,
-        typeLabel: "Buy",
-        ...(isOnrampReceipt
-          ? {
-              amountPaid: transaction.amount_sent,
-              paidCurrency: transaction.from_currency,
-              rate: transaction.fee,
-            }
-          : {}),
       };
       // Lazy-load PDF renderer (heavy, ~MBs of fontkit/pdfkit) only on demand
       // so it never enters the first-load JS bundle for the transactions UI.
@@ -169,11 +165,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         import("../PDFReceipt"),
       ]);
       const blob = await pdf(
-        <PDFReceipt
-          data={orderDetailsData}
-          formData={formData}
-          isOnramp={isCryptoInReceipt}
-        />,
+        <PDFReceipt data={orderDetailsData} formData={formData} />,
       ).toBlob();
       const pdfUrl = URL.createObjectURL(blob);
       window.open(pdfUrl, "_blank");
@@ -917,24 +909,27 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         )}
       </div>
       <div className="flex-1" />
-      {transaction.status === "completed" && (
+      {(showGetReceiptButton ||
+        (transaction.transaction_type === "onramp" && explorerUrl)) && (
         <div className="flex w-full flex-col gap-2">
-          <button
-            type="button"
-            title="Download transaction receipt"
-            onClick={handleGetReceipt}
-            disabled={isLoading}
-            className="w-full rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-text-body transition-all hover:bg-[#EBEBEF] focus:outline-none disabled:opacity-70 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
-          >
-            {isLoading ? (
-              <div className="flex items-center justify-center gap-2">
-                <ImSpinner className="size-5 animate-spin text-text-body dark:text-white" />
-                <span>Generating receipt...</span>
-              </div>
-            ) : (
-              "Get receipt"
-            )}
-          </button>
+          {showGetReceiptButton && (
+            <button
+              type="button"
+              title="Download transaction receipt"
+              onClick={handleGetReceipt}
+              disabled={isLoading}
+              className="w-full rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-text-body transition-all hover:bg-[#EBEBEF] focus:outline-none disabled:opacity-70 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2">
+                  <ImSpinner className="size-5 animate-spin text-text-body dark:text-white" />
+                  <span>Generating receipt...</span>
+                </div>
+              ) : (
+                "Get receipt"
+              )}
+            </button>
+          )}
           {transaction.transaction_type === "onramp" && explorerUrl && (
             <a
               href={explorerUrl}

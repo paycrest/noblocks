@@ -883,7 +883,7 @@ export function MainPageContent() {
             transactionStatus={transactionStatus}
             createdAt={createdAt}
             orderId={orderId}
-            isOnramp={!!onrampPaymentAccount}
+            isOnramp={swapMode === "onramp"}
             clearForm={() => {
               clearFormState(formMethods);
               setSelectedRecipient(null);
@@ -916,6 +916,7 @@ export function MainPageContent() {
     setTransactionStatus,
     setCurrentStep,
     setOrderId,
+    swapMode,
   ]);
 
   const transactionFormComponent = useMemo(

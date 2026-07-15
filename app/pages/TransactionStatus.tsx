@@ -538,12 +538,13 @@ export function TransactionStatus({
     !isOnramp ||
     ["settled", "refunded", "expired"].includes(transactionStatus);
 
+  /** PDF receipt is offramp-only for now. Prefer form swapMode so success UI
+   *  stays correct even if provider VA account state is cleared mid-flow. */
+  const isOnrampOrder =
+    isOnramp || formMethods.watch("swapMode") === "onramp";
   const showGetReceiptButton =
-    (!isOnramp &&
-      ["validated", "settling", "settled"].includes(transactionStatus)) ||
-    (isOnramp &&
-      transactionStatus === "settled" &&
-      isOnrampForwardingResolved);
+    !isOnrampOrder &&
+    ["validated", "settling", "settled"].includes(transactionStatus);
 
   /** Off-ramp: same as always — order created → completed. */
   const offRampTimeSpentLabel = calculateDuration(createdAt, completedAt);
@@ -1324,6 +1325,7 @@ export function TransactionStatus({
   };
 
   const handleGetReceipt = async () => {
+    if (isOnrampOrder) return;
     setIsGettingReceipt(true);
     try {
       if (orderDetails) {
@@ -1333,46 +1335,19 @@ export function TransactionStatus({
           import("@react-pdf/renderer"),
           import("../components/PDFReceipt"),
         ]);
-        const paidAmount = Number(amount) || 0;
-        const receivedAmount = Number(
-          formMethods.watch("amountReceived") || 0,
-        );
-        // Same persisted quote history stores as `transaction.fee` (not live form math).
-        const persistedRate = Number(orderDetails.rate);
-        const receiptRate =
-          Number.isFinite(persistedRate) && persistedRate > 0
-            ? persistedRate
-            : undefined;
 
         const blob = await pdf(
           <PDFReceipt
             data={orderDetails as OrderDetailsData}
             formData={{
-              recipientName: isOnramp
-                ? recipientWalletAddress || recipientName
-                : recipientName,
-              accountIdentifier: isOnramp
-                ? recipientWalletAddress || String(accountIdentifier)
-                : String(accountIdentifier),
-              institution: isOnramp
-                ? orderDetails.network || String(institution)
-                : String(institution),
-              memo: isOnramp
-                ? ""
-                : String(formMethods.watch("memo") || ""),
-              amountReceived: receivedAmount,
-              currency: isOnramp ? String(token || "") : currency,
-              ...(isOnramp
-                ? {
-                    typeLabel: "Buy",
-                    amountPaid: paidAmount,
-                    paidCurrency: currency,
-                    ...(receiptRate != null ? { rate: receiptRate } : {}),
-                  }
-                : {}),
+              recipientName,
+              accountIdentifier: String(accountIdentifier),
+              institution: String(institution),
+              memo: String(formMethods.watch("memo") || ""),
+              amountReceived: Number(formMethods.watch("amountReceived") || 0),
+              currency,
             }}
             supportedInstitutions={supportedInstitutions}
-            isOnramp={isOnramp}
           />,
         ).toBlob();
         const pdfUrl = URL.createObjectURL(blob);

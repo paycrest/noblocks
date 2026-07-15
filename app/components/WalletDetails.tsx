@@ -34,7 +34,7 @@ import {
 import Image from "next/image";
 import { useInjectedWallet } from "../context";
 import { useWalletAddress } from "../hooks/useWalletAddress";
-import { Dialog } from "@headlessui/react";
+import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   sidebarAnimation,
@@ -408,11 +408,12 @@ export const WalletDetails = () => {
                 onClick={handleSidebarClose}
               />
 
-              {/* Sidebar content */}
-              <motion.div
-                {...sidebarAnimation}
-                className="z-50 my-4 ml-auto mr-4 flex h-[calc(100%-32px)] w-full max-w-[396px] flex-col overflow-hidden rounded-[20px] border border-border-light bg-white shadow-lg dark:border-white/5 dark:bg-surface-overlay"
-              >
+              {/* Sidebar content — DialogPanel so in-panel taps aren't treated as outside */}
+              <DialogPanel className="z-50 my-4 ml-auto mr-4 flex h-[calc(100%-32px)] w-full max-w-[396px] outline-none">
+                <motion.div
+                  {...sidebarAnimation}
+                  className="flex h-full w-full flex-col overflow-hidden rounded-[20px] border border-border-light bg-white shadow-lg dark:border-white/5 dark:bg-surface-overlay"
+                >
                 {selectedTransaction || selectedEarnActivity ? (
                   // Detail view: shared layout for transaction OR earn-activity detail.
                   <div className="flex h-full flex-col p-6">
@@ -894,6 +895,7 @@ export const WalletDetails = () => {
                   </div>
                 )}
               </motion.div>
+              </DialogPanel>
             </div>
           </Dialog>
         )}

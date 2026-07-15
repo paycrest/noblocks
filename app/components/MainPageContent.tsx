@@ -254,6 +254,8 @@ export function MainPageContent() {
   const [orderId, setOrderId] = useState<string>("");
   const [onrampPaymentAccount, setOnrampPaymentAccount] =
     useState<V2FiatProviderAccountDTO | null>(null);
+  /** Snapshotted at order create — status fetch/save must not follow live swapMode. */
+  const [activeOrderIsOnramp, setActiveOrderIsOnramp] = useState(false);
 
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
@@ -374,6 +376,7 @@ export function MainPageContent() {
 
     onrampPaymentAccount,
     setOnrampPaymentAccount,
+    setActiveOrderIsOnramp,
   };
 
   useEffect(() => {
@@ -475,6 +478,7 @@ export function MainPageContent() {
   useEffect(function setPageLoadingState() {
     setOrderId("");
     setOnrampPaymentAccount(null);
+    setActiveOrderIsOnramp(false);
     setIsPageLoading(false);
   }, []);
 
@@ -485,6 +489,7 @@ export function MainPageContent() {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
         setOnrampPaymentAccount(null);
+        setActiveOrderIsOnramp(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -883,10 +888,11 @@ export function MainPageContent() {
             transactionStatus={transactionStatus}
             createdAt={createdAt}
             orderId={orderId}
-            isOnramp={!!onrampPaymentAccount}
+            isOnramp={activeOrderIsOnramp}
             clearForm={() => {
               clearFormState(formMethods);
               setSelectedRecipient(null);
+              setActiveOrderIsOnramp(false);
             }}
             clearTransactionStatus={() => {
               setTransactionStatus("idle");
@@ -916,6 +922,7 @@ export function MainPageContent() {
     setTransactionStatus,
     setCurrentStep,
     setOrderId,
+    activeOrderIsOnramp,
   ]);
 
   const transactionFormComponent = useMemo(

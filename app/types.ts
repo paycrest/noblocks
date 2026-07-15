@@ -218,9 +218,28 @@ export type OrderDetailsData = {
   settlePercent: string;
   status: string;
   txHash: string;
+  /** Persisted FX quote (fiat per 1 token); same source history stores as `fee`. */
+  rate?: string;
   settlements: Settlement[];
   txReceipts: TxReceipt[];
   updatedAt: string;
+};
+
+/** Form payload for `PDFReceipt` (offramp + onramp/credit fields). */
+export type PDFReceiptFormData = {
+  recipientName: string;
+  accountIdentifier: string;
+  institution: string;
+  memo: string;
+  amountReceived: number;
+  currency: string;
+  /** Onramp/credit inbound crypto: shown as "Buy". */
+  typeLabel?: string;
+  /** Fiat paid on onramp (e.g. NGN). */
+  amountPaid?: number;
+  paidCurrency?: string;
+  /** Fiat per 1 token (e.g. 1600 NGN ~ 1 USDC). */
+  rate?: number;
 };
 
 type Settlement = {
@@ -317,6 +336,8 @@ export type StateProps = {
   setRateError: (error: string | null) => void;
   onrampPaymentAccount: V2FiatProviderAccountDTO | null;
   setOnrampPaymentAccount: (account: V2FiatProviderAccountDTO | null) => void;
+  /** Locked when the current order is created; not tied to live swapMode. */
+  setActiveOrderIsOnramp: (isOnramp: boolean) => void;
 };
 
 export type NetworkButtonProps = {

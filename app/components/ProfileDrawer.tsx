@@ -1,5 +1,5 @@
 "use client";
-import { Dialog } from "@headlessui/react";
+import { Dialog, DialogPanel } from "@headlessui/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { sidebarAnimation } from "./AnimatedComponents";
 import ProfileView from "./ProfileView";
@@ -20,7 +20,6 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
           open={isOpen}
         >
           <div className="flex h-full">
-            {/* Backdrop overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -29,13 +28,16 @@ export default function ProfileDrawer({ isOpen, onClose }: ProfileDrawerProps) {
               onClick={onClose}
             />
 
-            {/* Drawer content */}
-            <motion.div
-              {...sidebarAnimation}
-              className="z-50 my-4 ml-auto mr-4 flex h-[calc(100%-32px)] w-full max-w-[396px] flex-col overflow-hidden rounded-[20px] border border-border-light bg-white shadow-lg dark:border-white/5 dark:bg-surface-overlay"
-            >
-              <ProfileView layout="drawer" onClose={onClose} />
-            </motion.div>
+            {/* DialogPanel required so Headless UI doesn't treat in-drawer
+                taps (e.g. Increase limit) as outside clicks and dismiss early. */}
+            <DialogPanel className="z-50 my-4 ml-auto mr-4 flex h-[calc(100%-32px)] w-full max-w-[396px] outline-none">
+              <motion.div
+                {...sidebarAnimation}
+                className="flex h-full w-full flex-col overflow-hidden rounded-[20px] border border-border-light bg-white shadow-lg dark:border-white/5 dark:bg-surface-overlay"
+              >
+                <ProfileView layout="drawer" onClose={onClose} />
+              </motion.div>
+            </DialogPanel>
           </div>
         </Dialog>
       )}

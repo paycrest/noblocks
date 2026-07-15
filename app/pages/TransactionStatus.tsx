@@ -538,6 +538,7 @@ export function TransactionStatus({
     !isOnramp ||
     ["settled", "refunded", "expired"].includes(transactionStatus);
 
+  /** PDF receipt is offramp-only for now (uses order-level isOnramp snapshot). */
   const showGetReceiptButton =
     !isOnramp &&
     ["validated", "settling", "settled"].includes(transactionStatus);
@@ -1321,6 +1322,7 @@ export function TransactionStatus({
   };
 
   const handleGetReceipt = async () => {
+    if (isOnramp) return;
     setIsGettingReceipt(true);
     try {
       if (orderDetails) {
@@ -1330,18 +1332,17 @@ export function TransactionStatus({
           import("@react-pdf/renderer"),
           import("../components/PDFReceipt"),
         ]);
+
         const blob = await pdf(
           <PDFReceipt
             data={orderDetails as OrderDetailsData}
             formData={{
               recipientName,
-              accountIdentifier: formMethods.watch(
-                "accountIdentifier",
-              ) as string,
-              institution: formMethods.watch("institution") as string,
-              memo: formMethods.watch("memo") as string,
-              amountReceived: formMethods.watch("amountReceived") as number,
-              currency: formMethods.watch("currency") as string,
+              accountIdentifier: String(accountIdentifier),
+              institution: String(institution),
+              memo: String(formMethods.watch("memo") || ""),
+              amountReceived: Number(formMethods.watch("amountReceived") || 0),
+              currency,
             }}
             supportedInstitutions={supportedInstitutions}
           />,

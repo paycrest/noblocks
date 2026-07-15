@@ -538,12 +538,9 @@ export function TransactionStatus({
     !isOnramp ||
     ["settled", "refunded", "expired"].includes(transactionStatus);
 
-  /** PDF receipt is offramp-only for now. Prefer form swapMode so success UI
-   *  stays correct even if provider VA account state is cleared mid-flow. */
-  const isOnrampOrder =
-    isOnramp || formMethods.watch("swapMode") === "onramp";
+  /** PDF receipt is offramp-only for now (uses order-level isOnramp snapshot). */
   const showGetReceiptButton =
-    !isOnrampOrder &&
+    !isOnramp &&
     ["validated", "settling", "settled"].includes(transactionStatus);
 
   /** Off-ramp: same as always — order created → completed. */
@@ -1325,7 +1322,7 @@ export function TransactionStatus({
   };
 
   const handleGetReceipt = async () => {
-    if (isOnrampOrder) return;
+    if (isOnramp) return;
     setIsGettingReceipt(true);
     try {
       if (orderDetails) {

@@ -103,7 +103,7 @@ export const TransactionForm = ({
 }) => {
   const searchParams = useSearchParams();
   // Destructure stateProps
-  const { rate, isFetchingRate, setOrderId } = stateProps;
+  const { rate, isFetchingRate, setOrderId, setActiveOrderIsOnramp } = stateProps;
   const { authenticated, ready, login, user } = usePrivy();
   // Pin body scroll while the Privy dialog is up — its end-of-body iframe
   // steals focus on mobile and drags the page to the bottom otherwise.
@@ -657,6 +657,7 @@ export const TransactionForm = ({
     }
 
     setOrderId("");
+    setActiveOrderIsOnramp(false);
 
     // Calculate the USD equivalent for transaction limit checking (see kycUsdNotionalForLimitCheck).
     const formData = getValues();

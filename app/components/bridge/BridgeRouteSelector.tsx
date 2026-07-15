@@ -199,7 +199,7 @@ export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
                   type="button"
                   onClick={toggle}
                   aria-expanded={isOpen}
-                  className={classNames(chipButtonClass, "w-fit max-w-[2/3] border border-gray-200 dark:border-white/5")}
+                  className={classNames(chipButtonClass, "w-fit max-w-[66.66%] border border-gray-200 dark:border-white/5")}
                 >
                   {fromNetworkObj && (
                     <img

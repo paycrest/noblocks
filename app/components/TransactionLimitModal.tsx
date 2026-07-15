@@ -246,7 +246,8 @@ export default function TransactionLimitModal({
     <>
       <AnimatePresence mode="wait">
         {showLimitDialog && (
-          <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+          // Above MobileDropdown (z-[60]) so Increase limit works from the mobile profile sheet
+          <Dialog open={isOpen} onClose={onClose} className="relative z-[70]">
             <div
               className="fixed inset-0 bg-black/50 backdrop-blur-sm"
               aria-hidden="true"

@@ -68,7 +68,7 @@ const amountCardCls =
   "rounded-[24px] border border-gray-200 bg-gray-100 dark:border-white/5 dark:bg-surface-canvas min-h-[130px] md:min-h-[160px]";
 
 const amountInputCls =
-  "w-full min-w-0 bg-transparent text-2xl !important font-normal text-gray-900 outline-none placeholder-gray-300 dark:text-white dark:placeholder-white/20";
+  "w-full min-w-0 bg-transparent text-2xl font-normal text-gray-900 outline-none placeholder-gray-300 dark:text-white dark:placeholder-white/20";
 
 export const BridgeRouteSelector: React.FC<BridgeRouteSelectorProps> = ({
   from,

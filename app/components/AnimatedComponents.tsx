@@ -443,7 +443,7 @@ export const AnimatedModal = ({
   return (
   <AnimatePresence onExitComplete={handleExitComplete}>
     {isOpen && (
-      <Dialog open={isOpen} onClose={onClose} className="relative z-[55]">
+      <Dialog open={isOpen} onClose={onClose} className="relative z-[70]">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

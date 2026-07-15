@@ -57,9 +57,14 @@ export const SettingsDropdown = () => {
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // Portaled ProfileDrawer / warning modals sit outside this ref — ignore
+  // outside clicks while they are open so touch taps aren't raced away.
   useOutsideClick({
     ref: dropdownRef,
-    handler: () => setIsOpen(false),
+    handler: () => {
+      if (!isOpen || isProfileDrawerOpen || isWarningModalOpen) return;
+      setIsOpen(false);
+    },
   });
 
   // Get embedded wallet (EOA) and smart wallet (SCW)

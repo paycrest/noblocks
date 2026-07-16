@@ -154,7 +154,7 @@ export const FlexibleDropdown = ({
           left: rect.right - width + window.scrollX, // always right-align
           width: width,
           minWidth: dropdownWidth ? dropdownWidth : 160,
-          zIndex: 60,
+          zIndex: 100,
         });
       }
     }

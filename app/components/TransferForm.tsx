@@ -11,10 +11,9 @@ import {
   classNames,
   formatDecimalPrecision,
   fetchBalanceForNetwork,
-  normalizeStarknetAddress,
   shouldUseInjectedWallet,
 } from "../utils";
-import { isValidEvmAddressCaseInsensitive } from "../lib/validation";
+import { validateWalletAddress } from "../lib/validation";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
@@ -404,30 +403,11 @@ export const TransferForm: React.FC<{
                   message: "Recipient address is required",
                 },
                 validate: {
-                  addressForNetwork: (value) => {
-                    const raw = (value || "").trim();
-                    if (!raw) return true;
-                    const net =
-                      recipientNetwork || selectedNetwork.chain.name;
-                    if (!raw.startsWith("0x")) {
-                      return "Address must start with 0x";
-                    }
-                    if (net === "Starknet") {
-                      if (isValidEvmAddressCaseInsensitive(raw)) {
-                        return "This address is an EVM address. Enter a Starknet address.";
-                      }
-                      try {
-                        normalizeStarknetAddress(raw);
-                        return true;
-                      } catch {
-                        return "Enter a valid Starknet address.";
-                      }
-                    }
-                    if (!isValidEvmAddressCaseInsensitive(raw)) {
-                      return "Enter a valid EVM address.";
-                    }
-                    return true;
-                  },
+                  addressForNetwork: (value) =>
+                    validateWalletAddress(
+                      value,
+                      recipientNetwork || selectedNetwork.chain.name,
+                    ),
                 },
               })}
               className={classNames(

@@ -593,18 +593,26 @@ export const TransactionForm = ({
         });
 
         if (swapMode === "onramp") {
-          const preferred =
-            selectableCurrencies.find(
-              (item) =>
-                !item.disabled && isOnrampFiatCurrencyCode(item.name),
-            )?.name ?? "";
-          if (currency !== preferred) {
+          const currentOnrampEnabled = selectableCurrencies.some(
+            (item) =>
+              item.name === currency &&
+              !item.disabled &&
+              isOnrampFiatCurrencyCode(item.name),
+          );
+          if (!currentOnrampEnabled) {
+            const preferred =
+              selectableCurrencies.find(
+                (item) =>
+                  !item.disabled && isOnrampFiatCurrencyCode(item.name),
+              )?.name ?? "";
             formMethods.setValue("currency", preferred, { shouldDirty: true });
-          }
-          if (!preferred) {
-            formMethods.setValue("receiveDestinationExplicitlySelected", false, {
-              shouldDirty: true,
-            });
+            if (!preferred) {
+              formMethods.setValue(
+                "receiveDestinationExplicitlySelected",
+                false,
+                { shouldDirty: true },
+              );
+            }
           }
         } else if (normalizedToken === "CNGN") {
           const ngnEnabled = selectableCurrencies.some(
@@ -652,6 +660,8 @@ export const TransactionForm = ({
   // Reorder currencies based on user location
   useEffect(() => {
     let isMounted = true;
+    // Reflect availability immediately; location reorder may resolve later.
+    setOrderedCurrencies(selectableCurrencies);
 
     reorderCurrenciesByLocation(selectableCurrencies, formMethods)
       .then((reordered) => {

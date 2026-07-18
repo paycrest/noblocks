@@ -1081,6 +1081,27 @@ export const fetchTokens = async (): Promise<APIToken[]> => {
 };
 
 /**
+ * Fetches fiat currency codes currently enabled by the aggregator.
+ * Currencies omitted from this response are unavailable in the active environment.
+ */
+export const fetchSupportedCurrencyCodes = async (): Promise<string[]> => {
+  const response = await axios.get(`${aggregatorOriginForV2()}/v2/currencies`);
+  const currencies = response.data?.data;
+
+  if (!Array.isArray(currencies)) {
+    throw new Error("Invalid currencies response from aggregator");
+  }
+
+  return currencies
+    .map((currency: unknown) => {
+      if (!currency || typeof currency !== "object") return "";
+      const code = (currency as { code?: unknown }).code;
+      return typeof code === "string" ? code.trim().toUpperCase() : "";
+    })
+    .filter(Boolean);
+};
+
+/**
  * Fetches saved recipients for a wallet address
  * @param {string} accessToken - The access token for authentication
  * @returns {Promise<RecipientDetailsWithId[]>} Array of saved recipients

@@ -46,6 +46,7 @@ import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
+import { fetchSupportedCurrencyCodes } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
@@ -150,6 +151,8 @@ export const TransactionForm = ({
   const [rateError, setRateError] = useState<string | null>(null);
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [blockedTransactionAmount, setBlockedTransactionAmount] = useState(0);
+  const [supportedCurrencyCodes, setSupportedCurrencyCodes] =
+    useState<Set<string> | null>(null);
 
   const currencies = useMemo(
     () =>
@@ -157,14 +160,15 @@ export const TransactionForm = ({
         const countryCode = currencyToCountryCode(item.name);
         return {
           ...item,
+          disabled:
+            item.disabled ||
+            (supportedCurrencyCodes !== null &&
+              !supportedCurrencyCodes.has(item.name)),
           imageUrl: `https://flagcdn.com/h24/${countryCode}.webp`,
         };
       }),
-    [],
+    [supportedCurrencyCodes],
   );
-
-  // state for reordered currencies
-  const [orderedCurrencies, setOrderedCurrencies] = useState(currencies);
 
   const {
     handleSubmit,
@@ -183,6 +187,42 @@ export const TransactionForm = ({
     swapMode,
     receiveDestinationExplicitlySelected,
   } = watch();
+
+  const selectableCurrencies = useMemo(() => {
+    return currencies
+      .map((item) => ({
+        ...item,
+        disabled:
+          item.disabled ||
+          (swapMode === "onramp" && !isOnrampFiatCurrencyCode(item.name)) ||
+          (token?.toUpperCase() === "CNGN" && item.name !== "NGN"),
+      }))
+      .sort((a, b) => {
+        if (a.disabled === b.disabled) return 0;
+        return a.disabled ? 1 : -1;
+      });
+  }, [currencies, swapMode, token]);
+
+  // state for reordered currencies
+  const [orderedCurrencies, setOrderedCurrencies] =
+    useState<CurrencyOption[]>(selectableCurrencies);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetchSupportedCurrencyCodes()
+      .then((codes) => {
+        if (isMounted) setSupportedCurrencyCodes(new Set(codes));
+      })
+      .catch((error) => {
+        // Preserve static defaults if the availability request fails.
+        console.error("Failed to fetch supported currencies:", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const onrampSupported = networkSupportsOnramp(selectedNetwork.chain);
 
@@ -327,7 +367,7 @@ export const TransactionForm = ({
       });
     }
     if (currency) {
-      const supported = currencies.find(
+      const supported = selectableCurrencies.find(
         (c: CurrencyOption) => c.name === currency && !c.disabled,
       );
 
@@ -553,39 +593,44 @@ export const TransactionForm = ({
         });
 
         if (swapMode === "onramp") {
-          currencies.forEach((c: CurrencyOption) => {
-            c.disabled = !isOnrampFiatCurrencyCode(c.name);
-          });
-          if (!isOnrampFiatCurrencyCode(currency)) {
-            formMethods.setValue("currency", "NGN", { shouldDirty: true });
+          const preferred =
+            selectableCurrencies.find(
+              (item) =>
+                !item.disabled && isOnrampFiatCurrencyCode(item.name),
+            )?.name ?? "";
+          if (currency !== preferred) {
+            formMethods.setValue("currency", preferred, { shouldDirty: true });
+          }
+          if (!preferred) {
+            formMethods.setValue("receiveDestinationExplicitlySelected", false, {
+              shouldDirty: true,
+            });
           }
         } else if (normalizedToken === "CNGN") {
-          // When cNGN is selected, only enable NGN
-          currencies.forEach((currency: CurrencyOption) => {
-            currency.disabled = currency.name !== "NGN";
-          });
-          // If the selected currency is not NGN, set it to NGN
-          if (currency !== "NGN") {
+          const ngnEnabled = selectableCurrencies.some(
+            (item) => item.name === "NGN" && !item.disabled,
+          );
+          if (ngnEnabled && currency !== "NGN") {
             formMethods.setValue("currency", "NGN", { shouldDirty: true });
+          } else if (!ngnEnabled && currency) {
+            formMethods.setValue("currency", "", { shouldDirty: true });
           }
-          formMethods.setValue("receiveDestinationExplicitlySelected", true, {
+          formMethods.setValue(
+            "receiveDestinationExplicitlySelected",
+            ngnEnabled,
+            { shouldDirty: true },
+          );
+        } else if (
+          currency &&
+          selectableCurrencies.some(
+            (item) => item.name === currency && item.disabled,
+          )
+        ) {
+          formMethods.setValue("currency", "", { shouldDirty: true });
+          formMethods.setValue("receiveDestinationExplicitlySelected", false, {
             shouldDirty: true,
           });
-        } else {
-          // Reset currencies to their default state from mocks
-          currencies.forEach((currency: CurrencyOption) => {
-            // Only GHS, BRL, and ARS are disabled by default
-            currency.disabled = ["GHS", "BRL", "ARS"].includes(
-              currency.name,
-            );
-          });
         }
-
-        // Sort currencies so enabled ones appear first
-        currencies.sort((a: CurrencyOption, b: CurrencyOption) => {
-          if (a.disabled === b.disabled) return 0;
-          return a.disabled ? 1 : -1;
-        });
       }
 
       registerFormFields();
@@ -594,7 +639,7 @@ export const TransactionForm = ({
       token,
       currency,
       formMethods,
-      currencies,
+      selectableCurrencies,
       selectedNetwork,
       cngnRate,
       cngnRateError,
@@ -608,19 +653,19 @@ export const TransactionForm = ({
   useEffect(() => {
     let isMounted = true;
 
-    reorderCurrenciesByLocation(currencies, formMethods)
+    reorderCurrenciesByLocation(selectableCurrencies, formMethods)
       .then((reordered) => {
         if (isMounted) setOrderedCurrencies(reordered);
       })
       .catch(() => {
-        if (isMounted) setOrderedCurrencies(currencies);
+        if (isMounted) setOrderedCurrencies(selectableCurrencies);
       });
 
     return () => {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currencies]);
+  }, [selectableCurrencies]);
 
   const { isEnabled, buttonText, buttonAction } = useSwapButton({
     watch,
@@ -783,6 +828,10 @@ export const TransactionForm = ({
       hasToken &&
       hasCurrency &&
       hasBothAmounts;
+    const preferredOnrampCurrency =
+      currencies.find(
+        (item) => !item.disabled && isOnrampFiatCurrencyCode(item.name),
+      )?.name ?? "";
 
     setValue("receiveDestinationExplicitlySelected", isCompleteFlow, {
       shouldDirty: true,
@@ -800,8 +849,8 @@ export const TransactionForm = ({
       setFormattedReceivedAmount(formattedSentAmount);
 
       if (nextSwapMode === "onramp") {
-        if (!isOnrampFiatCurrencyCode(currency)) {
-          setValue("currency", "NGN", { shouldDirty: true });
+        if (!isOnrampFiatCurrencyCode(currency) || !preferredOnrampCurrency) {
+          setValue("currency", preferredOnrampCurrency, { shouldDirty: true });
         }
       }
     } else {
@@ -812,7 +861,7 @@ export const TransactionForm = ({
       setFormattedReceivedAmount("");
 
       if (nextSwapMode === "onramp") {
-        setValue("currency", "NGN", { shouldDirty: true });
+        setValue("currency", preferredOnrampCurrency, { shouldDirty: true });
         setValue("token", "", { shouldDirty: true });
         if (!walletAddress) {
           setValue("walletAddress", "", { shouldDirty: true });

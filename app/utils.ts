@@ -178,7 +178,6 @@ export const getCurrencySymbol = (currency: string): string => {
     USD: "$",
     GBP: "£",
     EUR: "€",
-    MWK: "MK",
     XOF: "CFA",
     XAF: "FCFA",
   };
@@ -204,7 +203,6 @@ export function getOfframpAccountIdentifierPlaceholder(
     NGN: "08XXXXXXXX",
     UGX: "07XXXXXXXX",
     TZS: "07XXXXXXXX",
-    MWK: "0XXXXXXXXX",
     GHS: "0XXXXXXXXX",
   };
   return (
@@ -218,7 +216,6 @@ const NOBLOCKS_FIAT_CURRENCY_CODES = new Set([
   "KES",
   "UGX",
   "TZS",
-  "MWK",
   "GHS",
   "BRL",
   "ARS",
@@ -2041,7 +2038,6 @@ export function mapCountryToCurrency(countryCode: string): string | null {
     AR: "ARS",
     US: "USD",
     GB: "GBP",
-    MW: "MWK",
     // add more as needed
   };
   return mapping[countryCode] || null;

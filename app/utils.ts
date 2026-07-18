@@ -2265,6 +2265,28 @@ export const getBlockFestTimeRemaining = (): number => {
 };
 
 /**
+ * On-chain quote-rate multiplier for Gateway createOrder `_rate`.
+ * Matches aggregator RateScale target (×100000) so sub-par local corridors
+ * (e.g. CNGN 0.998) encode distinctly from par 1.0.
+ */
+export const RATE_SCALE = 100000;
+
+/**
+ * Packs a human quote rate for on-chain createOrder (`round(rate × RATE_SCALE)`).
+ */
+export function packRate(rate: number): bigint {
+  return BigInt(Math.round(rate * RATE_SCALE));
+}
+
+/**
+ * Local-corridor quotes sit near 1 (e.g. CNGN/NGN 0.998–1.0); FX quotes are much larger.
+ * Used for sender-fee eligibility — must not depend on legacy ×100 packing.
+ */
+function isLocalTransferRate(rate: number): boolean {
+  return Number.isFinite(rate) && rate > 0 && rate < 10;
+}
+
+/**
  * Calculates the sender fee and returns the fee amount and recipient address
  * @param amount - The transaction amount in human-readable token units
  * @param rate - The exchange rate (e.g., 1.0 for local transfers, other values for FX)
@@ -2279,8 +2301,7 @@ export function calculateSenderFee(
   rate: number,
   tokenDecimals: number = 18,
 ): { feeAmount: number; feeAmountInBaseUnits: bigint; feeRecipient: string } {
-  const calculatedRate = Math.round(rate * 100);
-  const isLocalTransfer = calculatedRate === 100;
+  const isLocalTransfer = isLocalTransferRate(rate);
   const decimalsMultiplier = BigInt(10 ** tokenDecimals);
   const maxFeeCapInBaseUnits =
     BigInt(Math.floor(localTransferFeeCap)) * decimalsMultiplier;

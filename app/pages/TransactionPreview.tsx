@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import {
   calculateDuration,
   calculateSenderFee,
+  packRate,
   classNames,
   formatCurrency,
   formatNumberWithCommas,
@@ -310,7 +311,7 @@ export const TransactionPreview = ({
     const params = {
       token: tokenAddress,
       amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-      rate: BigInt(Math.round(rate * 100)),
+      rate: packRate(rate),
       senderFeeRecipient: getAddress(senderFeeRecipientAddress),
       senderFee: senderFeeInTokenUnits,
       refundAddress: activeWallet?.address as `0x${string}`,

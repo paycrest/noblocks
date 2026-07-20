@@ -7,8 +7,9 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { useWallets, usePrivy } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { getKycTierLimit } from "@/app/lib/kyc-tier-limits";
+import { useWalletAddress } from "../hooks/useWalletAddress";
 
 export interface TransactionLimits {
   monthly: number;
@@ -100,12 +101,10 @@ function createEmptySnapshot(): KYCStatusSnapshot {
 }
 
 export function KYCProvider({ children }: { children: React.ReactNode }) {
-  const { wallets } = useWallets();
   const { getAccessToken } = usePrivy();
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy",
-  );
-  const walletAddress = embeddedWallet?.address;
+  // Active wallet for the current mode/network (injected when ?injected=true),
+  // not the Privy embedded EOA — Profile and other KYC UI surface this address.
+  const walletAddress = useWalletAddress();
 
   const walletAddressRef = useRef(walletAddress);
   walletAddressRef.current = walletAddress;

@@ -414,6 +414,8 @@ export type KYCStatusResponse = {
 
 export type Config = {
   aggregatorUrl: string;
+  /** Server-only sender API key UUID for order validate proxy. */
+  aggregatorSenderApiKeyId: string;
   privyAppId: string;
   rpcUrlKey: string;
   mixpanelToken: string;

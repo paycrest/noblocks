@@ -249,9 +249,9 @@ export const CopyAddressWarningModal: React.FC<
               </div>
 
               {/* Warning note */}
-              <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
-                <InformationSquareIcon className="mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
-                <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
+              <div className="mb-4 flex w-full min-w-0 items-start gap-2 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
+                <InformationSquareIcon className="mt-0.5 size-5 shrink-0 text-warning-foreground dark:text-warning-text" />
+                <p className="min-w-0 flex-1 break-words text-xs font-light leading-snug text-warning-foreground dark:text-warning-text">
                   {footerWarning}
                 </p>
               </div>
@@ -389,9 +389,9 @@ export const CopyAddressWarningModal: React.FC<
                     </div>
 
                     {/* Warning note */}
-                    <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
-                      <InformationSquareIcon className="mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
-                      <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
+                    <div className="mb-4 flex w-full min-w-0 items-start gap-2 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
+                      <InformationSquareIcon className="mt-0.5 size-5 shrink-0 text-warning-foreground dark:text-warning-text" />
+                      <p className="min-w-0 flex-1 break-words text-xs font-light leading-snug text-warning-foreground dark:text-warning-text">
                         {footerWarning}
                       </p>
                     </div>

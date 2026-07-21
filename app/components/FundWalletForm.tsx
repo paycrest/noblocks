@@ -395,9 +395,9 @@ export const FundWalletForm: React.FC<{
         </div>
 
         {/* Warning note */}
-        <div className="h-[48px] w-full bg-warning-background/[8%] dark:bg-warning-background/[8%] px-3 py-2 rounded-xl mb-4 flex items-start justify-start gap-0.5">
-          <InformationSquareIcon className="text-warning-foreground dark:text-warning-text w-[24px] h-[24px] mr-1 -mt-0.5" />
-          <p className="text-xs font-light text-warning-foreground dark:text-warning-text leading-tight text-wrap break-words">
+        <div className="mb-4 flex w-full min-w-0 items-start gap-2 rounded-xl bg-warning-background/[8%] px-3 py-2 dark:bg-warning-background/[8%]">
+          <InformationSquareIcon className="mt-0.5 size-5 shrink-0 text-warning-foreground dark:text-warning-text" />
+          <p className="min-w-0 flex-1 break-words text-xs font-light leading-snug text-warning-foreground dark:text-warning-text">
             Only send funds to the supported networks, sending to an unlisted network will lead to loss of funds
           </p>
         </div>

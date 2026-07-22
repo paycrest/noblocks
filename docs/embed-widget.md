@@ -46,7 +46,7 @@ Notes:
 - Recommended width **360–420px**. The widget renders its mobile UI below
   ~640px wide (a comfortable compact layout); above that it would switch to
   the desktop layout, so keep it narrow. Height is flexible — size it to fit
-  the flow (≈600–680px works well); the footer pins to the bottom edge, and
+  the flow (≈670–750px works well); the footer pins to the bottom edge, and
   the wallet control stays visible while the form scrolls.
 - **Dismissing the widget is your responsibility.** Provide whatever close
   affordance fits your UX (modal backdrop click, host close button, drawer

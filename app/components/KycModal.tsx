@@ -32,7 +32,7 @@ import {
   PencilEdit02Icon,
   Tick01Icon,
 } from "hugeicons-react";
-import { classNames } from "../utils";
+import { classNames, formatNumberWithCommas } from "../utils";
 import { fadeInOut } from "./AnimatedComponents";
 import { submitSmileIDData } from "../api/aggregator";
 import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
@@ -40,7 +40,6 @@ import { trackEvent } from "../hooks/analytics/client";
 import { CheckmarkCircle01Icon, Clock05Icon, StarIcon } from "hugeicons-react";
 import { useInjectedWallet } from "../context";
 import { KYC_TIERS, useKYC } from "../context/KYCContext";
-import { formatNumberWithCommas } from "../utils";
 import { DocumentRequirementsModal } from "./kyc/DocumentRequirementsModal";
 
 import idTypesData from "../api/kyc/smile-id/id_types.json";

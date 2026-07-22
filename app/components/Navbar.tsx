@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
 import { usePathname } from "next/navigation";
+import { toast } from "sonner";
 
 import {
   NoblocksLogo,
@@ -35,6 +36,7 @@ import { clearNetworkModalSeen } from "../lib/networkModalStore";
 import { useWallets } from "@privy-io/react-auth";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import { useWalletAddress } from "../hooks/useWalletAddress";
+import { reportClientError } from "../lib/sentry.client";
 
 export const Navbar = () => {
   const [mounted, setMounted] = useState(false);
@@ -75,51 +77,60 @@ export const Navbar = () => {
 
   const { login } = useLogin({
     onComplete: async ({ user, isNewUser, loginMethod }) => {
-      if (user.wallet?.address) {
-        identifyUser(user.wallet.address, {
-          login_method: loginMethod,
-          isNewUser,
-          createdAt: user.createdAt,
-          email: user.email,
-        });
-
-        localStorage.setItem("userId", user.wallet.address);
-
-        if (isNewUser) {
-          clearNetworkModalSeen(user.wallet.address);
-
-          trackEvent("Sign up completed", {
-            "Login method": loginMethod,
-            user_id: user.wallet.address,
-            "Email address": user.email,
-            "Sign up date": user.createdAt.toISOString(),
-            "Noblocks balance": 0, // a new user should always have 0 balance
+      try {
+        if (user.wallet?.address) {
+          identifyUser(user.wallet.address, {
+            login_method: loginMethod,
+            isNewUser,
+            createdAt: user.createdAt,
+            email: user.email,
           });
 
-          // New email signups: trigger the Tier 1 "verify your phone" email
-          // (Activepieces → Brevo). Fire-and-forget so it never blocks the UI.
-          if (loginMethod === "email" && user.email?.address) {
-            const walletAddress = user.wallet.address;
-            try {
-              const accessToken = await getAccessToken();
-              if (accessToken) {
-                void fetch("/api/kyc/signup-email", {
-                  method: "POST",
-                  headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    "x-wallet-address": walletAddress.toLowerCase(),
-                  },
-                }).catch((error) => {
-                  console.error("[signup-email] trigger failed", error);
-                });
+          localStorage.setItem("userId", user.wallet.address);
+
+          if (isNewUser) {
+            clearNetworkModalSeen(user.wallet.address);
+
+            trackEvent("Sign up completed", {
+              "Login method": loginMethod,
+              user_id: user.wallet.address,
+              "Email address": user.email,
+              "Sign up date": user.createdAt.toISOString(),
+              "Noblocks balance": 0, // a new user should always have 0 balance
+            });
+
+            // New email signups: trigger the Tier 1 "verify your phone" email
+            // (Activepieces → Brevo). Fire-and-forget so it never blocks the UI.
+            if (loginMethod === "email" && user.email?.address) {
+              const signupWalletAddress = user.wallet.address;
+              try {
+                const accessToken = await getAccessToken();
+                if (accessToken) {
+                  void fetch("/api/kyc/signup-email", {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${accessToken}`,
+                      "x-wallet-address": signupWalletAddress.toLowerCase(),
+                    },
+                  }).catch((error) => {
+                    console.error("[signup-email] trigger failed", error);
+                  });
+                }
+              } catch (error) {
+                console.error("[signup-email] token fetch failed", error);
               }
-            } catch (error) {
-              console.error("[signup-email] token fetch failed", error);
             }
+          } else {
+            trackEvent("Login completed", { "Login method": loginMethod });
           }
-        } else {
-          trackEvent("Login completed", { "Login method": loginMethod });
         }
+      } catch (error) {
+        reportClientError(error, {
+          feature: "onboarding",
+          flow: "auth",
+          step: isNewUser ? "signup-onComplete" : "login-onComplete",
+          loginMethod,
+        });
       }
     },
   });
@@ -127,6 +138,19 @@ export const Navbar = () => {
   // Pin body scroll while the Privy dialog is up — its end-of-body iframe
   // steals focus on mobile and drags the page to the bottom otherwise.
   const loginWithScrollPin = useLoginWithScrollPin(login);
+
+  const handleLoginClick = () => {
+    try {
+      loginWithScrollPin();
+    } catch (error) {
+      reportClientError(error, {
+        feature: "onboarding",
+        flow: "auth",
+        step: "privy-login-click",
+      });
+      toast.error("Sign in failed. Please try again.");
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -406,7 +430,7 @@ export const Navbar = () => {
               <button
                 type="button"
                 className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}
-                onClick={() => loginWithScrollPin()}
+                onClick={() => void handleLoginClick()}
               >
                 Sign in
               </button>

@@ -9,6 +9,7 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "sonner";
 import { StarknetContextType, StarknetWalletState } from "../types";
+import { reportClientError } from "../lib/sentry.client";
 import { normalizeStarknetAddress } from "../utils";
 
 function toCanonicalStarknetAddress(
@@ -21,6 +22,19 @@ function toCanonicalStarknetAddress(
   } catch {
     return null;
   }
+}
+
+type ReportedError = Error & { __onboardingReported?: boolean };
+
+/** Report once per error instance so nested catches do not inflate alert volume. */
+function reportOnboardingErrorOnce(
+  error: unknown,
+  context: Record<string, unknown>,
+): void {
+  const err = error instanceof Error ? error : new Error(String(error));
+  if ((err as ReportedError).__onboardingReported) return;
+  reportClientError(err, context);
+  (err as ReportedError).__onboardingReported = true;
 }
 
 const StarknetContext = createContext<StarknetContextType | undefined>(
@@ -189,7 +203,16 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to create Starknet wallet");
+        const err = new Error(data.error || "Failed to create Starknet wallet");
+        reportOnboardingErrorOnce(err, {
+          feature: "onboarding",
+          flow: "wallet",
+          step: "starknet-create-wallet",
+          networkError: response.status >= 500,
+          statusCode: response.status,
+          responseData: data,
+        });
+        throw err;
       }
 
       const wallet = data.wallet || {};
@@ -216,8 +239,28 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
           const pkData = await pkResponse.json();
           if (pkResponse.ok && pkData.publicKey) {
             newPublicKey = pkData.publicKey;
+          } else if (!pkResponse.ok) {
+            const pkErr = new Error(
+              pkData.error ||
+                pkData.message ||
+                "Failed to derive Starknet public key",
+            );
+            reportOnboardingErrorOnce(pkErr, {
+              feature: "onboarding",
+              flow: "wallet",
+              step: "starknet-get-public-key",
+              statusCode: pkResponse.status,
+              networkError: pkResponse.status >= 500,
+              responseData: pkData,
+            });
+            console.error("Failed to derive public key:", pkErr);
           }
         } catch (pkError) {
+          reportOnboardingErrorOnce(pkError, {
+            feature: "onboarding",
+            flow: "wallet",
+            step: "starknet-get-public-key",
+          });
           console.error("Failed to derive public key:", pkError);
         }
       }
@@ -233,8 +276,15 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
       });
 
       return newWalletId;
-    } catch (err: any) {
-      setError(err.message || "Failed to create Starknet wallet");
+    } catch (err: unknown) {
+      reportOnboardingErrorOnce(err, {
+        feature: "onboarding",
+        flow: "wallet",
+        step: "starknet-create-wallet",
+      });
+      const message =
+        err instanceof Error ? err.message : "Failed to create Starknet wallet";
+      setError(message);
       throw err;
     } finally {
       setIsCreating(false);

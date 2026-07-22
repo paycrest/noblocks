@@ -1682,6 +1682,11 @@ export function clearFormState(formMethods: any) {
 /**
  * Determines if the app should use an injected wallet.
  *
+ * `injected=true` uses window.ethereum (extension wallets — they inject into
+ * iframes too). `injected=bridge` uses the embedding page's wallet over the
+ * postMessage bridge (see app/lib/embed-bridge-provider.ts), so it only
+ * applies when actually running inside an iframe.
+ *
  * @param searchParams - The URL search parameters to check for the 'injected' flag
  * @returns boolean indicating whether to use injected wallet
  */
@@ -1689,7 +1694,9 @@ export function shouldUseInjectedWallet(
   searchParams: URLSearchParams,
 ): boolean {
   const injectedParam = searchParams.get("injected");
-  return Boolean(injectedParam === "true" && window.ethereum);
+  if (injectedParam === "true") return Boolean(window.ethereum);
+  if (injectedParam === "bridge") return window.self !== window.top;
+  return false;
 }
 
 /** `?side=` for home swap form: buy = on-ramp, sell = off-ramp (matches rates API). */

@@ -29,8 +29,11 @@ export const initMixpanel = () => {
   }
 };
 
-export const useMixpanel = () => {
+export const useMixpanel = (enabled: boolean = true) => {
   useEffect(() => {
+    // Disabled inside partner iframes (/widget) — no client trackers there.
+    if (!enabled) return;
+
     const handleConsentChange = () => {
       const consent = Cookies.get("cookieConsent");
       if (consent && JSON.parse(consent).analytics) {
@@ -46,7 +49,7 @@ export const useMixpanel = () => {
       window.removeEventListener("cookieConsentChange", handleConsentChange);
       window.removeEventListener("cookieConsent", handleConsentChange);
     };
-  }, []);
+  }, [enabled]);
 };
 
 export const identifyUser = (

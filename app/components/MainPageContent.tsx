@@ -16,6 +16,7 @@ import {
   CookieConsent,
   Disclaimer,
   ReferralInputModal,
+  WidgetShell,
 } from "./";
 import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
@@ -63,6 +64,7 @@ import {
   useInjectedWallet,
   useBalance,
   useKYC,
+  useEmbed,
 } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
 import { hasSeenNetworkModalFlag } from "../lib/networkModalStore";
@@ -116,6 +118,7 @@ const PageLayout = ({
   const { claimed, resetClaim } = useBlockFestClaim();
   const { isOpen, openModal, closeModal } = useBlockFestModal();
   const { isInjectedWallet } = useInjectedWallet();
+  const { isEmbed } = useEmbed();
   const walletAddress = useWalletAddress();
 
   useEffect(() => {
@@ -134,8 +137,14 @@ const PageLayout = ({
         onShowModal={openModal}
       />
 
-      <Disclaimer />
-      <CookieConsent />
+      {/* Embed mode: partner iframe — no marketing chrome, no cookie banner
+          (client trackers are disabled in embed; see providers.tsx). */}
+      {!isEmbed && (
+        <>
+          <Disclaimer />
+          <CookieConsent />
+        </>
+      )}
 
       {/* Network Selection Modal with callback */}
       {!isInjectedWallet && (
@@ -152,7 +161,9 @@ const PageLayout = ({
 
       <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
 
-      {currentStep === STEPS.FORM ? (
+      {isEmbed ? (
+        <WidgetShell>{transactionFormComponent}</WidgetShell>
+      ) : currentStep === STEPS.FORM ? (
         <HomePage
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
@@ -256,6 +267,14 @@ export function MainPageContent() {
     useState<V2FiatProviderAccountDTO | null>(null);
   /** Snapshotted at order create — status fetch/save must not follow live swapMode. */
   const [activeOrderIsOnramp, setActiveOrderIsOnramp] = useState(false);
+
+  const { isEmbed, postToHost } = useEmbed();
+
+  // Surface transaction progress to the embedding page (no-op outside /widget).
+  useEffect(() => {
+    if (!isEmbed || transactionStatus === "idle") return;
+    postToHost("noblocks:tx_status", { status: transactionStatus, orderId });
+  }, [isEmbed, transactionStatus, orderId, postToHost]);
 
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());

@@ -61,6 +61,20 @@ Visit the live site at [noblocks.xyz](https://noblocks.xyz).
 
 To learn how Paycrest routes and settles orders, see the [Paycrest documentation](https://paycrest.io/).
 
+## Embedding the Widget
+
+Partners can embed Noblocks as a compact swap widget via iframe (restricted to whitelisted origins):
+
+```html
+<iframe
+  src="https://noblocks.xyz/widget?theme=dark&currency=NGN"
+  allow="clipboard-write; publickey-credentials-get; camera"
+  style="width: 100%; max-width: 460px; height: 680px; border: 0; background: transparent"
+></iframe>
+```
+
+To get an origin whitelisted, email **info@noblocks.xyz**. For URL parameters, the `postMessage` event contract, host-wallet bridging (`embed.js`), and operator configuration, see [docs/embed-widget.md](docs/embed-widget.md).
+
 ## Contributing
 
 We welcome contributions to Noblocks! Before contributing:

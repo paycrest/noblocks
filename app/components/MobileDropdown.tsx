@@ -312,7 +312,12 @@ export const MobileDropdown = ({
             />
 
             <div className="fixed inset-0 flex items-end justify-center">
-              <motion.div {...slideUpAnimation} className="w-full">
+              {/* wallet-drawer-panel: stable hook for the widget-mode width
+                  override in globals.css (body.widget-experience). */}
+              <motion.div
+                {...slideUpAnimation}
+                className="wallet-drawer-panel w-full"
+              >
                   <DialogPanel className="scrollbar-hide relative max-h-[90dvh] w-full overflow-hidden rounded-t-[30px] border border-border-light bg-white px-5 pt-6 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-xl *:text-sm dark:border-white/5 dark:bg-surface-overlay">
                     <div
                       className={

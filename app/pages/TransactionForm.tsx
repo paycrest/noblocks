@@ -56,6 +56,7 @@ import {
   useNetwork,
   useTokens,
   useKYC,
+  useEmbed,
 } from "../context";
 import { validateWalletAddress } from "../lib/validation";
 
@@ -114,6 +115,7 @@ export const TransactionForm = ({
   const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, starknetWalletBalance, tronWalletBalance, isLoading } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isEmbed } = useEmbed();
   const { allTokens } = useTokens();
   // Network-aware "My wallet" / recipient address: Starknet wallet on Starknet,
   // EVM embedded EOA / smart wallet on EVM (mirrors activeWallet for EVM).
@@ -1403,10 +1405,19 @@ export const TransactionForm = ({
         )}
 
         {ready && (
-          <>
+          // Embed mode: the card's middle section scrolls (recipient form can
+          // exceed the frame), so pin the CTA above the "Secured by" footer
+          // with a card-colored backdrop for content sliding underneath.
+          <div
+            className={
+              isEmbed
+                ? "sticky bottom-0 z-10 -mb-1 bg-white pb-1 pt-1 dark:bg-neutral-900"
+                : "contents"
+            }
+          >
             <button
               type="button"
-              className={primaryBtnClasses}
+              className={`${primaryBtnClasses} ${isEmbed ? "w-full" : ""}`}
               disabled={!isEnabled}
               onClick={buttonAction(
                 handleSwap,
@@ -1426,7 +1437,7 @@ export const TransactionForm = ({
             >
               {buttonText}
             </button>
-          </>
+          </div>
         )}
 
         <AnimatePresence>
@@ -1459,10 +1470,13 @@ export const TransactionForm = ({
                   </>
                 ) : null}
               </div>
-              <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">
-                <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
-                <p className="min-w-fit">Swap usually completes in 30s</p>
-              </div>
+              {/* Not part of the compact widget design (embed mode). */}
+              {!isEmbed && (
+                <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">
+                  <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
+                  <p className="min-w-fit">Swap usually completes in 30s</p>
+                </div>
+              )}
             </AnimatedComponent>
           )}
         </AnimatePresence>

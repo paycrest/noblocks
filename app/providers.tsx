@@ -1,6 +1,7 @@
 "use client";
 import { Toaster } from "sonner";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import { ThemeProvider } from "next-themes";
 
 import { PrivyProvider } from "@privy-io/react-auth";
@@ -24,6 +25,8 @@ import {
   TokensProvider,
   TransactionsProvider,
   BlockFestModalProvider,
+  EmbedProvider,
+  isEmbedPath,
 } from "./context";
 import { useActualTheme } from "./hooks/useActualTheme";
 import { useMixpanel } from "./hooks/analytics/client";
@@ -32,9 +35,24 @@ import { BlockFestClaimProvider } from "./context/BlockFestClaimContext";
 function Providers({ children }: { children: ReactNode }) {
   const { privyAppId } = config;
   const queryClient = new QueryClient();
+  const isWidget = isEmbedPath(usePathname());
+
+  // Embed mode: hosts pin the widget theme via ?theme=dark|light. Read from
+  // window.location instead of useSearchParams (no Suspense boundary here),
+  // and force it only on /widget so the user's stored preference is untouched.
+  const [embedTheme] = useState<"dark" | "light" | undefined>(() => {
+    if (typeof window === "undefined") return undefined;
+    const theme = new URLSearchParams(window.location.search).get("theme");
+    return theme === "dark" || theme === "light" ? theme : undefined;
+  });
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      forcedTheme={isWidget ? embedTheme : undefined}
+    >
       <QueryClientProvider client={queryClient}>
         <PrivyConfigWrapper privyAppId={privyAppId}>
           {children}
@@ -75,10 +93,14 @@ function PrivyConfigWrapper({
 }
 
 function ContextProviders({ children }: { children: ReactNode }) {
-  useMixpanel(); // Initialize Mixpanel analytics
+  const isEmbed = isEmbedPath(usePathname());
+  // No client-side trackers inside partner iframes; source-domain attribution
+  // happens server-side in middleware.ts instead.
+  useMixpanel(!isEmbed);
 
   return (
-    <NetworkProvider>
+    <EmbedProvider>
+      <NetworkProvider>
       <HomeTransactionFormModeProvider>
         <InjectedWalletProvider>
           <MigrationStatusProvider>
@@ -108,7 +130,8 @@ function ContextProviders({ children }: { children: ReactNode }) {
           </MigrationStatusProvider>
         </InjectedWalletProvider>
       </HomeTransactionFormModeProvider>
-    </NetworkProvider>
+      </NetworkProvider>
+    </EmbedProvider>
   );
 }
 

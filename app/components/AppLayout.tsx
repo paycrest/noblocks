@@ -36,8 +36,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isBareExperience = isPlayExperience || isWidgetExperience;
   const isHomepage = pathname === "/";
   const playPromoBannerVisible = usePlayPromoBannerVisible();
-  const showPlayPromoBanner =
-    isHomepage && config.fantasyEnabled && playPromoBannerVisible;
+  const showPlayPromo =
+    isHomepage && config.fantasyEnabled && !config.fantasyCampaignEnded;
+  const showPlayPromoBanner = showPlayPromo && playPromoBannerVisible;
 
   // The Brevo widget appends its own container directly to <body>, outside
   // this component's tree, so a body-level class (not a wrapper div class)
@@ -93,10 +94,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <MainContent>{children}</MainContent>
             </LayoutWrapper>
 
-            {isHomepage && <PlayPromoButton />}
+            {showPlayPromo && <PlayPromoButton />}
             <PWAInstall />
             <MaintenanceNoticeModal />
-            {isHomepage && <PlayPromoModal />}
+            {showPlayPromo && <PlayPromoModal />}
           </div>
         )}
         {/* Brevo Chat Widget */}

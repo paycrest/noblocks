@@ -9,6 +9,9 @@
  * Desktop: collapsed icon rail on the left that expands in flow on hover,
  * pushing the content right like a slide-out panel.
  * Mobile: fixed bottom tab bar.
+ *
+ * When campaignEnded, hide live-game nav (tabs + countdown) so /play reads
+ * as an announcement; /play/admin still uses this shell without game chrome.
  */
 
 import { ReactNode } from "react";
@@ -49,19 +52,30 @@ export const PlayHeader = ({ right }: { right?: ReactNode }) => (
   </header>
 );
 
-const PlayFooter = () => (
+const PlayFooter = ({ campaignEnded }: { campaignEnded?: boolean }) => (
   // Mobile has the bottom tab bar instead — the footer only earns its keep
-  // on wider screens.
-  <footer className="border-t border-border-light py-6 max-lg:hidden dark:border-white/10">
+  // on wider screens. When the campaign has ended there is no bottom bar,
+  // so show the footer at all breakpoints.
+  <footer
+    className={`border-t border-border-light py-6 dark:border-white/10 ${
+      campaignEnded ? "" : "max-lg:hidden"
+    }`}
+  >
     <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 text-xs text-text-secondary dark:text-white/40 sm:px-6">
-      <span>Noblocks Play · World Cup 2026 Fantasy League</span>
+      <span>
+        {campaignEnded
+          ? "Noblocks Play · Season complete"
+          : "Noblocks Play · World Cup 2026 Fantasy League"}
+      </span>
       <span className="flex items-center gap-4">
-        <Link
-          href="/play/terms"
-          className="transition-colors hover:text-text-body dark:hover:text-white"
-        >
-          Terms &amp; Conditions
-        </Link>
+        {!campaignEnded && (
+          <Link
+            href="/play/terms"
+            className="transition-colors hover:text-text-body dark:hover:text-white"
+          >
+            Terms &amp; Conditions
+          </Link>
+        )}
         <Link
           href="/"
           className="transition-colors hover:text-text-body dark:hover:text-white"
@@ -73,32 +87,45 @@ const PlayFooter = () => (
   </footer>
 );
 
-export const PlayShell = ({ children }: { children: ReactNode }) => (
+export const PlayShell = ({
+  children,
+  campaignEnded = false,
+}: {
+  children: ReactNode;
+  campaignEnded?: boolean;
+}) => (
   <div className="flex min-h-dvh flex-col">
     <PlayHeader />
 
-    <div className="mx-auto w-full max-w-6xl flex-1 px-4 pb-28 pt-4 sm:px-6 lg:pb-20">
-      {/* The ONE countdown pill: first element under the header, right-aligned
-          (all breakpoints — it is deliberately not in the header). */}
-      <div className="mb-4 flex justify-end">
-        <CountdownChip />
-      </div>
+    <div
+      className={`mx-auto w-full max-w-6xl flex-1 px-4 pt-4 sm:px-6 ${
+        campaignEnded ? "pb-10" : "pb-28 lg:pb-20"
+      }`}
+    >
+      {!campaignEnded && (
+        /* The ONE countdown pill: first element under the header, right-aligned
+            (all breakpoints — it is deliberately not in the header). */
+        <div className="mb-4 flex justify-end">
+          <CountdownChip />
+        </div>
+      )}
 
       <div className="lg:flex lg:items-start lg:gap-6">
-        {/* Desktop: icon rail that expands IN FLOW on hover — a slide-out
-            panel that pushes the content right, never an overlay. */}
-        <aside className="group hidden lg:block lg:w-[4.25rem] lg:shrink-0 lg:transition-[width] lg:duration-200 lg:ease-out lg:hover:w-56">
-          <div className="sticky top-24 overflow-hidden rounded-2xl border border-border-light bg-white shadow-sm dark:border-white/10 dark:bg-surface-overlay">
-            <PlayTabs variant="rail" />
-          </div>
-        </aside>
+        {!campaignEnded && (
+          /* Desktop: icon rail that expands IN FLOW on hover — a slide-out
+              panel that pushes the content right, never an overlay. */
+          <aside className="group hidden lg:block lg:w-[4.25rem] lg:shrink-0 lg:transition-[width] lg:duration-200 lg:ease-out lg:hover:w-56">
+            <div className="sticky top-24 overflow-hidden rounded-2xl border border-border-light bg-white shadow-sm dark:border-white/10 dark:bg-surface-overlay">
+              <PlayTabs variant="rail" />
+            </div>
+          </aside>
+        )}
 
         <main className="min-w-0 flex-1">{children}</main>
       </div>
     </div>
 
-    <PlayFooter />
-    {/* Mobile app-style navigation */}
-    <PlayTabs variant="bottom" />
+    <PlayFooter campaignEnded={campaignEnded} />
+    {!campaignEnded && <PlayTabs variant="bottom" />}
   </div>
 );

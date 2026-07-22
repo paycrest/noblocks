@@ -68,8 +68,12 @@ origin, never `*`). Each message is
 | `noblocks:tx_status` | `{ status, orderId }`   | Transaction progress (e.g. `pending`, `settled`, `refunded`) |
 
 ```js
+const iframe = document.getElementById("noblocks-widget");
 window.addEventListener("message", (e) => {
+  // Check both the origin AND the source window, so another child frame at
+  // the Noblocks origin can't spoof close/resize/tx_status events.
   if (e.origin !== "https://noblocks.xyz") return;
+  if (e.source !== iframe.contentWindow) return;
   if (e.data?.source !== "noblocks") return;
   const { event, payload } = e.data;
   // ...
@@ -98,9 +102,14 @@ Your page proxies the widget's wallet requests to **your** connected provider
 (WalletConnect, AppKit, wagmi, `window.ethereum`, ...). All signing prompts
 appear in your wallet UI; the widget never sees keys.
 
+Bind the wallet **before** the iframe loads — create the iframe without a
+`src`, call `bindWallet` (which installs the message listener), then set `src`.
+Otherwise a fast widget load can fire `eth_requestAccounts` before the listener
+exists and the request hangs until timeout.
+
 ```html
 <script src="https://noblocks.xyz/embed.js"></script>
-<iframe id="noblocks-widget" src="https://noblocks.xyz/widget?injected=bridge"></iframe>
+<iframe id="noblocks-widget"></iframe>
 <script>
   const iframe = document.getElementById("noblocks-widget");
   const unbind = NoblocksEmbed.bindWallet(iframe, window.ethereum, {
@@ -109,10 +118,12 @@ appear in your wallet UI; the widget never sees keys.
       if (event === "noblocks:close") iframe.remove();
     },
   });
+  // Set src only after bindWallet has installed the listener.
+  iframe.src = "https://noblocks.xyz/widget?injected=bridge";
 </script>
 ```
 
-With wagmi (v2), pass the connector's provider:
+With wagmi (v2), pass the connector's provider (still bind before setting `src`):
 
 ```ts
 import { getConnectorClient } from "@wagmi/core";
@@ -120,17 +131,24 @@ import { getConnectorClient } from "@wagmi/core";
 const client = await getConnectorClient(wagmiConfig);
 NoblocksEmbed.bindWallet(iframe, client.transport, { onEvent });
 // or: NoblocksEmbed.bindWallet(iframe, await connector.getProvider(), { onEvent });
+iframe.src = "https://noblocks.xyz/widget?injected=bridge";
 ```
 
-Call `bindWallet` before (or immediately after) inserting the iframe so no
-request is missed. The returned `unbind()` removes all listeners.
+The returned `unbind()` removes all listeners.
 
 ## Configuration (Noblocks operators)
 
 - `NEXT_PUBLIC_EMBED_ENABLED` — feature flag; when not `"true"`, `/widget`
   returns 404.
 - `EMBED_ALLOWED_ORIGINS` — comma-separated base allowlist (env-only, needs a
-  redeploy to change).
+  redeploy to change). Origins must be `https://` (only `http://localhost` is
+  accepted, for local dev).
+- `INTERNAL_API_BASE_URL` — trusted absolute base URL (e.g. `https://noblocks.xyz`)
+  the middleware uses to fetch the DB-backed allowlist. **Required to consult the
+  `embed_allowed_origins` table** — if unset, only `EMBED_ALLOWED_ORIGINS` is
+  used. Never derived from the request Host header, so a poisoned host can't
+  redirect the authenticated fetch. On a failed/non-OK refresh the DB-backed
+  origins are dropped (fail closed) until the next successful fetch.
 - `embed_allowed_origins` table (Supabase) — runtime allowlist, merged with the
   env var by `middleware.ts` (cached ~5 min). Managed via the secret-gated
   internal API:

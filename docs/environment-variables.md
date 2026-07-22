@@ -140,9 +140,14 @@ NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED=false
 
 # Embeddable widget (/widget, iframed by whitelisted partners) — see docs/embed-widget.md
 NEXT_PUBLIC_EMBED_ENABLED=false
-# Comma-separated origins allowed to iframe /widget (wildcard subdomains ok);
-# merged with the embed_allowed_origins Supabase table
+# Comma-separated origins allowed to iframe /widget (https only; http allowed
+# only for localhost in dev; wildcard subdomains ok); merged with the
+# embed_allowed_origins Supabase table
 EMBED_ALLOWED_ORIGINS=
+# Trusted absolute base URL for the middleware→internal-API fetch of the
+# DB-backed allowlist (e.g. https://noblocks.xyz). If unset, only
+# EMBED_ALLOWED_ORIGINS is consulted. Never request-derived (SSRF-safe).
+INTERNAL_API_BASE_URL=
 ```
 
 ### External Services

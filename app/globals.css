@@ -203,8 +203,9 @@ body.widget-experience #brevo-conversations {
 }
 
 /* Wallet drawer (MobileDropdown bottom sheet): cap to the card width and
-   anchor under the card instead of spanning the whole iframe. */
-body.widget-experience .fixed.inset-0.items-end > * {
+   anchor under the card instead of spanning the whole iframe. Targets a
+   stable hook class on the panel rather than Tailwind-generated utilities. */
+body.widget-experience .wallet-drawer-panel {
   max-width: min(100%, 24.5625rem);
   margin-left: 0;
   margin-right: auto;

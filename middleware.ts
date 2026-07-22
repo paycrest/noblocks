@@ -368,7 +368,11 @@ async function authorizationMiddleware(req: NextRequest) {
 // Origins allowed to iframe /widget. Env base (EMBED_ALLOWED_ORIGINS) merged
 // with the embed_allowed_origins table via the internal API, cached in module
 // scope. frame-ancestors accepts wildcard subdomains (https://*.partner.com).
-const EMBED_ORIGIN_RE = /^https?:\/\/(\*\.)?[\w.-]+(:\d+)?$/;
+// HTTPS is required for partner origins (a network attacker could tamper with
+// an http:// parent page and drive the framed widget); http:// is permitted
+// only for localhost/127.0.0.1 during development.
+const EMBED_ORIGIN_RE =
+  /^https:\/\/(\*\.)?[\w.-]+(:\d+)?$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 const EMBED_ORIGINS_TTL_MS = 5 * 60_000;
 let embedOriginsCache: { origins: string[]; fetchedAt: number } | null = null;
 
@@ -379,14 +383,20 @@ function envEmbedOrigins(): string[] {
     .filter((o) => EMBED_ORIGIN_RE.test(o));
 }
 
-async function getEmbedAllowedOrigins(baseUrl: string): Promise<string[]> {
+async function getEmbedAllowedOrigins(): Promise<string[]> {
   const now = Date.now();
   const stale =
     !embedOriginsCache || now - embedOriginsCache.fetchedAt >= EMBED_ORIGINS_TTL_MS;
   if (stale) {
-    try {
-      const internalAuth = process.env.INTERNAL_API_KEY;
-      if (internalAuth) {
+    const internalAuth = process.env.INTERNAL_API_KEY;
+    // Only fetch the DB-backed allowlist through a trusted, configured base
+    // URL — never a request-derived (Host-header-controlled) origin, which a
+    // poisoned host could point at an attacker's server to steal the internal
+    // key and poison this shared cache. If unconfigured, use the env allowlist
+    // only. See INTERNAL_API_BASE_URL in .env.example.
+    const baseUrl = process.env.INTERNAL_API_BASE_URL;
+    if (internalAuth && baseUrl) {
+      try {
         const res = await fetch(`${baseUrl}/api/internal/embed-origins`, {
           headers: { "x-internal-auth": internalAuth },
         });
@@ -396,10 +406,14 @@ async function getEmbedAllowedOrigins(baseUrl: string): Promise<string[]> {
             origins: (origins ?? []).filter((o) => EMBED_ORIGIN_RE.test(o)),
             fetchedAt: now,
           };
+        } else {
+          // Fail closed: drop DB-backed origins on a bad refresh so a revoked
+          // partner can't keep framing during an outage. Env allowlist stays.
+          embedOriginsCache = null;
         }
+      } catch {
+        embedOriginsCache = null;
       }
-    } catch {
-      // Keep stale cache / fall back to env-only below.
     }
   }
   return [...new Set([...envEmbedOrigins(), ...(embedOriginsCache?.origins ?? [])])];
@@ -410,7 +424,7 @@ async function embedMiddleware(req: NextRequest) {
     return new NextResponse("Not Found", { status: 404 });
   }
 
-  const origins = await getEmbedAllowedOrigins(req.nextUrl.origin);
+  const origins = await getEmbedAllowedOrigins();
 
   // Cookieless source-domain attribution: the Referer of an iframe's first
   // load is the embedding page.

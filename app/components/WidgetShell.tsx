@@ -4,7 +4,6 @@ import { AnimatePresence } from "framer-motion";
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
-  Cancel01Icon,
   SquareLock02Icon,
   Wallet01Icon,
 } from "hugeicons-react";
@@ -12,7 +11,6 @@ import { usePrivy } from "@privy-io/react-auth";
 
 import { MobileDropdown } from "./MobileDropdown";
 import { NoblocksLogo } from "./ImageAssets";
-import { useEmbed } from "../context/EmbedContext";
 import { useInjectedWallet } from "../context";
 
 /**
@@ -20,9 +18,10 @@ import { useInjectedWallet } from "../context";
  * card that FILLS the entire iframe viewport — no margins, no shadow; the
  * partner sizes/rounds/floats the widget by styling the iframe element
  * itself, and the rounded corners show against the transparent backdrop.
- * Inside: a minimized wallet pill (wallet icon + chevron) opening the mobile
- * wallet drawer, a close X in the card header (iframe-embedded only), the
- * swap step, and a "Secured by Noblocks" footer row.
+ * Inside: a sticky wallet pill (wallet icon + chevron) opening the mobile
+ * wallet drawer, the swap step, and a "Secured by Noblocks" footer row.
+ * Dismissing the iframe is owned by the host page (backdrop, host close
+ * control, etc.) — the widget does not render a close button.
  * Replaces Navbar/Footer/HomePage, which are hidden in embed mode.
  *
  * The recommended iframe width (~393-420px, per Figma frame 2429:118606) is
@@ -32,7 +31,6 @@ import { useInjectedWallet } from "../context";
 export function WidgetShell({ children }: { children: React.ReactNode }) {
   const { ready, authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
-  const { parentOrigin, postToHost } = useEmbed();
   const [isWalletDrawerOpen, setIsWalletDrawerOpen] = useState(false);
 
   const isConnected = (ready && authenticated) || isInjectedWallet;
@@ -42,45 +40,31 @@ export function WidgetShell({ children }: { children: React.ReactNode }) {
       {/* Fixed full-viewport height: short steps (e.g. the pending/status
           screen) keep the footer pinned to the bottom edge instead of the
           card shrinking to fit; tall content scrolls internally above the
-          footer (the wallet header scrolls with the content). */}
+          footer. The wallet header sits outside the scroll region so it
+          stays visible while the form scrolls. */}
       <div className="flex h-dvh w-full flex-col rounded-3xl bg-white p-4 dark:bg-neutral-900">
-        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
-        <div className="mb-3 flex min-h-10 items-center justify-end gap-2">
-          {isConnected && (
-            <>
-              <button
-                type="button"
-                title="Wallet"
-                aria-label="Open wallet"
-                onClick={() => setIsWalletDrawerOpen(true)}
-                className="flex items-center gap-1 rounded-xl bg-gray-50 px-3 py-2.5 dark:bg-white/10"
-              >
-                <Wallet01Icon className="size-5 text-outline-gray dark:text-white/80" />
-                <ArrowDown01Icon className="size-4 text-outline-gray dark:text-white/50" />
-              </button>
-              <AnimatePresence>
-                <MobileDropdown
-                  isOpen={isWalletDrawerOpen}
-                  onClose={() => setIsWalletDrawerOpen(false)}
-                />
-              </AnimatePresence>
-            </>
-          )}
-          {/* The host removes the iframe on noblocks:close; only useful when
-              we can actually reach a host. */}
-          {parentOrigin && (
+        {isConnected && (
+          <div className="mb-3 flex min-h-10 flex-shrink-0 items-center justify-end gap-2">
             <button
               type="button"
-              title="Close widget"
-              aria-label="Close widget"
-              onClick={() => postToHost("noblocks:close")}
-              className="flex size-9 items-center justify-center rounded-xl bg-gray-50 transition-colors hover:bg-gray-100 dark:bg-white/10 dark:hover:bg-white/20"
+              title="Wallet"
+              aria-label="Open wallet"
+              onClick={() => setIsWalletDrawerOpen(true)}
+              className="flex items-center gap-1 rounded-xl bg-gray-50 px-3 py-2.5 dark:bg-white/10"
             >
-              <Cancel01Icon className="size-4 text-outline-gray dark:text-white/50" />
+              <Wallet01Icon className="size-5 text-outline-gray dark:text-white/80" />
+              <ArrowDown01Icon className="size-4 text-outline-gray dark:text-white/50" />
             </button>
-          )}
-        </div>
+            <AnimatePresence>
+              <MobileDropdown
+                isOpen={isWalletDrawerOpen}
+                onClose={() => setIsWalletDrawerOpen(false)}
+              />
+            </AnimatePresence>
+          </div>
+        )}
 
+        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
           {children}
         </div>
 

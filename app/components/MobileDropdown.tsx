@@ -2,9 +2,9 @@
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { usePrivy, useMfaEnrollment, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
-import { useBalance, useTokens, useStarknet } from "../context";
+import { useBalance, useTokens, useStarknet, useTron } from "../context";
 import {
   copyToClipboard,
   detectWalletProvider,
@@ -76,7 +76,8 @@ export const MobileDropdown = ({
   const handleExportEmbeddedWallet = useHandleExportEmbeddedWallet();
   const { allBalances, crossChainBalances, crossChainTotal, isLoading, isRefreshing, refreshBalance } = useBalance();
   const { allTokens } = useTokens();
-  const { ensureWalletExists } = useStarknet();
+  const { ensureWalletExists: ensureStarknetWallet } = useStarknet();
+  const { ensureWalletExists: ensureTronWallet } = useTron();
   const { logout } = useLogout({
     onSuccess: () => {
       setIsLoggingOut(false);
@@ -85,25 +86,26 @@ export const MobileDropdown = ({
   });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const shouldUseEOA = useShouldUseEOA();
-  const { wallets } = useWallets();
   const walletAddress = useWalletAddress();
 
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy",
-  );
   const smartWallet = user?.linkedAccounts.find(
     (account) => account.type === "smart_wallet",
   );
 
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress, type: "injected_wallet" as const }
-    : selectedNetwork.chain.name === "Starknet"
+    : selectedNetwork.chain.name === "Starknet" ||
+      selectedNetwork.chain.name === "Tron"
       ? walletAddress
         ? { address: walletAddress, type: "smart_wallet" as const }
         : undefined
       : shouldUseEOA
-        ? embeddedWallet
-          ? { address: embeddedWallet.address, type: "eoa" as const }
+        ? // useWalletAddress() already falls back from user.linkedAccounts to
+          // useWallets() for the embedded EOA — reuse it instead of
+          // re-deriving from wallets alone, which can lag linkedAccounts
+          // right after a fresh signup and hide this card entirely.
+          walletAddress
+          ? { address: walletAddress, type: "eoa" as const }
           : undefined
         : smartWallet;
 
@@ -155,9 +157,11 @@ export const MobileDropdown = ({
     ? allBalances.injectedWallet
     : selectedNetwork.chain.name === "Starknet"
       ? allBalances.starknetWallet
-      : shouldUseEOA
-        ? allBalances.externalWallet
-        : allBalances.smartWallet;
+      : selectedNetwork.chain.name === "Tron"
+        ? allBalances.tronWallet
+        : shouldUseEOA
+          ? allBalances.externalWallet
+          : allBalances.smartWallet;
   // Sort cross-chain balances: selected network first, then alphabetically
   const sortedCrossChainBalances = useSortedCrossChainBalances(
     crossChainBalances,
@@ -188,7 +192,13 @@ export const MobileDropdown = ({
           title: "Error switching network",
         });
       },
-      ensureWalletExists, // Pass the Starknet wallet creation function
+      async () => {
+        if (network.chain.name === "Starknet") {
+          await ensureStarknetWallet();
+        } else if (network.chain.name === "Tron") {
+          await ensureTronWallet();
+        }
+      },
     );
 
     setIsNetworkListOpen(false);
@@ -301,15 +311,19 @@ export const MobileDropdown = ({
               className="fixed inset-0 bg-black/30 backdrop-blur-sm"
             />
 
-            <div className="fixed inset-0">
-              <div className="flex h-full items-end">
-                <motion.div {...slideUpAnimation} className="w-full">
-                  <DialogPanel className="scrollbar-hide relative max-h-[90vh] w-full overflow-hidden rounded-t-[30px] border border-border-light bg-white px-5 pt-6 shadow-xl *:text-sm dark:border-white/5 dark:bg-surface-overlay">
+            <div className="fixed inset-0 flex items-end justify-center">
+              {/* wallet-drawer-panel: stable styling hook (e.g. for
+                  widget-mode overrides in globals.css). */}
+              <motion.div
+                {...slideUpAnimation}
+                className="wallet-drawer-panel w-full"
+              >
+                  <DialogPanel className="scrollbar-hide relative max-h-[90dvh] w-full overflow-hidden rounded-t-[30px] border border-border-light bg-white px-5 pt-6 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-xl *:text-sm dark:border-white/5 dark:bg-surface-overlay">
                     <div
                       className={
                         currentView === "wallet"
-                          ? "flex max-h-[90vh] flex-col overflow-hidden pb-12"
-                          : "scrollbar-hide max-h-[90vh] overflow-y-scroll pb-12"
+                          ? "flex max-h-[90dvh] flex-col overflow-hidden pb-12"
+                          : "scrollbar-hide max-h-[90dvh] overflow-y-scroll pb-12"
                       }
                     >
                       {currentView === "wallet" && (
@@ -321,7 +335,14 @@ export const MobileDropdown = ({
                           getTokenImageUrl={getTokenImageUrl}
                           onTransfer={() => setCurrentView("transfer")}
                           onFund={() => setCurrentView("fund")}
-                          onConvert={isBridgeUiVisible() ? () => setCurrentView("bridge") : undefined}
+                          onConvert={
+                            isBridgeUiVisible()
+                              ? () =>
+
+                                setCurrentView("bridge")
+
+                              : undefined
+                          }
                           smartWallet={walletForCopy}
                           handleCopyAddress={handleCopyAddress}
                           isNetworkListOpen={isNetworkListOpen}
@@ -448,7 +469,6 @@ export const MobileDropdown = ({
                       {currentView === "bridge" && (
                         <BridgeForm
                           onClose={onClose}
-                          showBackButton
                           layout="mobile"
                           setCurrentView={setCurrentView}
                           onBridgeSubmit={trackBridge}
@@ -464,8 +484,7 @@ export const MobileDropdown = ({
                       )}
                     </div>
                   </DialogPanel>
-                </motion.div>
-              </div>
+              </motion.div>
             </div>
 
             <EarnConsentModal

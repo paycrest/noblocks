@@ -16,6 +16,7 @@ import {
   CookieConsent,
   Disclaimer,
   ReferralInputModal,
+  WidgetShell,
 } from "./";
 import BlockFestCashbackModal from "./blockfest/BlockFestCashbackModal";
 import { useBlockFestClaim } from "../context/BlockFestClaimContext";
@@ -33,6 +34,7 @@ import {
   getBannerPadding,
   initialSwapModeForHomeForm,
   swapModeFromSideParam,
+  networkSupportsOnramp,
 } from "../utils";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
@@ -62,6 +64,7 @@ import {
   useInjectedWallet,
   useBalance,
   useKYC,
+  useEmbed,
 } from "../context";
 import { getPreferredNetworkForBalances } from "../lib/getPreferredNetworkForBalances";
 import { hasSeenNetworkModalFlag } from "../lib/networkModalStore";
@@ -115,6 +118,7 @@ const PageLayout = ({
   const { claimed, resetClaim } = useBlockFestClaim();
   const { isOpen, openModal, closeModal } = useBlockFestModal();
   const { isInjectedWallet } = useInjectedWallet();
+  const { isEmbed } = useEmbed();
   const walletAddress = useWalletAddress();
 
   useEffect(() => {
@@ -133,8 +137,14 @@ const PageLayout = ({
         onShowModal={openModal}
       />
 
-      <Disclaimer />
-      <CookieConsent />
+      {/* Embed mode: partner iframe — no marketing chrome, no cookie banner
+          (client trackers are disabled in embed; see providers.tsx). */}
+      {!isEmbed && (
+        <>
+          <Disclaimer />
+          <CookieConsent />
+        </>
+      )}
 
       {/* Network Selection Modal with callback */}
       {!isInjectedWallet && (
@@ -151,7 +161,9 @@ const PageLayout = ({
 
       <BlockFestCashbackModal isOpen={isOpen} onClose={closeModal} />
 
-      {currentStep === STEPS.FORM ? (
+      {isEmbed ? (
+        <WidgetShell>{transactionFormComponent}</WidgetShell>
+      ) : currentStep === STEPS.FORM ? (
         <HomePage
           transactionFormComponent={transactionFormComponent}
           isRecipientFormOpen={isRecipientFormOpen}
@@ -253,6 +265,16 @@ export function MainPageContent() {
   const [orderId, setOrderId] = useState<string>("");
   const [onrampPaymentAccount, setOnrampPaymentAccount] =
     useState<V2FiatProviderAccountDTO | null>(null);
+  /** Snapshotted at order create — status fetch/save must not follow live swapMode. */
+  const [activeOrderIsOnramp, setActiveOrderIsOnramp] = useState(false);
+
+  const { isEmbed, postToHost } = useEmbed();
+
+  // Surface transaction progress to the embedding page (no-op outside /widget).
+  useEffect(() => {
+    if (!isEmbed || transactionStatus === "idle") return;
+    postToHost("noblocks:tx_status", { status: transactionStatus, orderId });
+  }, [isEmbed, transactionStatus, orderId, postToHost]);
 
   const providerErrorShown = useRef(false);
   const failedProviders = useRef<Set<string>>(new Set());
@@ -279,6 +301,7 @@ export function MainPageContent() {
       institution: "",
       accountIdentifier: "",
       accountType: "bank",
+      walletAddress: "",
       swapMode: initialSwapMode,
       /** Must match `swapMode` or tabs vs recipient/rates disagree (e.g. Base defaults on-ramp). */
       isSwapped: initialSwapMode === "onramp",
@@ -322,11 +345,27 @@ export function MainPageContent() {
     function syncRampFromSideSearchParam() {
       const next = swapModeFromSideParam(searchParams.get("side"));
       if (next !== undefined) {
+        if (next === "onramp" && !networkSupportsOnramp(selectedNetwork.chain)) {
+          return;
+        }
         setValue("swapMode", next, { shouldDirty: true });
         setValue("isSwapped", next === "onramp", { shouldDirty: true });
       }
     },
-    [searchParams, setValue],
+    [searchParams, setValue, selectedNetwork.chain],
+  );
+
+  useEffect(
+    function enforceTronOfframpOnly() {
+      if (!networkSupportsOnramp(selectedNetwork.chain)) {
+        setValue("swapMode", "offramp", { shouldDirty: true });
+        setValue("isSwapped", false, { shouldDirty: true });
+        setValue("receiveDestinationExplicitlySelected", true, {
+          shouldDirty: true,
+        });
+      }
+    },
+    [selectedNetwork.chain, setValue],
   );
 
   // State props for child components
@@ -356,6 +395,7 @@ export function MainPageContent() {
 
     onrampPaymentAccount,
     setOnrampPaymentAccount,
+    setActiveOrderIsOnramp,
   };
 
   useEffect(() => {
@@ -457,6 +497,7 @@ export function MainPageContent() {
   useEffect(function setPageLoadingState() {
     setOrderId("");
     setOnrampPaymentAccount(null);
+    setActiveOrderIsOnramp(false);
     setIsPageLoading(false);
   }, []);
 
@@ -467,6 +508,7 @@ export function MainPageContent() {
         setCurrentStep(STEPS.FORM);
         setFormValues({} as FormData);
         setOnrampPaymentAccount(null);
+        setActiveOrderIsOnramp(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -865,10 +907,11 @@ export function MainPageContent() {
             transactionStatus={transactionStatus}
             createdAt={createdAt}
             orderId={orderId}
-            isOnramp={!!onrampPaymentAccount}
+            isOnramp={activeOrderIsOnramp}
             clearForm={() => {
               clearFormState(formMethods);
               setSelectedRecipient(null);
+              setActiveOrderIsOnramp(false);
             }}
             clearTransactionStatus={() => {
               setTransactionStatus("idle");
@@ -898,6 +941,7 @@ export function MainPageContent() {
     setTransactionStatus,
     setCurrentStep,
     setOrderId,
+    activeOrderIsOnramp,
   ]);
 
   const transactionFormComponent = useMemo(

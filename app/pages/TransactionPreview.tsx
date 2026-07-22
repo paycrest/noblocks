@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import {
   calculateDuration,
   calculateSenderFee,
+  packRate,
   classNames,
   formatCurrency,
   formatNumberWithCommas,
@@ -24,6 +25,7 @@ import config, {
   getDelegationContractAddress,
   localTransferFeePercent,
 } from "../lib/config";
+import { appendBaseBuilderCode } from "../lib/baseBuilderCode";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
   Token,
@@ -121,6 +123,7 @@ export const TransactionPreview = ({
     setTransactionStatus,
     onrampPaymentAccount,
     setOnrampPaymentAccount,
+    setActiveOrderIsOnramp,
   } = stateProps;
 
   const {
@@ -308,7 +311,7 @@ export const TransactionPreview = ({
     const params = {
       token: tokenAddress,
       amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-      rate: BigInt(Math.round(rate * 100)),
+      rate: packRate(rate),
       senderFeeRecipient: getAddress(senderFeeRecipientAddress),
       senderFee: senderFeeInTokenUnits,
       refundAddress: activeWallet?.address as `0x${string}`,
@@ -345,6 +348,17 @@ export const TransactionPreview = ({
         // The contract transfers amount + senderFee from the user
         const totalAmountToApprove = params.amount + params.senderFee;
 
+        const approvalData = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [
+            getGatewayContractAddress(
+              selectedNetwork.chain.name,
+            ) as `0x${string}`,
+            totalAmountToApprove,
+          ],
+        });
+
         // Send approval transaction
         const approvalTx = await injectedProvider.request({
           method: "eth_sendTransaction",
@@ -352,16 +366,10 @@ export const TransactionPreview = ({
             {
               from: injectedAddress,
               to: tokenAddress,
-              data: encodeFunctionData({
-                abi: erc20Abi,
-                functionName: "approve",
-                args: [
-                  getGatewayContractAddress(
-                    selectedNetwork.chain.name,
-                  ) as `0x${string}`,
-                  totalAmountToApprove,
-                ],
-              }),
+              data: appendBaseBuilderCode(
+                selectedNetwork.chain.id,
+                approvalData,
+              ),
             },
           ],
         });
@@ -382,6 +390,20 @@ export const TransactionPreview = ({
           throw new Error("Approval transaction failed");
         }
 
+        const createOrderData = encodeFunctionData({
+          abi: gatewayAbi,
+          functionName: "createOrder",
+          args: [
+            params.token,
+            params.amount,
+            params.rate,
+            params.senderFeeRecipient,
+            params.senderFee,
+            params.refundAddress ?? "",
+            params.messageHash,
+          ],
+        });
+
         // Create order transaction
         await captureSubmissionBlock();
         await injectedProvider.request({
@@ -392,19 +414,10 @@ export const TransactionPreview = ({
               to: getGatewayContractAddress(
                 selectedNetwork.chain.name,
               ) as `0x${string}`,
-              data: encodeFunctionData({
-                abi: gatewayAbi,
-                functionName: "createOrder",
-                args: [
-                  params.token,
-                  params.amount,
-                  params.rate,
-                  params.senderFeeRecipient,
-                  params.senderFee,
-                  params.refundAddress ?? "",
-                  params.messageHash,
-                ],
-              }),
+              data: appendBaseBuilderCode(
+                selectedNetwork.chain.id,
+                createOrderData,
+              ),
             },
           ],
         });
@@ -733,9 +746,9 @@ export const TransactionPreview = ({
             network: aggregatorNetwork,
             ...(providerId ? { providerId } : {}),
             recipient: {
-              // Fraud protection: when chained forwarding is enabled, the aggregator always
-              // settles to the user's Noblocks wallet first. The user's chosen destination
-              // (`walletAddress`) is forwarded to in leg 2, server-side, after an AML screen.
+              // When chained forwarding is enabled, the aggregator settles to the user's
+              // Noblocks wallet first. The user's chosen destination (`walletAddress`) is
+              // forwarded to in leg 2, server-side.
               address: config.onrampChainedForwardingEnabled
                 ? activeWallet.address
                 : walletAddress,
@@ -759,6 +772,7 @@ export const TransactionPreview = ({
           typeof created.id === "string" ? created.id : String(created.id);
         setOrderId(orderIdStr);
         setOnrampPaymentAccount(created.providerAccount);
+        setActiveOrderIsOnramp(true);
         setCreatedAt(new Date().toISOString());
         setTransactionStatus("pending");
 
@@ -994,6 +1008,7 @@ export const TransactionPreview = ({
 
               setIsOrderCreatedLogsFetched(true);
               setOrderId(decodedLog.args.orderId);
+              setActiveOrderIsOnramp(false);
 
               await saveTransactionData({
                 orderId: decodedLog.args.orderId,

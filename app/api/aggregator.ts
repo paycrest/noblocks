@@ -162,6 +162,12 @@ export function mapV2SenderOrderGetToOrderDetailsData(
         ? updatedAtRaw.toISOString()
         : new Date().toISOString();
 
+  const rateRaw = d.rate;
+  const rate =
+    rateRaw != null && String(rateRaw).trim() !== ""
+      ? String(rateRaw)
+      : undefined;
+
   return {
     orderId: String(d.id ?? ""),
     amount: String(d.amount ?? ""),
@@ -170,6 +176,7 @@ export function mapV2SenderOrderGetToOrderDetailsData(
     settlePercent: String(d.percentSettled ?? "0"),
     status: d.status,
     txHash: String(d.txHash ?? ""),
+    rate,
     settlements: [],
     txReceipts,
     updatedAt,
@@ -260,6 +267,16 @@ export function mapProviderOrderStatusToOrderDetailsData(
         ? updatedAtRaw.toISOString()
         : new Date().toISOString();
 
+  const rateRaw = d.rate;
+  let rate =
+    rateRaw != null && String(rateRaw).trim() !== ""
+      ? String(rateRaw)
+      : undefined;
+  if (!rate && settlements[0]?.rate) {
+    const settlementRate = settlements[0].rate.trim();
+    if (settlementRate !== "") rate = settlementRate;
+  }
+
   return {
     orderId: String(d.orderId ?? ""),
     amount: String(d.amount ?? ""),
@@ -268,6 +285,7 @@ export function mapProviderOrderStatusToOrderDetailsData(
     settlePercent: String(d.settlePercent ?? "0"),
     status: String(d.status ?? ""),
     txHash: String(d.txHash ?? ""),
+    rate,
     settlements,
     txReceipts,
     updatedAt,
@@ -1060,6 +1078,27 @@ export const fetchTokens = async (): Promise<APIToken[]> => {
     console.error("Error fetching supported tokens from API:", error);
     throw error;
   }
+};
+
+/**
+ * Fetches fiat currency codes currently enabled by the aggregator.
+ * Currencies omitted from this response are unavailable in the active environment.
+ */
+export const fetchSupportedCurrencyCodes = async (): Promise<string[]> => {
+  const response = await axios.get(`${aggregatorOriginForV2()}/v2/currencies`);
+  const currencies = response.data?.data;
+
+  if (!Array.isArray(currencies)) {
+    throw new Error("Invalid currencies response from aggregator");
+  }
+
+  return currencies
+    .map((currency: unknown) => {
+      if (!currency || typeof currency !== "object") return "";
+      const code = (currency as { code?: unknown }).code;
+      return typeof code === "string" ? code.trim().toUpperCase() : "";
+    })
+    .filter(Boolean);
 };
 
 /**

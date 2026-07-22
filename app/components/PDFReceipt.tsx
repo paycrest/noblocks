@@ -9,8 +9,12 @@ import {
   Font,
 } from "@react-pdf/renderer";
 import { format } from "date-fns";
-import { getInstitutionNameByCode } from "../utils";
-import type { OrderDetailsData, InstitutionProps } from "../types";
+import { formatReceiptAmount, getInstitutionNameByCode } from "../utils";
+import type {
+  OrderDetailsData,
+  InstitutionProps,
+  PDFReceiptFormData,
+} from "../types";
 
 Font.register({
   family: "Inter",
@@ -140,17 +144,13 @@ export const PDFReceipt = ({
   data,
   formData,
   supportedInstitutions,
+  isOnramp = false,
 }: {
   data: OrderDetailsData;
-  formData: {
-    recipientName: string;
-    accountIdentifier: string;
-    institution: string;
-    memo: string;
-    amountReceived: number;
-    currency: string;
-  };
+  formData: PDFReceiptFormData;
   supportedInstitutions?: InstitutionProps[];
+  /** Fiat → crypto: show wallet/network labels instead of bank/account labels. */
+  isOnramp?: boolean;
 }) => {
   const {
     recipientName,
@@ -159,6 +159,10 @@ export const PDFReceipt = ({
     memo,
     amountReceived,
     currency,
+    typeLabel,
+    amountPaid,
+    paidCurrency,
+    rate,
   } = formData;
 
   const institutionName = supportedInstitutions
@@ -170,13 +174,67 @@ export const PDFReceipt = ({
     return format(date, "dd MMM, yyyy HH:mm, 'UTC' xxx");
   };
 
-  const infoItems = [
-    { label: "To", value: recipientName || "N/A" },
-    { label: "Account number", value: accountIdentifier || "N/A" },
-    { label: "Bank", value: institutionName || "N/A" },
-    { label: "Description", value: memo || "N/A" },
-    { label: "Transaction ID", value: data?.orderId || "N/A" },
-  ];
+  const networkLabel =
+    (typeof data?.network === "string" && data.network.trim()) ||
+    (institution &&
+    institution !== "Wallet" &&
+    institution !== "Deposit"
+      ? institutionName || institution
+      : "") ||
+    "N/A";
+
+  const orderId = data?.orderId?.trim() || "";
+  const txHash = data?.txHash?.trim() || "";
+
+  const hasAmountPaid =
+    amountPaid != null &&
+    Number.isFinite(amountPaid) &&
+    amountPaid > 0 &&
+    Boolean(paidCurrency?.trim());
+  const hasRate =
+    rate != null && Number.isFinite(rate) && rate > 0 && Boolean(paidCurrency?.trim());
+
+  const infoItems = isOnramp
+    ? [
+        { label: "Type", value: typeLabel?.trim() || "Buy" },
+        ...(hasAmountPaid
+          ? [
+              {
+                label: "Amount paid",
+                value: `${formatReceiptAmount(amountPaid!)} ${paidCurrency!.trim()}`,
+              },
+            ]
+          : []),
+        ...(hasRate
+          ? [
+              {
+                label: "Rate",
+                value: `${formatReceiptAmount(rate!)} ${paidCurrency!.trim()} ~ 1 ${currency}`,
+              },
+            ]
+          : []),
+        {
+          label: "Wallet",
+          value: accountIdentifier || recipientName || "N/A",
+        },
+        { label: "Network", value: networkLabel },
+        ...(orderId ? [{ label: "Order ID", value: orderId }] : []),
+        ...(txHash
+          ? [{ label: "Transaction hash", value: txHash }]
+          : !orderId
+            ? [{ label: "Transaction ID", value: "N/A" }]
+            : []),
+      ]
+    : [
+        { label: "To", value: recipientName || "N/A" },
+        { label: "Account number", value: accountIdentifier || "N/A" },
+        { label: "Bank", value: institutionName || "N/A" },
+        { label: "Description", value: memo || "N/A" },
+        {
+          label: "Transaction ID",
+          value: orderId || txHash || "N/A",
+        },
+      ];
 
   return (
     <Document>
@@ -194,7 +252,7 @@ export const PDFReceipt = ({
 
         <View style={styles.content}>
           <Text style={styles.amount}>
-            {amountReceived.toLocaleString()} {currency}
+            {formatReceiptAmount(amountReceived)} {currency}
           </Text>
           <View style={styles.statusContainer}>
             {/* eslint-disable-next-line jsx-a11y/alt-text */}

@@ -124,7 +124,18 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
       ? getExplorerLink(transaction.network, transaction.tx_hash)
       : undefined;
 
+  const showGetReceiptButton =
+    transaction.status === "completed" &&
+    transaction.transaction_type !== "onramp" &&
+    transaction.transaction_type !== "credit";
+
   const handleGetReceipt = async () => {
+    if (
+      transaction.transaction_type === "onramp" ||
+      transaction.transaction_type === "credit"
+    ) {
+      return;
+    }
     setIsLoading(true);
     try {
       const orderDetailsData = {
@@ -143,7 +154,7 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         recipientName: transaction.recipient.account_name,
         accountIdentifier: transaction.recipient.account_identifier,
         institution: transaction.recipient.institution,
-        memo: transaction.recipient.memo || "No memo",
+        memo: transaction.recipient.memo || "",
         amountReceived: transaction.amount_received,
         currency: transaction.to_currency,
       };
@@ -898,36 +909,39 @@ export function TransactionDetails({ transaction }: TransactionDetailsProps) {
         )}
       </div>
       <div className="flex-1" />
-      {transaction.status === "completed" &&
-        (transaction.transaction_type === "onramp" ? (
-          explorerUrl ? (
+      {(showGetReceiptButton ||
+        (transaction.transaction_type === "onramp" && explorerUrl)) && (
+        <div className="flex w-full flex-col gap-2">
+          {showGetReceiptButton && (
+            <button
+              type="button"
+              title="Download transaction receipt"
+              onClick={handleGetReceipt}
+              disabled={isLoading}
+              className="w-full rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-text-body transition-all hover:bg-[#EBEBEF] focus:outline-none disabled:opacity-70 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2">
+                  <ImSpinner className="size-5 animate-spin text-text-body dark:text-white" />
+                  <span>Generating receipt...</span>
+                </div>
+              ) : (
+                "Get receipt"
+              )}
+            </button>
+          )}
+          {transaction.transaction_type === "onramp" && explorerUrl && (
             <a
               href={explorerUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex w-full items-center justify-center rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-text-body transition-all hover:bg-[#EBEBEF] focus:outline-none dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
+              className="flex w-full items-center justify-center rounded-xl border border-border-light py-2.5 text-sm font-medium text-text-body transition-all hover:bg-accent-gray focus:outline-none dark:border-white/10 dark:text-white dark:hover:bg-white/10"
             >
-              View receipt
+              View on explorer
             </a>
-          ) : null
-        ) : (
-          <button
-            type="button"
-            title="Download transaction receipt"
-            onClick={handleGetReceipt}
-            disabled={isLoading}
-            className="w-full rounded-xl bg-accent-gray py-2.5 text-sm font-medium text-text-body transition-all hover:bg-[#EBEBEF] focus:outline-none disabled:opacity-70 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
-          >
-            {isLoading ? (
-              <div className="flex items-center justify-center gap-2">
-                <ImSpinner className="size-5 animate-spin text-text-body dark:text-white" />
-                <span>Generating receipt...</span>
-              </div>
-            ) : (
-              "Get receipt"
-            )}
-          </button>
-        ))}
+          )}
+        </div>
+      )}
 
       <CopyAddressWarningModal 
             isOpen={isWarningModalOpen}

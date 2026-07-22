@@ -22,6 +22,7 @@ import {
   type Country,
 } from "../lib/countries";
 import { useKYC } from "../context/KYCContext";
+import { toastMappedError } from "../lib/toastMappedError";
 
 interface PhoneVerificationModalProps {
   isOpen: boolean;
@@ -157,8 +158,9 @@ export default function PhoneVerificationModal({
     }
   }, [countrySearch, countries]);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside (`click`, not `mousedown` — see useOutsideClick)
   useEffect(() => {
+    if (!isCountryDropdownOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target;
       if (
@@ -171,11 +173,8 @@ export default function PhoneVerificationModal({
       }
     };
 
-    if (isCountryDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () =>
-        document.removeEventListener("mousedown", handleClickOutside);
-    }
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, [isCountryDropdownOpen]);
 
   useEffect(() => {
@@ -233,7 +232,10 @@ export default function PhoneVerificationModal({
         toast.error(data.error || "Failed to send OTP");
       }
     } catch (error) {
-      toast.error("Failed to send OTP. Please try again.");
+      toastMappedError(error, {
+        feature: "phone-send-otp",
+        description: "Failed to send OTP. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -277,7 +279,10 @@ export default function PhoneVerificationModal({
         }
       }
     } catch (error) {
-      toast.error("Failed to verify OTP. Please try again.");
+      toastMappedError(error, {
+        feature: "phone-verify-otp",
+        description: "Failed to verify OTP. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -311,7 +316,10 @@ export default function PhoneVerificationModal({
         toast.error(data.error || "Failed to resend OTP");
       }
     } catch (error) {
-      toast.error("Failed to resend OTP");
+      toastMappedError(error, {
+        feature: "phone-resend-otp",
+        description: "Failed to resend OTP",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -644,7 +652,8 @@ export default function PhoneVerificationModal({
   );
 
   return (
-    <Dialog open={isOpen} onClose={handleClose} className="relative z-50">
+    // Above MobileDropdown (z-[60]) when opened from profile / limit upgrade on mobile
+    <Dialog open={isOpen} onClose={handleClose} className="relative z-[70]">
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         aria-hidden="true"

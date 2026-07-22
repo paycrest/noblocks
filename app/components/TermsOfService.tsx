@@ -325,7 +325,15 @@ export const TermsOfService = () => {
         transaction is initiated, the value applied is final and cannot be
         contested or adjusted.
       </p>
-      <p>4.4 Costs and Donations</p>
+      <p>4.5 Network Conversion</p>
+      <p>
+        Conversion works differently from your Noblocks wallet. Your funds leave Noblocks and your stablecoins are routed through Li.Fi and Near Intents; independent third-party bridge protocols that Noblocks does not own, operate, or control.
+        We have no visibility once funds leave. Noblocks cannot freeze, recover, reverse, or guarantee your funds while they are in transit across a bridge.
+        Transactions are irreversible. Confirmed conversion cannot be cancelled, reversed, or refunded. Network gas fees are non-refundable even if a convert fails.
+        Bridge protocols carry smart contract risks including the possibility of exploits. Returns and execution are not guaranteed.
+        I understand that convert is powered by third-party bridge protocols and that Noblocks is not responsible for the performance or security of those protocols.
+      </p>
+      <p>4.6 Costs and Donations</p>
       <p>
         The Service is designed to be free to use. However, the Company may
         collect contributions to support the ongoing operation and development

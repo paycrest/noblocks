@@ -52,8 +52,13 @@ import {
 } from "../types";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/client";
-import { CancelCircleIcon, CheckmarkCircle01Icon } from "hugeicons-react";
-import { useBalance, useInjectedWallet, useNetwork, useTokens } from "../context";
+import {
+  Cancel01Icon,
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  FootballIcon,
+} from "hugeicons-react";
+import { useBalance, useInjectedWallet, useNetwork, useTokens, useEmbed } from "../context";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import config from "../lib/config";
 import { formatUnits } from "viem";
@@ -136,12 +141,14 @@ export function TransactionStatus({
   const { claimed } = useBlockFestClaim();
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
+  const { isEmbed } = useEmbed();
   const { allTokens } = useTokens();
   const {
     refreshBalance,
     smartWalletBalance,
     injectedWalletBalance,
     starknetWalletBalance,
+    tronWalletBalance,
   } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user, getAccessToken } = usePrivy();
@@ -164,12 +171,29 @@ export function TransactionStatus({
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [hasReindexed, setHasReindexed] = useState(false);
+  // Noblocks Play banner — dismissed state persists via localStorage.
+  const [isFantasyBannerDismissed, setIsFantasyBannerDismissed] =
+    useState(true);
   const reindexTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const latestRequestIdRef = useRef<number>(0);
   const lastPersistedOrderStatusRef = useRef<string | null>(null);
   const lastFulfillPersistKeyRef = useRef<string | null>(null);
 
   const fireConfetti = useConfetti();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setIsFantasyBannerDismissed(
+      localStorage.getItem("fantasy-banner-dismissed") === "true",
+    );
+  }, []);
+
+  const dismissFantasyBanner = () => {
+    setIsFantasyBannerDismissed(true);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("fantasy-banner-dismissed", "true");
+    }
+  };
 
   useEffect(() => {
     lastPersistedOrderStatusRef.current = null;
@@ -515,6 +539,7 @@ export function TransactionStatus({
     !isOnramp ||
     ["settled", "refunded", "expired"].includes(transactionStatus);
 
+  /** PDF receipt is offramp-only for now (uses order-level isOnramp snapshot). */
   const showGetReceiptButton =
     !isOnramp &&
     ["validated", "settling", "settled"].includes(transactionStatus);
@@ -833,7 +858,9 @@ export function TransactionStatus({
           ? injectedWalletBalance?.balances[token] || 0
           : selectedNetwork.chain.name === "Starknet"
             ? starknetWalletBalance?.balances[token] || 0
-            : smartWalletBalance?.balances[token] || 0;
+            : selectedNetwork.chain.name === "Tron"
+              ? tronWalletBalance?.balances[token] || 0
+              : smartWalletBalance?.balances[token] || 0;
 
         const eventData = {
           Amount: amount,
@@ -1296,6 +1323,7 @@ export function TransactionStatus({
   };
 
   const handleGetReceipt = async () => {
+    if (isOnramp) return;
     setIsGettingReceipt(true);
     try {
       if (orderDetails) {
@@ -1305,18 +1333,17 @@ export function TransactionStatus({
           import("@react-pdf/renderer"),
           import("../components/PDFReceipt"),
         ]);
+
         const blob = await pdf(
           <PDFReceipt
             data={orderDetails as OrderDetailsData}
             formData={{
               recipientName,
-              accountIdentifier: formMethods.watch(
-                "accountIdentifier",
-              ) as string,
-              institution: formMethods.watch("institution") as string,
-              memo: formMethods.watch("memo") as string,
-              amountReceived: formMethods.watch("amountReceived") as number,
-              currency: formMethods.watch("currency") as string,
+              accountIdentifier: String(accountIdentifier),
+              institution: String(institution),
+              memo: String(formMethods.watch("memo") || ""),
+              amountReceived: Number(formMethods.watch("amountReceived") || 0),
+              currency,
             }}
             supportedInstitutions={supportedInstitutions}
           />,
@@ -1490,37 +1517,69 @@ export function TransactionStatus({
                     </AnimatedComponent>
                   )}
 
-                {(showGetReceiptButton || showNewPaymentButton) && (
-                  <AnimatedComponent
-                    variant={slideInOut}
-                    delay={0.5}
-                    className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
-                  >
-                    {showGetReceiptButton && (
-                      <button
-                        type="button"
-                        onClick={handleGetReceipt}
-                        className={`w-fit ${secondaryBtnClasses}`}
-                        disabled={isGettingReceipt}
-                      >
-                        {isGettingReceipt ? "Generating..." : "Get receipt"}
-                      </button>
-                    )}
-
-                    {showNewPaymentButton && (
-                      <button
-                        type="button"
-                        onClick={handleBackButtonClick}
-                        className={`w-fit ${primaryBtnClasses}`}
-                      >
-                        {transactionStatus === "refunded" ||
-                        transactionStatus === "expired"
-                          ? "Retry transaction"
-                          : "New payment"}
-                      </button>
-                    )}
-                  </AnimatedComponent>
-                )}
+                {(showGetReceiptButton || showNewPaymentButton) &&
+                  (isEmbed ? (
+                    // Widget design: full-width buttons pinned as one group at
+                    // the END of the page (order-last), primary (New payment)
+                    // on top, sticky above the WidgetShell footer while the
+                    // content above scrolls. One sticky wrapper (not two
+                    // competing order-last children) so the stacking is
+                    // unambiguous; no AnimatedComponent since its transform
+                    // would hijack the position:sticky containing block.
+                    <div className="sticky bottom-0 z-10 order-last flex w-full flex-col gap-3 bg-white pb-1 pt-1 dark:bg-neutral-900">
+                      {showNewPaymentButton && (
+                        <button
+                          type="button"
+                          onClick={handleBackButtonClick}
+                          className={`w-full ${primaryBtnClasses}`}
+                        >
+                          {transactionStatus === "refunded" ||
+                          transactionStatus === "expired"
+                            ? "Retry transaction"
+                            : "New payment"}
+                        </button>
+                      )}
+                      {showGetReceiptButton && (
+                        <button
+                          type="button"
+                          onClick={handleGetReceipt}
+                          className={`w-full ${secondaryBtnClasses}`}
+                          disabled={isGettingReceipt}
+                        >
+                          {isGettingReceipt ? "Generating..." : "Get receipt"}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <AnimatedComponent
+                      variant={slideInOut}
+                      delay={0.5}
+                      className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
+                    >
+                      {showGetReceiptButton && (
+                        <button
+                          type="button"
+                          onClick={handleGetReceipt}
+                          className={`w-fit ${secondaryBtnClasses}`}
+                          disabled={isGettingReceipt}
+                        >
+                          {isGettingReceipt ? "Generating..." : "Get receipt"}
+                        </button>
+                      )}
+                      {showNewPaymentButton && (
+                        <button
+                          type="button"
+                          onClick={handleBackButtonClick}
+                          className={`w-fit ${primaryBtnClasses}`}
+                        >
+                          {transactionStatus === "refunded" ||
+                          transactionStatus === "expired"
+                            ? "Retry transaction"
+                            : "New payment"}
+                        </button>
+                      )}
+                    </AnimatedComponent>
+                  ))}
 
                 {!isOnramp && ["validated", "settling", "settled"].includes(transactionStatus) &&
                   !isRecipientInBeneficiaries && (
@@ -1689,7 +1748,40 @@ export function TransactionStatus({
         </AnimatePresence>
 
         <AnimatePresence>
+          {config.fantasyEnabled &&
+            showSuccessVisual &&
+            !isFantasyBannerDismissed && (
+              <AnimatedComponent
+                variant={slideInOut}
+                delay={0.6}
+                className="flex w-full items-center gap-3 rounded-xl border border-border-light bg-gray-50 px-4 py-3 dark:border-white/10 dark:bg-white/5"
+              >
+                <p className="flex flex-1 items-center gap-2 text-sm text-text-body dark:text-white/80">
+                  <FootballIcon className="size-4 shrink-0 text-lavender-500" />
+                  You just transacted — join the Noblocks Play fantasy league
+                </p>
+                <a
+                  href="/play"
+                  className="whitespace-nowrap text-sm font-medium text-lavender-500 hover:underline dark:text-lavender-400"
+                >
+                  Join →
+                </a>
+                <button
+                  type="button"
+                  title="Dismiss"
+                  onClick={dismissFantasyBanner}
+                  className="rounded-lg p-1 transition-colors hover:bg-accent-gray dark:hover:bg-white/10"
+                >
+                  <Cancel01Icon className="size-4 text-outline-gray dark:text-white/50" />
+                </button>
+              </AnimatedComponent>
+            )}
+        </AnimatePresence>
+
+        <AnimatePresence>
           {showSuccessVisual &&
+            // Widget design has no share section on the success screen.
+            !isEmbed &&
             !isBlockFestEligible(
               transactionStatus,
               claimed,

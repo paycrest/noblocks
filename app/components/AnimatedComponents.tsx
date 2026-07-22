@@ -443,7 +443,7 @@ export const AnimatedModal = ({
   return (
   <AnimatePresence onExitComplete={handleExitComplete}>
     {isOpen && (
-      <Dialog open={isOpen} onClose={onClose} className="relative z-[55]">
+      <Dialog open={isOpen} onClose={onClose} className="relative z-[70]">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -453,6 +453,9 @@ export const AnimatedModal = ({
         />
 
         <div className="fixed inset-0 flex w-screen items-end sm:items-center sm:justify-center sm:p-4">
+          {/* animated-modal-panel: stable styling hook (e.g. for widget-mode
+              overrides in globals.css) — style this wrapper rather than
+              DialogPanel, which sets its own inline maxWidth. */}
           <motion.div
             initial={{ y: "100%", opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -462,7 +465,7 @@ export const AnimatedModal = ({
               stiffness: 300,
               damping: 30,
             }}
-            className="w-full"
+            className="animated-modal-panel w-full"
           >
             <DialogPanel
               className={classNames(
@@ -509,7 +512,12 @@ export const AnimatedModal = ({
                   layout
                   initial={false}
                   className={classNames(
-                    "w-full overflow-y-auto bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:max-h-[90vh] sm:rounded-3xl",
+                    // max-h-[90dvh] was sm:-only before, so a tall panel
+                    // (e.g. NetworkSelectionModal's full chain list) on a
+                    // narrow viewport — a real phone or the widget iframe,
+                    // both always below `sm` — had no height bound and no
+                    // way to scroll back to whatever grew past the top.
+                    "w-full max-h-[90dvh] overflow-y-auto bg-white p-5 text-sm dark:bg-surface-overlay max-sm:rounded-t-[30px] sm:rounded-3xl",
                     showGradientHeader ? "-mt-10" : "",
                     contentClassName ?? "",
                   )}

@@ -218,9 +218,28 @@ export type OrderDetailsData = {
   settlePercent: string;
   status: string;
   txHash: string;
+  /** Persisted FX quote (fiat per 1 token); same source history stores as `fee`. */
+  rate?: string;
   settlements: Settlement[];
   txReceipts: TxReceipt[];
   updatedAt: string;
+};
+
+/** Form payload for `PDFReceipt` (offramp + onramp/credit fields). */
+export type PDFReceiptFormData = {
+  recipientName: string;
+  accountIdentifier: string;
+  institution: string;
+  memo: string;
+  amountReceived: number;
+  currency: string;
+  /** Onramp/credit inbound crypto: shown as "Buy". */
+  typeLabel?: string;
+  /** Fiat paid on onramp (e.g. NGN). */
+  amountPaid?: number;
+  paidCurrency?: string;
+  /** Fiat per 1 token (e.g. 1600 NGN ~ 1 USDC). */
+  rate?: number;
 };
 
 type Settlement = {
@@ -317,6 +336,8 @@ export type StateProps = {
   setRateError: (error: string | null) => void;
   onrampPaymentAccount: V2FiatProviderAccountDTO | null;
   setOnrampPaymentAccount: (account: V2FiatProviderAccountDTO | null) => void;
+  /** Locked when the current order is created; not tied to live swapMode. */
+  setActiveOrderIsOnramp: (isOnramp: boolean) => void;
 };
 
 export type NetworkButtonProps = {
@@ -402,6 +423,8 @@ export type Config = {
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
+  /** World Cup footer Lottie end date (paired with fantasyEnabled). */
+  worldcupFooterEndDate: string;
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
   referralMinQualifyingVolumeUsd: number;
@@ -424,11 +447,17 @@ export type Config = {
   moralisBaseUrl: string;
   /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
   earnEnabled: boolean;
+  /** Tron network + Privy Tron wallet. Opt-in via NEXT_PUBLIC_TRON_ENABLED. */
+  tronEnabled: boolean;
   /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
   referralEnabled: boolean;
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
   bridgeEnabled: boolean;
   onrampChainedForwardingEnabled: boolean;
+  /** Noblocks Play (World Cup fantasy league) feature flag. Gates /play UI + API. */
+  fantasyEnabled: boolean;
+  /** Embeddable widget feature flag. Gates the /widget route (iframe embed for whitelisted partners). */
+  embedEnabled: boolean;
 };
 
 export type Network = {
@@ -601,6 +630,19 @@ export interface StarknetContextType extends StarknetWalletState {
   createWallet: () => Promise<void>;
   resetError: () => void;
   ensureWalletExists: () => Promise<void>; // Auto-create wallet if needed
+}
+
+export interface TronWalletState {
+  walletId: string | null;
+  address: string | null;
+  isCreating: boolean;
+  error: string | null;
+}
+
+export interface TronContextType extends TronWalletState {
+  createWallet: () => Promise<void>;
+  resetError: () => void;
+  ensureWalletExists: () => Promise<void>;
 }
 
 export interface ReferralData {

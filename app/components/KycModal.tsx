@@ -39,13 +39,13 @@ import { primaryBtnClasses, secondaryBtnClasses } from "./Styles";
 import { trackEvent } from "../hooks/analytics/client";
 import { CheckmarkCircle01Icon, Clock05Icon, StarIcon } from "hugeicons-react";
 import { useInjectedWallet } from "../context";
-import { reportClientError } from "../lib/sentry.client";
 import { KYC_TIERS, useKYC } from "../context/KYCContext";
 import { DocumentRequirementsModal } from "./kyc/DocumentRequirementsModal";
 
 import idTypesData from "../api/kyc/smile-id/id_types.json";
 import { validateSmileIdIdInfo } from "../lib/smileIdIdValidation";
 import { startSmileCameraAlertStyleFix } from "../lib/smileCameraTheme";
+import { mapReportAndAct } from "../lib/toastMappedError";
 
 const TIER3_DOCUMENT_TYPES = [
   { value: "utility_bill", label: "Utility bill" },
@@ -307,22 +307,22 @@ export const KycModal = ({
         setStep(STEPS.STATUS.FAILED);
       }
     } catch (error) {
-      reportClientError(error, {
-        feature: "onboarding",
-        flow: "kyc",
-        step: "kyc-smile-submit",
-        statusCode:
-          typeof (error as { response?: { status?: unknown } })?.response
-            ?.status === "number"
-            ? (error as { response?: { status?: number } }).response?.status
-            : undefined,
+      let handled = false;
+      mapReportAndAct(error, {
+        feature: "kyc-smile-verification",
+        onUserMessage: (message) => {
+          handled = true;
+          setFailedReason(message);
+          setFailedRetryStep(STEPS.TERMS);
+          setStep(STEPS.STATUS.FAILED);
+        },
       });
-      const axiosData = (error as { response?: { data?: { message?: string } } })?.response?.data;
-      const message = axiosData?.message || (error instanceof Error ? error.message : "Failed to submit verification data");
-      setFailedReason(message);
-      toast.error("Verification failed");
-      setFailedRetryStep(STEPS.TERMS);
-      setStep(STEPS.STATUS.FAILED);
+      // If mapReportAndAct suppressed the error (e.g. Hotjar), still advance out of LOADING
+      if (!handled) {
+        setFailedReason(null);
+        setFailedRetryStep(STEPS.TERMS);
+        setStep(STEPS.STATUS.FAILED);
+      }
     } finally {
       smileIdSubmitInFlightRef.current = false;
     }
@@ -397,12 +397,12 @@ export const KycModal = ({
           setSmileIdLoaded(true);
         })
         .catch((error) => {
-          reportClientError(error, {
-            feature: "onboarding",
-            flow: "kyc",
-            step: "kyc-smile-load",
+          mapReportAndAct(error, {
+            feature: "kyc-component-load",
+            onUserMessage: (message) => {
+              toast.error(message);
+            },
           });
-          toast.error("Failed to load verification component");
         });
     }
   }, [smileIdLoaded, targetTier]);
@@ -1379,17 +1379,15 @@ export const KycModal = ({
                   setStep(STEPS.STATUS.FAILED);
                 }
               } catch (e) {
-                reportClientError(e, {
-                  feature: "onboarding",
-                  flow: "kyc",
-                  step: "kyc-tier3-submit",
+                mapReportAndAct(e, {
+                  feature: "kyc-tier3-verification",
+                  onUserMessage: (message) => {
+                    toast.error(message);
+                    setFailedReason(message);
+                    setFailedRetryStep(STEPS.TIER3_UPLOAD);
+                    setStep(STEPS.STATUS.FAILED);
+                  },
                 });
-                console.error("Tier 3 verification error:", e);
-                const msg = e instanceof Error ? e.message : "Tier 3 verification failed. Please try again.";
-                toast.error(msg);
-                setFailedReason(msg);
-                setFailedRetryStep(STEPS.TIER3_UPLOAD);
-                setStep(STEPS.STATUS.FAILED);
               } finally {
                 setTier3Submitting(false);
               }
@@ -1473,24 +1471,13 @@ export const KycModal = ({
         setIsKycModalOpen(true);
       }
     } catch (error) {
-      reportClientError(error, {
-        feature: "onboarding",
-        flow: "kyc",
-        step: "kyc-status-refresh",
-        statusCode:
-          typeof (error as { response?: { status?: unknown } })?.response
-            ?.status === "number"
-            ? (error as { response?: { status?: number } }).response?.status
-            : undefined,
+      mapReportAndAct(error, {
+        feature: "kyc-status-check",
+        onUserMessage: (message) => {
+          toast.error(message);
+          setIsKycModalOpen(false);
+        },
       });
-
-      // Show error message from backend if available, otherwise show generic error
-      if (error instanceof Error) {
-        toast.error(error.message);
-      } else {
-        toast.error(String(error));
-      }
-      setIsKycModalOpen(false);
     }
   };
 

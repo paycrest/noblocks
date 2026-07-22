@@ -1,9 +1,45 @@
+"use client";
 import { AnimatePresence, motion } from "framer-motion";
+import { usePathname } from "next/navigation";
+import { isEmbedPath } from "../context/EmbedContext";
 
 const Skeleton = ({ className }: { className?: string }) => (
   <div
     className={`animate-pulse rounded-xl bg-gray-200 dark:bg-[#1a1a1a] ${className}`}
   />
+);
+
+/**
+ * Embed (/widget) loading state: skeleton shaped like the WidgetShell card
+ * (fills the iframe viewport, same as the card) instead of the full-page
+ * navbar/hero skeleton, so the card footprint matches while loading.
+ */
+const WidgetPreloader = () => (
+  <div className="pointer-events-none fixed inset-0 z-50 w-full">
+    <div className="flex h-dvh w-full flex-col rounded-3xl bg-white p-4 dark:bg-neutral-900">
+      <div className="mb-3 flex min-h-10 items-center justify-end">
+        <Skeleton className="h-10 w-16" />
+      </div>
+      <div className="space-y-2 rounded-2xl bg-gray-50 p-2 dark:bg-neutral-800/20">
+        <div className="px-2 py-1">
+          <Skeleton className="h-4 w-16" />
+        </div>
+        <div className="space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-neutral-900">
+          <Skeleton className="h-4 w-12" />
+          <Skeleton className="h-14 w-full" />
+        </div>
+        <div className="space-y-3.5 rounded-2xl bg-white px-4 py-3 dark:bg-neutral-900">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-14 w-full" />
+        </div>
+      </div>
+      <Skeleton className="mt-4 h-11 w-full rounded-xl" />
+      <div className="mt-auto flex items-center justify-center gap-2 border-t border-gray-100 pb-2 pt-5 dark:border-white/5">
+        <Skeleton className="size-6 rounded-full" />
+        <Skeleton className="h-4 w-36" />
+      </div>
+    </div>
+  </div>
 );
 
 const NavbarSkeleton = () => (
@@ -40,6 +76,24 @@ const ScrollIndicatorSkeleton = () => (
 );
 
 export const Preloader = ({ isLoading }: { isLoading: boolean }) => {
+  const isWidget = isEmbedPath(usePathname());
+
+  if (isWidget) {
+    return (
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <WidgetPreloader />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  }
+
   return (
     <AnimatePresence>
       {isLoading && (

@@ -35,6 +35,8 @@ import {
   formatDecimalPrecision,
   currencyToCountryCode,
   reorderCurrenciesByLocation,
+  networkSupportsOnramp,
+  isTronChain,
   isStarknetChain,
   getCurrencySymbol,
   getOnrampFiatMaxAmount,
@@ -44,6 +46,7 @@ import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
+import { fetchSupportedCurrencyCodes } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
@@ -53,6 +56,7 @@ import {
   useNetwork,
   useTokens,
   useKYC,
+  useEmbed,
 } from "../context";
 import { validateWalletAddress } from "../lib/validation";
 
@@ -101,16 +105,17 @@ export const TransactionForm = ({
 }) => {
   const searchParams = useSearchParams();
   // Destructure stateProps
-  const { rate, isFetchingRate, setOrderId } = stateProps;
+  const { rate, isFetchingRate, setOrderId, setActiveOrderIsOnramp } = stateProps;
   const { authenticated, ready, login, user } = usePrivy();
   // Pin body scroll while the Privy dialog is up — its end-of-body iframe
   // steals focus on mobile and drags the page to the bottom otherwise.
   const loginWithScrollPin = useLoginWithScrollPin(login);
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, isLoading } = useBalance();
+  const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, starknetWalletBalance, tronWalletBalance, isLoading } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isEmbed } = useEmbed();
   const { allTokens } = useTokens();
   // Network-aware "My wallet" / recipient address: Starknet wallet on Starknet,
   // EVM embedded EOA / smart wallet on EVM (mirrors activeWallet for EVM).
@@ -148,6 +153,8 @@ export const TransactionForm = ({
   const [rateError, setRateError] = useState<string | null>(null);
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [blockedTransactionAmount, setBlockedTransactionAmount] = useState(0);
+  const [supportedCurrencyCodes, setSupportedCurrencyCodes] =
+    useState<Set<string> | null>(null);
 
   const currencies = useMemo(
     () =>
@@ -155,14 +162,15 @@ export const TransactionForm = ({
         const countryCode = currencyToCountryCode(item.name);
         return {
           ...item,
+          disabled:
+            item.disabled ||
+            (supportedCurrencyCodes !== null &&
+              !supportedCurrencyCodes.has(item.name)),
           imageUrl: `https://flagcdn.com/h24/${countryCode}.webp`,
         };
       }),
-    [],
+    [supportedCurrencyCodes],
   );
-
-  // state for reordered currencies
-  const [orderedCurrencies, setOrderedCurrencies] = useState(currencies);
 
   const {
     handleSubmit,
@@ -182,6 +190,44 @@ export const TransactionForm = ({
     receiveDestinationExplicitlySelected,
   } = watch();
 
+  const selectableCurrencies = useMemo(() => {
+    return currencies
+      .map((item) => ({
+        ...item,
+        disabled:
+          item.disabled ||
+          (swapMode === "onramp" && !isOnrampFiatCurrencyCode(item.name)) ||
+          (token?.toUpperCase() === "CNGN" && item.name !== "NGN"),
+      }))
+      .sort((a, b) => {
+        if (a.disabled === b.disabled) return 0;
+        return a.disabled ? 1 : -1;
+      });
+  }, [currencies, swapMode, token]);
+
+  // state for reordered currencies
+  const [orderedCurrencies, setOrderedCurrencies] =
+    useState<CurrencyOption[]>(selectableCurrencies);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetchSupportedCurrencyCodes()
+      .then((codes) => {
+        if (isMounted) setSupportedCurrencyCodes(new Set(codes));
+      })
+      .catch((error) => {
+        // Preserve static defaults if the availability request fails.
+        console.error("Failed to fetch supported currencies:", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const onrampSupported = networkSupportsOnramp(selectedNetwork.chain);
+
   // Custom hook for CNGN rate fetching (used for validation limits when token is cNGN)
   const { rate: cngnRate, error: cngnRateError } = useCNGNRate({
     network: selectedNetwork.chain.name,
@@ -192,25 +238,21 @@ export const TransactionForm = ({
   // Determine active wallet based on migration status
   // After migration: use EOA (new wallet with funds)
   // Before migration: use SCW (old wallet)
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
-  );
-  const smartWallet = user?.linkedAccounts.find(
-    (account) => account.type === "smart_wallet"
-  );
-
   const activeWallet = isInjectedWallet
     ? { address: injectedAddress }
-    : shouldUseEOA
-      ? (embeddedWallet ? { address: embeddedWallet.address } : undefined)
-      : smartWallet;
+    : connectedWalletAddress
+      ? { address: connectedWalletAddress }
+      : undefined;
 
-  // Balance: EOA when shouldUseEOA (migrated or 0-balance SCW), else SCW
   const activeBalance = isInjectedWallet
     ? injectedWalletBalance
-    : shouldUseEOA
-      ? externalWalletBalance
-      : smartWalletBalance;
+    : isStarknetChain(selectedNetwork.chain)
+      ? starknetWalletBalance
+      : isTronChain(selectedNetwork.chain)
+        ? tronWalletBalance
+        : shouldUseEOA
+          ? externalWalletBalance
+          : smartWalletBalance;
 
   // For CNGN, use raw balance instead of USD equivalent. If rawBalances doesn't contain
   // the token, treat as zero rather than falling back to USD-denominated balance.
@@ -327,7 +369,7 @@ export const TransactionForm = ({
       });
     }
     if (currency) {
-      const supported = currencies.find(
+      const supported = selectableCurrencies.find(
         (c: CurrencyOption) => c.name === currency && !c.disabled,
       );
 
@@ -553,39 +595,52 @@ export const TransactionForm = ({
         });
 
         if (swapMode === "onramp") {
-          currencies.forEach((c: CurrencyOption) => {
-            c.disabled = !isOnrampFiatCurrencyCode(c.name);
-          });
-          if (!isOnrampFiatCurrencyCode(currency)) {
-            formMethods.setValue("currency", "NGN", { shouldDirty: true });
+          const currentOnrampEnabled = selectableCurrencies.some(
+            (item) =>
+              item.name === currency &&
+              !item.disabled &&
+              isOnrampFiatCurrencyCode(item.name),
+          );
+          if (!currentOnrampEnabled) {
+            const preferred =
+              selectableCurrencies.find(
+                (item) =>
+                  !item.disabled && isOnrampFiatCurrencyCode(item.name),
+              )?.name ?? "";
+            formMethods.setValue("currency", preferred, { shouldDirty: true });
+            if (!preferred) {
+              formMethods.setValue(
+                "receiveDestinationExplicitlySelected",
+                false,
+                { shouldDirty: true },
+              );
+            }
           }
         } else if (normalizedToken === "CNGN") {
-          // When cNGN is selected, only enable NGN
-          currencies.forEach((currency: CurrencyOption) => {
-            currency.disabled = currency.name !== "NGN";
-          });
-          // If the selected currency is not NGN, set it to NGN
-          if (currency !== "NGN") {
+          const ngnEnabled = selectableCurrencies.some(
+            (item) => item.name === "NGN" && !item.disabled,
+          );
+          if (ngnEnabled && currency !== "NGN") {
             formMethods.setValue("currency", "NGN", { shouldDirty: true });
+          } else if (!ngnEnabled && currency) {
+            formMethods.setValue("currency", "", { shouldDirty: true });
           }
-          formMethods.setValue("receiveDestinationExplicitlySelected", true, {
+          formMethods.setValue(
+            "receiveDestinationExplicitlySelected",
+            ngnEnabled,
+            { shouldDirty: true },
+          );
+        } else if (
+          currency &&
+          selectableCurrencies.some(
+            (item) => item.name === currency && item.disabled,
+          )
+        ) {
+          formMethods.setValue("currency", "", { shouldDirty: true });
+          formMethods.setValue("receiveDestinationExplicitlySelected", false, {
             shouldDirty: true,
           });
-        } else {
-          // Reset currencies to their default state from mocks
-          currencies.forEach((currency: CurrencyOption) => {
-            // Only GHS, BRL, and ARS are disabled by default
-            currency.disabled = ["GHS", "BRL", "ARS"].includes(
-              currency.name,
-            );
-          });
         }
-
-        // Sort currencies so enabled ones appear first
-        currencies.sort((a: CurrencyOption, b: CurrencyOption) => {
-          if (a.disabled === b.disabled) return 0;
-          return a.disabled ? 1 : -1;
-        });
       }
 
       registerFormFields();
@@ -594,7 +649,7 @@ export const TransactionForm = ({
       token,
       currency,
       formMethods,
-      currencies,
+      selectableCurrencies,
       selectedNetwork,
       cngnRate,
       cngnRateError,
@@ -607,34 +662,37 @@ export const TransactionForm = ({
   // Reorder currencies based on user location
   useEffect(() => {
     let isMounted = true;
+    // Reflect availability immediately; location reorder may resolve later.
+    setOrderedCurrencies(selectableCurrencies);
 
-    reorderCurrenciesByLocation(currencies, formMethods)
+    reorderCurrenciesByLocation(selectableCurrencies, formMethods)
       .then((reordered) => {
         if (isMounted) setOrderedCurrencies(reordered);
       })
       .catch(() => {
-        if (isMounted) setOrderedCurrencies(currencies);
+        if (isMounted) setOrderedCurrencies(selectableCurrencies);
       });
 
     return () => {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currencies]);
+  }, [selectableCurrencies]);
 
   const { isEnabled, buttonText, buttonAction } = useSwapButton({
-  watch,
-  balance,
-  isDirty,
-  isValid,
-  isUserVerified,
-  isPhoneVerified,
-  hasPriorTransactionActivity,
-  kycTier: tier,
-  rate,
-  tokenDecimals,
-  isSwapped,
-});
+    watch,
+    balance,
+    isDirty,
+    isValid,
+    isUserVerified,
+    isPhoneVerified,
+    hasPriorTransactionActivity,
+    kycTier: tier,
+    rate,
+    tokenDecimals,
+    isSwapped,
+    networkName: selectedNetwork.chain.name,
+  });
 
   const [isPhoneVerificationOpen, setIsPhoneVerificationOpen] = useState(false);
   const [isTier2PhoneGateOpen, setIsTier2PhoneGateOpen] = useState(false);
@@ -656,6 +714,7 @@ export const TransactionForm = ({
     }
 
     setOrderId("");
+    setActiveOrderIsOnramp(false);
 
     // Calculate the USD equivalent for transaction limit checking (see kycUsdNotionalForLimitCheck).
     const formData = getValues();
@@ -663,6 +722,7 @@ export const TransactionForm = ({
     if (formData.isSwapped) {
       const recv = Number(formData.amountReceived) || 0;
       if (!Number.isFinite(recv) || recv <= 0) {
+        toast.error("Enter a valid amount to continue.");
         return;
       }
     }
@@ -687,7 +747,21 @@ export const TransactionForm = ({
       return;
     }
 
-    // If limits are okay, proceed with transaction
+    // If limits are okay, proceed with transaction.
+    // On-ramp: bank fields are not registered yet, so form-wide isValid may stay false
+    // even when the CTA is enabled — submit with current values instead of handleSubmit.
+    if (formData.isSwapped) {
+      const walletCheck = validateWalletAddress(
+        formData.walletAddress,
+        selectedNetwork.chain.name,
+      );
+      if (walletCheck !== true) {
+        toast.error(walletCheck);
+        return;
+      }
+      void onSubmit(formData);
+      return;
+    }
     handleSubmit(onSubmit)();
   };
 
@@ -707,6 +781,17 @@ export const TransactionForm = ({
       setValue("walletAddress", "", { shouldDirty: true });
     }
   }, [selectedNetwork.chain.name, getValues, setValue]);
+
+  // Tron is off-ramp only — keep form on Sell when that network is selected.
+  useEffect(() => {
+    if (!onrampSupported && isSwapped) {
+      setValue("isSwapped", false, { shouldDirty: true });
+      setValue("swapMode", "offramp", { shouldDirty: true });
+      setValue("receiveDestinationExplicitlySelected", true, {
+        shouldDirty: true,
+      });
+    }
+  }, [onrampSupported, isSwapped, setValue]);
 
   useEffect(() => {
     // Only run once to align on-ramp mode with persisted recipient (e.g. deep link / refresh)
@@ -733,6 +818,14 @@ export const TransactionForm = ({
 
   // Handle swap button click to switch between token/currency dropdowns
   const handleSwapFields = () => {
+    const willBeSwapped = !isSwapped;
+    if (willBeSwapped && !onrampSupported) {
+      toast.error("Buy is not available on Tron yet", {
+        description: "Switch to another network to buy crypto, or use Sell on Tron.",
+      });
+      return;
+    }
+
     const currentAmountSent = amountSent;
     const currentAmountReceived = amountReceived;
     const nextSwapMode = swapMode === "onramp" ? "offramp" : "onramp";
@@ -747,6 +840,10 @@ export const TransactionForm = ({
       hasToken &&
       hasCurrency &&
       hasBothAmounts;
+    const preferredOnrampCurrency =
+      currencies.find(
+        (item) => !item.disabled && isOnrampFiatCurrencyCode(item.name),
+      )?.name ?? "";
 
     setValue("receiveDestinationExplicitlySelected", isCompleteFlow, {
       shouldDirty: true,
@@ -764,8 +861,8 @@ export const TransactionForm = ({
       setFormattedReceivedAmount(formattedSentAmount);
 
       if (nextSwapMode === "onramp") {
-        if (!isOnrampFiatCurrencyCode(currency)) {
-          setValue("currency", "NGN", { shouldDirty: true });
+        if (!isOnrampFiatCurrencyCode(currency) || !preferredOnrampCurrency) {
+          setValue("currency", preferredOnrampCurrency, { shouldDirty: true });
         }
       }
     } else {
@@ -776,7 +873,7 @@ export const TransactionForm = ({
       setFormattedReceivedAmount("");
 
       if (nextSwapMode === "onramp") {
-        setValue("currency", "NGN", { shouldDirty: true });
+        setValue("currency", preferredOnrampCurrency, { shouldDirty: true });
         setValue("token", "", { shouldDirty: true });
         if (!walletAddress) {
           setValue("walletAddress", "", { shouldDirty: true });
@@ -939,7 +1036,15 @@ export const TransactionForm = ({
               {/* On-ramp button */}
               <button
                 type="button"
+                aria-disabled={!onrampSupported}
                 onClick={() => {
+                  if (!onrampSupported) {
+                    toast.error("Buy is not available on Tron yet", {
+                      description:
+                        "Switch to another network to buy crypto, or use Sell on Tron.",
+                    });
+                    return;
+                  }
                   if (!isSwapped) {
                     void handleSwapFields();
                   }
@@ -947,6 +1052,9 @@ export const TransactionForm = ({
                 className={[
                   "px-4 h-8 text-sm font-medium rounded-full transition-colors",
                   "bg-neutral-100 dark:bg-[#141414]",
+                  !onrampSupported
+                    ? "cursor-not-allowed opacity-40"
+                    : "",
                   isSwapped
                     ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
                     : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
@@ -1297,10 +1405,19 @@ export const TransactionForm = ({
         )}
 
         {ready && (
-          <>
+          // Embed mode: the card's middle section scrolls (recipient form can
+          // exceed the frame), so pin the CTA above the "Secured by" footer
+          // with a card-colored backdrop for content sliding underneath.
+          <div
+            className={
+              isEmbed
+                ? "sticky bottom-0 z-10 -mb-1 bg-white pb-1 pt-1 dark:bg-neutral-900"
+                : "contents"
+            }
+          >
             <button
               type="button"
-              className={primaryBtnClasses}
+              className={`${primaryBtnClasses} ${isEmbed ? "w-full" : ""}`}
               disabled={!isEnabled}
               onClick={buttonAction(
                 handleSwap,
@@ -1320,7 +1437,7 @@ export const TransactionForm = ({
             >
               {buttonText}
             </button>
-          </>
+          </div>
         )}
 
         <AnimatePresence>
@@ -1353,10 +1470,13 @@ export const TransactionForm = ({
                   </>
                 ) : null}
               </div>
-              <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">
-                <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
-                <p className="min-w-fit">Swap usually completes in 30s</p>
-              </div>
+              {/* Not part of the compact widget design (embed mode). */}
+              {!isEmbed && (
+                <div className="ml-auto flex w-full flex-col justify-end gap-2 xsm:flex-row xsm:items-center">
+                  <div className="h-px w-1/2 flex-shrink bg-gradient-to-tr from-white to-gray-300 dark:bg-gradient-to-tr dark:from-neutral-900 dark:to-neutral-700 sm:w-full" />
+                  <p className="min-w-fit">Swap usually completes in 30s</p>
+                </div>
+              )}
             </AnimatedComponent>
           )}
         </AnimatePresence>

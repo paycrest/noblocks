@@ -172,3 +172,59 @@ select {
     background-color: #fd76b3;
   }
 }
+
+/* Noblocks Play has its own fixed bottom tab bar on mobile (PlayTabs
+   "bottom" variant, visible below the lg breakpoint) that the Brevo chat
+   launcher otherwise overlaps. Scoped to /play via the body class AppLayout
+   toggles, since Brevo appends its widget directly to <body>. */
+@media (max-width: 1024px) {
+  body.play-experience #brevo-conversations {
+    transform: translateY(-4rem) !important;
+  }
+}
+
+/* Embedded widget (/widget): the WidgetShell card fills the entire iframe
+   viewport (no margins — partners size/round the iframe element itself), so
+   viewport-anchored overlays (bottom sheets, modals, the Brevo launcher) are
+   naturally contained within the card. */
+
+/* Keep the Brevo launcher above the footer's "Secured by" divider line
+   (footer block ≈ 5rem + card padding). z-index below the app's
+   modals/drawers (Dialog z-60) so the wallet drawer and settings sheet
+   render over the launcher instead of being blocked by it. */
+body.widget-experience #brevo-conversations {
+  /* Brevo pins `bottom` inline, so lift with a transform (same trick as the
+     play-experience rule above). */
+  transform: translateY(-5.25rem) !important;
+  right: 1rem !important;
+  z-index: 50 !important;
+}
+
+/* Transparent iframe backdrop: the WidgetShell card floats over the host
+   page (browsers keep cross-origin iframes transparent when the embedded
+   document's background is transparent). */
+body.widget-experience {
+  background: transparent !important;
+}
+
+/* Chrome paints an OPAQUE canvas behind a cross-origin iframe whose root
+   color-scheme is dark when the embedder's isn't — which defeats the
+   transparent backdrop above. Force a neutral color-scheme on the widget
+   document (next-themes sets an inline `color-scheme: dark`, so this needs
+   !important). Visual theming is class-based Tailwind and unaffected. */
+html:has(body.widget-experience) {
+  color-scheme: light !important;
+}
+
+/* color-scheme: light also flips the browser's DEFAULT text color to dark, so
+   any element without an explicit color (e.g. the institution list items in
+   SelectBankModal) would render dark-on-dark in the widget. Restore a sensible
+   inherited default per theme; elements with explicit Tailwind colors are
+   unaffected. text-body (#121217) for light, white/80 for dark. */
+body.widget-experience {
+  color: #121217;
+}
+html.dark body.widget-experience {
+  color: rgba(255, 255, 255, 0.8);
+}
+

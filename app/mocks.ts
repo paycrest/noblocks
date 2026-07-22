@@ -9,6 +9,7 @@ import {
   scroll,
   mainnet,
 } from "viem/chains";
+import config from "./lib/config";
 
 export const starknetMainnet = {
   id: BigInt(toHex('SN_MAIN')).toString(), // Starknet Mainnet chain ID (SN_MAIN encoded)
@@ -33,6 +34,33 @@ export const starknetMainnet = {
   testnet: false,
 };
 
+export const tronMainnet = {
+  id: "tron-mainnet",
+  name: "Tron",
+  network: "tron-mainnet",
+  nativeCurrency: {
+    decimals: 6,
+    name: "TRX",
+    symbol: "TRX",
+  },
+  rpcUrls: {
+    default: {
+      http: [
+        process.env.NEXT_PUBLIC_TRON_RPC_URL || "https://api.trongrid.io",
+      ],
+    },
+    public: {
+      http: [
+        process.env.NEXT_PUBLIC_TRON_RPC_URL || "https://api.trongrid.io",
+      ],
+    },
+  },
+  blockExplorers: {
+    default: { name: "Tronscan", url: "https://tronscan.org" },
+  },
+  testnet: false,
+};
+
 export const acceptedCurrencies = [
   {
     name: "NGN",
@@ -49,10 +77,6 @@ export const acceptedCurrencies = [
   {
     name: "TZS",
     label: "Tanzanian Shilling (TZS)",
-  },
-  {
-    name: "MWK",
-    label: "Malawian Kwacha (MWK)",
   },
   {
     name: "GHS",
@@ -94,6 +118,14 @@ export const networks = [
     chain: starknetMainnet,
     imageUrl: "/logos/strk-logo.svg",
   },
+  ...(config.tronEnabled
+    ? [
+        {
+          chain: tronMainnet,
+          imageUrl: "/logos/tron-logo.svg",
+        },
+      ]
+    : []),
   {
     chain: polygon,
     imageUrl: "/logos/polygon-logo.svg",
@@ -132,6 +164,7 @@ export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number | string>([
   celo.id,
   scroll.id,
   starknetMainnet.id,
+  tronMainnet.id,
 ]);
 
 /** Networks scanned and shown in the wallet migration modal (excludes Celo and Scroll). */

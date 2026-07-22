@@ -1,6 +1,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { UseFormWatch } from "react-hook-form";
 import { useInjectedWallet } from "../context";
+import { validateWalletAddress } from "../lib/validation";
 import { calculateSenderFee } from "../utils";
 
 /** Primary CTA when limits require upgrading verification (opens limit / KYC flow from swap). */
@@ -26,6 +27,8 @@ interface UseSwapButtonProps {
   rate?: number | null;
   tokenDecimals?: number;
   isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
+  /** Selected chain name for on-ramp wallet validation (e.g. Base, Starknet). */
+  networkName?: string;
 }
 
 export function useSwapButton({
@@ -40,6 +43,7 @@ export function useSwapButton({
   rate,
   tokenDecimals = 18,
   isSwapped = false,
+  networkName = "",
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
@@ -70,8 +74,14 @@ export function useSwapButton({
   // Skip balance check in onramp mode (isSwapped = true)
   const hasInsufficientBalance = isSwapped ? false : totalRequired > balance;
 
-  // Check recipient based on mode: walletAddress for onramp, recipientName for offramp
-  const hasRecipient = isSwapped ? Boolean(walletAddress) : Boolean(recipientName);
+  // Check recipient based on mode: valid walletAddress for onramp, recipientName for offramp
+  const hasRecipient = isSwapped
+    ? (() => {
+        const addr = String(walletAddress ?? "").trim();
+        if (!addr || !networkName) return false;
+        return validateWalletAddress(addr, networkName) === true;
+      })()
+    : Boolean(recipientName);
 
   const isEnabled = (() => {
     // Phone / next-tier KYC from the main CTA must work before the user picks a
@@ -98,14 +108,27 @@ export function useSwapButton({
       return true;
     }
 
+    if (!isCurrencySelected || !isAmountValid) {
+      return false;
+    }
+
+    // On-ramp: walletAddress registers inside RecipientDetailsForm, so form-wide
+    // isValid can stay false until late validation; gate on recipient + amounts.
+    if (isSwapped) {
+      if (!authenticated && !isInjectedWallet) {
+        return true;
+      }
+      return hasRecipient;
+    }
+
     if (isInjectedWallet) {
-      if (!isValid || !isCurrencySelected || !isAmountValid) {
+      if (!isValid) {
         return false;
       }
       return hasRecipient;
     }
 
-    if (!isValid || !isCurrencySelected || !isAmountValid) {
+    if (!isValid) {
       return false;
     }
 
@@ -113,7 +136,7 @@ export function useSwapButton({
       return true; // Enable for login if amount and currency are valid
     }
 
-    return hasRecipient; // Check walletAddress for onramp, recipientName for offramp
+    return hasRecipient;
   })();
 
   const buttonText = (() => {

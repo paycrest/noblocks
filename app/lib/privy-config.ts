@@ -10,9 +10,11 @@ import {
 } from "viem/chains";
 import {
   addRpcUrlOverrideToChain,
+  dataSuffix,
   type PrivyClientConfig,
 } from "@privy-io/react-auth";
 import { getRpcUrl } from "../utils";
+import { BASE_BUILDER_CODE_SUFFIX } from "./baseBuilderCode";
 
 const bscOverride = addRpcUrlOverrideToChain(
   bsc,
@@ -54,6 +56,7 @@ const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
     celoOverride,
     scrollOverride,
   ],
+  plugins: [dataSuffix(BASE_BUILDER_CODE_SUFFIX)],
 };
 
 export const lightModeConfig: PrivyClientConfig = {

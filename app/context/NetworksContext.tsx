@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { networks } from "../mocks";
 import type { Network } from "../types";
+import { isStarknetChain, isTronChain } from "../utils";
 import { useInjectedWallet } from "./InjectedWalletContext";
 
 type NetworkContextType = {
@@ -49,7 +50,12 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
 
   const handleNetworkChange = async (network: Network) => {
-    if (isInjectedWallet && injectedReady) {
+    // Non-EVM chains (Starknet, Tron) use a Privy embedded wallet, not the
+    // injected EVM provider, and their chain.id is a string slug — skip
+    // wallet_switchEthereumChain (it would build an invalid `0x<slug>` chainId).
+    const isNonEvmNetwork =
+      isStarknetChain(network.chain) || isTronChain(network.chain);
+    if (isInjectedWallet && injectedReady && !isNonEvmNetwork) {
       const switched = await switchNetwork(network);
       if (switched) {
         setSelectedNetworkState(network);

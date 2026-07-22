@@ -1,0 +1,18 @@
+# Dependencies (scripts/ has its own package.json — run `pnpm install` here)
+node_modules/
+
+# Env files — seed-fantasy.ts reads SUPABASE_URL / SUPABASE_SECRET_KEY /
+# API_FOOTBALL_KEY; never commit local copies
+.env
+.env.*
+!.env.example
+
+# Script output / scratch
+*.log
+output/
+*.csv
+*.json.bak
+
+# tsx / TypeScript caches
+.tsbuildinfo
+*.tsbuildinfo

@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { shouldUseInjectedWallet } from "../utils";
 import { reportClientError } from "../lib/sentry.client";
+import { createBridgeProvider } from "../lib/embed-bridge-provider";
+import { useEmbed } from "./EmbedContext";
 
 interface InjectedWalletContextType {
   isInjectedWallet: boolean;
@@ -29,6 +31,7 @@ const InjectedWalletContext = createContext<InjectedWalletContextType>({
 
 function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
+  const { parentOrigin } = useEmbed();
   const [isInjectedWallet, setIsInjectedWallet] = useState(false);
   const [injectedAddress, setInjectedAddress] = useState<string | null>(null);
   const [injectedProvider, setInjectedProvider] = useState<any | null>(null);
@@ -37,21 +40,33 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initInjectedWallet = async () => {
       // Check if we should use the injected wallet
-      const shouldUse = shouldUseInjectedWallet(searchParams);
+      const useBridge = searchParams.get("injected") === "bridge";
+      // Bridge mode needs the host origin (from the iframe referrer) before
+      // it can talk to the host wallet; until then fall back to the regular
+      // logged-out UI rather than blocking on the preloader.
+      const shouldUse = useBridge
+        ? Boolean(parentOrigin)
+        : shouldUseInjectedWallet(searchParams);
 
       setIsInjectedWallet(shouldUse);
 
-      if (shouldUse && window.ethereum) {
+      const provider = useBridge
+        ? parentOrigin
+          ? createBridgeProvider(parentOrigin)
+          : null
+        : window.ethereum;
+
+      if (shouldUse && provider) {
         try {
           const client = createWalletClient({
-            transport: custom(window.ethereum as any),
+            transport: custom(provider as any),
           });
 
-          await (window.ethereum as any).request({ method: "eth_requestAccounts" });
+          await (provider as any).request({ method: "eth_requestAccounts" });
           const [address] = await client.getAddresses();
 
           if (address) {
-            setInjectedProvider(window.ethereum);
+            setInjectedProvider(provider);
             setInjectedAddress(address);
             setInjectedReady(true);
           } else {
@@ -103,7 +118,29 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
     };
 
     initInjectedWallet();
-  }, [searchParams]);
+  }, [searchParams, parentOrigin]);
+
+  // Track host-side account switches (extension wallets and the embed bridge
+  // both emit standard EIP-1193 events).
+  useEffect(() => {
+    if (!injectedProvider?.on) return;
+    const handleAccountsChanged = (accounts: unknown) => {
+      const [address] = (accounts as string[]) ?? [];
+      if (address) {
+        setInjectedAddress(address);
+      } else {
+        setInjectedAddress(null);
+        setInjectedReady(false);
+      }
+    };
+    injectedProvider.on("accountsChanged", handleAccountsChanged);
+    return () => {
+      injectedProvider.removeListener?.(
+        "accountsChanged",
+        handleAccountsChanged,
+      );
+    };
+  }, [injectedProvider]);
 
   return (
     <InjectedWalletContext.Provider

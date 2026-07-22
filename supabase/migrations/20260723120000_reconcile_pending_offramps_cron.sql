@@ -19,6 +19,17 @@
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
+-- Efficiency: partial index matching the reconciler's scan predicate exactly, so
+-- each 2-minute run does an index-only range scan over just the still-pending
+-- offramp rows (keyset-ordered by created_at) instead of scanning the whole
+-- transactions table. Rows advanced to a terminal status leave this index
+-- automatically, keeping it tiny in steady state.
+create index if not exists idx_transactions_offramp_pending_reconcile
+  on transactions (created_at)
+  where transaction_type = 'offramp'
+    and order_id is not null
+    and status in ('pending', 'fulfilling', 'fulfilled', 'refunding');
+
 -- Idempotent (re)schedule: drop any prior job with this name first.
 do $$
 begin
@@ -38,7 +49,11 @@ select cron.schedule(
       'x-reconcile-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'reconcile_cron_secret')
     ),
     body := '{}'::jsonb,
-    timeout_milliseconds := 30000
+    -- Above the Edge Function's per-run wall-clock budget (MAX_RUN_MS = 90s) plus
+    -- the worst-case overrun of one in-flight batch, with margin. Keeping this
+    -- below the pg_net default lets the cron see the function's real result
+    -- instead of recording a spurious timeout on longer reconciliation runs.
+    timeout_milliseconds := 150000
   );
   $$
 );

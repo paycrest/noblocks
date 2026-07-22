@@ -30,11 +30,16 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Only rows aged past this are touched, so we never race an active client poll.
 const MIN_AGE_SECONDS = 3 * 60; // 3 minutes
-// Upper bound keeps each run cheap and ignores long-dead orders.
-const MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // 7 days
-const BATCH_LIMIT = 50;
+// No upper age bound: a client that closed its tab can leave an order stuck at
+// `pending` indefinitely, so old rows MUST stay eligible. Runs are bounded by
+// keyset pagination + a per-invocation wall-clock budget instead (see reconcile()).
+const BATCH_LIMIT = 50; // page size for keyset pagination
 const CONCURRENCY = 5;
-const FETCH_TIMEOUT_MS = 10_000;
+const FETCH_TIMEOUT_MS = 8_000;
+// Per-invocation wall-clock budget. When hit, the run stops early and the
+// remaining (older) rows are picked up on the next cron tick, which restarts from
+// the oldest. Kept well below the pg_net timeout in the cron migration.
+const MAX_RUN_MS = 90_000;
 
 // Non-final statuses we re-check. Final states (completed/failed/refunded/expired)
 // are intentionally excluded so they drop out of the scan.
@@ -63,6 +68,10 @@ function mapAggregatorStatusToDbStatus(status: string): string {
   if (s === "refunding") return "refunding";
   if (s === "fulfilled") return "fulfilled";
   if (s === "expired") return "expired";
+  // Reconciler-specific: make a failed order terminal instead of letting it fall
+  // through to `pending` and loop in the scan forever. The app-side twin in
+  // aggregator.ts has no `failed` case — keep this divergence in mind if syncing.
+  if (s === "failed") return "failed";
   if (s === "validated") return "completed"; // offramp: validated -> completed
   if (["settling", "fulfilling", "pending"].includes(s)) return "pending";
   return "pending";
@@ -92,6 +101,7 @@ interface Row {
   order_id: string | null;
   network: string | null;
   status: string;
+  created_at: string;
 }
 
 interface Summary {
@@ -101,6 +111,7 @@ interface Summary {
   skipped: number;
   notFound: number;
   errors: number;
+  truncated: boolean; // true if the wall-clock budget cut the run short
   details: Array<Record<string, unknown>>;
 }
 
@@ -147,86 +158,116 @@ async function reconcile(): Promise<Summary> {
     auth: { persistSession: false },
   });
 
-  const nowMs = Date.now();
-  const maxCreatedAt = new Date(nowMs - MIN_AGE_SECONDS * 1000).toISOString();
-  const minCreatedAt = new Date(nowMs - MAX_AGE_SECONDS * 1000).toISOString();
+  const deadline = Date.now() + MAX_RUN_MS;
+  const maxCreatedAt = new Date(Date.now() - MIN_AGE_SECONDS * 1000).toISOString();
 
-  const { data, error } = await admin
-    .from("transactions")
-    .select("id, order_id, network, status")
-    .eq("transaction_type", "offramp")
-    .in("status", SCANNABLE_STATUSES)
-    .not("order_id", "is", null)
-    .lt("created_at", maxCreatedAt)
-    .gt("created_at", minCreatedAt)
-    .order("created_at", { ascending: true })
-    .limit(BATCH_LIMIT);
-
-  if (error) throw new Error(`candidate query failed: ${error.message}`);
-
-  const rows = (data ?? []) as Row[];
   const summary: Summary = {
-    scanned: rows.length,
+    scanned: 0,
     updated: 0,
     unchanged: 0,
     skipped: 0,
     notFound: 0,
     errors: 0,
+    truncated: false,
     details: [],
   };
 
-  let cursor = 0;
-  async function worker() {
-    while (cursor < rows.length) {
-      const row = rows[cursor++];
-      const chainId = row.network ? resolveChainIdFromNetworkName(row.network) : null;
-      if (!row.order_id || chainId == null) {
-        summary.skipped++;
-        summary.details.push({ id: row.id, action: "skipped", reason: "missing order_id or unknown network", network: row.network });
-        continue;
-      }
+  // Process one page of candidates with a bounded worker pool. Stops starting new
+  // work once the wall-clock budget is spent.
+  async function processPage(rows: Row[]) {
+    let idx = 0;
+    async function worker() {
+      while (idx < rows.length) {
+        if (Date.now() >= deadline) return;
+        const row = rows[idx++];
+        summary.scanned++;
+        const chainId = row.network ? resolveChainIdFromNetworkName(row.network) : null;
+        if (!row.order_id || chainId == null) {
+          summary.skipped++;
+          summary.details.push({ id: row.id, action: "skipped", reason: "missing order_id or unknown network", network: row.network });
+          continue;
+        }
 
-      const result = await fetchGatewayStatus(origin, chainId, row.order_id);
-      if (result.kind === "notFound") {
-        summary.notFound++; // not indexed yet — a later cycle retries. No reindex.
-        continue;
-      }
-      if (result.kind === "error") {
-        summary.errors++;
-        summary.details.push({ id: row.id, action: "error", reason: result.message });
-        continue;
-      }
+        const result = await fetchGatewayStatus(origin, chainId, row.order_id);
+        if (result.kind === "notFound") {
+          summary.notFound++; // not indexed yet — a later cycle retries. No reindex.
+          continue;
+        }
+        if (result.kind === "error") {
+          summary.errors++;
+          summary.details.push({ id: row.id, action: "error", reason: result.message });
+          continue;
+        }
 
-      const mapped = mapAggregatorStatusToDbStatus(result.value);
-      if (mapped === row.status) {
-        summary.unchanged++;
-        continue;
-      }
+        const mapped = mapAggregatorStatusToDbStatus(result.value);
+        if (mapped === row.status) {
+          summary.unchanged++;
+          continue;
+        }
 
-      // Optimistic guard: only write if the row is still in the status we read,
-      // so we never clobber a client that just advanced it concurrently.
-      const { data: updatedRows, error: updErr } = await admin
-        .from("transactions")
-        .update({ status: mapped, updated_at: new Date().toISOString() })
-        .eq("id", row.id)
-        .eq("status", row.status)
-        .select("id");
+        // Optimistic guard: only write if the row is still in the status we read,
+        // so we never clobber a client that just advanced it concurrently.
+        const { data: updatedRows, error: updErr } = await admin
+          .from("transactions")
+          .update({ status: mapped, updated_at: new Date().toISOString() })
+          .eq("id", row.id)
+          .eq("status", row.status)
+          .select("id");
 
-      if (updErr) {
-        summary.errors++;
-        summary.details.push({ id: row.id, action: "update_error", reason: updErr.message });
-        continue;
-      }
-      if (updatedRows && updatedRows.length > 0) {
-        summary.updated++;
-        summary.details.push({ id: row.id, action: "updated", from: row.status, to: mapped, aggregator: result.value });
-      } else {
-        summary.unchanged++; // lost the optimistic race — client already moved it
+        if (updErr) {
+          summary.errors++;
+          summary.details.push({ id: row.id, action: "update_error", reason: updErr.message });
+          continue;
+        }
+        if (updatedRows && updatedRows.length > 0) {
+          summary.updated++;
+          summary.details.push({ id: row.id, action: "updated", from: row.status, to: mapped, aggregator: result.value });
+        } else {
+          summary.unchanged++; // lost the optimistic race — client already moved it
+        }
       }
     }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, rows.length) }, worker));
   }
 
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, rows.length) }, worker));
+  // Keyset pagination by created_at (ascending). Rows advanced to a terminal state
+  // drop out of SCANNABLE_STATUSES, so offset pagination would skip rows — a
+  // forward created_at cursor is stable against that. `.gt` guarantees forward
+  // progress; any rows sharing a page-boundary timestamp are retried next tick.
+  let cursorCreatedAt = "1970-01-01T00:00:00.000Z";
+  while (true) {
+    if (Date.now() >= deadline) {
+      summary.truncated = true;
+      break;
+    }
+
+    const { data, error } = await admin
+      .from("transactions")
+      .select("id, order_id, network, status, created_at")
+      .eq("transaction_type", "offramp")
+      .in("status", SCANNABLE_STATUSES)
+      .not("order_id", "is", null)
+      .gt("created_at", cursorCreatedAt) // keyset cursor (advances forward)
+      .lt("created_at", maxCreatedAt) // min-age guard: skip rows a client may still be polling
+      .order("created_at", { ascending: true })
+      .limit(BATCH_LIMIT);
+
+    if (error) throw new Error(`candidate query failed: ${error.message}`);
+
+    const rows = (data ?? []) as Row[];
+    if (rows.length === 0) break;
+
+    await processPage(rows);
+    cursorCreatedAt = rows[rows.length - 1].created_at;
+
+    // processPage may have bailed mid-page on the budget; flag it either way.
+    if (Date.now() >= deadline) {
+      summary.truncated = true;
+      break;
+    }
+    if (rows.length < BATCH_LIMIT) break; // drained the last page
+  }
+
   return summary;
 }
 

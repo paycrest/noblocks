@@ -19,6 +19,7 @@ import {
 import { CrossChainBalanceSkeleton } from "../BalanceSkeleton";
 import {
   classNames,
+  formatCurrency,
   getNetworkImageUrl,
   shortenAddress,
   tokenBalanceRowVisible,
@@ -350,7 +351,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
               {showBalanceSkeleton ? (
                 <span className="inline-block h-9 w-28 animate-pulse rounded bg-accent-gray dark:bg-white/10" />
               ) : (
-                `$${walletBalanceUsd.toFixed(2)}`
+                formatCurrency(walletBalanceUsd, "USD", "en-US")
               )}
             </p>
 

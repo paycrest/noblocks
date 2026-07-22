@@ -182,3 +182,73 @@ select {
     transform: translateY(-4rem) !important;
   }
 }
+
+/* Embedded widget (/widget): the WidgetShell card fills the entire iframe
+   viewport (no margins — partners size/round the iframe element itself), so
+   viewport-anchored overlays (bottom sheets, modals, the Brevo launcher) are
+   naturally contained within the card. */
+
+/* Brevo in the widget. z-index below the app's modals/drawers (Dialog z-60)
+   so the wallet drawer and settings sheet render over it instead of being
+   blocked by it. */
+body.widget-experience #brevo-conversations {
+  right: 1rem !important;
+  z-index: 50 !important;
+}
+
+/* Collapsed launcher: lift it above the footer's "Secured by" divider line
+   (footer block ≈ 5rem + card padding). Brevo pins `bottom` inline, so lift
+   with a transform (same trick as the play-experience rule above). Scoped to
+   the collapsed state only — Brevo toggles --expanded on open. */
+body.widget-experience
+  #brevo-conversations:not(.brevo-conversations--expanded) {
+  transform: translateY(-5.25rem) !important;
+}
+
+/* Opened chat window: Brevo sizes the CONTAINER inline (380x600) with the
+   iframe top-anchored inside it, so a 640px widget frame would clip the
+   window's header off the top. Drop the launcher lift, cap the container to
+   the frame, and make the inner wrapper/iframe fill it so Brevo's UI
+   reflows to the capped size. */
+body.widget-experience #brevo-conversations.brevo-conversations--expanded {
+  transform: none !important;
+  max-height: calc(100dvh - 2rem) !important;
+  max-width: calc(100vw - 2rem) !important;
+}
+body.widget-experience
+  #brevo-conversations.brevo-conversations--expanded
+  :is(.brevo-conversations__iframe-wrapper, .brevo-conversations__iframe) {
+  height: 100% !important;
+  width: 100% !important;
+  max-height: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Transparent iframe backdrop: the WidgetShell card floats over the host
+   page (browsers keep cross-origin iframes transparent when the embedded
+   document's background is transparent). */
+body.widget-experience {
+  background: transparent !important;
+}
+
+/* Chrome paints an OPAQUE canvas behind a cross-origin iframe whose root
+   color-scheme is dark when the embedder's isn't — which defeats the
+   transparent backdrop above. Force a neutral color-scheme on the widget
+   document (next-themes sets an inline `color-scheme: dark`, so this needs
+   !important). Visual theming is class-based Tailwind and unaffected. */
+html:has(body.widget-experience) {
+  color-scheme: light !important;
+}
+
+/* color-scheme: light also flips the browser's DEFAULT text color to dark, so
+   any element without an explicit color (e.g. the institution list items in
+   SelectBankModal) would render dark-on-dark in the widget. Restore a sensible
+   inherited default per theme; elements with explicit Tailwind colors are
+   unaffected. text-body (#121217) for light, white/80 for dark. */
+body.widget-experience {
+  color: #121217;
+}
+html.dark body.widget-experience {
+  color: rgba(255, 255, 255, 0.8);
+}
+

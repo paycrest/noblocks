@@ -456,6 +456,8 @@ export type Config = {
   onrampChainedForwardingEnabled: boolean;
   /** Noblocks Play (World Cup fantasy league) feature flag. Gates /play UI + API. */
   fantasyEnabled: boolean;
+  /** Embeddable widget feature flag. Gates the /widget route (iframe embed for whitelisted partners). */
+  embedEnabled: boolean;
 };
 
 export type Network = {

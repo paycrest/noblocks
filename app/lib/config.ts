@@ -74,6 +74,7 @@ const config: Config = {
   onrampChainedForwardingEnabled:
     process.env.NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED === "true",
   fantasyEnabled: process.env.NEXT_PUBLIC_FANTASY_ENABLED === "true",
+  embedEnabled: process.env.NEXT_PUBLIC_EMBED_ENABLED === "true",
 };
 
 export default config;

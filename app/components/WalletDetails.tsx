@@ -374,7 +374,7 @@ export const WalletDetails = () => {
           {showBalanceSkeleton ? (
             <BalanceSkeleton />
           ) : selectedNetwork.chain.name === "Starknet" ? (
-            <p>${(activeBalance?.total ?? 0).toFixed(2)}</p>
+            <p>{formatCurrency(activeBalance?.total ?? 0, "USD", "en-US")}</p>
           ) : (
             <p>{formatCurrency(crossChainTotal, "USD", "en-US")}</p>
           )}
@@ -508,7 +508,7 @@ export const WalletDetails = () => {
                             ) : showEarnUi ? (
                               formatCurrency(crossChainTotal, "USD", "en-US")
                             ) : selectedNetwork.chain.name === "Starknet" ? (
-                              `$${(activeBalance?.total ?? 0).toFixed(2)}`
+                              formatCurrency(activeBalance?.total ?? 0, "USD", "en-US")
                             ) : (
                               formatCurrency(crossChainTotal, "USD", "en-US")
                             )}
@@ -860,7 +860,7 @@ export const WalletDetails = () => {
                                                           : "text-text-body dark:text-white/80"
                                                         }`}
                                                     >
-                                                      ${usdEquivalent.toFixed(2)}
+                                                      {formatCurrency(usdEquivalent, "USD", "en-US")}
                                                     </span>
                                                   )}
                                                 </div>

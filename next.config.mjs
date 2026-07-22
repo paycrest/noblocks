@@ -30,16 +30,24 @@ const nextConfig = {
           value: "nosniff",
         },
         {
-          key: "X-Frame-Options",
-          value: "DENY",
-        },
-        {
           key: "X-XSS-Protection",
           value: "1; mode=block",
         },
         {
           key: "Referrer-Policy",
           value: "strict-origin-when-cross-origin",
+        },
+      ],
+    },
+    {
+      // Deny framing everywhere except /widget, which is embeddable by
+      // whitelisted partners; middleware.ts sets a per-request
+      // Content-Security-Policy frame-ancestors allowlist there instead.
+      source: "/((?!widget$|widget/).*)",
+      headers: [
+        {
+          key: "X-Frame-Options",
+          value: "DENY",
         },
       ],
     },

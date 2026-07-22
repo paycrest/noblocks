@@ -25,6 +25,7 @@ export {
 } from "./AnimatedComponents";
 
 export { KycModal } from "./KycModal";
+export { WidgetShell } from "./WidgetShell";
 export { CookieConsent } from "./CookieConsent";
 export { NetworkSelectionModal } from "./NetworkSelectionModal";
 export { Disclaimer } from "./Disclaimer";

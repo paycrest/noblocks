@@ -364,10 +364,104 @@ async function authorizationMiddleware(req: NextRequest) {
   return response;
 }
 
-export default authorizationMiddleware;
+// --- Embeddable widget (/widget) ---
+// Origins allowed to iframe /widget. Env base (EMBED_ALLOWED_ORIGINS) merged
+// with the embed_allowed_origins table via the internal API, cached in module
+// scope. frame-ancestors accepts wildcard subdomains (https://*.partner.com).
+const EMBED_ORIGIN_RE = /^https?:\/\/(\*\.)?[\w.-]+(:\d+)?$/;
+const EMBED_ORIGINS_TTL_MS = 5 * 60_000;
+let embedOriginsCache: { origins: string[]; fetchedAt: number } | null = null;
+
+function envEmbedOrigins(): string[] {
+  return (process.env.EMBED_ALLOWED_ORIGINS ?? "")
+    .split(/[,\s]+/)
+    .map((s) => s.trim())
+    .filter((o) => EMBED_ORIGIN_RE.test(o));
+}
+
+async function getEmbedAllowedOrigins(baseUrl: string): Promise<string[]> {
+  const now = Date.now();
+  const stale =
+    !embedOriginsCache || now - embedOriginsCache.fetchedAt >= EMBED_ORIGINS_TTL_MS;
+  if (stale) {
+    try {
+      const internalAuth = process.env.INTERNAL_API_KEY;
+      if (internalAuth) {
+        const res = await fetch(`${baseUrl}/api/internal/embed-origins`, {
+          headers: { "x-internal-auth": internalAuth },
+        });
+        if (res.ok) {
+          const { origins } = (await res.json()) as { origins?: string[] };
+          embedOriginsCache = {
+            origins: (origins ?? []).filter((o) => EMBED_ORIGIN_RE.test(o)),
+            fetchedAt: now,
+          };
+        }
+      }
+    } catch {
+      // Keep stale cache / fall back to env-only below.
+    }
+  }
+  return [...new Set([...envEmbedOrigins(), ...(embedOriginsCache?.origins ?? [])])];
+}
+
+async function embedMiddleware(req: NextRequest) {
+  if (process.env.NEXT_PUBLIC_EMBED_ENABLED !== "true") {
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
+  const origins = await getEmbedAllowedOrigins(req.nextUrl.origin);
+
+  // Cookieless source-domain attribution: the Referer of an iframe's first
+  // load is the embedding page.
+  const referer = req.headers.get("referer");
+  let referrerOrigin = "";
+  try {
+    referrerOrigin = referer ? new URL(referer).origin : "";
+  } catch {
+    // Malformed referer - skip attribution detail.
+  }
+  if (referrerOrigin && referrerOrigin !== req.nextUrl.origin) {
+    trackMiddlewareAnalytics(
+      "request",
+      {
+        endpoint: "/widget",
+        method: req.method,
+        properties: {
+          middleware: true,
+          embed: true,
+          referrer_origin: referrerOrigin,
+        },
+      },
+      req.nextUrl.origin,
+    );
+  }
+
+  const response = NextResponse.next();
+  // frame-ancestors supersedes X-Frame-Options; delete it as belt-and-braces
+  // (next.config.mjs already scopes DENY away from /widget).
+  response.headers.delete("x-frame-options");
+  response.headers.set(
+    "Content-Security-Policy",
+    origins.length
+      ? `frame-ancestors 'self' ${origins.join(" ")}`
+      : "frame-ancestors 'none'",
+  );
+  return response;
+}
+
+export default async function middleware(req: NextRequest) {
+  const pathname = req.nextUrl.pathname;
+  if (pathname === "/widget" || pathname.startsWith("/widget/")) {
+    return embedMiddleware(req);
+  }
+  return authorizationMiddleware(req);
+}
 
 export const config = {
   matcher: [
+    "/widget",
+    "/widget/:path*",
     "/api/v1/transactions",
     "/api/v1/transactions/:path*",
     "/api/v1/account/verify",

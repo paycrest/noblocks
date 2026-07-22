@@ -58,7 +58,7 @@ import {
   CheckmarkCircle01Icon,
   FootballIcon,
 } from "hugeicons-react";
-import { useBalance, useInjectedWallet, useNetwork, useTokens } from "../context";
+import { useBalance, useInjectedWallet, useNetwork, useTokens, useEmbed } from "../context";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import config from "../lib/config";
 import { formatUnits } from "viem";
@@ -141,6 +141,7 @@ export function TransactionStatus({
   const { claimed } = useBlockFestClaim();
   const { resolvedTheme } = useTheme();
   const { selectedNetwork } = useNetwork();
+  const { isEmbed } = useEmbed();
   const { allTokens } = useTokens();
   const {
     refreshBalance,
@@ -1516,37 +1517,64 @@ export function TransactionStatus({
                     </AnimatedComponent>
                   )}
 
-                {(showGetReceiptButton || showNewPaymentButton) && (
-                  <AnimatedComponent
-                    variant={slideInOut}
-                    delay={0.5}
-                    className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
-                  >
-                    {showGetReceiptButton && (
-                      <button
-                        type="button"
-                        onClick={handleGetReceipt}
-                        className={`w-fit ${secondaryBtnClasses}`}
-                        disabled={isGettingReceipt}
-                      >
-                        {isGettingReceipt ? "Generating..." : "Get receipt"}
-                      </button>
-                    )}
+                {(showGetReceiptButton || showNewPaymentButton) &&
+                  (() => {
+                    const buttons = (
+                      <>
+                        {showNewPaymentButton && (
+                          <div
+                            className={
+                              isEmbed
+                                ? "sticky bottom-0 z-10 order-last w-full bg-white pb-1 pt-1 dark:bg-neutral-900"
+                                : "contents"
+                            }
+                          >
+                            <button
+                              type="button"
+                              onClick={handleBackButtonClick}
+                              className={`${isEmbed ? "w-full" : "order-last w-fit"} ${primaryBtnClasses}`}
+                            >
+                              {transactionStatus === "refunded" ||
+                              transactionStatus === "expired"
+                                ? "Retry transaction"
+                                : "New payment"}
+                            </button>
+                          </div>
+                        )}
 
-                    {showNewPaymentButton && (
-                      <button
-                        type="button"
-                        onClick={handleBackButtonClick}
-                        className={`w-fit ${primaryBtnClasses}`}
+                        {showGetReceiptButton && (
+                          <button
+                            type="button"
+                            onClick={handleGetReceipt}
+                            className={`${isEmbed ? "order-last w-full" : "order-first w-fit"} ${secondaryBtnClasses}`}
+                            disabled={isGettingReceipt}
+                          >
+                            {isGettingReceipt ? "Generating..." : "Get receipt"}
+                          </button>
+                        )}
+                      </>
+                    );
+                    // Widget design: full-width buttons stacked at the END of
+                    // the page, primary on top and sticky above the
+                    // WidgetShell footer while scrolling. Rendered as a
+                    // fragment (direct children of the tall flex column, via
+                    // order-last) — position:sticky can only pin within its
+                    // parent's box, so the sticky wrapper's parent must span
+                    // the whole scrollable content, and no animation wrapper
+                    // (its transform would hijack the sticky containing
+                    // block).
+                    return isEmbed ? (
+                      <>{buttons}</>
+                    ) : (
+                      <AnimatedComponent
+                        variant={slideInOut}
+                        delay={0.5}
+                        className="flex w-full flex-wrap gap-3 max-sm:*:flex-1"
                       >
-                        {transactionStatus === "refunded" ||
-                        transactionStatus === "expired"
-                          ? "Retry transaction"
-                          : "New payment"}
-                      </button>
-                    )}
-                  </AnimatedComponent>
-                )}
+                        {buttons}
+                      </AnimatedComponent>
+                    );
+                  })()}
 
                 {!isOnramp && ["validated", "settling", "settled"].includes(transactionStatus) &&
                   !isRecipientInBeneficiaries && (
@@ -1747,6 +1775,8 @@ export function TransactionStatus({
 
         <AnimatePresence>
           {showSuccessVisual &&
+            // Widget design has no share section on the success screen.
+            !isEmbed &&
             !isBlockFestEligible(
               transactionStatus,
               claimed,

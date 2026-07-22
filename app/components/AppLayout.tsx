@@ -29,6 +29,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     pathname === "/play" ||
     pathname.startsWith("/play/") ||
     pathname === "/play-demo";
+  // Embedded widget (/widget, iframed by whitelisted partners): compact
+  // chrome-less shell like Play — WidgetShell renders its own card chrome.
+  const isWidgetExperience =
+    pathname === "/widget" || pathname.startsWith("/widget/");
+  const isBareExperience = isPlayExperience || isWidgetExperience;
   const isHomepage = pathname === "/";
   const playPromoBannerVisible = usePlayPromoBannerVisible();
   const showPlayPromoBanner =
@@ -42,12 +47,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return () => document.body.classList.remove("play-experience");
   }, [isPlayExperience]);
 
+  useEffect(() => {
+    document.body.classList.toggle("widget-experience", isWidgetExperience);
+    return () => document.body.classList.remove("widget-experience");
+  }, [isWidgetExperience]);
+
   return (
     <SentryClientProvider>
       <Providers>
         <MoralisStreamRegistration />
-        {isPlayExperience ? (
-          <div className="min-h-dvh min-w-full bg-white transition-colors dark:bg-neutral-900">
+        {isBareExperience ? (
+          <div
+            className={`min-h-dvh min-w-full transition-colors ${
+              isWidgetExperience
+                ? // Transparent backdrop: the embedding page shows through the
+                  // iframe around the floating WidgetShell card (per Figma).
+                  "bg-transparent"
+                : "bg-white dark:bg-neutral-900"
+            }`}
+          >
             {children}
           </div>
         ) : (

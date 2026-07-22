@@ -182,3 +182,66 @@ select {
     transform: translateY(-4rem) !important;
   }
 }
+
+/* Embedded widget (/widget): the whole viewport is a compact partner iframe.
+   The WidgetShell card is 393px (24.5625rem) anchored left with a right
+   gutter for the outside close button (449px unit — keep in sync with
+   WidgetShell.tsx). Floating elements must stay within the CARD, not the
+   iframe, so the transparent gutter shows only the host page. */
+
+/* Keep the Brevo launcher inside the card, fully above the footer's divider
+   line (footer block ≈ 5rem + card padding). right = viewport minus card
+   width plus inset; max() guards narrow frames. z-index below the app's
+   modals/drawers (Dialog z-60) so the wallet drawer and settings sheet
+   render over the launcher instead of being blocked by it. */
+body.widget-experience #brevo-conversations {
+  /* Brevo pins `bottom` inline, so lift with a transform (same trick as the
+     play-experience rule above). */
+  transform: translateY(-5.25rem) !important;
+  right: max(1rem, calc(100% - 24.5625rem + 1rem)) !important;
+  z-index: 50 !important;
+}
+
+/* Wallet drawer (MobileDropdown bottom sheet): cap to the card width and
+   anchor under the card instead of spanning the whole iframe. */
+body.widget-experience .fixed.inset-0.items-end > * {
+  max-width: min(100%, 24.5625rem);
+  margin-left: 0;
+  margin-right: auto;
+  padding-bottom: 0.75rem;
+}
+
+/* Transparent iframe backdrop: the WidgetShell card floats over the host
+   page (browsers keep cross-origin iframes transparent when the embedded
+   document's background is transparent). */
+body.widget-experience {
+  background: transparent !important;
+}
+
+/* Chrome paints an OPAQUE canvas behind a cross-origin iframe whose root
+   color-scheme is dark when the embedder's isn't — which defeats the
+   transparent backdrop above. Force a neutral color-scheme on the widget
+   document (next-themes sets an inline `color-scheme: dark`, so this needs
+   !important). Visual theming is class-based Tailwind and unaffected. */
+html:has(body.widget-experience) {
+  color-scheme: light !important;
+}
+
+/* WidgetShell close button: floats outside the card's top-right corner when
+   the frame is wide enough for the gutter (Figma desktop variant: 393px card
+   + 12px gap + 44px button = 449px), moves into the card header on narrower
+   frames (Figma mobile variant). */
+.widget-close-outside {
+  display: none;
+}
+.widget-close-inside {
+  display: flex;
+}
+@media (min-width: 28.0625rem) {
+  .widget-close-outside {
+    display: flex;
+  }
+  .widget-close-inside {
+    display: none;
+  }
+}

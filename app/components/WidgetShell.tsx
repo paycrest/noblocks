@@ -16,17 +16,18 @@ import { useEmbed } from "../context/EmbedContext";
 import { useInjectedWallet } from "../context";
 
 /**
- * Compact card chrome for the embedded /widget experience: a floating rounded
- * card (soft drop shadow) on a transparent backdrop so the host page shows
- * through, a minimized wallet pill (wallet icon + chevron) opening the mobile
- * wallet drawer, a close X in the card header, the swap step, and a
- * "Secured by Noblocks" footer row.
+ * Compact card chrome for the embedded /widget experience: a flat rounded
+ * card (no drop shadow — the host page's own shadow/framing applies, if any)
+ * on a transparent backdrop so the host page shows through, a minimized
+ * wallet pill (wallet icon + chevron) opening the mobile wallet drawer, a
+ * close X in the card header, the swap step, and a "Secured by Noblocks"
+ * footer row.
  * Replaces Navbar/Footer/HomePage, which are hidden in embed mode.
  *
- * Geometry: 393px card (Figma frame 2429:118606), centered, with no extra
- * gutter — only the drop shadow surrounds it. The floating-element rules in
- * globals.css share this width. The card width is below Tailwind's `sm`
- * breakpoint, so the app renders its mobile UI inside the widget by design.
+ * Geometry: 393px card (Figma frame 2429:118606), centered, no extra gutter.
+ * The floating-element rules in globals.css share this width. The card width
+ * is below Tailwind's `sm` breakpoint, so the app renders its mobile UI
+ * inside the widget by design.
  */
 export function WidgetShell({ children }: { children: React.ReactNode }) {
   const { ready, authenticated } = usePrivy();
@@ -41,7 +42,7 @@ export function WidgetShell({ children }: { children: React.ReactNode }) {
       {/* Card grows with content up to the viewport; beyond that everything
           above the "Secured by" footer scrolls internally (the wallet header
           scrolls with the content — only the footer stays pinned). */}
-      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col rounded-3xl bg-white p-4 shadow-[0_25px_80px_-12px_rgba(0,0,0,0.75)] ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/5">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col rounded-3xl bg-white p-4 dark:bg-neutral-900">
         <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
         <div className="mb-3 flex min-h-10 items-center justify-end gap-2">
           {isConnected && (

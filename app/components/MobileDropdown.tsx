@@ -2,7 +2,7 @@
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState, useEffect } from "react";
-import { usePrivy, useMfaEnrollment, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens, useStarknet, useTron } from "../context";
 import {
@@ -86,12 +86,8 @@ export const MobileDropdown = ({
   });
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const shouldUseEOA = useShouldUseEOA();
-  const { wallets } = useWallets();
   const walletAddress = useWalletAddress();
 
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy",
-  );
   const smartWallet = user?.linkedAccounts.find(
     (account) => account.type === "smart_wallet",
   );
@@ -104,8 +100,12 @@ export const MobileDropdown = ({
         ? { address: walletAddress, type: "smart_wallet" as const }
         : undefined
       : shouldUseEOA
-        ? embeddedWallet
-          ? { address: embeddedWallet.address, type: "eoa" as const }
+        ? // useWalletAddress() already falls back from user.linkedAccounts to
+          // useWallets() for the embedded EOA — reuse it instead of
+          // re-deriving from wallets alone, which can lag linkedAccounts
+          // right after a fresh signup and hide this card entirely.
+          walletAddress
+          ? { address: walletAddress, type: "eoa" as const }
           : undefined
         : smartWallet;
 

@@ -17,7 +17,7 @@ const X_URL = "https://x.com/noblocks_xyz";
 
 export const CampaignEnded = () => (
   <div className="mx-auto flex w-full max-w-xl flex-col gap-6 py-6 sm:py-10">
-    <div className="space-y-3 text-center sm:text-left">
+    <div className="space-y-3 text-center">
       <p className="text-xs font-semibold uppercase tracking-wider text-lavender-500">
         Noblocks Play
       </p>

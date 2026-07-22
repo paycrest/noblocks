@@ -178,7 +178,6 @@ export const getCurrencySymbol = (currency: string): string => {
     USD: "$",
     GBP: "£",
     EUR: "€",
-    MWK: "MK",
     XOF: "CFA",
     XAF: "FCFA",
   };
@@ -204,7 +203,6 @@ export function getOfframpAccountIdentifierPlaceholder(
     NGN: "08XXXXXXXX",
     UGX: "07XXXXXXXX",
     TZS: "07XXXXXXXX",
-    MWK: "0XXXXXXXXX",
     GHS: "0XXXXXXXXX",
   };
   return (
@@ -218,7 +216,6 @@ const NOBLOCKS_FIAT_CURRENCY_CODES = new Set([
   "KES",
   "UGX",
   "TZS",
-  "MWK",
   "GHS",
   "BRL",
   "ARS",
@@ -1685,6 +1682,11 @@ export function clearFormState(formMethods: any) {
 /**
  * Determines if the app should use an injected wallet.
  *
+ * `injected=true` uses window.ethereum (extension wallets — they inject into
+ * iframes too). `injected=bridge` uses the embedding page's wallet over the
+ * postMessage bridge (see app/lib/embed-bridge-provider.ts), so it only
+ * applies when actually running inside an iframe.
+ *
  * @param searchParams - The URL search parameters to check for the 'injected' flag
  * @returns boolean indicating whether to use injected wallet
  */
@@ -1692,7 +1694,9 @@ export function shouldUseInjectedWallet(
   searchParams: URLSearchParams,
 ): boolean {
   const injectedParam = searchParams.get("injected");
-  return Boolean(injectedParam === "true" && window.ethereum);
+  if (injectedParam === "true") return Boolean(window.ethereum);
+  if (injectedParam === "bridge") return window.self !== window.top;
+  return false;
 }
 
 /** `?side=` for home swap form: buy = on-ramp, sell = off-ramp (matches rates API). */
@@ -2041,7 +2045,6 @@ export function mapCountryToCurrency(countryCode: string): string | null {
     AR: "ARS",
     US: "USD",
     GB: "GBP",
-    MW: "MWK",
     // add more as needed
   };
   return mapping[countryCode] || null;
@@ -2265,6 +2268,28 @@ export const getBlockFestTimeRemaining = (): number => {
 };
 
 /**
+ * On-chain quote-rate multiplier for Gateway createOrder `_rate`.
+ * Matches aggregator RateScale target (×100000) so sub-par local corridors
+ * (e.g. CNGN 0.998) encode distinctly from par 1.0.
+ */
+export const RATE_SCALE = 100000;
+
+/**
+ * Packs a human quote rate for on-chain createOrder (`round(rate × RATE_SCALE)`).
+ */
+export function packRate(rate: number): bigint {
+  return BigInt(Math.round(rate * RATE_SCALE));
+}
+
+/**
+ * Local-corridor quotes sit near 1 (e.g. CNGN/NGN 0.998–1.0); FX quotes are much larger.
+ * Used for sender-fee eligibility — must not depend on legacy ×100 packing.
+ */
+function isLocalTransferRate(rate: number): boolean {
+  return Number.isFinite(rate) && rate > 0 && rate < 10;
+}
+
+/**
  * Calculates the sender fee and returns the fee amount and recipient address
  * @param amount - The transaction amount in human-readable token units
  * @param rate - The exchange rate (e.g., 1.0 for local transfers, other values for FX)
@@ -2279,8 +2304,7 @@ export function calculateSenderFee(
   rate: number,
   tokenDecimals: number = 18,
 ): { feeAmount: number; feeAmountInBaseUnits: bigint; feeRecipient: string } {
-  const calculatedRate = Math.round(rate * 100);
-  const isLocalTransfer = calculatedRate === 100;
+  const isLocalTransfer = isLocalTransferRate(rate);
   const decimalsMultiplier = BigInt(10 ** tokenDecimals);
   const maxFeeCapInBaseUnits =
     BigInt(Math.floor(localTransferFeeCap)) * decimalsMultiplier;

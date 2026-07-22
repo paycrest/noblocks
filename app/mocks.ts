@@ -79,10 +79,6 @@ export const acceptedCurrencies = [
     label: "Tanzanian Shilling (TZS)",
   },
   {
-    name: "MWK",
-    label: "Malawian Kwacha (MWK)",
-  },
-  {
     name: "GHS",
     label: "Ghanaian Cedi (GHS)",
     disabled: true,

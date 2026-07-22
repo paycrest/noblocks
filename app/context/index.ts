@@ -31,3 +31,4 @@ export {
   HomeTransactionFormModeProvider,
   useHomeTransactionFormMode,
 } from "./HomeTransactionFormModeContext";
+export { EmbedProvider, useEmbed, isEmbedPath } from "./EmbedContext";

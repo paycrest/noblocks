@@ -367,6 +367,20 @@ export const BalanceProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
     setIsLoading(true);
 
+    // Identity changed since the last completed fetch (e.g. injected/bridge
+    // mode toggling off around a Privy login, or a different account): drop
+    // the previous identity's balances NOW, before any early return below
+    // can strand them. Otherwise the UI can show address A's header with
+    // wallet B's cross-chain balances (seen in the embedded widget, where an
+    // injected EOA's balances survived into a Privy session).
+    if (
+      lastFetchedKeyRef.current !== "" &&
+      lastFetchedKeyRef.current !== fetchIdentityKey
+    ) {
+      clearAllWalletBalances();
+      lastFetchedKeyRef.current = "";
+    }
+
     if (isMigrationLoading) return;
     if (!ready) return;
 

@@ -11,10 +11,9 @@ import {
   classNames,
   formatDecimalPrecision,
   fetchBalanceForNetwork,
-  normalizeStarknetAddress,
   shouldUseInjectedWallet,
 } from "../utils";
-import { isValidEvmAddressCaseInsensitive } from "../lib/validation";
+import { validateWalletAddress } from "../lib/validation";
 import { useSmartWalletTransfer } from "../hooks/useSmartWalletTransfer";
 import { FormDropdown } from "./FormDropdown";
 import { AnimatedComponent, slideInOut } from "./AnimatedComponents";
@@ -404,30 +403,11 @@ export const TransferForm: React.FC<{
                   message: "Recipient address is required",
                 },
                 validate: {
-                  addressForNetwork: (value) => {
-                    const raw = (value || "").trim();
-                    if (!raw) return true;
-                    const net =
-                      recipientNetwork || selectedNetwork.chain.name;
-                    if (!raw.startsWith("0x")) {
-                      return "Address must start with 0x";
-                    }
-                    if (net === "Starknet") {
-                      if (isValidEvmAddressCaseInsensitive(raw)) {
-                        return "This address is an EVM address. Enter a Starknet address.";
-                      }
-                      try {
-                        normalizeStarknetAddress(raw);
-                        return true;
-                      } catch {
-                        return "Enter a valid Starknet address.";
-                      }
-                    }
-                    if (!isValidEvmAddressCaseInsensitive(raw)) {
-                      return "Enter a valid EVM address.";
-                    }
-                    return true;
-                  },
+                  addressForNetwork: (value) =>
+                    validateWalletAddress(
+                      value,
+                      recipientNetwork || selectedNetwork.chain.name,
+                    ),
                 },
               })}
               className={classNames(
@@ -636,9 +616,9 @@ export const TransferForm: React.FC<{
 
         {/* Network compatibility warning */}
         {showNetworkWarning && (
-          <div className="mb-4 flex h-[48px] w-full items-start justify-start gap-0.5 rounded-xl bg-warning-background/[8%] px-3 py-2 dark:bg-warning-background/[8%]">
-            <InformationSquareIcon className="-mt-0.5 mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
-            <p className="text-wrap text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
+          <div className="mb-4 flex w-full min-w-0 items-start gap-2 rounded-xl bg-warning-background/[8%] px-3 py-2 dark:bg-warning-background/[8%]">
+            <InformationSquareIcon className="mt-0.5 size-5 shrink-0 text-warning-foreground dark:text-warning-text" />
+            <p className="min-w-0 flex-1 break-words text-xs font-light leading-snug text-warning-foreground dark:text-warning-text">
               Ensure that the recipient wallet address supports {recipientNetwork}{" "}
               network to avoid loss of funds.
             </p>

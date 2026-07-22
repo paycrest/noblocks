@@ -23,7 +23,7 @@ inside your iframe. Non-whitelisted origins are blocked by the browser.
   id="noblocks-widget"
   src="https://noblocks.xyz/widget?theme=dark&currency=NGN"
   allow="clipboard-write; publickey-credentials-get; camera"
-  style="width: 100%; max-width: 460px; height: 680px; border: 0; background: transparent"
+  style="width: 100%; max-width: 420px; height: 680px; border: 0; background: transparent"
 ></iframe>
 ```
 
@@ -35,10 +35,11 @@ Notes:
   (`strict-origin-when-cross-origin`, the browser default) is enough.
 - `camera` is needed for KYC selfie capture, `clipboard-write` for
   copy-address buttons.
-- The widget renders as a floating card (393px) on a **transparent backdrop**,
-  with its close button in a right-side gutter. Give the iframe **≥ 449px**
-  width for that layout; below 449px the close button moves inside the card
-  header (compact/mobile variant), so narrower embeds still work.
+- The widget renders as a floating card (393px, centered) on a **transparent
+  backdrop** — the space around the card shows your page through the card's
+  drop shadow. The close button sits in the card header. A **~420px** iframe
+  width gives the shadow room to breathe; exactly 393px also works (the card
+  fills the frame).
 
 ## URL parameters
 

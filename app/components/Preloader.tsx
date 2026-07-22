@@ -11,13 +11,12 @@ const Skeleton = ({ className }: { className?: string }) => (
 
 /**
  * Embed (/widget) loading state: skeleton shaped like the WidgetShell card
- * (same geometry — 393px card in a 449px unit) instead of the full-page
- * navbar/hero skeleton, so the transparent gutter and close-button margin
- * are respected while loading.
+ * (same geometry — 393px card, centered) instead of the full-page
+ * navbar/hero skeleton, so the card footprint matches while loading.
  */
 const WidgetPreloader = () => (
-  <div className="pointer-events-none fixed inset-x-0 top-3 z-50 mx-auto w-full max-w-[28.0625rem]">
-    <div className="flex h-[calc(100dvh-1.5rem)] w-full max-w-[24.5625rem] flex-col rounded-3xl bg-white p-4 dark:bg-neutral-900">
+  <div className="pointer-events-none fixed inset-x-0 top-3 z-50 mx-auto w-full max-w-[24.5625rem]">
+    <div className="flex h-[calc(100dvh-1.5rem)] w-full flex-col rounded-3xl bg-white p-4 dark:bg-neutral-900">
       <div className="mb-3 flex min-h-10 items-center justify-end">
         <Skeleton className="h-10 w-16" />
       </div>

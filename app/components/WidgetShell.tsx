@@ -16,17 +16,16 @@ import { useEmbed } from "../context/EmbedContext";
 import { useInjectedWallet } from "../context";
 
 /**
- * Compact card chrome for the embedded /widget experience, per the Figma
- * widget design: a floating rounded card (soft drop shadow) on a transparent
- * backdrop so the host page shows through, a minimized wallet pill (wallet
- * icon + chevron) opening the mobile wallet drawer, the swap step, a
- * "Secured by Noblocks" footer row, and a close X floating OUTSIDE the
- * card's top-right corner with a gutter between them.
+ * Compact card chrome for the embedded /widget experience: a floating rounded
+ * card (soft drop shadow) on a transparent backdrop so the host page shows
+ * through, a minimized wallet pill (wallet icon + chevron) opening the mobile
+ * wallet drawer, a close X in the card header, the swap step, and a
+ * "Secured by Noblocks" footer row.
  * Replaces Navbar/Footer/HomePage, which are hidden in embed mode.
  *
- * Geometry (matches Figma frame 2429:118606): card 393px, 12px gap, 44px X
- * → 449px unit. The `.widget-close-*` and floating-element rules in
- * globals.css share these numbers. The card width is below Tailwind's `sm`
+ * Geometry: 393px card (Figma frame 2429:118606), centered, with no extra
+ * gutter — only the drop shadow surrounds it. The floating-element rules in
+ * globals.css share this width. The card width is below Tailwind's `sm`
  * breakpoint, so the app renders its mobile UI inside the widget by design.
  */
 export function WidgetShell({ children }: { children: React.ReactNode }) {
@@ -38,27 +37,11 @@ export function WidgetShell({ children }: { children: React.ReactNode }) {
   const isConnected = (ready && authenticated) || isInjectedWallet;
 
   return (
-    <div className="relative mx-auto min-h-dvh w-full max-w-[28.0625rem] py-3">
-      {/* Close: floats outside the card per the design (falls back into the
-          card header on narrow frames, matching the mobile Figma variant).
-          The host removes the iframe on noblocks:close; only useful when we
-          can actually reach a host. */}
-      {parentOrigin && (
-        <button
-          type="button"
-          title="Close widget"
-          aria-label="Close widget"
-          onClick={() => postToHost("noblocks:close")}
-          className="widget-close-outside absolute right-0 top-3 size-11 items-center justify-center rounded-full bg-neutral-800 text-white transition-colors hover:bg-neutral-700"
-        >
-          <Cancel01Icon className="size-5" />
-        </button>
-      )}
-
+    <div className="relative mx-auto min-h-dvh w-full max-w-[24.5625rem] py-3">
       {/* Card grows with content up to the viewport; beyond that everything
           above the "Secured by" footer scrolls internally (the wallet header
           scrolls with the content — only the footer stays pinned). */}
-      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[24.5625rem] flex-col rounded-3xl bg-white p-4 shadow-[0_25px_80px_-12px_rgba(0,0,0,0.75)] ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/5">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col rounded-3xl bg-white p-4 shadow-[0_25px_80px_-12px_rgba(0,0,0,0.75)] ring-1 ring-black/5 dark:bg-neutral-900 dark:ring-white/5">
         <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
         <div className="mb-3 flex min-h-10 items-center justify-end gap-2">
           {isConnected && (
@@ -81,13 +64,15 @@ export function WidgetShell({ children }: { children: React.ReactNode }) {
               </AnimatePresence>
             </>
           )}
+          {/* The host removes the iframe on noblocks:close; only useful when
+              we can actually reach a host. */}
           {parentOrigin && (
             <button
               type="button"
               title="Close widget"
               aria-label="Close widget"
               onClick={() => postToHost("noblocks:close")}
-              className="widget-close-inside size-9 items-center justify-center rounded-xl bg-gray-50 transition-colors hover:bg-gray-100 dark:bg-white/10 dark:hover:bg-white/20"
+              className="flex size-9 items-center justify-center rounded-xl bg-gray-50 transition-colors hover:bg-gray-100 dark:bg-white/10 dark:hover:bg-white/20"
             >
               <Cancel01Icon className="size-4 text-outline-gray dark:text-white/50" />
             </button>

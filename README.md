@@ -69,7 +69,7 @@ Partners can embed Noblocks as a compact swap widget via iframe (restricted to w
 <iframe
   src="https://noblocks.xyz/widget?theme=dark&currency=NGN"
   allow="clipboard-write; publickey-credentials-get; camera"
-  style="width: 100%; max-width: 460px; height: 680px; border: 0; background: transparent"
+  style="width: 100%; max-width: 420px; height: 680px; border: 0; background: transparent"
 ></iframe>
 ```
 

@@ -354,7 +354,9 @@ export const FlexibleDropdown = ({
         variants={dropdownVariants}
         className="fixed inset-0 flex w-screen items-end justify-center"
       >
-        <DialogPanel className="w-full space-y-4 rounded-t-[30px] border border-border-light bg-white px-5 py-6 dark:border-white/5 dark:bg-surface-overlay">
+        {/* dropdown-sheet-panel: stable styling hook (e.g. for widget-mode
+            overrides in globals.css). */}
+        <DialogPanel className="dropdown-sheet-panel w-full space-y-4 rounded-t-[30px] border border-border-light bg-white px-5 py-6 dark:border-white/5 dark:bg-surface-overlay">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-center text-lg font-semibold text-text-body dark:text-white">
               {mobileTitle}

@@ -312,8 +312,8 @@ export const MobileDropdown = ({
             />
 
             <div className="fixed inset-0 flex items-end justify-center">
-              {/* wallet-drawer-panel: stable hook for the widget-mode width
-                  override in globals.css (body.widget-experience). */}
+              {/* wallet-drawer-panel: stable styling hook (e.g. for
+                  widget-mode overrides in globals.css). */}
               <motion.div
                 {...slideUpAnimation}
                 className="wallet-drawer-panel w-full"

@@ -17,17 +17,17 @@ import { useInjectedWallet } from "../context";
 
 /**
  * Compact card chrome for the embedded /widget experience: a flat rounded
- * card (no drop shadow — the host page's own shadow/framing applies, if any)
- * on a transparent backdrop so the host page shows through, a minimized
- * wallet pill (wallet icon + chevron) opening the mobile wallet drawer, a
- * close X in the card header, the swap step, and a "Secured by Noblocks"
- * footer row.
+ * card that FILLS the entire iframe viewport — no margins, no shadow; the
+ * partner sizes/rounds/floats the widget by styling the iframe element
+ * itself, and the rounded corners show against the transparent backdrop.
+ * Inside: a minimized wallet pill (wallet icon + chevron) opening the mobile
+ * wallet drawer, a close X in the card header (iframe-embedded only), the
+ * swap step, and a "Secured by Noblocks" footer row.
  * Replaces Navbar/Footer/HomePage, which are hidden in embed mode.
  *
- * Geometry: 393px card (Figma frame 2429:118606), centered, no extra gutter.
- * The floating-element rules in globals.css share this width. The card width
- * is below Tailwind's `sm` breakpoint, so the app renders its mobile UI
- * inside the widget by design.
+ * The recommended iframe width (~393-420px, per Figma frame 2429:118606) is
+ * below Tailwind's `sm` breakpoint, so the app renders its mobile UI inside
+ * the widget by design.
  */
 export function WidgetShell({ children }: { children: React.ReactNode }) {
   const { ready, authenticated } = usePrivy();
@@ -38,11 +38,12 @@ export function WidgetShell({ children }: { children: React.ReactNode }) {
   const isConnected = (ready && authenticated) || isInjectedWallet;
 
   return (
-    <div className="relative mx-auto min-h-dvh w-full max-w-[24.5625rem] py-3">
-      {/* Card grows with content up to the viewport; beyond that everything
-          above the "Secured by" footer scrolls internally (the wallet header
-          scrolls with the content — only the footer stays pinned). */}
-      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full flex-col rounded-3xl bg-white p-4 dark:bg-neutral-900">
+    <div className="w-full">
+      {/* Fixed full-viewport height: short steps (e.g. the pending/status
+          screen) keep the footer pinned to the bottom edge instead of the
+          card shrinking to fit; tall content scrolls internally above the
+          footer (the wallet header scrolls with the content). */}
+      <div className="flex h-dvh w-full flex-col rounded-3xl bg-white p-4 dark:bg-neutral-900">
         <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
         <div className="mb-3 flex min-h-10 items-center justify-end gap-2">
           {isConnected && (

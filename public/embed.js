@@ -14,7 +14,6 @@
  *       provider, // any EIP-1193 provider, e.g. window.ethereum
  *       {
  *         onEvent(event, payload) {
- *           if (event === "noblocks:close") iframe.remove();
  *           if (event === "noblocks:resize") iframe.style.height = payload.height + "px";
  *         },
  *       }
@@ -23,7 +22,8 @@
  *
  * Call bindWallet before (or immediately after) adding the iframe so no
  * request from the widget is missed. Signing prompts appear in the host
- * wallet's own UI; the widget never sees keys.
+ * wallet's own UI; the widget never sees keys. Dismissing the iframe
+ * (modal backdrop, host close control, etc.) is owned by the host page.
  */
 (function () {
   "use strict";
@@ -36,7 +36,7 @@
    *   EIP-1193 provider whose requests the widget will proxy
    * @param {{ origin?: string, onEvent?: (event: string, payload: any) => void }} [options]
    *   origin: widget origin if not noblocks.xyz (e.g. http://localhost:3000)
-   *   onEvent: called for every widget event (noblocks:ready/resize/close/tx_status)
+   *   onEvent: called for every widget event (noblocks:ready/resize/tx_status)
    * @returns {() => void} unbind function
    */
   function bindWallet(iframeEl, provider, options) {

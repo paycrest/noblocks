@@ -17,8 +17,10 @@ import { usePathname } from "next/navigation";
  * (see middleware.ts). Exposes a postMessage channel to the host page:
  *   noblocks:ready   - widget mounted
  *   noblocks:resize  - { height } content height changed
- *   noblocks:close   - user clicked the widget close button
  *   noblocks:tx_status - { status, orderId } transaction progress
+ *
+ * Closing / dismissing the iframe is owned by the host page — the widget
+ * does not emit a close event.
  *
  * The host origin is derived from document.referrer (the embedding page on an
  * iframe's first load). If the host strips its referrer entirely, events are

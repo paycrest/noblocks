@@ -1,9 +1,11 @@
 -- Partial index supporting the reconcile-pending-orders cron (companion to
 -- 20260723120000_reconcile_pending_offramps_cron.sql).
 --
--- It matches the reconciler's scan predicate exactly, so each 2-minute run does an
--- index-only range scan over just the still-pending offramp rows (keyset-ordered
--- by created_at) instead of scanning the whole transactions table. Rows advanced
+-- It matches the reconciler's scan predicate exactly and INCLUDEs the columns the
+-- reconciler projects (id, order_id, network, status), so each 2-minute run scans
+-- just the still-pending offramp rows (keyset-ordered by created_at) instead of the
+-- whole transactions table — and can be served index-only when visibility-map
+-- conditions permit (heap fetches skipped only for all-visible pages). Rows advanced
 -- to a terminal status leave this partial index automatically, keeping it tiny in
 -- steady state.
 --
@@ -19,6 +21,7 @@
 
 create index concurrently if not exists idx_transactions_offramp_pending_reconcile
   on transactions (created_at)
+  include (id, order_id, network, status)
   where transaction_type = 'offramp'
     and order_id is not null
     and status in ('pending', 'fulfilling', 'fulfilled', 'refunding');

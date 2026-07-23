@@ -19,20 +19,15 @@
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- The supporting partial index that makes each run an index-only range scan over
--- just the still-pending offramp rows is created in the companion migration
+-- The supporting partial index that lets each run scan just the still-pending
+-- offramp rows — served index-only when visibility-map conditions permit — is
+-- created in the companion migration
 -- 20260723120001_create_offramp_pending_reconcile_index.sql. It is built with
 -- CREATE INDEX CONCURRENTLY, which cannot share a transaction with other
 -- statements, so it must live in its own migration.
 
--- Idempotent (re)schedule: drop any prior job with this name first.
-do $$
-begin
-  perform cron.unschedule('reconcile-pending-offramps');
-exception
-  when others then null; -- job did not exist yet
-end $$;
-
+-- cron.schedule upserts by job name: re-running this migration updates the existing
+-- 'reconcile-pending-offramps' job in place rather than creating a duplicate.
 select cron.schedule(
   'reconcile-pending-offramps',
   '*/2 * * * *',

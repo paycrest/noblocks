@@ -268,7 +268,7 @@ export function MainPageContent() {
   /** Snapshotted at order create — status fetch/save must not follow live swapMode. */
   const [activeOrderIsOnramp, setActiveOrderIsOnramp] = useState(false);
 
-  const { isEmbed, postToHost } = useEmbed();
+  const { isEmbed, postToHost, isNetworkLocked } = useEmbed();
 
   // Surface transaction progress to the embedding page (no-op outside /widget).
   useEffect(() => {
@@ -526,6 +526,9 @@ export function MainPageContent() {
 
   useEffect(
     function autoSelectLargestBalanceNetwork() {
+      // Host-locked embed network must not hop based on balances.
+      if (isEmbed && isNetworkLocked) return;
+
       const sessionKey = isInjectedWallet
         ? injectedAddress
           ? `injected:${injectedAddress}`
@@ -567,7 +570,9 @@ export function MainPageContent() {
       injectedAddress,
       injectedReady,
       isBalanceLoading,
+      isEmbed,
       isInjectedWallet,
+      isNetworkLocked,
       ready,
       selectedNetwork.chain.name,
       setDisplayedNetwork,

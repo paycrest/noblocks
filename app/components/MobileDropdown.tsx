@@ -17,6 +17,7 @@ import { useStep } from "../context/StepContext";
 import { STEPS, type MobileSheetView } from "../types";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
+import { useEmbed } from "../context/EmbedContext";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { toastMappedError } from "../lib/toastMappedError";
 import { useActualTheme } from "../hooks/useActualTheme";
@@ -71,6 +72,8 @@ export const MobileDropdown = ({
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { currentStep } = useStep();
+  const { isEmbed, isNetworkLocked } = useEmbed();
+  const hideNetworkSwitcher = isEmbed && isNetworkLocked;
 
   const { user, linkEmail, updateEmail } = usePrivy();
   const handleExportEmbeddedWallet = useHandleExportEmbeddedWallet();
@@ -350,6 +353,7 @@ export const MobileDropdown = ({
                           networks={networks}
                           selectedNetwork={selectedNetwork}
                           isDark={isDark}
+                          isNetworkLocked={hideNetworkSwitcher}
                           handleNetworkSwitchWrapper={
                             handleNetworkSwitchWrapper
                           }

@@ -6,9 +6,14 @@ import {
   useEffect,
   useMemo,
   useState,
+  Suspense,
   type ReactNode,
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import {
+  hasEmbedNetworkLockParams,
+  resolveNetworkFromEmbedParams,
+} from "../lib/embed-network";
 
 /**
  * Embed (widget) mode context.
@@ -21,6 +26,9 @@ import { usePathname } from "next/navigation";
  *
  * Closing / dismissing the iframe is owned by the host page — the widget
  * does not emit a close event.
+ *
+ * Hosts can lock the widget to a network via `?chainId=` / `?network=`, or by
+ * switching an injected/bridge wallet (chainChanged). See docs/embed-widget.md.
  *
  * The host origin is derived from document.referrer (the embedding page on an
  * iframe's first load). If the host strips its referrer entirely, events are
@@ -38,18 +46,54 @@ interface EmbedContextType {
   parentOrigin: string | null;
   /** Send an event to the host page. No-op outside an iframe. */
   postToHost: (event: string, payload?: unknown) => void;
+  /**
+   * True when the widget network picker is locked (URL `chainId`/`network`,
+   * or a successful wallet-driven lock via chainChanged).
+   */
+  isNetworkLocked: boolean;
+  /**
+   * True when URL lock params were present but did not resolve to a supported
+   * network — picker stays locked; widget keeps last valid / default network.
+   */
+  networkLockUnresolved: boolean;
+  /** Mark the network as locked after a successful wallet chainChanged follow. */
+  lockNetworkFromWallet: () => void;
 }
 
 const EmbedContext = createContext<EmbedContextType>({
   isEmbed: false,
   parentOrigin: null,
-  postToHost: () => { },
+  postToHost: () => {},
+  isNetworkLocked: false,
+  networkLockUnresolved: false,
+  lockNetworkFromWallet: () => {},
 });
 
-export function EmbedProvider({ children }: { children: ReactNode }) {
+function EmbedProviderContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const isEmbed = isEmbedPath(pathname);
   const [parentOrigin, setParentOrigin] = useState<string | null>(null);
+  const [walletNetworkLocked, setWalletNetworkLocked] = useState(false);
+
+  const urlLockRequested = isEmbed && hasEmbedNetworkLockParams(searchParams);
+  const urlResolvedNetwork = useMemo(
+    () =>
+      isEmbed && urlLockRequested
+        ? resolveNetworkFromEmbedParams(searchParams)
+        : null,
+    [isEmbed, urlLockRequested, searchParams],
+  );
+
+  const networkLockUnresolved =
+    urlLockRequested && urlResolvedNetwork === null;
+  const isNetworkLocked =
+    isEmbed && (urlLockRequested || walletNetworkLocked);
+
+  const lockNetworkFromWallet = useCallback(() => {
+    if (!isEmbed) return;
+    setWalletNetworkLocked(true);
+  }, [isEmbed]);
 
   useEffect(() => {
     if (!isEmbed || window.self === window.top) return;
@@ -86,12 +130,34 @@ export function EmbedProvider({ children }: { children: ReactNode }) {
   }, [isEmbed, parentOrigin, postToHost]);
 
   const value = useMemo(
-    () => ({ isEmbed, parentOrigin, postToHost }),
-    [isEmbed, parentOrigin, postToHost],
+    () => ({
+      isEmbed,
+      parentOrigin,
+      postToHost,
+      isNetworkLocked,
+      networkLockUnresolved,
+      lockNetworkFromWallet,
+    }),
+    [
+      isEmbed,
+      parentOrigin,
+      postToHost,
+      isNetworkLocked,
+      networkLockUnresolved,
+      lockNetworkFromWallet,
+    ],
   );
 
   return (
     <EmbedContext.Provider value={value}>{children}</EmbedContext.Provider>
+  );
+}
+
+export function EmbedProvider({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={null}>
+      <EmbedProviderContent>{children}</EmbedProviderContent>
+    </Suspense>
   );
 }
 

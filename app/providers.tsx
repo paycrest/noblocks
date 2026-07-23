@@ -28,6 +28,7 @@ import {
   EmbedProvider,
   isEmbedPath,
 } from "./context";
+import { EmbedNetworkLockApplier } from "./components/EmbedNetworkLockApplier";
 import { useActualTheme } from "./hooks/useActualTheme";
 import { useMixpanel } from "./hooks/analytics/client";
 import { BlockFestClaimProvider } from "./context/BlockFestClaimContext";
@@ -113,6 +114,7 @@ function ContextProviders({ children }: { children: ReactNode }) {
       <NetworkProvider>
       <HomeTransactionFormModeProvider>
         <InjectedWalletProvider>
+          <EmbedNetworkLockApplier />
           <MigrationStatusProvider>
             <StarknetProvider>
               <StarknetExportModalProvider>

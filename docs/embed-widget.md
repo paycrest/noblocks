@@ -72,6 +72,35 @@ Notes:
 | `provider`    | liquidity provider ID    | Pin a specific liquidity provider                         |
 | `ref`         | referral code            | Attribute transactions to your referral code              |
 | `injected`    | `true` \| `bridge`       | Wallet mode — see below                                   |
+| `chainId`     | decimal or `0x` hex      | Lock to an EVM network (e.g. `8453` or `0x2105` for Base) |
+| `network`     | chain name               | Lock by Noblocks name (e.g. `Base`, `Starknet`) — case-insensitive |
+
+### Network lock / follow
+
+Pass `chainId` and/or `network` to **lock** the widget to that chain:
+
+- The wallet drawer shows a read-only chain chip (no network switcher).
+- Balance-based auto network hopping is disabled.
+- Prefer **`chainId`** for EVM hosts. Use **`network`** for Starknet / Tron (and as an alternate for EVM by name). If both are present, `chainId` wins when non-empty.
+- An unsupported or unknown value toasts once, keeps the picker locked, and leaves the last valid network (or the widget default). A short inline note appears in the header on first paint failure.
+
+With `injected=true` or `injected=bridge`, the widget also **follows** the host wallet:
+
+- EIP-1193 `chainChanged` (extension or bridge) updates the displayed network when the new chain is supported, and keeps the lock on that chain.
+- Unsupported wallet chains toast once and do **not** unlock the picker.
+
+Closing / dismissing the iframe remains the host page’s responsibility (unchanged).
+
+```html
+<!-- Lock to Base -->
+<iframe src="https://noblocks.xyz/widget?chainId=8453&currency=NGN" ...></iframe>
+
+<!-- Lock to Starknet by name -->
+<iframe src="https://noblocks.xyz/widget?network=Starknet" ...></iframe>
+
+<!-- Bridge wallet + lock; follow host chain switches -->
+<iframe src="https://noblocks.xyz/widget?injected=bridge&chainId=8453" ...></iframe>
+```
 
 ## Widget → host events (postMessage)
 

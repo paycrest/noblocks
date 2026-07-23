@@ -456,6 +456,11 @@ export type Config = {
   onrampChainedForwardingEnabled: boolean;
   /** Noblocks Play (World Cup fantasy league) feature flag. Gates /play UI + API. */
   fantasyEnabled: boolean;
+  /**
+   * When true with fantasyEnabled, public /play is the campaign-ended
+   * announcement (live game hidden; /play/admin still works).
+   */
+  fantasyCampaignEnded: boolean;
   /** Embeddable widget feature flag. Gates the /widget route (iframe embed for whitelisted partners). */
   embedEnabled: boolean;
 };

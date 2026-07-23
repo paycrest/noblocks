@@ -1749,6 +1749,7 @@ export function TransactionStatus({
 
         <AnimatePresence>
           {config.fantasyEnabled &&
+            !config.fantasyCampaignEnded &&
             showSuccessVisual &&
             !isFantasyBannerDismissed && (
               <AnimatedComponent

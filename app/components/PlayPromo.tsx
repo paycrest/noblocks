@@ -176,7 +176,8 @@ export function PlayPromoModal() {
   }, []);
 
   useEffect(() => {
-    if (!mounted || !config.fantasyEnabled) return;
+    if (!mounted || !config.fantasyEnabled || config.fantasyCampaignEnded)
+      return;
     if (isModalDismissed()) return;
     const timer = setTimeout(() => setIsOpen(true), 500);
     return () => clearTimeout(timer);
@@ -187,7 +188,8 @@ export function PlayPromoModal() {
     setIsOpen(false);
   }, []);
 
-  if (!config.fantasyEnabled || !mounted) return null;
+  if (!config.fantasyEnabled || config.fantasyCampaignEnded || !mounted)
+    return null;
 
   return (
     <AnimatePresence>
@@ -348,7 +350,13 @@ export function PlayPromoBanner() {
     setDismissed(true);
   }, []);
 
-  if (!config.fantasyEnabled || !ready || dismissed) return null;
+  if (
+    !config.fantasyEnabled ||
+    config.fantasyCampaignEnded ||
+    !ready ||
+    dismissed
+  )
+    return null;
 
   return (
     <>
@@ -477,7 +485,8 @@ export function PlayPromoButton() {
 
   // Only takes the banner's place: hidden while the banner is showing, and
   // gone entirely once the campaign (fantasy) is switched off.
-  if (!config.fantasyEnabled || bannerVisible) return null;
+  if (!config.fantasyEnabled || config.fantasyCampaignEnded || bannerVisible)
+    return null;
 
   return (
     <motion.div

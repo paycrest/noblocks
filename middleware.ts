@@ -464,16 +464,59 @@ async function embedMiddleware(req: NextRequest) {
   return response;
 }
 
+/**
+ * When the World Cup campaign has ended, funnel all public /play/* deep links
+ * to the announcement at /play. Admin stays live for winner ops.
+ */
+function playCampaignEndedRedirect(req: NextRequest): NextResponse | null {
+  if (process.env.NEXT_PUBLIC_FANTASY_CAMPAIGN_ENDED !== "true") {
+    return null;
+  }
+  if (process.env.NEXT_PUBLIC_FANTASY_ENABLED !== "true") {
+    return null;
+  }
+
+  const pathname = req.nextUrl.pathname;
+  // Landing announcement + admin console stay reachable.
+  if (
+    pathname === "/play" ||
+    pathname === "/play/" ||
+    pathname === "/play/admin" ||
+    pathname.startsWith("/play/admin/")
+  ) {
+    return null;
+  }
+  if (!pathname.startsWith("/play/")) {
+    return null;
+  }
+
+  const url = req.nextUrl.clone();
+  url.pathname = "/play";
+  url.search = "";
+  return NextResponse.redirect(url);
+}
+
 export default async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   if (pathname === "/widget" || pathname.startsWith("/widget/")) {
     return embedMiddleware(req);
   }
+
+  // Page routes under /play (not /api/play): optional campaign-ended redirect,
+  // then pass through — never run Privy JWT auth on HTML pages.
+  if (pathname === "/play" || pathname.startsWith("/play/")) {
+    const playRedirect = playCampaignEndedRedirect(req);
+    if (playRedirect) return playRedirect;
+    return NextResponse.next();
+  }
+
   return authorizationMiddleware(req);
 }
 
 export const config = {
   matcher: [
+    "/play",
+    "/play/:path*",
     "/widget",
     "/widget/:path*",
     "/api/v1/transactions",

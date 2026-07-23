@@ -46,9 +46,12 @@ Notes:
 - Recommended width **360–420px**. The widget renders its mobile UI below
   ~640px wide (a comfortable compact layout); above that it would switch to
   the desktop layout, so keep it narrow. Height is flexible — size it to fit
-  the flow (≈600–680px works well); the footer pins to the bottom edge.
-- The close button sits in the card header (shown only when the widget can
-  reach a host — see `noblocks:close` below).
+  the flow (≈670–750px works well); the footer pins to the bottom edge, and
+  the wallet control stays visible while the form scrolls.
+- **Dismissing the widget is your responsibility.** Provide whatever close
+  affordance fits your UX (modal backdrop click, host close button, drawer
+  handle, etc.) and remove or hide the iframe from your page. The widget
+  itself does not render a close control.
 - Do **not** set `Referrer-Policy: no-referrer` on the embedding page (or
   `referrerpolicy="no-referrer"` on the iframe). The widget derives your origin
   from the referrer to send you events; origin-level referrer
@@ -76,18 +79,17 @@ The widget posts messages to the embedding page (only to your whitelisted
 origin, never `*`). Each message is
 `{ source: "noblocks", event, payload }`:
 
-| Event                | Payload                 | Meaning                                    |
-| -------------------- | ----------------------- | ------------------------------------------ |
-| `noblocks:ready`     | —                       | Widget mounted                             |
-| `noblocks:resize`    | `{ height }`            | Content height changed (auto-size iframe)  |
-| `noblocks:close`     | —                       | User clicked the widget close button — remove/hide the iframe |
+| Event                | Payload                 | Meaning                                   |
+| -------------------- | ----------------------- | ----------------------------------------- |
+| `noblocks:ready`     | —                       | Widget mounted                            |
+| `noblocks:resize`    | `{ height }`            | Content height changed (auto-size iframe) |
 | `noblocks:tx_status` | `{ status, orderId }`   | Transaction progress (e.g. `pending`, `settled`, `refunded`) |
 
 ```js
 const iframe = document.getElementById("noblocks-widget");
 window.addEventListener("message", (e) => {
   // Check both the origin AND the source window, so another child frame at
-  // the Noblocks origin can't spoof close/resize/tx_status events.
+  // the Noblocks origin can't spoof resize/tx_status events.
   if (e.origin !== "https://noblocks.xyz") return;
   if (e.source !== iframe.contentWindow) return;
   if (e.data?.source !== "noblocks") return;
@@ -136,7 +138,6 @@ exists and the request hangs until timeout.
   const unbind = NoblocksEmbed.bindWallet(iframe, window.ethereum, {
     onEvent(event, payload) {
       if (event === "noblocks:resize") iframe.style.height = payload.height + "px";
-      if (event === "noblocks:close") iframe.remove();
     },
   });
   // Set src only after bindWallet has installed the listener.

@@ -84,27 +84,6 @@ const config: Config = {
 
 export default config;
 
-// Fee recipient address for sender fees (required)
-const feeRecipientAddressEnv = process.env.NEXT_PUBLIC_FEE_RECIPIENT_ADDRESS;
-if (!feeRecipientAddressEnv) {
-  throw new Error(
-    "Missing required environment variable: NEXT_PUBLIC_FEE_RECIPIENT_ADDRESS",
-  );
-}
-export const feeRecipientAddress: string = feeRecipientAddressEnv;
-
-// Local transfer fee (e.g. cNGN -> NGN): percentage and cap in human-readable units
-const parsedFeePercent = parseFloat(process.env.NEXT_PUBLIC_LOCAL_TRANSFER_FEE_PERCENT ?? "");
-export const localTransferFeePercent: number = Number.isFinite(parsedFeePercent)
-  ? parsedFeePercent
-  : 0.3;
-
-const parsedFeeCap = parseFloat(process.env.NEXT_PUBLIC_LOCAL_TRANSFER_FEE_CAP ?? "");
-export const localTransferFeeCap: number =
-  Number.isFinite(parsedFeeCap) && Number.isInteger(parsedFeeCap)
-    ? parsedFeeCap
-    : 10000;
-
 export const DEFAULT_PRIVY_CONFIG: JWTProviderConfig = {
   provider: "privy",
   privy: {

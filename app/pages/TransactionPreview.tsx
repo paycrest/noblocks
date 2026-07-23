@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 
 import {
   calculateDuration,
-  calculateSenderFee,
   packRate,
   classNames,
   formatCurrency,
@@ -21,10 +20,7 @@ import {
   shortenAddress,
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
-import config, {
-  getDelegationContractAddress,
-  localTransferFeePercent,
-} from "../lib/config";
+import config, { getDelegationContractAddress } from "../lib/config";
 import { appendBaseBuilderCode } from "../lib/baseBuilderCode";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
@@ -42,7 +38,7 @@ import {
   type BaseError,
   decodeEventLog,
   encodeFunctionData,
-  getAddress,
+  zeroAddress,
   parseUnits,
   erc20Abi,
   createPublicClient,
@@ -139,7 +135,6 @@ export const TransactionPreview = ({
   } = formValues;
 
   const isOnramp = !!walletAddress;
-  const isCNGNOnramp = isOnramp && token?.toUpperCase() === "CNGN";
   const currencySymbol = currency ? getCurrencySymbol(currency) : "";
 
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -232,24 +227,12 @@ export const TransactionPreview = ({
       ? (activeBalance?.rawBalances?.[token] ?? activeBalance?.balances[token] ?? 0)
       : (activeBalance?.balances[token] ?? 0);
 
-  // Calculate sender fee for display and balance check
-  const {
-    feeAmount: senderFeeAmount,
-    feeAmountInBaseUnits: senderFeeInTokenUnits,
-    feeRecipient: senderFeeRecipientAddress,
-  } = calculateSenderFee(amountSent, rate, tokenDecimals ?? 18);
-
   // Rendered tsx info
   const renderedInfo = isOnramp
     ? {
       amount: `${currencySymbol}${formatNumberWithCommas(amountSent ?? 0)}`,
       totalValue: `${formatNumberWithCommas(amountReceived ?? 0)} ${token}`,
       rate: `${currencySymbol}${formatNumberWithCommas(rate)}`,
-      ...(isCNGNOnramp && localTransferFeePercent > 0
-        ? {
-          fee: `${localTransferFeePercent}%`,
-        }
-        : {}),
       recipient: walletAddress ? shortenAddress(walletAddress) : "",
       network: selectedNetwork.chain.name,
     }
@@ -263,9 +246,6 @@ export const TransactionPreview = ({
         .join(" "),
       account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
       ...(memo && { description: memo }),
-      ...(senderFeeAmount > 0 && {
-        fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
-      }),
       network: selectedNetwork.chain.name,
     };
 
@@ -305,15 +285,13 @@ export const TransactionPreview = ({
     const publicKey = await fetchAggregatorPublicKey();
     const encryptedRecipient = publicKeyEncrypt(recipient, publicKey.data);
 
-    // Use the fee values calculated earlier (already in base units and capped)
-
     // Prepare transaction parameters
     const params = {
       token: tokenAddress,
       amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
       rate: packRate(rate),
-      senderFeeRecipient: getAddress(senderFeeRecipientAddress),
-      senderFee: senderFeeInTokenUnits,
+      senderFeeRecipient: zeroAddress,
+      senderFee: BigInt(0),
       refundAddress: activeWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
@@ -728,9 +706,6 @@ export const TransactionPreview = ({
         const payload = {
           amount: String(amountSent),
           amountIn: "fiat" as const,
-          ...(isCNGNOnramp && localTransferFeePercent > 0
-            ? { senderFeePercent: String(localTransferFeePercent) }
-            : {}),
           source: {
             type: "fiat" as const,
             currency,
@@ -812,12 +787,10 @@ export const TransactionPreview = ({
       return;
     }
 
-    // Offramp: require token balance for amount + sender fee
-    const totalRequired = amountSent + senderFeeAmount;
-
-    if (totalRequired > balance) {
+    // Offramp: require token balance for the amount
+    if (amountSent > balance) {
       toast.warning("Low balance. Fund your wallet.", {
-        description: `Insufficient funds. You need ${formatNumberWithCommas(totalRequired)} ${token} (${formatNumberWithCommas(amountSent)} ${token} + ${formatNumberWithCommas(senderFeeAmount)} ${token} fee).`,
+        description: `Insufficient funds. You need ${formatNumberWithCommas(amountSent)} ${token}.`,
       });
       return;
     }

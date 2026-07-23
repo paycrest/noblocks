@@ -29,7 +29,6 @@ type CurrencyOption = {
   imageUrl: string;
 };
 import {
-  calculateSenderFee,
   classNames,
   formatNumberWithCommas,
   formatDecimalPrecision,
@@ -263,18 +262,7 @@ export const TransactionForm = ({
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
-  // Get token decimals for fee calculation
-  const currentToken = fetchedTokens.find((t) => t.symbol === token);
-  const tokenDecimals = currentToken?.decimals ?? 18;
-
-  // Calculate sender fee to include in balance check
-  const { feeAmount: senderFeeAmount } = calculateSenderFee(
-    Number(amountSent) || 0,
-    rate || 0,
-    tokenDecimals,
-  );
-
-  const totalRequired = (Number(amountSent) || 0) + senderFeeAmount;
+  const totalRequired = Number(amountSent) || 0;
 
   const { handleFundWallet } = useFundWalletHandler("Transaction form");
 
@@ -298,17 +286,7 @@ export const TransactionForm = ({
 
   const handleBalanceMaxClick = () => {
     if (balance > 0) {
-      // Calculate max amount accounting for fee
-      // For local transfers, we need to account for the fee
-      const { feeAmount: maxFeeAmount } = calculateSenderFee(
-        balance,
-        rate || 0,
-        tokenDecimals,
-      );
-      const maxAmount = formatDecimalPrecision(
-        Math.max(0, balance - maxFeeAmount),
-        2,
-      );
+      const maxAmount = formatDecimalPrecision(Math.max(0, balance), 2);
       setValue("amountSent", maxAmount, {
         shouldValidate: true,
         shouldDirty: true,
@@ -689,7 +667,6 @@ export const TransactionForm = ({
     hasPriorTransactionActivity,
     kycTier: tier,
     rate,
-    tokenDecimals,
     isSwapped,
     networkName: selectedNetwork.chain.name,
   });
@@ -1207,7 +1184,7 @@ export const TransactionForm = ({
                 >
                   {errors.amountSent?.message ||
                     (authenticated && !isSwapped && totalRequired > balance
-                      ? `Insufficient balance${senderFeeAmount > 0 ? ` (includes ${formatNumberWithCommas(senderFeeAmount)} ${token} fee)` : ""}`
+                      ? "Insufficient balance"
                       : null)}
                 </AnimatedComponent>
               )}

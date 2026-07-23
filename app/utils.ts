@@ -22,11 +22,6 @@ import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
-import {
-  feeRecipientAddress,
-  localTransferFeePercent,
-  localTransferFeeCap,
-} from "./lib/config";
 import { logBalanceTelemetry } from "./lib/balanceTelemetry";
 
 /**
@@ -2280,61 +2275,6 @@ export const RATE_SCALE = 100000;
  */
 export function packRate(rate: number): bigint {
   return BigInt(Math.round(rate * RATE_SCALE));
-}
-
-/**
- * Local-corridor quotes sit near 1 (e.g. CNGN/NGN 0.998–1.0); FX quotes are much larger.
- * Used for sender-fee eligibility — must not depend on legacy ×100 packing.
- */
-function isLocalTransferRate(rate: number): boolean {
-  return Number.isFinite(rate) && rate > 0 && rate < 10;
-}
-
-/**
- * Calculates the sender fee and returns the fee amount and recipient address
- * @param amount - The transaction amount in human-readable token units
- * @param rate - The exchange rate (e.g., 1.0 for local transfers, other values for FX)
- * @param tokenDecimals - The number of decimals for the token (default: 18)
- * @returns An object containing:
- *   - feeAmount: The fee amount in human-readable format (for display)
- *   - feeAmountInBaseUnits: The fee amount in token base units (for contract calls)
- *   - feeRecipient: The fee recipient address
- */
-export function calculateSenderFee(
-  amount: number,
-  rate: number,
-  tokenDecimals: number = 18,
-): { feeAmount: number; feeAmountInBaseUnits: bigint; feeRecipient: string } {
-  const isLocalTransfer = isLocalTransferRate(rate);
-  const decimalsMultiplier = BigInt(10 ** tokenDecimals);
-  const maxFeeCapInBaseUnits =
-    BigInt(Math.floor(localTransferFeeCap)) * decimalsMultiplier;
-
-  // Calculate fee in human-readable format
-  const calculatedFee = isLocalTransfer
-    ? (amount * localTransferFeePercent) / 100
-    : 0;
-
-  // Convert to base units
-  const calculatedFeeInBaseUnits = BigInt(
-    Math.floor(calculatedFee * Number(decimalsMultiplier)),
-  );
-
-  // Apply cap in base units
-  const feeAmountInBaseUnits = isLocalTransfer
-    ? calculatedFeeInBaseUnits > maxFeeCapInBaseUnits
-      ? maxFeeCapInBaseUnits
-      : calculatedFeeInBaseUnits
-    : BigInt(0);
-
-  // Convert back to human-readable format for display
-  const feeAmount = Number(feeAmountInBaseUnits) / Number(decimalsMultiplier);
-
-  const feeRecipient = isLocalTransfer
-    ? feeRecipientAddress
-    : "0x0000000000000000000000000000000000000000";
-
-  return { feeAmount, feeAmountInBaseUnits, feeRecipient };
 }
 
 /**

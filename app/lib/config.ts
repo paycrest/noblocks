@@ -74,6 +74,11 @@ const config: Config = {
   onrampChainedForwardingEnabled:
     process.env.NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED === "true",
   fantasyEnabled: process.env.NEXT_PUBLIC_FANTASY_ENABLED === "true",
+  // When true (and fantasyEnabled), public /play shows the end-of-campaign
+  // announcement instead of the live game. Flip off to revive Play for a
+  // later league (EPL / UCL) after rebranding assets/copy.
+  fantasyCampaignEnded:
+    process.env.NEXT_PUBLIC_FANTASY_CAMPAIGN_ENDED === "true",
   embedEnabled: process.env.NEXT_PUBLIC_EMBED_ENABLED === "true",
 };
 

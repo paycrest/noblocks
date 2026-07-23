@@ -2243,10 +2243,11 @@ export const isBlockFestActive = (): boolean => {
 
 export const WORLDCUP_FOOTER_END_DATE = new Date(config.worldcupFooterEndDate);
 
-/** World Cup footer Lottie: fantasy flag on and before campaign end date. */
+/** World Cup footer Lottie: live Play acquisition only (not post-campaign). */
 export const isWorldcupFooterActive = (): boolean => {
   return (
     config.fantasyEnabled &&
+    !config.fantasyCampaignEnded &&
     Date.now() <= WORLDCUP_FOOTER_END_DATE.getTime()
   );
 };

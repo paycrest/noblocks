@@ -17,6 +17,7 @@ import {
   UserGroupIcon,
 } from "hugeicons-react";
 import { trackEvent } from "@/app/hooks/analytics/client";
+import { CampaignEnded } from "@/app/components/play/CampaignEnded";
 import { JoinModal } from "@/app/components/play/JoinModal";
 import { LeaderboardTable } from "@/app/components/play/LeaderboardTable";
 import { useJoinStatus, useLeaderboard } from "@/app/components/play/hooks";
@@ -26,6 +27,7 @@ import {
   Skeleton,
   primaryButtonClasses,
 } from "@/app/components/play/ui";
+import config from "@/app/lib/config";
 
 const ASSET = (name: string) => `/images/play-promo/${name}`;
 const HERO_PILL_BUTTON =
@@ -279,8 +281,14 @@ const LeaderboardPreview = () => {
 
 export default function PlayLandingPage() {
   useEffect(() => {
-    trackEvent("play_landing_view");
+    if (!config.fantasyCampaignEnded) {
+      trackEvent("play_landing_view");
+    }
   }, []);
+
+  if (config.fantasyCampaignEnded) {
+    return <CampaignEnded />;
+  }
 
   return (
     <div className="space-y-10 md:space-y-20 md:mt-20">

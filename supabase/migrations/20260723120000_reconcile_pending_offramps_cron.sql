@@ -19,16 +19,11 @@
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- Efficiency: partial index matching the reconciler's scan predicate exactly, so
--- each 2-minute run does an index-only range scan over just the still-pending
--- offramp rows (keyset-ordered by created_at) instead of scanning the whole
--- transactions table. Rows advanced to a terminal status leave this index
--- automatically, keeping it tiny in steady state.
-create index if not exists idx_transactions_offramp_pending_reconcile
-  on transactions (created_at)
-  where transaction_type = 'offramp'
-    and order_id is not null
-    and status in ('pending', 'fulfilling', 'fulfilled', 'refunding');
+-- The supporting partial index that makes each run an index-only range scan over
+-- just the still-pending offramp rows is created in the companion migration
+-- 20260723120001_create_offramp_pending_reconcile_index.sql. It is built with
+-- CREATE INDEX CONCURRENTLY, which cannot share a transaction with other
+-- statements, so it must live in its own migration.
 
 -- Idempotent (re)schedule: drop any prior job with this name first.
 do $$
@@ -49,10 +44,13 @@ select cron.schedule(
       'x-reconcile-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'reconcile_cron_secret')
     ),
     body := '{}'::jsonb,
-    -- Above the Edge Function's per-run wall-clock budget (MAX_RUN_MS = 90s) plus
-    -- the worst-case overrun of one in-flight batch, with margin. Keeping this
-    -- below the pg_net default lets the cron see the function's real result
-    -- instead of recording a spurious timeout on longer reconciliation runs.
+    -- net.http_post is asynchronous: it queues the request and returns
+    -- immediately, and the background worker records the eventual response (or a
+    -- timeout) in net._http_response. timeout_milliseconds bounds that background
+    -- request. 150000 (150s) exceeds the pg_net default (5s) and clears the Edge
+    -- Function's per-run wall-clock budget (MAX_RUN_MS = 90s) plus one in-flight
+    -- batch of overrun, so a longer reconciliation run completes and is recorded
+    -- rather than being cut off as a timeout.
     timeout_milliseconds := 150000
   );
   $$

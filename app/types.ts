@@ -280,8 +280,6 @@ export type V2PaymentOrderCreateData = {
   timestamp: string;
   amount: string;
   rate?: string;
-  senderFee: string;
-  senderFeePercent: string;
   transactionFee: string;
   reference: string;
   providerAccount: V2FiatProviderAccountDTO;
@@ -302,8 +300,6 @@ export type V2CreatePaymentOrderPayload = {
   amount: string;
   rate?: string;
   amountIn?: "fiat" | "crypto";
-  senderFee?: string;
-  senderFeePercent?: string;
   reference?: string;
   source: Record<string, unknown>;
   destination: Record<string, unknown>;

@@ -24,8 +24,6 @@ import {
 import { ArrowDown01Icon } from "hugeicons-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MobileDropdown } from "./MobileDropdown";
-import { NoblocksWorldCupLogo } from "./NoblocksWorldCupLogo";
-import { NoblocksAnimatedIcon } from "./NoblocksAnimatedIcon";
 import Image from "next/image";
 import { useNetwork } from "../context/NetworksContext";
 import { useInjectedWallet } from "../context";
@@ -223,15 +221,13 @@ export const Navbar = () => {
               >
                 {IS_MAIN_PRODUCTION_DOMAIN ? (
                   <>
-                    {/* <NoblocksLogo className="max-sm:hidden" /> */}
-                    <NoblocksWorldCupLogo className="max-sm:hidden" />
-                    <NoblocksAnimatedIcon className="size-[18px] sm:hidden" />
+                    <NoblocksLogo className="max-sm:hidden" />
+                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
                   </>
                 ) : (
                   <>
-                    {/* <NoblocksBetaLogo className="max-sm:hidden" /> */}
-                    <NoblocksWorldCupLogo className="max-sm:hidden" />
-                    <NoblocksAnimatedIcon className="size-[18px] sm:hidden" />
+                    <NoblocksBetaLogo className="max-sm:hidden" />
+                    <NoblocksLogoIcon className="size-[18px] sm:hidden" />
                   </>
                 )}
               </button>

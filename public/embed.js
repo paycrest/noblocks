@@ -20,6 +20,17 @@
  *     );
  *   </script>
  *
+ * Live config (optional): after noblocks:ready, post to the iframe:
+ *   iframe.contentWindow.postMessage(
+ *     {
+ *       source: "noblocks-host",
+ *       event: "noblocks:set_config",
+ *       payload: { network: "base", side: "sell", token: "cNGN", currency: "NGN" },
+ *     },
+ *     widgetOrigin
+ *   );
+ * Values are validated against URL allowlists (?tokens=, ?currencies=, ?networks=).
+ *
  * Call bindWallet before (or immediately after) adding the iframe so no
  * request from the widget is missed. Signing prompts appear in the host
  * wallet's own UI; the widget never sees keys. Dismissing the iframe

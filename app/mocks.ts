@@ -14,7 +14,7 @@ import config from "./lib/config";
 export const starknetMainnet = {
   id: BigInt(toHex('SN_MAIN')).toString(), // Starknet Mainnet chain ID (SN_MAIN encoded)
   name: "Starknet",
-  network: "starknet-mainnet",
+  network: "starknet",
   nativeCurrency: {
     decimals: 18,
     name: "Ether",

@@ -18,15 +18,11 @@ import { erc20Abi, createPublicClient, http, keccak256, stringToBytes } from "vi
 import { mainnet } from "viem/chains";
 import { getEnsName } from "viem/actions";
 import { isValidEvmAddressCaseInsensitive } from "./lib/validation";
+import { canonicalTokenSymbol } from "./lib/token-symbol";
 import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
-import {
-  feeRecipientAddress,
-  localTransferFeePercent,
-  localTransferFeeCap,
-} from "./lib/config";
 import { logBalanceTelemetry } from "./lib/balanceTelemetry";
 
 /**
@@ -223,6 +219,40 @@ const NOBLOCKS_FIAT_CURRENCY_CODES = new Set([
 
 export function isNoblocksFiatCurrencyCode(code: string): boolean {
   return NOBLOCKS_FIAT_CURRENCY_CODES.has(code.toUpperCase());
+}
+
+/** NGN fintech institutions pinned after mobile_money, before A–Z (off-ramp + on-ramp). */
+export const NGN_PRIORITY_INSTITUTION_CODES = [
+  "OPAYNGPC",
+  "PALMNGPC",
+  "MONINGPC",
+  "KUDANGPC",
+] as const;
+
+export function compareInstitutionsForDisplay(
+  a: InstitutionProps,
+  b: InstitutionProps,
+): number {
+  if (a.type === "mobile_money" && b.type !== "mobile_money") return -1;
+  if (a.type !== "mobile_money" && b.type === "mobile_money") return 1;
+  for (const code of NGN_PRIORITY_INSTITUTION_CODES) {
+    if (a.code === code && b.code !== code) return -1;
+    if (a.code !== code && b.code === code) return 1;
+  }
+  return a.name.localeCompare(b.name);
+}
+
+/** Filter by name search and sort for institution pickers (swap + refund/on-ramp). */
+export function filterAndSortInstitutions(
+  institutions: InstitutionProps[] | undefined,
+  searchTerm: string,
+): InstitutionProps[] {
+  const term = searchTerm.toLowerCase();
+  const filtered =
+    institutions?.filter((item) =>
+      item.name.toLowerCase().includes(term),
+    ) ?? [];
+  return [...filtered].sort(compareInstitutionsForDisplay);
 }
 
 /** Fiat codes enabled for on-ramp (send fiat → receive crypto). */
@@ -607,12 +637,13 @@ export function normalizeNetworkName(networkId: string): string {
  * @returns Formatted token for application use
  */
 export function transformToken(apiToken: APIToken): Token {
+  const symbol = canonicalTokenSymbol(apiToken.symbol);
   return {
-    name: apiToken.symbol,
-    symbol: apiToken.symbol,
+    name: symbol,
+    symbol,
     decimals: apiToken.decimals,
     address: apiToken.contractAddress,
-    imageUrl: `/logos/${apiToken.symbol.toLowerCase()}-logo.svg`,
+    imageUrl: `/logos/${symbol.toLowerCase()}-logo.svg`,
   };
 }
 
@@ -1583,7 +1614,10 @@ export function isStarknetChain(chain: {
 } | null | undefined): boolean {
   if (!chain) return false;
   if (chain.name === "Starknet") return true;
-  return chain.network === "starknet-mainnet";
+  // Accept both `starknet` (canonical) and legacy `starknet-mainnet`.
+  return (
+    chain.network === "starknet" || chain.network === "starknet-mainnet"
+  );
 }
 
 /** True for Tron mainnet (mock chain + viem-style `network` slug). */
@@ -2280,61 +2314,6 @@ export const RATE_SCALE = 100000;
  */
 export function packRate(rate: number): bigint {
   return BigInt(Math.round(rate * RATE_SCALE));
-}
-
-/**
- * Local-corridor quotes sit near 1 (e.g. CNGN/NGN 0.998–1.0); FX quotes are much larger.
- * Used for sender-fee eligibility — must not depend on legacy ×100 packing.
- */
-function isLocalTransferRate(rate: number): boolean {
-  return Number.isFinite(rate) && rate > 0 && rate < 10;
-}
-
-/**
- * Calculates the sender fee and returns the fee amount and recipient address
- * @param amount - The transaction amount in human-readable token units
- * @param rate - The exchange rate (e.g., 1.0 for local transfers, other values for FX)
- * @param tokenDecimals - The number of decimals for the token (default: 18)
- * @returns An object containing:
- *   - feeAmount: The fee amount in human-readable format (for display)
- *   - feeAmountInBaseUnits: The fee amount in token base units (for contract calls)
- *   - feeRecipient: The fee recipient address
- */
-export function calculateSenderFee(
-  amount: number,
-  rate: number,
-  tokenDecimals: number = 18,
-): { feeAmount: number; feeAmountInBaseUnits: bigint; feeRecipient: string } {
-  const isLocalTransfer = isLocalTransferRate(rate);
-  const decimalsMultiplier = BigInt(10 ** tokenDecimals);
-  const maxFeeCapInBaseUnits =
-    BigInt(Math.floor(localTransferFeeCap)) * decimalsMultiplier;
-
-  // Calculate fee in human-readable format
-  const calculatedFee = isLocalTransfer
-    ? (amount * localTransferFeePercent) / 100
-    : 0;
-
-  // Convert to base units
-  const calculatedFeeInBaseUnits = BigInt(
-    Math.floor(calculatedFee * Number(decimalsMultiplier)),
-  );
-
-  // Apply cap in base units
-  const feeAmountInBaseUnits = isLocalTransfer
-    ? calculatedFeeInBaseUnits > maxFeeCapInBaseUnits
-      ? maxFeeCapInBaseUnits
-      : calculatedFeeInBaseUnits
-    : BigInt(0);
-
-  // Convert back to human-readable format for display
-  const feeAmount = Number(feeAmountInBaseUnits) / Number(decimalsMultiplier);
-
-  const feeRecipient = isLocalTransfer
-    ? feeRecipientAddress
-    : "0x0000000000000000000000000000000000000000";
-
-  return { feeAmount, feeAmountInBaseUnits, feeRecipient };
 }
 
 /**

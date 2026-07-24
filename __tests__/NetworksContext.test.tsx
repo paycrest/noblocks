@@ -6,9 +6,14 @@ import { networks } from "../app/mocks";
 import { NetworkProvider, useNetwork } from "../app/context/NetworksContext";
 
 const mockUseInjectedWallet = jest.fn();
+const mockUseEmbed = jest.fn();
 
 jest.mock("../app/context/InjectedWalletContext", () => ({
   useInjectedWallet: () => mockUseInjectedWallet(),
+}));
+
+jest.mock("../app/context/EmbedContext", () => ({
+  useEmbed: () => mockUseEmbed(),
 }));
 
 function NetworkConsumer() {
@@ -35,6 +40,17 @@ describe("NetworkProvider", () => {
     mockUseInjectedWallet.mockReturnValue({
       isInjectedWallet: true,
       injectedReady: true,
+    });
+
+    mockUseEmbed.mockReturnValue({
+      isEmbed: false,
+      isNetworkLocked: false,
+      networkAllowlist: null,
+      tokenAllowlist: null,
+      currencyAllowlist: null,
+      hideSideToggle: false,
+      isSideLocked: false,
+      hostFormConfig: { version: 0 },
     });
 
     window.ethereum.request = jest.fn().mockResolvedValue(undefined);

@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from "react";
 import { networks } from "../mocks";
 import type { Network } from "../types";
 import { isStarknetChain, isTronChain } from "../utils";
+import { useEmbed } from "./EmbedContext";
 import { useInjectedWallet } from "./InjectedWalletContext";
 
 type NetworkContextType = {
@@ -47,6 +48,7 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
   const [selectedNetwork, setSelectedNetworkState] = useState<Network>(
     networks[0],
   );
+  const { isEmbed, isNetworkLocked } = useEmbed();
   const { isInjectedWallet, injectedReady } = useInjectedWallet();
 
   const handleNetworkChange = async (network: Network) => {
@@ -72,6 +74,10 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Host-locked embed network is applied by EmbedNetworkLockApplier /
+    // injected chainChanged — do not overwrite from localStorage.
+    if (isEmbed && isNetworkLocked) return;
+
     const initNetwork = async () => {
       const preferredNetwork = getStoredNetwork();
       await handleNetworkChange(preferredNetwork);
@@ -81,10 +87,11 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
       initNetwork();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInjectedWallet, injectedReady]);
+  }, [isInjectedWallet, injectedReady, isEmbed, isNetworkLocked]);
 
   // cross-tab synchronization
   const onStorageUpdate = () => {
+    if (isEmbed && isNetworkLocked) return;
     const storedNetwork = getStoredNetwork();
     handleNetworkChange(storedNetwork);
   };
@@ -95,7 +102,7 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("storage", onStorageUpdate);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isEmbed, isNetworkLocked]);
 
   return (
     <NetworkContext.Provider

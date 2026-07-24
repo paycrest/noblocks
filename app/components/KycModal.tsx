@@ -119,8 +119,13 @@ export const KycModal = ({
 }) => {
   const { getAccessToken, user } = usePrivy();
   const { wallets } = useWallets();
-  const { isInjectedWallet, injectedAddress, injectedReady } =
-    useInjectedWallet();
+  const {
+    isInjectedWallet,
+    injectedAddress,
+    injectedReady,
+    getInjectedToken,
+    getInjectedAuthHeaders,
+  } = useInjectedWallet();
 
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
@@ -132,6 +137,21 @@ export const KycModal = ({
       ? injectedAddress
       : null
     : embeddedWallet?.address;
+
+  // Opening the KYC modal is an explicit user action — establish the injected
+  // session here (one wallet signature, cached ~1h) so the modal's internal
+  // status fetches and submissions find a token without their own popups.
+  // Re-run the status hydration once the token lands: the 500ms hydration
+  // effect below fires while the signature popup is still open, skips (no
+  // token yet), and would otherwise leave the modal stuck on LOADING.
+  useEffect(() => {
+    if (isInjectedWallet && injectedReady) {
+      void getInjectedToken({ interactive: true }).then((token) => {
+        if (token && targetTier !== 3) void fetchStatus();
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInjectedWallet, injectedReady, getInjectedToken, targetTier]);
 
   const [step, setStep] = useState<Step>(() =>
     targetTier === 3 ? STEPS.TIER3_PROMPT : STEPS.LOADING,
@@ -217,6 +237,7 @@ export const KycModal = ({
     getAccessToken,
     user,
     isInjectedWallet,
+    getInjectedToken,
   });
   captureSmileContextRef.current = {
     walletAddress,
@@ -227,6 +248,7 @@ export const KycModal = ({
     getAccessToken,
     user,
     isInjectedWallet,
+    getInjectedToken,
   };
 
   const detachSmileCameraListeners = () => {
@@ -273,8 +295,13 @@ export const KycModal = ({
       }
 
       const accessToken = await ctx.getAccessToken();
-      // For injected wallets, accessToken is null - that's OK
-      if (!accessToken && !ctx.isInjectedWallet) {
+      // Injected wallets authenticate with a SIWE session token instead of a
+      // Privy token. The session was normally established when the modal
+      // opened; this re-prompts only if it expired mid-flow or was rejected.
+      const injectedToken = ctx.isInjectedWallet
+        ? await ctx.getInjectedToken({ interactive: true })
+        : null;
+      if (!accessToken && !injectedToken) {
         throw new Error("No access token available");
       }
 
@@ -302,7 +329,7 @@ export const KycModal = ({
         },
         accessToken,
         ctx.walletAddress,
-        ctx.isInjectedWallet,
+        injectedToken,
       );
 
       if (response.status === "success" || response.status === "pending") {
@@ -1332,9 +1359,13 @@ export const KycModal = ({
               setTier3Submitting(true);
               try {
                 const accessToken = await getAccessToken();
-                // Injected wallets authenticate via the x-injected-wallet header
-                // (resolved by middleware), so a null Privy token is expected there.
-                if (!accessToken && !isInjectedWallet) {
+                // Injected wallets authenticate via the x-injected-token SIWE
+                // session (interactive: submitting is a user action, so
+                // re-prompting on an expired session is expected here).
+                const injectedHeaders = isInjectedWallet
+                  ? await getInjectedAuthHeaders({ interactive: true })
+                  : null;
+                if (!accessToken && !injectedHeaders) {
                   setTier3Submitting(false);
                   toast.error("Session expired. Please sign in again.");
                   return;
@@ -1349,12 +1380,11 @@ export const KycModal = ({
                 formData.append("county", tier3County);
                 formData.append("postalCode", tier3PostalCode);
 
-                const headers: Record<string, string> = {};
-                if (isInjectedWallet && injectedAddress) {
-                  headers["x-injected-wallet"] = injectedAddress;
-                } else if (accessToken) {
-                  headers.Authorization = `Bearer ${accessToken}`;
-                }
+                const headers: Record<string, string> = injectedHeaders
+                  ? { ...injectedHeaders }
+                  : accessToken
+                    ? { Authorization: `Bearer ${accessToken}` }
+                    : {};
 
                 const res = await fetch("/api/kyc/tier3-verify", {
                   method: "POST",
@@ -1429,15 +1459,18 @@ export const KycModal = ({
     if (!walletAddress || targetTier === 3) return;
 
     try {
-      const accessToken = await getAccessToken();
-      if (!accessToken && !isInjectedWallet) return;
+      // Passive token read: the session is established by the modal-open
+      // effect; a status poll must never pop a signature request. Until the
+      // user signs, skip quietly (the modal shows its loading state).
+      const injectedHeaders = isInjectedWallet
+        ? await getInjectedAuthHeaders({ interactive: false })
+        : null;
+      const accessToken = isInjectedWallet ? null : await getAccessToken();
+      if (!accessToken && !injectedHeaders) return;
 
-      const headers: Record<string, string> = {};
-      if (isInjectedWallet && injectedAddress) {
-        headers["x-injected-wallet"] = injectedAddress;
-      } else if (accessToken) {
-        headers.Authorization = `Bearer ${accessToken}`;
-      }
+      const headers: Record<string, string> = injectedHeaders
+        ? { ...injectedHeaders }
+        : { Authorization: `Bearer ${accessToken}` };
 
       const res = await fetch("/api/kyc/status", { headers });
 

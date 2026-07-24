@@ -38,7 +38,11 @@ interface UseBridgeQuoteParams {
   slippageBps: number;
   enabled: boolean;
   getAccessToken?: () => Promise<string | null>; // for the auth-gated bridge proxy
-  injectedWalletAddress?: string | null; // injected-wallet auth for the bridge proxy
+  /**
+   * Injected-wallet SIWE session token getter (passive — quote polling must
+   * never pop a signature request; BridgeForm establishes the session on open).
+   */
+  getInjectedToken?: () => Promise<string | null>;
 }
 
 export function useBridgeQuote({
@@ -50,17 +54,18 @@ export function useBridgeQuote({
   slippageBps,
   enabled,
   getAccessToken,
-  injectedWalletAddress,
+  getInjectedToken,
 }: UseBridgeQuoteParams) {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const fetchQuote = useCallback(async (): Promise<BridgeQuote | null> => {
     if (!from || !to || !amount || parseFloat(amount) <= 0) return null;
 
-    // Injected wallets authenticate via x-injected-wallet (resolved by middleware);
+    // Injected wallets authenticate via the x-injected-token session JWT;
     // Privy wallets via the Bearer token.
-    const auth: BridgeAuth = injectedWalletAddress
-      ? { injectedAddress: injectedWalletAddress }
+    const injectedToken = (await getInjectedToken?.()) ?? null;
+    const auth: BridgeAuth = injectedToken
+      ? { injectedToken }
       : { token: (await getAccessToken?.()) ?? null };
     const engine = selectEngine(from, to);
     const rawAmount = toRawAmount(amount, from.decimals);
@@ -117,7 +122,7 @@ export function useBridgeQuote({
       toAddress: evmAddress,
       slippage: lifiSlippage,
     }, auth);
-  }, [from, to, amount, evmAddress, starknetAddress, slippageBps, getAccessToken, injectedWalletAddress]);
+  }, [from, to, amount, evmAddress, starknetAddress, slippageBps, getAccessToken, getInjectedToken]);
 
   const queryKey = useMemo(
     () => ["bridge-quote", from?.token, from?.network, to?.token, to?.network, amount, evmAddress, starknetAddress, slippageBps],
@@ -159,10 +164,11 @@ interface UseBridgeStatusParams {
   refId: string | null; // depositAddress for NEAR, txHash for LI.FI
   enabled: boolean;
   getAccessToken?: () => Promise<string | null>; // for the auth-gated bridge proxy
-  injectedWalletAddress?: string | null; // injected-wallet auth for the bridge proxy
+  /** Injected-wallet SIWE session token getter (passive — polling never prompts). */
+  getInjectedToken?: () => Promise<string | null>;
 }
 
-export function useBridgeStatus({ engine, refId, enabled, getAccessToken, injectedWalletAddress }: UseBridgeStatusParams) {
+export function useBridgeStatus({ engine, refId, enabled, getAccessToken, getInjectedToken }: UseBridgeStatusParams) {
   const [result, setResult] = useState<BridgeStatusResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -188,8 +194,9 @@ export function useBridgeStatus({ engine, refId, enabled, getAccessToken, inject
       if (inFlightRef.current) return;
       inFlightRef.current = true;
       try {
-        const auth: BridgeAuth = injectedWalletAddress
-          ? { injectedAddress: injectedWalletAddress }
+        const injectedToken = (await getInjectedToken?.()) ?? null;
+        const auth: BridgeAuth = injectedToken
+          ? { injectedToken }
           : { token: (await getAccessToken?.()) ?? null };
         const status =
           engine === "near"
@@ -212,7 +219,7 @@ export function useBridgeStatus({ engine, refId, enabled, getAccessToken, inject
     intervalRef.current = setInterval(poll, 5_000);
 
     return stop;
-  }, [engine, refId, enabled, stop, getAccessToken, injectedWalletAddress]);
+  }, [engine, refId, enabled, stop, getAccessToken, getInjectedToken]);
 
   return { result, isLoading, stop };
 }
@@ -244,6 +251,12 @@ interface UseBridgeExecuteParams {
   isInjectedWallet?: boolean;
   injectedProvider?: { request: (args: { method: string; params?: any[] }) => Promise<any> } | null;
   injectedAddress?: string | null;
+  /**
+   * Injected-wallet SIWE session token getter for the auth-gated bridge proxy
+   * (fresh deposit-address fetch). Interactive-capable: executing is a user
+   * action, so re-prompting on an expired session is acceptable here.
+   */
+  getInjectedToken?: () => Promise<string | null>;
 }
 
 /**
@@ -265,6 +278,7 @@ export function useBridgeExecute({
   isInjectedWallet,
   injectedProvider,
   injectedAddress,
+  getInjectedToken,
 }: UseBridgeExecuteParams = {}) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -343,11 +357,14 @@ export function useBridgeExecute({
 
       try {
         if (quote.kind === "near-deposit") {
-          // Injected wallets authenticate the proxy via x-injected-wallet; Privy via Bearer.
-          const proxyAuth: BridgeAuth =
-            isInjectedWallet && injectedAddress
-              ? { injectedAddress }
-              : { token: (await getAccessToken?.()) ?? null };
+          // Injected wallets authenticate the proxy via the x-injected-token
+          // session JWT; Privy via Bearer.
+          const injectedToken = isInjectedWallet
+            ? ((await getInjectedToken?.()) ?? null)
+            : null;
+          const proxyAuth: BridgeAuth = injectedToken
+            ? { injectedToken }
+            : { token: (await getAccessToken?.()) ?? null };
           // Dry quotes have no deposit address — fetch a fresh non-dry quote to get one.
           const depositAddress =
             quote.depositAddress ||
@@ -534,7 +551,7 @@ export function useBridgeExecute({
         setIsLoading(false);
       }
     },
-    [onSuccess, onError, getAccessToken, starknetWallet, embeddedWallet, allTokens, signDelegationAuthorization, isInjectedWallet, injectedAddress, executeInjectedCalls],
+    [onSuccess, onError, getAccessToken, starknetWallet, embeddedWallet, allTokens, signDelegationAuthorization, isInjectedWallet, executeInjectedCalls, getInjectedToken],
   );
 
   const reset = useCallback(() => {

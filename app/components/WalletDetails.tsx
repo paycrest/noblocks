@@ -797,7 +797,12 @@ export const WalletDetails = () => {
                                               isCngn
                                                 ? (entry.balances.rawBalances?.[
                                                   token
-                                                ] ?? balance)
+                                                ] ??
+                                                  entry.balances.rawBalances
+                                                    ?.cNGN ??
+                                                  entry.balances.rawBalances
+                                                    ?.CNGN ??
+                                                  balance)
                                                 : balance;
                                             const usdEquivalent = balance;
                                             const cngnUnknown =

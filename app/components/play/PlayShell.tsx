@@ -3,8 +3,7 @@
 /**
  * Noblocks Play — standalone game chrome. The global Navbar/Footer are
  * intentionally NOT rendered on /play* (see AppLayout): the game is its own
- * full experience, with the animated World Cup wordmark as its identity and
- * a CTA back to the main Noblocks homepage (swap).
+ * full experience, with the Noblocks wordmark as its identity.
  *
  * Desktop: collapsed icon rail on the left that expands in flow on hover,
  * pushing the content right like a slide-out panel.
@@ -16,9 +15,7 @@
 
 import { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowUpRight01Icon } from "hugeicons-react";
-import { NoblocksWorldCupLogo } from "../NoblocksWorldCupLogo";
-import { NoblocksAnimatedIcon } from "../NoblocksAnimatedIcon";
+import { NoblocksLogo, NoblocksLogoIcon } from "../ImageAssets";
 import { PlayTabs } from "./PlayTabs";
 import { CountdownChip } from "./CountdownChip";
 
@@ -31,23 +28,12 @@ export const PlayHeader = ({ right }: { right?: ReactNode }) => (
         aria-label="Noblocks Play home"
         className="flex shrink-0 items-center max-sm:min-h-9 max-sm:rounded-lg max-sm:bg-accent-gray max-sm:p-2 dark:max-sm:bg-white/10"
       >
-        {/* Same split + sizing as the main Navbar: 18px animated icon in a
-            gray chip on mobile, wordmark from sm up */}
-        <NoblocksAnimatedIcon className="size-[18px] sm:hidden" />
-        {/* !w overrides the component's default width safely */}
-        <NoblocksWorldCupLogo className="!w-[160px] max-sm:hidden" />
+        {/* Same split + sizing as the main Navbar: 18px icon in a gray chip on
+            mobile, wordmark from sm up */}
+        <NoblocksLogoIcon className="size-[18px] sm:hidden" />
+        <NoblocksLogo className="max-sm:hidden" />
       </Link>
-      <div className="flex items-center gap-2">
-        {right}
-        <Link
-          href="/"
-          className="flex min-h-9 items-center gap-1.5 rounded-xl border border-border-light px-3 text-xs font-medium text-text-secondary transition-colors hover:bg-accent-gray hover:text-text-body dark:border-white/10 dark:text-white/60 dark:hover:bg-white/5 dark:hover:text-white sm:min-h-10 sm:px-4 sm:text-sm"
-        >
-          <span className="sm:hidden">Home</span>
-          <span className="max-sm:hidden">Back to homepage</span>
-          <ArrowUpRight01Icon className="size-4" />
-        </Link>
-      </div>
+      <div className="flex items-center gap-2">{right}</div>
     </div>
   </header>
 );
@@ -76,12 +62,6 @@ const PlayFooter = ({ campaignEnded }: { campaignEnded?: boolean }) => (
             Terms &amp; Conditions
           </Link>
         )}
-        <Link
-          href="/"
-          className="transition-colors hover:text-text-body dark:hover:text-white"
-        >
-          Powered by Noblocks →
-        </Link>
       </span>
     </div>
   </footer>

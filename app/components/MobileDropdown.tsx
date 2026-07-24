@@ -1,7 +1,7 @@
 "use client";
 import { Dialog, DialogPanel } from "@headlessui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { usePrivy, useMfaEnrollment } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useBalance, useTokens, useStarknet, useTron } from "../context";
@@ -17,6 +17,7 @@ import { useStep } from "../context/StepContext";
 import { STEPS, type MobileSheetView } from "../types";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useInjectedWallet } from "../context";
+import { useEmbed } from "../context/EmbedContext";
 import { useWalletDisconnect } from "../hooks/useWalletDisconnect";
 import { toastMappedError } from "../lib/toastMappedError";
 import { useActualTheme } from "../hooks/useActualTheme";
@@ -71,6 +72,15 @@ export const MobileDropdown = ({
 
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
   const { currentStep } = useStep();
+  const { isEmbed, isNetworkLocked, networkAllowlist } = useEmbed();
+  const switchableNetworks = useMemo(
+    () =>
+      networkAllowlist != null && networkAllowlist.length > 0
+        ? networkAllowlist
+        : networks,
+    [networkAllowlist],
+  );
+  const hideNetworkSwitcher = isEmbed && isNetworkLocked;
 
   const { user, linkEmail, updateEmail } = usePrivy();
   const handleExportEmbeddedWallet = useHandleExportEmbeddedWallet();
@@ -347,9 +357,10 @@ export const MobileDropdown = ({
                           handleCopyAddress={handleCopyAddress}
                           isNetworkListOpen={isNetworkListOpen}
                           setIsNetworkListOpen={setIsNetworkListOpen}
-                          networks={networks}
+                          networks={switchableNetworks}
                           selectedNetwork={selectedNetwork}
                           isDark={isDark}
+                          isNetworkLocked={hideNetworkSwitcher}
                           handleNetworkSwitchWrapper={
                             handleNetworkSwitchWrapper
                           }

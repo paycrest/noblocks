@@ -30,10 +30,6 @@ NEXT_PUBLIC_AGGREGATOR_URL=https://api.paycrest.io/v1
 # used by the payment-orders proxy and client for encrypted gateway.createOrder messageHash.
 NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID=
 
-# Local transfer fee configuration (for cNGN -> NGN, etc.)
-NEXT_PUBLIC_LOCAL_TRANSFER_FEE_PERCENT=0.1
-NEXT_PUBLIC_LOCAL_TRANSFER_FEE_CAP=10000
-
 # KYC tier monthly swap limits (USD). Omitted or empty = use defaults below.
 # Tier 3 also accepts "unlimited" (case-insensitive) to remove cap.
 # Do not use 0 for unlimited — tier 0 uses 0 to mean "no swaps until phone".

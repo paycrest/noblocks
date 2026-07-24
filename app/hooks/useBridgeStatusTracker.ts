@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWalletAddress } from "@/app/hooks/useWalletAddress";
+import { useInjectedWallet } from "@/app/context";
 import { updateBridgeTransactionStatus } from "@/app/api/aggregator";
 import { NearIntentsClient, LifiClient } from "@/app/lib/bridge";
-import type { BridgeEngine } from "@/app/lib/bridge";
+import type { BridgeEngine, BridgeAuth } from "@/app/lib/bridge";
 
 const nearClient = new NearIntentsClient();
 const lifiClient = new LifiClient();
@@ -44,6 +45,7 @@ function savePendingBridges(bridges: BridgeSubmitInfo[]) {
 export function useBridgeStatusTracker() {
   const { getAccessToken } = usePrivy();
   const walletAddress = useWalletAddress();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const [pendingBridges, setPendingBridges] = useState<BridgeSubmitInfo[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef(false);
@@ -72,8 +74,14 @@ export function useBridgeStatusTracker() {
       if (isPollingRef.current) return;
       isPollingRef.current = true;
       try {
-      const token = await getAccessToken();
-      if (!token) return;
+      // Injected wallets authenticate the proxy via x-injected-wallet (resolved by
+      // middleware); Privy wallets via the Bearer token.
+      const token = isInjectedWallet ? null : await getAccessToken();
+      if (!token && !isInjectedWallet) return;
+      const auth: BridgeAuth =
+        isInjectedWallet && injectedAddress
+          ? { injectedAddress }
+          : { token };
 
       const updatedBridges = [...pendingBridges];
       let hasChanges = false;
@@ -83,15 +91,16 @@ export function useBridgeStatusTracker() {
         try {
           const status =
             bridge.engine === "near"
-              ? await nearClient.getStatus(bridge.depositRefId, token)
-              : await lifiClient.getStatus(bridge.depositRefId, token);
+              ? await nearClient.getStatus(bridge.depositRefId, auth)
+              : await lifiClient.getStatus(bridge.depositRefId, auth);
 
           if (status.status === "SUCCESS") {
             await updateBridgeTransactionStatus(
               bridge.savedTxId,
               "completed",
               token,
-              walletAddress
+              walletAddress,
+              isInjectedWallet
             );
             updatedBridges.splice(i, 1);
             i--;
@@ -101,7 +110,8 @@ export function useBridgeStatusTracker() {
               bridge.savedTxId,
               "refunded",
               token,
-              walletAddress
+              walletAddress,
+              isInjectedWallet
             );
             updatedBridges.splice(i, 1);
             i--;
@@ -111,7 +121,8 @@ export function useBridgeStatusTracker() {
               bridge.savedTxId,
               "failed",
               token,
-              walletAddress
+              walletAddress,
+              isInjectedWallet
             );
             updatedBridges.splice(i, 1);
             i--;
@@ -143,7 +154,7 @@ export function useBridgeStatusTracker() {
         intervalRef.current = null;
       }
     };
-  }, [walletAddress, getAccessToken, pendingBridges]);
+  }, [walletAddress, getAccessToken, pendingBridges, isInjectedWallet, injectedAddress]);
 
   const trackBridge = (info: BridgeSubmitInfo) => {
     setPendingBridges((prev) => [...prev, info]);

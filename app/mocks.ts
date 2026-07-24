@@ -6,7 +6,6 @@ import {
   polygon,
   lisk,
   celo,
-  scroll,
   mainnet,
 } from "viem/chains";
 import config from "./lib/config";
@@ -100,7 +99,7 @@ export const acceptedCurrencies = [
 // Explicit product ranking — not alphabetical (legacy order matched A–Z by coincidence).
 // Ranks 1–3: highest aggregator volume (Base → BNB Smart Chain → Arbitrum).
 // Rank 4: Starknet (fixed position).
-// Ranks 5+: remaining chains by volume (Polygon → Lisk → Ethereum → Celo → Scroll).
+// Ranks 5+: remaining chains by volume (Polygon → Lisk → Ethereum → Celo).
 export const networks = [
   {
     chain: base,
@@ -145,10 +144,6 @@ export const networks = [
     chain: celo,
     imageUrl: "/logos/celo-logo.svg",
   },
-  {
-    chain: scroll,
-    imageUrl: "/logos/scroll-logo.svg",
-  },
   //   {
   //     chain: hedera,
   //     imageUrl: "/logos/hedera-logo.svg",
@@ -162,12 +157,11 @@ export const networks = [
 /** Chain IDs excluded from wallet migration (popup math + transfer modal). */
 export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number | string>([
   celo.id,
-  scroll.id,
   starknetMainnet.id,
   tronMainnet.id,
 ]);
 
-/** Networks scanned and shown in the wallet migration modal (excludes Celo and Scroll). */
+/** Networks scanned and shown in the wallet migration modal (excludes Celo, Starknet, and Tron). */
 export const migrationChecklistNetworks = networks.filter(
   (n) => !MIGRATION_EXCLUDED_CHAIN_IDS.has(n.chain.id as number | string),
 );

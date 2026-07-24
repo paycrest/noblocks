@@ -153,7 +153,7 @@ interface BalanceContextProps {
   };
   crossChainBalances: CrossChainBalanceEntry[];
   crossChainTotal: number;
-  /** Same as crossChainTotal but excludes chains omitted from migration (e.g. Celo, Scroll). For migration/banner logic only. */
+  /** Same as crossChainTotal but excludes chains omitted from migration (e.g. Celo). For migration/banner logic only. */
   crossChainTotalMigrationRelevant: number;
   /**
    * Last SCW cross-chain totals (all networks vs migration-eligible only).

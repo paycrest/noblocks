@@ -93,7 +93,6 @@ export const metadata: Metadata = {
     "BNB Chain stablecoin payment",
     "Ethereum stablecoin transfer",
     "Celo stablecoin transfer",
-    "Scroll stablecoin transfer",
     "24/7 stablecoin transfer",
     "borderless crypto payment",
     "global stablecoin transfer",
@@ -212,7 +211,6 @@ const jsonLd = {
     "Ethereum",
     "Celo",
     "Lisk",
-    "Scroll",
   ],
   supportedStablecoins: ["USDC", "USDT", "cNGN"],
   audience: {

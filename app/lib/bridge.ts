@@ -141,7 +141,6 @@ const NEAR_CHAIN_MAP: Record<string, string> = {
   "Polygon": "pol",
   "Polygon PoS": "pol",
   "Starknet": "starknet",
-  "Scroll": "scroll",
   "Solana": "sol",
   "Avalanche": "avax",
 };
@@ -247,9 +246,21 @@ type NearQuoteParams = {
   depositType: "ORIGIN_CHAIN" | "INTENTS" | "CONFIDENTIAL_INTENTS" | "DESTINATION_CHAIN";
 };
 
-/** Bearer header for the auth-gated bridge proxy routes; empty when no token (route then 401s). */
-function authHeaders(token?: string | null): Record<string, string> {
-  return token ? { Authorization: `Bearer ${token}` } : {};
+/**
+ * Auth descriptor for the gated bridge proxy routes. Injected wallets authenticate
+ * with the x-injected-wallet header (resolved by middleware); Privy wallets with the
+ * Bearer token. A bare string is treated as a Privy token for backwards compatibility.
+ */
+export type BridgeAuth = { token?: string | null; injectedAddress?: string | null };
+
+/** Auth header for the gated bridge proxy routes; empty when unauthenticated (route then 401s). */
+export function authHeaders(auth?: BridgeAuth | string | null): Record<string, string> {
+  const a: BridgeAuth =
+    auth == null ? {} : typeof auth === "string" ? { token: auth } : auth;
+  if (a.injectedAddress) {
+    return { "x-injected-wallet": a.injectedAddress.toLowerCase() };
+  }
+  return a.token ? { Authorization: `Bearer ${a.token}` } : {};
 }
 
 export class NearIntentsClient {
@@ -298,17 +309,17 @@ export class NearIntentsClient {
 
   async getQuote(
     params: NearQuoteParams,
-    token: string | null | undefined,
+    auth: BridgeAuth | string | null | undefined,
     decimals: { origin: number; destination: number },
   ): Promise<BridgeQuote> {
     const { data } = await axios.post("/api/bridge/near-intents/quote", params, {
-      headers: authHeaders(token),
+      headers: authHeaders(auth),
     });
     return this.normalizeQuote(data, params, decimals);
   }
 
   /** Re-requests with dry:false to get the real deposit address for execution. */
-  async getDepositAddress(quote: NearDepositQuote, token?: string | null): Promise<string> {
+  async getDepositAddress(quote: NearDepositQuote, auth?: BridgeAuth | string | null): Promise<string> {
     const params = (quote as any)._params as NearQuoteParams | undefined;
     if (!params) throw new Error("Quote missing original params — cannot fetch deposit address");
     const freshParams: NearQuoteParams = {
@@ -317,7 +328,7 @@ export class NearIntentsClient {
       deadline: new Date(Date.now() + 600_000).toISOString(),
     };
     const { data } = await axios.post("/api/bridge/near-intents/quote", freshParams, {
-      headers: authHeaders(token),
+      headers: authHeaders(auth),
     });
     // 1Click nests the address under data.quote.depositAddress (same shape normalizeQuote
     // defends against) — reading only data.depositAddress misses it and throws spuriously.
@@ -326,10 +337,10 @@ export class NearIntentsClient {
     return addr;
   }
 
-  async getStatus(depositAddress: string, token?: string | null): Promise<BridgeStatusResult> {
+  async getStatus(depositAddress: string, auth?: BridgeAuth | string | null): Promise<BridgeStatusResult> {
     const { data } = await axios.get("/api/bridge/near-intents/status", {
       params: { depositAddress },
-      headers: authHeaders(token),
+      headers: authHeaders(auth),
     });
     return {
       status: data.status,
@@ -371,10 +382,10 @@ export class LifiClient {
     fromAddress: string;
     toAddress: string;
     slippage?: number;
-  }, token?: string | null): Promise<BridgeQuote | null> {
+  }, auth?: BridgeAuth | string | null): Promise<BridgeQuote | null> {
     const { data, status } = await axios.get("/api/bridge/lifi/quote", {
       params,
-      headers: authHeaders(token),
+      headers: authHeaders(auth),
       validateStatus: () => true,
     });
     // Unsupported route/token — return null so the UI shows "no rail available"
@@ -438,10 +449,10 @@ export class LifiClient {
     };
   }
 
-  async getStatus(txHash: string, token?: string | null): Promise<BridgeStatusResult> {
+  async getStatus(txHash: string, auth?: BridgeAuth | string | null): Promise<BridgeStatusResult> {
     const { data } = await axios.get("/api/bridge/lifi/status", {
       params: { txHash },
-      headers: authHeaders(token),
+      headers: authHeaders(auth),
     });
     return {
       status: mapLifiStatus(data.status, data.substatus),

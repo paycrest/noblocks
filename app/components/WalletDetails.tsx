@@ -11,7 +11,7 @@ import {
   tokenBalanceRowVisible,
   handleNetworkSwitch,
 } from "../utils";
-import { useBalance, useTransactions, useStep, useStarknet, useTron } from "../context";
+import { useBalance, useTransactions, useStep, useStarknet, useTron, useEmbed } from "../context";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
@@ -166,6 +166,7 @@ export const WalletDetails = () => {
   } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user, getAccessToken } = usePrivy();
+  const { isEmbed } = useEmbed();
   const { wallets } = useWallets();
   const { transactions, fetchTransactions } = useTransactions();
   const { isOnrampProviderDetailsOpen } = useStep();
@@ -533,34 +534,41 @@ export const WalletDetails = () => {
                           </button>
                         </div>
 
-                        {!isInjectedWallet && (
+                        {/* Injected wallets fund/transfer through their host wallet, so
+                            only Convert applies to them — render the row when it has at
+                            least one button (non-injected, or bridge available). */}
+                        {(!isInjectedWallet || isBridgeUiVisible()) && (
                           <div className="flex flex-row items-start justify-between gap-2">
-                            <button
-                              type="button"
-                              title="Fund wallet"
-                              onClick={() => setIsFundModalOpen(true)}
-                              className="group flex flex-1 flex-col items-center gap-2"
-                            >
-                              <span className="flex size-[60px] items-center justify-center rounded-full bg-lavender-500 text-white transition-all group-hover:scale-[0.98] group-active:scale-95">
-                                <ArrowDownLeft01Icon className="size-6" strokeWidth={2} />
-                              </span>
-                              <span className="text-sm font-medium text-text-body dark:text-white">
-                                Fund
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              title="Transfer funds"
-                              onClick={() => setIsTransferModalOpen(true)}
-                              className="group flex flex-1 flex-col items-center gap-2"
-                            >
-                              <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
-                                <ArrowUpRight01Icon className="size-6" strokeWidth={2} />
-                              </span>
-                              <span className="text-sm font-medium text-text-body dark:text-white">
-                                Transfer
-                              </span>
-                            </button>
+                            {!isInjectedWallet && (
+                              <>
+                                <button
+                                  type="button"
+                                  title="Fund wallet"
+                                  onClick={() => setIsFundModalOpen(true)}
+                                  className="group flex flex-1 flex-col items-center gap-2"
+                                >
+                                  <span className="flex size-[60px] items-center justify-center rounded-full bg-lavender-500 text-white transition-all group-hover:scale-[0.98] group-active:scale-95">
+                                    <ArrowDownLeft01Icon className="size-6" strokeWidth={2} />
+                                  </span>
+                                  <span className="text-sm font-medium text-text-body dark:text-white">
+                                    Fund
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Transfer funds"
+                                  onClick={() => setIsTransferModalOpen(true)}
+                                  className="group flex flex-1 flex-col items-center gap-2"
+                                >
+                                  <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                                    <ArrowUpRight01Icon className="size-6" strokeWidth={2} />
+                                  </span>
+                                  <span className="text-sm font-medium text-text-body dark:text-white">
+                                    Transfer
+                                  </span>
+                                </button>
+                              </>
+                            )}
                             {isBridgeUiVisible() && (
                               <button
                                 type="button"
@@ -576,7 +584,7 @@ export const WalletDetails = () => {
                                 </span>
                               </button>
                             )}
-                            {isEarnEnabled() && (
+                            {!isInjectedWallet && isEarnEnabled() && (
                               <div
                                 className="relative flex flex-1 flex-col items-center"
                                 onMouseEnter={() =>
@@ -935,19 +943,20 @@ export const WalletDetails = () => {
             />
           </AnimatedModal>
 
-          <AnimatedModal
-            isOpen={isConvertModalOpen}
-            onClose={() => setIsConvertModalOpen(false)}
-          >
-            <BridgeForm onClose={() => setIsConvertModalOpen(false)} onBridgeSubmit={trackBridge} />
-          </AnimatedModal>
-
           <EarnUnavailableModal
             isOpen={isEarnUnavailableModalOpen}
             onClose={() => setIsEarnUnavailableModalOpen(false)}
           />
         </>
       )}
+
+      {/* Convert applies to injected wallets too — render outside the injected gate. */}
+      <AnimatedModal
+        isOpen={isConvertModalOpen}
+        onClose={() => setIsConvertModalOpen(false)}
+      >
+        <BridgeForm onClose={() => setIsConvertModalOpen(false)} onBridgeSubmit={trackBridge} />
+      </AnimatedModal>
 
       <EarnConsentModal
         isOpen={isEarnConsentModalOpen}

@@ -161,7 +161,7 @@ export const MIGRATION_EXCLUDED_CHAIN_IDS = new Set<number | string>([
   tronMainnet.id,
 ]);
 
-/** Networks scanned and shown in the wallet migration modal (excludes Celo). */
+/** Networks scanned and shown in the wallet migration modal (excludes Celo, Starknet, and Tron). */
 export const migrationChecklistNetworks = networks.filter(
   (n) => !MIGRATION_EXCLUDED_CHAIN_IDS.has(n.chain.id as number | string),
 );

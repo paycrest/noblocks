@@ -562,7 +562,7 @@ export const WalletDetails = () => {
                                 Transfer
                               </span>
                             </button>
-                            {isBridgeUiVisible() && !isInjectedWallet && (
+                            {isBridgeUiVisible() && (
                               <button
                                 type="button"
                                 title="Convert tokens"

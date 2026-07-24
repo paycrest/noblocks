@@ -257,7 +257,7 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [phoneNumber, walletAddress, selectedCountry, name, fullName, showFullNameField, resolveAccessToken, phoneValidation]);
+  }, [phoneNumber, walletAddress, selectedCountry, name, fullName, showFullNameField, resolveAccessToken, phoneValidation, isInjectedWallet, injectedAddress]);
 
   const handleOtpSubmit = useCallback(async () => {
     if (!otpCode.trim() || otpCode.length !== 6) {
@@ -266,19 +266,26 @@ export default function PhoneVerificationModal({
     }
 
     const accessToken = await resolveAccessToken();
-    if (!accessToken) {
+    if (!accessToken && !isInjectedWallet) {
       return;
     }
 
     setIsLoading(true);
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      if (isInjectedWallet && injectedAddress) {
+        headers["x-injected-wallet"] = injectedAddress;
+      }
+
       const response = await fetch("/api/phone/verify-otp", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers,
         body: JSON.stringify({
           phoneNumber: formattedPhone,
           otpCode: otpCode,
@@ -304,22 +311,29 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [otpCode, formattedPhone, resolveAccessToken, refreshStatus]);
+  }, [otpCode, formattedPhone, resolveAccessToken, refreshStatus, isInjectedWallet, injectedAddress]);
 
   const handleResendOtp = useCallback(async () => {
     const accessToken = await resolveAccessToken();
-    if (!accessToken) {
+    if (!accessToken && !isInjectedWallet) {
       return;
     }
 
     setIsLoading(true);
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+      if (isInjectedWallet && injectedAddress) {
+        headers["x-injected-wallet"] = injectedAddress;
+      }
+
       const response = await fetch("/api/phone/send-otp", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
+        headers,
         body: JSON.stringify({
           phoneNumber: formattedPhone,
         }),
@@ -341,7 +355,7 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [formattedPhone, resolveAccessToken]);
+  }, [formattedPhone, resolveAccessToken, isInjectedWallet, injectedAddress]);
 
   const handleClose = async () => {
     if (step === STEPS.VERIFIED && formattedPhone) {

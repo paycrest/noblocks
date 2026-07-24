@@ -103,21 +103,26 @@ function createEmptySnapshot(): KYCStatusSnapshot {
 
 export function KYCProvider({ children }: { children: React.ReactNode }) {
   const { getAccessToken } = usePrivy();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isInjectedWallet, injectedAddress, injectedReady } =
+    useInjectedWallet();
   // Active wallet for the current mode/network (injected when ?injected=true),
   // not the Privy embedded EOA — Profile and other KYC UI surface this address.
+  // Injected mode resolves to the injected address only once injectedReady, so
+  // walletAddress stays undefined until the wallet is connected.
   const walletAddress = useWalletAddress();
 
   // Auth header for the middleware-gated KYC routes: injected wallets use
-  // x-injected-wallet, Privy wallets the Bearer token. Returns null when neither
-  // is available (caller then skips the fetch).
+  // x-injected-wallet (only once ready), Privy wallets the Bearer token. Returns
+  // null when neither is available (caller then skips the fetch).
   const buildKycAuthHeaders = useCallback(async (): Promise<Record<string, string> | null> => {
-    if (isInjectedWallet && injectedAddress) {
-      return { "x-injected-wallet": injectedAddress };
+    if (isInjectedWallet) {
+      return injectedReady && injectedAddress
+        ? { "x-injected-wallet": injectedAddress }
+        : null;
     }
     const accessToken = await getAccessToken();
     return accessToken ? { Authorization: `Bearer ${accessToken}` } : null;
-  }, [isInjectedWallet, injectedAddress, getAccessToken]);
+  }, [isInjectedWallet, injectedReady, injectedAddress, getAccessToken]);
 
   const walletAddressRef = useRef(walletAddress);
   walletAddressRef.current = walletAddress;

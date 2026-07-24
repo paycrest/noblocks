@@ -119,13 +119,18 @@ export const KycModal = ({
 }) => {
   const { getAccessToken, user } = usePrivy();
   const { wallets } = useWallets();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isInjectedWallet, injectedAddress, injectedReady } =
+    useInjectedWallet();
 
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
   );
+  // Only surface the injected address once the wallet is connected/ready — until
+  // then fall through to null so no KYC request fires with a half-initialized wallet.
   const walletAddress = isInjectedWallet
-    ? injectedAddress
+    ? injectedReady
+      ? injectedAddress
+      : null
     : embeddedWallet?.address;
 
   const [step, setStep] = useState<Step>(() =>

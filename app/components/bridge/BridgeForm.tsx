@@ -5,7 +5,7 @@ import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useWalletAddress } from "@/app/hooks/useWalletAddress";
 import { useNetwork } from "@/app/context/NetworksContext";
 import { useStarknet } from "@/app/context/StarknetContext";
-import { useBalance, useTokens } from "@/app/context";
+import { useBalance, useTokens, useInjectedWallet } from "@/app/context";
 import { useBridgeQuote, useBridgeExecute, useBridgeStatus } from "@/app/hooks/bridge";
 import { selectEngine, toRawAmount, bridgeFeeInReceivingToken } from "@/app/lib/bridge";
 import type { BridgeLeg, BridgeEngine } from "@/app/lib/bridge";
@@ -50,6 +50,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
 }) => {
   const { authenticated, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
+  const { isInjectedWallet, injectedAddress, injectedReady, injectedProvider } = useInjectedWallet();
   const walletAddress = useWalletAddress();
   const { selectedNetwork } = useNetwork();
   const starknet = useStarknet();
@@ -96,8 +97,37 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
 
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
 
-  const evmAddress = embeddedWallet?.address ?? "";
+  // Support both Privy embedded wallet and injected wallet
+  const evmAddress = isInjectedWallet
+    ? (injectedReady ? injectedAddress ?? "" : "")
+    : (embeddedWallet?.address ?? "");
+
   const starknetAddress = starknet.address ?? "";
+
+  // Create adapter for injected wallet to match EmbeddedWalletLike interface
+  const walletAdapter = useMemo(() => {
+    if (isInjectedWallet && injectedReady && injectedAddress && injectedProvider) {
+      return {
+        switchChain: async (chainId: number) => {
+          const chainIdHex = `0x${chainId.toString(16)}`;
+          await injectedProvider.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: chainIdHex }],
+          });
+        },
+        getEthereumProvider: async () => injectedProvider,
+        address: injectedAddress,
+      };
+    }
+    if (embeddedWallet) {
+      return {
+        switchChain: embeddedWallet.switchChain.bind(embeddedWallet),
+        getEthereumProvider: embeddedWallet.getEthereumProvider.bind(embeddedWallet),
+        address: embeddedWallet.address,
+      };
+    }
+    return undefined;
+  }, [isInjectedWallet, injectedReady, injectedAddress, injectedProvider, embeddedWallet]);
 
   const { quote, isLoading: quoteLoading, error: quoteError } = useBridgeQuote({
     from,
@@ -106,8 +136,9 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     evmAddress,
     starknetAddress,
     slippageBps,
-    enabled: authenticated && !routeUnsupported && !!(evmAddress || starknetAddress),
+    enabled: (authenticated || (isInjectedWallet && injectedReady)) && !routeUnsupported && !!(evmAddress || starknetAddress),
     getAccessToken,
+    injectedWalletAddress: isInjectedWallet && injectedReady ? injectedAddress : null,
   });
 
   const { execute, isLoading: execLoading } = useBridgeExecute({
@@ -119,15 +150,12 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
       address: starknet.address,
       deployed: starknet.deployed,
     },
-    embeddedWallet: embeddedWallet
-      ? {
-          switchChain: embeddedWallet.switchChain.bind(embeddedWallet),
-          getEthereumProvider: embeddedWallet.getEthereumProvider.bind(embeddedWallet),
-          address: embeddedWallet.address,
-        }
-      : undefined,
+    embeddedWallet: walletAdapter,
     allTokens,
     signDelegationAuthorization,
+    isInjectedWallet: isInjectedWallet && injectedReady,
+    injectedProvider: isInjectedWallet && injectedReady ? injectedProvider : null,
+    injectedAddress: isInjectedWallet && injectedReady ? injectedAddress : null,
   });
 
   // Reset expiry flag whenever a fresh quote arrives
@@ -141,6 +169,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     refId: statusInfo?.depositRefId ?? null,
     enabled: step === "status" && !!statusInfo,
     getAccessToken,
+    injectedWalletAddress: isInjectedWallet && injectedReady ? injectedAddress : null,
   });
   const liveStatus = bridgeStatus?.status;
   const isDone = liveStatus === "SUCCESS";
@@ -180,9 +209,11 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
       const { txHash, depositRefId } = await execute(quote, fromWithAmount);
       const resolvedEngine: BridgeEngine = quote.kind === "lifi-tx" ? "lifi" : "near";
 
-      const accessToken = await getAccessToken();
+      // Injected wallets authenticate saves via x-injected-wallet (resolved by
+      // middleware); Privy wallets via the Bearer token.
+      const accessToken = isInjectedWallet ? null : await getAccessToken();
       let savedTxId: string | null = null;
-      if (accessToken && walletAddress) {
+      if ((accessToken || isInjectedWallet) && walletAddress) {
         const saved = await saveTransaction(
           {
             walletAddress,
@@ -206,6 +237,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
             orderId: depositRefId,
           },
           accessToken,
+          isInjectedWallet,
         ).catch(() => null);
         savedTxId = saved?.data?.id ?? null;
       }
@@ -289,7 +321,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
         <div className="size-8 shrink-0" />
       </div>
 
-      {!authenticated ? (
+      {!authenticated && !(isInjectedWallet && injectedReady) ? (
         <p className="text-sm text-gray-500 dark:text-white/50">
           Connect your wallet to convert tokens.
         </p>

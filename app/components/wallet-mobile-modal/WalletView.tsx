@@ -375,34 +375,41 @@ export const WalletView: React.FC<WalletViewProps> = ({
               )}
             </p>
 
-            {!isInjectedWallet && !showBalanceSkeleton && (
+            {/* Injected wallets fund/transfer through their host wallet, so only
+                Convert applies to them — render the row when it has at least one
+                button (non-injected, or Convert available). */}
+            {(!isInjectedWallet || !!onConvert) && !showBalanceSkeleton && (
               <div className="flex flex-row items-start justify-between gap-2">
-                <button
-                  type="button"
-                  title="Fund wallet"
-                  onClick={onFund}
-                  className="group flex flex-1 flex-col items-center gap-2"
-                >
-                  <span className="flex size-[60px] items-center justify-center rounded-full bg-lavender-500 text-white transition-all group-hover:scale-[0.98] group-active:scale-95">
-                    <ArrowDownLeft01Icon className="size-6" strokeWidth={2} />
-                  </span>
-                  <span className="text-sm font-medium text-text-body dark:text-white">
-                    Fund
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  title="Transfer funds"
-                  onClick={onTransfer}
-                  className="group flex flex-1 flex-col items-center gap-2"
-                >
-                  <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
-                    <ArrowUpRight01Icon className="size-6" strokeWidth={2} />
-                  </span>
-                  <span className="text-sm font-medium text-text-body dark:text-white">
-                    Transfer
-                  </span>
-                </button>
+                {!isInjectedWallet && (
+                  <>
+                    <button
+                      type="button"
+                      title="Fund wallet"
+                      onClick={onFund}
+                      className="group flex flex-1 flex-col items-center gap-2"
+                    >
+                      <span className="flex size-[60px] items-center justify-center rounded-full bg-lavender-500 text-white transition-all group-hover:scale-[0.98] group-active:scale-95">
+                        <ArrowDownLeft01Icon className="size-6" strokeWidth={2} />
+                      </span>
+                      <span className="text-sm font-medium text-text-body dark:text-white">
+                        Fund
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      title="Transfer funds"
+                      onClick={onTransfer}
+                      className="group flex flex-1 flex-col items-center gap-2"
+                    >
+                      <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
+                        <ArrowUpRight01Icon className="size-6" strokeWidth={2} />
+                      </span>
+                      <span className="text-sm font-medium text-text-body dark:text-white">
+                        Transfer
+                      </span>
+                    </button>
+                  </>
+                )}
                 {!!onConvert && (
                   <button
                     type="button"
@@ -418,7 +425,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
                     </span>
                   </button>
                 )}
-                {showEarnUi && (
+                {!isInjectedWallet && showEarnUi && (
                   <button
                     type="button"
                     title="Earn yield on USDC via Vesu"

@@ -806,15 +806,21 @@ export async function fetchTransactions(
  */
 export async function saveTransaction(
   transaction: TransactionCreateInput,
-  accessToken: string,
+  accessToken: string | null,
+  isInjectedWallet = false,
 ): Promise<SaveTransactionResponse> {
+  const headers: Record<string, string> = {
+    // Same intent as middleware primary wallet; overwritten by middleware for browser,
+    // but clarifies signer for proxies and matches fetchTransactions/update patterns.
+    "x-wallet-address": String(transaction.walletAddress).toLowerCase(),
+  };
+  if (isInjectedWallet) {
+    headers["x-injected-wallet"] = String(transaction.walletAddress).toLowerCase();
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
   const response = await axios.post("/api/v1/transactions", transaction, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      // Same intent as middleware primary wallet; overwritten by middleware for browser,
-      // but clarifies signer for proxies and matches fetchTransactions/update patterns.
-      "x-wallet-address": String(transaction.walletAddress).toLowerCase(),
-    },
+    headers,
   });
   return response.data;
 }
@@ -878,18 +884,22 @@ export async function precheckSwapTransaction(
 export async function updateBridgeTransactionStatus(
   transactionId: string,
   status: "completed" | "refunded" | "failed",
-  accessToken: string,
+  accessToken: string | null,
   walletAddress: string,
+  isInjectedWallet = false,
 ): Promise<void> {
+  const headers: Record<string, string> = {
+    "x-wallet-address": walletAddress.toLowerCase(),
+  };
+  if (isInjectedWallet) {
+    headers["x-injected-wallet"] = walletAddress.toLowerCase();
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
   await axios.put(
     `/api/v1/transactions/status/${transactionId}`,
     { status },
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "x-wallet-address": walletAddress.toLowerCase(),
-      },
-    },
+    { headers },
   );
 }
 
@@ -1364,8 +1374,9 @@ export async function migrateLocalStorageRecipients(
  */
 export const submitSmileIDData = async (
   payload: any,
-  accessToken: string,
+  accessToken: string | null,
   walletAddress: string,
+  isInjectedWallet = false,
 ): Promise<SmileIDSubmissionResponse> => {
   const startTime = Date.now();
 
@@ -1377,12 +1388,22 @@ export const submitSmileIDData = async (
       method: "POST",
     });
 
+    // Auth is resolved by middleware: injected wallets authenticate via the
+    // x-injected-wallet header, Privy wallets via the Bearer token. The
+    // middleware overwrites x-wallet-address from the verified identity, so the
+    // client-supplied value is only a hint.
+    const headers: Record<string, string> = {
+      "x-wallet-address": walletAddress.toLowerCase(),
+    };
+    if (isInjectedWallet) {
+      headers["x-injected-wallet"] = walletAddress.toLowerCase();
+    } else if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
     // Call Next.js API route with JWT authentication
     const response = await axios.post(`/api/kyc/smile-id`, payload, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "x-wallet-address": walletAddress.toLowerCase(),
-      },
+      headers,
     });
 
     // Track successful response

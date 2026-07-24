@@ -1072,22 +1072,43 @@ export async function reindexTransaction(
   }
 }
 
+// The token list is fetched independently by TokensContext and the
+// utils-level cache on every page load; share one request and result here so
+// they stop racing each other (each round-trip is ~1s from the aggregator).
+const TOKENS_TTL_MS = 5 * 60 * 1000;
+let tokensInFlight: Promise<APIToken[]> | null = null;
+let tokensResult: { at: number; data: APIToken[] } | null = null;
+
 /**
- * Fetches the list of supported tokens from the aggregator API
+ * Fetches the list of supported tokens from the aggregator API.
+ * Concurrent callers share one request; results are cached for 5 minutes.
  * @returns {Promise<APIToken[]>} Array of supported tokens from the API
  * @throws {Error} If the API request fails
  */
 export const fetchTokens = async (): Promise<APIToken[]> => {
-  try {
-    const response = await axios.get(`${AGGREGATOR_URL}/tokens`);
-    if (response.data?.data && Array.isArray(response.data.data)) {
-      return response.data.data;
-    }
-    return [];
-  } catch (error) {
-    console.error("Error fetching supported tokens from API:", error);
-    throw error;
+  if (tokensResult && Date.now() - tokensResult.at < TOKENS_TTL_MS) {
+    return tokensResult.data;
   }
+  if (tokensInFlight) {
+    return tokensInFlight;
+  }
+  tokensInFlight = (async () => {
+    try {
+      const response = await axios.get(`${AGGREGATOR_URL}/tokens`);
+      const data =
+        response.data?.data && Array.isArray(response.data.data)
+          ? (response.data.data as APIToken[])
+          : [];
+      tokensResult = { at: Date.now(), data };
+      return data;
+    } catch (error) {
+      console.error("Error fetching supported tokens from API:", error);
+      throw error;
+    } finally {
+      tokensInFlight = null;
+    }
+  })();
+  return tokensInFlight;
 };
 
 /**

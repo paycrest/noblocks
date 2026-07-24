@@ -20,6 +20,48 @@ import {
 } from "./PlayPromo";
 import SentryClientProvider from "./SentryClientProvider";
 import { MoralisStreamRegistration } from "./MoralisStreamRegistration";
+import { useEmbed } from "../context/EmbedContext";
+
+/**
+ * Brevo support chat. Loaded on every experience — including the embedded
+ * /widget, which has dedicated CSS to fit the launcher inside the iframe (see
+ * globals.css) — so customers always have a support path. Embed hosts that
+ * provide their own support can suppress it with `?hideSupport=1`.
+ *
+ * Rendered inside <Providers> so it can read the embed config; the scripts are
+ * `afterInteractive`, so they never block first paint.
+ */
+function BrevoChat() {
+  const { hideSupport } = useEmbed();
+
+  const enabled =
+    !hideSupport &&
+    /^[a-f0-9]{24}$/i.test(config.brevoConversationsId) &&
+    Boolean(config.brevoConversationsGroupId);
+
+  if (!enabled) return null;
+
+  return (
+    <>
+      <Script id="brevo-chat-config" strategy="afterInteractive">
+        {`window.BrevoConversationsID=${JSON.stringify(config.brevoConversationsId)};
+        window.BrevoConversations=window.BrevoConversations||function(){
+        (window.BrevoConversations.q=window.BrevoConversations.q||[]).push(arguments)};
+        window.BrevoConversationsSetup=${
+          config.brevoConversationsGroupId
+            ? `{groupId:${JSON.stringify(config.brevoConversationsGroupId)}}`
+            : "{}"
+        };
+        `}
+      </Script>
+      <Script
+        id="brevo-chat-widget"
+        src="https://conversations-widget.brevo.com/brevo-conversations.js"
+        strategy="afterInteractive"
+      />
+    </>
+  );
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -100,26 +142,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {showPlayPromo && <PlayPromoModal />}
           </div>
         )}
-        {/* Brevo Chat Widget */}
-        {/^[a-f0-9]{24}$/i.test(config.brevoConversationsId) && config.brevoConversationsGroupId && (
-          <>
-            <Script id="brevo-chat-config" strategy="afterInteractive">
-              {`window.BrevoConversationsID=${JSON.stringify(config.brevoConversationsId)};
-            window.BrevoConversations=window.BrevoConversations||function(){
-            (window.BrevoConversations.q=window.BrevoConversations.q||[]).push(arguments)};
-            window.BrevoConversationsSetup=${config.brevoConversationsGroupId
-                  ? `{groupId:${JSON.stringify(config.brevoConversationsGroupId)}}`
-                  : '{}'
-                };
-            `}
-            </Script>
-            <Script
-              id="brevo-chat-widget"
-              src="https://conversations-widget.brevo.com/brevo-conversations.js"
-              strategy="afterInteractive"
-            />
-          </>
-        )}
+        <BrevoChat />
       </Providers>
     </SentryClientProvider>
   );

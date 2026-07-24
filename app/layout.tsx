@@ -231,6 +231,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* First data fetches on every load go to these two origins; warming
+            the connections saves their DNS+TLS setup on the critical path.
+            crossOrigin matters: both are hit via CORS, which uses a separate
+            connection pool from plain navigation requests. */}
+        <link
+          rel="preconnect"
+          href="https://api.paycrest.io"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preconnect"
+          href="https://auth.privy.io"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body
         className={`${inter.className} overflow-x-hidden`}
         suppressHydrationWarning

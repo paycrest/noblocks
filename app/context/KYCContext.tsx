@@ -103,26 +103,26 @@ function createEmptySnapshot(): KYCStatusSnapshot {
 
 export function KYCProvider({ children }: { children: React.ReactNode }) {
   const { getAccessToken } = usePrivy();
-  const { isInjectedWallet, injectedAddress, injectedReady } =
-    useInjectedWallet();
+  const { isInjectedWallet, getInjectedAuthHeaders } = useInjectedWallet();
   // Active wallet for the current mode/network (injected when ?injected=true),
   // not the Privy embedded EOA — Profile and other KYC UI surface this address.
   // Injected mode resolves to the injected address only once injectedReady, so
   // walletAddress stays undefined until the wallet is connected.
   const walletAddress = useWalletAddress();
 
-  // Auth header for the middleware-gated KYC routes: injected wallets use
-  // x-injected-wallet (only once ready), Privy wallets the Bearer token. Returns
-  // null when neither is available (caller then skips the fetch).
+  // Auth header for the middleware-gated KYC routes: injected wallets use the
+  // x-injected-token session JWT, Privy wallets the Bearer token. Returns null
+  // when neither is available (caller then skips the fetch). Non-interactive:
+  // these are background/mount fetches — they must never pop a wallet
+  // signature request; the session is established by user actions (opening
+  // the KYC modal, submitting a step) and reused here.
   const buildKycAuthHeaders = useCallback(async (): Promise<Record<string, string> | null> => {
     if (isInjectedWallet) {
-      return injectedReady && injectedAddress
-        ? { "x-injected-wallet": injectedAddress }
-        : null;
+      return getInjectedAuthHeaders({ interactive: false });
     }
     const accessToken = await getAccessToken();
     return accessToken ? { Authorization: `Bearer ${accessToken}` } : null;
-  }, [isInjectedWallet, injectedReady, injectedAddress, getAccessToken]);
+  }, [isInjectedWallet, getInjectedAuthHeaders, getAccessToken]);
 
   const walletAddressRef = useRef(walletAddress);
   walletAddressRef.current = walletAddress;

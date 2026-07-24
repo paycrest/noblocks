@@ -122,7 +122,13 @@ export const TransactionForm = ({
   const { selectedNetwork } = useNetwork();
   const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, starknetWalletBalance, tronWalletBalance, isLoading } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isInjectedWallet, injectedAddress, injectedReady } =
+    useInjectedWallet();
+  // Privy `authenticated` is false in injected mode (extension or embed
+  // bridge) — balance display and over-balance validation must treat a ready
+  // injected wallet as connected too.
+  const isWalletConnected =
+    authenticated || (isInjectedWallet && injectedReady);
   const {
     isEmbed,
     tokenAllowlist,
@@ -1146,7 +1152,7 @@ export const TransactionForm = ({
                 Send
               </label>
               <AnimatePresence>
-                {authenticated && token && activeBalance && !isSwapped && (
+                {isWalletConnected && token && activeBalance && !isSwapped && (
                   <AnimatedComponent
                     variant={slideInOut}
                     className="flex items-center gap-2"
@@ -1215,7 +1221,7 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedSentAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${authenticated && !isSwapped && (amountSent > balance || errors.amountSent)
+                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${isWalletConnected && !isSwapped && (amountSent > balance || errors.amountSent)
                   ? "text-red-500 dark:text-red-500"
                   : "text-neutral-900 dark:text-white/80"
                   }`}
@@ -1251,13 +1257,13 @@ export const TransactionForm = ({
               )}
             </div>
             {(errors.amountSent ||
-              (authenticated && !isSwapped && totalRequired > balance)) && (
+              (isWalletConnected && !isSwapped && totalRequired > balance)) && (
                 <AnimatedComponent
                   variant={slideInOut}
                   className="!mt-0 text-xs text-red-500"
                 >
                   {errors.amountSent?.message ||
-                    (authenticated && !isSwapped && totalRequired > balance
+                    (isWalletConnected && !isSwapped && totalRequired > balance
                       ? "Insufficient balance"
                       : null)}
                 </AnimatedComponent>
@@ -1356,8 +1362,7 @@ export const TransactionForm = ({
                   className="min-w-80"
                   isCTA={
                     !currency &&
-                    (!authenticated ||
-                      (authenticated && !(totalRequired > balance)))
+                    (!isWalletConnected || !(totalRequired > balance))
                   }
                   dropdownWidth={320}
                   disabled={isCurrencyLocked}
@@ -1371,7 +1376,7 @@ export const TransactionForm = ({
         <AnimatePresence>
           {receiveDestinationExplicitlySelected &&
             currency &&
-            (authenticated || isInjectedWallet) &&
+            isWalletConnected &&
             isUserVerified && (
               <AnimatedComponent
                 variant={slideInOut}

@@ -14,7 +14,7 @@ import {
   WorkAlertIcon,
 } from "hugeicons-react";
 import Link from "next/link";
-import { useKYC, useInjectedWallet } from "../context";
+import { useKYC, useInjectedWallet, useEmbed } from "../context";
 import { KYC_TIERS } from "../context/KYCContext";
 import {
   formatKycTierDisplayLabel,
@@ -44,7 +44,8 @@ interface ProfileViewProps {
 
 export default function ProfileView({ layout, onBack, onClose }: ProfileViewProps) {
   const { user } = usePrivyAuth();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isInjectedWallet, injectedAddress, injectedReady } = useInjectedWallet();
+  const { isEmbed } = useEmbed();
   const {
     tier,
     transactionSummary,
@@ -53,8 +54,11 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
     walletAddress: kycWalletAddress,
   } = useKYC();
 
-  // Use injected wallet address when in injected mode, otherwise use KYC context address
-  const walletAddress = isInjectedWallet ? injectedAddress : kycWalletAddress;
+  // In injected/bridge mode, require a ready injected address; otherwise
+  // use KYC context address.
+  const walletAddress = isInjectedWallet
+    ? (injectedReady ? injectedAddress : null)
+    : kycWalletAddress;
 
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [showReferralHub, setShowReferralHub] = useState(false);
@@ -449,8 +453,8 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
                 </div>
               ))}
 
-            {/* Referrals (F-7) */}
-            {isReferralEnabled() && (
+            {/* Referrals (F-7) - hidden in embed mode */}
+            {isReferralEnabled() && !isEmbed && (
               <ReferralCTA
                 onViewReferrals={() => setShowReferralHub(true)}
               />

@@ -763,22 +763,6 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/cusd-logo.svg",
     },
   ],
-  Scroll: [
-    {
-      name: "USD Coin",
-      symbol: "USDC",
-      decimals: 6,
-      address: "0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4",
-      imageUrl: "/logos/usdc-logo.svg",
-    },
-    {
-      name: "Tether USD",
-      symbol: "USDT",
-      decimals: 6,
-      address: "0xf55BEC9cafDbE8730f096Aa55dad6D22d44099Df",
-      imageUrl: "/logos/usdt-logo.svg",
-    },
-  ],
   Lisk: [
     {
       name: "Tether USD",

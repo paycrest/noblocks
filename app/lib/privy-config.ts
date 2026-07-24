@@ -5,7 +5,6 @@ import {
   polygon,
   lisk,
   celo,
-  scroll,
   mainnet,
 } from "viem/chains";
 import {
@@ -24,11 +23,6 @@ const bscOverride = addRpcUrlOverrideToChain(
 const celoOverride = addRpcUrlOverrideToChain(
   celo,
   getRpcUrl(celo.name) ?? "https://forno.celo.org",
-);
-
-const scrollOverride = addRpcUrlOverrideToChain(
-  scroll,
-  getRpcUrl(scroll.name) ?? "https://rpc.scroll.io",
 );
 
 const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
@@ -54,7 +48,6 @@ const baseConfig: Omit<PrivyClientConfig, "appearance"> = {
     polygon,
     lisk,
     celoOverride,
-    scrollOverride,
   ],
   plugins: [dataSuffix(BASE_BUILDER_CODE_SUFFIX)],
 };

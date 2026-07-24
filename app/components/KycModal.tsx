@@ -211,6 +211,7 @@ export const KycModal = ({
     needsDocCapture,
     getAccessToken,
     user,
+    isInjectedWallet,
   });
   captureSmileContextRef.current = {
     walletAddress,
@@ -220,6 +221,7 @@ export const KycModal = ({
     needsDocCapture,
     getAccessToken,
     user,
+    isInjectedWallet,
   };
 
   const detachSmileCameraListeners = () => {
@@ -266,7 +268,8 @@ export const KycModal = ({
       }
 
       const accessToken = await ctx.getAccessToken();
-      if (!accessToken) {
+      // For injected wallets, accessToken is null - that's OK
+      if (!accessToken && !ctx.isInjectedWallet) {
         throw new Error("No access token available");
       }
 
@@ -294,6 +297,7 @@ export const KycModal = ({
         },
         accessToken,
         ctx.walletAddress,
+        ctx.isInjectedWallet,
       );
 
       if (response.status === "success" || response.status === "pending") {
@@ -1323,7 +1327,9 @@ export const KycModal = ({
               setTier3Submitting(true);
               try {
                 const accessToken = await getAccessToken();
-                if (!accessToken) {
+                // Injected wallets authenticate via the x-injected-wallet header
+                // (resolved by middleware), so a null Privy token is expected there.
+                if (!accessToken && !isInjectedWallet) {
                   setTier3Submitting(false);
                   toast.error("Session expired. Please sign in again.");
                   return;
@@ -1338,9 +1344,16 @@ export const KycModal = ({
                 formData.append("county", tier3County);
                 formData.append("postalCode", tier3PostalCode);
 
+                const headers: Record<string, string> = {};
+                if (isInjectedWallet && injectedAddress) {
+                  headers["x-injected-wallet"] = injectedAddress;
+                } else if (accessToken) {
+                  headers.Authorization = `Bearer ${accessToken}`;
+                }
+
                 const res = await fetch("/api/kyc/tier3-verify", {
                   method: "POST",
-                  headers: { Authorization: `Bearer ${accessToken}` },
+                  headers,
                   body: formData,
                 });
 
@@ -1412,11 +1425,16 @@ export const KycModal = ({
 
     try {
       const accessToken = await getAccessToken();
-      if (!accessToken) return;
+      if (!accessToken && !isInjectedWallet) return;
 
-      const res = await fetch("/api/kyc/status", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const headers: Record<string, string> = {};
+      if (isInjectedWallet && injectedAddress) {
+        headers["x-injected-wallet"] = injectedAddress;
+      } else if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`;
+      }
+
+      const res = await fetch("/api/kyc/status", { headers });
 
       if (!res.ok) {
         if (res.status === 404) {

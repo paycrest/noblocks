@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { encodeFunctionData, erc20Abi } from "viem";
+import { encodeFunctionData, erc20Abi, createPublicClient, http } from "viem";
 import {
   selectEngine,
   NearIntentsClient,
@@ -12,8 +12,11 @@ import {
   toRawAmount,
   evmBatchExecute,
   executeBatchCalls,
+  authHeaders,
 } from "@/app/lib/bridge";
-import type { BridgeLeg, BridgeQuote, BridgeStatusResult, BridgeEngine, NearIntentsToken } from "@/app/lib/bridge";
+import type { BridgeLeg, BridgeQuote, BridgeStatusResult, BridgeEngine, NearIntentsToken, BridgeAuth } from "@/app/lib/bridge";
+import { getRpcUrl } from "@/app/utils";
+import { appendBaseBuilderCode } from "@/app/lib/baseBuilderCode";
 import type { BatchCall } from "@/app/lib/providerBatch";
 import { STARKNET_READY_ACCOUNT_CLASSHASH } from "@/app/lib/config";
 
@@ -35,6 +38,7 @@ interface UseBridgeQuoteParams {
   slippageBps: number;
   enabled: boolean;
   getAccessToken?: () => Promise<string | null>; // for the auth-gated bridge proxy
+  injectedWalletAddress?: string | null; // injected-wallet auth for the bridge proxy
 }
 
 export function useBridgeQuote({
@@ -46,19 +50,24 @@ export function useBridgeQuote({
   slippageBps,
   enabled,
   getAccessToken,
+  injectedWalletAddress,
 }: UseBridgeQuoteParams) {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const fetchQuote = useCallback(async (): Promise<BridgeQuote | null> => {
     if (!from || !to || !amount || parseFloat(amount) <= 0) return null;
 
-    const token = (await getAccessToken?.()) ?? null;
+    // Injected wallets authenticate via x-injected-wallet (resolved by middleware);
+    // Privy wallets via the Bearer token.
+    const auth: BridgeAuth = injectedWalletAddress
+      ? { injectedAddress: injectedWalletAddress }
+      : { token: (await getAccessToken?.()) ?? null };
     const engine = selectEngine(from, to);
     const rawAmount = toRawAmount(amount, from.decimals);
 
     if (engine === "near") {
       const tokensRes = await fetch("/api/bridge/near-intents/tokens", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: authHeaders(auth),
       });
       const tokenList: NearIntentsToken[] = tokensRes.ok ? await tokensRes.json() : [];
 
@@ -83,7 +92,7 @@ export function useBridgeQuote({
         refundType: "ORIGIN_CHAIN",
         deadline: new Date(Date.now() + 600000).toISOString(),
         depositType: "ORIGIN_CHAIN",
-      }, token, { origin: from.decimals, destination: to.decimals });
+      }, auth, { origin: from.decimals, destination: to.decimals });
     }
 
     const fromChain = toLifiChainId(from.network);
@@ -107,8 +116,8 @@ export function useBridgeQuote({
       fromAddress: evmAddress,
       toAddress: evmAddress,
       slippage: lifiSlippage,
-    }, token);
-  }, [from, to, amount, evmAddress, starknetAddress, slippageBps, getAccessToken]);
+    }, auth);
+  }, [from, to, amount, evmAddress, starknetAddress, slippageBps, getAccessToken, injectedWalletAddress]);
 
   const queryKey = useMemo(
     () => ["bridge-quote", from?.token, from?.network, to?.token, to?.network, amount, evmAddress, starknetAddress, slippageBps],
@@ -150,9 +159,10 @@ interface UseBridgeStatusParams {
   refId: string | null; // depositAddress for NEAR, txHash for LI.FI
   enabled: boolean;
   getAccessToken?: () => Promise<string | null>; // for the auth-gated bridge proxy
+  injectedWalletAddress?: string | null; // injected-wallet auth for the bridge proxy
 }
 
-export function useBridgeStatus({ engine, refId, enabled, getAccessToken }: UseBridgeStatusParams) {
+export function useBridgeStatus({ engine, refId, enabled, getAccessToken, injectedWalletAddress }: UseBridgeStatusParams) {
   const [result, setResult] = useState<BridgeStatusResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -178,11 +188,13 @@ export function useBridgeStatus({ engine, refId, enabled, getAccessToken }: UseB
       if (inFlightRef.current) return;
       inFlightRef.current = true;
       try {
-        const token = (await getAccessToken?.()) ?? null;
+        const auth: BridgeAuth = injectedWalletAddress
+          ? { injectedAddress: injectedWalletAddress }
+          : { token: (await getAccessToken?.()) ?? null };
         const status =
           engine === "near"
-            ? await nearClient.getStatus(refId, token)
-            : await lifiClient.getStatus(refId, token);
+            ? await nearClient.getStatus(refId, auth)
+            : await lifiClient.getStatus(refId, auth);
 
         setResult(status);
         if (status.status === "SUCCESS" || status.status === "REFUNDED" || status.status === "FAILED") {
@@ -200,7 +212,7 @@ export function useBridgeStatus({ engine, refId, enabled, getAccessToken }: UseB
     intervalRef.current = setInterval(poll, 5_000);
 
     return stop;
-  }, [engine, refId, enabled, stop, getAccessToken]);
+  }, [engine, refId, enabled, stop, getAccessToken, injectedWalletAddress]);
 
   return { result, isLoading, stop };
 }
@@ -227,6 +239,11 @@ interface UseBridgeExecuteParams {
   };
   allTokens?: Record<string, any[]>;
   signDelegationAuthorization?: (chainId: number) => Promise<any>;
+  // Injected-wallet execution: the wallet signs and pays for its own txs (no
+  // sponsored bundler / EIP-7702 delegation, which are Privy-embedded only).
+  isInjectedWallet?: boolean;
+  injectedProvider?: { request: (args: { method: string; params?: any[] }) => Promise<any> } | null;
+  injectedAddress?: string | null;
 }
 
 /**
@@ -245,6 +262,9 @@ export function useBridgeExecute({
   embeddedWallet,
   allTokens,
   signDelegationAuthorization,
+  isInjectedWallet,
+  injectedProvider,
+  injectedAddress,
 }: UseBridgeExecuteParams = {}) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -256,6 +276,66 @@ export function useBridgeExecute({
   const selectedNetworkRef = useRef(selectedNetwork);
   useEffect(() => { selectedNetworkRef.current = selectedNetwork; }, [selectedNetwork]);
 
+  // Injected wallets sign and pay for their own transactions directly through
+  // their provider — no sponsored bundler, no EIP-7702 delegation. Calls are sent
+  // sequentially, each confirmed before the next, so an approval lands before the
+  // swap that depends on it. Returns the last tx hash (the swap/transfer).
+  const executeInjectedCalls = useCallback(
+    async (
+      chainId: number,
+      calls: Array<{ to: string; value?: bigint; data: string }>,
+    ): Promise<string> => {
+      if (!injectedProvider || !injectedAddress) {
+        throw new Error("Injected wallet not connected");
+      }
+      const chain = selectedNetworkRef.current?.chain as any;
+      if (!chain) throw new Error("Selected network not found");
+
+      // Ensure the wallet is on the origin chain before sending.
+      try {
+        await injectedProvider.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: `0x${chainId.toString(16)}` }],
+        });
+      } catch {
+        throw new Error("Please switch your wallet to the origin network and retry.");
+      }
+
+      const publicClient = createPublicClient({
+        chain,
+        transport: http(getRpcUrl(chain.name)),
+      });
+
+      let lastHash = "";
+      for (const call of calls) {
+        // Only append the Base builder-code suffix to real contract-call data.
+        // A bare native transfer (data "0x") stays bare — appending calldata could
+        // revert a transfer to a contract deposit address without a matching fallback.
+        const hasCallData = !!call.data && call.data !== "0x";
+        const data = hasCallData
+          ? appendBaseBuilderCode(chainId, call.data as `0x${string}`)
+          : "0x";
+        const hash = (await injectedProvider.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: injectedAddress,
+              to: call.to,
+              data,
+              ...(call.value && call.value > BigInt(0)
+                ? { value: `0x${call.value.toString(16)}` }
+                : {}),
+            },
+          ],
+        })) as `0x${string}`;
+        await publicClient.waitForTransactionReceipt({ hash });
+        lastHash = hash;
+      }
+      return lastHash;
+    },
+    [injectedProvider, injectedAddress],
+  );
+
   const execute = useCallback(
     async (quote: BridgeQuote, from: BridgeLeg): Promise<{ txHash: string; depositRefId: string }> => {
       setIsLoading(true);
@@ -263,11 +343,39 @@ export function useBridgeExecute({
 
       try {
         if (quote.kind === "near-deposit") {
+          // Injected wallets authenticate the proxy via x-injected-wallet; Privy via Bearer.
+          const proxyAuth: BridgeAuth =
+            isInjectedWallet && injectedAddress
+              ? { injectedAddress }
+              : { token: (await getAccessToken?.()) ?? null };
           // Dry quotes have no deposit address — fetch a fresh non-dry quote to get one.
           const depositAddress =
             quote.depositAddress ||
-            (await nearClient.getDepositAddress(quote, await getAccessToken?.()));
+            (await nearClient.getDepositAddress(quote, proxyAuth));
           const token = from.token;
+
+          // Injected EVM wallet: sign + pay the deposit transfer directly.
+          if (isInjectedWallet && from.network !== "Starknet") {
+            const chainId = Number(from.chainId);
+            const isNative =
+              !from.tokenAddress || from.tokenAddress === ZERO_ADDRESS;
+            const call = isNative
+              ? { to: depositAddress, value: BigInt(from.rawAmount), data: "0x" }
+              : {
+                  to: from.tokenAddress,
+                  value: BigInt(0),
+                  data: encodeFunctionData({
+                    abi: erc20Abi,
+                    functionName: "transfer",
+                    args: [depositAddress as `0x${string}`, BigInt(from.rawAmount)],
+                  }),
+                };
+            const evmHash = await executeInjectedCalls(chainId, [call]);
+            setTxHash(evmHash);
+            setIsSuccess(true);
+            onSuccess?.(evmHash);
+            return { txHash: evmHash, depositRefId: depositAddress };
+          }
 
           if (from.network === "Starknet") {
             // Starknet transfer
@@ -321,7 +429,7 @@ export function useBridgeExecute({
             }
 
             // Use only the from-chain's tokens so symbol lookup never picks
-            // a same-symbol token from a different network (e.g. Scroll USDC vs BSC USDC).
+            // a same-symbol token from a different network (e.g. Polygon USDC vs BSC USDC).
             const chainTokens = allTokens[from.network] ?? [];
 
             const evmHash = await evmBatchExecute({
@@ -343,11 +451,8 @@ export function useBridgeExecute({
             return { txHash: evmHash, depositRefId: depositAddress };
           }
         } else if (quote.kind === "lifi-tx") {
-          // LI.FI: optional ERC-20 approval + swap, batched through the shared 7702 executor.
-          if (!embeddedWallet || !signDelegationAuthorization || !getAccessToken) {
-            throw new Error("EVM wallet not configured for LI.FI execution");
-          }
-
+          // LI.FI: optional ERC-20 approval + swap. Injected wallets send them
+          // directly; Privy wallets batch them through the sponsored 7702 executor.
           const chain = selectedNetworkRef.current?.chain;
           if (!chain) {
             throw new Error("Selected network not found");
@@ -375,6 +480,24 @@ export function useBridgeExecute({
             value: BigInt(quote.transactionRequest.value || "0"),
             data: quote.transactionRequest.data as `0x${string}`,
           });
+
+          // Injected EVM wallet: sign + pay approval and swap directly (sequential).
+          if (isInjectedWallet) {
+            const chainId = Number(from.chainId);
+            const evmHash = await executeInjectedCalls(
+              chainId,
+              calls.map((c) => ({ to: c.to, value: c.value, data: c.data })),
+            );
+            setTxHash(evmHash);
+            setIsSuccess(true);
+            onSuccess?.(evmHash);
+            return { txHash: evmHash, depositRefId: evmHash };
+          }
+
+          // Privy embedded wallet: sponsored 7702 batch execution.
+          if (!embeddedWallet || !signDelegationAuthorization || !getAccessToken) {
+            throw new Error("EVM wallet not configured for LI.FI execution");
+          }
 
           // LI.FI provides a recommended gasLimit for the swap call. 2x + 150k covers the
           // approval + EIP-7702 batch overhead; floor at 600k (cross-chain swaps need 300-500k+).
@@ -411,7 +534,7 @@ export function useBridgeExecute({
         setIsLoading(false);
       }
     },
-    [onSuccess, onError, getAccessToken, starknetWallet, embeddedWallet, allTokens, signDelegationAuthorization],
+    [onSuccess, onError, getAccessToken, starknetWallet, embeddedWallet, allTokens, signDelegationAuthorization, isInjectedWallet, injectedAddress, executeInjectedCalls],
   );
 
   const reset = useCallback(() => {

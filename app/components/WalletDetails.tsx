@@ -11,7 +11,7 @@ import {
   tokenBalanceRowVisible,
   handleNetworkSwitch,
 } from "../utils";
-import { useBalance, useTransactions, useStep, useStarknet, useTron } from "../context";
+import { useBalance, useTransactions, useStep, useStarknet, useTron, useEmbed } from "../context";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useNetwork } from "../context/NetworksContext";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
@@ -166,6 +166,7 @@ export const WalletDetails = () => {
   } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user, getAccessToken } = usePrivy();
+  const { isEmbed } = useEmbed();
   const { wallets } = useWallets();
   const { transactions, fetchTransactions } = useTransactions();
   const { isOnrampProviderDetailsOpen } = useStep();
@@ -561,7 +562,7 @@ export const WalletDetails = () => {
                                 Transfer
                               </span>
                             </button>
-                            {isBridgeUiVisible() && (
+                            {isBridgeUiVisible() && !isInjectedWallet && (
                               <button
                                 type="button"
                                 title="Convert tokens"

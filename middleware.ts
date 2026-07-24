@@ -169,126 +169,107 @@ async function authorizationMiddleware(req: NextRequest) {
   );
 
   const token = req.headers.get("Authorization")?.replace("Bearer ", "");
-  if (!token) {
-    const responseTime = Date.now() - startTime;
-    trackMiddlewareAnalytics(
-      "error",
-      {
-        endpoint,
-        method,
-        statusCode: 401,
-        errorMessage: "Missing JWT",
-        properties: {
-          middleware: true,
-          error_type: "missing_jwt",
-        },
-      },
-      req.nextUrl.origin,
-    );
-    return NextResponse.json({ error: "Missing JWT" }, { status: 401 });
-  }
+  const injectedWalletAddress = req.headers.get("x-injected-wallet");
 
-  // Step 1: JWT Verification (separate error handling)
-  let payload;
-  let privyUserId;
-  try {
-    payload = await verifyPrivyJWT(token);
-    privyUserId = payload.sub;
+  // Support both Privy JWT auth and injected wallet auth
+  let walletAddress: string | null = null;
+  let privyUserId: string | null = null;
 
-    if (!privyUserId) {
+  if (injectedWalletAddress) {
+    // Injected wallet mode: use the wallet address directly from header
+    // Set by frontend when isInjectedWallet=true
+    walletAddress = injectedWalletAddress.toLowerCase();
+    privyUserId = `injected-${walletAddress}`;
+  } else if (token) {
+    // Privy JWT mode: verify and resolve wallet
+    try {
+      const payload = await verifyPrivyJWT(token);
+      privyUserId = payload.sub ?? null;
+
+      if (!privyUserId) {
+        const responseTime = Date.now() - startTime;
+        trackMiddlewareAnalytics(
+          "error",
+          {
+            endpoint,
+            method,
+            statusCode: 401,
+            errorMessage: "Invalid JWT: Missing subject",
+            properties: {
+              middleware: true,
+              error_type: "jwt_missing_subject",
+            },
+          },
+          req.nextUrl.origin,
+        );
+        return NextResponse.json(
+          { error: "Invalid JWT: Missing subject" },
+          { status: 401 },
+        );
+      }
+
+      walletAddress = await getWalletAddressFromPrivyUserId(privyUserId);
+
+      if (!walletAddress) {
+        const responseTime = Date.now() - startTime;
+        trackMiddlewareAnalytics(
+          "error",
+          {
+            endpoint,
+            method,
+            statusCode: 502,
+            errorMessage: "Unable to resolve wallet address",
+            properties: {
+              middleware: true,
+              error_type: "wallet_resolution_failed",
+              privy_user_id: privyUserId,
+            },
+          },
+          req.nextUrl.origin,
+        );
+        return NextResponse.json(
+          { error: "Unable to resolve wallet address" },
+          { status: 502 },
+        );
+      }
+    } catch (jwtError) {
       const responseTime = Date.now() - startTime;
+      console.error("JWT verification error in middleware:", jwtError);
       trackMiddlewareAnalytics(
         "error",
         {
           endpoint,
           method,
           statusCode: 401,
-          errorMessage: "Invalid JWT: Missing subject",
+          errorMessage:
+            jwtError instanceof Error ? jwtError.message : "Unknown JWT error",
           properties: {
             middleware: true,
-            error_type: "jwt_missing_subject",
+            error_type: "jwt_verification_failed",
           },
         },
         req.nextUrl.origin,
       );
-      return NextResponse.json(
-        { error: "Invalid JWT: Missing subject" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Invalid JWT" }, { status: 401 });
     }
-  } catch (jwtError) {
+  } else {
+    // No auth provided
     const responseTime = Date.now() - startTime;
-    console.error("JWT verification error in middleware:", jwtError);
     trackMiddlewareAnalytics(
       "error",
       {
         endpoint,
         method,
         statusCode: 401,
-        errorMessage:
-          jwtError instanceof Error ? jwtError.message : "Unknown JWT error",
+        errorMessage: "Missing authentication",
         properties: {
           middleware: true,
-          error_type: "jwt_verification_failed",
+          error_type: "missing_auth",
         },
       },
       req.nextUrl.origin,
     );
-    return NextResponse.json({ error: "Invalid JWT" }, { status: 401 });
-  }
-
-  // Step 2: Wallet Resolution (separate error handling)
-  let walletAddress;
-  try {
-    walletAddress = await getWalletAddressFromPrivyUserId(privyUserId);
-
-    if (!walletAddress) {
-      const responseTime = Date.now() - startTime;
-      trackMiddlewareAnalytics(
-        "error",
-        {
-          endpoint,
-          method,
-          statusCode: 502,
-          errorMessage: "Unable to resolve wallet address",
-          properties: {
-            middleware: true,
-            error_type: "wallet_resolution_failed",
-            privy_user_id: privyUserId,
-          },
-        },
-        req.nextUrl.origin,
-      );
-      return NextResponse.json(
-        { error: "Unable to resolve wallet address" },
-        { status: 502 },
-      );
-    }
-  } catch (walletError) {
-    const responseTime = Date.now() - startTime;
-    console.error("Wallet resolution error in middleware:", walletError);
-    trackMiddlewareAnalytics(
-      "error",
-      {
-        endpoint,
-        method,
-        statusCode: 502,
-        errorMessage:
-          walletError instanceof Error
-            ? walletError.message
-            : "Unknown wallet error",
-        properties: {
-          middleware: true,
-          error_type: "wallet_resolution_failed",
-          privy_user_id: privyUserId,
-        },
-      },
-      req.nextUrl.origin,
-    );
-    return NextResponse.json(
-      { error: "Unable to resolve wallet address" },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: "Missing authentication" }, { status: 401 });
   }
 
   // Step 3: Set wallet context (improved error handling)

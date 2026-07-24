@@ -165,7 +165,6 @@ export const TransactionForm = ({
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [formattedSentAmount, setFormattedSentAmount] = useState("");
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
-  const isFirstRender = useRef(true);
   const hasRestoredStateRef = useRef(false);
   const [rateError, setRateError] = useState<string | null>(null);
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
@@ -371,7 +370,7 @@ export const TransactionForm = ({
         formMethods.setValue("token", canonicalTokenSymbol(matched), {
           shouldDirty: true,
         });
-      } else if (!isFirstRender.current) {
+      } else {
         toast.error("Unsupported Token", {
           description: String(
             `${tokenParam} token is not supported on the current network.`,
@@ -402,8 +401,6 @@ export const TransactionForm = ({
       formMethods.setValue("amountReceived", fiatAmount, { shouldDirty: true });
       setIsReceiveInputActive(true);
     }
-    // Setting first render to false
-    isFirstRender.current = false;
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -458,7 +455,7 @@ export const TransactionForm = ({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedNetwork.chain.name, tokenAllowlist],
+    [selectedNetwork.chain.name, tokenAllowlist, fetchedTokens],
   );
 
   useEffect(

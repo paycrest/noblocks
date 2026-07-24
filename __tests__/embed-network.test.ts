@@ -160,6 +160,51 @@ describe("embed-network", () => {
       expect(config.allowlist).toBeNull();
       expect(config.isLocked).toBe(false);
     });
+
+    it("uses chainIds CSV as a multi-chain allowlist", () => {
+      const config = parseEmbedNetworkConfig(
+        params({ chainIds: "8453,42161" }),
+      );
+      expect(config.isLocked).toBe(false);
+      expect(config.allowlist?.map((n) => n.chain.name)).toEqual([
+        "Base",
+        "Arbitrum One",
+      ]);
+      expect(config.defaultNetwork?.chain.name).toBe("Base");
+    });
+
+    it("locks on a single-entry chainIds allowlist", () => {
+      const config = parseEmbedNetworkConfig(params({ chainIds: "0x2105" }));
+      expect(config.isLocked).toBe(true);
+      expect(config.allowlist?.map((n) => n.chain.name)).toEqual(["Base"]);
+      expect(config.defaultNetwork?.chain.name).toBe("Base");
+    });
+
+    it("unions networks and chainIds, deduping by chain", () => {
+      const config = parseEmbedNetworkConfig(
+        params({ networks: "base", chainIds: "42161,8453" }),
+      );
+      expect(config.allowlist?.map((n) => n.chain.name)).toEqual([
+        "Base",
+        "Arbitrum One",
+      ]);
+      expect(config.isLocked).toBe(false);
+    });
+
+    it("drops unknown chainIds and keeps the valid remainder", () => {
+      const config = parseEmbedNetworkConfig(
+        params({ chainIds: "999999,8453" }),
+      );
+      expect(config.allowlist?.map((n) => n.chain.name)).toEqual(["Base"]);
+      expect(config.isLocked).toBe(true);
+    });
+
+    it("marks all-invalid chainIds unresolved, matching networks= behavior", () => {
+      const config = parseEmbedNetworkConfig(params({ chainIds: "999999" }));
+      expect(config.allowlist).toEqual([]);
+      expect(config.unresolved).toBe(true);
+      expect(config.isLocked).toBe(false);
+    });
   });
 
   describe("hasEmbedNetworkLockParams", () => {
@@ -176,10 +221,13 @@ describe("embed-network", () => {
   });
 
   describe("hasEmbedNetworksAllowlistParam", () => {
-    it("detects the networks key", () => {
+    it("detects the networks and chainIds keys", () => {
       expect(hasEmbedNetworksAllowlistParam(params({ networks: "base" }))).toBe(
         true,
       );
+      expect(
+        hasEmbedNetworksAllowlistParam(params({ chainIds: "8453" })),
+      ).toBe(true);
       expect(hasEmbedNetworksAllowlistParam(params({}))).toBe(false);
     });
   });

@@ -43,7 +43,8 @@ export function useSwapButton({
   networkName = "",
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
-  const { isInjectedWallet } = useInjectedWallet();
+  const { isInjectedWallet, injectedReady, injectedStatus } =
+    useInjectedWallet();
   const {
     amountSent,
     currency,
@@ -52,6 +53,17 @@ export function useSwapButton({
     receiveDestinationExplicitlySelected,
     token,
   } = watch();
+
+  // Injected mode with no account yet: the CTA becomes "Connect wallet"
+  // (enabled even on an empty form) and everything balance/KYC-related below
+  // must not run — a disconnected wallet's balance is 0, which would
+  // otherwise misread as "Insufficient balance".
+  const isInjectedAwaiting =
+    isInjectedWallet &&
+    !injectedReady &&
+    injectedStatus === "awaiting_connection";
+  const isInjectedConnecting =
+    isInjectedWallet && !injectedReady && injectedStatus === "pending";
 
   // Off-ramp: min 0.5 token. On-ramp: min fiat 0.5×rate only after receive token + rate (same as onrampFiatMin).
   const isAmountValid = isSwapped
@@ -75,6 +87,10 @@ export function useSwapButton({
     : Boolean(recipientName);
 
   const isEnabled = (() => {
+    // Connecting needs no amount: the CTA is live as soon as the form renders.
+    if (isInjectedAwaiting) return true;
+    if (isInjectedConnecting) return false;
+
     // Phone / next-tier KYC from the main CTA must work before the user picks a
     // recipient; otherwise the verify label appears on a permanently disabled button.
     const rateReady = Boolean(rate) && Number(rate) > 0;
@@ -131,6 +147,9 @@ export function useSwapButton({
   })();
 
   const buttonText = (() => {
+    if (isInjectedAwaiting) return "Connect wallet";
+    if (isInjectedConnecting) return "Connecting...";
+
     if (isInjectedWallet && hasInsufficientBalance) {
       return "Insufficient balance";
     }
@@ -169,7 +188,11 @@ export function useSwapButton({
     openLimitModal: () => void,
     isPhoneVerified: boolean,
     isUserVerified: boolean,
+    connectWallet?: () => void,
   ) => {
+    if ((isInjectedAwaiting || isInjectedConnecting) && connectWallet) {
+      return connectWallet;
+    }
     if (!authenticated && !isInjectedWallet) {
       return login;
     }

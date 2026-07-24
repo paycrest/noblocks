@@ -35,14 +35,18 @@ export function WidgetShell({ children }: { children: React.ReactNode }) {
   const { ready, authenticated } = usePrivy();
   const { login } = useLogin();
   const loginWithScrollPin = useLoginWithScrollPin(login);
-  const { isInjectedWallet, injectedRequested, injectedStatus } =
+  const { isInjectedWallet, injectedReady, injectedRequested, injectedStatus } =
     useInjectedWallet();
   const { networkLockUnresolved } = useEmbed();
   const [isWalletDrawerOpen, setIsWalletDrawerOpen] = useState(false);
 
-  const isConnected = (ready && authenticated) || isInjectedWallet;
+  // Injected mode counts as connected only once an account is actually in
+  // hand; while awaiting the host wallet the header shows neither the pill
+  // nor Sign in (the primary CTA reads "Connect wallet" instead).
+  const isConnected =
+    (ready && authenticated) || (isInjectedWallet && injectedReady);
   // The host asked us to use its wallet, so never offer our own login while
-  // that connection is still being established — only once it has failed.
+  // that connection is still possible — only once it has definitively failed.
   const injectedPendingOrActive =
     injectedRequested && injectedStatus !== "unavailable";
 

@@ -46,6 +46,7 @@ export const Navbar = () => {
   const {
     isInjectedWallet,
     injectedAddress,
+    injectedReady,
     injectedRequested,
     injectedStatus,
   } = useInjectedWallet();
@@ -363,7 +364,7 @@ export const Navbar = () => {
         </div>
 
         <div className="flex gap-3 text-sm font-medium *:flex-shrink-0 sm:gap-4">
-          {(ready && authenticated) || isInjectedWallet ? (
+          {(ready && authenticated) || (isInjectedWallet && injectedReady) ? (
             <>
               <div className="hidden sm:block">
                 <WalletDetails />

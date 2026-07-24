@@ -124,8 +124,12 @@ export const TransactionForm = ({
     isLoading,
   } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
-  const { isInjectedWallet, injectedAddress, injectedReady } =
-    useInjectedWallet();
+  const {
+    isInjectedWallet,
+    injectedAddress,
+    injectedReady,
+    connectInjectedWallet,
+  } = useInjectedWallet();
   // Privy `authenticated` is false in injected mode (extension or embed
   // bridge) — balance display and over-balance validation must treat a ready
   // injected wallet as connected too.
@@ -1614,6 +1618,7 @@ export const TransactionForm = ({
                 () => setIsLimitModalOpen(true),
                 isPhoneVerified,
                 isUserVerified,
+                () => void connectInjectedWallet(),
               )}
             >
               {buttonText}

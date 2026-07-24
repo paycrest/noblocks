@@ -41,8 +41,13 @@ export const FormDropdown = ({
       {({ selectedItem, isOpen, toggleDropdown, disabled: isLocked }) => (
         <button
           id="dropdown"
-          aria-label="Toggle dropdown"
-          aria-haspopup="true"
+          aria-label={
+            isLocked
+              ? `${selectedItem?.name ?? defaultTitle} (locked)`
+              : "Toggle dropdown"
+          }
+          aria-haspopup={isLocked ? undefined : "true"}
+          aria-expanded={isLocked ? undefined : isOpen}
           type="button"
           disabled={isLocked}
           onClick={toggleDropdown}

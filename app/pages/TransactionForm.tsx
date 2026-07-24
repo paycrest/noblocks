@@ -208,9 +208,6 @@ export const TransactionForm = ({
     return valid.length > 0 ? valid : null;
   }, [rawCurrencyAllowlist]);
 
-  const isTokenLocked = tokenAllowlist?.length === 1;
-  const isCurrencyLocked = currencyAllowlist?.length === 1;
-
   const currencies = useMemo(
     () =>
       acceptedCurrencies.map((item) => {
@@ -266,11 +263,6 @@ export const TransactionForm = ({
       });
   }, [currencies, swapMode, token, currencyAllowlist]);
 
-  // The one option a single-entry embed allowlist permits, if any. Kept as
-  // plain strings so effects can depend on them without churning every render.
-  const lockedToken = isTokenLocked ? tokenAllowlist?.[0] : undefined;
-  const lockedCurrency = isCurrencyLocked ? currencyAllowlist?.[0] : undefined;
-
   // state for reordered currencies
   const [orderedCurrencies, setOrderedCurrencies] =
     useState<CurrencyOption[]>(selectableCurrencies);
@@ -320,8 +312,9 @@ export const TransactionForm = ({
           ? externalWalletBalance
           : smartWalletBalance;
 
-  // For CNGN, use raw balance instead of USD equivalent. If rawBalances doesn't contain
-  // the token, treat as zero rather than falling back to USD-denominated balance.
+  // For cNGN, prefer the raw token balance over the USD equivalent: try the
+  // exact key, then the cNGN/CNGN raw keys, then fall back to the balances map,
+  // then zero.
   const balance = tokensEqual(token, "cNGN")
     ? (activeBalance?.rawBalances?.[token] ??
       activeBalance?.rawBalances?.cNGN ??
@@ -355,6 +348,21 @@ export const TransactionForm = ({
       name: t.symbol,
       imageUrl: t.imageUrl,
     }));
+
+  // Only lock a pill when its single permitted option is actually selectable on
+  // the current network. The allowlists span all networks, so a 1-entry list
+  // whose option isn't on this chain would otherwise lock an empty, unopenable
+  // pill. `tokens` / `selectableCurrencies` are already filtered to what's
+  // usable here.
+  const isTokenLocked = tokenAllowlist?.length === 1 && tokens.length > 0;
+  const isCurrencyLocked =
+    currencyAllowlist?.length === 1 &&
+    selectableCurrencies.some((c) => !c.disabled);
+
+  // The one option a single-entry embed allowlist permits, if any. Kept as
+  // plain strings so effects can depend on them without churning every render.
+  const lockedToken = isTokenLocked ? tokenAllowlist?.[0] : undefined;
+  const lockedCurrency = isCurrencyLocked ? currencyAllowlist?.[0] : undefined;
 
   const handleBalanceMaxClick = () => {
     if (balance > 0) {
@@ -1476,8 +1484,10 @@ export const TransactionForm = ({
                     className="min-w-80"
                     isCTA={
                       !currency &&
-                      (!authenticated ||
-                        (authenticated && !(totalRequired > balance)))
+                      !(
+                        (authenticated || isInjectedWallet) &&
+                        totalRequired > balance
+                      )
                     }
                     dropdownWidth={320}
                     disabled={isCurrencyLocked}

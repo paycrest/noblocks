@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   Suspense,
 } from "react";
 import { createWalletClient, custom } from "viem";
@@ -62,14 +63,29 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   const injectedRequested =
     injectedParam === "true" || injectedParam === "bridge";
 
+  // Guards for the connect effect below. `runIdRef` fences the async handshake
+  // so a superseded run can't overwrite the latest run's state (e.g. re-setting
+  // "connected" after "unavailable"). `handledNonBridgeParamRef` stops the
+  // handshake re-running for ?injected=true when the parentOrigin* deps flip
+  // after EmbedContext mounts (those matter only to bridge mode).
+  const runIdRef = useRef(0);
+  const handledNonBridgeParamRef = useRef<string | null>(null);
+
   useEffect(() => {
     const initInjectedWallet = async () => {
       if (!injectedRequested) {
+        handledNonBridgeParamRef.current = null;
         setInjectedStatus("idle");
         return;
       }
 
       const useBridge = injectedParam === "bridge";
+
+      if (!useBridge && handledNonBridgeParamRef.current === injectedParam) {
+        // Already handled this ?injected=true; the re-run is only a
+        // parentOrigin* change, which non-bridge mode ignores.
+        return;
+      }
 
       // Bridge mode needs the host origin (from the iframe referrer) before it
       // can talk to the host wallet. Stay pending until the referrer has been
@@ -98,6 +114,12 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Committed to a handshake: claim a run id and mark this param handled so
+      // only genuinely new attempts (not dep re-runs) supersede this one.
+      if (!useBridge) handledNonBridgeParamRef.current = injectedParam;
+      const runId = ++runIdRef.current;
+      const isStale = () => runId !== runIdRef.current;
+
       setIsInjectedWallet(true);
       setInjectedStatus("pending");
 
@@ -108,6 +130,8 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
 
         await (provider as any).request({ method: "eth_requestAccounts" });
         const [address] = await client.getAddresses();
+
+        if (isStale()) return;
 
         if (address) {
           setInjectedProvider(provider);
@@ -123,6 +147,8 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
           setInjectedStatus("unavailable");
         }
       } catch (error) {
+        if (isStale()) return;
+
         if ((error as any)?.code === BRIDGE_UNAVAILABLE_CODE) {
           // ?injected=bridge but no host bridge answered (plain iframe
           // embed without embed.js/bindWallet). Quietly fall back to the
@@ -174,9 +200,13 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
         setInjectedAddress(address);
         setInjectedStatus("connected");
       } else {
+        // Host disconnected the wallet. Clear the injected flags too, not just
+        // the status — WidgetShell/Navbar treat isInjectedWallet as "connected"
+        // and would otherwise never fall through to the widget's own login.
         setInjectedAddress(null);
         setInjectedReady(false);
-        // Host disconnected the wallet — let the widget offer its own login.
+        setInjectedProvider(null);
+        setIsInjectedWallet(false);
         setInjectedStatus("unavailable");
       }
     };

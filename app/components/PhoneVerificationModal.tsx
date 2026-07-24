@@ -22,6 +22,7 @@ import {
   type Country,
 } from "../lib/countries";
 import { useKYC } from "../context/KYCContext";
+import { useInjectedWallet } from "../context/InjectedWalletContext";
 import { toastMappedError } from "../lib/toastMappedError";
 
 interface PhoneVerificationModalProps {
@@ -71,6 +72,7 @@ export default function PhoneVerificationModal({
   const copy = PHONE_MODAL_COPY[variant];
   const { wallets } = useWallets();
   const { getAccessToken, ready, authenticated } = usePrivy();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
 
   const resolveAccessToken = useCallback(async (): Promise<string | null> => {
     if (!ready) {
@@ -91,10 +93,14 @@ export default function PhoneVerificationModal({
     return token.trim();
   }, [ready, authenticated, getAccessToken]);
 
+  // In injected/bridge mode, use the injected wallet address; otherwise
+  // fall back to the Privy embedded wallet.
   const embeddedWallet = wallets.find(
     (wallet) => wallet.walletClientType === "privy",
   );
-  const walletAddress = embeddedWallet?.address;
+  const walletAddress = isInjectedWallet
+    ? injectedAddress ?? embeddedWallet?.address
+    : embeddedWallet?.address;
 
   const [step, setStep] = useState<Step>(STEPS.ENTER_PHONE);
   const [name, setName] = useState("");

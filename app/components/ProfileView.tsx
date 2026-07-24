@@ -14,7 +14,7 @@ import {
   WorkAlertIcon,
 } from "hugeicons-react";
 import Link from "next/link";
-import { useKYC } from "../context";
+import { useKYC, useInjectedWallet } from "../context";
 import { KYC_TIERS } from "../context/KYCContext";
 import {
   formatKycTierDisplayLabel,
@@ -44,13 +44,17 @@ interface ProfileViewProps {
 
 export default function ProfileView({ layout, onBack, onClose }: ProfileViewProps) {
   const { user } = usePrivyAuth();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const {
     tier,
     transactionSummary,
     getCurrentLimits,
     refreshStatus,
-    walletAddress,
+    walletAddress: kycWalletAddress,
   } = useKYC();
+
+  // Use injected wallet address when in injected mode, otherwise use KYC context address
+  const walletAddress = isInjectedWallet ? injectedAddress : kycWalletAddress;
 
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [showReferralHub, setShowReferralHub] = useState(false);

@@ -59,14 +59,8 @@ import {
   useEmbed,
 } from "../context";
 import { validateWalletAddress } from "../lib/validation";
-import {
-  canonicalTokenSymbol,
-  tokensEqual,
-} from "../lib/token-symbol";
-import {
-  isCurrencyInAllowlist,
-  isTokenInAllowlist,
-} from "../lib/embed-config";
+import { canonicalTokenSymbol, tokensEqual } from "../lib/token-symbol";
+import { isCurrencyInAllowlist, isTokenInAllowlist } from "../lib/embed-config";
 
 /**
  * Monthly KYC limits are in USD. Offramp `amountSent` is token (stable ≈ USD).
@@ -113,14 +107,22 @@ export const TransactionForm = ({
 }) => {
   const searchParams = useSearchParams();
   // Destructure stateProps
-  const { rate, isFetchingRate, setOrderId, setActiveOrderIsOnramp } = stateProps;
+  const { rate, isFetchingRate, setOrderId, setActiveOrderIsOnramp } =
+    stateProps;
   const { authenticated, ready, login, user } = usePrivy();
   // Pin body scroll while the Privy dialog is up — its end-of-body iframe
   // steals focus on mobile and drags the page to the bottom otherwise.
   const loginWithScrollPin = useLoginWithScrollPin(login);
   const { wallets } = useWallets();
   const { selectedNetwork } = useNetwork();
-  const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, starknetWalletBalance, tronWalletBalance, isLoading } = useBalance();
+  const {
+    smartWalletBalance,
+    externalWalletBalance,
+    injectedWalletBalance,
+    starknetWalletBalance,
+    tronWalletBalance,
+    isLoading,
+  } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
   const { isInjectedWallet, injectedAddress, injectedReady } =
     useInjectedWallet();
@@ -131,10 +133,8 @@ export const TransactionForm = ({
     authenticated || (isInjectedWallet && injectedReady);
   const {
     isEmbed,
-    tokenAllowlist,
-    currencyAllowlist,
-    isTokenLocked,
-    isCurrencyLocked,
+    tokenAllowlist: rawTokenAllowlist,
+    currencyAllowlist: rawCurrencyAllowlist,
     hideSideToggle,
     isSideLocked,
     hostFormConfig,
@@ -154,7 +154,8 @@ export const TransactionForm = ({
   } = useKYC();
 
   const hasPriorTransactionActivity = useMemo(() => {
-    const { monthlySpent, dailySpent, lastTransactionDate } = transactionSummary;
+    const { monthlySpent, dailySpent, lastTransactionDate } =
+      transactionSummary;
     return (
       monthlySpent > 0 ||
       dailySpent > 0 ||
@@ -172,11 +173,46 @@ export const TransactionForm = ({
   const [formattedSentAmount, setFormattedSentAmount] = useState("");
   const [formattedReceivedAmount, setFormattedReceivedAmount] = useState("");
   const hasRestoredStateRef = useRef(false);
+  const hasHandledTokenParamRef = useRef(false);
   const [rateError, setRateError] = useState<string | null>(null);
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [blockedTransactionAmount, setBlockedTransactionAmount] = useState(0);
   const [supportedCurrencyCodes, setSupportedCurrencyCodes] =
     useState<Set<string> | null>(null);
+
+  /**
+   * An allowlist entry naming something Noblocks doesn't have (`?tokens=FOO`)
+   * is treated as noise rather than as a filter: unknown entries are dropped,
+   * and a list left with nothing valid falls back to unrestricted instead of
+   * locking the user out of every option. `?tokens=FOO,cNGN` keeps cNGN alone.
+   */
+  const knownTokenSymbols = useMemo(() => {
+    const symbols = new Set<string>();
+    Object.values(allTokens).forEach((list) =>
+      list.forEach((t) => symbols.add(t.symbol.toLowerCase())),
+    );
+    return symbols;
+  }, [allTokens]);
+
+  const tokenAllowlist = useMemo(() => {
+    if (rawTokenAllowlist == null) return null;
+    // Tokens load asynchronously; until they arrive nothing is "known" yet, so
+    // honour the host's list rather than flashing the full one.
+    if (knownTokenSymbols.size === 0) return rawTokenAllowlist;
+    const valid = rawTokenAllowlist.filter((symbol) =>
+      knownTokenSymbols.has(symbol.toLowerCase()),
+    );
+    return valid.length > 0 ? valid : null;
+  }, [rawTokenAllowlist, knownTokenSymbols]);
+
+  const currencyAllowlist = useMemo(() => {
+    if (rawCurrencyAllowlist == null) return null;
+    const known = new Set(
+      acceptedCurrencies.map((item) => item.name.toUpperCase()),
+    );
+    const valid = rawCurrencyAllowlist.filter((code) => known.has(code));
+    return valid.length > 0 ? valid : null;
+  }, [rawCurrencyAllowlist]);
 
   const currencies = useMemo(
     () =>
@@ -282,15 +318,16 @@ export const TransactionForm = ({
           ? externalWalletBalance
           : smartWalletBalance;
 
-  // For CNGN, use raw balance instead of USD equivalent. If rawBalances doesn't contain
-  // the token, treat as zero rather than falling back to USD-denominated balance.
+  // For cNGN, prefer the raw token balance over the USD equivalent: try the
+  // exact key, then the cNGN/CNGN raw keys, then fall back to the balances map,
+  // then zero.
   const balance = tokensEqual(token, "cNGN")
-      ? (activeBalance?.rawBalances?.[token] ??
-        activeBalance?.rawBalances?.cNGN ??
-        activeBalance?.rawBalances?.CNGN ??
-        activeBalance?.balances[token] ??
-        0)
-      : (activeBalance?.balances[token] ?? 0);
+    ? (activeBalance?.rawBalances?.[token] ??
+      activeBalance?.rawBalances?.cNGN ??
+      activeBalance?.rawBalances?.CNGN ??
+      activeBalance?.balances[token] ??
+      0)
+    : (activeBalance?.balances[token] ?? 0);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
@@ -317,6 +354,21 @@ export const TransactionForm = ({
       name: t.symbol,
       imageUrl: t.imageUrl,
     }));
+
+  // Only lock a pill when its single permitted option is actually selectable on
+  // the current network. The allowlists span all networks, so a 1-entry list
+  // whose option isn't on this chain would otherwise lock an empty, unopenable
+  // pill. `tokens` / `selectableCurrencies` are already filtered to what's
+  // usable here.
+  const isTokenLocked = tokenAllowlist?.length === 1 && tokens.length > 0;
+  const isCurrencyLocked =
+    currencyAllowlist?.length === 1 &&
+    selectableCurrencies.some((c) => !c.disabled);
+
+  // The one option a single-entry embed allowlist permits, if any. Kept as
+  // plain strings so effects can depend on them without churning every render.
+  const lockedToken = isTokenLocked ? tokenAllowlist?.[0] : undefined;
+  const lockedCurrency = isCurrencyLocked ? currencyAllowlist?.[0] : undefined;
 
   const handleBalanceMaxClick = () => {
     if (balance > 0) {
@@ -358,7 +410,6 @@ export const TransactionForm = ({
   };
 
   useEffect(function setDefaultValueOnPageLoad() {
-    const tokenParam = searchParams.get("token");
     const currencyParam = searchParams.get("currency");
     const tokenAmount = +parseFloat(
       searchParams.get("tokenAmount") || "0",
@@ -367,23 +418,6 @@ export const TransactionForm = ({
       searchParams.get("fiatAmount") || "0",
     ).toFixed(4);
 
-    const supportedTokens = tokens.map((tokenElement) => tokenElement.name);
-    if (tokenParam) {
-      const matched = supportedTokens.find((name) =>
-        tokensEqual(name, tokenParam),
-      );
-      if (matched) {
-        formMethods.setValue("token", canonicalTokenSymbol(matched), {
-          shouldDirty: true,
-        });
-      } else {
-        toast.error("Unsupported Token", {
-          description: String(
-            `${tokenParam} token is not supported on the current network.`,
-          ),
-        });
-      }
-    }
     if (currencyParam) {
       const supported = selectableCurrencies.find(
         (c: CurrencyOption) =>
@@ -462,6 +496,84 @@ export const TransactionForm = ({
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedNetwork.chain.name, tokenAllowlist, fetchedTokens],
+  );
+
+  // Runs after initSelectedToken so a valid ?token= wins over its auto-pick.
+  // Tokens arrive from an async fetch, so waiting for them is what keeps a
+  // supported token (e.g. cNGN) from being reported as unsupported on load.
+  useEffect(
+    function applyTokenParamWhenTokensReady() {
+      if (hasHandledTokenParamRef.current) return;
+
+      const tokenParam = searchParams.get("token");
+      if (!tokenParam) {
+        hasHandledTokenParamRef.current = true;
+        return;
+      }
+      if (fetchedTokens.length === 0) return;
+
+      hasHandledTokenParamRef.current = true;
+
+      const matched = tokens.find((t) => tokensEqual(t.name, tokenParam));
+      if (matched) {
+        setValue("token", canonicalTokenSymbol(matched.name), {
+          shouldDirty: true,
+        });
+      } else {
+        toast.error("Unsupported Token", {
+          description: `${tokenParam} token is not supported on the current network.`,
+        });
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fetchedTokens],
+  );
+
+  // An embed allowlist with a single entry locks its pill, so a "Select ..."
+  // CTA there would be a dead end — the pill can't open. Resolve it to the one
+  // permitted option, mirroring what picking it by hand would do (including
+  // opening the recipient form when it is the receive side).
+  useEffect(
+    function applySingleOptionEmbedLocks() {
+      if (lockedToken) {
+        const match = tokens.find((t) => tokensEqual(t.name, lockedToken));
+        if (match && !tokensEqual(token, match.name)) {
+          setValue("token", canonicalTokenSymbol(match.name), {
+            shouldDirty: true,
+          });
+          if (isSwapped) {
+            setValue("receiveDestinationExplicitlySelected", true, {
+              shouldDirty: true,
+            });
+          }
+        }
+      }
+
+      if (lockedCurrency) {
+        const match = selectableCurrencies.find(
+          (item) =>
+            item.name.toUpperCase() === lockedCurrency && !item.disabled,
+        );
+        if (match && currency !== match.name) {
+          setValue("currency", match.name, { shouldDirty: true });
+          if (!isSwapped) {
+            setValue("receiveDestinationExplicitlySelected", true, {
+              shouldDirty: true,
+            });
+          }
+        }
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      lockedToken,
+      lockedCurrency,
+      token,
+      currency,
+      isSwapped,
+      fetchedTokens,
+      selectableCurrencies,
+    ],
   );
 
   useEffect(
@@ -657,8 +769,7 @@ export const TransactionForm = ({
           if (!currentOnrampEnabled) {
             const preferred =
               selectableCurrencies.find(
-                (item) =>
-                  !item.disabled && isOnrampFiatCurrencyCode(item.name),
+                (item) => !item.disabled && isOnrampFiatCurrencyCode(item.name),
               )?.name ?? "";
             formMethods.setValue("currency", preferred, { shouldDirty: true });
             if (!preferred) {
@@ -752,7 +863,6 @@ export const TransactionForm = ({
   const pendingContinueSwapAfterPhoneRef = useRef(false);
 
   const handleSwap = () => {
-
     const kyc = getKycStatusSnapshot();
 
     // Tier 2+ (e.g. migrated ID KYC) still requires a stored phone — prompt before swap.
@@ -874,7 +984,8 @@ export const TransactionForm = ({
     const willBeSwapped = !isSwapped;
     if (willBeSwapped && !onrampSupported) {
       toast.error("Buy is not available on Tron yet", {
-        description: "Switch to another network to buy crypto, or use Sell on Tron.",
+        description:
+          "Switch to another network to buy crypto, or use Sell on Tron.",
       });
       return;
     }
@@ -884,9 +995,9 @@ export const TransactionForm = ({
     const nextSwapMode = swapMode === "onramp" ? "offramp" : "onramp";
 
     const hasToken = typeof token === "string" && token.trim().length > 0;
-    const hasCurrency = typeof currency === "string" && currency.trim().length > 0;
-    const hasBothAmounts =
-      Number(amountSent) > 0 && Number(amountReceived) > 0;
+    const hasCurrency =
+      typeof currency === "string" && currency.trim().length > 0;
+    const hasBothAmounts = Number(amountSent) > 0 && Number(amountReceived) > 0;
     /** User picked receive asset + both fiat/crypto assets + both amount fields — keep values when toggling direction. */
     const isCompleteFlow =
       receiveDestinationExplicitlySelected &&
@@ -1104,11 +1215,9 @@ export const TransactionForm = ({
                     }
                   }}
                   className={[
-                    "px-4 h-8 text-sm font-medium rounded-full transition-colors",
+                    "h-8 rounded-full px-4 text-sm font-medium transition-colors",
                     "bg-neutral-100 dark:bg-[#141414]",
-                    !onrampSupported
-                      ? "cursor-not-allowed opacity-40"
-                      : "",
+                    !onrampSupported ? "cursor-not-allowed opacity-40" : "",
                     isSwapped
                       ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
                       : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
@@ -1126,7 +1235,7 @@ export const TransactionForm = ({
                     }
                   }}
                   className={[
-                    "px-4 h-8 text-sm font-medium rounded-full transition-colors",
+                    "h-8 rounded-full px-4 text-sm font-medium transition-colors",
                     "bg-neutral-100 dark:bg-[#141414]",
                     !isSwapped
                       ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
@@ -1221,53 +1330,61 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedSentAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${isWalletConnected && !isSwapped && (amountSent > balance || errors.amountSent)
-                  ? "text-red-500 dark:text-red-500"
-                  : "text-neutral-900 dark:text-white/80"
-                  }`}
+                className={`w-full min-w-0 rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
+                  isWalletConnected &&
+                  !isSwapped &&
+                  (amountSent > balance || errors.amountSent)
+                    ? "text-red-500 dark:text-red-500"
+                    : "text-neutral-900 dark:text-white/80"
+                }`}
                 placeholder="0"
                 title="Enter amount to send"
               />
-              {isSwapped ? (
-                <FormDropdown
-                  defaultTitle="Select currency"
-                  data={orderedCurrencies}
-                  defaultSelectedItem={currency}
-                  onSelect={(selectedCurrency) =>
-                    setValue("currency", selectedCurrency, { shouldDirty: true })
-                  }
-                  className="min-w-80"
-                  dropdownWidth={320}
-                  isCTA={!currency}
-                  disabled={isCurrencyLocked}
-                />
-              ) : (
-                <FormDropdown
-                  defaultTitle="Select token"
-                  data={tokens}
-                  defaultSelectedItem={token}
-                  isCTA={false}
-                  onSelect={(selectedToken) =>
-                    setValue("token", selectedToken, { shouldDirty: true })
-                  }
-                  className="min-w-32"
-                  dropdownWidth={160}
-                  disabled={isTokenLocked}
-                />
-              )}
+              {/* The pill sizes to its label; the amount input yields the space. */}
+              <div className="flex-shrink-0">
+                {isSwapped ? (
+                  <FormDropdown
+                    defaultTitle="Select currency"
+                    data={orderedCurrencies}
+                    defaultSelectedItem={currency}
+                    onSelect={(selectedCurrency) =>
+                      setValue("currency", selectedCurrency, {
+                        shouldDirty: true,
+                      })
+                    }
+                    className="min-w-80"
+                    dropdownWidth={320}
+                    isCTA={!currency}
+                    disabled={isCurrencyLocked}
+                  />
+                ) : (
+                  <FormDropdown
+                    defaultTitle="Select token"
+                    data={tokens}
+                    defaultSelectedItem={token}
+                    isCTA={false}
+                    onSelect={(selectedToken) =>
+                      setValue("token", selectedToken, { shouldDirty: true })
+                    }
+                    className="min-w-32"
+                    dropdownWidth={160}
+                    disabled={isTokenLocked}
+                  />
+                )}
+              </div>
             </div>
             {(errors.amountSent ||
               (isWalletConnected && !isSwapped && totalRequired > balance)) && (
-                <AnimatedComponent
-                  variant={slideInOut}
-                  className="!mt-0 text-xs text-red-500"
-                >
-                  {errors.amountSent?.message ||
-                    (isWalletConnected && !isSwapped && totalRequired > balance
-                      ? "Insufficient balance"
-                      : null)}
-                </AnimatedComponent>
-              )}
+              <AnimatedComponent
+                variant={slideInOut}
+                className="!mt-0 text-xs text-red-500"
+              >
+                {errors.amountSent?.message ||
+                  (isWalletConnected && !isSwapped && totalRequired > balance
+                    ? "Insufficient balance"
+                    : null)}
+              </AnimatedComponent>
+            )}
 
             {/* Arrow showing swap direction */}
             {!isSideLocked && (
@@ -1322,52 +1439,55 @@ export const TransactionForm = ({
                   }
                 }}
                 value={formattedReceivedAmount}
-                className={`w-full rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${errors.amountReceived
-                  ? "text-red-500 dark:text-red-500"
-                  : "text-neutral-900 dark:text-white/80"
-                  }`}
+                className={`w-full min-w-0 rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
+                  errors.amountReceived
+                    ? "text-red-500 dark:text-red-500"
+                    : "text-neutral-900 dark:text-white/80"
+                }`}
                 placeholder="0"
                 title="Enter amount to receive"
               />
 
-              {isSwapped ? (
-                <FormDropdown
-                  defaultTitle="Select token"
-                  data={tokens}
-                  defaultSelectedItem={token || undefined}
-                  isCTA={!token}
-                  onSelect={(selectedToken) => {
-                    setValue("token", selectedToken, { shouldDirty: true });
-                    setValue("receiveDestinationExplicitlySelected", true, {
-                      shouldDirty: true,
-                    });
-                  }}
-                  className="min-w-32"
-                  dropdownWidth={160}
-                  disabled={isTokenLocked}
-                />
-              ) : (
-                <FormDropdown
-                  defaultTitle="Select currency"
-                  data={orderedCurrencies}
-                  defaultSelectedItem={currency}
-                  onSelect={(selectedCurrency) => {
-                    setValue("currency", selectedCurrency, {
-                      shouldDirty: true,
-                    });
-                    setValue("receiveDestinationExplicitlySelected", true, {
-                      shouldDirty: true,
-                    });
-                  }}
-                  className="min-w-80"
-                  isCTA={
-                    !currency &&
-                    (!isWalletConnected || !(totalRequired > balance))
-                  }
-                  dropdownWidth={320}
-                  disabled={isCurrencyLocked}
-                />
-              )}
+              <div className="flex-shrink-0">
+                {isSwapped ? (
+                  <FormDropdown
+                    defaultTitle="Select token"
+                    data={tokens}
+                    defaultSelectedItem={token || undefined}
+                    isCTA={!token}
+                    onSelect={(selectedToken) => {
+                      setValue("token", selectedToken, { shouldDirty: true });
+                      setValue("receiveDestinationExplicitlySelected", true, {
+                        shouldDirty: true,
+                      });
+                    }}
+                    className="min-w-32"
+                    dropdownWidth={160}
+                    disabled={isTokenLocked}
+                  />
+                ) : (
+                  <FormDropdown
+                    defaultTitle="Select currency"
+                    data={orderedCurrencies}
+                    defaultSelectedItem={currency}
+                    onSelect={(selectedCurrency) => {
+                      setValue("currency", selectedCurrency, {
+                        shouldDirty: true,
+                      });
+                      setValue("receiveDestinationExplicitlySelected", true, {
+                        shouldDirty: true,
+                      });
+                    }}
+                    className="min-w-80"
+                    isCTA={
+                      !currency &&
+                      !(isWalletConnected && totalRequired > balance)
+                    }
+                    dropdownWidth={320}
+                    disabled={isCurrencyLocked}
+                  />
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1404,10 +1524,11 @@ export const TransactionForm = ({
                         formMethods.setValue("memo", e.target.value);
                       }}
                       value={formMethods.watch("memo")}
-                      className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${errors.memo
-                        ? "text-red-500 dark:text-red-500"
-                        : "text-text-body dark:text-white/80"
-                        }`}
+                      className={`min-h-11 w-full rounded-xl border border-gray-300 bg-transparent py-2 pl-9 pr-4 text-sm transition-all placeholder:text-text-placeholder focus-within:border-gray-400 focus:outline-none disabled:cursor-not-allowed dark:border-white/20 dark:bg-input-focus dark:placeholder:text-white/30 dark:focus-within:border-white/40 ${
+                        errors.memo
+                          ? "text-red-500 dark:text-red-500"
+                          : "text-text-body dark:text-white/80"
+                      }`}
                       placeholder="Add description (optional)"
                       maxLength={25}
                     />
@@ -1508,7 +1629,9 @@ export const TransactionForm = ({
             >
               <div className={rateError ? "" : "min-w-fit"}>
                 {rateError ? (
-                  <span className="text-orange-500 dark:text-orange-400">{rateError}</span>
+                  <span className="text-orange-500 dark:text-orange-400">
+                    {rateError}
+                  </span>
                 ) : rate > 0 ? (
                   <>
                     {isSwapped ? (
@@ -1550,7 +1673,6 @@ export const TransactionForm = ({
           <FundWalletForm onClose={() => setIsFundModalOpen(false)} />
         </AnimatedModal>
       )}
-
     </div>
   );
 };

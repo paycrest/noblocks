@@ -70,6 +70,7 @@ describe("embed-config allowlists", () => {
       expect(config.defaultToken).toBe("cNGN");
       expect(config.defaultCurrency).toBe("NGN");
       expect(config.hideSideToggle).toBe(true);
+      expect(config.hideSupport).toBe(false);
       expect(config.sideLockedFromUrl).toBe(true);
       expect(config.networkConfig.isLocked).toBe(false);
       expect(config.networkConfig.allowlist?.map((n) => n.chain.name)).toEqual([
@@ -77,6 +78,22 @@ describe("embed-config allowlists", () => {
         "Arbitrum One",
       ]);
       expect(config.networkConfig.defaultNetwork?.chain.name).toBe("Base");
+    });
+
+    it("parses hideSupport from truthy flag values", () => {
+      expect(parseEmbedConfig(params({ hideSupport: "1" })).hideSupport).toBe(
+        true,
+      );
+      expect(parseEmbedConfig(params({ hideSupport: "true" })).hideSupport).toBe(
+        true,
+      );
+      expect(parseEmbedConfig(params({ hideSupport: "on" })).hideSupport).toBe(
+        true,
+      );
+      expect(parseEmbedConfig(params({})).hideSupport).toBe(false);
+      expect(parseEmbedConfig(params({ hideSupport: "0" })).hideSupport).toBe(
+        false,
+      );
     });
 
     it("locks network when networks has a single entry", () => {

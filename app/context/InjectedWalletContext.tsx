@@ -20,6 +20,18 @@ import {
 } from "../lib/embed-bridge-provider";
 import { useEmbed } from "./EmbedContext";
 
+/**
+ * "pending" covers the whole connect handshake (bridge origin resolution, the
+ * host ACK wait, eth_requestAccounts). "unavailable" means the connection was
+ * requested but definitively failed — only then should the widget offer its
+ * own login as a fallback.
+ */
+export type InjectedWalletStatus =
+  | "idle"
+  | "pending"
+  | "connected"
+  | "unavailable";
+
 export interface InjectedTokenOptions {
   /**
    * When true, a missing/expired session triggers the SIWE sign-in flow (one
@@ -34,6 +46,9 @@ interface InjectedWalletContextType {
   injectedAddress: string | null;
   injectedProvider: any | null;
   injectedReady: boolean;
+  /** Synchronous: the URL asked for an injected wallet (?injected=true|bridge). */
+  injectedRequested: boolean;
+  injectedStatus: InjectedWalletStatus;
   /**
    * Session JWT for authenticating API requests (middleware `x-injected-token`).
    * A connected wallet alone does NOT authenticate API calls — the wallet must
@@ -52,17 +67,33 @@ const InjectedWalletContext = createContext<InjectedWalletContextType>({
   injectedAddress: null,
   injectedProvider: null,
   injectedReady: false,
+  injectedRequested: false,
+  injectedStatus: "idle",
   getInjectedToken: async () => null,
   getInjectedAuthHeaders: async () => null,
 });
 
 function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
-  const { parentOrigin } = useEmbed();
+  const { parentOrigin, parentOriginResolved } = useEmbed();
   const [isInjectedWallet, setIsInjectedWallet] = useState(false);
   const [injectedAddress, setInjectedAddress] = useState<string | null>(null);
   const [injectedProvider, setInjectedProvider] = useState<any | null>(null);
   const [injectedReady, setInjectedReady] = useState(false);
+  const [injectedStatus, setInjectedStatus] =
+    useState<InjectedWalletStatus>("idle");
+
+  const injectedParam = searchParams.get("injected");
+  const injectedRequested =
+    injectedParam === "true" || injectedParam === "bridge";
+
+  // Guards for the connect effect below. `runIdRef` fences the async handshake
+  // so a superseded run can't overwrite the latest run's state (e.g. re-setting
+  // "connected" after "unavailable"). `handledNonBridgeParamRef` stops the
+  // handshake re-running for ?injected=true when the parentOrigin* deps flip
+  // after EmbedContext mounts (those matter only to bridge mode).
+  const runIdRef = useRef(0);
+  const handledNonBridgeParamRef = useRef<string | null>(null);
 
   // SIWE session (memory only — a refresh costs one re-sign; nothing persisted
   // for theft). Refs, not state: the token is read via the async getter, and
@@ -178,82 +209,122 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const initInjectedWallet = async () => {
-      // Check if we should use the injected wallet
-      const useBridge = searchParams.get("injected") === "bridge";
-      // Bridge mode needs the host origin (from the iframe referrer) before
-      // it can talk to the host wallet; until then fall back to the regular
-      // logged-out UI rather than blocking on the preloader.
-      const shouldUse = useBridge
-        ? Boolean(parentOrigin)
-        : shouldUseInjectedWallet(searchParams);
+      if (!injectedRequested) {
+        handledNonBridgeParamRef.current = null;
+        setInjectedStatus("idle");
+        return;
+      }
 
-      setIsInjectedWallet(shouldUse);
+      const useBridge = injectedParam === "bridge";
+
+      if (!useBridge && handledNonBridgeParamRef.current === injectedParam) {
+        // Already handled this ?injected=true; the re-run is only a
+        // parentOrigin* change, which non-bridge mode ignores.
+        return;
+      }
+
+      // Bridge mode needs the host origin (from the iframe referrer) before it
+      // can talk to the host wallet. Stay pending until the referrer has been
+      // read — this effect runs before EmbedContext's mount effect, so a null
+      // origin here is "not yet", not "never".
+      if (useBridge && !parentOriginResolved) {
+        setInjectedStatus("pending");
+        return;
+      }
+      if (useBridge && !parentOrigin) {
+        // Host stripped its referrer, or the widget isn't framed at all: the
+        // bridge can never be reached, so offer the standard login instead.
+        setIsInjectedWallet(false);
+        setInjectedStatus("unavailable");
+        return;
+      }
 
       const provider = useBridge
-        ? parentOrigin
-          ? createBridgeProvider(parentOrigin)
-          : null
+        ? createBridgeProvider(parentOrigin as string)
         : window.ethereum;
 
-      if (shouldUse && provider) {
-        try {
-          const client = createWalletClient({
-            transport: custom(provider as any),
-          });
+      if (!useBridge && !shouldUseInjectedWallet(searchParams)) {
+        // ?injected=true with no extension wallet present.
+        setIsInjectedWallet(false);
+        setInjectedStatus("unavailable");
+        return;
+      }
 
-          await (provider as any).request({ method: "eth_requestAccounts" });
-          const [address] = await client.getAddresses();
+      // Committed to a handshake: claim a run id and mark this param handled so
+      // only genuinely new attempts (not dep re-runs) supersede this one.
+      if (!useBridge) handledNonBridgeParamRef.current = injectedParam;
+      const runId = ++runIdRef.current;
+      const isStale = () => runId !== runIdRef.current;
 
-          if (address) {
-            setInjectedProvider(provider);
-            setInjectedAddress(address);
-            setInjectedReady(true);
-          } else {
-            console.warn("No address returned from injected wallet.");
-            toast.error(
-              "Couldn't connect to your wallet. Please check your wallet connection.",
-            );
-            setIsInjectedWallet(false);
-          }
-        } catch (error) {
-          if ((error as any)?.code === BRIDGE_UNAVAILABLE_CODE) {
-            // ?injected=bridge but no host bridge answered (plain iframe
-            // embed without embed.js/bindWallet). Quietly fall back to the
-            // standard login flow — no error toast, this is a supported
-            // partner misconfiguration/choice, not a user-facing failure.
-            console.warn(
-              "No host wallet bridge detected; falling back to standard login.",
-            );
-            setIsInjectedWallet(false);
-            setInjectedProvider(null);
-            setInjectedAddress(null);
-            setInjectedReady(false);
-            return;
-          }
+      setIsInjectedWallet(true);
+      setInjectedStatus("pending");
 
-          console.error("Failed to initialize injected wallet:", error);
+      try {
+        const client = createWalletClient({
+          transport: custom(provider as any),
+        });
 
-          if ((error as any)?.code === 4001) {
-            toast.error("Connection to wallet was rejected.", {
-              description: "Proceeding without wallet connection.",
-            });
-            // Reset injected wallet state on rejection
-            setIsInjectedWallet(false);
-            setInjectedProvider(null);
-            setInjectedAddress(null);
-            setInjectedReady(false);
-          } else {
-            toast.error(
-              "Failed to connect to wallet. Please refresh and try again.",
-            );
-            setIsInjectedWallet(false);
-          }
+        await (provider as any).request({ method: "eth_requestAccounts" });
+        const [address] = await client.getAddresses();
+
+        if (isStale()) return;
+
+        if (address) {
+          setInjectedProvider(provider);
+          setInjectedAddress(address);
+          setInjectedReady(true);
+          setInjectedStatus("connected");
+        } else {
+          console.warn("No address returned from injected wallet.");
+          toast.error(
+            "Couldn't connect to your wallet. Please check your wallet connection.",
+          );
+          setIsInjectedWallet(false);
+          setInjectedStatus("unavailable");
         }
+      } catch (error) {
+        if (isStale()) return;
+
+        if ((error as any)?.code === BRIDGE_UNAVAILABLE_CODE) {
+          // ?injected=bridge but no host bridge answered (plain iframe
+          // embed without embed.js/bindWallet). Quietly fall back to the
+          // standard login flow — no error toast, this is a supported
+          // partner misconfiguration/choice, not a user-facing failure.
+          console.warn(
+            "No host wallet bridge detected; falling back to standard login.",
+          );
+          setIsInjectedWallet(false);
+          setInjectedProvider(null);
+          setInjectedAddress(null);
+          setInjectedReady(false);
+          setInjectedStatus("unavailable");
+          return;
+        }
+
+        console.error("Failed to initialize injected wallet:", error);
+
+        if ((error as any)?.code === 4001) {
+          toast.error("Connection to wallet was rejected.", {
+            description: "Proceeding without wallet connection.",
+          });
+          // Reset injected wallet state on rejection
+          setIsInjectedWallet(false);
+          setInjectedProvider(null);
+          setInjectedAddress(null);
+          setInjectedReady(false);
+        } else {
+          toast.error(
+            "Failed to connect to wallet. Please refresh and try again.",
+          );
+          setIsInjectedWallet(false);
+        }
+        setInjectedStatus("unavailable");
       }
     };
 
     initInjectedWallet();
-  }, [searchParams, parentOrigin]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, parentOrigin, parentOriginResolved]);
 
   // Track host-side account switches (extension wallets and the embed bridge
   // both emit standard EIP-1193 events).
@@ -266,9 +337,16 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
       sessionRef.current = null;
       if (address) {
         setInjectedAddress(address);
+        setInjectedStatus("connected");
       } else {
+        // Host disconnected the wallet. Clear the injected flags too, not just
+        // the status — WidgetShell/Navbar treat isInjectedWallet as "connected"
+        // and would otherwise never fall through to the widget's own login.
         setInjectedAddress(null);
         setInjectedReady(false);
+        setInjectedProvider(null);
+        setIsInjectedWallet(false);
+        setInjectedStatus("unavailable");
       }
     };
     injectedProvider.on("accountsChanged", handleAccountsChanged);
@@ -287,6 +365,8 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
         injectedAddress,
         injectedProvider,
         injectedReady,
+        injectedRequested,
+        injectedStatus,
         getInjectedToken,
         getInjectedAuthHeaders,
       }}

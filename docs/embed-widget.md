@@ -78,6 +78,7 @@ Notes:
 | `network`        | slug                                | Default network by slug (e.g. `base`, `starknet`, `arbitrum-one`)      |
 | `networks`       | CSV of slugs                        | Allowlist for the network switcher (omit = all; one entry = locked)    |
 | `hideSideToggle` | `1` \| `true`                       | Hide the “Swap” title and Buy/Sell pills (also locks the center flip)  |
+| `hideSupport`    | `1` \| `true`                       | Hide the in-widget support chat (default: shown) — see below           |
 
 `cNGN` / `CNGN` are accepted interchangeably in URL and host config; the UI
 shows **cNGN**. Aggregator rate/order calls still use the wire form `CNGN`.
@@ -128,6 +129,20 @@ With `injected=true` or `injected=bridge`, the widget also **follows** the host 
   the picker.
 
 Closing / dismissing the iframe remains the host page’s responsibility (unchanged).
+
+### Support chat
+
+By default the widget loads Noblocks’ in-widget support chat (a small launcher
+pinned inside the iframe) so your users can reach support without leaving the
+flow. If you already provide your own support channel and don’t want a second
+one inside the embed, suppress it with `hideSupport=1`:
+
+```html
+<iframe src="https://noblocks.xyz/widget?hideSupport=1" ...></iframe>
+```
+
+The chat is third-party JavaScript loaded lazily (after the widget is
+interactive), so hiding it also trims that download from the embed.
 
 ```html
 <!-- Lock to Base -->

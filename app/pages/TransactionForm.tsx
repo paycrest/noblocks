@@ -1376,7 +1376,7 @@ export const TransactionForm = ({
         <AnimatePresence>
           {receiveDestinationExplicitlySelected &&
             currency &&
-            (authenticated || isInjectedWallet) &&
+            isWalletConnected &&
             isUserVerified && (
               <AnimatedComponent
                 variant={slideInOut}

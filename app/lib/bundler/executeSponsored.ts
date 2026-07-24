@@ -6,6 +6,7 @@
  */
 import { getAddress, type Hash } from 'viem';
 import type { PublicClient, WalletClient, Chain } from 'viem';
+import { appendBaseBuilderCode } from '../baseBuilderCode';
 
 const RE_DELEGATE_GAS = BigInt(120000);
 const GAS_LIMIT = BigInt(500000);
@@ -109,6 +110,7 @@ export interface ExecuteSponsoredParams {
   accountAddress: `0x${string}`;
   callData: `0x${string}`;
   eip7702Authorization?: unknown;
+  gasLimit?: bigint;
 }
 
 export interface ExecuteSponsoredResult {
@@ -122,6 +124,7 @@ export async function executeSponsored(
   chain: Chain,
   params: ExecuteSponsoredParams
 ): Promise<ExecuteSponsoredResult> {
+  const callData = appendBaseBuilderCode(chain.id, params.callData);
   let delegationTransactionHash: Hash | undefined;
 
   if (params.eip7702Authorization) {
@@ -139,11 +142,20 @@ export async function executeSponsored(
         authorizationList: [auth],
         to: params.accountAddress,
         value: BigInt(0),
-        data: params.callData,
+        data: callData,
         gas: RE_DELEGATE_GAS,
         chainId: chain.id,
       });
-      await publicClient.waitForTransactionReceipt({ hash: delegationTransactionHash });
+      const delegationReceipt = await publicClient.waitForTransactionReceipt({
+        hash: delegationTransactionHash,
+        timeout: 120_000,
+      });
+      // The combined delegation+execute tx carries the actual transfer; a revert here
+      // must surface as an error, otherwise the caller records a "successful" transfer
+      // whose funds never moved (the execute-only path below already guards this).
+      if (delegationReceipt.status === 'reverted') {
+        throw new Error(`Transaction reverted on-chain (${delegationTransactionHash})`);
+      }
       return { transactionHash: delegationTransactionHash, delegationTransactionHash };
     }
     // Already delegated to the expected contract: fall through to execute-only path (no type-4).
@@ -151,14 +163,16 @@ export async function executeSponsored(
 
   const account = walletClient.account!;
 
+  const gas = params.gasLimit ?? GAS_LIMIT;
+
   const sendExecute = (nonce: number, maxFee: bigint, maxPri: bigint) =>
     walletClient.sendTransaction({
       account,
       chain,
       to: params.accountAddress,
-      data: params.callData,
+      data: callData,
       value: BigInt(0),
-      gas: GAS_LIMIT,
+      gas,
       nonce,
       maxFeePerGas: maxFee,
       maxPriorityFeePerGas: maxPri,
@@ -197,6 +211,11 @@ export async function executeSponsored(
   }
 
   if (!hash) throw new Error('execute-sponsored: no transaction hash after retries');
+
+  const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 120_000 });
+  if (receipt.status === 'reverted') {
+    throw new Error(`Transaction reverted on-chain (${hash})`);
+  }
 
   return { transactionHash: hash, delegationTransactionHash };
 }

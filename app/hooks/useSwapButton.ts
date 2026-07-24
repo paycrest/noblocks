@@ -1,9 +1,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { UseFormWatch } from "react-hook-form";
 import { useInjectedWallet } from "../context";
-import { calculateSenderFee } from "../utils";
-
-const MIGRATION_DEADLINE = new Date("2026-03-01T00:00:00Z");
+import { validateWalletAddress } from "../lib/validation";
 
 /** Primary CTA when limits require upgrading verification (opens limit / KYC flow from swap). */
 function labelForNextTierVerification(tier: number): string {
@@ -19,17 +17,16 @@ interface UseSwapButtonProps {
   isDirty: boolean;
   isValid: boolean;
   isUserVerified: boolean;
-  /** Wallets that already have Noblocks activity need tier‑1 wording ("Verify and start"); new users keep "Get started". */
+  /** Wallets that already have Noblocks activity show "Swap" (phone verification still opens on tap); new users keep "Get started". */
   hasPriorTransactionActivity?: boolean;
   /** After phone OTP, CTA should name the next verification step (ID / address), not generic "raise limit". */
   isPhoneVerified?: boolean;
   /** Current KYC tier (0–3); used when phone is done but swap is blocked by limits. */
   kycTier?: number;
   rate?: number | null;
-  tokenDecimals?: number;
   isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
-  needsMigration?: boolean;
-  isRemainingFundsMigration?: boolean;
+  /** Selected chain name for on-ramp wallet validation (e.g. Base, Starknet). */
+  networkName?: string;
 }
 
 export function useSwapButton({
@@ -42,10 +39,8 @@ export function useSwapButton({
   isPhoneVerified = false,
   kycTier = 0,
   rate,
-  tokenDecimals = 18,
   isSwapped = false,
-  needsMigration = false,
-  isRemainingFundsMigration = false,
+  networkName = "",
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet } = useInjectedWallet();
@@ -65,27 +60,21 @@ export function useSwapButton({
     : Number(amountSent) >= 0.5;
   const isCurrencySelected = Boolean(currency);
 
-  const isMigrationMandatory =
-    needsMigration && !isRemainingFundsMigration && new Date() >= MIGRATION_DEADLINE;
-
-  // Calculate sender fee and include in balance check
-  const { feeAmount: senderFeeAmount } = calculateSenderFee(
-    Number(amountSent) || 0,
-    rate || 0,
-    tokenDecimals,
-  );
-  const totalRequired = (Number(amountSent) || 0) + senderFeeAmount;
+  const totalRequired = Number(amountSent) || 0;
 
   // Skip balance check in onramp mode (isSwapped = true)
   const hasInsufficientBalance = isSwapped ? false : totalRequired > balance;
 
-  // Check recipient based on mode: walletAddress for onramp, recipientName for offramp
-  const hasRecipient = isSwapped ? Boolean(walletAddress) : Boolean(recipientName);
+  // Check recipient based on mode: valid walletAddress for onramp, recipientName for offramp
+  const hasRecipient = isSwapped
+    ? (() => {
+        const addr = String(walletAddress ?? "").trim();
+        if (!addr || !networkName) return false;
+        return validateWalletAddress(addr, networkName) === true;
+      })()
+    : Boolean(recipientName);
 
   const isEnabled = (() => {
-    if (needsMigration && authenticated && !isInjectedWallet) return true;
-    if (isMigrationMandatory) return true;
-
     // Phone / next-tier KYC from the main CTA must work before the user picks a
     // recipient; otherwise the verify label appears on a permanently disabled button.
     const rateReady = Boolean(rate) && Number(rate) > 0;
@@ -110,14 +99,27 @@ export function useSwapButton({
       return true;
     }
 
+    if (!isCurrencySelected || !isAmountValid) {
+      return false;
+    }
+
+    // On-ramp: walletAddress registers inside RecipientDetailsForm, so form-wide
+    // isValid can stay false until late validation; gate on recipient + amounts.
+    if (isSwapped) {
+      if (!authenticated && !isInjectedWallet) {
+        return true;
+      }
+      return hasRecipient;
+    }
+
     if (isInjectedWallet) {
-      if (!isValid || !isCurrencySelected || !isAmountValid) {
+      if (!isValid) {
         return false;
       }
       return hasRecipient;
     }
 
-    if (!isValid || !isCurrencySelected || !isAmountValid) {
+    if (!isValid) {
       return false;
     }
 
@@ -125,14 +127,10 @@ export function useSwapButton({
       return true; // Enable for login if amount and currency are valid
     }
 
-    return hasRecipient; // Check walletAddress for onramp, recipientName for offramp
+    return hasRecipient;
   })();
 
   const buttonText = (() => {
-    if (needsMigration && authenticated && !isInjectedWallet) {
-      return "Swap";
-    }
-
     if (isInjectedWallet && hasInsufficientBalance) {
       return "Insufficient balance";
     }
@@ -148,9 +146,14 @@ export function useSwapButton({
     ) {
       // Not on Tier 1 yet: start phone verification (not "Increase limit").
       if (kycTier < 1 || !isPhoneVerified) {
-        return hasPriorTransactionActivity
-          ? "Verify and start"
-          : "Get started";
+        // Existing wallets show "Swap" (tapping still opens phone verification);
+        // brand-new users get "Get started".
+        return hasPriorTransactionActivity ? "Swap" : "Get started";
+      }
+      // Max tier reached: there's no higher verification to do, so default to "Swap"
+      // (never "Verify to continue"). Any limit is enforced at order creation.
+      if (kycTier >= 3) {
+        return "Swap";
       }
       return labelForNextTierVerification(kycTier);
     }
@@ -166,11 +169,7 @@ export function useSwapButton({
     openLimitModal: () => void,
     isPhoneVerified: boolean,
     isUserVerified: boolean,
-    openMigrationModal: () => void,
   ) => {
-    if (needsMigration && authenticated && !isInjectedWallet) {
-      return openMigrationModal;
-    }
     if (!authenticated && !isInjectedWallet) {
       return login;
     }
@@ -182,6 +181,10 @@ export function useSwapButton({
       if (kycTier < 1 || !isPhoneVerified) {
         return openPhoneVerification;
       }
+      // Max tier reached: nothing left to verify — proceed to swap (limit enforced on submit).
+      if (kycTier >= 3) {
+        return handleSwap;
+      }
       return openLimitModal;
     }
     return handleSwap;
@@ -192,6 +195,5 @@ export function useSwapButton({
     buttonText,
     buttonAction,
     hasInsufficientBalance,
-    isMigrationMandatory,
   };
 }

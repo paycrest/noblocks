@@ -9,6 +9,19 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "sonner";
 import { StarknetContextType, StarknetWalletState } from "../types";
+import { normalizeStarknetAddress } from "../utils";
+
+function toCanonicalStarknetAddress(
+  value: string | null | undefined,
+): string | null {
+  const raw = value?.trim();
+  if (!raw) return null;
+  try {
+    return normalizeStarknetAddress(raw);
+  } catch {
+    return null;
+  }
+}
 
 const StarknetContext = createContext<StarknetContextType | undefined>(
   undefined,
@@ -40,7 +53,7 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
       if (starknetWallet) {
         const wallet = starknetWallet as any;
         const walletId = wallet.id || null;
-        const address = wallet.address || null;
+        const address = toCanonicalStarknetAddress(wallet.address);
         const pk = wallet.publicKey || wallet.public_key;
 
         setWalletId(walletId);
@@ -88,8 +101,9 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
         storedWalletId && storedWalletId !== ""
           ? storedWalletId
           : null;
-      const address =
-        storedAddress && storedAddress !== "" ? storedAddress : null;
+      const address = toCanonicalStarknetAddress(
+        storedAddress && storedAddress !== "" ? storedAddress : null,
+      );
       const publicKey =
         storedPublicKey && storedPublicKey !== ""
           ? storedPublicKey
@@ -180,7 +194,7 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
 
       const wallet = data.wallet || {};
       const newWalletId = wallet.id || null;
-      const newAddress = wallet.address || null;
+      const newAddress = toCanonicalStarknetAddress(wallet.address);
       let newPublicKey = wallet.public_key || wallet.publicKey || null;
 
       if (!newWalletId) {
@@ -242,26 +256,23 @@ export function StarknetProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    try {
-      resetError();
+    resetError();
 
-      let currentWalletId = walletId;
-
-      // Create wallet if not exists
-      if (!currentWalletId) {
-        const createToastId = toast.loading("Creating Starknet wallet...");
-        try {
-          currentWalletId = await createWallet();
-          toast.success("Starknet wallet created!", { id: createToastId });
-        } catch (error) {
-          toast.error("Failed to create Starknet wallet", {
-            id: createToastId,
-          });
-          throw error;
-        }
+    // Create wallet if not exists
+    if (!walletId) {
+      const createToastId = toast.loading("Creating Starknet wallet...");
+      try {
+        await createWallet();
+        toast.success("Starknet wallet created!", { id: createToastId });
+      } catch (error) {
+        toast.error("Failed to create Starknet wallet", {
+          id: createToastId,
+        });
+        console.error("Failed to ensure Starknet wallet exists:", error);
+        throw error instanceof Error
+          ? error
+          : new Error("Failed to create Starknet wallet");
       }
-    } catch (err) {
-      console.error("Failed to ensure Starknet wallet exists:", err);
     }
   };
 

@@ -249,9 +249,9 @@ export const CopyAddressWarningModal: React.FC<
               </div>
 
               {/* Warning note */}
-              <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
-                <InformationSquareIcon className="mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
-                <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
+              <div className="mb-4 flex w-full min-w-0 items-start gap-2 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
+                <InformationSquareIcon className="mt-0.5 size-5 shrink-0 text-warning-foreground dark:text-warning-text" />
+                <p className="min-w-0 flex-1 break-words text-xs font-light leading-snug text-warning-foreground dark:text-warning-text">
                   {footerWarning}
                 </p>
               </div>
@@ -259,16 +259,23 @@ export const CopyAddressWarningModal: React.FC<
               {/* Action button */}
               <div className="flex gap-4 items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <input 
-                    type="checkbox" 
-                    id="acknowledge" 
-                    checked={dontShowAgain}
-                    onChange={(e) => {
-                      setDontShowAgain(e.target.checked);
-                    }}
-                    className="cursor-pointer rounded-xl w-[19px] h-[19px] border-[2px] dark:border-white/30 accent-lavender-500"
-                  />
-                  <label htmlFor="acknowledge" className="text-xs text-normal text-text-body dark:text-white/70 cursor-pointer select-none">Don&apos;t show this to me again</label>
+                  <span className="relative inline-flex size-[19px] shrink-0">
+                    <input
+                      type="checkbox"
+                      id="acknowledge"
+                      checked={dontShowAgain}
+                      onChange={(e) => setDontShowAgain(e.target.checked)}
+                      className="peer size-[19px] cursor-pointer appearance-none rounded border-2 border-gray-300 bg-transparent checked:border-lavender-500 checked:bg-lavender-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-500 dark:border-white/30"
+                    />
+                    <svg
+                      className="pointer-events-none absolute inset-0 m-auto size-3 stroke-white opacity-0 peer-checked:opacity-100"
+                      viewBox="0 0 14 14"
+                      fill="none"
+                    >
+                      <path d="M3 8L6 11L11 3.5" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                  <label htmlFor="acknowledge" className="cursor-pointer select-none text-xs text-text-body dark:text-white/70">Don&apos;t show this to me again</label>
                 </div>
                 <button
                 onClick={handleAcknowledge}
@@ -382,9 +389,9 @@ export const CopyAddressWarningModal: React.FC<
                     </div>
 
                     {/* Warning note */}
-                    <div className="mb-4 flex h-[48px] w-full items-start gap-0.5 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
-                      <InformationSquareIcon className="mr-2 h-[24px] w-[24px] text-warning-foreground dark:text-warning-text" />
-                      <p className="text-xs font-light leading-tight text-warning-foreground dark:text-warning-text">
+                    <div className="mb-4 flex w-full min-w-0 items-start gap-2 rounded-xl bg-warning-background/[36%] px-3 py-2 dark:bg-warning-background/[8%]">
+                      <InformationSquareIcon className="mt-0.5 size-5 shrink-0 text-warning-foreground dark:text-warning-text" />
+                      <p className="min-w-0 flex-1 break-words text-xs font-light leading-snug text-warning-foreground dark:text-warning-text">
                         {footerWarning}
                       </p>
                     </div>
@@ -392,16 +399,23 @@ export const CopyAddressWarningModal: React.FC<
                     {/* Action button */}
                     <div className="flex gap-4 items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <input 
-                          type="checkbox" 
-                          id="acknowledge-mobile" 
-                          checked={dontShowAgain}
-                          onChange={(e) => {
-                            setDontShowAgain(e.target.checked);
-                          }}
-                          className="cursor-pointer rounded-3xl w-[19px] h-[19px] border-[2px] dark:border-white/30 accent-lavender-500"
-                        />
-                        <label htmlFor="acknowledge-mobile" className="text-xs text-normal text-text-body dark:text-white/70 cursor-pointer select-none">Don&apos;t show this to me again</label>
+                        <span className="relative inline-flex size-[19px] shrink-0">
+                          <input
+                            type="checkbox"
+                            id="acknowledge-mobile"
+                            checked={dontShowAgain}
+                            onChange={(e) => setDontShowAgain(e.target.checked)}
+                            className="peer size-[19px] cursor-pointer appearance-none rounded border-2 border-gray-300 bg-transparent checked:border-lavender-500 checked:bg-lavender-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lavender-500 dark:border-white/30"
+                          />
+                          <svg
+                            className="pointer-events-none absolute inset-0 m-auto size-3 stroke-white opacity-0 peer-checked:opacity-100"
+                            viewBox="0 0 14 14"
+                            fill="none"
+                          >
+                            <path d="M3 8L6 11L11 3.5" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                        <label htmlFor="acknowledge-mobile" className="cursor-pointer select-none text-xs text-text-body dark:text-white/70">Don&apos;t show this to me again</label>
                       </div>
                       <button
                         onClick={handleAcknowledge}

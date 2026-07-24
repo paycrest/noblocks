@@ -35,16 +35,9 @@ const config: Config = {
   brevoConversationsGroupId: process.env.NEXT_PUBLIC_BREVO_CONVERSATIONS_GROUP_ID || "",
   blockfestEndDate:
     process.env.NEXT_PUBLIC_BLOCKFEST_END_DATE || "2025-10-11T23:59:00+01:00",
-  /** @deprecated Use delegationContractAddress. Kept for backward compatibility. */
-  // biconomyNexusV120:
-  //   process.env.NEXT_PUBLIC_BICONOMY_NEXUS_V120 || "0x000000004f43c49e93c970e84001853a70923b03",
-  /** MEE API key for Biconomy Supertransaction API (sponsored execution). Replaces deprecated paymaster. */
-  biconomyMeeApiKey:
-    process.env.NEXT_PUBLIC_BICONOMY_MEE_API_KEY ||
-    "",
-  /** Base URL of the Biconomy v2→Nexus upgrade server (mini bundler). e.g. http://localhost:3000 when running locally. */
-  bundlerServerUrl:
-    process.env.NEXT_PUBLIC_BUNDLER_SERVER_URL || "",
+  worldcupFooterEndDate:
+    process.env.NEXT_PUBLIC_WORLDCUP_FOOTER_END_DATE ||
+    "2026-07-19T23:59:59+01:00",
   maintenanceEnabled:
     process.env.NEXT_PUBLIC_MAINTENANCE_NOTICE_ENABLED === "true" &&
     !!(process.env.NEXT_PUBLIC_MAINTENANCE_SCHEDULE || "").trim(),
@@ -64,31 +57,32 @@ const config: Config = {
   })(),
   /** Sender API key UUID (aggregator dashboard). Used by server proxy and client (on-chain messageHash metadata). */
   aggregatorSenderApiKey: (process.env.NEXT_PUBLIC_AGGREGATOR_SENDER_API_KEY_ID || "").trim(),
+  moralisWebhookSecret: process.env.MORALIS_WEBHOOK_SECRET || "",
+  activepiecesWebhookUrl: process.env.ACTIVEPIECES_WEBHOOK_URL || "",
+  activepiecesSignupVerifyWebhookUrl:
+    process.env.ACTIVEPIECES_SIGNUP_VERIFY_WEBHOOK_URL || "",
+  activepiecesKycResultWebhookUrl:
+    process.env.ACTIVEPIECES_KYC_RESULT_WEBHOOK_URL || "",
+  moralisStreamId: process.env.MORALIS_STREAM_ID || "",
+  moralisApiKey: process.env.MORALIS_API_KEY || "",
+  moralisBaseUrl:
+    process.env.MORALIS_BASE_URL || "https://api.moralis-streams.com",
   earnEnabled: process.env.NEXT_PUBLIC_EARN_ENABLED === "true",
+  tronEnabled: process.env.NEXT_PUBLIC_TRON_ENABLED === "true",
+  referralEnabled: (process.env.NEXT_PUBLIC_REFERRAL_ENABLED || "").trim().toLowerCase() !== "false",
+  bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
+  onrampChainedForwardingEnabled:
+    process.env.NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED === "true",
+  fantasyEnabled: process.env.NEXT_PUBLIC_FANTASY_ENABLED === "true",
+  // When true (and fantasyEnabled), public /play shows the end-of-campaign
+  // announcement instead of the live game. Flip off to revive Play for a
+  // later league (EPL / UCL) after rebranding assets/copy.
+  fantasyCampaignEnded:
+    process.env.NEXT_PUBLIC_FANTASY_CAMPAIGN_ENDED === "true",
+  embedEnabled: process.env.NEXT_PUBLIC_EMBED_ENABLED === "true",
 };
 
 export default config;
-
-// Fee recipient address for sender fees (required)
-const feeRecipientAddressEnv = process.env.NEXT_PUBLIC_FEE_RECIPIENT_ADDRESS;
-if (!feeRecipientAddressEnv) {
-  throw new Error(
-    "Missing required environment variable: NEXT_PUBLIC_FEE_RECIPIENT_ADDRESS",
-  );
-}
-export const feeRecipientAddress: string = feeRecipientAddressEnv;
-
-// Local transfer fee (e.g. cNGN -> NGN): percentage and cap in human-readable units
-const parsedFeePercent = parseFloat(process.env.NEXT_PUBLIC_LOCAL_TRANSFER_FEE_PERCENT ?? "");
-export const localTransferFeePercent: number = Number.isFinite(parsedFeePercent)
-  ? parsedFeePercent
-  : 0.3;
-
-const parsedFeeCap = parseFloat(process.env.NEXT_PUBLIC_LOCAL_TRANSFER_FEE_CAP ?? "");
-export const localTransferFeeCap: number =
-  Number.isFinite(parsedFeeCap) && Number.isInteger(parsedFeeCap)
-    ? parsedFeeCap
-    : 10000;
 
 export const DEFAULT_PRIVY_CONFIG: JWTProviderConfig = {
   provider: "privy",

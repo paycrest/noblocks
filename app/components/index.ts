@@ -25,6 +25,7 @@ export {
 } from "./AnimatedComponents";
 
 export { KycModal } from "./KycModal";
+export { WidgetShell } from "./WidgetShell";
 export { CookieConsent } from "./CookieConsent";
 export { NetworkSelectionModal } from "./NetworkSelectionModal";
 export { Disclaimer } from "./Disclaimer";
@@ -60,7 +61,6 @@ export { ReferralInputModal } from "./ReferralModal";
 export { ReferralCTA } from "./ReferralCTA";
 
 export { default as NoticeBanner } from "./NoticeBanner";
-export { WalletMigrationBanner } from "./WalletMigrationBanner";
 export {
   MaintenanceNoticeModal,
   MaintenanceBanner,

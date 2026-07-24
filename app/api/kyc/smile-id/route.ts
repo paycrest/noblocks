@@ -8,6 +8,7 @@ import {
 } from "@/app/lib/smileID";
 
 import { rateLimit } from "@/app/lib/rate-limit";
+import { notifyKycResultEmail } from "@/app/lib/activepieces-kyc-result";
 
 type SmileFailureCategory = "database" | "quality" | "liveness" | "mismatch" | "general";
 
@@ -225,6 +226,20 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Notify on genuine verification failures only — infrastructure ("database")
+      // outages are transient and don't count against the user, so don't email them.
+      // Resolve the recipient from the authenticated wallet (never the client-supplied
+      // `email`) and dispatch after the response so webhook latency can't hold the
+      // verification flow open.
+      if (category !== "database") {
+        notifyKycResultEmail(walletAddress, {
+          event: "kyc_result",
+          status: "failure",
+          tier: 2,
+          reason: errorMessage,
+        });
+      }
+
       return NextResponse.json(
         {
           status: "error",
@@ -266,6 +281,42 @@ export async function POST(request: NextRequest) {
         : null) ||
       null;
 
+    // One verified identity per ID document: the same document must not back
+    // multiple wallet profiles (each would get its own monthly limit).
+    // `undefined` (not null) when absent: supabase-js drops undefined keys from
+    // the update, preserving any previously stored id_number.
+    const idNumberToStore: string | undefined =
+      smileIdInfo.id_number || id_info.id_number || undefined;
+    if (idNumberToStore) {
+      const { data: idOwner, error: idOwnerError } = await supabaseAdmin
+        .from("user_kyc_profiles")
+        .select("wallet_address")
+        .eq("id_country", id_info.country)
+        .eq("id_type", id_info.id_type)
+        .eq("id_number", idNumberToStore)
+        .gte("tier", 2)
+        .neq("wallet_address", walletAddress)
+        .limit(1)
+        .maybeSingle();
+
+      if (idOwnerError) {
+        return NextResponse.json(
+          { status: "error", message: "Failed to save KYC data" },
+          { status: 500 },
+        );
+      }
+      if (idOwner) {
+        return NextResponse.json(
+          {
+            status: "error",
+            message:
+              "This ID document is already verified on another account. Please contact support if you believe this is an error.",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     const { data: updatedProfile, error: supabaseError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .update({
@@ -273,7 +324,7 @@ export async function POST(request: NextRequest) {
         ...(email && { email_address: email }),
         // ID Document fields from id_info or Smile ID response
         id_type: id_info.id_type,
-        id_number: smileIdInfo.id_number || id_info.id_number,
+        id_number: idNumberToStore,
         id_country: id_info.country,
         // Personal info from Smile ID response — only overwrite if SmileID returned a name
         ...(derivedFullName ? { full_name: derivedFullName } : {}),
@@ -287,6 +338,18 @@ export async function POST(request: NextRequest) {
       .select("wallet_address");
 
     if (supabaseError) {
+      // 23505: partial unique index on verified ID documents (concurrent
+      // verification of the same document on another wallet).
+      if (supabaseError.code === "23505") {
+        return NextResponse.json(
+          {
+            status: "error",
+            message:
+              "This ID document is already verified on another account. Please contact support if you believe this is an error.",
+          },
+          { status: 409 },
+        );
+      }
       return NextResponse.json(
         {
           status: "error",
@@ -313,6 +376,18 @@ export async function POST(request: NextRequest) {
       .from("user_kyc_profiles")
       .update({ attempts: 0 })
       .eq("wallet_address", walletAddress);
+
+    // Notify once, only on the first promotion to tier 2 (the async callback
+    // skips when the profile is already verified, so this won't double-send).
+    // Resolve the recipient from the authenticated wallet (never the client-supplied
+    // `email`) and dispatch after the response so webhook latency can't block KYC.
+    if (newTier >= 2 && currentTier < 2) {
+      notifyKycResultEmail(walletAddress, {
+        event: "kyc_result",
+        status: "success",
+        tier: newTier,
+      });
+    }
 
     return NextResponse.json({
       status: "success",

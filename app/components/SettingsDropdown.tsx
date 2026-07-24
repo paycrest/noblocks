@@ -46,6 +46,8 @@ export const SettingsDropdown = () => {
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { selectedNetwork } = useNetwork();
   const isStarknet = selectedNetwork?.chain?.name === "Starknet";
+  const isTron = selectedNetwork?.chain?.name === "Tron";
+  const isTier2Network = isStarknet || isTron;
   const shouldUseEOA = useShouldUseEOA();
   const hookWalletAddress = useWalletAddress();
 
@@ -55,9 +57,14 @@ export const SettingsDropdown = () => {
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  // Portaled ProfileDrawer / warning modals sit outside this ref — ignore
+  // outside clicks while they are open so touch taps aren't raced away.
   useOutsideClick({
     ref: dropdownRef,
-    handler: () => setIsOpen(false),
+    handler: () => {
+      if (!isOpen || isProfileDrawerOpen || isWarningModalOpen) return;
+      setIsOpen(false);
+    },
   });
 
   // Get embedded wallet (EOA) and smart wallet (SCW)
@@ -72,7 +79,7 @@ export const SettingsDropdown = () => {
   // to avoid showing an EVM address while Starknet is active.
   const walletAddress =
     hookWalletAddress ??
-    (isStarknet
+    (isTier2Network
       ? undefined
       : isInjectedWallet
         ? injectedAddress
@@ -165,6 +172,12 @@ export const SettingsDropdown = () => {
       }
 
       clearUserSessionData(user?.id, walletAddress ?? user?.wallet?.address);
+
+      localStorage.removeItem(`starknet_walletId_${user?.id}`);
+      localStorage.removeItem(`starknet_address_${user?.id}`);
+      localStorage.removeItem(`starknet_publicKey_${user?.id}`);
+      localStorage.removeItem(`starknet_deployed_${user?.id}`);
+
       await logout();
 
       if (window.ethereum) {
@@ -244,6 +257,23 @@ export const SettingsDropdown = () => {
                 </button>
               </li>
 
+              <li
+                role="menuitem"
+                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
+              >
+                <button
+                  type="button"
+                  className="group flex w-full items-center gap-2.5"
+                  onClick={() => {
+                    setIsProfileDrawerOpen(true);
+                    setIsOpen(false);
+                  }}
+                >
+                  <FaceIdIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
+                  <p>Profile</p>
+                </button>
+              </li>
+
               {!isInjectedWallet && (
                 <li
                   role="menuitem"
@@ -311,22 +341,6 @@ export const SettingsDropdown = () => {
                   <p>Export wallet</p>
                 </li>
               )}
-              <li
-                role="menuitem"
-                className="flex cursor-pointer items-center justify-between gap-2 rounded-lg transition-all duration-300 hover:bg-accent-gray dark:hover:bg-neutral-700"
-              >
-                <button
-                  type="button"
-                  className="group flex w-full items-center gap-2.5"
-                  onClick={() => {
-                    setIsProfileDrawerOpen(true);
-                    setIsOpen(false);
-                  }}
-                >
-                  <FaceIdIcon className="size-5 text-icon-outline-secondary dark:text-white/50" />
-                  <p>Profile</p>
-                </button>
-              </li>
 
               {!isInjectedWallet && (
                 <li

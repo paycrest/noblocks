@@ -154,7 +154,7 @@ export const FlexibleDropdown = ({
           left: rect.right - width + window.scrollX, // always right-align
           width: width,
           minWidth: dropdownWidth ? dropdownWidth : 160,
-          zIndex: 60,
+          zIndex: 100,
         });
       }
     }
@@ -193,7 +193,7 @@ export const FlexibleDropdown = ({
     }
   }, [disabled, isOpen]);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click (desktop only — mobile uses Dialog)
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target;
@@ -209,10 +209,11 @@ export const FlexibleDropdown = ({
       }
     }
     if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
+      // `click` not `mousedown`: avoid unmounting before option onClick on touch
+      document.addEventListener("click", handleClickOutside);
     }
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("click", handleClickOutside);
     };
   }, [isOpen]);
 
@@ -353,7 +354,9 @@ export const FlexibleDropdown = ({
         variants={dropdownVariants}
         className="fixed inset-0 flex w-screen items-end justify-center"
       >
-        <DialogPanel className="w-full space-y-4 rounded-t-[30px] border border-border-light bg-white px-5 py-6 dark:border-white/5 dark:bg-surface-overlay">
+        {/* dropdown-sheet-panel: stable styling hook (e.g. for widget-mode
+            overrides in globals.css). */}
+        <DialogPanel className="dropdown-sheet-panel w-full space-y-4 rounded-t-[30px] border border-border-light bg-white px-5 py-6 dark:border-white/5 dark:bg-surface-overlay">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-center text-lg font-semibold text-text-body dark:text-white">
               {mobileTitle}

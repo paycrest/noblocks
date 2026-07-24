@@ -47,10 +47,12 @@ export default function TransactionLimitModal({
   const upgradeStep = getKycUpgradeStep(tier);
   const tier1Limits = KYC_TIERS[1]?.limits.monthly;
 
+  // force=true: skip the context's 30s staleness cache — this modal opens right
+  // when the user's tier/spend may have just changed (post-upgrade, post-swap).
   useEffect(() => {
     if (isOpen) {
       setIsLoading(true);
-      refreshStatus().finally(() => setIsLoading(false));
+      refreshStatus(true).finally(() => setIsLoading(false));
     }
   }, [isOpen, refreshStatus]);
 
@@ -235,15 +237,17 @@ export default function TransactionLimitModal({
     </motion.div>
   );
 
-  if (!isOpen) return null;
-
+  // No early `return null` on !isOpen: unmounting here would tear down the KYC
+  // AnimatedModal before its exit animation and scroll restore can run. Each
+  // child below gates itself on isOpen / its own flag instead.
   const showLimitDialog = isOpen && !isPhoneModalOpen && !isKycModalOpen;
 
   return (
     <>
       <AnimatePresence mode="wait">
         {showLimitDialog && (
-          <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+          // Above MobileDropdown (z-[60]) so Increase limit works from the mobile profile sheet
+          <Dialog open={isOpen} onClose={onClose} className="relative z-[70]">
             <div
               className="fixed inset-0 bg-black/50 backdrop-blur-sm"
               aria-hidden="true"
@@ -261,39 +265,39 @@ export default function TransactionLimitModal({
       </AnimatePresence>
 
       <PhoneVerificationModal
-        isOpen={isPhoneModalOpen}
+        isOpen={isOpen && isPhoneModalOpen}
         onClose={() => {
           setIsPhoneModalOpen(false);
         }}
         onVerified={handlePhoneVerified}
       />
 
-      <AnimatePresence>
-        {isKycModalOpen && tier >= 1 && (
-          <AnimatedModal
-            isOpen={isKycModalOpen}
-            onClose={() => {
-              setIsKycModalOpen(false);
-              onClose();
-            }}
-          >
-            <KycModal
-              setIsKycModalOpen={(value) => {
-                setIsKycModalOpen(value);
-                if (!value) onClose();
-              }}
-              setIsUserVerified={(verified) => {
-                if (verified) {
-                  void refreshStatus(true);
-                }
-                setIsKycModalOpen(false);
-                onClose();
-              }}
-              targetTier={getKycModalTargetTier(tier)}
-            />
-          </AnimatedModal>
-        )}
-      </AnimatePresence>
+      {/* No outer AnimatePresence/conditional: AnimatedModal manages its own
+          presence, and an outer conditional removes it before the exit
+          animation (and the scroll-lock release in onExitComplete) can run. */}
+      <AnimatedModal
+        isOpen={isOpen && isKycModalOpen && tier >= 1}
+        onClose={() => {
+          setIsKycModalOpen(false);
+          onClose();
+        }}
+        lockBodyScroll
+      >
+        <KycModal
+          setIsKycModalOpen={(value) => {
+            setIsKycModalOpen(value);
+            if (!value) onClose();
+          }}
+          setIsUserVerified={(verified) => {
+            if (verified) {
+              void refreshStatus(true);
+            }
+            setIsKycModalOpen(false);
+            onClose();
+          }}
+          targetTier={getKycModalTargetTier(tier)}
+        />
+      </AnimatedModal>
     </>
   );
 };

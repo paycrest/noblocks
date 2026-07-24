@@ -3,12 +3,18 @@
 import { DialogTitle } from "@headlessui/react";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { usePrivy } from "@privy-io/react-auth";
 import { AnimatedModal } from "./AnimatedComponents";
 import { useNetwork } from "../context/NetworksContext";
 import { submitReferralCode } from "../api/aggregator";
+import {
+    readPendingReferralCode,
+    clearPendingReferralCode,
+    REFERRAL_CODE_PATTERN,
+} from "../lib/pendingReferralCode";
+import { toastMappedError } from "../lib/toastMappedError";
 
 interface ReferralInputModalProps {
     isOpen: boolean;
@@ -26,6 +32,15 @@ export const ReferralInputModal = ({
     const { selectedNetwork } = useNetwork();
     const { getAccessToken } = usePrivy();
 
+    // Pre-fill from a referral share link (?ref=NBXXXX captured on landing in
+    // MainPageContent) so users who arrived via a link don't type the code.
+    useEffect(() => {
+        if (!isOpen) return;
+        setReferralCode((current) =>
+            current.trim() ? current : (readPendingReferralCode() ?? current),
+        );
+    }, [isOpen]);
+
     const sponsorChain = selectedNetwork?.chain.name || "Sponsor Chain";
 
     const handleSubmit = async () => {
@@ -38,18 +53,28 @@ export const ReferralInputModal = ({
 
         try {
             const code = referralCode.trim().toUpperCase();
-            if (!/^NB[A-Z0-9]{4}$/.test(code)) {
+            if (!REFERRAL_CODE_PATTERN.test(code)) {
                 toast.error("Invalid referral code format");
                 return;
             }
 
-            const token = await getAccessToken();
+            let token: string | null;
+            try {
+                token = await getAccessToken();
+            } catch (authError) {
+                toastMappedError(authError, {
+                    feature: "referral-code-auth",
+                    title: "Unable to submit referral code",
+                });
+                return;
+            }
 
             try {
                 const res = await submitReferralCode(code, token ?? undefined);
 
                 if (res && res.success) {
                     toast.success(res.data?.message || "Referral code applied! Complete KYC and your first transaction to earn rewards.");
+                    clearPendingReferralCode();
                     onSubmitSuccess?.();
                     onClose();
                 } else {
@@ -59,19 +84,20 @@ export const ReferralInputModal = ({
                 }
             } catch (err) {
                 // Unexpected errors (should be rare since submitReferralCode returns ApiResponse)
-                const message = err instanceof Error ? err.message : "Failed to submit referral code. Please try again.";
-                toast.error(message);
+                toastMappedError(err, {
+                    feature: "referral-code-submit",
+                    title: "Referral submission failed",
+                });
             }
-        } catch (error) {
-            toast.error(
-                error instanceof Error ? error.message : "Invalid referral code. Please check and try again."
-            );
         } finally {
             setIsSubmitting(false);
         }
     };
 
     const handleSkip = () => {
+        // Declining also discards any link-carried code, so the modal doesn't
+        // keep re-opening on the strength of a code the user chose not to use.
+        clearPendingReferralCode();
         setReferralCode("");
         onClose();
     };

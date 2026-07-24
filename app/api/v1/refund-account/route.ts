@@ -6,6 +6,11 @@ import {
   trackApiResponse,
   trackApiError,
 } from "@/app/lib/server-analytics";
+import { getKycFullName } from "@/app/lib/kyc-profile-server";
+import {
+  accountNameMatchesKyc,
+  REFUND_NAME_MISMATCH_MESSAGE,
+} from "@/app/lib/name-matching";
 
 type RefundAccountBody = {
   institution?: string;
@@ -117,6 +122,41 @@ export const PUT = withRateLimit(async (request: NextRequest) => {
             "Missing required fields: institution, institutionCode, accountIdentifier, accountName",
         },
         { status: 400 },
+      );
+    }
+
+    // Refund-account name policy: the account must belong to the same person as the verified KYC
+    // profile. Enforced here for early feedback; the onramp order-creation gate re-checks at money
+    // time (so an account saved before KYC is still validated then). When no KYC name is on file
+    // yet, there's nothing to match against — allow the save. A KYC lookup failure fails closed.
+    const kyc = await getKycFullName(walletAddress);
+    if (!kyc.ok) {
+      trackApiError(
+        request,
+        "/api/v1/refund-account",
+        "PUT",
+        new Error("KYC name lookup failed"),
+        503,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Could not verify your identity right now. Please try again.",
+        },
+        { status: 503 },
+      );
+    }
+    if (kyc.fullName && !accountNameMatchesKyc(kyc.fullName, accountName)) {
+      trackApiError(
+        request,
+        "/api/v1/refund-account",
+        "PUT",
+        new Error("Refund account name does not match KYC profile"),
+        422,
+      );
+      return NextResponse.json(
+        { success: false, error: REFUND_NAME_MISMATCH_MESSAGE },
+        { status: 422 },
       );
     }
 

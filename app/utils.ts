@@ -14,7 +14,7 @@ import type {
   SwapMode,
 } from "./types";
 import type { SanityPost, SanityCategory } from "./blog/types";
-import { erc20Abi, createPublicClient, http } from "viem";
+import { erc20Abi, createPublicClient, http, keccak256, stringToBytes } from "viem";
 import { mainnet } from "viem/chains";
 import { getEnsName } from "viem/actions";
 import { isValidEvmAddressCaseInsensitive } from "./lib/validation";
@@ -22,11 +22,6 @@ import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
 import config from "./lib/config";
-import {
-  feeRecipientAddress,
-  localTransferFeePercent,
-  localTransferFeeCap,
-} from "./lib/config";
 import { logBalanceTelemetry } from "./lib/balanceTelemetry";
 
 /**
@@ -100,12 +95,42 @@ export function formatNumberWithCommas(num: string | number): string {
   return parts.join(".");
 }
 
+/**
+ * Formats an amount for PDF receipts with adaptive decimal places.
+ */
+export function formatReceiptAmount(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  const abs = Math.abs(value);
+  const decimals = abs > 0 && abs < 1 ? 6 : abs < 100 ? 4 : 2;
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: 0,
+  });
+}
+
 /** Format a USD amount for KYC limit UI (2 decimals, comma-separated). */
 export function formatUsdAmount(amount: number): string {
   if (!Number.isFinite(amount)) return "0.00";
   const rounded = Math.round(amount * 100) / 100;
   if (rounded === 0) return "0.00";
   return formatNumberWithCommas(rounded.toFixed(2));
+}
+
+/**
+ * First word of a display name with title case (e.g. success flow pill vs headline).
+ *
+ * @param name - Full recipient name (may include multiple words).
+ * @returns First word title-cased, or empty string if missing.
+ */
+export function formatRecipientNameFirstWordForPill(name: string): string {
+  const trimmed = (name ?? "").trim();
+  if (!trimmed) return "";
+  const titleCased = trimmed
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return titleCased.split(/\s+/)[0] ?? "";
 }
 
 /**
@@ -148,7 +173,6 @@ export const getCurrencySymbol = (currency: string): string => {
     USD: "$",
     GBP: "£",
     EUR: "€",
-    MWK: "MK",
     XOF: "CFA",
     XAF: "FCFA",
   };
@@ -156,13 +180,37 @@ export const getCurrencySymbol = (currency: string): string => {
   return currencySymbols[currency.toUpperCase()] || currency;
 };
 
+/**
+ * Off-ramp account/phone field placeholder. Banks use a generic label; mobile money
+ * uses a country-appropriate example. All mobile-money values share an "eg: " prefix
+ * (no leading space before the label) so the placeholder is aligned in the input.
+ * Examples use local-style numbers only (no international country calling prefix).
+ */
+export function getOfframpAccountIdentifierPlaceholder(
+  currency: string,
+  institutionType: "bank" | "mobile_money" | undefined,
+): string {
+  if (institutionType !== "mobile_money") {
+    return "Account number";
+  }
+  const examples: Record<string, string> = {
+    KES: "07XXXXXXXX",
+    NGN: "08XXXXXXXX",
+    UGX: "07XXXXXXXX",
+    TZS: "07XXXXXXXX",
+    GHS: "0XXXXXXXXX",
+  };
+  return (
+    examples[currency.toUpperCase()] ?? "eg: phone number"
+  );
+}
+
 /** Fiat codes supported in Noblocks swap (matches `mocks.acceptedCurrencies` names). */
 const NOBLOCKS_FIAT_CURRENCY_CODES = new Set([
   "NGN",
   "KES",
   "UGX",
   "TZS",
-  "MWK",
   "GHS",
   "BRL",
   "ARS",
@@ -170,6 +218,92 @@ const NOBLOCKS_FIAT_CURRENCY_CODES = new Set([
 
 export function isNoblocksFiatCurrencyCode(code: string): boolean {
   return NOBLOCKS_FIAT_CURRENCY_CODES.has(code.toUpperCase());
+}
+
+/** NGN fintech institutions pinned after mobile_money, before A–Z (off-ramp + on-ramp). */
+export const NGN_PRIORITY_INSTITUTION_CODES = [
+  "OPAYNGPC",
+  "PALMNGPC",
+  "MONINGPC",
+  "KUDANGPC",
+] as const;
+
+export function compareInstitutionsForDisplay(
+  a: InstitutionProps,
+  b: InstitutionProps,
+): number {
+  if (a.type === "mobile_money" && b.type !== "mobile_money") return -1;
+  if (a.type !== "mobile_money" && b.type === "mobile_money") return 1;
+  for (const code of NGN_PRIORITY_INSTITUTION_CODES) {
+    if (a.code === code && b.code !== code) return -1;
+    if (a.code !== code && b.code === code) return 1;
+  }
+  return a.name.localeCompare(b.name);
+}
+
+/** Filter by name search and sort for institution pickers (swap + refund/on-ramp). */
+export function filterAndSortInstitutions(
+  institutions: InstitutionProps[] | undefined,
+  searchTerm: string,
+): InstitutionProps[] {
+  const term = searchTerm.toLowerCase();
+  const filtered =
+    institutions?.filter((item) =>
+      item.name.toLowerCase().includes(term),
+    ) ?? [];
+  return [...filtered].sort(compareInstitutionsForDisplay);
+}
+
+/** Fiat codes enabled for on-ramp (send fiat → receive crypto). */
+export const ONRAMP_FIAT_CURRENCY_CODES = new Set(["NGN", "KES"]);
+
+export function isOnrampFiatCurrencyCode(code: string): boolean {
+  return ONRAMP_FIAT_CURRENCY_CODES.has(code.toUpperCase());
+}
+
+/**
+ * Max send amount for on-ramp in local fiat units (product caps per corridor).
+ * Tune KES with product/compliance when backend limits are finalized.
+ * @throws If currencyCode is not a supported on-ramp fiat (fail closed; no silent NGN cap).
+ */
+export function getOnrampFiatMaxAmount(currencyCode: string): number {
+  const code = (currencyCode ?? "").trim().toUpperCase();
+  switch (code) {
+    case "KES":
+      return 3_000_000;
+    case "NGN":
+      return 2_300_000;
+    default:
+      throw new Error(`Unsupported on-ramp fiat currency: ${currencyCode}`);
+  }
+}
+
+/**
+ * Parses a transaction amount from the API body. Returns null if missing or invalid.
+ */
+export function parseValidTransactionAmount(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    return null;
+  }
+  return n;
+}
+
+/**
+ * Rounds an amount for Supabase/email so stored values match what users see (4dp).
+ * Form state can still carry extra precision from rate math until save.
+ */
+export function roundAmountForCurrency(amount: number): number {
+  if (typeof amount !== "number" || !Number.isFinite(amount)) {
+    return 0;
+  }
+  const decimals = 4;
+  return Number(
+    `${Math.round(Number(`${amount}e${decimals}`))}e-${decimals}`,
+  );
 }
 
 /**
@@ -182,7 +316,27 @@ export function formatTransactionAmountDisplay(
   if (isNoblocksFiatCurrencyCode(currencyCode)) {
     return `${getCurrencySymbol(currencyCode)}${formatNumberWithCommas(amount)}`;
   }
-  return `${formatNumberWithCommas(amount)} ${currencyCode}`;
+  // Round crypto amounts to 3 decimal places for display
+  const rounded = Math.round(amount * 1000) / 1000;
+  return `${formatNumberWithCommas(rounded)} ${currencyCode}`;
+}
+
+/**
+ * Customer-facing token amount: never scientific notation, never dust.
+ * Intl.NumberFormat never emits exponents, so values like 9.9999e-7 render as a
+ * readable "<0.0001" threshold instead of "9.9999e-7" or a misleading rounded "0".
+ * Precision scales with magnitude; true zero renders "0".
+ */
+export function formatTokenAmount(value: number | string): string {
+  const num = typeof value === "string" ? parseFloat(value) : value;
+  if (!Number.isFinite(num)) return "0";
+  if (num === 0) return "0";
+
+  const abs = Math.abs(num);
+  if (abs < 0.0001) return num > 0 ? "<0.0001" : ">-0.0001";
+
+  const maximumFractionDigits = abs >= 1000 ? 2 : abs >= 1 ? 4 : 6;
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits }).format(num);
 }
 
 /** User-facing label for transaction history rows (`onramp` / `offramp`). */
@@ -192,12 +346,49 @@ export function getTransactionHistoryTypeLabel(
   switch (type) {
     case "transfer":
       return "Transferred";
+    case "bridge":
+      return "Converted";
     case "offramp":
     case "onramp":
       return "Swapped";
+    case "credit":
+      return "Funded";
     default:
       return type;
   }
+}
+
+/**
+ * Resolve a Privy user's email for an on-chain address (embedded EOA and/or smart wallet).
+ * Used by Moralis webhooks. Dynamic-imports Privy so client modules that only use other
+ * `utils` exports are not linked to the server `PRIVY_APP_SECRET` client.
+ */
+export async function getEmailForMonitoredAddress(
+  address: string,
+): Promise<string | null> {
+  const normalized = address.trim().toLowerCase();
+  if (!normalized.startsWith("0x") || normalized.length !== 42) {
+    return null;
+  }
+  const { getPrivyClient } = await import("./lib/privy");
+  const privy = getPrivyClient();
+  try {
+    const byWallet = await privy.getUserByWalletAddress(normalized);
+    if (byWallet?.email?.address) {
+      return byWallet.email.address.trim().toLowerCase();
+    }
+  } catch (e) {
+    console.warn("[privy] getUserByWalletAddress", normalized, e);
+  }
+  try {
+    const byScw = await privy.getUserBySmartWalletAddress(normalized);
+    if (byScw?.email?.address) {
+      return byScw.email.address.trim().toLowerCase();
+    }
+  } catch (e) {
+    console.warn("[privy] getUserBySmartWalletAddress", normalized, e);
+  }
+  return null;
 }
 
 /**
@@ -270,10 +461,104 @@ export const getExplorerLink = (network: string, txHash: string) => {
       return `https://etherscan.io/tx/${txHash}`;
     case "Starknet":
       return `https://voyager.online/tx/${txHash}`;
+    case "Tron":
+      return `https://tronscan.org/#/transaction/${txHash}`;
     default:
       return "";
   }
 };
+
+/** Moralis / viem hex chainId (canonical) → `getExplorerLink` network name. */
+const CHAIN_ID_TO_EXPLORER_NETWORK: Record<string, string> = {
+  "0x1": "Ethereum",
+  "0x38": "BNB Smart Chain",
+  "0x89": "Polygon",
+  "0xa4b1": "Arbitrum One",
+  "0x2105": "Base",
+  "0xa": "Optimism",
+  "0x82750": "Scroll",
+  "0xa4ec": "Celo",
+  "0x46f": "Lisk",
+};
+
+/**
+ * Normalizes an EVM chain id to canonical lowercase hex (e.g. `0x0A` → `0xa`).
+ * Internal: used by {@link getMoralisDepositNetworkAndExplorer} only.
+ */
+function canonicalEvmChainIdHex(chainId: string): string {
+  const s = chainId.trim();
+  if (!s) {
+    return s;
+  }
+  try {
+    if (/^0x/i.test(s)) {
+      return `0x${BigInt(s).toString(16)}`;
+    }
+    if (/^\d+$/.test(s)) {
+      return `0x${BigInt(s).toString(16)}`;
+    }
+    return `0x${BigInt(`0x${s}`).toString(16)}`;
+  } catch {
+    return s.toLowerCase();
+  }
+}
+
+/**
+ * For Moralis webhooks: display `network` + full `txExplorerUrl` in one pass
+ * (shares the same map + `getExplorerLink` as the rest of the app).
+ * `txExplorerUrl` is `""` if the chain is unmapped or `txHash` is empty.
+ */
+export const getMoralisDepositNetworkAndExplorer = (
+  chainId: string,
+  txHash: string,
+): { network: string; txExplorerUrl: string } => {
+  const key = canonicalEvmChainIdHex(chainId);
+  const name = CHAIN_ID_TO_EXPLORER_NETWORK[key];
+  const network = name ?? chainId;
+  const txExplorerUrl =
+    txHash && name ? getExplorerLink(name, txHash) : "";
+  return { network, txExplorerUrl };
+};
+
+/**
+ * Per Moralis Webhook Security: `sha3(JSON.stringify(body) + secret)` (Web3)
+ * and compare to `x-signature`. See: streams → webhook security in Moralis docs.
+ */
+export function moralisExpectedSignature(
+  rawBody: string,
+  secret: string,
+): `0x${string}` {
+  let stringToHash: string;
+  try {
+    const parsed: unknown = JSON.parse(rawBody);
+    stringToHash = JSON.stringify(parsed) + secret;
+  } catch {
+    stringToHash = rawBody + secret;
+  }
+  return keccak256(stringToBytes(stringToHash));
+}
+
+function stripMoralisSigHex(s: string): string {
+  const t = s.trim().toLowerCase();
+  return t.startsWith("0x") ? t.slice(2) : t;
+}
+
+export function verifyMoralisSignature(
+  rawBody: string,
+  xSignature: string | null | undefined,
+  secret: string,
+): boolean {
+  if (!xSignature) return false;
+  const expected = moralisExpectedSignature(rawBody, secret);
+  const a = stripMoralisSigHex(xSignature);
+  const b = stripMoralisSigHex(expected);
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) {
+    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return out === 0;
+}
 
 // write function to get rpc url for a given network
 export function getRpcUrl(network: string) {
@@ -297,6 +582,10 @@ export function getRpcUrl(network: string) {
       return `https://api-ethereum-mainnet.n.dwellir.com/${rpcUrlKey ?? ""}`;
     case "Starknet":
       return process.env.NEXT_PUBLIC_STARKNET_RPC_URL;
+    case "Tron":
+      return (
+        process.env.NEXT_PUBLIC_TRON_RPC_URL || "https://api.trongrid.io"
+      );
     default:
       return undefined;
   }
@@ -547,6 +836,15 @@ export const FALLBACK_TOKENS: { [key: string]: Token[] } = {
       imageUrl: "/logos/usdt-logo.svg",
     },
   ],
+  Tron: [
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      decimals: 6,
+      address: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+      imageUrl: "/logos/usdt-logo.svg",
+    },
+  ],
 };
 
 /**
@@ -641,15 +939,15 @@ export type UnifiedWalletBalances = {
 
 export type FetchBalancesForChainArgs =
   | {
-      kind: "evm";
-      client: any;
-      walletAddress: string;
-    }
+    kind: "evm";
+    client: any;
+    walletAddress: string;
+  }
   | {
-      kind: "starknet";
-      walletAddress: string;
-      tokens?: Token[];
-    };
+    kind: "starknet";
+    walletAddress: string;
+    tokens?: Token[];
+  };
 
 async function fetchEvmBalancesUnifiedUncached(
   client: any,
@@ -696,20 +994,20 @@ async function fetchEvmBalancesUnifiedUncached(
       nativeTokens.length === 0
         ? Promise.resolve()
         : Promise.all(
-            nativeTokens.map(async (token: Token) => {
-              try {
-                const balanceInWei = await client.getBalance({ address });
-                fillBalancesFromWei(token, balanceInWei);
-              } catch (error) {
-                console.error(
-                  `Error fetching native balance for ${token.symbol}:`,
-                  error,
-                );
-                balances[token.symbol] = 0;
-                balancesInWei[token.symbol] = BigInt(0);
-              }
-            }),
-          );
+          nativeTokens.map(async (token: Token) => {
+            try {
+              const balanceInWei = await client.getBalance({ address });
+              fillBalancesFromWei(token, balanceInWei);
+            } catch (error) {
+              console.error(
+                `Error fetching native balance for ${token.symbol}:`,
+                error,
+              );
+              balances[token.symbol] = 0;
+              balancesInWei[token.symbol] = BigInt(0);
+            }
+          }),
+        );
 
     const erc20Promise = (async () => {
       if (erc20Tokens.length === 0) return;
@@ -966,6 +1264,132 @@ export async function fetchStarknetBalance(
   };
 }
 
+async function fetchTronBalancesUnified(
+  address: string,
+  tokens: Token[],
+): Promise<UnifiedWalletBalances> {
+  const chainName = "Tron";
+
+  const emptyUsd = (): UnifiedWalletBalances => ({
+    chainName,
+    entries: [],
+    total: 0,
+    balances: {},
+    balancesInWei: {},
+    balancesUsd: {},
+  });
+
+  if (!address || !tokens || tokens.length === 0) {
+    return emptyUsd();
+  }
+
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_TRONGRID_API_KEY;
+    const headers: Record<string, string> = {};
+    if (apiKey) {
+      headers["TRON-PRO-API-KEY"] = apiKey;
+    }
+
+    const response = await fetch(
+      `https://api.trongrid.io/v1/accounts/${encodeURIComponent(address)}`,
+      { headers },
+    );
+
+    if (!response.ok) {
+      return emptyUsd();
+    }
+
+    const payload = (await response.json()) as {
+      data?: Array<{
+        balance?: number;
+        trc20?: Array<Record<string, string>>;
+      }>;
+    };
+    const account = payload.data?.[0];
+    const trc20Balances: Record<string, string> = {};
+
+    if (Array.isArray(account?.trc20)) {
+      for (const entry of account.trc20) {
+        for (const [contract, amount] of Object.entries(entry)) {
+          trc20Balances[contract] = amount;
+        }
+      }
+    }
+
+    const balances: Record<string, number> = {};
+    const balancesInWei: Record<string, bigint> = {};
+    const balancesUsd: Record<string, number> = {};
+
+    for (const token of tokens) {
+      try {
+        let balanceInWei: bigint;
+        if (token.isNative) {
+          balanceInWei = BigInt(account?.balance ?? 0);
+        } else {
+          const contractKey = Object.keys(trc20Balances).find(
+            (key) => key.toLowerCase() === token.address.toLowerCase(),
+          );
+          balanceInWei = BigInt(trc20Balances[contractKey ?? ""] ?? 0);
+        }
+
+        const balance =
+          Number(balanceInWei) / Math.pow(10, token.decimals);
+        balances[token.symbol] = Number.isNaN(balance) ? 0 : balance;
+        balancesInWei[token.symbol] = balanceInWei;
+        balancesUsd[token.symbol] = balances[token.symbol];
+      } catch {
+        balances[token.symbol] = 0;
+        balancesInWei[token.symbol] = BigInt(0);
+        balancesUsd[token.symbol] = 0;
+      }
+    }
+
+    const total = Object.values(balances).reduce((sum, v) => sum + v, 0);
+
+    const entries: ChainBalanceEntry[] = tokens.map((token) => ({
+      chainName,
+      symbol: token.symbol,
+      address: token.address,
+      decimals: token.decimals,
+      balance: balances[token.symbol] ?? 0,
+      balanceWei: balancesInWei[token.symbol],
+    }));
+
+    return {
+      chainName,
+      entries,
+      total,
+      balances,
+      balancesInWei,
+      balancesUsd,
+    };
+  } catch (error) {
+    console.error("Error fetching Tron balances:", error);
+    return emptyUsd();
+  }
+}
+
+/**
+ * Tron balances for supported tokens (same human units as EVM).
+ */
+export async function fetchTronBalance(
+  address: string,
+  tokens: Token[],
+): Promise<{
+  total: number;
+  balances: Record<string, number>;
+  balancesInWei: Record<string, bigint>;
+  balancesUsd: Record<string, number>;
+}> {
+  const u = await fetchTronBalancesUnified(address, tokens);
+  return {
+    total: u.total,
+    balances: u.balances,
+    balancesInWei: u.balancesInWei ?? {},
+    balancesUsd: u.balancesUsd ?? {},
+  };
+}
+
 /**
  * EVM balances via viem public client. For `entries` / unified shape see {@link fetchBalancesForChain}.
  */
@@ -1191,6 +1615,27 @@ export function isStarknetChain(chain: {
   return chain.network === "starknet-mainnet";
 }
 
+/** True for Tron mainnet (mock chain + viem-style `network` slug). */
+export function isTronChain(chain: {
+  name?: string;
+  network?: string;
+} | null | undefined): boolean {
+  if (!chain) return false;
+  if (chain.name === "Tron") return true;
+  return chain.network === "tron-mainnet";
+}
+
+/** Noblocks: Tron is sell (off-ramp) only; buy (on-ramp) is not supported yet. */
+export function networkSupportsOnramp(chain: {
+  name?: string;
+  network?: string;
+} | null | undefined): boolean {
+  return !isTronChain(chain);
+}
+
+/** Valid Tron base58 address (starts with T). Re-exported from validation for convenience. */
+export { isValidTronAddress } from "./lib/validation";
+
 /**
  * Retrieves the contract address for the specified network.
  * @param network - The network for which to retrieve the contract address.
@@ -1266,6 +1711,11 @@ export function clearFormState(formMethods: any) {
 /**
  * Determines if the app should use an injected wallet.
  *
+ * `injected=true` uses window.ethereum (extension wallets — they inject into
+ * iframes too). `injected=bridge` uses the embedding page's wallet over the
+ * postMessage bridge (see app/lib/embed-bridge-provider.ts), so it only
+ * applies when actually running inside an iframe.
+ *
  * @param searchParams - The URL search parameters to check for the 'injected' flag
  * @returns boolean indicating whether to use injected wallet
  */
@@ -1273,7 +1723,9 @@ export function shouldUseInjectedWallet(
   searchParams: URLSearchParams,
 ): boolean {
   const injectedParam = searchParams.get("injected");
-  return Boolean(injectedParam === "true" && window.ethereum);
+  if (injectedParam === "true") return Boolean(window.ethereum);
+  if (injectedParam === "bridge") return window.self !== window.top;
+  return false;
 }
 
 /** `?side=` for home swap form: buy = on-ramp, sell = off-ramp (matches rates API). */
@@ -1288,12 +1740,13 @@ export function swapModeFromSideParam(
 
 /**
  * First-paint default for main transaction form `swapMode`.
- * Explicit `side` wins; else Starknet defaults to off-ramp; else global default on-ramp.
+ * Explicit `side` wins; else Tron/Starknet default to off-ramp; else global default on-ramp.
  */
 export function initialSwapModeForHomeForm(
   searchParams: Pick<URLSearchParams, "get">,
   chain: { name?: string; network?: string },
 ): SwapMode {
+  if (!networkSupportsOnramp(chain)) return "offramp";
   const fromSide = swapModeFromSideParam(searchParams.get("side"));
   if (fromSide !== undefined) return fromSide;
   if (isStarknetChain(chain)) return "offramp";
@@ -1401,18 +1854,24 @@ export const handleNetworkSwitch = async (
   onError: (error: Error) => void,
   ensureWalletExists?: () => Promise<void>,
 ) => {
-  // If switching to Starknet, ensure wallet exists first (do not change network on failure)
-  if (network.chain.name === "Starknet" && ensureWalletExists) {
+  // If switching to a tier-2 network, ensure wallet exists first (do not change network on failure)
+  if (
+    (network.chain.name === "Starknet" || network.chain.name === "Tron") &&
+    ensureWalletExists
+  ) {
     try {
       await ensureWalletExists();
     } catch (error) {
-      console.error("Failed to ensure Starknet wallet exists:", error);
+      console.error("Failed to ensure network wallet exists:", error);
       onError(error instanceof Error ? error : new Error(String(error)));
       return;
     }
   }
 
-  if (useInjectedWallet && window.ethereum) {
+  const isNonEvmNetwork =
+    network.chain.name === "Starknet" || network.chain.name === "Tron";
+
+  if (useInjectedWallet && window.ethereum && !isNonEvmNetwork) {
     if (!network.chain?.id) {
       throw new Error(`Missing chainId for network: ${network.chain?.name}`);
     }
@@ -1543,15 +2002,23 @@ export const generatePaginationItems = (
   return items;
 };
 
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+function startOfDay(d: Date): Date {
+  const copy = new Date(d);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
 /**
  * Formats a date into a relative time string (e.g., "Today", "Yesterday", "2 days ago")
  * @param date - The date to format
  * @returns A string representing the relative time
  */
 export const getRelativeDate = (date: Date): string => {
-  const now = new Date();
-  const diffTime = now.getTime() - date.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const today = startOfDay(new Date());
+  const target = startOfDay(date);
+  const diffDays = Math.round((today.getTime() - target.getTime()) / DAY_MS);
 
   if (diffDays === 0) {
     return "Today";
@@ -1607,7 +2074,6 @@ export function mapCountryToCurrency(countryCode: string): string | null {
     AR: "ARS",
     US: "USD",
     GB: "GBP",
-    MW: "MWK",
     // add more as needed
   };
   return mapping[countryCode] || null;
@@ -1804,6 +2270,17 @@ export const isBlockFestActive = (): boolean => {
   return Date.now() <= BLOCKFEST_END_DATE.getTime();
 };
 
+export const WORLDCUP_FOOTER_END_DATE = new Date(config.worldcupFooterEndDate);
+
+/** World Cup footer Lottie: live Play acquisition only (not post-campaign). */
+export const isWorldcupFooterActive = (): boolean => {
+  return (
+    config.fantasyEnabled &&
+    !config.fantasyCampaignEnded &&
+    Date.now() <= WORLDCUP_FOOTER_END_DATE.getTime()
+  );
+};
+
 /**
  * Check if BlockFest campaign has expired
  * @returns true if campaign has expired, false if still active
@@ -1821,51 +2298,17 @@ export const getBlockFestTimeRemaining = (): number => {
 };
 
 /**
- * Calculates the sender fee and returns the fee amount and recipient address
- * @param amount - The transaction amount in human-readable token units
- * @param rate - The exchange rate (e.g., 1.0 for local transfers, other values for FX)
- * @param tokenDecimals - The number of decimals for the token (default: 18)
- * @returns An object containing:
- *   - feeAmount: The fee amount in human-readable format (for display)
- *   - feeAmountInBaseUnits: The fee amount in token base units (for contract calls)
- *   - feeRecipient: The fee recipient address
+ * On-chain quote-rate multiplier for Gateway createOrder `_rate`.
+ * Matches aggregator RateScale target (×100000) so sub-par local corridors
+ * (e.g. CNGN 0.998) encode distinctly from par 1.0.
  */
-export function calculateSenderFee(
-  amount: number,
-  rate: number,
-  tokenDecimals: number = 18,
-): { feeAmount: number; feeAmountInBaseUnits: bigint; feeRecipient: string } {
-  const calculatedRate = Math.round(rate * 100);
-  const isLocalTransfer = calculatedRate === 100;
-  const decimalsMultiplier = BigInt(10 ** tokenDecimals);
-  const maxFeeCapInBaseUnits =
-    BigInt(Math.floor(localTransferFeeCap)) * decimalsMultiplier;
+export const RATE_SCALE = 100000;
 
-  // Calculate fee in human-readable format
-  const calculatedFee = isLocalTransfer
-    ? (amount * localTransferFeePercent) / 100
-    : 0;
-
-  // Convert to base units
-  const calculatedFeeInBaseUnits = BigInt(
-    Math.floor(calculatedFee * Number(decimalsMultiplier)),
-  );
-
-  // Apply cap in base units
-  const feeAmountInBaseUnits = isLocalTransfer
-    ? calculatedFeeInBaseUnits > maxFeeCapInBaseUnits
-      ? maxFeeCapInBaseUnits
-      : calculatedFeeInBaseUnits
-    : BigInt(0);
-
-  // Convert back to human-readable format for display
-  const feeAmount = Number(feeAmountInBaseUnits) / Number(decimalsMultiplier);
-
-  const feeRecipient = isLocalTransfer
-    ? feeRecipientAddress
-    : "0x0000000000000000000000000000000000000000";
-
-  return { feeAmount, feeAmountInBaseUnits, feeRecipient };
+/**
+ * Packs a human quote rate for on-chain createOrder (`round(rate × RATE_SCALE)`).
+ */
+export function packRate(rate: number): bigint {
+  return BigInt(Math.round(rate * RATE_SCALE));
 }
 
 /**
@@ -1936,6 +2379,11 @@ export function generateReferralCode(): string {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return code;
+}
+
+/** Client feature flag: referral program. */
+export function isReferralEnabled(): boolean {
+  return config.referralEnabled;
 }
 
 /**

@@ -119,7 +119,7 @@ export const ReferralHubView: React.FC<ReferralHubViewProps> = ({
               Earned
             </p>
             <p className="text-lg font-semibold text-text-body dark:text-white">
-              {referralData?.total_earned?.toFixed(1) ?? "0.0"} USDC
+              {Number(referralData?.total_earned ?? 0).toFixed(1)} USDC
             </p>
           </div>
           <div className="bg-transparent p-4">
@@ -127,7 +127,7 @@ export const ReferralHubView: React.FC<ReferralHubViewProps> = ({
               Pending
             </p>
             <p className="text-lg font-semibold text-text-body dark:text-white">
-              {referralData?.total_pending?.toFixed(0) ?? "0"} USDC
+              {Number(referralData?.total_pending ?? 0).toFixed(1)} USDC
             </p>
           </div>
         </div>

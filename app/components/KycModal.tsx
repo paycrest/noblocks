@@ -46,6 +46,7 @@ import { DocumentRequirementsModal } from "./kyc/DocumentRequirementsModal";
 import idTypesData from "../api/kyc/smile-id/id_types.json";
 import { validateSmileIdIdInfo } from "../lib/smileIdIdValidation";
 import { startSmileCameraAlertStyleFix } from "../lib/smileCameraTheme";
+import { mapReportAndAct } from "../lib/toastMappedError";
 
 const TIER3_DOCUMENT_TYPES = [
   { value: "utility_bill", label: "Utility bill" },
@@ -307,12 +308,22 @@ export const KycModal = ({
         setStep(STEPS.STATUS.FAILED);
       }
     } catch (error) {
-      const axiosData = (error as { response?: { data?: { message?: string } } })?.response?.data;
-      const message = axiosData?.message || (error instanceof Error ? error.message : "Failed to submit verification data");
-      setFailedReason(message);
-      toast.error("Verification failed");
-      setFailedRetryStep(STEPS.TERMS);
-      setStep(STEPS.STATUS.FAILED);
+      let handled = false;
+      mapReportAndAct(error, {
+        feature: "kyc-smile-verification",
+        onUserMessage: (message) => {
+          handled = true;
+          setFailedReason(message);
+          setFailedRetryStep(STEPS.TERMS);
+          setStep(STEPS.STATUS.FAILED);
+        },
+      });
+      // If mapReportAndAct suppressed the error (e.g. Hotjar), still advance out of LOADING
+      if (!handled) {
+        setFailedReason(null);
+        setFailedRetryStep(STEPS.TERMS);
+        setStep(STEPS.STATUS.FAILED);
+      }
     } finally {
       smileIdSubmitInFlightRef.current = false;
     }
@@ -386,8 +397,13 @@ export const KycModal = ({
         .then(() => {
           setSmileIdLoaded(true);
         })
-        .catch(() => {
-          toast.error("Failed to load verification component");
+        .catch((error) => {
+          mapReportAndAct(error, {
+            feature: "kyc-component-load",
+            onUserMessage: (message) => {
+              toast.error(message);
+            },
+          });
         });
     }
   }, [smileIdLoaded, targetTier]);
@@ -671,7 +687,7 @@ export const KycModal = ({
   );
 
   const renderCapture = () => (
-    <motion.div key="capture" {...fadeInOut} className="flex flex-col py-4" style={{ maxHeight: "min(90dvh, 48rem)" }}>
+    <motion.div key="capture" {...fadeInOut} className="flex flex-col py-4 max-h-[min(85vh,48rem)] supports-[height:100dvh]:max-h-[min(90dvh,48rem)]">
       <div className="space-y-3">
         <div className="flex items-center justify-between">
         <UserDetailsIcon />
@@ -788,8 +804,6 @@ export const KycModal = ({
           await refreshStatus(true);
           setIsUserVerified(true);
           setIsKycModalOpen(false);
-          // SmileID camera displaces the document scroll position — restore after dialog unmounts
-          requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "instant" }));
         }}
       >
         Let&apos;s go!
@@ -932,7 +946,9 @@ export const KycModal = ({
                 Monthly limit{" "}
               </p>
               <span className="text-xl font-normal text-neutral-900 dark:text-white">
-                ${formatNumberWithCommas(tier3Limits.limits.monthly)}
+                {tier3Limits.limits.unlimited
+                  ? "Unlimited"
+                  : `$${formatNumberWithCommas(tier3Limits.limits.monthly)}`}
               </span>
             </div>
           </div>
@@ -1364,12 +1380,15 @@ export const KycModal = ({
                   setStep(STEPS.STATUS.FAILED);
                 }
               } catch (e) {
-                console.error("Tier 3 verification error:", e);
-                const msg = e instanceof Error ? e.message : "Tier 3 verification failed. Please try again.";
-                toast.error(msg);
-                setFailedReason(msg);
-                setFailedRetryStep(STEPS.TIER3_UPLOAD);
-                setStep(STEPS.STATUS.FAILED);
+                mapReportAndAct(e, {
+                  feature: "kyc-tier3-verification",
+                  onUserMessage: (message) => {
+                    toast.error(message);
+                    setFailedReason(message);
+                    setFailedRetryStep(STEPS.TIER3_UPLOAD);
+                    setStep(STEPS.STATUS.FAILED);
+                  },
+                });
               } finally {
                 setTier3Submitting(false);
               }
@@ -1414,6 +1433,10 @@ export const KycModal = ({
       // user is already in — a useEffect was calling fetchStatus on every `step`
       // change and forcing TERMS, which bounced users out of ID_INFO / capture.
       if (tier >= 2) {
+        // This fetch is local to the modal — push the upgrade into KYCContext too,
+        // so profile/limit UIs don't keep showing the old tier (and its 30s cache
+        // window) while the success screen is visible.
+        void refreshStatus(true);
         setStep(STEPS.STATUS.SUCCESS);
         trackEvent("Account verification", {
           "Verification status": "Success",
@@ -1449,12 +1472,13 @@ export const KycModal = ({
         setIsKycModalOpen(true);
       }
     } catch (error) {
-      if (error instanceof Error) {
-        toast.error(error.message);
-      } else {
-        toast.error(String(error));
-      }
-      setIsKycModalOpen(false);
+      mapReportAndAct(error, {
+        feature: "kyc-status-check",
+        onUserMessage: (message) => {
+          toast.error(message);
+          setIsKycModalOpen(false);
+        },
+      });
     }
   };
 

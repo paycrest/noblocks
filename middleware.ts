@@ -119,6 +119,41 @@ async function authorizationMiddleware(req: NextRequest) {
   const endpoint = req.nextUrl.pathname;
   const method = req.method;
 
+  // Return 404 for referral routes when the feature is disabled
+  if (
+    (endpoint === "/api/referral" || endpoint.startsWith("/api/referral/")) &&
+    process.env.NEXT_PUBLIC_REFERRAL_ENABLED?.trim().toLowerCase() === "false"
+  ) {
+    return NextResponse.json(
+      { success: false, error: "Referral program is disabled" },
+      { status: 404 },
+    );
+  }
+
+  // Return 404 for Noblocks Play routes when the feature is disabled
+  const isPlayRoute = endpoint === "/api/play" || endpoint.startsWith("/api/play/");
+  if (isPlayRoute && process.env.NEXT_PUBLIC_FANTASY_ENABLED !== "true") {
+    return NextResponse.json(
+      { success: false, error: "Noblocks Play is not available" },
+      { status: 404 },
+    );
+  }
+
+  // Noblocks Play routes that manage their own auth (public reads, the
+  // worker's internal secret, the admin key) skip the Privy JWT requirement
+  // below - they only need the feature-flag gate above.
+  const isPlaySelfAuthedRoute =
+    endpoint === "/api/play/leaderboard" ||
+    endpoint === "/api/play/players" ||
+    endpoint === "/api/play/matchdays" ||
+    endpoint.startsWith("/api/play/matchday/") ||
+    endpoint === "/api/play/og" ||
+    endpoint === "/api/play/worker" ||
+    endpoint.startsWith("/api/play/admin/");
+  if (isPlaySelfAuthedRoute) {
+    return NextResponse.next();
+  }
+
   // Track API request for analytics
   trackMiddlewareAnalytics(
     "request",
@@ -329,10 +364,161 @@ async function authorizationMiddleware(req: NextRequest) {
   return response;
 }
 
-export default authorizationMiddleware;
+// --- Embeddable widget (/widget) ---
+// Origins allowed to iframe /widget. Env base (EMBED_ALLOWED_ORIGINS) merged
+// with the embed_allowed_origins table via the internal API, cached in module
+// scope. frame-ancestors accepts wildcard subdomains (https://*.partner.com).
+// HTTPS is required for partner origins (a network attacker could tamper with
+// an http:// parent page and drive the framed widget); http:// is permitted
+// only for localhost/127.0.0.1 during development.
+const EMBED_ORIGIN_RE =
+  /^https:\/\/(\*\.)?[\w.-]+(:\d+)?$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const EMBED_ORIGINS_TTL_MS = 5 * 60_000;
+let embedOriginsCache: { origins: string[]; fetchedAt: number } | null = null;
+
+function envEmbedOrigins(): string[] {
+  return (process.env.EMBED_ALLOWED_ORIGINS ?? "")
+    .split(/[,\s]+/)
+    .map((s) => s.trim())
+    .filter((o) => EMBED_ORIGIN_RE.test(o));
+}
+
+async function getEmbedAllowedOrigins(): Promise<string[]> {
+  const now = Date.now();
+  const stale =
+    !embedOriginsCache || now - embedOriginsCache.fetchedAt >= EMBED_ORIGINS_TTL_MS;
+  if (stale) {
+    const internalAuth = process.env.INTERNAL_API_KEY;
+    // Only fetch the DB-backed allowlist through a trusted, configured base
+    // URL — never a request-derived (Host-header-controlled) origin, which a
+    // poisoned host could point at an attacker's server to steal the internal
+    // key and poison this shared cache. If unconfigured, use the env allowlist
+    // only. See INTERNAL_API_BASE_URL in .env.example.
+    const baseUrl = process.env.INTERNAL_API_BASE_URL;
+    if (internalAuth && baseUrl) {
+      try {
+        const res = await fetch(`${baseUrl}/api/internal/embed-origins`, {
+          headers: { "x-internal-auth": internalAuth },
+        });
+        if (res.ok) {
+          const { origins } = (await res.json()) as { origins?: string[] };
+          embedOriginsCache = {
+            origins: (origins ?? []).filter((o) => EMBED_ORIGIN_RE.test(o)),
+            fetchedAt: now,
+          };
+        } else {
+          // Fail closed: drop DB-backed origins on a bad refresh so a revoked
+          // partner can't keep framing during an outage. Env allowlist stays.
+          embedOriginsCache = null;
+        }
+      } catch {
+        embedOriginsCache = null;
+      }
+    }
+  }
+  return [...new Set([...envEmbedOrigins(), ...(embedOriginsCache?.origins ?? [])])];
+}
+
+async function embedMiddleware(req: NextRequest) {
+  if (process.env.NEXT_PUBLIC_EMBED_ENABLED !== "true") {
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
+  const origins = await getEmbedAllowedOrigins();
+
+  // Cookieless source-domain attribution: the Referer of an iframe's first
+  // load is the embedding page.
+  const referer = req.headers.get("referer");
+  let referrerOrigin = "";
+  try {
+    referrerOrigin = referer ? new URL(referer).origin : "";
+  } catch {
+    // Malformed referer - skip attribution detail.
+  }
+  if (referrerOrigin && referrerOrigin !== req.nextUrl.origin) {
+    trackMiddlewareAnalytics(
+      "request",
+      {
+        endpoint: "/widget",
+        method: req.method,
+        properties: {
+          middleware: true,
+          embed: true,
+          referrer_origin: referrerOrigin,
+        },
+      },
+      req.nextUrl.origin,
+    );
+  }
+
+  const response = NextResponse.next();
+  // frame-ancestors supersedes X-Frame-Options; delete it as belt-and-braces
+  // (next.config.mjs already scopes DENY away from /widget).
+  response.headers.delete("x-frame-options");
+  response.headers.set(
+    "Content-Security-Policy",
+    origins.length
+      ? `frame-ancestors 'self' ${origins.join(" ")}`
+      : "frame-ancestors 'none'",
+  );
+  return response;
+}
+
+/**
+ * When the World Cup campaign has ended, funnel all public /play/* deep links
+ * to the announcement at /play. Admin stays live for winner ops.
+ */
+function playCampaignEndedRedirect(req: NextRequest): NextResponse | null {
+  if (process.env.NEXT_PUBLIC_FANTASY_CAMPAIGN_ENDED !== "true") {
+    return null;
+  }
+  if (process.env.NEXT_PUBLIC_FANTASY_ENABLED !== "true") {
+    return null;
+  }
+
+  const pathname = req.nextUrl.pathname;
+  // Landing announcement + admin console stay reachable.
+  if (
+    pathname === "/play" ||
+    pathname === "/play/" ||
+    pathname === "/play/admin" ||
+    pathname.startsWith("/play/admin/")
+  ) {
+    return null;
+  }
+  if (!pathname.startsWith("/play/")) {
+    return null;
+  }
+
+  const url = req.nextUrl.clone();
+  url.pathname = "/play";
+  url.search = "";
+  return NextResponse.redirect(url);
+}
+
+export default async function middleware(req: NextRequest) {
+  const pathname = req.nextUrl.pathname;
+  if (pathname === "/widget" || pathname.startsWith("/widget/")) {
+    return embedMiddleware(req);
+  }
+
+  // Page routes under /play (not /api/play): optional campaign-ended redirect,
+  // then pass through — never run Privy JWT auth on HTML pages.
+  if (pathname === "/play" || pathname.startsWith("/play/")) {
+    const playRedirect = playCampaignEndedRedirect(req);
+    if (playRedirect) return playRedirect;
+    return NextResponse.next();
+  }
+
+  return authorizationMiddleware(req);
+}
 
 export const config = {
   matcher: [
+    "/play",
+    "/play/:path*",
+    "/widget",
+    "/widget/:path*",
     "/api/v1/transactions",
     "/api/v1/transactions/:path*",
     "/api/v1/account/verify",
@@ -341,19 +527,36 @@ export const config = {
     "/api/v1/refund-account",
     "/api/v1/payment-orders",
     "/api/v1/payment-orders/:path*",
+    "/api/v1/wallets/moralis-stream/register",
     "/api/blockfest/cashback",
     "/api/kyc/smile-id",
     "/api/kyc/status",
     "/api/kyc/transaction-summary",
     "/api/kyc/tier3-verify",
+    "/api/kyc/signup-email",
     "/api/phone/send-otp",
     "/api/phone/verify-otp",
     "/api/bundler",
     "/api/bundler/:path*",
+    "/api/bridge/:path*",
     "/api/starknet/transfer",
     "/api/starknet/create-order",
     "/api/referral",
     "/api/referral/:path*",
+    "/api/play/join",
+    "/api/play/squad",
+    "/api/play/transfers",
+    "/api/play/captain",
+    "/api/play/rewards",
+    "/api/play/opt-in",
+    "/api/play/username/:path*",
+    "/api/play/leaderboard",
+    "/api/play/players",
+    "/api/play/matchdays",
+    "/api/play/matchday/:path*",
+    "/api/play/og",
+    "/api/play/worker",
+    "/api/play/admin/:path*",
     // (optional) add other instrumented API routes:
     // '/api/v1/kyc/:path*', '/api/v1/rates', '/api/v1/rates/:path*'
   ],

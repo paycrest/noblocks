@@ -2,7 +2,11 @@
 import { ImSpinner } from "react-icons/im";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown01Icon, Tick02Icon } from "hugeicons-react";
+import {
+  ArrowDown01Icon,
+  Tick02Icon,
+  InformationCircleIcon,
+} from "hugeicons-react";
 import Image from "next/image";
 
 import { AnimatedFeedbackItem } from "../AnimatedComponents";
@@ -11,7 +15,7 @@ import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames } from "@/app/utils";
+import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions } from "@/app/utils";
 import {
   RecipientDetails,
   RecipientDetailsFormProps,
@@ -27,6 +31,7 @@ import { validateWalletAddress } from "@/app/lib/validation";
 import { getNetworkImageUrl } from "@/app/utils";
 import { useActualTheme } from "@/app/hooks/useActualTheme";
 import { useNetwork } from "@/app/context";
+import config from "@/app/lib/config";
 
 export const RecipientDetailsForm = ({
   formMethods,
@@ -88,36 +93,19 @@ export const RecipientDetailsForm = ({
   const [isManualEntry, setIsManualEntry] = useState(true);
   const [isReturningFromPreview, setIsReturningFromPreview] = useState(false);
 
+  /** NGN NUBAN: cap at 10 digits (6 for SAFAKEPC). Other currencies: no digit cap. */
+  const ngnAccountMaxDigits = useMemo(() => {
+    if (currency !== "NGN") return null;
+    return selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
+  }, [currency, selectedInstitution?.code]);
+
   const prevCurrencyRef = useRef(currency);
   const isDark = useActualTheme();
 
-  /**
-   * Array of institutions filtered and sorted alphabetically based on the bank search term.
-   *
-   * @type {Array<InstitutionProps>}
-   */
-  const filteredInstitutions: Array<InstitutionProps> = useMemo(() => {
-    const filtered =
-      institutions?.filter((item) =>
-        item.name.toLowerCase().includes(bankSearchTerm.toLowerCase()),
-      ) || [];
-
-    return filtered.sort((a, b) => {
-      // Sort mobile money first, then alphabetically within each type
-      if (a.type === "mobile_money" && b.type !== "mobile_money") return -1;
-      if (a.type !== "mobile_money" && b.type === "mobile_money") return 1;
-      if (a.code === "OPAYNGPC" && b.code !== "OPAYNGPC") return -1;
-      if (a.code !== "OPAYNGPC" && b.code === "OPAYNGPC") return 1;
-      if (a.code === "PALMNGPC" && b.code !== "PALMNGPC") return -1;
-      if (a.code !== "PALMNGPC" && b.code === "PALMNGPC") return 1;
-      if (a.code === "MONINGPC" && b.code !== "MONINGPC") return -1;
-      if (a.code !== "MONINGPC" && b.code === "MONINGPC") return 1;
-      if (a.code === "KUDANGPC" && b.code !== "KUDANGPC") return -1;
-      if (a.code !== "KUDANGPC" && b.code === "KUDANGPC") return 1;
-      return a.name.localeCompare(b.name);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [institutions, bankSearchTerm, currency]);
+  const filteredInstitutions = useMemo(
+    () => filterAndSortInstitutions(institutions, bankSearchTerm),
+    [institutions, bankSearchTerm],
+  );
 
   const selectSavedRecipient = (recipient: RecipientDetails) => {
     setSelectedRecipient(recipient);
@@ -293,15 +281,8 @@ export const RecipientDetailsForm = ({
       const digits = String(accountIdentifier ?? "").replace(/\D/g, "");
       const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
 
-      if (
-        !institution ||
-        !accountIdentifier ||
-        accountIdentifier.toString().length <
-        (selectedInstitution?.code === "SAFAKEPC" ? 6 : 10)
-      ) {
-        if (!institution || !accountIdentifier) {
-          setRecipientNameError("");
-        }
+      if (!institution || !accountIdentifier) {
+        setRecipientNameError("");
         return;
       }
 
@@ -309,7 +290,7 @@ export const RecipientDetailsForm = ({
         if (digits.length > 0) {
           setRecipientNameError(
             requiredLen === 10
-              ? "Please enter a valid 10-digit account Number."
+              ? "Please enter a valid 10-digit account number."
               : "Invalid account number. Please enter a 6-digit account number.",
           );
         } else {
@@ -351,6 +332,7 @@ export const RecipientDetailsForm = ({
     setValue,
     isManualEntry,
     selectedInstitution?.code,
+    currency,
   ]);
 
   useEffect(() => {
@@ -361,13 +343,14 @@ export const RecipientDetailsForm = ({
       );
       if (foundInstitution) {
         setSelectedInstitution(foundInstitution);
+        setValue("accountType", foundInstitution.type, { shouldValidate: true });
         // Only set manual entry to false if we have recipient name
         if (recipientName) {
           setIsManualEntry(false);
         }
       }
     }
-  }, [institution, institutions, selectedInstitution, recipientName]);
+  }, [institution, institutions, selectedInstitution, recipientName, setValue]);
 
   // Simplified recipient details management
   const clearRecipientDetails = () => {
@@ -426,9 +409,36 @@ export const RecipientDetailsForm = ({
   const showMyWalletButton = Boolean(
     swapMode === "onramp" && connectedWalletAddress,
   );
+
   const showSelectBeneficiaryButton =
     (swapMode === "onramp" && walletRecipients.length > 0) ||
     (swapMode === "offramp" && bankRecipients.length > 0);
+
+  const accountIdentifierRegister = register("accountIdentifier", {
+    required: {
+      value: true,
+      message: "Account number is required",
+    },
+    validate: (value) => {
+      if (currency !== "NGN") return true;
+      const digits = String(value ?? "").replace(/\D/g, "");
+      // SAFAKEPC is the sandbox NGN institution (6-digit accounts, not 10-digit NUBAN).
+      const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
+      if (digits.length !== requiredLen) {
+        return requiredLen === 10
+          ? "Please enter a valid 10-digit account number."
+          : "Invalid account number. Please enter a 6-digit account number.";
+      }
+      return true;
+    },
+  });
+
+  // Funds only route through the Noblocks wallet when the destination is an external address.
+  // If it's the user's own Noblocks wallet, the forward is skipped — so hide the routing notice.
+  const isDestinationOwnWallet =
+    !!connectedWalletAddress &&
+    walletAddress?.trim().toLowerCase() ===
+      connectedWalletAddress.trim().toLowerCase();
 
   return (
     <>
@@ -454,6 +464,7 @@ export const RecipientDetailsForm = ({
                       setValue("walletAddress", connectedWalletAddress!, {
                         shouldValidate: true,
                         shouldDirty: true,
+                        shouldTouch: true,
                       })
                     }
                     className="text-sm text-lavender-500 transition-colors hover:text-lavender-400 dark:text-lavender-500 dark:hover:text-lavender-400"
@@ -498,6 +509,14 @@ export const RecipientDetailsForm = ({
             {errors.walletAddress && (
               <InputError message={errors.walletAddress.message} />
             )}
+            {config.onrampChainedForwardingEnabled &&
+              !!walletAddress?.trim() &&
+              !isDestinationOwnWallet && (
+                <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2.5 text-xs font-normal leading-4 text-text-disabled dark:bg-white/5 dark:text-white/30">
+                  <InformationCircleIcon className="size-4 flex-shrink-0" />
+                  <span>Funds will be routed through your Noblocks wallet.</span>
+                </div>
+              )}
             {networkName && (
               <div className="flex items-center gap-2 text-xs text-text-disabled dark:text-white/30">
                 <div className="flex size-5 items-center justify-center">
@@ -551,23 +570,38 @@ export const RecipientDetailsForm = ({
               </div>
 
               {/* Account number */}
+              {/* Account number - NUBAN is 10 digits; SAFAKEPC uses 6 digits (NGN only) */}
               <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
                 <input
-                  type="number"
-                  placeholder="Account number"
-                  {...register("accountIdentifier", {
-                    required: {
-                      value: true,
-                      message: "Account number is required",
-                    },
-                    minLength: {
-                      value: selectedInstitution?.code === "SAFAKEPC" ? 6 : 10,
-                      message: "Account number is invalid",
-                    },
-                    onChange: () => setIsManualEntry(true),
-                  })}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder={getOfframpAccountIdentifierPlaceholder(
+                    currency,
+                    selectedInstitution?.type,
+                  )}
+                  maxLength={
+                    currency === "NGN"
+                      ? selectedInstitution?.code === "SAFAKEPC"
+                        ? 6
+                        : 10
+                      : undefined
+                  }
+                  {...accountIdentifierRegister}
+                  onChange={(e) => {
+                    setIsManualEntry(true);
+                    if (currency === "NGN" && ngnAccountMaxDigits !== null) {
+                      const next = e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, ngnAccountMaxDigits);
+                      if (next !== e.target.value) {
+                        e.target.value = next;
+                      }
+                    }
+                    void accountIdentifierRegister.onChange(e);
+                  }}
                   className={classNames(
-                    "w-full rounded-xl border bg-transparent px-4 py-2.5 text-sm outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30",
+                    "w-full rounded-xl border bg-transparent px-4 py-2.5 text-base outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30 sm:text-sm",
                     errors.accountIdentifier
                       ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
                       : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",

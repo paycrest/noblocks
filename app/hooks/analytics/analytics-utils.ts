@@ -45,6 +45,9 @@ export const ANALYTICS_EVENTS = {
   ORDER_UPDATED: 'Order Updated',
   FEE_UPDATED: 'Fee Updated',
   SETTINGS_CHANGED: 'Settings Changed',
+
+  // Provider Events
+  NO_PROVIDER_FOUND: 'No Provider Found',
 } as const;
 
 // Standard property names for consistency
@@ -77,6 +80,16 @@ export const ANALYTICS_PROPERTIES = {
   ERROR_MESSAGE: 'error_message',
   ERROR_CODE: 'error_code',
   ERROR_STACK: 'error_stack',
+  
+  // Transaction Property Extensions
+  TOKEN_SYMBOL: 'token_symbol',
+  NETWORK: 'network',
+  CHAIN_ID: 'chain_id',
+  ORDER_SIDE: 'side',
+  ORDER_TYPE: 'order_type',
+  PROVIDER_ID: 'provider_id',
+  AMOUNT_SENT: 'amount_sent',
+  AMOUNT_RECEIVED: 'amount_received',
 
   // Performance Properties
   LOAD_TIME: 'load_time_ms',

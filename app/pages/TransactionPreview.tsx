@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 
 import {
   calculateDuration,
-  calculateSenderFee,
+  packRate,
   classNames,
   formatCurrency,
   formatNumberWithCommas,
@@ -20,10 +20,8 @@ import {
   shortenAddress,
 } from "../utils";
 import { useNetwork, useTokens } from "../context";
-import config, {
-  getDelegationContractAddress,
-  localTransferFeePercent,
-} from "../lib/config";
+import config, { getDelegationContractAddress } from "../lib/config";
+import { appendBaseBuilderCode } from "../lib/baseBuilderCode";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import type {
   Token,
@@ -40,7 +38,7 @@ import {
   type BaseError,
   decodeEventLog,
   encodeFunctionData,
-  getAddress,
+  zeroAddress,
   parseUnits,
   erc20Abi,
   createPublicClient,
@@ -121,6 +119,7 @@ export const TransactionPreview = ({
     setTransactionStatus,
     onrampPaymentAccount,
     setOnrampPaymentAccount,
+    setActiveOrderIsOnramp,
   } = stateProps;
 
   const {
@@ -136,7 +135,6 @@ export const TransactionPreview = ({
   } = formValues;
 
   const isOnramp = !!walletAddress;
-  const isCNGNOnramp = isOnramp && token?.toUpperCase() === "CNGN";
   const currencySymbol = currency ? getCurrencySymbol(currency) : "";
 
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -229,24 +227,12 @@ export const TransactionPreview = ({
       ? (activeBalance?.rawBalances?.[token] ?? activeBalance?.balances[token] ?? 0)
       : (activeBalance?.balances[token] ?? 0);
 
-  // Calculate sender fee for display and balance check
-  const {
-    feeAmount: senderFeeAmount,
-    feeAmountInBaseUnits: senderFeeInTokenUnits,
-    feeRecipient: senderFeeRecipientAddress,
-  } = calculateSenderFee(amountSent, rate, tokenDecimals ?? 18);
-
   // Rendered tsx info
   const renderedInfo = isOnramp
     ? {
       amount: `${currencySymbol}${formatNumberWithCommas(amountSent ?? 0)}`,
       totalValue: `${formatNumberWithCommas(amountReceived ?? 0)} ${token}`,
-      rate: `${currencySymbol}${formatNumberWithCommas(rate)} ~ 1 ${token}`,
-      ...(isCNGNOnramp && localTransferFeePercent > 0
-        ? {
-          fee: `${localTransferFeePercent}%`,
-        }
-        : {}),
+      rate: `${currencySymbol}${formatNumberWithCommas(rate)}`,
       recipient: walletAddress ? shortenAddress(walletAddress) : "",
       network: selectedNetwork.chain.name,
     }
@@ -260,9 +246,6 @@ export const TransactionPreview = ({
         .join(" "),
       account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
       ...(memo && { description: memo }),
-      ...(senderFeeAmount > 0 && {
-        fee: `${formatNumberWithCommas(senderFeeAmount)} ${token}`,
-      }),
       network: selectedNetwork.chain.name,
     };
 
@@ -302,15 +285,13 @@ export const TransactionPreview = ({
     const publicKey = await fetchAggregatorPublicKey();
     const encryptedRecipient = publicKeyEncrypt(recipient, publicKey.data);
 
-    // Use the fee values calculated earlier (already in base units and capped)
-
     // Prepare transaction parameters
     const params = {
       token: tokenAddress,
       amount: parseUnits(amountSent.toString(), tokenDecimals ?? 18),
-      rate: BigInt(Math.round(rate * 100)),
-      senderFeeRecipient: getAddress(senderFeeRecipientAddress),
-      senderFee: senderFeeInTokenUnits,
+      rate: packRate(rate),
+      senderFeeRecipient: zeroAddress,
+      senderFee: BigInt(0),
       refundAddress: activeWallet?.address as `0x${string}`,
       messageHash: encryptedRecipient,
     };
@@ -345,6 +326,17 @@ export const TransactionPreview = ({
         // The contract transfers amount + senderFee from the user
         const totalAmountToApprove = params.amount + params.senderFee;
 
+        const approvalData = encodeFunctionData({
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [
+            getGatewayContractAddress(
+              selectedNetwork.chain.name,
+            ) as `0x${string}`,
+            totalAmountToApprove,
+          ],
+        });
+
         // Send approval transaction
         const approvalTx = await injectedProvider.request({
           method: "eth_sendTransaction",
@@ -352,16 +344,10 @@ export const TransactionPreview = ({
             {
               from: injectedAddress,
               to: tokenAddress,
-              data: encodeFunctionData({
-                abi: erc20Abi,
-                functionName: "approve",
-                args: [
-                  getGatewayContractAddress(
-                    selectedNetwork.chain.name,
-                  ) as `0x${string}`,
-                  totalAmountToApprove,
-                ],
-              }),
+              data: appendBaseBuilderCode(
+                selectedNetwork.chain.id,
+                approvalData,
+              ),
             },
           ],
         });
@@ -382,6 +368,20 @@ export const TransactionPreview = ({
           throw new Error("Approval transaction failed");
         }
 
+        const createOrderData = encodeFunctionData({
+          abi: gatewayAbi,
+          functionName: "createOrder",
+          args: [
+            params.token,
+            params.amount,
+            params.rate,
+            params.senderFeeRecipient,
+            params.senderFee,
+            params.refundAddress ?? "",
+            params.messageHash,
+          ],
+        });
+
         // Create order transaction
         await captureSubmissionBlock();
         await injectedProvider.request({
@@ -392,19 +392,10 @@ export const TransactionPreview = ({
               to: getGatewayContractAddress(
                 selectedNetwork.chain.name,
               ) as `0x${string}`,
-              data: encodeFunctionData({
-                abi: gatewayAbi,
-                functionName: "createOrder",
-                args: [
-                  params.token,
-                  params.amount,
-                  params.rate,
-                  params.senderFeeRecipient,
-                  params.senderFee,
-                  params.refundAddress ?? "",
-                  params.messageHash,
-                ],
-              }),
+              data: appendBaseBuilderCode(
+                selectedNetwork.chain.id,
+                createOrderData,
+              ),
             },
           ],
         });
@@ -715,9 +706,6 @@ export const TransactionPreview = ({
         const payload = {
           amount: String(amountSent),
           amountIn: "fiat" as const,
-          ...(isCNGNOnramp && localTransferFeePercent > 0
-            ? { senderFeePercent: String(localTransferFeePercent) }
-            : {}),
           source: {
             type: "fiat" as const,
             currency,
@@ -733,7 +721,12 @@ export const TransactionPreview = ({
             network: aggregatorNetwork,
             ...(providerId ? { providerId } : {}),
             recipient: {
-              address: walletAddress,
+              // When chained forwarding is enabled, the aggregator settles to the user's
+              // Noblocks wallet first. The user's chosen destination (`walletAddress`) is
+              // forwarded to in leg 2, server-side.
+              address: config.onrampChainedForwardingEnabled
+                ? activeWallet.address
+                : walletAddress,
               network: aggregatorNetwork,
             },
           },
@@ -754,6 +747,7 @@ export const TransactionPreview = ({
           typeof created.id === "string" ? created.id : String(created.id);
         setOrderId(orderIdStr);
         setOnrampPaymentAccount(created.providerAccount);
+        setActiveOrderIsOnramp(true);
         setCreatedAt(new Date().toISOString());
         setTransactionStatus("pending");
 
@@ -793,12 +787,10 @@ export const TransactionPreview = ({
       return;
     }
 
-    // Offramp: require token balance for amount + sender fee
-    const totalRequired = amountSent + senderFeeAmount;
-
-    if (totalRequired > balance) {
+    // Offramp: require token balance for the amount
+    if (amountSent > balance) {
       toast.warning("Low balance. Fund your wallet.", {
-        description: `Insufficient funds. You need ${formatNumberWithCommas(totalRequired)} ${token} (${formatNumberWithCommas(amountSent)} ${token} + ${formatNumberWithCommas(senderFeeAmount)} ${token} fee).`,
+        description: `Insufficient funds. You need ${formatNumberWithCommas(amountSent)} ${token}.`,
       });
       return;
     }
@@ -989,6 +981,7 @@ export const TransactionPreview = ({
 
               setIsOrderCreatedLogsFetched(true);
               setOrderId(decodedLog.args.orderId);
+              setActiveOrderIsOnramp(false);
 
               await saveTransactionData({
                 orderId: decodedLog.args.orderId,
@@ -1193,6 +1186,17 @@ export const TransactionPreview = ({
           </div>
         </>
       )}
+
+      {isOnramp &&
+        config.onrampChainedForwardingEnabled &&
+        walletAddress &&
+        activeWallet?.address &&
+        walletAddress.toLowerCase() !== activeWallet.address.toLowerCase() && (
+          <p className="text-center text-xs font-normal text-text-secondary dark:text-white/50">
+            Funds settle to your Noblocks wallet, then we forward them to the
+            recipient address.
+          </p>
+        )}
 
       {/* CTAs */}
       <div className="flex gap-4 xsm:gap-6">

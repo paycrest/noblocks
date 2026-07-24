@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { getKycMonthlyLimitsRecord } from "@/app/lib/kyc-tier-limits";
+import { getKycTierLimit } from "@/app/lib/kyc-tier-limits";
 import { collectLinkedEvmAddressesForPrivyUserId } from "@/app/lib/privy";
 
 export type SwapLimitRpcBody = {
@@ -106,7 +106,6 @@ export async function executeSwapTransactionLimitCheck(
     normalizedEmail: string | null;
   },
 ): Promise<SwapLimitCheckResult> {
-  const KYC_MONTHLY_LIMITS = getKycMonthlyLimitsRecord();
   const kycWalletAddress = normalizedBodyWalletAddress;
 
   const { data: kycProfile, error: kycError } = await supabaseAdmin
@@ -120,11 +119,17 @@ export async function executeSwapTransactionLimitCheck(
   }
 
   const tier = Math.min(Math.max(Number(kycProfile?.tier ?? 0), 0), 3);
-  const monthlyLimit = KYC_MONTHLY_LIMITS[tier] ?? 0;
+  const tierLimit = getKycTierLimit(tier);
 
-  if (monthlyLimit === 0) {
+  // A capped limit of 0 means "no swaps until phone" (tier 0). An unlimited tier
+  // must never hit this branch.
+  if (!tierLimit.unlimited && tierLimit.monthly === 0) {
     return { kind: "kyc_required" };
   }
+
+  // Sent to the RPC and echoed back in success/limit_exceeded results.
+  // null signals "no cap" to the RPC; 0 is only reachable for capped tiers above.
+  const monthlyLimit = tierLimit.unlimited ? 0 : tierLimit.monthly;
 
   let cngnToUsdRate = 0;
   try {
@@ -147,7 +152,7 @@ export async function executeSwapTransactionLimitCheck(
     "insert_swap_transaction_if_within_limit",
     {
       p_wallet_address: normalizedBodyWalletAddress,
-      p_monthly_limit: monthlyLimit,
+      p_monthly_limit: tierLimit.unlimited ? null : tierLimit.monthly,
       p_cngn_to_usd_rate: cngnToUsdRate,
       p_transaction_type: body.transactionType,
       p_from_currency: body.fromCurrency,

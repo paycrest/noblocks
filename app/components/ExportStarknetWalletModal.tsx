@@ -9,7 +9,7 @@ import {
   Copy01Icon,
   Key01Icon,
 } from "hugeicons-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PiCheck } from "react-icons/pi";
 import { toast } from "sonner";
 import {
@@ -19,7 +19,7 @@ import {
   starkPubKeyFromPrivateKey,
 } from "../lib/starknet-export-normalize";
 import { decryptStarknetExportHpke } from "../lib/starknet-export-hpke";
-import { copyToClipboard, shortenAddress } from "../utils";
+import { copyToClipboard, normalizeStarknetAddress, shortenAddress } from "../utils";
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -49,6 +49,15 @@ export function ExportStarknetWalletModal({
   expectedPublicKey,
 }: Props) {
   const { getAccessToken } = usePrivy();
+  const canonicalAddress = useMemo(() => {
+    const raw = address?.trim();
+    if (!raw) return null;
+    try {
+      return normalizeStarknetAddress(raw);
+    } catch {
+      return null;
+    }
+  }, [address]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle",
   );
@@ -60,16 +69,17 @@ export function ExportStarknetWalletModal({
     string | null
   >(null);
 
+  const resetExportState = useCallback(() => {
+    setStatus("idle");
+    setPrivateKey(null);
+    setErrorMsg(null);
+    setCopiedKey(false);
+    setCopiedAddress(false);
+    setKeyVerificationWarning(null);
+  }, []);
+
   useEffect(() => {
-    if (!isOpen) {
-      setStatus("idle");
-      setPrivateKey(null);
-      setErrorMsg(null);
-      setCopiedKey(false);
-      setCopiedAddress(false);
-      setKeyVerificationWarning(null);
-      return;
-    }
+    if (!isOpen) return;
 
     if (!walletId) {
       setStatus("error");
@@ -153,9 +163,9 @@ export function ExportStarknetWalletModal({
           ) {
             warn =
               "Exported key does not match this wallet’s signer key. Try again or contact support before moving funds.";
-          } else if (address) {
+          } else if (canonicalAddress) {
             const derivedAddr = deriveReadyAddressFromPrivateKey(normalized);
-            if (!starkHexFeltEq(derivedAddr, address)) {
+            if (!starkHexFeltEq(derivedAddr, canonicalAddress)) {
               warn =
                 "Derived Ready account address from this key differs from the address shown. If another app shows a different address, it may be using a different account type than Noblocks (Ready).";
             }
@@ -184,7 +194,7 @@ export function ExportStarknetWalletModal({
       cancelled = true;
       ac.abort();
     };
-  }, [isOpen, walletId, getAccessToken, expectedPublicKey, address]);
+  }, [isOpen, walletId, getAccessToken, expectedPublicKey, canonicalAddress]);
 
   const handleCopyKey = useCallback(async () => {
     if (!privateKey) return;
@@ -195,21 +205,22 @@ export function ExportStarknetWalletModal({
   }, [privateKey]);
 
   const handleCopyAddress = useCallback(async () => {
-    if (!address) return;
-    const ok = await copyToClipboard(address, "Address");
+    if (!canonicalAddress) return;
+    const ok = await copyToClipboard(canonicalAddress, "Address");
     if (!ok) return;
     setCopiedAddress(true);
     setTimeout(() => setCopiedAddress(false), 2000);
-  }, [address]);
+  }, [canonicalAddress]);
 
-  const displayAddress = address
-    ? shortenAddress(address, 6, 4)
+  const displayAddress = canonicalAddress
+    ? shortenAddress(canonicalAddress, 8)
     : "—";
 
   return (
-    <AnimatePresence>
+    <AnimatePresence onExitComplete={resetExportState}>
       {isOpen && (
         <Dialog
+          key="export-starknet-wallet"
           static
           open={isOpen}
           onClose={onCloseAction}
@@ -223,13 +234,14 @@ export function ExportStarknetWalletModal({
             aria-hidden="true"
           />
           <div className="fixed inset-0 flex items-center justify-center p-4">
-            <DialogPanel className="relative w-full max-w-md overflow-hidden rounded-2xl border border-border-light bg-white shadow-xl outline-none dark:border-white/10 dark:bg-neutral-900">
-              <motion.div
-                initial={{ scale: 0.96, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.96, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 380, damping: 32 }}
-              >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              className="relative w-full max-w-md overflow-hidden rounded-2xl border border-border-light bg-white shadow-xl dark:border-white/10 dark:bg-neutral-900"
+            >
+              <DialogPanel className="outline-none">
               <div className="flex items-start justify-between border-b border-border-light px-5 py-4 dark:border-white/10">
                 <h2 className="text-lg font-semibold text-text-body dark:text-white">
                   Export wallet
@@ -278,7 +290,7 @@ export function ExportStarknetWalletModal({
                     <button
                       type="button"
                       onClick={() => void handleCopyAddress()}
-                      disabled={!address}
+                      disabled={!canonicalAddress}
                       className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-lavender-500 hover:bg-lavender-500/10 disabled:opacity-40 dark:text-lavender-400"
                     >
                       {copiedAddress ? (
@@ -329,8 +341,8 @@ export function ExportStarknetWalletModal({
                   Privy&apos;s encrypted API.
                 </p>
               </div>
-              </motion.div>
-            </DialogPanel>
+              </DialogPanel>
+            </motion.div>
           </div>
         </Dialog>
       )}

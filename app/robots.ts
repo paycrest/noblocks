@@ -12,6 +12,7 @@ export default function robots(): MetadataRoute.Robots {
           '/_next/',
           '/private/',
           '/internal/',
+          '/widget',
           '*.json',
           '*.xml'
         ],
@@ -19,12 +20,12 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: 'Googlebot',
         allow: '/',
-        disallow: ['/api/', '/admin/', '/_next/'],
+        disallow: ['/api/', '/admin/', '/_next/', '/widget'],
       },
       {
         userAgent: 'Bingbot',
         allow: '/',
-        disallow: ['/api/', '/admin/', '/_next/'],
+        disallow: ['/api/', '/admin/', '/_next/', '/widget'],
       }
     ],
     sitemap: 'https://noblocks.xyz/sitemap.xml',

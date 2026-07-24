@@ -10,7 +10,9 @@ export type MobileSheetView =
   | "earn-deposit"
   | "earn-withdraw"
   | "earn-activity-detail"
-  | "referrals";
+  | "referrals"
+  | "bridge"
+  | "profile";
 
 import type {
   FieldErrors,
@@ -47,7 +49,7 @@ export type FormData = {
   memo: string;
   amountSent: number;
   amountReceived: number;
-  /** Fiat → crypto = onramp (NGN→token); crypto → fiat = offramp */
+  /** Fiat → crypto = onramp (NGN/KES→token); crypto → fiat = offramp */
   swapMode: SwapMode;
   /** Legacy compatibility for extracted KYC branch components. */
   isSwapped?: boolean;
@@ -216,9 +218,28 @@ export type OrderDetailsData = {
   settlePercent: string;
   status: string;
   txHash: string;
+  /** Persisted FX quote (fiat per 1 token); same source history stores as `fee`. */
+  rate?: string;
   settlements: Settlement[];
   txReceipts: TxReceipt[];
   updatedAt: string;
+};
+
+/** Form payload for `PDFReceipt` (offramp + onramp/credit fields). */
+export type PDFReceiptFormData = {
+  recipientName: string;
+  accountIdentifier: string;
+  institution: string;
+  memo: string;
+  amountReceived: number;
+  currency: string;
+  /** Onramp/credit inbound crypto: shown as "Buy". */
+  typeLabel?: string;
+  /** Fiat paid on onramp (e.g. NGN). */
+  amountPaid?: number;
+  paidCurrency?: string;
+  /** Fiat per 1 token (e.g. 1600 NGN ~ 1 USDC). */
+  rate?: number;
 };
 
 type Settlement = {
@@ -259,8 +280,6 @@ export type V2PaymentOrderCreateData = {
   timestamp: string;
   amount: string;
   rate?: string;
-  senderFee: string;
-  senderFeePercent: string;
   transactionFee: string;
   reference: string;
   providerAccount: V2FiatProviderAccountDTO;
@@ -281,8 +300,6 @@ export type V2CreatePaymentOrderPayload = {
   amount: string;
   rate?: string;
   amountIn?: "fiat" | "crypto";
-  senderFee?: string;
-  senderFeePercent?: string;
   reference?: string;
   source: Record<string, unknown>;
   destination: Record<string, unknown>;
@@ -315,6 +332,8 @@ export type StateProps = {
   setRateError: (error: string | null) => void;
   onrampPaymentAccount: V2FiatProviderAccountDTO | null;
   setOnrampPaymentAccount: (account: V2FiatProviderAccountDTO | null) => void;
+  /** Locked when the current order is created; not tied to live swapMode. */
+  setActiveOrderIsOnramp: (isOnramp: boolean) => void;
 };
 
 export type NetworkButtonProps = {
@@ -400,15 +419,46 @@ export type Config = {
   brevoConversationsId: string; // Brevo chat widget ID
   brevoConversationsGroupId?: string; // Brevo chat widget group ID for routing
   blockfestEndDate: string; // BlockFest campaign end date
-  bundlerServerUrl: string; // Optional, for external bundler server
-  biconomyMeeApiKey: string;
+  /** World Cup footer Lottie end date (paired with fantasyEnabled). */
+  worldcupFooterEndDate: string;
   maintenanceEnabled: boolean; // Maintenance notice modal + banner toggle
   maintenanceSchedule: string; // e.g. "Friday, February 13th, from 7:00 PM to 11:00 PM WAT"
   referralMinQualifyingVolumeUsd: number;
   referralRewardAmountUsd: number;
   aggregatorSenderApiKey: string;
+  moralisWebhookSecret: string;
+  activepiecesWebhookUrl: string;
+  /**
+   * Activepieces webhook for the Tier 1 "verify your phone" email (Brevo flow),
+   * triggered on new email signups. Payload `event`: "signup_verify_phone".
+   */
+  activepiecesSignupVerifyWebhookUrl: string;
+  /**
+   * Activepieces webhook for SmileID identity result emails (Brevo flow).
+   * Payload `event`: "kyc_result" with `status`: "success" | "failure".
+   */
+  activepiecesKycResultWebhookUrl: string;
+  moralisStreamId: string;
+  moralisApiKey: string;
+  moralisBaseUrl: string;
   /** Starknet Earn (Vesu via Starkzap). Requires Starknet wallet + API routes. */
   earnEnabled: boolean;
+  /** Tron network + Privy Tron wallet. Opt-in via NEXT_PUBLIC_TRON_ENABLED. */
+  tronEnabled: boolean;
+  /** Referral program feature flag. When false, all referral UI and API routes are disabled. */
+  referralEnabled: boolean;
+  /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
+  bridgeEnabled: boolean;
+  onrampChainedForwardingEnabled: boolean;
+  /** Noblocks Play (World Cup fantasy league) feature flag. Gates /play UI + API. */
+  fantasyEnabled: boolean;
+  /**
+   * When true with fantasyEnabled, public /play is the campaign-ended
+   * announcement (live game hidden; /play/admin still works).
+   */
+  fantasyCampaignEnded: boolean;
+  /** Embeddable widget feature flag. Gates the /widget route (iframe embed for whitelisted partners). */
+  embedEnabled: boolean;
 };
 
 export type SentryConfig = {
@@ -494,16 +544,25 @@ export type TransactionStatus =
   | "pending"
   | "processing"
   | "fulfilled"
+  | "fulfilling"
   | "refunding"
   | "refunded"
+  | "failed"
   | "expired";
-export type TransactionHistoryType = "onramp" | "offramp" | "transfer";
+export type TransactionHistoryType =
+  | "onramp"
+  | "offramp"
+  | "transfer"
+  | "swap"
+  | "credit" | "bridge";
 
 export interface Recipient {
   account_name: string;
   institution: string;
   account_identifier: string;
   memo?: string;
+  /** Bridge only: destination network (the transactions.network column holds the source). */
+  to_network?: string;
 }
 
 export interface TransactionHistory {
@@ -626,6 +685,19 @@ export interface StarknetContextType extends StarknetWalletState {
   ensureWalletExists: () => Promise<void>; // Auto-create wallet if needed
 }
 
+export interface TronWalletState {
+  walletId: string | null;
+  address: string | null;
+  isCreating: boolean;
+  error: string | null;
+}
+
+export interface TronContextType extends TronWalletState {
+  createWallet: () => Promise<void>;
+  resetError: () => void;
+  ensureWalletExists: () => Promise<void>;
+}
+
 export interface ReferralData {
   referral_code: string;
   total_earned: number;
@@ -662,4 +734,55 @@ declare global {
       groupId: string;
     };
   }
+}
+
+export type ActivepiecesDepositPayload = {
+  email: string;
+  amount: string;
+  symbol: string;
+  from: string;
+  txHash: string;
+  network: string;
+  txExplorerUrl: string;
+  kind: "native" | "erc20";
+};
+
+export type ActivepiecesKycResultPayload = {
+  event: "kyc_result";
+  status: "success" | "failure";
+  email: string;
+  /** Verified tier on success (e.g. 2 for SmileID ID verification). */
+  tier?: number;
+  /** Human-readable failure reason (SmileID ResultText) on failure. */
+  reason?: string;
+  /** First name from phone/KYC profile for Brevo greeting (Tier 1+ emails). */
+  first_name?: string;
+};
+
+export interface MoralisNativeTx {
+  hash: string;
+  fromAddress: string;
+  toAddress: string;
+  value: string;
+}
+
+export interface MoralisErc20Transfer {
+  transactionHash?: string;
+  txHash?: string;
+  logIndex?: string;
+  contract?: string;
+  from: string;
+  to: string;
+  valueWithDecimals: string;
+  tokenSymbol: string;
+  tokenName: string;
+}
+
+export interface MoralisWebhookBody {
+  confirmed: boolean;
+  chainId: string;
+  streamId?: string;
+  tag?: string;
+  txs?: MoralisNativeTx[];
+  erc20Transfers?: MoralisErc20Transfer[];
 }

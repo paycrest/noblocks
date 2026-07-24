@@ -45,7 +45,7 @@ function savePendingBridges(bridges: BridgeSubmitInfo[]) {
 export function useBridgeStatusTracker() {
   const { getAccessToken } = usePrivy();
   const walletAddress = useWalletAddress();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isInjectedWallet, getInjectedToken } = useInjectedWallet();
   const [pendingBridges, setPendingBridges] = useState<BridgeSubmitInfo[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef(false);
@@ -74,14 +74,17 @@ export function useBridgeStatusTracker() {
       if (isPollingRef.current) return;
       isPollingRef.current = true;
       try {
-      // Injected wallets authenticate the proxy via x-injected-wallet (resolved by
-      // middleware); Privy wallets via the Bearer token.
+      // Injected wallets authenticate the proxy via the x-injected-token SIWE
+      // session; Privy wallets via the Bearer token. Passive read: a background
+      // poller must never pop a signature request — without a session it skips
+      // this cycle (pending bridges persist in localStorage and resume once the
+      // user signs in through a user action).
       const token = isInjectedWallet ? null : await getAccessToken();
-      if (!token && !isInjectedWallet) return;
-      const auth: BridgeAuth =
-        isInjectedWallet && injectedAddress
-          ? { injectedAddress }
-          : { token };
+      const injectedToken = isInjectedWallet
+        ? await getInjectedToken({ interactive: false })
+        : null;
+      if (!token && !injectedToken) return;
+      const auth: BridgeAuth = injectedToken ? { injectedToken } : { token };
 
       const updatedBridges = [...pendingBridges];
       let hasChanges = false;
@@ -100,7 +103,7 @@ export function useBridgeStatusTracker() {
               "completed",
               token,
               walletAddress,
-              isInjectedWallet
+              injectedToken
             );
             updatedBridges.splice(i, 1);
             i--;
@@ -111,7 +114,7 @@ export function useBridgeStatusTracker() {
               "refunded",
               token,
               walletAddress,
-              isInjectedWallet
+              injectedToken
             );
             updatedBridges.splice(i, 1);
             i--;
@@ -122,7 +125,7 @@ export function useBridgeStatusTracker() {
               "failed",
               token,
               walletAddress,
-              isInjectedWallet
+              injectedToken
             );
             updatedBridges.splice(i, 1);
             i--;
@@ -154,7 +157,7 @@ export function useBridgeStatusTracker() {
         intervalRef.current = null;
       }
     };
-  }, [walletAddress, getAccessToken, pendingBridges, isInjectedWallet, injectedAddress]);
+  }, [walletAddress, getAccessToken, pendingBridges, isInjectedWallet, getInjectedToken]);
 
   const trackBridge = (info: BridgeSubmitInfo) => {
     setPendingBridges((prev) => [...prev, info]);

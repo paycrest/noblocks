@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useWalletAddress } from "@/app/hooks/useWalletAddress";
 import { useNetwork } from "@/app/context/NetworksContext";
@@ -50,7 +50,32 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
 }) => {
   const { authenticated, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
-  const { isInjectedWallet, injectedAddress, injectedReady, injectedProvider } = useInjectedWallet();
+  const {
+    isInjectedWallet,
+    injectedAddress,
+    injectedReady,
+    injectedProvider,
+    getInjectedToken,
+  } = useInjectedWallet();
+
+  // Opening Convert is an explicit user action — establish the injected SIWE
+  // session up front (one signature, cached ~1h) so quote/status polling can
+  // read the token passively without ever popping a wallet prompt themselves.
+  useEffect(() => {
+    if (isInjectedWallet && injectedReady) {
+      void getInjectedToken({ interactive: true });
+    }
+  }, [isInjectedWallet, injectedReady, getInjectedToken]);
+
+  // Passive getter for polling hooks; interactive one for user-action paths.
+  const getInjectedTokenPassive = useCallback(
+    () => getInjectedToken({ interactive: false }),
+    [getInjectedToken],
+  );
+  const getInjectedTokenInteractive = useCallback(
+    () => getInjectedToken({ interactive: true }),
+    [getInjectedToken],
+  );
   const walletAddress = useWalletAddress();
   const { selectedNetwork } = useNetwork();
   const starknet = useStarknet();
@@ -138,7 +163,8 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     slippageBps,
     enabled: (authenticated || (isInjectedWallet && injectedReady)) && !routeUnsupported && !!(evmAddress || starknetAddress),
     getAccessToken,
-    injectedWalletAddress: isInjectedWallet && injectedReady ? injectedAddress : null,
+    getInjectedToken:
+      isInjectedWallet && injectedReady ? getInjectedTokenPassive : undefined,
   });
 
   const { execute, isLoading: execLoading } = useBridgeExecute({
@@ -156,6 +182,8 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     isInjectedWallet: isInjectedWallet && injectedReady,
     injectedProvider: isInjectedWallet && injectedReady ? injectedProvider : null,
     injectedAddress: isInjectedWallet && injectedReady ? injectedAddress : null,
+    getInjectedToken:
+      isInjectedWallet && injectedReady ? getInjectedTokenInteractive : undefined,
   });
 
   // Reset expiry flag whenever a fresh quote arrives
@@ -169,7 +197,8 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
     refId: statusInfo?.depositRefId ?? null,
     enabled: step === "status" && !!statusInfo,
     getAccessToken,
-    injectedWalletAddress: isInjectedWallet && injectedReady ? injectedAddress : null,
+    getInjectedToken:
+      isInjectedWallet && injectedReady ? getInjectedTokenPassive : undefined,
   });
   const liveStatus = bridgeStatus?.status;
   const isDone = liveStatus === "SUCCESS";
@@ -209,11 +238,15 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
       const { txHash, depositRefId } = await execute(quote, fromWithAmount);
       const resolvedEngine: BridgeEngine = quote.kind === "lifi-tx" ? "lifi" : "near";
 
-      // Injected wallets authenticate saves via x-injected-wallet (resolved by
-      // middleware); Privy wallets via the Bearer token.
+      // Injected wallets authenticate saves via the x-injected-token session
+      // JWT (interactive: the user just executed a convert, so a re-prompt on
+      // an expired session is fine); Privy wallets via the Bearer token.
       const accessToken = isInjectedWallet ? null : await getAccessToken();
+      const injectedToken = isInjectedWallet
+        ? await getInjectedToken({ interactive: true })
+        : null;
       let savedTxId: string | null = null;
-      if ((accessToken || isInjectedWallet) && walletAddress) {
+      if ((accessToken || injectedToken) && walletAddress) {
         const saved = await saveTransaction(
           {
             walletAddress,
@@ -237,7 +270,7 @@ export const BridgeForm: React.FC<BridgeFormProps> = ({
             orderId: depositRefId,
           },
           accessToken,
-          isInjectedWallet,
+          injectedToken,
         ).catch(() => null);
         savedTxId = saved?.data?.id ?? null;
       }

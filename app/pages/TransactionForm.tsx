@@ -124,7 +124,13 @@ export const TransactionForm = ({
     isLoading,
   } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { isInjectedWallet, injectedAddress, injectedReady } =
+    useInjectedWallet();
+  // Privy `authenticated` is false in injected mode (extension or embed
+  // bridge) — balance display and over-balance validation must treat a ready
+  // injected wallet as connected too.
+  const isWalletConnected =
+    authenticated || (isInjectedWallet && injectedReady);
   const {
     isEmbed,
     tokenAllowlist: rawTokenAllowlist,
@@ -1255,45 +1261,40 @@ export const TransactionForm = ({
                 Send
               </label>
               <AnimatePresence>
-                {(authenticated || isInjectedWallet) &&
-                  token &&
-                  activeBalance &&
-                  !isSwapped && (
-                    <AnimatedComponent
-                      variant={slideInOut}
-                      className="flex items-center gap-2"
-                    >
-                      <Wallet01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
-                      {isLoading ? (
-                        <BalanceSkeleton className="w-24" />
-                      ) : (
-                        <>
-                          <span
-                            className={
-                              amountSent > balance ? "text-red-500" : ""
-                            }
+                {isWalletConnected && token && activeBalance && !isSwapped && (
+                  <AnimatedComponent
+                    variant={slideInOut}
+                    className="flex items-center gap-2"
+                  >
+                    <Wallet01Icon className="size-4 text-icon-outline-secondary dark:text-white/50" />
+                    {isLoading ? (
+                      <BalanceSkeleton className="w-24" />
+                    ) : (
+                      <>
+                        <span
+                          className={amountSent > balance ? "text-red-500" : ""}
+                        >
+                          {formatNumberWithCommas(
+                            formatDecimalPrecision(balance, 2),
+                          )}{" "}
+                          {token}
+                        </span>
+                        {balance > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleBalanceMaxClick}
+                            className={classNames(
+                              "font-medium text-lavender-500 dark:text-lavender-500",
+                              balance === 0 ? "hidden" : "",
+                            )}
                           >
-                            {formatNumberWithCommas(
-                              formatDecimalPrecision(balance, 2),
-                            )}{" "}
-                            {token}
-                          </span>
-                          {balance > 0 && (
-                            <button
-                              type="button"
-                              onClick={handleBalanceMaxClick}
-                              className={classNames(
-                                "font-medium text-lavender-500 dark:text-lavender-500",
-                                balance === 0 ? "hidden" : "",
-                              )}
-                            >
-                              Max
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </AnimatedComponent>
-                  )}
+                            Max
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </AnimatedComponent>
+                )}
               </AnimatePresence>
             </div>
 
@@ -1330,7 +1331,7 @@ export const TransactionForm = ({
                 }}
                 value={formattedSentAmount}
                 className={`w-full min-w-0 rounded-xl border-b border-transparent bg-transparent py-2 text-2xl outline-none transition-all placeholder:text-gray-400 focus:outline-none disabled:cursor-not-allowed dark:placeholder:text-white/30 ${
-                  (authenticated || isInjectedWallet) &&
+                  isWalletConnected &&
                   !isSwapped &&
                   (amountSent > balance || errors.amountSent)
                     ? "text-red-500 dark:text-red-500"
@@ -1373,17 +1374,13 @@ export const TransactionForm = ({
               </div>
             </div>
             {(errors.amountSent ||
-              ((authenticated || isInjectedWallet) &&
-                !isSwapped &&
-                totalRequired > balance)) && (
+              (isWalletConnected && !isSwapped && totalRequired > balance)) && (
               <AnimatedComponent
                 variant={slideInOut}
                 className="!mt-0 text-xs text-red-500"
               >
                 {errors.amountSent?.message ||
-                  ((authenticated || isInjectedWallet) &&
-                  !isSwapped &&
-                  totalRequired > balance
+                  (isWalletConnected && !isSwapped && totalRequired > balance
                     ? "Insufficient balance"
                     : null)}
               </AnimatedComponent>
@@ -1484,10 +1481,7 @@ export const TransactionForm = ({
                     className="min-w-80"
                     isCTA={
                       !currency &&
-                      !(
-                        (authenticated || isInjectedWallet) &&
-                        totalRequired > balance
-                      )
+                      !(isWalletConnected && totalRequired > balance)
                     }
                     dropdownWidth={320}
                     disabled={isCurrencyLocked}
@@ -1502,7 +1496,7 @@ export const TransactionForm = ({
         <AnimatePresence>
           {receiveDestinationExplicitlySelected &&
             currency &&
-            (authenticated || isInjectedWallet) &&
+            isWalletConnected &&
             isUserVerified && (
               <AnimatedComponent
                 variant={slideInOut}

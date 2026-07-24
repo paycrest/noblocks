@@ -574,7 +574,12 @@ export const WalletDetails = () => {
                                 type="button"
                                 title="Convert tokens"
                                 onClick={() => setIsConvertModalOpen(true)}
-                                className="group flex flex-1 flex-col items-center gap-2"
+                                className={classNames(
+                                  "group flex flex-col items-center gap-2",
+                                  // Solo button in injected mode: content width,
+                                  // left-aligned (flex-1 would stretch + center it).
+                                  isInjectedWallet ? "" : "flex-1",
+                                )}
                               >
                                 <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
                                   <CoinsSwapIcon className="size-6" strokeWidth={2} />
@@ -634,7 +639,9 @@ export const WalletDetails = () => {
                     </div>
 
                     <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-                      {isReferralEnabled() && (
+                      {/* Referrals are a noblocks.xyz program — never surface the
+                          CTA inside a partner embed (any mode, incl. Privy fallback). */}
+                      {isReferralEnabled() && !isInjectedWallet && !isEmbed && (
                         <div className="mt-8">
                           <ReferralCTA
                             onViewReferrals={() => setSidebarView("referrals")}

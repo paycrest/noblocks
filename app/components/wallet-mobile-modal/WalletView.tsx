@@ -26,6 +26,7 @@ import {
 } from "../../utils";
 import { tokensEqual } from "../../lib/token-symbol";
 import type { CrossChainBalanceEntry } from "../../context";
+import { useEmbed } from "../../context/EmbedContext";
 import TransactionList from "../transaction/TransactionList";
 import type { Network, TransactionHistory } from "../../types";
 import { isReferralEnabled, formatTokenAmount } from "../../utils";
@@ -98,6 +99,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onViewReferrals,
 }) => {
   const showBalanceSkeleton = isLoading && !isRefreshing;
+  const { isEmbed } = useEmbed();
   const [walletTab, setWalletTab] = useState<WalletTab>("balances");
   const [isAddressCopied, setIsAddressCopied] = useState(false);
 
@@ -420,7 +422,12 @@ export const WalletView: React.FC<WalletViewProps> = ({
                     type="button"
                     title="Convert tokens"
                     onClick={onConvert}
-                    className="group flex flex-1 flex-col items-center gap-2"
+                    className={classNames(
+                      "group flex flex-col items-center gap-2",
+                      // Solo button in injected mode: content width, left-aligned
+                      // (flex-1 would stretch it and center the icon mid-row).
+                      isInjectedWallet ? "" : "flex-1",
+                    )}
                   >
                     <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
                       <CoinsSwapIcon className="size-6" strokeWidth={2} />
@@ -450,7 +457,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
           </div>
         ) : null}
 
-        {!isInjectedWallet && isReferralEnabled() && (
+        {/* Referrals are a noblocks.xyz program — never surface the CTA inside
+            a partner embed (any mode, incl. Privy fallback). */}
+        {!isInjectedWallet && !isEmbed && isReferralEnabled() && (
           <div className="mt-4">
             <ReferralCTA onViewReferrals={onViewReferrals ?? (() => {})} />
           </div>

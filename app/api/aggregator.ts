@@ -807,15 +807,15 @@ export async function fetchTransactions(
 export async function saveTransaction(
   transaction: TransactionCreateInput,
   accessToken: string | null,
-  isInjectedWallet = false,
+  injectedToken: string | null = null,
 ): Promise<SaveTransactionResponse> {
   const headers: Record<string, string> = {
     // Same intent as middleware primary wallet; overwritten by middleware for browser,
     // but clarifies signer for proxies and matches fetchTransactions/update patterns.
     "x-wallet-address": String(transaction.walletAddress).toLowerCase(),
   };
-  if (isInjectedWallet) {
-    headers["x-injected-wallet"] = String(transaction.walletAddress).toLowerCase();
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
   } else if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
@@ -886,13 +886,13 @@ export async function updateBridgeTransactionStatus(
   status: "completed" | "refunded" | "failed",
   accessToken: string | null,
   walletAddress: string,
-  isInjectedWallet = false,
+  injectedToken: string | null = null,
 ): Promise<void> {
   const headers: Record<string, string> = {
     "x-wallet-address": walletAddress.toLowerCase(),
   };
-  if (isInjectedWallet) {
-    headers["x-injected-wallet"] = walletAddress.toLowerCase();
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
   } else if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
@@ -1397,7 +1397,7 @@ export const submitSmileIDData = async (
   payload: any,
   accessToken: string | null,
   walletAddress: string,
-  isInjectedWallet = false,
+  injectedToken: string | null = null,
 ): Promise<SmileIDSubmissionResponse> => {
   const startTime = Date.now();
 
@@ -1410,14 +1410,14 @@ export const submitSmileIDData = async (
     });
 
     // Auth is resolved by middleware: injected wallets authenticate via the
-    // x-injected-wallet header, Privy wallets via the Bearer token. The
+    // x-injected-token session JWT, Privy wallets via the Bearer token. The
     // middleware overwrites x-wallet-address from the verified identity, so the
     // client-supplied value is only a hint.
     const headers: Record<string, string> = {
       "x-wallet-address": walletAddress.toLowerCase(),
     };
-    if (isInjectedWallet) {
-      headers["x-injected-wallet"] = walletAddress.toLowerCase();
+    if (injectedToken) {
+      headers["x-injected-token"] = injectedToken;
     } else if (accessToken) {
       headers.Authorization = `Bearer ${accessToken}`;
     }

@@ -27,4 +27,15 @@ const customJestConfig = {
 }
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async
-module.exports = createJestConfig(customJestConfig)
+// jose v6 is ESM-only — next/jest APPENDS user transformIgnorePatterns after its
+// blanket '/node_modules/' ignore (any-match wins), so the exemption must
+// REPLACE the resolved patterns instead. Both plain and pnpm layouts covered.
+module.exports = async () => {
+  const config = await createJestConfig(customJestConfig)()
+  config.transformIgnorePatterns = [
+    '/node_modules/(?!\\.pnpm)(?!jose)',
+    '/node_modules/\\.pnpm/(?!jose@)',
+    '^.+\\.module\\.(css|sass|scss)$',
+  ]
+  return config
+}

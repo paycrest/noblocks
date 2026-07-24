@@ -425,26 +425,6 @@ KYC status transitions:
 
 ## API Routes
 
-### GET /api/v1/kyc/status
-
-Current verification status for logged-in user:
-
-```json
-{
-  "tier": 2,
-  "limits": {
-    "monthlyUsd": 1.0,
-    "remainingUsd": 0.5
-  },
-  "verificationStatus": {
-    "phone": "verified",
-    "id": "verified",
-    "address": "pending",
-    "pep": "cleared"
-  }
-}
-```
-
 ### POST /api/v1/kyc/phone/request
 
 Initiate phone OTP:

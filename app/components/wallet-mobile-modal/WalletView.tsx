@@ -24,6 +24,7 @@ import {
   shortenAddress,
   tokenBalanceRowVisible,
 } from "../../utils";
+import { tokensEqual } from "../../lib/token-symbol";
 import type { CrossChainBalanceEntry } from "../../context";
 import TransactionList from "../transaction/TransactionList";
 import type { Network, TransactionHistory } from "../../types";
@@ -52,6 +53,8 @@ interface WalletViewProps {
   networks: Network[];
   selectedNetwork: Network;
   isDark: boolean;
+  /** When true (embed host lock), show a read-only chain chip — no switcher. */
+  isNetworkLocked?: boolean;
   handleNetworkSwitchWrapper: (network: Network) => void;
   onSettings: () => void;
   onClose: () => void;
@@ -81,6 +84,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   networks,
   selectedNetwork,
   isDark,
+  isNetworkLocked = false,
   handleNetworkSwitchWrapper,
   onSettings,
   onClose,
@@ -136,9 +140,23 @@ export const WalletView: React.FC<WalletViewProps> = ({
         </div>
         <button
           type="button"
-          title="Select network"
-          onClick={() => setIsNetworkListOpen(!isNetworkListOpen)}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg py-1 pl-1 pr-0.5 hover:bg-accent-gray dark:hover:bg-white/10"
+          title={isNetworkLocked ? selectedNetwork.chain.name : "Select network"}
+          aria-label={
+            isNetworkLocked
+              ? `Network locked to ${selectedNetwork.chain.name}`
+              : "Select network"
+          }
+          disabled={isNetworkLocked}
+          onClick={() => {
+            if (isNetworkLocked) return;
+            setIsNetworkListOpen(!isNetworkListOpen);
+          }}
+          className={classNames(
+            "flex shrink-0 items-center gap-1.5 rounded-lg py-1 pl-1 pr-0.5",
+            isNetworkLocked
+              ? "cursor-default"
+              : "hover:bg-accent-gray dark:hover:bg-white/10",
+          )}
         >
           <Image
             src={getNetworkImageUrl(selectedNetwork, isDark)}
@@ -150,17 +168,19 @@ export const WalletView: React.FC<WalletViewProps> = ({
           <span className="max-w-[5.5rem] truncate text-sm font-medium text-text-body dark:text-white">
             {selectedNetwork.chain.name}
           </span>
-          <ArrowDown01Icon
-            className={classNames(
-              "size-4 text-outline-gray transition-transform dark:text-white/50",
-              isNetworkListOpen && "rotate-180",
-            )}
-          />
+          {!isNetworkLocked && (
+            <ArrowDown01Icon
+              className={classNames(
+                "size-4 text-outline-gray transition-transform dark:text-white/50",
+                isNetworkListOpen && "rotate-180",
+              )}
+            />
+          )}
         </button>
       </div>
 
       <AnimatePresence>
-        {isNetworkListOpen && (
+        {!isNetworkLocked && isNetworkListOpen && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
@@ -237,7 +257,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
                 <div className="space-y-1.5">
                   {filteredBalances.map(([token, balance]) => {
-                    const isCNGN = token === "CNGN" || token === "cNGN";
+                    const isCNGN = tokensEqual(token, "cNGN");
                     const rawBalance =
                       entry.balances.rawBalances?.[token] ?? balance;
                     const tokenImageUrl =

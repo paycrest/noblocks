@@ -19,6 +19,7 @@ import {
   publicKeyEncrypt,
   shortenAddress,
 } from "../utils";
+import { tokensEqual, toAggregatorToken } from "../lib/token-symbol";
 import { useNetwork, useTokens } from "../context";
 import config, { getDelegationContractAddress } from "../lib/config";
 import { appendBaseBuilderCode } from "../lib/baseBuilderCode";
@@ -222,10 +223,13 @@ export const TransactionPreview = ({
       : smartWalletBalance;
 
   // For CNGN, use raw balance (token units) instead of USD equivalent
-  const balance =
-    token === "CNGN" || token === "cNGN"
-      ? (activeBalance?.rawBalances?.[token] ?? activeBalance?.balances[token] ?? 0)
-      : (activeBalance?.balances[token] ?? 0);
+  const balance = tokensEqual(token, "cNGN")
+    ? (activeBalance?.rawBalances?.[token] ??
+      activeBalance?.rawBalances?.cNGN ??
+      activeBalance?.rawBalances?.CNGN ??
+      activeBalance?.balances[token] ??
+      0)
+    : (activeBalance?.balances[token] ?? 0);
 
   // Rendered tsx info
   const renderedInfo = isOnramp
@@ -690,7 +694,7 @@ export const TransactionPreview = ({
             walletAddress: activeWallet.address,
             transactionType: "onramp",
             fromCurrency: currency,
-            toCurrency: token,
+            toCurrency: toAggregatorToken(token),
             amountSent: Number(amountSent),
             amountReceived: Number(amountReceived),
             fee: Number(rate),
@@ -717,7 +721,7 @@ export const TransactionPreview = ({
           },
           destination: {
             type: "crypto" as const,
-            currency: token,
+            currency: toAggregatorToken(token),
             network: aggregatorNetwork,
             ...(providerId ? { providerId } : {}),
             recipient: {
@@ -806,7 +810,7 @@ export const TransactionPreview = ({
       await precheckSwapTransaction(
         {
           walletAddress: activeWallet.address,
-          fromCurrency: token,
+          fromCurrency: toAggregatorToken(token),
           toCurrency: currency,
           amountSent: Number(amountSent),
           amountReceived: Number(amountReceived),

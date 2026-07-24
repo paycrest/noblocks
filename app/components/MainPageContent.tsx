@@ -36,6 +36,7 @@ import {
   swapModeFromSideParam,
   networkSupportsOnramp,
 } from "../utils";
+import { toAggregatorToken } from "../lib/token-symbol";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
 import { isNoProviderError } from "../lib/errorMessages";
@@ -268,7 +269,7 @@ export function MainPageContent() {
   /** Snapshotted at order create — status fetch/save must not follow live swapMode. */
   const [activeOrderIsOnramp, setActiveOrderIsOnramp] = useState(false);
 
-  const { isEmbed, postToHost } = useEmbed();
+  const { isEmbed, postToHost, isNetworkLocked, networkAllowlist, hostFormConfig } = useEmbed();
 
   // Surface transaction progress to the embedding page (no-op outside /widget).
   useEffect(() => {
@@ -353,6 +354,28 @@ export function MainPageContent() {
       }
     },
     [searchParams, setValue, selectedNetwork.chain],
+  );
+
+  useEffect(
+    function syncRampFromHostConfig() {
+      if (!isEmbed || hostFormConfig.version === 0 || !hostFormConfig.side) {
+        return;
+      }
+      const next = swapModeFromSideParam(hostFormConfig.side);
+      if (next === undefined) return;
+      if (next === "onramp" && !networkSupportsOnramp(selectedNetwork.chain)) {
+        return;
+      }
+      setValue("swapMode", next, { shouldDirty: true });
+      setValue("isSwapped", next === "onramp", { shouldDirty: true });
+    },
+    [
+      isEmbed,
+      hostFormConfig.version,
+      hostFormConfig.side,
+      setValue,
+      selectedNetwork.chain,
+    ],
   );
 
   useEffect(
@@ -526,6 +549,9 @@ export function MainPageContent() {
 
   useEffect(
     function autoSelectLargestBalanceNetwork() {
+      // Host-locked / allowlisted embed network must not hop based on balances.
+      if (isEmbed && (isNetworkLocked || networkAllowlist != null)) return;
+
       const sessionKey = isInjectedWallet
         ? injectedAddress
           ? `injected:${injectedAddress}`
@@ -567,7 +593,10 @@ export function MainPageContent() {
       injectedAddress,
       injectedReady,
       isBalanceLoading,
+      isEmbed,
       isInjectedWallet,
+      isNetworkLocked,
+      networkAllowlist,
       ready,
       selectedNetwork.chain.name,
       setDisplayedNetwork,
@@ -653,7 +682,7 @@ export function MainPageContent() {
 
         try {
           const rate = await fetchRate({
-            token,
+            token: toAggregatorToken(token),
             amount: rateQueryAmount,
             currency,
             providerId,

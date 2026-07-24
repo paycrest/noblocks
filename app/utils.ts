@@ -18,6 +18,7 @@ import { erc20Abi, createPublicClient, http, keccak256, stringToBytes } from "vi
 import { mainnet } from "viem/chains";
 import { getEnsName } from "viem/actions";
 import { isValidEvmAddressCaseInsensitive } from "./lib/validation";
+import { canonicalTokenSymbol } from "./lib/token-symbol";
 import { colors } from "./mocks";
 import { fetchTokens } from "./api/aggregator";
 import { toast } from "sonner";
@@ -636,12 +637,13 @@ export function normalizeNetworkName(networkId: string): string {
  * @returns Formatted token for application use
  */
 export function transformToken(apiToken: APIToken): Token {
+  const symbol = canonicalTokenSymbol(apiToken.symbol);
   return {
-    name: apiToken.symbol,
-    symbol: apiToken.symbol,
+    name: symbol,
+    symbol,
     decimals: apiToken.decimals,
     address: apiToken.contractAddress,
-    imageUrl: `/logos/${apiToken.symbol.toLowerCase()}-logo.svg`,
+    imageUrl: `/logos/${symbol.toLowerCase()}-logo.svg`,
   };
 }
 
@@ -1612,7 +1614,10 @@ export function isStarknetChain(chain: {
 } | null | undefined): boolean {
   if (!chain) return false;
   if (chain.name === "Starknet") return true;
-  return chain.network === "starknet-mainnet";
+  // Accept both `starknet` (canonical) and legacy `starknet-mainnet`.
+  return (
+    chain.network === "starknet" || chain.network === "starknet-mainnet"
+  );
 }
 
 /** True for Tron mainnet (mock chain + viem-style `network` slug). */

@@ -45,6 +45,12 @@ describe("NetworkProvider", () => {
     mockUseEmbed.mockReturnValue({
       isEmbed: false,
       isNetworkLocked: false,
+      networkAllowlist: null,
+      tokenAllowlist: null,
+      currencyAllowlist: null,
+      hideSideToggle: false,
+      isSideLocked: false,
+      hostFormConfig: { version: 0 },
     });
 
     window.ethereum.request = jest.fn().mockResolvedValue(undefined);

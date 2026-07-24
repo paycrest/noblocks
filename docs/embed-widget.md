@@ -61,33 +61,71 @@ Notes:
 
 ## URL parameters
 
-| Param         | Values                   | Effect                                                    |
-| ------------- | ------------------------ | --------------------------------------------------------- |
-| `theme`       | `dark` \| `light`        | Force the widget theme (default: visitor system theme)    |
-| `side`        | `buy` \| `sell`          | Start in on-ramp (buy) or off-ramp (sell) mode            |
-| `token`       | e.g. `USDC`, `USDT`      | Preselect token                                           |
-| `currency`    | e.g. `NGN`, `KES`        | Preselect fiat currency                                   |
-| `tokenAmount` | number                   | Prefill token amount                                      |
-| `fiatAmount`  | number                   | Prefill fiat amount                                       |
-| `provider`    | liquidity provider ID    | Pin a specific liquidity provider                         |
-| `ref`         | referral code            | Attribute transactions to your referral code              |
-| `injected`    | `true` \| `bridge`       | Wallet mode — see below                                   |
-| `chainId`     | decimal or `0x` hex      | Lock to an EVM network (e.g. `8453` or `0x2105` for Base) |
-| `network`     | chain name               | Lock by Noblocks name (e.g. `Base`, `Starknet`) — case-insensitive |
+| Param            | Values                              | Effect                                                                 |
+| ---------------- | ----------------------------------- | ---------------------------------------------------------------------- |
+| `theme`          | `dark` \| `light`                   | Force the widget theme (default: visitor system theme)                 |
+| `side`           | `buy` \| `sell`                     | Start in on-ramp (buy) or off-ramp (sell) mode; locks the center flip  |
+| `token`          | e.g. `USDC`, `cNGN`, `CNGN`         | Preselect token (case-insensitive; `CNGN`/`cNGN` both display as cNGN) |
+| `tokens`         | CSV of symbols                      | Allowlist for the token dropdown (omit = all; one entry = read-only)   |
+| `currency`       | e.g. `NGN`, `KES`                   | Preselect fiat currency                                                |
+| `currencies`     | CSV of codes                        | Allowlist for the currency dropdown (omit = all; one entry = read-only)|
+| `tokenAmount`    | number                              | Prefill token amount                                                   |
+| `fiatAmount`     | number                              | Prefill fiat amount                                                    |
+| `provider`       | liquidity provider ID               | Pin a specific liquidity provider                                      |
+| `ref`            | referral code                       | Attribute transactions to your referral code                           |
+| `injected`       | `true` \| `bridge`                  | Wallet mode — see below                                                |
+| `chainId`        | decimal or `0x` hex                 | Default EVM network only (e.g. `8453` / `0x2105` for Base)             |
+| `network`        | slug                                | Default network by slug (e.g. `base`, `starknet`, `arbitrum-one`)      |
+| `networks`       | CSV of slugs                        | Allowlist for the network switcher (omit = all; one entry = locked)    |
+| `hideSideToggle` | `1` \| `true`                       | Hide the “Swap” title and Buy/Sell pills (also locks the center flip)  |
+
+`cNGN` / `CNGN` are accepted interchangeably in URL and host config; the UI
+shows **cNGN**. Aggregator rate/order calls still use the wire form `CNGN`.
+
+### Token / currency / network allowlists
+
+```
+/widget?
+  side=sell
+  &token=cNGN&tokens=cNGN
+  &currency=NGN&currencies=NGN
+  &network=base&networks=base,arbitrum-one
+  &hideSideToggle=1
+  &injected=bridge
+```
+
+- Omit an allowlist param (`tokens`, `currencies`, `networks`) to leave that
+  selector unrestricted.
+- A single-item allowlist renders a read-only chip (dropdown disabled).
+- Multi-item `networks=` filters the wallet network switcher only — balance
+  lists and history stay **unfiltered**.
+- Without `networks=`, a lone `network=` / `chainId=` keeps the previous
+  **lock** behaviour (read-only chip + no balance auto-hop).
+- Supported network slugs match rate paths: `base`, `arbitrum-one`,
+  `bnb-smart-chain`, `polygon`, `lisk`, `celo`, `scroll`, `ethereum`,
+  `starknet`, `tron`. Legacy `starknet-mainnet` is accepted as an alias.
 
 ### Network lock / follow
 
-Pass `chainId` and/or `network` to **lock** the widget to that chain:
+Pass `chainId` and/or `network` to set the **default** chain (and lock when
+`networks=` is not a multi-value list):
 
-- The wallet drawer shows a read-only chain chip (no network switcher).
-- Balance-based auto network hopping is disabled.
-- Prefer **`chainId`** for EVM hosts. Use **`network`** for Starknet / Tron (and as an alternate for EVM by name). If both are present, `chainId` wins when non-empty.
-- An unsupported or unknown value toasts once, keeps the picker locked, and leaves the last valid network (or the widget default). A short inline note appears in the header on first paint failure.
+- The wallet drawer shows a read-only chain chip when locked (no switcher).
+- Balance-based auto network hopping is disabled whenever a network allowlist
+  or lock is set.
+- Prefer **`chainId`** for EVM default. Use **`network`** (slug) for Starknet /
+  Tron and for allowlists. If both default params are present, `chainId` wins
+  when non-empty.
+- An unsupported or unknown value toasts once and leaves the last valid
+  network (or the widget default).
 
 With `injected=true` or `injected=bridge`, the widget also **follows** the host wallet:
 
-- EIP-1193 `chainChanged` (extension or bridge) updates the displayed network when the new chain is supported, and keeps the lock on that chain.
-- Unsupported wallet chains toast once and do **not** unlock the picker.
+- EIP-1193 `chainChanged` (extension or bridge) updates the displayed network
+  when the new chain is supported **and** within the network allowlist (if set),
+  and keeps the lock on that chain.
+- Unsupported / out-of-allowlist wallet chains toast once and do **not** unlock
+  the picker.
 
 Closing / dismissing the iframe remains the host page’s responsibility (unchanged).
 
@@ -95,8 +133,11 @@ Closing / dismissing the iframe remains the host page’s responsibility (unchan
 <!-- Lock to Base -->
 <iframe src="https://noblocks.xyz/widget?chainId=8453&currency=NGN" ...></iframe>
 
-<!-- Lock to Starknet by name -->
-<iframe src="https://noblocks.xyz/widget?network=Starknet" ...></iframe>
+<!-- Lock to Starknet by slug -->
+<iframe src="https://noblocks.xyz/widget?network=starknet" ...></iframe>
+
+<!-- Allow Base + Arbitrum; default Base -->
+<iframe src="https://noblocks.xyz/widget?networks=base,arbitrum-one&network=base" ...></iframe>
 
 <!-- Bridge wallet + lock; follow host chain switches -->
 <iframe src="https://noblocks.xyz/widget?injected=bridge&chainId=8453" ...></iframe>
@@ -126,6 +167,34 @@ window.addEventListener("message", (e) => {
   // ...
 });
 ```
+
+## Host → widget: `noblocks:set_config`
+
+After the widget is ready, the host can push live updates (same origin /
+`event.source` checks as the wallet bridge):
+
+```js
+iframe.contentWindow.postMessage(
+  {
+    source: "noblocks-host",
+    event: "noblocks:set_config",
+    payload: {
+      network: "arbitrum-one", // slug
+      side: "sell",            // buy | sell
+      token: "cNGN",           // or CNGN
+      currency: "NGN",
+    },
+  },
+  "https://noblocks.xyz",
+);
+```
+
+Values outside the URL allowlists (or unsupported chains/tokens) are ignored
+and toasted. Omit fields you do not want to change.
+
+`NoblocksEmbed.bindWallet` (see below) already posts `noblocks-host` messages
+for the wallet bridge; you can reuse the same `postMessage` pattern for
+`set_config`, or call `iframe.contentWindow.postMessage` directly as above.
 
 ## Wallet modes
 

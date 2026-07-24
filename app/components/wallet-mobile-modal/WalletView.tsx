@@ -24,6 +24,7 @@ import {
   shortenAddress,
   tokenBalanceRowVisible,
 } from "../../utils";
+import { tokensEqual } from "../../lib/token-symbol";
 import type { CrossChainBalanceEntry } from "../../context";
 import TransactionList from "../transaction/TransactionList";
 import type { Network, TransactionHistory } from "../../types";
@@ -256,7 +257,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
                 <div className="space-y-1.5">
                   {filteredBalances.map(([token, balance]) => {
-                    const isCNGN = token === "CNGN" || token === "cNGN";
+                    const isCNGN = tokensEqual(token, "cNGN");
                     const rawBalance =
                       entry.balances.rawBalances?.[token] ?? balance;
                     const tokenImageUrl =

@@ -40,6 +40,7 @@ import {
   getCurrencySymbol,
   getOnrampFiatMaxAmount,
   isOnrampFiatCurrencyCode,
+  swapModeFromSideParam,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -58,6 +59,14 @@ import {
   useEmbed,
 } from "../context";
 import { validateWalletAddress } from "../lib/validation";
+import {
+  canonicalTokenSymbol,
+  tokensEqual,
+} from "../lib/token-symbol";
+import {
+  isCurrencyInAllowlist,
+  isTokenInAllowlist,
+} from "../lib/embed-config";
 
 /**
  * Monthly KYC limits are in USD. Offramp `amountSent` is token (stable ≈ USD).
@@ -72,7 +81,7 @@ function kycUsdNotionalForLimitCheck(params: {
 }): number {
   const { isOnramp, amountSent, amountReceived, token, cngnRate } = params;
   const rate = cngnRate ?? undefined;
-  const isCngn = token === "cNGN" || token === "CNGN";
+  const isCngn = tokensEqual(token, "cNGN");
   if (isOnramp) {
     const recv = Number(amountReceived) || 0;
     if (isCngn && rate && rate > 0) return recv / rate;
@@ -114,7 +123,16 @@ export const TransactionForm = ({
   const { smartWalletBalance, externalWalletBalance, injectedWalletBalance, starknetWalletBalance, tronWalletBalance, isLoading } = useBalance();
   const shouldUseEOA = useShouldUseEOA();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const { isEmbed } = useEmbed();
+  const {
+    isEmbed,
+    tokenAllowlist,
+    currencyAllowlist,
+    isTokenLocked,
+    isCurrencyLocked,
+    hideSideToggle,
+    isSideLocked,
+    hostFormConfig,
+  } = useEmbed();
   const { allTokens } = useTokens();
   // Network-aware "My wallet" / recipient address: Starknet wallet on Starknet,
   // EVM embedded EOA / smart wallet on EVM (mirrors activeWallet for EVM).
@@ -196,13 +214,19 @@ export const TransactionForm = ({
         disabled:
           item.disabled ||
           (swapMode === "onramp" && !isOnrampFiatCurrencyCode(item.name)) ||
-          (token?.toUpperCase() === "CNGN" && item.name !== "NGN"),
+          (tokensEqual(token, "cNGN") && item.name !== "NGN") ||
+          !isCurrencyInAllowlist(item.name, currencyAllowlist),
       }))
+      .filter(
+        (item) =>
+          currencyAllowlist == null ||
+          isCurrencyInAllowlist(item.name, currencyAllowlist),
+      )
       .sort((a, b) => {
         if (a.disabled === b.disabled) return 0;
         return a.disabled ? 1 : -1;
       });
-  }, [currencies, swapMode, token]);
+  }, [currencies, swapMode, token, currencyAllowlist]);
 
   // state for reordered currencies
   const [orderedCurrencies, setOrderedCurrencies] =
@@ -255,9 +279,12 @@ export const TransactionForm = ({
 
   // For CNGN, use raw balance instead of USD equivalent. If rawBalances doesn't contain
   // the token, treat as zero rather than falling back to USD-denominated balance.
-  const balance =
-    token === "CNGN" || token === "cNGN"
-      ? (activeBalance?.rawBalances?.[token] ?? activeBalance?.balances[token] ?? 0)
+  const balance = tokensEqual(token, "cNGN")
+      ? (activeBalance?.rawBalances?.[token] ??
+        activeBalance?.rawBalances?.cNGN ??
+        activeBalance?.rawBalances?.CNGN ??
+        activeBalance?.balances[token] ??
+        0)
       : (activeBalance?.balances[token] ?? 0);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
@@ -279,10 +306,12 @@ export const TransactionForm = ({
     );
   };
 
-  const tokens = fetchedTokens.map((token) => ({
-    name: token.symbol,
-    imageUrl: token.imageUrl,
-  }));
+  const tokens = fetchedTokens
+    .filter((t) => isTokenInAllowlist(t.symbol, tokenAllowlist))
+    .map((t) => ({
+      name: t.symbol,
+      imageUrl: t.imageUrl,
+    }));
 
   const handleBalanceMaxClick = () => {
     if (balance > 0) {
@@ -324,8 +353,8 @@ export const TransactionForm = ({
   };
 
   useEffect(function setDefaultValueOnPageLoad() {
-    const token = searchParams.get("token");
-    const currency = searchParams.get("currency");
+    const tokenParam = searchParams.get("token");
+    const currencyParam = searchParams.get("currency");
     const tokenAmount = +parseFloat(
       searchParams.get("tokenAmount") || "0",
     ).toFixed(2);
@@ -334,25 +363,31 @@ export const TransactionForm = ({
     ).toFixed(4);
 
     const supportedTokens = tokens.map((tokenElement) => tokenElement.name);
-    if (token && supportedTokens.includes(token)) {
-      formMethods.setValue("token", token, { shouldDirty: true });
+    if (tokenParam) {
+      const matched = supportedTokens.find((name) =>
+        tokensEqual(name, tokenParam),
+      );
+      if (matched) {
+        formMethods.setValue("token", canonicalTokenSymbol(matched), {
+          shouldDirty: true,
+        });
+      } else if (!isFirstRender.current) {
+        toast.error("Unsupported Token", {
+          description: String(
+            `${tokenParam} token is not supported on the current network.`,
+          ),
+        });
+      }
     }
-
-    // Check's if not first render to prevent display of error 2nd time
-    if (!isFirstRender.current && token && !supportedTokens.includes(token)) {
-      toast.error("Unsupported Token", {
-        description: String(
-          `${token} token is not supported on the current network.`,
-        ),
-      });
-    }
-    if (currency) {
+    if (currencyParam) {
       const supported = selectableCurrencies.find(
-        (c: CurrencyOption) => c.name === currency && !c.disabled,
+        (c: CurrencyOption) =>
+          c.name.toUpperCase() === currencyParam.trim().toUpperCase() &&
+          !c.disabled,
       );
 
       if (supported) {
-        formMethods.setValue("currency", currency, { shouldDirty: true });
+        formMethods.setValue("currency", supported.name, { shouldDirty: true });
         formMethods.setValue("receiveDestinationExplicitlySelected", true, {
           shouldDirty: true,
         });
@@ -374,17 +409,56 @@ export const TransactionForm = ({
   }, []);
 
   useEffect(
-    function initSelectedToken() {
-      if (getValues("isSwapped")) return;
-      if (
-        !fetchedTokens.find((t) => t.symbol === token) &&
-        fetchedTokens.length > 0
-      ) {
-        setValue("token", fetchedTokens[0].symbol, { shouldDirty: true });
+    function applyHostFormConfig() {
+      if (!isEmbed || hostFormConfig.version === 0) return;
+
+      if (hostFormConfig.token) {
+        const matched = tokens.find((t) =>
+          tokensEqual(t.name, hostFormConfig.token),
+        );
+        if (matched) {
+          setValue("token", matched.name, { shouldDirty: true });
+        }
+      }
+      if (hostFormConfig.currency) {
+        const matched = selectableCurrencies.find(
+          (c) =>
+            c.name.toUpperCase() === hostFormConfig.currency && !c.disabled,
+        );
+        if (matched) {
+          setValue("currency", matched.name, { shouldDirty: true });
+          setValue("receiveDestinationExplicitlySelected", true, {
+            shouldDirty: true,
+          });
+        }
+      }
+      if (hostFormConfig.side) {
+        const mode = swapModeFromSideParam(hostFormConfig.side);
+        if (mode) {
+          setValue("swapMode", mode, { shouldDirty: true });
+          setValue("isSwapped", mode === "onramp", { shouldDirty: true });
+        }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedNetwork.chain.name],
+    [hostFormConfig.version],
+  );
+
+  useEffect(
+    function initSelectedToken() {
+      if (getValues("isSwapped")) return;
+      const allowedFetched = fetchedTokens.filter((t) =>
+        isTokenInAllowlist(t.symbol, tokenAllowlist),
+      );
+      if (
+        !allowedFetched.find((t) => tokensEqual(t.symbol, token)) &&
+        allowedFetched.length > 0
+      ) {
+        setValue("token", allowedFetched[0].symbol, { shouldDirty: true });
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedNetwork.chain.name, tokenAllowlist],
   );
 
   useEffect(
@@ -508,12 +582,10 @@ export const TransactionForm = ({
         let maxAmountSentValue = 10000;
         let minAmountSentValue = 0.5;
 
-        const normalizedToken = token?.toUpperCase();
-
         if (swapMode === "onramp") {
           maxAmountSentValue = getOnrampFiatMaxAmount(currency || "NGN");
           setRateError(null);
-        } else if (normalizedToken === "CNGN") {
+        } else if (tokensEqual(token, "cNGN")) {
           if (cngnRate && cngnRate > 0) {
             // Valid rate available - calculate limits and clear errors
             maxAmountSentValue = 50000000;
@@ -594,7 +666,7 @@ export const TransactionForm = ({
               );
             }
           }
-        } else if (normalizedToken === "CNGN") {
+        } else if (tokensEqual(token, "cNGN")) {
           const ngnEnabled = selectableCurrencies.some(
             (item) => item.name === "NGN" && !item.disabled,
           );
@@ -795,6 +867,7 @@ export const TransactionForm = ({
 
   // Handle swap button click to switch between token/currency dropdowns
   const handleSwapFields = () => {
+    if (isSideLocked) return;
     const willBeSwapped = !isSwapped;
     if (willBeSwapped && !onrampSupported) {
       toast.error("Buy is not available on Tron yet", {
@@ -1006,60 +1079,62 @@ export const TransactionForm = ({
         noValidate
       >
         <div className="grid gap-2 rounded-[20px] bg-background-neutral p-2 dark:bg-white/5">
-          <div className="flex items-center justify-between px-2 py-1">
-            <h3 className="text-base font-medium">Swap</h3>
+          {!hideSideToggle && (
+            <div className="flex items-center justify-between px-2 py-1">
+              <h3 className="text-base font-medium">Swap</h3>
 
-            <div className="flex items-center gap-1">
-              {/* On-ramp button */}
-              <button
-                type="button"
-                aria-disabled={!onrampSupported}
-                onClick={() => {
-                  if (!onrampSupported) {
-                    toast.error("Buy is not available on Tron yet", {
-                      description:
-                        "Switch to another network to buy crypto, or use Sell on Tron.",
-                    });
-                    return;
-                  }
-                  if (!isSwapped) {
-                    void handleSwapFields();
-                  }
-                }}
-                className={[
-                  "px-4 h-8 text-sm font-medium rounded-full transition-colors",
-                  "bg-neutral-100 dark:bg-[#141414]",
-                  !onrampSupported
-                    ? "cursor-not-allowed opacity-40"
-                    : "",
-                  isSwapped
-                    ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
-                    : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
-                ].join(" ")}
-              >
-                Buy
-              </button>
+              <div className="flex items-center gap-1">
+                {/* On-ramp button */}
+                <button
+                  type="button"
+                  aria-disabled={!onrampSupported}
+                  onClick={() => {
+                    if (!onrampSupported) {
+                      toast.error("Buy is not available on Tron yet", {
+                        description:
+                          "Switch to another network to buy crypto, or use Sell on Tron.",
+                      });
+                      return;
+                    }
+                    if (!isSwapped) {
+                      void handleSwapFields();
+                    }
+                  }}
+                  className={[
+                    "px-4 h-8 text-sm font-medium rounded-full transition-colors",
+                    "bg-neutral-100 dark:bg-[#141414]",
+                    !onrampSupported
+                      ? "cursor-not-allowed opacity-40"
+                      : "",
+                    isSwapped
+                      ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
+                      : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
+                  ].join(" ")}
+                >
+                  Buy
+                </button>
 
-              {/* Off-ramp button */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (isSwapped) {
-                    void handleSwapFields();
-                  }
-                }}
-                className={[
-                  "px-4 h-8 text-sm font-medium rounded-full transition-colors",
-                  "bg-neutral-100 dark:bg-[#141414]",
-                  !isSwapped
-                    ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
-                    : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
-                ].join(" ")}
-              >
-                Sell
-              </button>
+                {/* Off-ramp button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isSwapped) {
+                      void handleSwapFields();
+                    }
+                  }}
+                  className={[
+                    "px-4 h-8 text-sm font-medium rounded-full transition-colors",
+                    "bg-neutral-100 dark:bg-[#141414]",
+                    !isSwapped
+                      ? "border border-neutral-400 text-neutral-900 dark:border-[#FFFFFF1A] dark:text-white"
+                      : "border border-transparent text-neutral-400 dark:text-[#bdbdbd80]",
+                  ].join(" ")}
+                >
+                  Sell
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           <motion.div
             layout
@@ -1161,6 +1236,7 @@ export const TransactionForm = ({
                   className="min-w-80"
                   dropdownWidth={320}
                   isCTA={!currency}
+                  disabled={isCurrencyLocked}
                 />
               ) : (
                 <FormDropdown
@@ -1173,6 +1249,7 @@ export const TransactionForm = ({
                   }
                   className="min-w-32"
                   dropdownWidth={160}
+                  disabled={isTokenLocked}
                 />
               )}
             </div>
@@ -1190,21 +1267,23 @@ export const TransactionForm = ({
               )}
 
             {/* Arrow showing swap direction */}
-            <button
-              type="button"
-              onClick={handleSwapFields}
-              className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas"
-            >
-              <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
-                {isFetchingRate ? (
-                  <span className="animate-spin text-xl text-outline-gray dark:text-white/50">
-                    <ImSpinner3 />
-                  </span>
-                ) : (
-                  <ArrowUpDownIcon className="text-xl text-outline-gray dark:text-white/40" />
-                )}
-              </div>
-            </button>
+            {!isSideLocked && (
+              <button
+                type="button"
+                onClick={handleSwapFields}
+                className="absolute -bottom-5 left-1/2 z-10 w-fit -translate-x-1/2 rounded-xl border-4 border-background-neutral bg-background-neutral dark:border-white/5 dark:bg-surface-canvas"
+              >
+                <div className="rounded-lg bg-white p-0.5 dark:bg-surface-canvas">
+                  {isFetchingRate ? (
+                    <span className="animate-spin text-xl text-outline-gray dark:text-white/50">
+                      <ImSpinner3 />
+                    </span>
+                  ) : (
+                    <ArrowUpDownIcon className="text-xl text-outline-gray dark:text-white/40" />
+                  )}
+                </div>
+              </button>
+            )}
           </motion.div>
 
           {/* Amount to receive & currency */}
@@ -1262,6 +1341,7 @@ export const TransactionForm = ({
                   }}
                   className="min-w-32"
                   dropdownWidth={160}
+                  disabled={isTokenLocked}
                 />
               ) : (
                 <FormDropdown
@@ -1283,6 +1363,7 @@ export const TransactionForm = ({
                       (authenticated && !(totalRequired > balance)))
                   }
                   dropdownWidth={320}
+                  disabled={isCurrencyLocked}
                 />
               )}
             </div>

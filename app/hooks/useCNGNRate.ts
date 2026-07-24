@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { fetchRate } from "../api/aggregator";
 import { getPreferredRateToken, normalizeNetworkForRateFetch } from "../utils";
+import { toAggregatorToken } from "../lib/token-symbol";
 import { ERROR_MESSAGES } from "../lib/errorMessages";
 
 // Constants for rate fetching configuration
@@ -95,7 +96,7 @@ async function fetchRateWithTimeout(
   try {
     const preferredToken = await getPreferredRateToken(network);
     const rateResponse = await fetchRate({
-      token: preferredToken,
+      token: toAggregatorToken(preferredToken),
       amount: 100,
       currency: "NGN",
       network: normalizeNetworkForRateFetch(network),

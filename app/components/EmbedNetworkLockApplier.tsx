@@ -1,54 +1,100 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useEmbed } from "../context/EmbedContext";
 import { useInjectedWallet } from "../context/InjectedWalletContext";
 import { useNetwork } from "../context/NetworksContext";
 import {
-  hasEmbedNetworkLockParams,
+  isNetworkInAllowlist,
   resolveNetworkByChainId,
-  resolveNetworkFromEmbedParams,
 } from "../lib/embed-network";
 
 /**
- * Applies host `?chainId=` / `?network=` on mount, and follows EIP-1193
- * `chainChanged` from injected/bridge wallets while in embed mode.
- * Must render under NetworkProvider and InjectedWalletProvider.
+ * Applies embed URL network defaults/allowlists on mount, follows EIP-1193
+ * `chainChanged` from injected/bridge wallets, and handles host
+ * `noblocks:set_config`. Must render under NetworkProvider and InjectedWalletProvider.
  */
 export function EmbedNetworkLockApplier() {
-  const { isEmbed, isNetworkLocked, lockNetworkFromWallet } = useEmbed();
+  const {
+    isEmbed,
+    networkAllowlist,
+    defaultNetwork,
+    networkLockUnresolved,
+    lockNetworkFromWallet,
+    parentOrigin,
+    applyHostConfig,
+  } = useEmbed();
   const { setDisplayedNetwork } = useNetwork();
   const { injectedProvider } = useInjectedWallet();
-  const searchParams = useSearchParams();
   const appliedRef = useRef(false);
   const urlToastRef = useRef(false);
   const unsupportedChainToastRef = useRef(false);
 
-  // URL lock → set displayed network once.
+  // URL default / allowlist → set displayed network once.
   useEffect(() => {
-    if (!isEmbed || !isNetworkLocked) return;
-    if (!hasEmbedNetworkLockParams(searchParams)) return;
+    if (!isEmbed) return;
     if (appliedRef.current) return;
 
+    const hasNetworkConstraint =
+      networkAllowlist != null ||
+      defaultNetwork != null ||
+      networkLockUnresolved;
+    if (!hasNetworkConstraint) return;
+
     appliedRef.current = true;
-    const network = resolveNetworkFromEmbedParams(searchParams);
-    if (network) {
-      setDisplayedNetwork(network);
+
+    if (defaultNetwork) {
+      setDisplayedNetwork(defaultNetwork);
       return;
     }
 
-    if (!urlToastRef.current) {
+    if (networkLockUnresolved && !urlToastRef.current) {
       urlToastRef.current = true;
       toast.error("Unsupported network", {
         description:
           "The network from the embed URL is not supported. Keeping the default network.",
       });
     }
-  }, [isEmbed, isNetworkLocked, searchParams, setDisplayedNetwork]);
+  }, [
+    isEmbed,
+    networkAllowlist,
+    defaultNetwork,
+    networkLockUnresolved,
+    setDisplayedNetwork,
+  ]);
 
-  // Injected / bridge wallet chain switches → update + keep locked.
+  // Host → widget live config updates.
+  useEffect(() => {
+    if (!isEmbed || !parentOrigin) return;
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== parentOrigin) return;
+      if (event.source !== window.parent) return;
+      const data = event.data;
+      if (!data || data.source !== "noblocks-host") return;
+      if (data.event !== "noblocks:set_config") return;
+
+      const payload =
+        data.payload && typeof data.payload === "object" ? data.payload : {};
+      const result = applyHostConfig(payload);
+
+      if (result.network) {
+        setDisplayedNetwork(result.network);
+      }
+
+      if (result.rejected.length > 0) {
+        toast.error("Unsupported configuration", {
+          description: `Host update ignored for: ${result.rejected.join(", ")}.`,
+        });
+      }
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [isEmbed, parentOrigin, applyHostConfig, setDisplayedNetwork]);
+
+  // Injected / bridge wallet chain switches → update + keep locked (within allowlist).
   useEffect(() => {
     if (!isEmbed || !injectedProvider?.on) return;
 
@@ -58,7 +104,7 @@ export function EmbedNetworkLockApplier() {
           ? chainId
           : String(chainId ?? ""),
       );
-      if (network) {
+      if (network && isNetworkInAllowlist(network, networkAllowlist)) {
         setDisplayedNetwork(network);
         lockNetworkFromWallet();
         unsupportedChainToastRef.current = false;
@@ -68,8 +114,9 @@ export function EmbedNetworkLockApplier() {
       if (!unsupportedChainToastRef.current) {
         unsupportedChainToastRef.current = true;
         toast.error("Unsupported network", {
-          description:
-            "Your wallet switched to a network Noblocks does not support yet.",
+          description: network
+            ? "Your wallet switched to a network outside this embed’s allowlist."
+            : "Your wallet switched to a network Noblocks does not support yet.",
         });
       }
     };
@@ -83,6 +130,7 @@ export function EmbedNetworkLockApplier() {
     injectedProvider,
     setDisplayedNetwork,
     lockNetworkFromWallet,
+    networkAllowlist,
   ]);
 
   return null;

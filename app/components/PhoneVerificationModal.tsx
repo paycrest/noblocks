@@ -226,7 +226,21 @@ export default function PhoneVerificationModal({
       toast.error("Please enter your full name");
       return;
     }
-    if (!walletAddress || !phoneValidation.ok) {
+    // The CTA is already disabled while the phone is invalid; this is only a
+    // race guard for a submit that slipped through mid-edit.
+    if (!phoneValidation.ok) {
+      return;
+    }
+    // Both wallet sources resolve asynchronously (Privy provisions the
+    // embedded wallet after first login; injected/bridge wallets connect on
+    // demand). A silent return here read as a dead button — say what's
+    // missing instead.
+    if (!walletAddress) {
+      toast.error(
+        isInjectedWallet
+          ? "Connect your wallet to continue."
+          : "Your wallet is still being set up. Give it a few seconds and try again.",
+      );
       return;
     }
 
@@ -267,7 +281,7 @@ export default function PhoneVerificationModal({
     } finally {
       setIsLoading(false);
     }
-  }, [phoneNumber, walletAddress, selectedCountry, name, fullName, showFullNameField, resolveAuthHeaders, phoneValidation]);
+  }, [phoneNumber, walletAddress, isInjectedWallet, selectedCountry, name, fullName, showFullNameField, resolveAuthHeaders, phoneValidation]);
 
   const handleOtpSubmit = useCallback(async () => {
     if (!otpCode.trim() || otpCode.length !== 6) {

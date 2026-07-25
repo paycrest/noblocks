@@ -126,8 +126,10 @@ INJECTED_SESSION_SECRET=
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-- **Minimum 32 characters** — shorter values are rejected at startup of the
-  signing path. `openssl rand -hex 32` gives 64 hex chars.
+- **Minimum 32 characters.** The check runs lazily — when a token is actually
+  signed or verified, never at boot — so a missing or too-short value does not
+  fail the deploy. It surfaces later as a failed sign-in (`500`) and rejected
+  tokens. `openssl rand -hex 32` gives 64 hex chars.
 - **Must be identical across every instance** of a deployment. The API route
   (Node) mints the JWT and the middleware (Edge) verifies it, so both runtimes
   need the same value; mismatched replicas reject each other's tokens.

@@ -218,6 +218,13 @@ export const TransactionPreview = ({
         ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
         : smartWallet);
 
+  // For Starknet, the middleware resolves x-wallet-address from the EVM embedded wallet.
+  // Use the EVM address for backend API calls (precheck, save, fetchTransactions)
+  // so auth passes, while activeWallet still holds the Starknet address for order creation.
+  const apiWalletAddress = isStarknetSelected && embeddedWallet
+    ? embeddedWallet.address
+    : activeWallet?.address;
+
   // Get appropriate balance based on migration status
   // After migration: use externalWalletBalance (EOA balance)
   // Before migration: use smartWalletBalance (SCW balance)
@@ -766,7 +773,7 @@ export const TransactionPreview = ({
 
         await precheckSwapTransaction(
           {
-            walletAddress: activeWallet.address,
+            walletAddress: apiWalletAddress ?? activeWallet.address,
             transactionType: "onramp",
             fromCurrency: currency,
             toCurrency: toAggregatorToken(token),
@@ -837,9 +844,9 @@ export const TransactionPreview = ({
         });
 
         const refreshTok = await getAccessToken();
-        if (refreshTok && activeWallet?.address) {
+        if (refreshTok && apiWalletAddress) {
           void fetchTransactions(
-            activeWallet.address,
+            apiWalletAddress,
             refreshTok,
             1,
             30,
@@ -884,7 +891,7 @@ export const TransactionPreview = ({
 
       await precheckSwapTransaction(
         {
-          walletAddress: activeWallet.address,
+          walletAddress: apiWalletAddress ?? activeWallet.address,
           fromCurrency: toAggregatorToken(token),
           toCurrency: currency,
           amountSent: Number(amountSent),
@@ -936,7 +943,7 @@ export const TransactionPreview = ({
       }
 
       const transaction: TransactionCreateInput = {
-        walletAddress: activeWallet.address,
+        walletAddress: apiWalletAddress ?? activeWallet.address,
         transactionType: isOnramp ? "onramp" : "offramp",
         fromCurrency: isOnramp ? currency : token,
         toCurrency: isOnramp ? token : currency,

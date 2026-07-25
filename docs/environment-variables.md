@@ -139,11 +139,18 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
   settings, not in a tracked file.
 - **Rotating it invalidates all live sessions.** Cost is low: users re-sign
   once, and tokens only last an hour anyway.
-- `NEXT_PUBLIC_APP_URL` must match the deployment's real public origin. If it
-  still says `localhost:3000` in a deployed environment, sign-in fails with
-  `401 Sign-in domain is not allowed` (embedded widgets additionally need the
-  partner origin in `EMBED_ALLOWED_ORIGINS` or the `embed_allowed_origins`
-  table).
+- `NEXT_PUBLIC_APP_URL` must match the deployment's real public origin. The
+  SIWE `domain` is checked against the **union** of this value,
+  `EMBED_ALLOWED_ORIGINS`, and the `embed_allowed_origins` table — so which
+  one matters depends on who signed:
+  - **Direct app or `injected=true`** — the domain is this deployment's own
+    host. A stale `localhost:3000` here fails with
+    `401 Sign-in domain is not allowed`, unless the real origin happens to be
+    allowlisted by one of the other two sources.
+  - **Embedded widget (`injected=bridge`)** — the host page's wallet signs, so
+    the domain is the *partner's* origin and must come from
+    `EMBED_ALLOWED_ORIGINS` or the table. `NEXT_PUBLIC_APP_URL` is not
+    consulted for that signature.
 
 ### Feature Flags
 

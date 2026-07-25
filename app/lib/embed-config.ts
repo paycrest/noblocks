@@ -81,12 +81,14 @@ export type EmbedParsedConfig = {
   hideSideToggle: boolean;
   /** True when URL/`set_config` fixed a buy/sell side. */
   sideLockedFromUrl: boolean;
+  /** True to suppress the in-widget support chat (host provides its own). */
+  hideSupport: boolean;
 };
 
-function parseHideSideToggle(raw: string | null): boolean {
+function parseBooleanFlag(raw: string | null): boolean {
   if (raw == null) return false;
   const v = raw.trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes";
+  return v === "1" || v === "true" || v === "yes" || v === "on";
 }
 
 export function parseEmbedConfig(
@@ -126,7 +128,8 @@ export function parseEmbedConfig(
       isCurrencyInAllowlist(parsedCurrency, currencyAllowlist)
         ? parsedCurrency
         : null,
-    hideSideToggle: parseHideSideToggle(searchParams.get("hideSideToggle")),
+    hideSideToggle: parseBooleanFlag(searchParams.get("hideSideToggle")),
     sideLockedFromUrl,
+    hideSupport: parseBooleanFlag(searchParams.get("hideSupport")),
   };
 }

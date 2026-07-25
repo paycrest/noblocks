@@ -43,7 +43,13 @@ export const Navbar = () => {
   const portaledDropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { selectedNetwork } = useNetwork();
-  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const {
+    isInjectedWallet,
+    injectedAddress,
+    injectedReady,
+    injectedRequested,
+    injectedStatus,
+  } = useInjectedWallet();
   const isDark = useActualTheme();
   const walletAddress = useWalletAddress();
 
@@ -358,7 +364,7 @@ export const Navbar = () => {
         </div>
 
         <div className="flex gap-3 text-sm font-medium *:flex-shrink-0 sm:gap-4">
-          {(ready && authenticated) || isInjectedWallet ? (
+          {(ready && authenticated) || (isInjectedWallet && injectedReady) ? (
             <>
               <div className="hidden sm:block">
                 <WalletDetails />
@@ -398,7 +404,9 @@ export const Navbar = () => {
               </AnimatePresence>
             </>
           ) : (
-            !isInjectedWallet && (
+            // An injected wallet was requested: don't offer our own login until
+            // that connection has definitively failed.
+            !(injectedRequested && injectedStatus !== "unavailable") && (
               <button
                 type="button"
                 className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}

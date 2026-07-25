@@ -248,17 +248,18 @@ type NearQuoteParams = {
 
 /**
  * Auth descriptor for the gated bridge proxy routes. Injected wallets authenticate
- * with the x-injected-wallet header (resolved by middleware); Privy wallets with the
- * Bearer token. A bare string is treated as a Privy token for backwards compatibility.
+ * with an x-injected-token session JWT (minted by /api/auth/injected/verify after a
+ * SIWE signature — never a raw address, which anyone could claim); Privy wallets with
+ * the Bearer token. A bare string is treated as a Privy token for backwards compatibility.
  */
-export type BridgeAuth = { token?: string | null; injectedAddress?: string | null };
+export type BridgeAuth = { token?: string | null; injectedToken?: string | null };
 
 /** Auth header for the gated bridge proxy routes; empty when unauthenticated (route then 401s). */
 export function authHeaders(auth?: BridgeAuth | string | null): Record<string, string> {
   const a: BridgeAuth =
     auth == null ? {} : typeof auth === "string" ? { token: auth } : auth;
-  if (a.injectedAddress) {
-    return { "x-injected-wallet": a.injectedAddress.toLowerCase() };
+  if (a.injectedToken) {
+    return { "x-injected-token": a.injectedToken };
   }
   return a.token ? { Authorization: `Bearer ${a.token}` } : {};
 }

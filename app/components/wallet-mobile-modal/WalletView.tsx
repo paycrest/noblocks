@@ -26,6 +26,7 @@ import {
 } from "../../utils";
 import { tokensEqual } from "../../lib/token-symbol";
 import type { CrossChainBalanceEntry } from "../../context";
+import { useEmbed } from "../../context/EmbedContext";
 import TransactionList from "../transaction/TransactionList";
 import type { Network, TransactionHistory } from "../../types";
 import { isReferralEnabled, formatTokenAmount } from "../../utils";
@@ -98,6 +99,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
   onViewReferrals,
 }) => {
   const showBalanceSkeleton = isLoading && !isRefreshing;
+  const { isEmbed } = useEmbed();
   const [walletTab, setWalletTab] = useState<WalletTab>("balances");
   const [isAddressCopied, setIsAddressCopied] = useState(false);
 
@@ -306,7 +308,7 @@ export const WalletView: React.FC<WalletViewProps> = ({
 
   return (
     <div className="mb-[1.5rem] flex min-h-0 flex-1 flex-col">
-      <div className="flex-shrink-0 space-y-4">
+      <div className="flex-shrink-0">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-text-body dark:text-white">
             Wallet
@@ -343,9 +345,14 @@ export const WalletView: React.FC<WalletViewProps> = ({
             </button>
           </div>
         </div>
+      </div>
 
+      {/* Everything below the title scrolls: on short viewports the balance
+          card would otherwise leave the balances/transactions list only a
+          sliver of height. */}
+      <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
         {smartWallet?.address ? (
-          <div className="space-y-4 rounded-[20px] border border-border-light p-4 dark:border-white/10">
+          <div className="mt-4 space-y-4 rounded-[20px] border border-border-light p-4 dark:border-white/10">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Wallet01Icon className="size-5 text-outline-gray dark:text-white/50" />
@@ -375,9 +382,9 @@ export const WalletView: React.FC<WalletViewProps> = ({
               )}
             </p>
 
-            {/* Injected wallets fund/transfer through their host wallet, so only
-                Convert applies to them — render the row when it has at least one
-                button (non-injected, or Convert available). */}
+            {/* Injected wallets fund, transfer and convert through their host
+                wallet, so the whole row drops out for them; onConvert is only
+                passed for Privy logins. */}
             {(!isInjectedWallet || !!onConvert) && !showBalanceSkeleton && (
               <div className="flex flex-row items-start justify-between gap-2">
                 {!isInjectedWallet && (
@@ -415,7 +422,12 @@ export const WalletView: React.FC<WalletViewProps> = ({
                     type="button"
                     title="Convert tokens"
                     onClick={onConvert}
-                    className="group flex flex-1 flex-col items-center gap-2"
+                    className={classNames(
+                      "group flex flex-col items-center gap-2",
+                      // Solo button in injected mode: content width, left-aligned
+                      // (flex-1 would stretch it and center the icon mid-row).
+                      isInjectedWallet ? "" : "flex-1",
+                    )}
                   >
                     <span className="flex size-[60px] items-center justify-center rounded-full bg-accent-gray text-gray-900 transition-all group-hover:scale-[0.98] group-hover:bg-[#EBEBEF] group-active:scale-95 dark:bg-white/5 dark:text-white dark:group-hover:bg-white/10">
                       <CoinsSwapIcon className="size-6" strokeWidth={2} />
@@ -444,10 +456,10 @@ export const WalletView: React.FC<WalletViewProps> = ({
             )}
           </div>
         ) : null}
-      </div>
 
-      <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
-        {!isInjectedWallet && isReferralEnabled() && (
+        {/* Referrals are a noblocks.xyz program — never surface the CTA inside
+            a partner embed (any mode, incl. Privy fallback). */}
+        {!isInjectedWallet && !isEmbed && isReferralEnabled() && (
           <div className="mt-4">
             <ReferralCTA onViewReferrals={onViewReferrals ?? (() => {})} />
           </div>

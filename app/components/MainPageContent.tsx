@@ -892,10 +892,12 @@ export function MainPageContent() {
     setCurrentStep(STEPS.FORM);
   }, [formValues, formMethods, setCurrentStep]);
 
-  const showLoading =
-    isPageLoading ||
-    (!ready && !isInjectedWallet) ||
-    (isInjectedWallet && !injectedReady);
+  // Show the form as soon as we've hydrated rather than holding the whole
+  // page behind Privy init (or, in injected mode, the full wallet handshake):
+  // the form renders fine logged-out, and auth-dependent bits (balance row,
+  // wallet pill) animate in when their providers resolve. Nothing restored
+  // on load depends on auth being settled first.
+  const showLoading = isPageLoading;
 
   const isRecipientFormOpen =
     receiveDestinationExplicitlySelected &&

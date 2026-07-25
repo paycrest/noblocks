@@ -807,15 +807,15 @@ export async function fetchTransactions(
 export async function saveTransaction(
   transaction: TransactionCreateInput,
   accessToken: string | null,
-  isInjectedWallet = false,
+  injectedToken: string | null = null,
 ): Promise<SaveTransactionResponse> {
   const headers: Record<string, string> = {
     // Same intent as middleware primary wallet; overwritten by middleware for browser,
     // but clarifies signer for proxies and matches fetchTransactions/update patterns.
     "x-wallet-address": String(transaction.walletAddress).toLowerCase(),
   };
-  if (isInjectedWallet) {
-    headers["x-injected-wallet"] = String(transaction.walletAddress).toLowerCase();
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
   } else if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
@@ -886,13 +886,13 @@ export async function updateBridgeTransactionStatus(
   status: "completed" | "refunded" | "failed",
   accessToken: string | null,
   walletAddress: string,
-  isInjectedWallet = false,
+  injectedToken: string | null = null,
 ): Promise<void> {
   const headers: Record<string, string> = {
     "x-wallet-address": walletAddress.toLowerCase(),
   };
-  if (isInjectedWallet) {
-    headers["x-injected-wallet"] = walletAddress.toLowerCase();
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
   } else if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
@@ -1072,22 +1072,43 @@ export async function reindexTransaction(
   }
 }
 
+// The token list is fetched independently by TokensContext and the
+// utils-level cache on every page load; share one request and result here so
+// they stop racing each other (each round-trip is ~1s from the aggregator).
+const TOKENS_TTL_MS = 5 * 60 * 1000;
+let tokensInFlight: Promise<APIToken[]> | null = null;
+let tokensResult: { at: number; data: APIToken[] } | null = null;
+
 /**
- * Fetches the list of supported tokens from the aggregator API
+ * Fetches the list of supported tokens from the aggregator API.
+ * Concurrent callers share one request; results are cached for 5 minutes.
  * @returns {Promise<APIToken[]>} Array of supported tokens from the API
  * @throws {Error} If the API request fails
  */
 export const fetchTokens = async (): Promise<APIToken[]> => {
-  try {
-    const response = await axios.get(`${AGGREGATOR_URL}/tokens`);
-    if (response.data?.data && Array.isArray(response.data.data)) {
-      return response.data.data;
-    }
-    return [];
-  } catch (error) {
-    console.error("Error fetching supported tokens from API:", error);
-    throw error;
+  if (tokensResult && Date.now() - tokensResult.at < TOKENS_TTL_MS) {
+    return tokensResult.data;
   }
+  if (tokensInFlight) {
+    return tokensInFlight;
+  }
+  tokensInFlight = (async () => {
+    try {
+      const response = await axios.get(`${AGGREGATOR_URL}/tokens`);
+      const data =
+        response.data?.data && Array.isArray(response.data.data)
+          ? (response.data.data as APIToken[])
+          : [];
+      tokensResult = { at: Date.now(), data };
+      return data;
+    } catch (error) {
+      console.error("Error fetching supported tokens from API:", error);
+      throw error;
+    } finally {
+      tokensInFlight = null;
+    }
+  })();
+  return tokensInFlight;
 };
 
 /**
@@ -1376,7 +1397,7 @@ export const submitSmileIDData = async (
   payload: any,
   accessToken: string | null,
   walletAddress: string,
-  isInjectedWallet = false,
+  injectedToken: string | null = null,
 ): Promise<SmileIDSubmissionResponse> => {
   const startTime = Date.now();
 
@@ -1389,14 +1410,14 @@ export const submitSmileIDData = async (
     });
 
     // Auth is resolved by middleware: injected wallets authenticate via the
-    // x-injected-wallet header, Privy wallets via the Bearer token. The
+    // x-injected-token session JWT, Privy wallets via the Bearer token. The
     // middleware overwrites x-wallet-address from the verified identity, so the
     // client-supplied value is only a hint.
     const headers: Record<string, string> = {
       "x-wallet-address": walletAddress.toLowerCase(),
     };
-    if (isInjectedWallet) {
-      headers["x-injected-wallet"] = walletAddress.toLowerCase();
+    if (injectedToken) {
+      headers["x-injected-token"] = injectedToken;
     } else if (accessToken) {
       headers.Authorization = `Bearer ${accessToken}`;
     }

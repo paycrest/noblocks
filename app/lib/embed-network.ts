@@ -120,6 +120,29 @@ export function resolveNetworksAllowlist(
   return result;
 }
 
+/**
+ * Resolve `?chainIds=` CSV of EVM chain IDs (decimal or 0x hex) to Network[].
+ * The allowlist counterpart of `?chainId=`, the way `?networks=` pairs with
+ * `?network=`. Unknown/invalid IDs are dropped. Empty / missing CSV → empty
+ * array.
+ */
+export function resolveChainIdsAllowlist(
+  raw: string | null | undefined,
+): Network[] {
+  const parts = parseCsvParam(raw);
+  const seen = new Set<string>();
+  const result: Network[] = [];
+  for (const part of parts) {
+    const network = resolveNetworkByChainId(part);
+    if (!network) continue;
+    const key = network.chain.name;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(network);
+  }
+  return result;
+}
+
 /** True when `network` is in an allowlist of Networks (by chain name). */
 export function isNetworkInAllowlist(
   network: Network,
@@ -139,11 +162,14 @@ export function hasEmbedNetworkLockParams(
   );
 }
 
-/** True when `networks` query key is present (multi-network allowlist). */
+/** True when a network allowlist key (`networks` / `chainIds`) is present. */
 export function hasEmbedNetworksAllowlistParam(
   searchParams: SearchParamsLike,
 ): boolean {
-  return searchParams.get("networks") != null;
+  return (
+    searchParams.get("networks") != null ||
+    searchParams.get("chainIds") != null
+  );
 }
 
 /**
@@ -186,9 +212,11 @@ export type EmbedNetworkConfig = {
 /**
  * Parse embed network allowlist + default + lock from URL search params.
  *
- * - `networks=` CSV → allowlist (omit key = unrestricted)
- * - `network=` / `chainId=` → default; without `networks=` also locks (legacy)
- * - Single-entry `networks=` → locked read-only chip
+ * - `networks=` CSV of slugs and/or `chainIds=` CSV of EVM chain IDs →
+ *   allowlist (the union when both are present; omit both = unrestricted)
+ * - `network=` / `chainId=` → default; without an allowlist key also locks
+ *   (legacy)
+ * - Single-entry allowlist → locked read-only chip
  */
 export function parseEmbedNetworkConfig(
   searchParams: SearchParamsLike,
@@ -198,7 +226,15 @@ export function parseEmbedNetworkConfig(
   const hadDefaultKeys = hasEmbedNetworkLockParams(searchParams);
 
   if (hasNetworksKey) {
-    const allowlist = resolveNetworksAllowlist(searchParams.get("networks"));
+    const bySlug = resolveNetworksAllowlist(searchParams.get("networks"));
+    const byChainId = resolveChainIdsAllowlist(searchParams.get("chainIds"));
+    const seen = new Set<string>();
+    const allowlist: Network[] = [];
+    for (const network of [...bySlug, ...byChainId]) {
+      if (seen.has(network.chain.name)) continue;
+      seen.add(network.chain.name);
+      allowlist.push(network);
+    }
     const defaultNetwork =
       fromDefaultParams && isNetworkInAllowlist(fromDefaultParams, allowlist)
         ? fromDefaultParams

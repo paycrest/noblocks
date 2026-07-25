@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify, createRemoteJWKSet } from "jose";
+import { verifyInjectedSessionJwt } from "./app/lib/injectedSessionAuth";
 
 // Inline lightweight edge-compatible helpers to avoid pulling in heavy SDKs
 
@@ -169,16 +170,39 @@ async function authorizationMiddleware(req: NextRequest) {
   );
 
   const token = req.headers.get("Authorization")?.replace("Bearer ", "");
-  const injectedWalletAddress = req.headers.get("x-injected-wallet");
+  const injectedSessionToken = req.headers.get("x-injected-token");
 
-  // Support both Privy JWT auth and injected wallet auth
+  // Support both Privy JWT auth and injected-wallet session auth
   let walletAddress: string | null = null;
   let privyUserId: string | null = null;
 
-  if (injectedWalletAddress) {
-    // Injected wallet mode: use the wallet address directly from header
-    // Set by frontend when isInjectedWallet=true
-    walletAddress = injectedWalletAddress.toLowerCase();
+  if (injectedSessionToken) {
+    // Injected wallet mode: verify the session JWT minted by
+    // /api/auth/injected/verify after a SIWE signature proved control of the
+    // address. The address comes from the token's verified `sub` — a raw
+    // client-supplied address header is NEVER trusted (anyone could claim any
+    // wallet and act on its KYC profile, phone verification, and transactions).
+    walletAddress = await verifyInjectedSessionJwt(injectedSessionToken);
+    if (!walletAddress) {
+      trackMiddlewareAnalytics(
+        "error",
+        {
+          endpoint,
+          method,
+          statusCode: 401,
+          errorMessage: "Invalid injected session token",
+          properties: {
+            middleware: true,
+            error_type: "injected_session_verification_failed",
+          },
+        },
+        req.nextUrl.origin,
+      );
+      return NextResponse.json(
+        { error: "Invalid or expired wallet session" },
+        { status: 401 },
+      );
+    }
     privyUserId = `injected-${walletAddress}`;
   } else if (token) {
     // Privy JWT mode: verify and resolve wallet

@@ -35,11 +35,20 @@ export function WidgetShell({ children }: { children: React.ReactNode }) {
   const { ready, authenticated } = usePrivy();
   const { login } = useLogin();
   const loginWithScrollPin = useLoginWithScrollPin(login);
-  const { isInjectedWallet } = useInjectedWallet();
+  const { isInjectedWallet, injectedReady, injectedRequested, injectedStatus } =
+    useInjectedWallet();
   const { networkLockUnresolved } = useEmbed();
   const [isWalletDrawerOpen, setIsWalletDrawerOpen] = useState(false);
 
-  const isConnected = (ready && authenticated) || isInjectedWallet;
+  // Injected mode counts as connected only once an account is actually in
+  // hand; while awaiting the host wallet the header shows neither the pill
+  // nor Sign in (the primary CTA reads "Connect wallet" instead).
+  const isConnected =
+    (ready && authenticated) || (isInjectedWallet && injectedReady);
+  // The host asked us to use its wallet, so never offer our own login while
+  // that connection is still possible — only once it has definitively failed.
+  const injectedPendingOrActive =
+    injectedRequested && injectedStatus !== "unavailable";
 
   return (
     <div className="w-full">
@@ -76,7 +85,7 @@ export function WidgetShell({ children }: { children: React.ReactNode }) {
               </AnimatePresence>
             </>
           ) : (
-            !isInjectedWallet && (
+            !injectedPendingOrActive && (
               <button
                 type="button"
                 className={`${baseBtnClasses} min-h-9 bg-lavender-50 text-lavender-500 hover:bg-lavender-100 dark:bg-lavender-500/[12%] dark:text-lavender-500 dark:hover:bg-lavender-500/[20%]`}

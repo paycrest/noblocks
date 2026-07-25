@@ -73,6 +73,12 @@ interface EmbedContextType {
   isEmbed: boolean;
   /** Origin of the embedding page, or null when unknown / not framed. */
   parentOrigin: string | null;
+  /**
+   * True once the referrer has been read on mount. Lets consumers tell "host
+   * origin not known yet" from "host sends no referrer" — the injected wallet
+   * bridge must not give up before this flips.
+   */
+  parentOriginResolved: boolean;
   /** Send an event to the host page. No-op outside an iframe. */
   postToHost: (event: string, payload?: unknown) => void;
   /**
@@ -95,6 +101,8 @@ interface EmbedContextType {
   isTokenLocked: boolean;
   isCurrencyLocked: boolean;
   hideSideToggle: boolean;
+  /** Host asked us to hide the in-widget support chat (`?hideSupport=1`). */
+  hideSupport: boolean;
   /** Side fixed via URL `side=` or host set_config. */
   isSideLocked: boolean;
   defaultToken: string | null;
@@ -114,6 +122,7 @@ const defaultHostFormConfig: EmbedHostFormConfig = { version: 0 };
 const EmbedContext = createContext<EmbedContextType>({
   isEmbed: false,
   parentOrigin: null,
+  parentOriginResolved: false,
   postToHost: () => {},
   isNetworkLocked: false,
   networkLockUnresolved: false,
@@ -124,6 +133,7 @@ const EmbedContext = createContext<EmbedContextType>({
   isTokenLocked: false,
   isCurrencyLocked: false,
   hideSideToggle: false,
+  hideSupport: false,
   isSideLocked: false,
   defaultToken: null,
   defaultCurrency: null,
@@ -137,6 +147,7 @@ function EmbedProviderContent({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const isEmbed = isEmbedPath(pathname);
   const [parentOrigin, setParentOrigin] = useState<string | null>(null);
+  const [parentOriginResolved, setParentOriginResolved] = useState(false);
   const [walletNetworkLocked, setWalletNetworkLocked] = useState(false);
   const [hostFormConfig, setHostFormConfig] =
     useState<EmbedHostFormConfig>(defaultHostFormConfig);
@@ -166,6 +177,7 @@ function EmbedProviderContent({ children }: { children: ReactNode }) {
     currencyAllowlist != null && currencyAllowlist.length === 1,
   );
   const hideSideToggle = Boolean(parsed?.hideSideToggle);
+  const hideSupport = Boolean(parsed?.hideSupport);
   const isSideLocked =
     Boolean(parsed?.sideLockedFromUrl) || hostSideLocked || hideSideToggle;
 
@@ -242,13 +254,17 @@ function EmbedProviderContent({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (!isEmbed || window.self === window.top) return;
-    try {
-      const origin = new URL(document.referrer).origin;
-      if (origin && origin !== "null") setParentOrigin(origin);
-    } catch {
-      // Host sends no referrer - stay silent rather than posting to "*".
+    if (isEmbed && window.self !== window.top) {
+      try {
+        const origin = new URL(document.referrer).origin;
+        if (origin && origin !== "null") setParentOrigin(origin);
+      } catch {
+        // Host sends no referrer - stay silent rather than posting to "*".
+      }
     }
+    // Resolved on every path, including "not framed": consumers waiting on the
+    // host origin need to know the answer is final, not merely still null.
+    setParentOriginResolved(true);
   }, [isEmbed]);
 
   const postToHost = useCallback(
@@ -279,6 +295,7 @@ function EmbedProviderContent({ children }: { children: ReactNode }) {
     () => ({
       isEmbed,
       parentOrigin,
+      parentOriginResolved,
       postToHost,
       isNetworkLocked,
       networkLockUnresolved,
@@ -289,6 +306,7 @@ function EmbedProviderContent({ children }: { children: ReactNode }) {
       isTokenLocked,
       isCurrencyLocked,
       hideSideToggle,
+      hideSupport,
       isSideLocked,
       defaultToken: parsed?.defaultToken ?? null,
       defaultCurrency: parsed?.defaultCurrency ?? null,
@@ -299,6 +317,7 @@ function EmbedProviderContent({ children }: { children: ReactNode }) {
     [
       isEmbed,
       parentOrigin,
+      parentOriginResolved,
       postToHost,
       isNetworkLocked,
       networkLockUnresolved,
@@ -309,6 +328,7 @@ function EmbedProviderContent({ children }: { children: ReactNode }) {
       isTokenLocked,
       isCurrencyLocked,
       hideSideToggle,
+      hideSupport,
       isSideLocked,
       parsed?.defaultToken,
       parsed?.defaultCurrency,

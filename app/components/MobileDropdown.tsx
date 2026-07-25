@@ -346,11 +346,8 @@ export const MobileDropdown = ({
                           onTransfer={() => setCurrentView("transfer")}
                           onFund={() => setCurrentView("fund")}
                           onConvert={
-                            isBridgeUiVisible()
-                              ? () =>
-
-                                setCurrentView("bridge")
-
+                            !isInjectedWallet && isBridgeUiVisible()
+                              ? () => setCurrentView("bridge")
                               : undefined
                           }
                           smartWallet={walletForCopy}

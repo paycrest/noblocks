@@ -41,6 +41,7 @@ import {
 import config from "../lib/config";
 import {
   isGatewayOrderId,
+  isStarknetOrderId,
   resolveChainIdFromNetworkName,
 } from "../lib/payment-order-id";
 import { isNoProviderError } from "../lib/errorMessages";
@@ -563,8 +564,11 @@ export const fetchOrderDetails = async (
     throw new Error("orderId is required");
   }
 
-  const gatewayLookup = isGatewayOrderId(id);
-  if (gatewayLookup && !options?.network?.trim()) {
+  const network = options?.network?.trim() ?? "";
+  const gatewayLookup =
+    isGatewayOrderId(id) ||
+    (isStarknetOrderId(id) && network === "Starknet");
+  if (gatewayLookup && !network) {
     throw new Error(
       "Network is required to look up an offramp order by gateway id",
     );
@@ -584,8 +588,8 @@ export const fetchOrderDetails = async (
           Authorization: `Bearer ${accessToken.trim()}`,
         },
         params:
-          gatewayLookup && options?.network
-            ? { network: options.network.trim() }
+          gatewayLookup && network
+            ? { network }
             : undefined,
         validateStatus: () => true,
       },

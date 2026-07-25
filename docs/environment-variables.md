@@ -106,6 +106,45 @@ NEXT_PUBLIC_SENTRY_ENABLE_IN_DEV=false          # Send events from local dev whe
 INTERNAL_API_KEY=
 ```
 
+### Injected-Wallet Session Auth (SIWE)
+
+Required whenever injected wallets are used (`/widget?injected=true|bridge`,
+or an extension wallet on the main app). Without it, wallet sign-in fails with
+a `500` and every injected API action — phone verification, KYC, order
+creation — is blocked.
+
+```bash
+# HMAC secret for injected-wallet session JWTs minted by
+# /api/auth/injected/verify and verified by the middleware (x-injected-token).
+# Generate with: openssl rand -hex 32
+INJECTED_SESSION_SECRET=
+
+# Canonical public origin of this deployment (e.g. https://noblocks.xyz).
+# SIWE messages must name this host (or an allowed embed origin) — configured,
+# never derived from the request Host header, so a signature phished on another
+# domain can't mint a session here.
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+- **Minimum 32 characters.** The check runs lazily — when a token is actually
+  signed or verified, never at boot — so a missing or too-short value does not
+  fail the deploy. It surfaces later as a failed sign-in (`500`) and rejected
+  tokens. `openssl rand -hex 32` gives 64 hex chars.
+- **Must be identical across every instance** of a deployment. The API route
+  (Node) mints the JWT and the middleware (Edge) verifies it, so both runtimes
+  need the same value; mismatched replicas reject each other's tokens.
+- **Set it per environment** (production, staging, preview). Distinct values
+  per environment are good practice — a staging token must not work in prod.
+- **Never commit it.** Set it in your hosting platform's environment/secret
+  settings, not in a tracked file.
+- **Rotating it invalidates all live sessions.** Cost is low: users re-sign
+  once, and tokens only last an hour anyway.
+- `NEXT_PUBLIC_APP_URL` must match the deployment's real public origin. If it
+  still says `localhost:3000` in a deployed environment, sign-in fails with
+  `401 Sign-in domain is not allowed` (embedded widgets additionally need the
+  partner origin in `EMBED_ALLOWED_ORIGINS` or the `embed_allowed_origins`
+  table).
+
 ### Feature Flags
 
 ```bash

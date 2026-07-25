@@ -10,6 +10,7 @@ import config from "@/app/lib/config";
 import { aggregatorOriginForV2 } from "@/app/api/aggregator";
 import {
   isGatewayOrderId,
+  isStarknetOrderId,
   isSenderPaymentOrderUuid,
   resolveChainIdFromNetworkName,
 } from "@/app/lib/payment-order-id";
@@ -41,7 +42,7 @@ export const GET = withRateLimit(
       trackApiRequest(request, "/api/v1/payment-orders/[id]", "GET", {
         wallet_address: walletAddress,
         order_id: orderId,
-        gateway_lookup: isGatewayOrderId(orderId),
+        gateway_lookup: isGatewayOrderId(orderId) || (isStarknetOrderId(orderId) && networkParam === "Starknet"),
       });
 
       if (!config.aggregatorUrl) {
@@ -56,7 +57,11 @@ export const GET = withRateLimit(
       let url: string;
       let headers: Record<string, string> = {};
 
-      if (isGatewayOrderId(orderId)) {
+      const isGateway =
+        isGatewayOrderId(orderId) ||
+        (isStarknetOrderId(orderId) && networkParam === "Starknet");
+
+      if (isGateway) {
         if (!networkParam) {
           return NextResponse.json(
             {

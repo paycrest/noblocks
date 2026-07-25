@@ -9,7 +9,7 @@ import {
   useRef,
   Suspense,
 } from "react";
-import { createWalletClient, custom, toHex } from "viem";
+import { toHex } from "viem";
 import { createSiweMessage, generateSiweNonce } from "viem/siwe";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
@@ -21,14 +21,18 @@ import {
 import { useEmbed } from "./EmbedContext";
 
 /**
- * "pending" covers the whole connect handshake (bridge origin resolution, the
- * host ACK wait, eth_requestAccounts). "unavailable" means the connection was
- * requested but definitively failed — only then should the widget offer its
- * own login as a fallback.
+ * "pending" covers in-flight work (bridge origin resolution, the host ACK
+ * wait, an eth_requestAccounts prompt). "awaiting_connection" means injected
+ * mode is viable (bridge answered / extension present) but no account is
+ * connected yet — the CTA reads "Connect wallet" and we follow the host's
+ * accountsChanged. "unavailable" means the connection was requested but
+ * definitively failed — only then should the widget offer its own login as a
+ * fallback.
  */
 export type InjectedWalletStatus =
   | "idle"
   | "pending"
+  | "awaiting_connection"
   | "connected"
   | "unavailable";
 
@@ -50,6 +54,12 @@ interface InjectedWalletContextType {
   injectedRequested: boolean;
   injectedStatus: InjectedWalletStatus;
   /**
+   * Gesture-driven connect for the "Connect wallet" CTA: prompts the injected
+   * provider via eth_requestAccounts. Resolves true once an account is
+   * connected. No-op unless status is "awaiting_connection".
+   */
+  connectInjectedWallet: () => Promise<boolean>;
+  /**
    * Session JWT for authenticating API requests (middleware `x-injected-token`).
    * A connected wallet alone does NOT authenticate API calls — the wallet must
    * sign a SIWE challenge once, exchanged server-side for this token. Returns
@@ -69,6 +79,7 @@ const InjectedWalletContext = createContext<InjectedWalletContextType>({
   injectedReady: false,
   injectedRequested: false,
   injectedStatus: "idle",
+  connectInjectedWallet: async () => false,
   getInjectedToken: async () => null,
   getInjectedAuthHeaders: async () => null,
 });
@@ -250,7 +261,7 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Committed to a handshake: claim a run id and mark this param handled so
+      // Committed to a probe: claim a run id and mark this param handled so
       // only genuinely new attempts (not dep re-runs) supersede this one.
       if (!useBridge) handledNonBridgeParamRef.current = injectedParam;
       const runId = ++runIdRef.current;
@@ -260,27 +271,29 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
       setInjectedStatus("pending");
 
       try {
-        const client = createWalletClient({
-          transport: custom(provider as any),
-        });
-
-        await (provider as any).request({ method: "eth_requestAccounts" });
-        const [address] = await client.getAddresses();
+        // Silent probe only — no wallet prompt on load. eth_accounts returns
+        // the already-authorized accounts (and, over the bridge, doubles as
+        // the "is a host bridge listening" check via the ACK timeout).
+        // Connecting is a user gesture: the "Connect wallet" CTA calls
+        // connectInjectedWallet(), and managed hosts (wagmi/AppKit) connect
+        // through their own UI, which reaches us as accountsChanged.
+        const accounts = (await (provider as any).request({
+          method: "eth_accounts",
+        })) as string[] | undefined;
+        const [address] = accounts ?? [];
 
         if (isStale()) return;
 
+        // Keep the provider either way: awaiting mode needs it for the
+        // accountsChanged subscription and the CTA-driven connect.
+        setInjectedProvider(provider);
+
         if (address) {
-          setInjectedProvider(provider);
           setInjectedAddress(address);
           setInjectedReady(true);
           setInjectedStatus("connected");
         } else {
-          console.warn("No address returned from injected wallet.");
-          toast.error(
-            "Couldn't connect to your wallet. Please check your wallet connection.",
-          );
-          setIsInjectedWallet(false);
-          setInjectedStatus("unavailable");
+          setInjectedStatus("awaiting_connection");
         }
       } catch (error) {
         if (isStale()) return;
@@ -301,24 +314,12 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
           return;
         }
 
-        console.error("Failed to initialize injected wallet:", error);
-
-        if ((error as any)?.code === 4001) {
-          toast.error("Connection to wallet was rejected.", {
-            description: "Proceeding without wallet connection.",
-          });
-          // Reset injected wallet state on rejection
-          setIsInjectedWallet(false);
-          setInjectedProvider(null);
-          setInjectedAddress(null);
-          setInjectedReady(false);
-        } else {
-          toast.error(
-            "Failed to connect to wallet. Please refresh and try again.",
-          );
-          setIsInjectedWallet(false);
-        }
-        setInjectedStatus("unavailable");
+        // A failed silent probe isn't terminal: the provider exists, so let
+        // the user drive connection from the CTA instead of falling back to
+        // the widget's own login.
+        console.error("Injected wallet probe failed:", error);
+        setInjectedProvider(provider);
+        setInjectedStatus("awaiting_connection");
       }
     };
 
@@ -327,7 +328,8 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   }, [searchParams, parentOrigin, parentOriginResolved]);
 
   // Track host-side account switches (extension wallets and the embed bridge
-  // both emit standard EIP-1193 events).
+  // both emit standard EIP-1193 events). While awaiting_connection this is
+  // also how a managed host's own "Connect wallet" flow reaches us.
   useEffect(() => {
     if (!injectedProvider?.on) return;
     const handleAccountsChanged = (accounts: unknown) => {
@@ -337,16 +339,15 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
       sessionRef.current = null;
       if (address) {
         setInjectedAddress(address);
+        setInjectedReady(true);
         setInjectedStatus("connected");
       } else {
-        // Host disconnected the wallet. Clear the injected flags too, not just
-        // the status — WidgetShell/Navbar treat isInjectedWallet as "connected"
-        // and would otherwise never fall through to the widget's own login.
+        // Host disconnected the wallet. The bridge/extension is still alive,
+        // so go back to awaiting — the CTA reads "Connect wallet" again —
+        // rather than falling back to the widget's own login.
         setInjectedAddress(null);
         setInjectedReady(false);
-        setInjectedProvider(null);
-        setIsInjectedWallet(false);
-        setInjectedStatus("unavailable");
+        setInjectedStatus("awaiting_connection");
       }
     };
     injectedProvider.on("accountsChanged", handleAccountsChanged);
@@ -358,6 +359,92 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
     };
   }, [injectedProvider]);
 
+  // Close the subscription gap: the accountsChanged listener above only
+  // attaches after the provider lands in state, so a host connection made
+  // between the initial silent probe and that subscription would be missed.
+  // Re-probe (silently) whenever we enter awaiting_connection — this effect
+  // is declared after the subscription effect, so within a commit the
+  // listener is attached before the re-probe runs and no window remains.
+  useEffect(() => {
+    if (injectedStatus !== "awaiting_connection" || !injectedProvider) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const accounts = (await injectedProvider.request({
+          method: "eth_accounts",
+        })) as string[] | undefined;
+        const [address] = accounts ?? [];
+        if (!cancelled && address) {
+          setInjectedAddress(address);
+          setInjectedReady(true);
+          setInjectedStatus("connected");
+        }
+      } catch {
+        // Silent probe; stay in awaiting_connection.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [injectedStatus, injectedProvider]);
+
+  // Single-flight guard: concurrent CTA taps share one wallet prompt.
+  const connectInFlightRef = useRef<Promise<boolean> | null>(null);
+
+  /** Gesture-driven connect for the "Connect wallet" CTA. */
+  const connectInjectedWallet = useCallback(async (): Promise<boolean> => {
+    if (injectedStatus !== "awaiting_connection" || !injectedProvider) {
+      return injectedStatus === "connected";
+    }
+    if (connectInFlightRef.current) return connectInFlightRef.current;
+
+    const attempt = (async () => {
+      setInjectedStatus("pending");
+      try {
+        const accounts = (await injectedProvider.request({
+          method: "eth_requestAccounts",
+        })) as string[] | undefined;
+        const [address] = accounts ?? [];
+
+        if (address) {
+          setInjectedAddress(address);
+          setInjectedReady(true);
+          setInjectedStatus("connected");
+          return true;
+        }
+
+        // Managed hosts (wagmi/AppKit behind the bridge) can't prompt from
+        // here — connection happens through the host page's own button and
+        // arrives via accountsChanged.
+        toast.info("Connect your wallet on this site to continue.");
+        setInjectedStatus("awaiting_connection");
+        return false;
+      } catch (error) {
+        if ((error as any)?.code === BRIDGE_UNAVAILABLE_CODE) {
+          // Host bridge went away mid-session.
+          setIsInjectedWallet(false);
+          setInjectedProvider(null);
+          setInjectedStatus("unavailable");
+          return false;
+        }
+        if ((error as any)?.code === 4001) {
+          toast.error("Connection request was rejected.");
+        } else {
+          console.error("Injected wallet connect failed:", error);
+          toast.error("Couldn't connect the wallet. Please try again.");
+        }
+        // Retryable: stay in awaiting so the CTA keeps offering Connect.
+        setInjectedStatus("awaiting_connection");
+        return false;
+      } finally {
+        connectInFlightRef.current = null;
+      }
+    })();
+
+    connectInFlightRef.current = attempt;
+    return attempt;
+  }, [injectedStatus, injectedProvider]);
+
   return (
     <InjectedWalletContext.Provider
       value={{
@@ -367,6 +454,7 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
         injectedReady,
         injectedRequested,
         injectedStatus,
+        connectInjectedWallet,
         getInjectedToken,
         getInjectedAuthHeaders,
       }}

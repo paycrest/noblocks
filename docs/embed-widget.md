@@ -37,15 +37,16 @@ inside your iframe. Non-whitelisted origins are blocked by the browser.
 
 Notes:
 
-- The widget **fills the iframe** — it has no margins, shadow, or fixed size of
-  its own. You control the size, corner radius, shadow, and positioning by
-  styling the `<iframe>` element (as above). The example's rounded corners +
-  shadow give the floating-card look; drop them for a flush embed. The widget
-  keeps `background: transparent`, so its rounded corners reveal your page
-  behind them — set the iframe's `border-radius` to match (24px).
+- The widget **fills the iframe**: a single card with no outer margins, shadow,
+  or fixed size of its own. You control the size, shadow, and positioning by
+  styling the `<iframe>` element (as above). The card itself has 24px rounded
+  corners and its own internal padding; the page behind the card is
+  transparent, so your page shows through the corner cut-outs. Set the
+  iframe's `border-radius` to 24px to match (as in the example), or clip
+  harder for a flush embed.
 - Recommended width **360–420px**. The widget renders its mobile UI below
   ~640px wide (a comfortable compact layout); above that it would switch to
-  the desktop layout, so keep it narrow. Height is flexible — size it to fit
+  the desktop layout, so keep it narrow. Height is flexible: size it to fit
   the flow (≈670–750px works well); the footer pins to the bottom edge, and
   the wallet control stays visible while the form scrolls.
 - **Dismissing the widget is your responsibility.** Provide whatever close
@@ -72,13 +73,13 @@ Notes:
 | `tokenAmount`    | number                              | Prefill token amount                                                   |
 | `fiatAmount`     | number                              | Prefill fiat amount                                                    |
 | `provider`       | liquidity provider ID               | Pin a specific liquidity provider                                      |
-| `ref`            | referral code                       | Attribute transactions to your referral code                           |
-| `injected`       | `true` \| `bridge`                  | Wallet mode — see below                                                |
+| `injected`       | `true` \| `bridge`                  | Wallet mode (see below)                                                |
 | `chainId`        | decimal or `0x` hex                 | Default EVM network only (e.g. `8453` / `0x2105` for Base)             |
+| `chainIds`       | CSV of decimal or `0x` hex          | Allowlist for the network switcher by EVM chain ID; unioned with `networks` |
 | `network`        | slug                                | Default network by slug (e.g. `base`, `starknet`, `arbitrum-one`)      |
 | `networks`       | CSV of slugs                        | Allowlist for the network switcher (omit = all; one entry = locked)    |
 | `hideSideToggle` | `1` \| `true`                       | Hide the “Swap” title and Buy/Sell pills (also locks the center flip)  |
-| `hideSupport`    | `1` \| `true`                       | Hide the in-widget support chat (default: shown) — see below           |
+| `hideSupport`    | `1` \| `true`                       | Hide the in-widget support chat, default shown (see below)             |
 
 `cNGN` / `CNGN` are accepted interchangeably in URL and host config; the UI
 shows **cNGN**. Aggregator rate/order calls still use the wire form `CNGN`.
@@ -95,12 +96,14 @@ shows **cNGN**. Aggregator rate/order calls still use the wire form `CNGN`.
   &injected=bridge
 ```
 
-- Omit an allowlist param (`tokens`, `currencies`, `networks`) to leave that
-  selector unrestricted.
+- Omit an allowlist param (`tokens`, `currencies`, `networks`, `chainIds`) to
+  leave that selector unrestricted.
 - A single-item allowlist renders a read-only chip (dropdown disabled).
-- Multi-item `networks=` filters the wallet network switcher only — balance
-  lists and history stay **unfiltered**.
-- Without `networks=`, a lone `network=` / `chainId=` keeps the previous
+- `networks=` takes slugs; `chainIds=` takes EVM chain IDs (decimal or `0x`
+  hex). Passing both unions the two lists.
+- A multi-item network allowlist filters the wallet network switcher only;
+  balance lists and history stay **unfiltered**.
+- Without an allowlist key, a lone `network=` / `chainId=` keeps the previous
   **lock** behaviour (read-only chip + no balance auto-hop).
 - Supported network slugs match rate paths: `base`, `arbitrum-one`,
   `bnb-smart-chain`, `polygon`, `lisk`, `celo`, `scroll`, `ethereum`,
@@ -109,13 +112,14 @@ shows **cNGN**. Aggregator rate/order calls still use the wire form `CNGN`.
 ### Network lock / follow
 
 Pass `chainId` and/or `network` to set the **default** chain (and lock when
-`networks=` is not a multi-value list):
+no multi-value allowlist is present):
 
 - The wallet drawer shows a read-only chain chip when locked (no switcher).
 - Balance-based auto network hopping is disabled whenever a network allowlist
   or lock is set.
 - Prefer **`chainId`** for EVM default. Use **`network`** (slug) for Starknet /
-  Tron and for allowlists. If both default params are present, `chainId` wins
+  Tron. For allowlists, use `networks=` (slugs, covers Starknet/Tron) or
+  `chainIds=` (EVM IDs). If both default params are present, `chainId` wins
   when non-empty.
 - An unsupported or unknown value toasts once and leaves the last valid
   network (or the widget default).
@@ -153,6 +157,9 @@ interactive), so hiding it also trims that download from the embed.
 
 <!-- Allow Base + Arbitrum; default Base -->
 <iframe src="https://noblocks.xyz/widget?networks=base,arbitrum-one&network=base" ...></iframe>
+
+<!-- Same allowlist by EVM chain id -->
+<iframe src="https://noblocks.xyz/widget?chainIds=8453,42161&chainId=8453" ...></iframe>
 
 <!-- Bridge wallet + lock; follow host chain switches -->
 <iframe src="https://noblocks.xyz/widget?injected=bridge&chainId=8453" ...></iframe>
@@ -215,17 +222,39 @@ for the wallet bridge; you can reuse the same `postMessage` pattern for
 
 ### Default: Privy login in the widget
 
-Users sign in with email (Privy) inside the widget — no host integration
+Users sign in with email (Privy) inside the widget, with no host integration
 needed. Note: in Safari/Firefox, storage partitioning means the session may
 not persist across page reloads, and OAuth popups must not be blocked.
+
+### Connection flow in injected modes
+
+In both injected modes the widget never prompts the wallet on load. It checks
+silently (`eth_accounts`) for an already-authorized account:
+
+- Already connected: the widget shows the wallet pill and behaves as signed in.
+- Not connected yet: the header shows neither Sign in nor the pill, and the
+  primary button reads **"Connect wallet"**. Tapping it requests connection
+  (`eth_requestAccounts`). The widget also listens for `accountsChanged`, so a
+  connection made through **your page's own connect button** is picked up
+  automatically. This matters for managed connector stacks (wagmi, AppKit,
+  WalletConnect): those providers usually cannot open a connect prompt from
+  inside the iframe, so your own connect flow is the reliable path and the
+  widget follows it.
+- The Privy sign-in fallback appears only when injected mode is genuinely
+  unavailable: no host bridge responded, or `injected=true` without an
+  extension wallet.
+
+The first authenticated action (e.g. submitting a swap) additionally asks the
+wallet for a one-time SIWE signature to authenticate API calls. It is a plain
+message signature: no transaction, no gas.
 
 ### `injected=true` — extension wallet inside the iframe
 
 Browser-extension wallets (MetaMask, Rabby, ...) inject `window.ethereum`
 into iframes too, so the user transacts with the same extension they use on
-your page. The wallet prompts them once to connect the noblocks.xyz origin
-(auto-connects on return visits). This does **not** cover WalletConnect /
-mobile-QR sessions — use the bridge for those.
+your page. The "Connect wallet" button prompts the extension once for the
+noblocks.xyz origin (auto-connects on return visits). This does **not** cover
+WalletConnect / mobile-QR sessions; use the bridge for those.
 
 ### `injected=bridge` — hand off your page's connected wallet
 
@@ -233,15 +262,15 @@ Your page proxies the widget's wallet requests to **your** connected provider
 (WalletConnect, AppKit, wagmi, `window.ethereum`, ...). All signing prompts
 appear in your wallet UI; the widget never sees keys.
 
-`bindWallet` is **required** for `injected=bridge` — don't pass the param on a
-plain iframe with no host script. (If no bridge responds within ~4 seconds,
-the widget automatically falls back to the standard sign-in flow rather than
-hanging, but users see a loading state for those seconds.)
+`bindWallet` is **required** for `injected=bridge`. Don't pass the param on a
+plain iframe with no host script: if no bridge responds within ~4 seconds,
+the widget falls back to the standard sign-in flow rather than hanging, but
+users see a loading state for those seconds.
 
-Bind the wallet **before** the iframe loads — create the iframe without a
+Bind the wallet **before** the iframe loads: create the iframe without a
 `src`, call `bindWallet` (which installs the message listener), then set `src`.
-Otherwise a fast widget load can fire `eth_requestAccounts` before the listener
-exists and the request hangs until timeout.
+Otherwise a fast widget load can probe the wallet before the listener exists
+and the request hangs until timeout.
 
 ```html
 <script src="https://noblocks.xyz/embed.js"></script>
@@ -269,22 +298,27 @@ NoblocksEmbed.bindWallet(iframe, client.transport, { onEvent });
 iframe.src = "https://noblocks.xyz/widget?injected=bridge";
 ```
 
+If your users may open the widget before connecting a wallet on your page,
+bind the provider anyway; when they later connect through your UI, the
+provider's `accountsChanged` event flows through the bridge and the widget
+picks the wallet up without a reload.
+
 The returned `unbind()` removes all listeners.
 
 ## Configuration (Noblocks operators)
 
-- `NEXT_PUBLIC_EMBED_ENABLED` — feature flag; when not `"true"`, `/widget`
+- `NEXT_PUBLIC_EMBED_ENABLED`: feature flag; when not `"true"`, `/widget`
   returns 404.
-- `EMBED_ALLOWED_ORIGINS` — comma-separated base allowlist (env-only, needs a
+- `EMBED_ALLOWED_ORIGINS`: comma-separated base allowlist (env-only, needs a
   redeploy to change). Origins must be `https://` (only `http://localhost` is
   accepted, for local dev).
-- `INTERNAL_API_BASE_URL` — trusted absolute base URL (e.g. `https://noblocks.xyz`)
+- `INTERNAL_API_BASE_URL`: trusted absolute base URL (e.g. `https://noblocks.xyz`)
   the middleware uses to fetch the DB-backed allowlist. **Required to consult the
-  `embed_allowed_origins` table** — if unset, only `EMBED_ALLOWED_ORIGINS` is
+  `embed_allowed_origins` table**; if unset, only `EMBED_ALLOWED_ORIGINS` is
   used. Never derived from the request Host header, so a poisoned host can't
   redirect the authenticated fetch. On a failed/non-OK refresh the DB-backed
   origins are dropped (fail closed) until the next successful fetch.
-- `embed_allowed_origins` table (Supabase) — runtime allowlist, merged with the
+- `embed_allowed_origins` table (Supabase): runtime allowlist, merged with the
   env var by `middleware.ts` (cached ~5 min). Managed via the secret-gated
   internal API:
 
@@ -306,5 +340,5 @@ Also add partner origins to the **Privy dashboard allowed origins** so Privy
 login works inside their frames.
 
 Widget loads are attributed server-side (cookieless) via the middleware
-analytics event `Embed Widget Loaded` with the embedding `referrer_origin` —
+analytics event `Embed Widget Loaded` with the embedding `referrer_origin`;
 no client trackers or cookie banner run inside the widget.

@@ -43,7 +43,7 @@ export function useSwapButton({
   networkName = "",
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
-  const { isInjectedWallet, injectedReady, injectedStatus } =
+  const { isInjectedWallet, injectedReady, injectedRequested, injectedStatus } =
     useInjectedWallet();
   const {
     amountSent,
@@ -57,13 +57,16 @@ export function useSwapButton({
   // Injected mode with no account yet: the CTA becomes "Connect wallet"
   // (enabled even on an empty form) and everything balance/KYC-related below
   // must not run — a disconnected wallet's balance is 0, which would
-  // otherwise misread as "Insufficient balance".
+  // otherwise misread as "Insufficient balance". Anchored on injectedRequested
+  // (synchronous, from the URL) rather than isInjectedWallet: during bridge
+  // initialization the status is "pending" before isInjectedWallet flips true,
+  // and the CTA must not route to Privy login in that window.
   const isInjectedAwaiting =
-    isInjectedWallet &&
+    injectedRequested &&
     !injectedReady &&
     injectedStatus === "awaiting_connection";
   const isInjectedConnecting =
-    isInjectedWallet && !injectedReady && injectedStatus === "pending";
+    injectedRequested && !injectedReady && injectedStatus === "pending";
 
   // Off-ramp: min 0.5 token. On-ramp: min fiat 0.5×rate only after receive token + rate (same as onrampFiatMin).
   const isAmountValid = isSwapped

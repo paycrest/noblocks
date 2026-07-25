@@ -359,6 +359,35 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
     };
   }, [injectedProvider]);
 
+  // Close the subscription gap: the accountsChanged listener above only
+  // attaches after the provider lands in state, so a host connection made
+  // between the initial silent probe and that subscription would be missed.
+  // Re-probe (silently) whenever we enter awaiting_connection — this effect
+  // is declared after the subscription effect, so within a commit the
+  // listener is attached before the re-probe runs and no window remains.
+  useEffect(() => {
+    if (injectedStatus !== "awaiting_connection" || !injectedProvider) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const accounts = (await injectedProvider.request({
+          method: "eth_accounts",
+        })) as string[] | undefined;
+        const [address] = accounts ?? [];
+        if (!cancelled && address) {
+          setInjectedAddress(address);
+          setInjectedReady(true);
+          setInjectedStatus("connected");
+        }
+      } catch {
+        // Silent probe; stay in awaiting_connection.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [injectedStatus, injectedProvider]);
+
   // Single-flight guard: concurrent CTA taps share one wallet prompt.
   const connectInFlightRef = useRef<Promise<boolean> | null>(null);
 

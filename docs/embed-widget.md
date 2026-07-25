@@ -37,12 +37,13 @@ inside your iframe. Non-whitelisted origins are blocked by the browser.
 
 Notes:
 
-- The widget **fills the iframe**: it has no margins, shadow, or fixed size of
-  its own. You control the size, corner radius, shadow, and positioning by
-  styling the `<iframe>` element (as above). The example's rounded corners +
-  shadow give the floating-card look; drop them for a flush embed. The widget
-  keeps `background: transparent`, so its rounded corners reveal your page
-  behind them. Set the iframe's `border-radius` to match (24px).
+- The widget **fills the iframe**: a single card with no outer margins, shadow,
+  or fixed size of its own. You control the size, shadow, and positioning by
+  styling the `<iframe>` element (as above). The card itself has 24px rounded
+  corners and its own internal padding; the page behind the card is
+  transparent, so your page shows through the corner cut-outs. Set the
+  iframe's `border-radius` to 24px to match (as in the example), or clip
+  harder for a flush embed.
 - Recommended width **360–420px**. The widget renders its mobile UI below
   ~640px wide (a comfortable compact layout); above that it would switch to
   the desktop layout, so keep it narrow. Height is flexible: size it to fit

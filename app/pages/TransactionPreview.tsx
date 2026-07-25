@@ -20,7 +20,7 @@ import {
   shortenAddress,
 } from "../utils";
 import { tokensEqual, toAggregatorToken } from "../lib/token-symbol";
-import { useNetwork, useTokens } from "../context";
+import { useNetwork, useTokens, useStarknet } from "../context";
 import config, { getDelegationContractAddress } from "../lib/config";
 import { appendBaseBuilderCode } from "../lib/baseBuilderCode";
 import { mapReportAndAct } from "../lib/toastMappedError";
@@ -97,6 +97,7 @@ export const TransactionPreview = ({
   const { client } = useSmartWallets();
   const { isInjectedWallet, injectedAddress, injectedProvider, injectedReady } =
     useInjectedWallet();
+  const { walletId: starknetWalletId, address: starknetWalletAddress, publicKey: starknetPublicKey } = useStarknet();
   const shouldUseEOA = useShouldUseEOA();
   const { isLoading: isMigrationLoading } = useMigrationStatus();
   const { signDelegationAuthorization } = useDelegationContractAuth();
@@ -207,18 +208,20 @@ export const TransactionPreview = ({
     ? null
     : user?.linkedAccounts.find((account) => account.type === "smart_wallet");
 
+  const isStarknetSelected = selectedNetwork.chain.name === "Starknet";
+  const isTronSelected = selectedNetwork.chain.name === "Tron";
+
   const activeWallet = injectedWallet ||
-    (shouldUseEOA
-      ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
-      : smartWallet);
+    (isStarknetSelected
+      ? (starknetWalletAddress ? { address: starknetWalletAddress, type: "starknet" } : undefined)
+      : shouldUseEOA
+        ? (embeddedWallet ? { address: embeddedWallet.address, type: "eoa" } : undefined)
+        : smartWallet);
 
   // Get appropriate balance based on migration status
   // After migration: use externalWalletBalance (EOA balance)
   // Before migration: use smartWalletBalance (SCW balance)
   // Wait for migration status to load before making decision
-  const isStarknetSelected = selectedNetwork.chain.name === "Starknet";
-  const isTronSelected = selectedNetwork.chain.name === "Tron";
-
   const activeBalance = injectedWallet
     ? injectedWalletBalance
     : isStarknetSelected
@@ -324,6 +327,71 @@ export const TransactionPreview = ({
 
   const createOrder = async () => {
     try {
+      if (isStarknetSelected) {
+        if (!starknetWalletId || !starknetPublicKey || !starknetWalletAddress) {
+          throw new Error("Starknet wallet not ready");
+        }
+
+        const params = await prepareCreateOrderParams();
+        setCreatedAt(new Date().toISOString());
+
+        const accessToken = await getAccessToken();
+        if (!accessToken) throw new Error("Not authenticated");
+
+        const response = await fetch("/api/starknet/create-order", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            walletId: starknetWalletId,
+            publicKey: starknetPublicKey,
+            tokenAddress,
+            gatewayAddress: getGatewayContractAddress("Starknet"),
+            amount: params.amount.toString(),
+            rate: params.rate.toString(),
+            senderFeeRecipient: params.senderFeeRecipient,
+            senderFee: params.senderFee.toString(),
+            refundAddress: starknetWalletAddress,
+            messageHash: params.messageHash,
+            address: starknetWalletAddress,
+          }),
+        });
+
+        if (!response.ok) {
+          const err = (await response.json()) as { error?: string };
+          throw new Error(err.error ?? "Failed to create Starknet order");
+        }
+
+        const data = (await response.json()) as {
+          transactionHash?: string;
+          orderId?: string;
+        };
+
+        setIsGatewayApproved(true);
+        setIsOrderCreated(true);
+
+        const txOrderId = data.orderId ?? "";
+        const txHash = data.transactionHash as `0x${string}` | undefined;
+
+        if (txOrderId) {
+          setOrderId(txOrderId);
+          setActiveOrderIsOnramp(false);
+          await saveTransactionData({ orderId: txOrderId, txHash });
+          setCreatedAt(new Date().toISOString());
+          setTransactionStatus("pending");
+          setCurrentStep("status");
+        }
+
+        trackEvent("Swap started", {
+          "Entry point": "Transaction preview",
+          "Wallet type": "Starknet",
+        });
+        refreshBalance();
+        return;
+      }
+
       if (isInjectedWallet && injectedProvider) {
         // Injected wallet
         if (!injectedReady) {

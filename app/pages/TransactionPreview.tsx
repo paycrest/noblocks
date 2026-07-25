@@ -106,7 +106,7 @@ export const TransactionPreview = ({
   const { allTokens } = useTokens();
   const { setCurrentStep } = useStep();
   const { fetchTransactions } = useTransactions();
-  const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance } =
+  const { refreshBalance, smartWalletBalance, externalWalletBalance, injectedWalletBalance, starknetWalletBalance, tronWalletBalance } =
     useBalance();
 
   const {
@@ -216,11 +216,18 @@ export const TransactionPreview = ({
   // After migration: use externalWalletBalance (EOA balance)
   // Before migration: use smartWalletBalance (SCW balance)
   // Wait for migration status to load before making decision
+  const isStarknetSelected = selectedNetwork.chain.name === "Starknet";
+  const isTronSelected = selectedNetwork.chain.name === "Tron";
+
   const activeBalance = injectedWallet
     ? injectedWalletBalance
-    : !isMigrationLoading && shouldUseEOA
-      ? externalWalletBalance
-      : smartWalletBalance;
+    : isStarknetSelected
+      ? starknetWalletBalance
+      : isTronSelected
+        ? tronWalletBalance
+        : !isMigrationLoading && shouldUseEOA
+          ? externalWalletBalance
+          : smartWalletBalance;
 
   // For CNGN, use raw balance (token units) instead of USD equivalent
   const balance = tokensEqual(token, "cNGN")

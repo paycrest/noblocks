@@ -53,16 +53,28 @@ async function getAllowedSiweOrigins(): Promise<string[]> {
     if (trimmed && ORIGIN_RE.test(trimmed)) origins.push(trimmed);
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("embed_allowed_origins")
-    .select("origin");
-  if (error) {
-    // Fail closed for DB-backed partners; env-configured origins still work.
-    console.error("[injected-auth] failed to load embed origins:", error.message);
-  } else {
-    for (const row of data ?? []) {
-      if (row.origin && ORIGIN_RE.test(row.origin)) origins.push(row.origin);
+  // `supabaseAdmin` is a lazy Proxy that THROWS on property access when
+  // SUPABASE_* env is missing, so `.from()` can throw before any query runs —
+  // outside the `error` result. Both failure shapes must be caught here, or a
+  // Supabase misconfiguration takes down sign-in entirely instead of degrading
+  // to the env-configured origins below.
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("embed_allowed_origins")
+      .select("origin");
+    if (error) {
+      // Fail closed for DB-backed partners; env-configured origins still work.
+      console.error("[injected-auth] failed to load embed origins:", error.message);
+    } else {
+      for (const row of data ?? []) {
+        if (row.origin && ORIGIN_RE.test(row.origin)) origins.push(row.origin);
+      }
     }
+  } catch (dbError) {
+    console.error(
+      "[injected-auth] embed origins unavailable:",
+      dbError instanceof Error ? dbError.message : dbError,
+    );
   }
 
   return origins;

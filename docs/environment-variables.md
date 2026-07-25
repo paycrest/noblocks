@@ -148,7 +148,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
     `401 Sign-in domain is not allowed`, unless the real origin happens to be
     allowlisted by one of the other two sources.
   - **Embedded widget (`injected=bridge`)** — the host page's wallet signs, so
-    the domain is the *partner's* origin and must come from
+    the domain is the _partner's_ origin and must come from
     `EMBED_ALLOWED_ORIGINS` or the table. `NEXT_PUBLIC_APP_URL` is not
     consulted for that signature.
 

@@ -98,6 +98,15 @@ jobs:
 
       # Direct Postgres connection string. The SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
       # secrets above are PostgREST credentials and cannot apply migrations.
-      # Re-runs are a no-op: db push skips migrations already in supabase_migrations.
+      #
+      # Re-runs are a no-op *provided the ledger is accurate*: db push skips versions
+      # recorded in supabase_migrations.schema_migrations, which only the CLI writes.
+      # Migrations were historically applied by hand, so this needs a one-time baseline
+      # before the first run — record each already-applied version with
+      # `supabase migration repair --status applied <version> --db-url ...`, then
+      # confirm a manual `supabase db push` reports the database up to date. Without
+      # that, this job re-applies history and fails on the first duplicate object.
+      # Note: files without a `<timestamp>_` prefix are ignored by the CLI entirely
+      # and remain hand-managed.
       - name: Apply migrations
         run: supabase db push --db-url "${{ secrets.SUPABASE_DB_URL }}"

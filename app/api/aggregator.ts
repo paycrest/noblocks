@@ -556,8 +556,8 @@ export const fetchAccountName = async (
  */
 export const fetchOrderDetails = async (
   orderId: string,
-  accessToken?: string,
-  options?: { network?: string },
+  accessToken?: string | null,
+  options?: { network?: string; injectedToken?: string | null },
 ): Promise<OrderDetailsResponse> => {
   const id = orderId.trim();
   if (!id) {
@@ -580,13 +580,19 @@ export const fetchOrderDetails = async (
     data?: unknown;
   };
 
-  if (typeof window !== "undefined" && accessToken?.trim()) {
+  const injectedToken = options?.injectedToken?.trim();
+
+  if (typeof window !== "undefined" && (accessToken?.trim() || injectedToken)) {
+    const headers: Record<string, string> = {};
+    if (injectedToken) {
+      headers["x-injected-token"] = injectedToken;
+    } else {
+      headers.Authorization = `Bearer ${accessToken!.trim()}`;
+    }
     const response = await axios.get(
       `/api/v1/payment-orders/${encodeURIComponent(id)}`,
       {
-        headers: {
-          Authorization: `Bearer ${accessToken.trim()}`,
-        },
+        headers,
         params:
           gatewayLookup && network
             ? { network }
@@ -780,23 +786,28 @@ export const detectUserLocation = async (): Promise<string> => {
  * @param {string} accessToken - The access token for authentication
  * @param {number} [page=1] - The page number
  * @param {number} [limit=20] - The number of items per page
+ * @param {string | null} [injectedToken] - Injected wallet SIWE session token
  * @returns {Promise<TransactionResponse>} The transactions response
  * @throws {Error} If the API request fails
  */
 export async function fetchTransactions(
   address: string,
-  accessToken: string,
+  accessToken: string | null,
   page: number = 1,
   limit: number = 20,
+  injectedToken: string | null = null,
 ): Promise<TransactionResponse> {
+  const headers: Record<string, string> = {
+    "x-wallet-address": address.toLowerCase(),
+  };
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
   const response = await axios.get<TransactionResponse>(
     `/api/v1/transactions?page=${page}&limit=${limit}`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "x-wallet-address": address.toLowerCase(),
-      },
-    },
+    { headers },
   );
   return response.data;
 }
@@ -919,18 +930,23 @@ export async function updateTransactionStatus({
   status,
   accessToken,
   walletAddress,
+  injectedToken = null,
 }: UpdateTransactionStatusPayload): Promise<SaveTransactionResponse> {
   const finalStatus = mapAggregatorStatusToDbStatus(status, { onramp: false });
+
+  const headers: Record<string, string> = {
+    "x-wallet-address": walletAddress.toLowerCase(),
+  };
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
 
   const response = await axios.put(
     `/api/v1/transactions/status/${transactionId}`,
     { status: finalStatus },
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "x-wallet-address": walletAddress.toLowerCase(),
-      },
-    },
+    { headers },
   );
   return response.data;
 }
@@ -944,6 +960,7 @@ export async function updateTransactionStatus({
  * @param {string} [params.timeSpent] - The time spent on the transaction (optional)
  * @param {string} params.accessToken - The access token for authentication
  * @param {string} params.walletAddress - The wallet address for authorization
+ * @param {string} [params.injectedToken] - Injected wallet SIWE session token
  * @returns {Promise<SaveTransactionResponse>} The update response
  * @throws {Error} If the API request fails
  */
@@ -954,6 +971,7 @@ export async function updateTransactionDetails({
   timeSpent,
   accessToken,
   walletAddress,
+  injectedToken = null,
   isOnramp,
 }: UpdateTransactionDetailsPayload): Promise<SaveTransactionResponse> {
   const finalStatus = mapAggregatorStatusToDbStatus(status, {
@@ -969,15 +987,19 @@ export async function updateTransactionDetails({
     data.timeSpent = timeSpent;
   }
 
+  const headers: Record<string, string> = {
+    "x-wallet-address": walletAddress.toLowerCase(),
+  };
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
   const response = await axios.put(
     `/api/v1/transactions/${transactionId}`,
     data,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "x-wallet-address": walletAddress.toLowerCase(),
-      },
-    },
+    { headers },
   );
   return response.data;
 }
@@ -1506,15 +1528,18 @@ export async function createV2SenderPaymentOrder(
  */
 export async function fetchV2SenderPaymentOrderById(
   orderId: string,
-  accessToken: string,
+  accessToken: string | null,
+  injectedToken: string | null = null,
 ): Promise<AggregatorEnvelope<V2PaymentOrderGetData>> {
+  const headers: Record<string, string> = {};
+  if (injectedToken) {
+    headers["x-injected-token"] = injectedToken;
+  } else if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
   const response = await axios.get<AggregatorEnvelope<V2PaymentOrderGetData>>(
     `/api/v1/payment-orders/${encodeURIComponent(orderId)}`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
+    { headers },
   );
   return response.data;
 }

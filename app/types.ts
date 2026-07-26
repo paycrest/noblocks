@@ -24,10 +24,20 @@ import type {
   UseFormReturn,
 } from "react-hook-form";
 
+/** KES M-Pesa payout rail. Till/Paybill share institution SAFAKEPC with channel metadata. */
+export type KesMpesaChannel = "Mobile" | "Till" | "Paybill";
+
 export type InstitutionProps = {
   name: string;
   code: string;
   type: "bank" | "mobile_money";
+  /**
+   * UI-only key for virtual KES M-Pesa splits (e.g. `SAFAKEPC:Till`).
+   * Always submit `code` (SAFAKEPC) to the API.
+   */
+  uiKey?: string;
+  /** Present on virtually expanded KES M-Pesa institution options. */
+  channel?: KesMpesaChannel;
 };
 
 /** Onramp refund bank account (persisted per wallet; v2 order source.refundAccount). */
@@ -58,6 +68,10 @@ export type FormData = {
   isSwapped?: boolean;
   /** True after user picks the Receive row asset (fiat off-ramp, token on-ramp). */
   receiveDestinationExplicitlySelected: boolean;
+  /** KES M-Pesa rail when SAFAKEPC is virtually split in the UI. */
+  kesChannel?: KesMpesaChannel | "";
+  /** Paybill business number (KES Paybill only). */
+  businessNumber?: string;
 };
 
 export const STEPS = {
@@ -105,6 +119,10 @@ export type RecipientDetails =
     institutionCode: string;
     accountIdentifier: string;
     currency?: string;
+    /** KES M-Pesa channel when saved from a virtual institution split. */
+    channel?: KesMpesaChannel;
+    /** Paybill business number when channel is Paybill. */
+    businessNumber?: string;
     walletAddress?: never;
   };
 
@@ -163,6 +181,11 @@ export type SelectFieldProps = {
 export type VerifyAccountPayload = {
   institution: string;
   accountIdentifier: string;
+  /** KES Till/Paybill: skips phone normalization on the aggregator. */
+  metadata?: {
+    channel?: KesMpesaChannel;
+    businessNumber?: string;
+  };
 };
 
 /** Paycrest v2 rates: onramp uses `buy`, offramp uses `sell`. */
@@ -568,6 +591,10 @@ export interface Recipient {
   institution: string;
   account_identifier: string;
   memo?: string;
+  /** KES M-Pesa channel label for history display (e.g. Till, Paybill). */
+  channel?: KesMpesaChannel;
+  /** Paybill business number when applicable. */
+  business_number?: string;
   /** Bridge only: destination network (the transactions.network column holds the source). */
   to_network?: string;
 }

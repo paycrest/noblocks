@@ -88,10 +88,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Pinned so migration parsing/validation does not change under us between
+      # releases; keep in step with the `supabase` devDependency in package.json
+      # and upgrade deliberately.
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.98.2
 
       # Direct Postgres connection string. The SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
       # secrets above are PostgREST credentials and cannot apply migrations.

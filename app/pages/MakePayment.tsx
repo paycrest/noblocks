@@ -102,6 +102,7 @@ export const MakePayment = ({
                 const { accessToken, injectedToken } = await resolveAuth({
                     interactive: false,
                 });
+                if (cancelled) return;
                 if (!accessToken && !injectedToken) {
                     setLoadError("Please sign in to load payment details.");
                     return;

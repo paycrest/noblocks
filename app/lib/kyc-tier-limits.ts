@@ -13,6 +13,14 @@ const DEFAULT_KYC_MONTHLY_LIMITS: Record<number, number> = {
   3: 2,
 };
 
+/**
+ * Highest tier this table defines. Derived from the table rather than written out, so
+ * callers that clamp a tier (the DB allows 4) cannot drift from it when a tier is added.
+ */
+export const MAX_KYC_TIER = Math.max(
+  ...Object.keys(DEFAULT_KYC_MONTHLY_LIMITS).map(Number),
+);
+
 /** Resolved limit for a tier. When `unlimited` is true, `monthly` is 0 and must be ignored. */
 export interface KycTierLimit {
   monthly: number;

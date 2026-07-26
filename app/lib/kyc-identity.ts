@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/app/lib/supabase";
+import { MAX_KYC_TIER } from "@/app/lib/kyc-tier-limits";
 
 /**
  * Identity-scoped KYC limits.
@@ -15,9 +16,6 @@ import { supabaseAdmin } from "@/app/lib/supabase";
  * `app/lib/injected-identity.ts`) — uniqueness is no longer what bounds spend.
  */
 
-/** Highest tier the limit table defines (`app/lib/kyc-tier-limits.ts`). The DB allows 4. */
-const MAX_LIMIT_TIER = 3;
-
 export interface IdentityScope {
   /** Caller + siblings, lowercased and deduped. Always contains the caller. */
   wallets: string[];
@@ -33,7 +31,7 @@ export interface IdentityScope {
 function clampTier(tier: unknown): number {
   const n = Number(tier ?? 0);
   if (!Number.isFinite(n)) return 0;
-  return Math.min(Math.max(Math.trunc(n), 0), MAX_LIMIT_TIER);
+  return Math.min(Math.max(Math.trunc(n), 0), MAX_KYC_TIER);
 }
 
 type SiblingRow = { wallet_address: string | null; tier: number | null };

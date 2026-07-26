@@ -15,7 +15,8 @@ import { useOutsideClick } from "@/app/hooks";
 import { fetchAccountName } from "@/app/api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { InputError } from "@/app/components/InputError";
-import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions } from "@/app/utils";
+import { classNames, getOfframpAccountIdentifierPlaceholder, filterAndSortInstitutions, expandKesMpesaInstitutions, KES_MPESA_INSTITUTION_CODE, kesMpesaUiKey, getKesMpesaInstitutionLabel } from "@/app/utils";
+import type { KesMpesaChannel } from "@/app/types";
 import {
   RecipientDetails,
   RecipientDetailsFormProps,
@@ -61,6 +62,8 @@ export const RecipientDetailsForm = ({
   const accountIdentifier = watch("accountIdentifier");
   const recipientName = watch("recipientName");
   const walletAddress = watch("walletAddress");
+  const kesChannel = watch("kesChannel");
+  const businessNumber = watch("businessNumber");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -102,10 +105,15 @@ export const RecipientDetailsForm = ({
   const prevCurrencyRef = useRef(currency);
   const isDark = useActualTheme();
 
-  const filteredInstitutions = useMemo(
-    () => filterAndSortInstitutions(institutions, bankSearchTerm),
-    [institutions, bankSearchTerm],
-  );
+  const filteredInstitutions = useMemo(() => {
+    const expanded = expandKesMpesaInstitutions(institutions, currency);
+    return filterAndSortInstitutions(expanded, bankSearchTerm);
+  }, [institutions, bankSearchTerm, currency]);
+
+  const isKesMpesa =
+    currency === "KES" && institution === KES_MPESA_INSTITUTION_CODE;
+  const isKesPaybill = isKesMpesa && kesChannel === "Paybill";
+  const isKesTill = isKesMpesa && kesChannel === "Till";
 
   const selectSavedRecipient = (recipient: RecipientDetails) => {
     setSelectedRecipient(recipient);
@@ -118,16 +126,27 @@ export const RecipientDetailsForm = ({
       });
     } else {
       // Handle bank/mobile money selection for offramp
+      const channel = recipient.channel;
       setSelectedInstitution({
-        name: recipient.institution,
+        name:
+          recipient.institutionCode === KES_MPESA_INSTITUTION_CODE && channel
+            ? getKesMpesaInstitutionLabel(channel)
+            : recipient.institution,
         code: recipient.institutionCode,
         type: recipient.type,
+        ...(channel
+          ? { channel, uiKey: kesMpesaUiKey(channel) }
+          : {}),
       });
       setValue("institution", recipient.institutionCode, { shouldDirty: true });
       setValue("accountIdentifier", recipient.accountIdentifier, {
         shouldDirty: true,
       });
       setValue("accountType", recipient.type, { shouldDirty: true });
+      setValue("kesChannel", channel ?? "", { shouldDirty: true });
+      setValue("businessNumber", recipient.businessNumber ?? "", {
+        shouldDirty: true,
+      });
 
       // Remove extra spaces from recipient name
       recipient.name = recipient.name.replace(/\s+/g, " ").trim();
@@ -265,6 +284,7 @@ export const RecipientDetailsForm = ({
       if (isManualEntry) {
         setValue("recipientName", "");
         setValue("accountIdentifier", "");
+        setValue("businessNumber", "");
         setRecipientNameError("");
       }
     }
@@ -286,6 +306,24 @@ export const RecipientDetailsForm = ({
         return;
       }
 
+      if (isKesPaybill && !(businessNumber ?? "").trim()) {
+        setRecipientNameError("");
+        return;
+      }
+
+      if (isKesTill) {
+        if (digits.length < 5 || digits.length > 7) {
+          if (digits.length > 0) {
+            setRecipientNameError(
+              "Please enter a valid till number (5–7 digits).",
+            );
+          } else {
+            setRecipientNameError("");
+          }
+          return;
+        }
+      }
+
       if (isNGN && digits.length !== requiredLen) {
         if (digits.length > 0) {
           setRecipientNameError(
@@ -304,9 +342,23 @@ export const RecipientDetailsForm = ({
       setValue("recipientName", "");
 
       try {
+        const channel = (kesChannel || undefined) as
+          | KesMpesaChannel
+          | undefined;
+        const metadata =
+          isKesMpesa && channel
+            ? {
+                channel,
+                ...(channel === "Paybill" && (businessNumber ?? "").trim()
+                  ? { businessNumber: String(businessNumber).trim() }
+                  : {}),
+              }
+            : undefined;
+
         const accountName = await fetchAccountName({
           institution: institution.toString(),
           accountIdentifier: accountIdentifier.toString(),
+          ...(metadata ? { metadata } : {}),
         });
         setValue("recipientName", accountName);
         setIsFetchingRecipientName(false);
@@ -333,24 +385,48 @@ export const RecipientDetailsForm = ({
     isManualEntry,
     selectedInstitution?.code,
     currency,
+    kesChannel,
+    businessNumber,
+    isKesMpesa,
+    isKesPaybill,
+    isKesTill,
   ]);
 
   useEffect(() => {
-    // Initialize selected institution if form has values
+    // Initialize selected institution if form has values (match channel for virtual KES split)
     if (institution && !selectedInstitution) {
-      const foundInstitution = [...(institutions || [])].find(
-        (inst) => inst.code === institution,
-      );
+      const expanded = expandKesMpesaInstitutions(institutions, currency);
+      const foundInstitution =
+        expanded.find((inst) => {
+          if (inst.code !== institution) return false;
+          if (inst.channel) {
+            return inst.channel === kesChannel;
+          }
+          return true;
+        }) ?? expanded.find((inst) => inst.code === institution);
       if (foundInstitution) {
         setSelectedInstitution(foundInstitution);
         setValue("accountType", foundInstitution.type, { shouldValidate: true });
+        if (foundInstitution.channel && !kesChannel) {
+          setValue("kesChannel", foundInstitution.channel, {
+            shouldValidate: true,
+          });
+        }
         // Only set manual entry to false if we have recipient name
         if (recipientName) {
           setIsManualEntry(false);
         }
       }
     }
-  }, [institution, institutions, selectedInstitution, recipientName, setValue]);
+  }, [
+    institution,
+    institutions,
+    selectedInstitution,
+    recipientName,
+    setValue,
+    currency,
+    kesChannel,
+  ]);
 
   // Simplified recipient details management
   const clearRecipientDetails = () => {
@@ -359,6 +435,8 @@ export const RecipientDetailsForm = ({
     setValue("institution", "");
     setValue("recipientName", "");
     setValue("accountIdentifier", "");
+    setValue("kesChannel", "");
+    setValue("businessNumber", "");
     setRecipientNameError("");
     setIsManualEntry(true);
   };
@@ -417,17 +495,38 @@ export const RecipientDetailsForm = ({
   const accountIdentifierRegister = register("accountIdentifier", {
     required: {
       value: true,
-      message: "Account number is required",
+      message: isKesTill
+        ? "Till number is required"
+        : isKesPaybill
+          ? "Account / reference is required"
+          : "Account number is required",
     },
     validate: (value) => {
+      if (isKesTill) {
+        const digits = String(value ?? "").replace(/\D/g, "");
+        if (digits.length < 5 || digits.length > 7) {
+          return "Please enter a valid till number (5–7 digits).";
+        }
+        return true;
+      }
       if (currency !== "NGN") return true;
       const digits = String(value ?? "").replace(/\D/g, "");
-      // SAFAKEPC is the sandbox NGN institution (6-digit accounts, not 10-digit NUBAN).
+      // NGN NUBAN is 10 digits; SAFAKEPC sandbox uses 6.
       const requiredLen = selectedInstitution?.code === "SAFAKEPC" ? 6 : 10;
       if (digits.length !== requiredLen) {
         return requiredLen === 10
           ? "Please enter a valid 10-digit account number."
           : "Invalid account number. Please enter a 6-digit account number.";
+      }
+      return true;
+    },
+  });
+
+  const businessNumberRegister = register("businessNumber", {
+    validate: (value) => {
+      if (!isKesPaybill) return true;
+      if (!(value ?? "").toString().trim()) {
+        return "Business number is required";
       }
       return true;
     },
@@ -569,23 +668,25 @@ export const RecipientDetailsForm = ({
                 </button>
               </div>
 
-              {/* Account number */}
-              {/* Account number - NUBAN is 10 digits; SAFAKEPC uses 6 digits (NGN only) */}
+              {/* Account / phone / till / paybill reference */}
               <div className="w-full flex-1 flex-shrink-0 sm:w-1/2">
                 <input
                   type="text"
-                  inputMode="numeric"
+                  inputMode={isKesPaybill ? "text" : "numeric"}
                   autoComplete="off"
                   placeholder={getOfframpAccountIdentifierPlaceholder(
                     currency,
                     selectedInstitution?.type,
+                    kesChannel,
                   )}
                   maxLength={
                     currency === "NGN"
                       ? selectedInstitution?.code === "SAFAKEPC"
                         ? 6
                         : 10
-                      : undefined
+                      : isKesTill
+                        ? 7
+                        : undefined
                   }
                   {...accountIdentifierRegister}
                   onChange={(e) => {
@@ -594,6 +695,13 @@ export const RecipientDetailsForm = ({
                       const next = e.target.value
                         .replace(/\D/g, "")
                         .slice(0, ngnAccountMaxDigits);
+                      if (next !== e.target.value) {
+                        e.target.value = next;
+                      }
+                    } else if (isKesTill) {
+                      const next = e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 7);
                       if (next !== e.target.value) {
                         e.target.value = next;
                       }
@@ -609,6 +717,37 @@ export const RecipientDetailsForm = ({
                 />
               </div>
             </div>
+
+            {isKesPaybill && (
+              <div className="w-full">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="Business number"
+                  {...businessNumberRegister}
+                  onChange={(e) => {
+                    setIsManualEntry(true);
+                    const next = e.target.value.replace(/\D/g, "");
+                    if (next !== e.target.value) {
+                      e.target.value = next;
+                    }
+                    void businessNumberRegister.onChange(e);
+                  }}
+                  className={classNames(
+                    "w-full rounded-xl border bg-transparent px-4 py-2.5 text-base outline-none transition-all duration-300 placeholder:text-text-placeholder focus:outline-none dark:text-white/80 dark:placeholder:text-white/30 sm:text-sm",
+                    errors.businessNumber
+                      ? "border-input-destructive focus:border-gray-400 dark:border-input-destructive"
+                      : "border-border-input dark:border-white/20 dark:focus:border-white/40 dark:focus:ring-offset-neutral-900",
+                  )}
+                />
+                {errors.businessNumber && (
+                  <div className="mt-2">
+                    <InputError message={errors.businessNumber.message} />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Account details feedback */}
             <AnimatePresence mode="wait">

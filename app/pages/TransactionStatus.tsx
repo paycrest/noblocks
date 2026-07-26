@@ -31,6 +31,8 @@ import {
   formatRecipientNameFirstWordForPill,
   getExplorerLink,
   getInstitutionNameByCode,
+  getKesMpesaInstitutionLabel,
+  KES_MPESA_INSTITUTION_CODE,
   getRpcUrl,
   isBlockFestActive,
 } from "../utils";
@@ -49,6 +51,7 @@ import {
   STEPS,
   type OrderDetailsData,
   type TransactionStatusProps,
+  type KesMpesaChannel,
 } from "../types";
 import { toast } from "sonner";
 import { trackEvent } from "../hooks/analytics/client";
@@ -1081,10 +1084,21 @@ export function TransactionStatus({
       return false;
     }
 
-    const institutionName = getInstitutionNameByCode(
-      String(institutionCode),
-      supportedInstitutions,
-    );
+    const kesChannel = formMethods.watch("kesChannel") as
+      | KesMpesaChannel
+      | ""
+      | undefined;
+    const businessNumber = String(
+      formMethods.watch("businessNumber") || "",
+    ).trim();
+
+    const institutionName =
+      String(institutionCode) === KES_MPESA_INSTITUTION_CODE && kesChannel
+        ? getKesMpesaInstitutionLabel(kesChannel)
+        : getInstitutionNameByCode(
+            String(institutionCode),
+            supportedInstitutions,
+          );
 
     if (!institutionName) {
       console.error("Institution name not found");
@@ -1100,6 +1114,8 @@ export function TransactionStatus({
       type:
         (formMethods.watch("accountType") as "bank" | "mobile_money") || "bank",
       currency: String(formMethods.watch("currency") || ""),
+      ...(kesChannel ? { channel: kesChannel } : {}),
+      ...(businessNumber ? { businessNumber } : {}),
     };
 
     const accessToken = await getAccessToken();

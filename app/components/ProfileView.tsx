@@ -32,6 +32,7 @@ import TransactionLimitModal from "./TransactionLimitModal";
 import { ReferralCTA } from "./ReferralCTA";
 import { ReferralHubView } from "./wallet-mobile-modal";
 import config from "../lib/config";
+import { isPooledAllowance } from "../lib/kyc-limit-copy";
 
 // Re-import usePrivy and useLinkAccount specifically from Privy
 import { usePrivy as usePrivyAuth, useLinkAccount as useLinkAccountAuth } from "@privy-io/react-auth";
@@ -48,6 +49,7 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
   const { isEmbed } = useEmbed();
   const {
     tier,
+    pooledWalletCount,
     transactionSummary,
     getCurrentLimits,
     refreshStatus,
@@ -405,6 +407,14 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
                     </span>
                     <InformationCircleIcon className="size-4 text-outline-gray dark:text-white/50" />
                   </div>
+
+                  {/* Explains spend this wallet did not make. Hidden at one wallet so
+                      users without a shared allowance see the original layout. */}
+                  {isPooledAllowance(pooledWalletCount) && (
+                    <p className="text-xs font-light text-text-secondary dark:text-white/50">
+                      Shared across your {pooledWalletCount} wallets
+                    </p>
+                  )}
 
                   <div className="text-2xl font-light text-text-body dark:text-white">
                     ${formatUsdAmount(transactionSummary.monthlySpent)}{" "}

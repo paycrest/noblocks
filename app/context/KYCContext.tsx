@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { getKycTierLimit } from "@/app/lib/kyc-tier-limits";
+import { sharedAllowanceNote } from "@/app/lib/kyc-limit-copy";
 import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useInjectedWallet } from "./InjectedWalletContext";
 
@@ -63,6 +64,12 @@ interface UserTransactionSummary {
 /** Synchronous KYC view — updated as soon as status APIs return (before re-render). */
 export interface KYCStatusSnapshot {
   tier: KYCTierLevel;
+  /**
+   * Wallets sharing this identity's monthly allowance. Defaults to 1, so a failed or
+   * stale status fetch reads as "not pooled" and every limit surface renders the
+   * pre-pooling copy rather than inventing wallets the user does not have.
+   */
+  pooledWalletCount: number;
   isPhoneVerified: boolean;
   phoneNumber: string | null;
   fullName: string | null;
@@ -71,6 +78,7 @@ export interface KYCStatusSnapshot {
 
 interface KYCContextType {
   tier: KYCTierLevel;
+  pooledWalletCount: number;
   isPhoneVerified: boolean;
   phoneNumber: string | null;
   fullName: string | null;
@@ -94,6 +102,7 @@ const EMPTY_TX_SUMMARY: UserTransactionSummary = {
 function createEmptySnapshot(): KYCStatusSnapshot {
   return {
     tier: 0,
+    pooledWalletCount: 1,
     isPhoneVerified: false,
     phoneNumber: null,
     fullName: null,
@@ -137,6 +146,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   const guardKey = walletAddress || "no_wallet";
 
   const [tier, setTier] = useState<KYCTierLevel>(0);
+  const [pooledWalletCount, setPooledWalletCount] = useState(1);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [fullName, setFullName] = useState<string | null>(null);
@@ -146,6 +156,8 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   const applySnapshot = useCallback((partial: Partial<KYCStatusSnapshot>) => {
     const next: KYCStatusSnapshot = {
       tier: partial.tier ?? latestSnapshotRef.current.tier,
+      pooledWalletCount:
+        partial.pooledWalletCount ?? latestSnapshotRef.current.pooledWalletCount,
       isPhoneVerified:
         partial.isPhoneVerified ?? latestSnapshotRef.current.isPhoneVerified,
       phoneNumber:
@@ -161,6 +173,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     };
     latestSnapshotRef.current = next;
     setTier(next.tier);
+    setPooledWalletCount(next.pooledWalletCount);
     setIsPhoneVerified(next.isPhoneVerified);
     setPhoneNumber(next.phoneNumber);
     setFullName(next.fullName);
@@ -192,9 +205,14 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         return { allowed: true };
       }
       if (amount > remaining.monthly) {
+        // The remaining figure covers every wallet on this identity, so say so —
+        // otherwise the number looks wrong to anyone with more than one wallet.
+        const pooled = sharedAllowanceNote(
+          latestSnapshotRef.current.pooledWalletCount,
+        );
         return {
           allowed: false,
-          reason: `Transaction amount ($${amount}) exceeds remaining monthly limit ($${remaining.monthly})`,
+          reason: `Transaction amount ($${amount}) exceeds remaining monthly limit ($${remaining.monthly})${pooled ? ` ${pooled}` : ""}`,
         };
       }
       return { allowed: true };
@@ -291,6 +309,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         ) as KYCTierLevel;
         applySnapshot({
           tier: safeTier,
+          pooledWalletCount: Math.max(1, Number(data.pooledWalletCount) || 1),
           isPhoneVerified: Boolean(data.isPhoneVerified),
           phoneNumber: data.phoneNumber ?? null,
           fullName: data.fullName ?? null,
@@ -356,6 +375,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       const empty = createEmptySnapshot();
       latestSnapshotRef.current = empty;
       setTier(empty.tier);
+      setPooledWalletCount(empty.pooledWalletCount);
       setIsPhoneVerified(empty.isPhoneVerified);
       setPhoneNumber(empty.phoneNumber);
       setFullName(empty.fullName);
@@ -370,6 +390,7 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     <KYCContext.Provider
       value={{
         tier,
+        pooledWalletCount,
         isPhoneVerified,
         phoneNumber,
         fullName,

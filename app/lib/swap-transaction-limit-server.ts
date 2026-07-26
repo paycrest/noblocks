@@ -86,9 +86,9 @@ export async function assertTransactionWalletAuthorized(
 }
 
 export type SwapLimitCheckResult =
-  | { kind: "success"; id?: string; monthlyLimit: number }
+  | { kind: "success"; id?: string; monthlyLimit: number; pooledWalletCount: number }
   | { kind: "rate_unavailable" }
-  | { kind: "limit_exceeded"; monthlyLimit: number }
+  | { kind: "limit_exceeded"; monthlyLimit: number; pooledWalletCount: number }
   | { kind: "kyc_required" }
   | { kind: "kyc_db_error" }
   | { kind: "rpc_failed"; error: unknown }
@@ -131,6 +131,8 @@ export async function executeSwapTransactionLimitCheck(
   // Sent to the RPC and echoed back in success/limit_exceeded results.
   // null signals "no cap" to the RPC; 0 is only reachable for capped tiers above.
   const monthlyLimit = tierLimit.unlimited ? 0 : tierLimit.monthly;
+  // Echoed back so the blocked-swap copy can name the wallets sharing the allowance.
+  const pooledWalletCount = scope.wallets.length;
 
   let cngnToUsdRate = 0;
   try {
@@ -190,12 +192,12 @@ export async function executeSwapTransactionLimitCheck(
   }
 
   if (rpcData.error === "limit_exceeded") {
-    return { kind: "limit_exceeded", monthlyLimit };
+    return { kind: "limit_exceeded", monthlyLimit, pooledWalletCount };
   }
 
   if (options.dryRun) {
     if (rpcData.ok === true) {
-      return { kind: "success", monthlyLimit };
+      return { kind: "success", monthlyLimit, pooledWalletCount };
     }
     return { kind: "unexpected_rpc" };
   }
@@ -204,5 +206,5 @@ export async function executeSwapTransactionLimitCheck(
     return { kind: "unexpected_rpc" };
   }
 
-  return { kind: "success", id: rpcData.id, monthlyLimit };
+  return { kind: "success", id: rpcData.id, monthlyLimit, pooledWalletCount };
 }

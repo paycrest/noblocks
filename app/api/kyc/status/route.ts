@@ -56,12 +56,13 @@ export async function GET(request: NextRequest) {
     // that person holds. Reported here so the UI shows the tier and cap that
     // enforcement will actually apply.
     let tier: 0 | 1 | 2 | 3;
+    let pooledWalletCount: number;
     try {
-      tier = (await resolveIdentityScope(walletAddress)).effectiveTier as
-        | 0
-        | 1
-        | 2
-        | 3;
+      const scope = await resolveIdentityScope(walletAddress);
+      tier = scope.effectiveTier as 0 | 1 | 2 | 3;
+      // How many wallets share this allowance. > 1 is what makes the UI explain the
+      // pool; at 1 every limit surface renders exactly as it did before pooling.
+      pooledWalletCount = scope.wallets.length;
     } catch (scopeError) {
       trackApiError(request, "/api/kyc/status", "GET", scopeError as Error, 500);
       return NextResponse.json(
@@ -82,6 +83,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       tier,
+      pooledWalletCount,
       isPhoneVerified: phoneVerified,
       phoneNumber,
       fullName: kycProfile?.full_name || null,

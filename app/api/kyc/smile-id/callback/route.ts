@@ -121,7 +121,9 @@ export async function POST(request: NextRequest) {
   // existing verified data that the sync response already wrote.
   const { data: existing, error: fetchError } = await supabaseAdmin
     .from("user_kyc_profiles")
-    .select("tier, verified, platform")
+    .select(
+      "tier, verified, platform, id_country, id_type, id_number, is_injected_wallet",
+    )
     .eq("wallet_address", walletAddress)
     .maybeSingle();
 
@@ -210,6 +212,53 @@ export async function POST(request: NextRequest) {
       : null) ||
     null;
 
+  // Raising tier to 2 can newly pull this row into uniq_user_kyc_profiles_verified_id
+  // (the index covers tier >= 2 only), even though no id_number is written here. If
+  // another non-injected wallet already holds this document, the promotion can never
+  // succeed — so refuse it deliberately instead of letting a 23505 surface as a 500
+  // that SmileID retries forever.
+  if (
+    newTier >= 2 &&
+    existing.id_number &&
+    existing.is_injected_wallet !== true
+  ) {
+    const { data: idOwner, error: idOwnerError } = await supabaseAdmin
+      .from("user_kyc_profiles")
+      .select("wallet_address")
+      .eq("id_country", existing.id_country)
+      .eq("id_type", existing.id_type)
+      .eq("id_number", existing.id_number)
+      .gte("tier", 2)
+      .eq("is_injected_wallet", false)
+      .neq("wallet_address", walletAddress)
+      .limit(1)
+      .maybeSingle();
+
+    if (idOwnerError) {
+      console.error("[smile-id/callback] ID ownership check failed", {
+        walletAddress,
+        idOwnerError,
+      });
+      // Transient: 500 so SmileID retries.
+      return NextResponse.json(
+        { status: "error", message: "Database error" },
+        { status: 500 },
+      );
+    }
+
+    if (idOwner) {
+      console.warn(
+        "[smile-id/callback] ID document already verified on another wallet — skipping tier promotion",
+        { walletAddress, jobId },
+      );
+      // 200: the conflict is permanent, so retrying would loop forever.
+      return NextResponse.json({
+        status: "ok",
+        action: "duplicate_id_conflict",
+      });
+    }
+  }
+
   const { error: updateError } = await supabaseAdmin
     .from("user_kyc_profiles")
     .update({
@@ -223,6 +272,18 @@ export async function POST(request: NextRequest) {
     .eq("wallet_address", walletAddress);
 
   if (updateError) {
+    // Same conflict, lost to a concurrent verification after the check above.
+    // Still permanent — do not ask SmileID to retry.
+    if (updateError.code === "23505") {
+      console.warn(
+        "[smile-id/callback] Tier promotion hit the verified-ID unique index",
+        { walletAddress, jobId },
+      );
+      return NextResponse.json({
+        status: "ok",
+        action: "duplicate_id_conflict",
+      });
+    }
     console.error("[smile-id/callback] Failed to update profile", { walletAddress, updateError });
     // Return 500 so SmileID retries.
     return NextResponse.json({ status: "error", message: "Database update failed" }, { status: 500 });

@@ -45,6 +45,31 @@ export interface InjectedTokenOptions {
   interactive?: boolean;
 }
 
+/** A session is treated as expired this early so a token can't lapse mid-request. */
+export const INJECTED_SESSION_EXPIRY_GRACE_MS = 60_000;
+
+/**
+ * What a `getInjectedToken` call should do, given the current session state.
+ *
+ * Extracted as a pure function because the ordering here is subtle: joining an in-flight sign-in
+ * must be considered *before* the non-interactive bail-out, or a passive caller racing an
+ * interactive one (both fired from the same mount) reports "no session" and, if its effect never
+ * re-runs, never recovers.
+ */
+export function resolveInjectedTokenAction(params: {
+  session: { token: string; expiresAt: number } | null;
+  hasSignInFlight: boolean;
+  interactive: boolean;
+  now: number;
+}): "use-session" | "join-flight" | "start-sign-in" | "no-session" {
+  const { session, hasSignInFlight, interactive, now } = params;
+  if (session && now < session.expiresAt - INJECTED_SESSION_EXPIRY_GRACE_MS) {
+    return "use-session";
+  }
+  if (hasSignInFlight) return "join-flight";
+  return interactive ? "start-sign-in" : "no-session";
+}
+
 interface InjectedWalletContextType {
   isInjectedWallet: boolean;
   injectedAddress: string | null;
@@ -187,18 +212,23 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
       ) {
         return null;
       }
-      // Treat as expired 60s early so a token can't lapse mid-request.
       const session = sessionRef.current;
-      if (session && Date.now() < session.expiresAt - 60_000) {
-        return session.token;
-      }
-      if (!opts?.interactive) return null;
+      const action = resolveInjectedTokenAction({
+        session,
+        hasSignInFlight: signInFlightRef.current !== null,
+        interactive: opts?.interactive === true,
+        now: Date.now(),
+      });
+
+      if (action === "use-session") return session!.token;
+      // Awaiting a popup someone else already opened pops none of our own.
+      if (action === "join-flight") return signInFlightRef.current;
+      if (action === "no-session") return null;
+
       // Single-flight: concurrent interactive callers share one wallet popup.
-      if (!signInFlightRef.current) {
-        signInFlightRef.current = performSiweSignIn().finally(() => {
-          signInFlightRef.current = null;
-        });
-      }
+      signInFlightRef.current = performSiweSignIn().finally(() => {
+        signInFlightRef.current = null;
+      });
       return signInFlightRef.current;
     },
     [

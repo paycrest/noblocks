@@ -584,8 +584,10 @@ export interface VerifyJWTResult {
 export interface UpdateTransactionStatusPayload {
   transactionId: string;
   status: string;
-  accessToken: string;
+  accessToken: string | null;
   walletAddress: string;
+  /** Injected wallet SIWE session token; takes precedence over the Privy Bearer token. */
+  injectedToken?: string | null;
 }
 
 export interface UpdateTransactionDetailsPayload

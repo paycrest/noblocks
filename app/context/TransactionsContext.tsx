@@ -6,6 +6,7 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
 } from "react";
 import axios from "axios";
@@ -22,6 +23,8 @@ import {
 } from "../api/aggregator";
 import { usePrivy } from "@privy-io/react-auth";
 import { reindexSingleTransaction } from "../lib/reindex";
+import { useInjectedWallet } from "./InjectedWalletContext";
+import { useApiAuth } from "../hooks/useApiAuth";
 
 // Polling interval and reindex threshold (30 seconds)
 const POLLING_INTERVAL_MS = 30 * 1000;
@@ -34,10 +37,11 @@ interface TransactionsContextType {
   currentPage: number;
   fetchTransactions: (
     walletAddress: string,
-    accessToken: string,
+    accessToken: string | null,
     page: number,
     limit: number,
     forceRefresh?: boolean,
+    injectedToken?: string | null,
   ) => Promise<void>;
   refreshTransactions: () => Promise<void>;
   clearTransactions: () => void;
@@ -64,7 +68,9 @@ export function TransactionsProvider({
       { data: TransactionHistory[]; total: number; timestamp: number }
     >
   >({});
-  const { user, getAccessToken } = usePrivy();
+  const { user } = usePrivy();
+  const { isInjectedWallet, injectedAddress } = useInjectedWallet();
+  const { resolveAuth } = useApiAuth();
   const reindexedTxHashesRef = useRef<Set<string>>(new Set());
   const transactionsRef = useRef<TransactionHistory[]>([]);
   const pollingInFlightRef = useRef(false);
@@ -75,12 +81,24 @@ export function TransactionsProvider({
     transactionsRef.current = transactions;
   }, [transactions]);
 
+  // Whose history we show: the host/extension wallet in embed mode (its SIWE session is what
+  // authenticates the request), otherwise the Privy embedded wallet.
+  const historyWalletAddress = useMemo(() => {
+    if (isInjectedWallet) return injectedAddress ?? undefined;
+    const embeddedWallet = user?.linkedAccounts.find(
+      (account) =>
+        account.type === "wallet" && account.connectorType === "embedded",
+    ) as { address: string } | undefined;
+    return embeddedWallet?.address;
+  }, [isInjectedWallet, injectedAddress, user]);
+
   // Background reconciliation logic
   const reconcileTransactionStatuses = useCallback(
     async (
       txs: TransactionHistory[],
       walletAddress: string,
-      accessToken: string,
+      accessToken: string | null,
+      injectedToken: string | null = null,
     ) => {
       // Only onramp/offramp transactions are backed by an aggregator order that can be looked up.
       // transfer/swap/credit carry a tx hash (or no order) in `order_id`, so reconciling them hits
@@ -106,6 +124,7 @@ export function TransactionsProvider({
               const res = await fetchV2SenderPaymentOrderById(
                 tx.order_id!,
                 accessToken,
+                injectedToken,
               );
               const resolvedStatus = resolveOnrampOrderStatusFromV2Response(res);
               orderData =
@@ -119,7 +138,7 @@ export function TransactionsProvider({
               const res = await fetchOrderDetails(
                 tx.order_id!,
                 accessToken,
-                { network: tx.network },
+                { network: tx.network, injectedToken },
               );
               orderData = res.data;
             }
@@ -187,6 +206,7 @@ export function TransactionsProvider({
                 status: orderData.status,
                 txHash: newTxHash,
                 accessToken,
+                injectedToken,
                 walletAddress,
                 isOnramp: isOnrampTx,
               });
@@ -255,7 +275,9 @@ export function TransactionsProvider({
               : `/api/bridge/lifi/status?txHash=${encodeURIComponent(tx.order_id!)}`;
 
             const res = await fetch(url, {
-              headers: { Authorization: `Bearer ${accessToken}` },
+              headers: injectedToken
+                ? { "x-injected-token": injectedToken }
+                : { Authorization: `Bearer ${accessToken}` },
             });
             if (!res.ok) return;
             const data = await res.json();
@@ -268,7 +290,7 @@ export function TransactionsProvider({
 
             if (!nextStatus || nextStatus === tx.status) return;
 
-            await updateBridgeTransactionStatus(tx.id, nextStatus, accessToken, walletAddress);
+            await updateBridgeTransactionStatus(tx.id, nextStatus, accessToken, walletAddress, injectedToken);
 
             const updated = { ...tx, status: nextStatus };
             setTransactions((prev) =>
@@ -300,10 +322,11 @@ export function TransactionsProvider({
   const fetchTransactionData = useCallback(
     async (
       walletAddress: string,
-      accessToken: string,
+      accessToken: string | null,
       page: number,
       limit: number,
       forceRefresh?: boolean,
+      injectedToken: string | null = null,
     ) => {
       const cacheKey = `${walletAddress}-${page}-${limit}`;
       const cachedData = cacheRef.current[cacheKey];
@@ -324,6 +347,7 @@ export function TransactionsProvider({
           cachedData.data,
           walletAddress,
           accessToken,
+          injectedToken,
         );
         return;
       }
@@ -338,6 +362,7 @@ export function TransactionsProvider({
           accessToken,
           page,
           limit,
+          injectedToken,
         );
         if (data.success) {
           setTransactions(data.data.transactions);
@@ -357,6 +382,7 @@ export function TransactionsProvider({
             data.data.transactions,
             walletAddress,
             accessToken,
+            injectedToken,
           );
         }
       } catch (error) {
@@ -378,16 +404,15 @@ export function TransactionsProvider({
   );
 
   const refreshTransactions = useCallback(async () => {
-    const embeddedWallet = user?.linkedAccounts.find(
-      (account) =>
-        account.type === "wallet" && account.connectorType === "embedded",
-    ) as { address: string } | undefined;
-
-    const walletAddress = embeddedWallet?.address;
+    const walletAddress = historyWalletAddress;
     if (!walletAddress) return;
 
-    const accessToken = await getAccessToken();
-    if (!accessToken) return;
+    // Passive: a background refresh must never pop a SIWE signature request. Without a session we
+    // skip and pick it up on the next refresh a user action triggers.
+    const { accessToken, injectedToken } = await resolveAuth({
+      interactive: false,
+    });
+    if (!accessToken && !injectedToken) return;
 
     // Clear cache for this page so concurrent fetches also hit the network.
     // Must match the page size TransactionList fetches/paginates with (limit = 30),
@@ -414,8 +439,9 @@ export function TransactionsProvider({
       currentPage,
       PAGE_LIMIT,
       true,
+      injectedToken,
     );
-  }, [user, getAccessToken, currentPage, fetchTransactionData]);
+  }, [historyWalletAddress, resolveAuth, currentPage, fetchTransactionData]);
 
   const clearTransactions = useCallback(() => {
     setTransactions([]);
@@ -428,7 +454,8 @@ export function TransactionsProvider({
 
   // Polling mechanism for incomplete transactions
   useEffect(() => {
-    if (!user) {
+    // Injected wallets have no Privy user; their identity is the SIWE session instead.
+    if (!user && !isInjectedWallet) {
       return;
     }
 
@@ -445,13 +472,7 @@ export function TransactionsProvider({
       return;
     }
 
-    // Get wallet address from user
-    const embeddedWallet = user.linkedAccounts.find(
-      (account) =>
-        account.type === "wallet" && account.connectorType === "embedded",
-    ) as { address: string } | undefined;
-
-    const walletAddress = embeddedWallet?.address;
+    const walletAddress = historyWalletAddress;
     if (!walletAddress) {
       return;
     }
@@ -478,12 +499,16 @@ export function TransactionsProvider({
           return;
         }
 
-        const accessToken = await getAccessToken();
-        if (accessToken) {
+        // Passive: a poller must never pop a signature request.
+        const { accessToken, injectedToken } = await resolveAuth({
+          interactive: false,
+        });
+        if (accessToken || injectedToken) {
           await reconcileTransactionStatuses(
             currentIncomplete,
             walletAddress,
             accessToken,
+            injectedToken,
           );
         }
       } catch (error) {
@@ -496,7 +521,14 @@ export function TransactionsProvider({
     return () => {
       clearInterval(intervalId);
     };
-  }, [transactions, user, getAccessToken, reconcileTransactionStatuses]);
+  }, [
+    transactions,
+    user,
+    isInjectedWallet,
+    historyWalletAddress,
+    resolveAuth,
+    reconcileTransactionStatuses,
+  ]);
 
   return (
     <TransactionsContext.Provider

@@ -70,6 +70,7 @@ import { BridgeForm } from "./bridge/BridgeForm";
 import { EarnHubView, ReferralHubView } from "./wallet-mobile-modal";
 import { ReferralCTA } from "./ReferralCTA";
 import { useBridgeStatusTracker } from "../hooks/useBridgeStatusTracker";
+import { useApiAuth } from "../hooks/useApiAuth";
 
 const Divider = () => (
   <div className="w-full border border-dashed border-[#EBEBEF] dark:border-[#FFFFFF1A]" />
@@ -165,7 +166,8 @@ export const WalletDetails = () => {
     softRefresh,
   } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
-  const { user, getAccessToken } = usePrivy();
+  const { user } = usePrivy();
+  const { resolveAuth } = useApiAuth();
   const { isEmbed } = useEmbed();
   const { wallets } = useWallets();
   const { transactions, fetchTransactions } = useTransactions();
@@ -237,12 +239,15 @@ export const WalletDetails = () => {
   useEffect(() => {
     const addr = activeWallet?.address;
     if (!addr) return;
-    void getAccessToken().then((token) => {
-      if (token) {
-        void fetchTransactions(addr, token, 1, 30);
-      }
-    });
-  }, [activeWallet?.address, fetchTransactions, getAccessToken]);
+    // Passive: this is a background prefetch and must not pop a SIWE signature request.
+    void resolveAuth({ interactive: false }).then(
+      ({ accessToken, injectedToken }) => {
+        if (accessToken || injectedToken) {
+          void fetchTransactions(addr, accessToken, 1, 30, false, injectedToken);
+        }
+      },
+    );
+  }, [activeWallet?.address, fetchTransactions, resolveAuth]);
 
   const showEarnUi = isEarnUiVisible(selectedNetwork.chain.name);
 

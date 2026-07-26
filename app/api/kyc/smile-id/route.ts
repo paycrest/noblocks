@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     const { data: existingProfile, error: profileFetchError } =
       await supabaseAdmin
         .from("user_kyc_profiles")
-        .select("platform, tier")
+        .select("platform, tier, is_injected_wallet")
         .eq("wallet_address", walletAddress)
         .maybeSingle();
 
@@ -287,7 +287,12 @@ export async function POST(request: NextRequest) {
     // the update, preserving any previously stored id_number.
     const idNumberToStore: string | undefined =
       smileIdInfo.id_number || id_info.id_number || undefined;
-    if (idNumberToStore) {
+    // Injected/bridge wallets are exempt in both directions — neither checked nor
+    // counted as owners. Tier >= 1 is a precondition above, so the flag was already
+    // set by send-otp when the profile was created; no header read is needed here.
+    const isInjected = existingProfile.is_injected_wallet === true;
+
+    if (idNumberToStore && !isInjected) {
       const { data: idOwner, error: idOwnerError } = await supabaseAdmin
         .from("user_kyc_profiles")
         .select("wallet_address")
@@ -295,6 +300,7 @@ export async function POST(request: NextRequest) {
         .eq("id_type", id_info.id_type)
         .eq("id_number", idNumberToStore)
         .gte("tier", 2)
+        .eq("is_injected_wallet", false)
         .neq("wallet_address", walletAddress)
         .limit(1)
         .maybeSingle();
@@ -339,7 +345,7 @@ export async function POST(request: NextRequest) {
 
     if (supabaseError) {
       // 23505: partial unique index on verified ID documents (concurrent
-      // verification of the same document on another wallet).
+      // verification of the same document on another non-injected wallet).
       if (supabaseError.code === "23505") {
         return NextResponse.json(
           {

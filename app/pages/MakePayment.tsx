@@ -197,12 +197,17 @@ export const MakePayment = ({
                 const { accessToken, injectedToken } = await resolveAuth({
                     interactive: false,
                 });
+                if (cancelled) return;
                 if (!accessToken && !injectedToken) throw new Error("No access token");
                 const res = await fetchV2SenderPaymentOrderById(
                     orderId,
                     accessToken,
                     injectedToken,
                 );
+                // Re-check after every await: pollingIntervalRef is shared across
+                // effect runs, so a stale callback that reaches clearPolling() would
+                // silently kill the interval a newer effect installed.
+                if (cancelled) return;
                 const status =
                     resolveOnrampOrderStatusFromV2Response(res) ??
                     getOrderStatusFromFetchPayload(res);
@@ -214,7 +219,6 @@ export const MakePayment = ({
                     status.toLowerCase() !== "pending"
                 ) {
                     clearPolling();
-                    if (cancelled) return;
                     setTransactionStatus(
                         status as
                         | "fulfilling"

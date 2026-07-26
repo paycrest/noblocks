@@ -1,6 +1,6 @@
 "use client";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 
@@ -95,8 +95,13 @@ export const TransactionPreview = ({
   const { user, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
-  const { isInjectedWallet, injectedAddress, injectedProvider, injectedReady } =
-    useInjectedWallet();
+  const {
+    isInjectedWallet,
+    injectedAddress,
+    injectedProvider,
+    injectedReady,
+    getInjectedToken,
+  } = useInjectedWallet();
   const { walletId: starknetWalletId, address: starknetWalletAddress, publicKey: starknetPublicKey } = useStarknet();
   const shouldUseEOA = useShouldUseEOA();
   const { isLoading: isMigrationLoading } = useMigrationStatus();
@@ -162,6 +167,28 @@ export const TransactionPreview = ({
 
   const searchParams = useSearchParams();
 
+  // Injected wallets authenticate API calls via a SIWE session (not Privy).
+  // Establish it when the preview mounts so confirm/precheck/save don't fail
+  // with "Please sign in" while the wallet pill already shows connected.
+  useEffect(() => {
+    if (isInjectedWallet && injectedReady) {
+      void getInjectedToken({ interactive: true });
+    }
+  }, [isInjectedWallet, injectedReady, getInjectedToken]);
+
+  /** Resolve Privy Bearer or injected SIWE token for authenticated API calls. */
+  const resolveSwapAuth = useCallback(
+    async (opts?: { interactive?: boolean }) => {
+      const interactive = opts?.interactive ?? true;
+      const accessToken = isInjectedWallet ? null : await getAccessToken();
+      const injectedToken = isInjectedWallet
+        ? await getInjectedToken({ interactive })
+        : null;
+      return { accessToken, injectedToken };
+    },
+    [isInjectedWallet, getAccessToken, getInjectedToken],
+  );
+
   useEffect(() => {
     if (!isOnramp) return;
     // Reset on every currency change so a cached NGN account isn't submitted for KES/TZS/UGX orders.
@@ -169,9 +196,12 @@ export const TransactionPreview = ({
     let cancelled = false;
     void (async () => {
       try {
-        const token = await getAccessToken();
-        if (!token || cancelled) return;
-        const saved = await fetchRefundAccount(token);
+        // Passive: SIWE is established by the mount effect; don't re-prompt here.
+        const { accessToken, injectedToken } = await resolveSwapAuth({
+          interactive: false,
+        });
+        if ((!accessToken && !injectedToken) || cancelled) return;
+        const saved = await fetchRefundAccount(accessToken, injectedToken);
         if (!cancelled && saved) {
           setRefundAccount(saved);
         }
@@ -182,7 +212,7 @@ export const TransactionPreview = ({
     return () => {
       cancelled = true;
     };
-  }, [isOnramp, currency, getAccessToken]);
+  }, [isOnramp, currency, resolveSwapAuth]);
 
   const fetchedTokens: Token[] = allTokens[selectedNetwork.chain.name] || [];
 
@@ -408,9 +438,9 @@ export const TransactionPreview = ({
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
-        // Calculate total amount to approve (amount + senderFee)
-        // The contract transfers amount + senderFee from the user
-        const totalAmountToApprove = params.amount + params.senderFee;
+        // Approve 10× the spend (amount + senderFee) so subsequent swaps can
+        // reuse allowance; the contract still transfers only amount + senderFee.
+        const totalAmountToApprove = (params.amount + params.senderFee) * 10n;
 
         const approvalData = encodeFunctionData({
           abi: erc20Abi,
@@ -542,7 +572,8 @@ export const TransactionPreview = ({
 
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
-        const totalAmountToApprove = params.amount + params.senderFee;
+        // Approve 10× the spend (amount + senderFee) for allowance headroom.
+        const totalAmountToApprove = (params.amount + params.senderFee) * 10n;
 
         const approveCall: BatchCall = {
           to: tokenAddress as `0x${string}`,
@@ -647,8 +678,8 @@ export const TransactionPreview = ({
         const params = await prepareCreateOrderParams();
         setCreatedAt(new Date().toISOString());
 
-        // Calculate total amount to approve (amount + senderFee)
-        const totalAmountToApprove = params.amount + params.senderFee;
+        // Approve 10× the spend (amount + senderFee) for allowance headroom.
+        const totalAmountToApprove = (params.amount + params.senderFee) * 10n;
 
         await captureSubmissionBlock();
         await client.sendTransaction({
@@ -749,8 +780,10 @@ export const TransactionPreview = ({
       }
       try {
         setIsConfirming(true);
-        const accessToken = await getAccessToken();
-        if (!accessToken) {
+        const { accessToken, injectedToken } = await resolveSwapAuth({
+          interactive: true,
+        });
+        if (!accessToken && !injectedToken) {
           toast.error("Please sign in to continue");
           return;
         }
@@ -787,6 +820,7 @@ export const TransactionPreview = ({
             },
           },
           accessToken,
+          injectedToken,
         );
 
         const payload = {
@@ -819,7 +853,11 @@ export const TransactionPreview = ({
         };
 
 
-        const res = await createV2SenderPaymentOrder(payload, accessToken);
+        const res = await createV2SenderPaymentOrder(
+          payload,
+          accessToken,
+          injectedToken,
+        );
         if (res.status !== "success" || !res.data) {
           const msg =
             typeof res.message === "string"
@@ -843,11 +881,11 @@ export const TransactionPreview = ({
           providerAccount: created.providerAccount,
         });
 
-        const refreshTok = await getAccessToken();
-        if (refreshTok && apiWalletAddress) {
+        // Privy-only refresh helper; injected wallets use SIWE and list via other paths.
+        if (accessToken && apiWalletAddress) {
           void fetchTransactions(
             apiWalletAddress,
-            refreshTok,
+            accessToken,
             1,
             30,
             true,
@@ -883,8 +921,10 @@ export const TransactionPreview = ({
 
     try {
       setIsConfirming(true);
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
+      const { accessToken, injectedToken } = await resolveSwapAuth({
+        interactive: true,
+      });
+      if (!accessToken && !injectedToken) {
         toast.error("Please sign in to continue");
         return;
       }
@@ -908,6 +948,7 @@ export const TransactionPreview = ({
           },
         },
         accessToken,
+        injectedToken,
       );
 
       await createOrder();
@@ -937,8 +978,10 @@ export const TransactionPreview = ({
     setIsSavingTransaction(true);
 
     try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
+      const { accessToken, injectedToken } = await resolveSwapAuth({
+        interactive: true,
+      });
+      if (!accessToken && !injectedToken) {
         throw new Error("No access token available");
       }
 
@@ -975,7 +1018,11 @@ export const TransactionPreview = ({
         email: user?.email?.address ?? undefined,
       };
 
-      const response = await saveTransaction(transaction, accessToken);
+      const response = await saveTransaction(
+        transaction,
+        accessToken,
+        injectedToken,
+      );
       if (!response.success) {
         throw new Error("Failed to save transaction");
       }
@@ -1209,12 +1256,18 @@ export const TransactionPreview = ({
             currency={currency}
             initial={refundAccount}
             onSave={async (data: RefundAccountDetails) => {
-              const token = await getAccessToken();
-              if (!token) {
+              const { accessToken, injectedToken } = await resolveSwapAuth({
+                interactive: true,
+              });
+              if (!accessToken && !injectedToken) {
                 throw new Error("Please sign in to save your refund account.");
               }
               const isEdit = refundAccount !== null;
-              const saved = await saveRefundAccount(data, token);
+              const saved = await saveRefundAccount(
+                data,
+                accessToken,
+                injectedToken,
+              );
               setRefundAccount(saved);
               setRefundAccountWasEdited(isEdit);
             }}

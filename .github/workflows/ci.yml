@@ -51,5 +51,50 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
+      - name: Test
+        run: pnpm test
+
       - name: Build
         run: pnpm run build
+
+  # Applies pending Supabase migrations after a merge to main.
+  #
+  # Migrations were previously applied by hand, so application code could reach
+  # production before the schema it depends on — a merged change that selected a
+  # not-yet-created column took KYC and swaps down until someone noticed.
+  #
+  # Caveat worth knowing: deploys come from the hosting platform's Git integration,
+  # which starts on the same push that triggers this workflow. This job therefore runs
+  # alongside the deploy rather than before it — it removes the "nobody remembered"
+  # failure mode, not the race. Ordering them properly means either deploying from
+  # Actions gated on `needs: migrate`, or suppressing auto-deploy and firing a deploy
+  # hook from here. Until then the real safeguard is the expand/contract rule in
+  # .github/pull_request_template.md: a migration must be deployable before the code
+  # that needs it.
+  migrate:
+    # Never from a pull request — only a merge to main touches the database.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Do not migrate for a commit that does not build.
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      # Two pushes must not apply migrations to one database concurrently, and a
+      # queued run must not be cancelled midway through applying.
+      group: migrate-production
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Direct Postgres connection string. The SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
+      # secrets above are PostgREST credentials and cannot apply migrations.
+      # Re-runs are a no-op: db push skips migrations already in supabase_migrations.
+      - name: Apply migrations
+        run: supabase db push --db-url "${{ secrets.SUPABASE_DB_URL }}"

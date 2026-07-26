@@ -2,6 +2,7 @@ import { createElement, type ReactElement } from "react";
 import JSEncrypt from "jsencrypt";
 import type {
   InstitutionProps,
+  KesMpesaChannel,
   Network,
   Token,
   Currency,
@@ -73,15 +74,131 @@ export function getTokenLogoIdentifier(tokenSymbol: string): string {
 /**
  * Retrieves the institution name based on the provided institution code.
  *
- * @param code - The institution code.
+ * @param code - The institution code (or UI key like `SAFAKEPC:Till`).
  * @returns The institution name associated with the provided code, or undefined if not found.
  */
 export function getInstitutionNameByCode(
   code: string,
   supportedInstitutions: InstitutionProps[],
 ): string | undefined {
-  const institution = supportedInstitutions.find((inst) => inst.code === code);
+  const institution = supportedInstitutions.find(
+    (inst) => inst.code === code || inst.uiKey === code,
+  );
   return institution ? institution.name : undefined;
+}
+
+/** Safaricom M-Pesa institution code (KES). Till/Paybill use the same code + channel metadata. */
+export const KES_MPESA_INSTITUTION_CODE = "SAFAKEPC";
+
+export type { KesMpesaChannel };
+
+const KES_MPESA_VIRTUAL_OPTIONS: {
+  channel: KesMpesaChannel;
+  name: string;
+}[] = [
+  { channel: "Mobile", name: "M-PESA (Send Money)" },
+  { channel: "Till", name: "M-PESA (Till)" },
+  { channel: "Paybill", name: "M-PESA (Paybill)" },
+];
+
+/** UI-only key for a virtually split KES M-Pesa option. */
+export function kesMpesaUiKey(channel: KesMpesaChannel): string {
+  return `${KES_MPESA_INSTITUTION_CODE}:${channel}`;
+}
+
+/** Display label for a KES M-Pesa channel (falls back to M-PESA). */
+export function getKesMpesaInstitutionLabel(
+  channel?: KesMpesaChannel | "" | null,
+): string {
+  const match = KES_MPESA_VIRTUAL_OPTIONS.find((o) => o.channel === channel);
+  return match?.name ?? "M-PESA";
+}
+
+/**
+ * Expand SAFAKEPC into Send Money / Till / Paybill UI options for KES.
+ * Other institutions (banks, Airtel) are unchanged. API code remains SAFAKEPC.
+ */
+export function expandKesMpesaInstitutions(
+  institutions: InstitutionProps[] | undefined,
+  currency?: string,
+): InstitutionProps[] {
+  if (!institutions?.length) return [];
+  if ((currency ?? "").toUpperCase() !== "KES") return [...institutions];
+
+  const result: InstitutionProps[] = [];
+  for (const inst of institutions) {
+    if (inst.code !== KES_MPESA_INSTITUTION_CODE) {
+      result.push(inst);
+      continue;
+    }
+    for (const option of KES_MPESA_VIRTUAL_OPTIONS) {
+      result.push({
+        name: option.name,
+        code: KES_MPESA_INSTITUTION_CODE,
+        type: "mobile_money",
+        channel: option.channel,
+        uiKey: kesMpesaUiKey(option.channel),
+      });
+    }
+  }
+  return result;
+}
+
+/**
+ * Preview/history account line for KES M-Pesa rails.
+ * e.g. `Till • 123456 • M-PESA` or `Paybill • 400200 / INV-001 • M-PESA`.
+ */
+export function formatKesMpesaAccountDisplay(
+  accountIdentifier: string,
+  channel?: KesMpesaChannel | "" | null,
+  businessNumber?: string | null,
+): string {
+  const id = (accountIdentifier ?? "").trim();
+  if (channel === "Till") {
+    return `Till • ${id} • M-PESA`;
+  }
+  if (channel === "Paybill") {
+    const biz = (businessNumber ?? "").trim();
+    return biz
+      ? `Paybill • ${biz} / ${id} • M-PESA`
+      : `Paybill • ${id} • M-PESA`;
+  }
+  return `${id} • M-PESA`;
+}
+
+/** Resolve institution display for preview/history, including KES channel rails. */
+export function formatRecipientInstitutionDisplay(
+  institutionCode: string,
+  supportedInstitutions: InstitutionProps[],
+  options?: {
+    currency?: string;
+    channel?: KesMpesaChannel | "" | null;
+    accountIdentifier?: string;
+    businessNumber?: string | null;
+  },
+): string {
+  const channel = options?.channel;
+  const isKesMpesa =
+    (options?.currency ?? "").toUpperCase() === "KES" &&
+    institutionCode === KES_MPESA_INSTITUTION_CODE &&
+    !!channel;
+
+  if (isKesMpesa && options?.accountIdentifier !== undefined) {
+    return formatKesMpesaAccountDisplay(
+      options.accountIdentifier,
+      channel,
+      options.businessNumber,
+    );
+  }
+
+  if (isKesMpesa) {
+    return getKesMpesaInstitutionLabel(channel);
+  }
+
+  return (
+    getInstitutionNameByCode(institutionCode, supportedInstitutions) ??
+    institutionCode
+  );
 }
 
 /**
@@ -183,27 +300,29 @@ export const getCurrencySymbol = (currency: string): string => {
 
 /**
  * Off-ramp account/phone field placeholder. Banks use a generic label; mobile money
- * uses a country-appropriate example. All mobile-money values share an "eg: " prefix
- * (no leading space before the label) so the placeholder is aligned in the input.
+ * uses a country-appropriate example. KES is channel-aware for M-Pesa Send Money / Till / Paybill.
  * Examples use local-style numbers only (no international country calling prefix).
  */
 export function getOfframpAccountIdentifierPlaceholder(
   currency: string,
   institutionType: "bank" | "mobile_money" | undefined,
+  channel?: KesMpesaChannel | "" | null,
 ): string {
   if (institutionType !== "mobile_money") {
     return "Account number";
   }
+  if (currency.toUpperCase() === "KES") {
+    if (channel === "Till") return "Till number (5–7 digits)";
+    if (channel === "Paybill") return "Account / reference";
+    return "07XXXXXXXX";
+  }
   const examples: Record<string, string> = {
-    KES: "07XXXXXXXX",
     NGN: "08XXXXXXXX",
     UGX: "07XXXXXXXX",
     TZS: "07XXXXXXXX",
     GHS: "0XXXXXXXXX",
   };
-  return (
-    examples[currency.toUpperCase()] ?? "eg: phone number"
-  );
+  return examples[currency.toUpperCase()] ?? "eg: phone number";
 }
 
 /** Fiat codes supported in Noblocks swap (matches `mocks.acceptedCurrencies` names). */

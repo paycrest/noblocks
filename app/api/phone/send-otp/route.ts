@@ -9,6 +9,7 @@ import {
   trackApiError,
 } from "../../../lib/server-analytics";
 import { rateLimit } from "@/app/lib/rate-limit";
+import { isInjectedUserId } from "@/app/lib/injected-identity";
 
 function hashOTP(otp: string): string {
   return createHash("sha256").update(otp).digest("hex");
@@ -131,7 +132,9 @@ export async function POST(request: NextRequest) {
     const { data: existingProfile, error: profileFetchError } =
       await supabaseAdmin
         .from("user_kyc_profiles")
-        .select("tier, id_country, id_type, platform, full_name")
+        .select(
+          "tier, id_country, id_type, platform, full_name, is_injected_wallet",
+        )
         .eq("wallet_address", walletAddress)
         .maybeSingle();
 
@@ -163,40 +166,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // One verified identity per phone number: refuse before spending an SMS.
-    const { data: phoneOwner, error: phoneOwnerError } = await supabaseAdmin
-      .from("user_kyc_profiles")
-      .select("wallet_address")
-      .eq("phone_number", validation.e164Format)
-      .gte("tier", 1)
-      .neq("wallet_address", walletAddress)
-      .limit(1)
-      .maybeSingle();
+    // Injected/bridge wallets are exempt from phone uniqueness: one person reaches the
+    // app on several self-custodied addresses, and identity-scoped limits
+    // (`app/lib/kyc-identity.ts`) already pool their spend, so extra wallets buy no
+    // extra allowance. Non-injected callers still get one verified identity per number,
+    // and injected rows are skipped when checking so they never block a Privy user.
+    const isInjected = isInjectedUserId(userId);
 
-    if (phoneOwnerError) {
-      logSupabaseError("Supabase phone uniqueness check failed", phoneOwnerError);
-      return NextResponse.json(
-        { success: false, error: "Failed to validate phone number" },
-        { status: 500 },
-      );
-    }
+    if (!isInjected) {
+      // Refuse before spending an SMS.
+      const { data: phoneOwner, error: phoneOwnerError } = await supabaseAdmin
+        .from("user_kyc_profiles")
+        .select("wallet_address")
+        .eq("phone_number", validation.e164Format)
+        .gte("tier", 1)
+        .eq("is_injected_wallet", false)
+        .neq("wallet_address", walletAddress)
+        .limit(1)
+        .maybeSingle();
 
-    if (phoneOwner) {
-      trackApiError(
-        request,
-        "/api/phone/send-otp",
-        "POST",
-        new Error("Phone number already verified on another account"),
-        409,
-      );
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "This phone number is already verified on another account. Please use a different number.",
-        },
-        { status: 409 },
-      );
+      if (phoneOwnerError) {
+        logSupabaseError(
+          "Supabase phone uniqueness check failed",
+          phoneOwnerError,
+        );
+        return NextResponse.json(
+          { success: false, error: "Failed to validate phone number" },
+          { status: 500 },
+        );
+      }
+
+      if (phoneOwner) {
+        trackApiError(
+          request,
+          "/api/phone/send-otp",
+          "POST",
+          new Error("Phone number already verified on another account"),
+          409,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "This phone number is already verified on another account. Please use a different number.",
+          },
+          { status: 409 },
+        );
+      }
     }
 
     const isNigerian = validation.isNigerian;
@@ -256,6 +272,11 @@ export async function POST(request: NextRequest) {
           platform: existingProfile?.platform || null,
           otp_attempts: 0, // reset OTP counter on each new OTP send; leave `attempts` (SmileID) untouched
           provider: validation.provider,
+          // Sticky: never downgrade true → false. A wallet that verified while injected
+          // and is later seen through Privy must keep the exemption — clearing it would
+          // pull the row back into the unique index and could fail a valid write (23505).
+          is_injected_wallet:
+            isInjected || existingProfile?.is_injected_wallet === true,
         },
         {
           onConflict: "wallet_address",

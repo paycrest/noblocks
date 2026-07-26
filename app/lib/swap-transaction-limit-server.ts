@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { getKycTierLimit } from "@/app/lib/kyc-tier-limits";
+import { resolveIdentityScope } from "@/app/lib/kyc-identity";
 import { collectLinkedEvmAddressesForPrivyUserId } from "@/app/lib/privy";
 
 export type SwapLimitRpcBody = {
@@ -108,18 +109,18 @@ export async function executeSwapTransactionLimitCheck(
 ): Promise<SwapLimitCheckResult> {
   const kycWalletAddress = normalizedBodyWalletAddress;
 
-  const { data: kycProfile, error: kycError } = await supabaseAdmin
-    .from("user_kyc_profiles")
-    .select("tier")
-    .eq("wallet_address", kycWalletAddress)
-    .maybeSingle();
-
-  if (kycError) {
+  // The limit belongs to the verified identity, not this wallet: every wallet sharing
+  // the caller's phone/ID draws from one pool and inherits the group's best tier.
+  // Never fall back to a per-wallet scope on failure — a narrower pool would leave
+  // siblings' spend uncounted and the cap bypassable.
+  let scope;
+  try {
+    scope = await resolveIdentityScope(kycWalletAddress);
+  } catch {
     return { kind: "kyc_db_error" };
   }
 
-  const tier = Math.min(Math.max(Number(kycProfile?.tier ?? 0), 0), 3);
-  const tierLimit = getKycTierLimit(tier);
+  const tierLimit = getKycTierLimit(scope.effectiveTier);
 
   // A capped limit of 0 means "no swaps until phone" (tier 0). An unlimited tier
   // must never hit this branch.
@@ -169,6 +170,8 @@ export async function executeSwapTransactionLimitCheck(
       p_email: options.normalizedEmail,
       p_explorer_link: options.explorerLink || null,
       p_dry_run: options.dryRun,
+      p_scope_wallets: scope.wallets,
+      p_identity_keys: scope.identityKeys,
     },
   );
 

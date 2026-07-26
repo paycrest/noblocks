@@ -38,30 +38,38 @@ function notifyPhoneVerified(walletAddress: string, currentTier: number): void {
  * Promotes the pending number to the verified phone_number. Enforces one
  * verified identity per phone (friendly pre-check + 23505 from the partial
  * unique index for the concurrent case).
+ *
+ * Injected-wallet profiles are exempt in both directions: they are neither checked
+ * nor counted as owners. Their spend is pooled per identity instead
+ * (`app/lib/kyc-identity.ts`), so several wallets on one number share one allowance.
  */
 async function promoteVerifiedPhone(
   walletAddress: string,
   e164: string,
   currentTier: number,
+  isInjected: boolean,
 ): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
-  const { data: phoneOwner, error: ownerError } = await supabaseAdmin
-    .from("user_kyc_profiles")
-    .select("wallet_address")
-    .eq("phone_number", e164)
-    .gte("tier", 1)
-    .neq("wallet_address", walletAddress)
-    .limit(1)
-    .maybeSingle();
+  if (!isInjected) {
+    const { data: phoneOwner, error: ownerError } = await supabaseAdmin
+      .from("user_kyc_profiles")
+      .select("wallet_address")
+      .eq("phone_number", e164)
+      .gte("tier", 1)
+      .eq("is_injected_wallet", false)
+      .neq("wallet_address", walletAddress)
+      .limit(1)
+      .maybeSingle();
 
-  if (ownerError) {
-    return {
-      ok: false,
-      status: 500,
-      error: "Failed to update verification status",
-    };
-  }
-  if (phoneOwner) {
-    return { ok: false, status: 409, error: PHONE_IN_USE_ERROR };
+    if (ownerError) {
+      return {
+        ok: false,
+        status: 500,
+        error: "Failed to update verification status",
+      };
+    }
+    if (phoneOwner) {
+      return { ok: false, status: 409, error: PHONE_IN_USE_ERROR };
+    }
   }
 
   const updateData: Record<string, unknown> = {
@@ -87,6 +95,7 @@ async function promoteVerifiedPhone(
     .maybeSingle();
 
   if (updateError) {
+    // Still reachable: two non-injected wallets racing to verify the same number.
     if (updateError.code === "23505") {
       return { ok: false, status: 409, error: PHONE_IN_USE_ERROR };
     }
@@ -178,7 +187,7 @@ export async function POST(request: NextRequest) {
     const { data: verification, error: fetchError } = await supabaseAdmin
       .from("user_kyc_profiles")
       .select(
-        "verified, provider, tier, expires_at, otp_attempts, otp_code, phone_number, pending_phone_number",
+        "verified, provider, tier, expires_at, otp_attempts, otp_code, phone_number, pending_phone_number, is_injected_wallet",
       )
       .eq("wallet_address", walletAddress)
       .maybeSingle();
@@ -252,6 +261,7 @@ export async function POST(request: NextRequest) {
         walletAddress,
         validation.e164Format,
         Number(verification.tier) || 0,
+        verification.is_injected_wallet === true,
       );
       if (!promotion.ok) {
         trackApiError(
@@ -360,6 +370,7 @@ export async function POST(request: NextRequest) {
       walletAddress,
       validation.e164Format,
       Number(verification.tier) || 0,
+      verification.is_injected_wallet === true,
     );
     if (!promotion.ok) {
       trackApiError(

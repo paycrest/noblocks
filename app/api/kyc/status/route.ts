@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
+import { resolveIdentityScope } from "@/app/lib/kyc-identity";
 import {
   trackApiRequest,
   trackApiResponse,
@@ -50,14 +51,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const rawTier = Number(kycProfile?.tier ?? 0);
-    const safeTier = Number.isFinite(rawTier) ? rawTier : 0;
-    const tier: 0 | 1 | 2 | 3 = Math.min(
-      Math.max(safeTier, 0),
-      3,
-    ) as 0 | 1 | 2 | 3;
+    // The identity carries the tier: a wallet inherits the highest tier reached by any
+    // wallet sharing its verified phone/ID, so verifying an ID once lifts every wallet
+    // that person holds. Reported here so the UI shows the tier and cap that
+    // enforcement will actually apply.
+    let tier: 0 | 1 | 2 | 3;
+    try {
+      tier = (await resolveIdentityScope(walletAddress)).effectiveTier as
+        | 0
+        | 1
+        | 2
+        | 3;
+    } catch (scopeError) {
+      trackApiError(request, "/api/kyc/status", "GET", scopeError as Error, 500);
+      return NextResponse.json(
+        { success: false, error: "Failed to load KYC profile" },
+        { status: 500 },
+      );
+    }
+
     const phoneNumber = kycProfile?.phone_number || null;
-    // tier >= 1 means phone OTP was verified; do not rely on the generic `verified` flag
+    // tier >= 1 means phone OTP was verified; do not rely on the generic `verified` flag.
+    // phone_number stays this wallet's own, so an inherited tier can never report a
+    // phone as verified on a wallet that never verified one.
     const phoneVerified = tier >= 1 && !!phoneNumber;
 
     const responseTime = Date.now() - startTime;

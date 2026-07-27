@@ -30,7 +30,7 @@ import {
 } from "./context";
 import { EmbedNetworkLockApplier } from "./components/EmbedNetworkLockApplier";
 import { useActualTheme } from "./hooks/useActualTheme";
-import { useMixpanel } from "./hooks/analytics/client";
+import { useDatadogRum, useMixpanel } from "./hooks/analytics/client";
 import { BlockFestClaimProvider } from "./context/BlockFestClaimContext";
 
 function Providers({ children }: { children: ReactNode }) {
@@ -108,6 +108,7 @@ function ContextProviders({ children }: { children: ReactNode }) {
   // No client-side trackers inside partner iframes; source-domain attribution
   // happens server-side in middleware.ts instead.
   useMixpanel(!isEmbed);
+  useDatadogRum(!isEmbed);
 
   return (
     <EmbedProvider>

@@ -13,6 +13,7 @@ jest.mock('@datadog/browser-rum', () => ({
     startView: jest.fn(),
     addAction: jest.fn(),
     setUser: jest.fn(),
+    setTrackingConsent: jest.fn(),
   },
 }))
 

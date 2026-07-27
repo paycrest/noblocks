@@ -78,45 +78,50 @@ export function initDatadogRum(): boolean {
     process.env.NEXT_PUBLIC_DD_SESSION_REPLAY_SAMPLE_RATE ?? "0",
   );
 
-  g[INIT_KEY] = true;
-
-  datadogRum.init({
-    applicationId,
-    clientToken,
-    site: process.env.NEXT_PUBLIC_DD_SITE || "datadoghq.eu",
-    service: process.env.NEXT_PUBLIC_DD_SERVICE || "noblocks",
-    env:
-      process.env.NEXT_PUBLIC_DD_ENV ||
-      process.env.NODE_ENV ||
-      "development",
-    version: process.env.NEXT_PUBLIC_DD_VERSION,
-    sessionSampleRate: Number.isFinite(sessionSampleRate)
-      ? sessionSampleRate
-      : 100,
-    sessionReplaySampleRate: Number.isFinite(sessionReplaySampleRate)
-      ? sessionReplaySampleRate
-      : 0,
-    trackUserInteractions: true,
-    trackResources: true,
-    trackLongTasks: true,
-    trackViewsManually: true,
-    defaultPrivacyLevel: "mask-user-input",
-    beforeSend(event) {
-      if (event.type === "action" && event.action?.target?.name) {
-        const name = event.action.target.name.toLowerCase();
-        if (SENSITIVE_KEYS.some((s) => name.includes(s))) {
-          return false;
+  try {
+    datadogRum.init({
+      applicationId,
+      clientToken,
+      site: process.env.NEXT_PUBLIC_DD_SITE || "datadoghq.eu",
+      service: process.env.NEXT_PUBLIC_DD_SERVICE || "noblocks",
+      env:
+        process.env.NEXT_PUBLIC_DD_ENV ||
+        process.env.NODE_ENV ||
+        "development",
+      version: process.env.NEXT_PUBLIC_DD_VERSION,
+      sessionSampleRate: Number.isFinite(sessionSampleRate)
+        ? sessionSampleRate
+        : 100,
+      sessionReplaySampleRate: Number.isFinite(sessionReplaySampleRate)
+        ? sessionReplaySampleRate
+        : 0,
+      trackUserInteractions: true,
+      trackResources: true,
+      trackLongTasks: true,
+      trackViewsManually: true,
+      defaultPrivacyLevel: "mask-user-input",
+      trackingConsent: "granted",
+      beforeSend(event) {
+        if (event.type === "action" && event.action?.target?.name) {
+          const name = event.action.target.name.toLowerCase();
+          if (SENSITIVE_KEYS.some((s) => name.includes(s))) {
+            return false;
+          }
         }
-      }
-      if (event.context) {
-        event.context = scrubContext(
-          event.context as Record<string, unknown>,
-        ) as typeof event.context;
-      }
-      return true;
-    },
-  });
+        if (event.context) {
+          event.context = scrubContext(
+            event.context as Record<string, unknown>,
+          ) as typeof event.context;
+        }
+        return true;
+      },
+    });
+  } catch {
+    // Leave INIT_KEY unset so a later consent event can retry.
+    return false;
+  }
 
+  g[INIT_KEY] = true;
   return true;
 }
 
@@ -125,9 +130,28 @@ export function isDatadogRumInitialized(): boolean {
   return !!(window as Window & { [INIT_KEY]?: boolean })[INIT_KEY];
 }
 
+/**
+ * Applies the current analytics cookie consent to Datadog RUM.
+ * Initializes on grant; sets trackingConsent to not-granted on revoke.
+ * Returns true when RUM is initialized and tracking is granted.
+ */
+export function syncDatadogRumConsent(): boolean {
+  if (typeof window === "undefined") return false;
+
+  const consented = hasAnalyticsCookieConsent();
+
+  if (isDatadogRumInitialized()) {
+    datadogRum.setTrackingConsent(consented ? "granted" : "not-granted");
+    return consented;
+  }
+
+  if (!consented) return false;
+  return initDatadogRum();
+}
+
 /** Record a SPA view after client-side navigation. */
 export function trackDatadogView(pathname: string): void {
-  if (!isDatadogRumInitialized()) return;
+  if (!isDatadogRumInitialized() || !hasAnalyticsCookieConsent()) return;
   datadogRum.startView({ name: pathname });
 }
 

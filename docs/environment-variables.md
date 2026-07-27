@@ -191,6 +191,9 @@ NEXT_PUBLIC_BRIDGE_DEFAULT_SLIPPAGE_BPS=50
 # Onramp chained forwarding: crypto settles to user wallet then auto-forward to destination
 NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED=false
 
+# KES fiat→crypto on-ramp (NGN on-ramp always on). Omit or any value except "false" = enabled.
+NEXT_PUBLIC_KES_ONRAMP_ENABLED=false
+
 # Embeddable widget (/widget, iframed by whitelisted partners) — see docs/embed-widget.md
 NEXT_PUBLIC_EMBED_ENABLED=false
 # Comma-separated origins allowed to iframe /widget (https only; http allowed

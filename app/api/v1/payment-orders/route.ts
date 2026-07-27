@@ -8,6 +8,7 @@ import {
 } from "@/app/lib/server-analytics";
 import config from "@/app/lib/config";
 import { getKycFullName } from "@/app/lib/kyc-profile-server";
+import { isOnrampFiatCurrencyCode } from "@/app/utils";
 import {
   accountNameMatchesKyc,
   REFUND_NAME_MISMATCH_MESSAGE,
@@ -73,6 +74,29 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           success: false,
           error:
             "Only on-ramp (fiat source) orders are supported. Off-ramp uses on-chain gateway.createOrder.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const sourceCurrency =
+      typeof (source as { currency?: unknown })?.currency === "string"
+        ? (source as { currency: string }).currency.trim()
+        : "";
+    if (!sourceCurrency || !isOnrampFiatCurrencyCode(sourceCurrency)) {
+      trackApiError(
+        request,
+        "/api/v1/payment-orders",
+        "POST",
+        new Error(`On-ramp not supported for fiat currency: ${sourceCurrency || "missing"}`),
+        400,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: sourceCurrency
+            ? `${sourceCurrency} on-ramp is not available.`
+            : "On-ramp order is missing source currency.",
         },
         { status: 400 },
       );

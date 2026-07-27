@@ -73,6 +73,7 @@ const config: Config = {
   bridgeEnabled: process.env.NEXT_PUBLIC_BRIDGE_ENABLED === "true",
   onrampChainedForwardingEnabled:
     process.env.NEXT_PUBLIC_ONRAMP_CHAINED_FORWARDING_ENABLED === "true",
+  kesOnrampEnabled: process.env.NEXT_PUBLIC_KES_ONRAMP_ENABLED !== "false",
   fantasyEnabled: process.env.NEXT_PUBLIC_FANTASY_ENABLED === "true",
   // When true (and fantasyEnabled), public /play shows the end-of-campaign
   // announcement instead of the live game. Flip off to revive Play for a

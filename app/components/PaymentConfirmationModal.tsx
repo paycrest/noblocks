@@ -51,7 +51,7 @@ export const PaymentConfirmationModal = ({
     try {
       await Promise.resolve(onConfirm());
     } catch {
-      // Keep modal open on failure; parent handles state silently.
+      // Keep modal open on failure; parent surfaces errors via toast.
     } finally {
       setConfirming(false);
     }

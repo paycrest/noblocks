@@ -1067,6 +1067,11 @@ export function TransactionStatus({
       clearStuckFulfillingSince(orderId);
     } catch (error) {
       console.error("Error confirming payment:", error);
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Could not confirm payment. Please try again.";
+      toast.error(message);
       throw error;
     }
   };

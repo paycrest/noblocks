@@ -2,6 +2,9 @@ import type { TransactionStatusType } from "../types";
 
 const SESSION_KEY = "noblocks_stuck_payment_session";
 
+/** Abandoned stuck sessions stop restoring into the status step after this age. */
+const MAX_SESSION_AGE_MS = 6 * 60 * 60 * 1000;
+
 export type StuckPaymentFormSnapshot = {
   amountSent: number;
   amountReceived: number;
@@ -47,7 +50,9 @@ export function readStuckPaymentSession(): StuckPaymentSession | null {
       !parsed?.orderId ||
       !parsed?.createdAt ||
       !isStuckStatus(parsed.transactionStatus) ||
-      !parsed?.form
+      !parsed?.form ||
+      !Number.isFinite(parsed.savedAt) ||
+      Date.now() - parsed.savedAt > MAX_SESSION_AGE_MS
     ) {
       return null;
     }

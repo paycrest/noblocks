@@ -702,7 +702,11 @@ export const TransactionForm = ({
         let minAmountSentValue = 0.5;
 
         if (swapMode === "onramp") {
-          maxAmountSentValue = getOnrampFiatMaxAmount(currency || "NGN");
+          const safeCurrency =
+            currency?.trim() && isOnrampFiatCurrencyCode(currency.trim())
+              ? currency.trim()
+              : "NGN";
+          maxAmountSentValue = getOnrampFiatMaxAmount(safeCurrency);
           setRateError(null);
         } else if (tokensEqual(token, "cNGN")) {
           if (cngnRate && cngnRate > 0) {

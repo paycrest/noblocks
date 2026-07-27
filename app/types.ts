@@ -450,6 +450,11 @@ export type Config = {
   /** Bridge/Swap feature flag. Controls Convert button visibility + proxy routes. */
   bridgeEnabled: boolean;
   onrampChainedForwardingEnabled: boolean;
+  /**
+   * KES fiat→crypto onramp. Default on (unset env); set
+   * NEXT_PUBLIC_KES_ONRAMP_ENABLED=false to hide KES in on-ramp mode.
+   */
+  kesOnrampEnabled: boolean;
   /** Noblocks Play (World Cup fantasy league) feature flag. Gates /play UI + API. */
   fantasyEnabled: boolean;
   /**

@@ -30,6 +30,7 @@
     "sanity:undeploy": "sanity undeploy"
   },
   "dependencies": {
+    "@datadog/browser-rum": "^7.6.1",
     "@dicebear/collection": "^9.2.2",
     "@dicebear/core": "^9.4.2",
     "@headlessui/react": "^2.2.4",

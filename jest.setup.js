@@ -7,6 +7,15 @@ jest.mock('@sentry/react', () => ({
   ErrorBoundary: ({ children }) => children,
 }))
 
+jest.mock('@datadog/browser-rum', () => ({
+  datadogRum: {
+    init: jest.fn(),
+    startView: jest.fn(),
+    addAction: jest.fn(),
+    setUser: jest.fn(),
+  },
+}))
+
 // Mock environment variables for tests
 process.env.SUPABASE_URL = 'https://test.supabase.co'
 process.env.SUPABASE_SECRET_KEY = 'sb_secret_test_placeholder'

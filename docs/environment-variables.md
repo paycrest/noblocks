@@ -77,6 +77,24 @@ NEXT_PUBLIC_HOTJAR_SITE_ID=
 NEXT_PUBLIC_ENABLE_EMAIL_IN_ANALYTICS=false
 ```
 
+### Datadog RUM (Real User Monitoring)
+
+Browser-only session monitoring on the EU site (`datadoghq.eu`). Initialized only after the user accepts analytics cookies (same gate as Mixpanel/Hotjar). Disabled on `/widget` embeds.
+
+Create a RUM application in [Datadog EU](https://app.datadoghq.eu/rum/list) and copy the application ID and client token.
+
+```bash
+NEXT_PUBLIC_DD_APPLICATION_ID=
+NEXT_PUBLIC_DD_CLIENT_TOKEN=
+NEXT_PUBLIC_DD_SITE=datadoghq.eu
+NEXT_PUBLIC_DD_SERVICE=noblocks
+NEXT_PUBLIC_DD_ENV=production
+NEXT_PUBLIC_DD_VERSION=                     # Optional (e.g. git SHA from CI)
+NEXT_PUBLIC_DD_RUM_SAMPLE_RATE=100          # 0–100
+NEXT_PUBLIC_DD_SESSION_REPLAY_SAMPLE_RATE=0 # 0–100; keep 0 unless replay is approved
+NEXT_PUBLIC_DD_ENABLE_IN_DEV=false          # Send RUM from local dev when true
+```
+
 ### Server-Side Analytics
 
 ```bash

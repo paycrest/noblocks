@@ -91,7 +91,7 @@ NEXT_PUBLIC_DD_SERVICE=noblocks
 NEXT_PUBLIC_DD_ENV=production
 NEXT_PUBLIC_DD_VERSION=                     # Optional (e.g. git SHA from CI)
 NEXT_PUBLIC_DD_RUM_SAMPLE_RATE=100          # 0–100
-NEXT_PUBLIC_DD_SESSION_REPLAY_SAMPLE_RATE=0 # 0–100; keep 0 unless replay is approved
+NEXT_PUBLIC_DD_SESSION_REPLAY_SAMPLE_RATE=100 # 0–100; % of RUM sessions that record Session Replay
 NEXT_PUBLIC_DD_ENABLE_IN_DEV=false          # Send RUM from local dev when true
 ```
 

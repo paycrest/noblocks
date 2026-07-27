@@ -255,11 +255,17 @@ export function filterAndSortInstitutions(
   return [...filtered].sort(compareInstitutionsForDisplay);
 }
 
-/** Fiat codes enabled for on-ramp (send fiat → receive crypto). */
-export const ONRAMP_FIAT_CURRENCY_CODES = new Set(["NGN", "KES"]);
+/** Fiat codes enabled for on-ramp (send fiat → receive crypto). NGN is always on; KES is flag-gated. */
+export function getOnrampFiatCurrencyCodes(): Set<string> {
+  const codes = new Set(["NGN"]);
+  if (config.kesOnrampEnabled) {
+    codes.add("KES");
+  }
+  return codes;
+}
 
 export function isOnrampFiatCurrencyCode(code: string): boolean {
-  return ONRAMP_FIAT_CURRENCY_CODES.has(code.toUpperCase());
+  return getOnrampFiatCurrencyCodes().has(code.toUpperCase());
 }
 
 /**
@@ -269,6 +275,9 @@ export function isOnrampFiatCurrencyCode(code: string): boolean {
  */
 export function getOnrampFiatMaxAmount(currencyCode: string): number {
   const code = (currencyCode ?? "").trim().toUpperCase();
+  if (!isOnrampFiatCurrencyCode(code)) {
+    throw new Error(`Unsupported on-ramp fiat currency: ${currencyCode}`);
+  }
   switch (code) {
     case "KES":
       return 3_000_000;

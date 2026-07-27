@@ -71,6 +71,19 @@ export interface KYCStatusSnapshot {
    */
   pooledWalletCount: number;
   isPhoneVerified: boolean;
+  /**
+   * Whether any wallet in this identity's pool holds an OTP-verified phone. A wallet that
+   * inherited its tier through the ID triple can have no phone of its own while a sibling
+   * verified one — gates that care about the person (tier-2 phone gate) use this, not
+   * `isPhoneVerified`, so they don't re-prompt for a number that can never be re-verified.
+   */
+  identityHasVerifiedPhone: boolean;
+  /**
+   * True once a status fetch for the CURRENT wallet actually succeeded. While false the
+   * snapshot is the reset default (tier 0), which must read as "unknown", not "unverified" —
+   * gating UIs should refresh before treating the user as unverified.
+   */
+  hasLoadedStatus: boolean;
   phoneNumber: string | null;
   fullName: string | null;
   transactionSummary: UserTransactionSummary;
@@ -80,6 +93,8 @@ interface KYCContextType {
   tier: KYCTierLevel;
   pooledWalletCount: number;
   isPhoneVerified: boolean;
+  identityHasVerifiedPhone: boolean;
+  hasLoadedStatus: boolean;
   phoneNumber: string | null;
   fullName: string | null;
   walletAddress: string | undefined;
@@ -104,6 +119,8 @@ function createEmptySnapshot(): KYCStatusSnapshot {
     tier: 0,
     pooledWalletCount: 1,
     isPhoneVerified: false,
+    identityHasVerifiedPhone: false,
+    hasLoadedStatus: false,
     phoneNumber: null,
     fullName: null,
     transactionSummary: { ...EMPTY_TX_SUMMARY },
@@ -148,6 +165,9 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
   const [tier, setTier] = useState<KYCTierLevel>(0);
   const [pooledWalletCount, setPooledWalletCount] = useState(1);
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [identityHasVerifiedPhone, setIdentityHasVerifiedPhone] =
+    useState(false);
+  const [hasLoadedStatus, setHasLoadedStatus] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [fullName, setFullName] = useState<string | null>(null);
   const [transactionSummary, setTransactionSummary] =
@@ -160,6 +180,11 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         partial.pooledWalletCount ?? latestSnapshotRef.current.pooledWalletCount,
       isPhoneVerified:
         partial.isPhoneVerified ?? latestSnapshotRef.current.isPhoneVerified,
+      identityHasVerifiedPhone:
+        partial.identityHasVerifiedPhone ??
+        latestSnapshotRef.current.identityHasVerifiedPhone,
+      hasLoadedStatus:
+        partial.hasLoadedStatus ?? latestSnapshotRef.current.hasLoadedStatus,
       phoneNumber:
         partial.phoneNumber !== undefined
           ? partial.phoneNumber
@@ -175,6 +200,8 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
     setTier(next.tier);
     setPooledWalletCount(next.pooledWalletCount);
     setIsPhoneVerified(next.isPhoneVerified);
+    setIdentityHasVerifiedPhone(next.identityHasVerifiedPhone);
+    setHasLoadedStatus(next.hasLoadedStatus);
     setPhoneNumber(next.phoneNumber);
     setFullName(next.fullName);
     setTransactionSummary(next.transactionSummary);
@@ -311,6 +338,10 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
           tier: safeTier,
           pooledWalletCount: Math.max(1, Number(data.pooledWalletCount) || 1),
           isPhoneVerified: Boolean(data.isPhoneVerified),
+          identityHasVerifiedPhone: Boolean(
+            data.identityHasVerifiedPhone ?? data.isPhoneVerified,
+          ),
+          hasLoadedStatus: true,
           phoneNumber: data.phoneNumber ?? null,
           fullName: data.fullName ?? null,
         });
@@ -336,30 +367,53 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         return latestSnapshotRef.current;
       }
 
-      if (refreshInFlightRef.current) {
-        return refreshInFlightRef.current;
-      }
-
       const run = async (): Promise<KYCStatusSnapshot | null> => {
         const guards = fetchGuardsRef.current;
         delete guards[`${guardKey}_kyc`];
         delete guards[`${guardKey}_tx`];
 
         const fetchOpts = { force: true as const };
-        await Promise.all([
+        const [kycOk] = await Promise.all([
           fetchKYCStatus(fetchOpts),
           fetchTransactionSummary(fetchOpts),
         ]);
 
-        lastFetchTimeRef.current = Date.now();
+        // Only a successful status fetch counts as fresh. Stamping on failure would serve
+        // the reset (tier-0) snapshot for the whole staleness window — verified users would
+        // transiently read as unverified and get re-prompted for phone verification.
+        if (kycOk) {
+          lastFetchTimeRef.current = Date.now();
+        }
         return latestSnapshotRef.current;
       };
 
-      refreshInFlightRef.current = run();
+      const inFlight = refreshInFlightRef.current;
+      if (inFlight) {
+        if (!force) {
+          return inFlight;
+        }
+        // A forced refresh must observe data fetched AFTER the caller's action (e.g. an OTP
+        // promotion) — piggybacking on an older in-flight fetch would hand back pre-action
+        // data and the caller would still see the user as unverified.
+        const chained = inFlight.catch(() => null).then(run);
+        refreshInFlightRef.current = chained;
+        try {
+          return await chained;
+        } finally {
+          if (refreshInFlightRef.current === chained) {
+            refreshInFlightRef.current = null;
+          }
+        }
+      }
+
+      const current = run();
+      refreshInFlightRef.current = current;
       try {
-        return await refreshInFlightRef.current;
+        return await current;
       } finally {
-        refreshInFlightRef.current = null;
+        if (refreshInFlightRef.current === current) {
+          refreshInFlightRef.current = null;
+        }
       }
     },
     [
@@ -377,11 +431,18 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       setTier(empty.tier);
       setPooledWalletCount(empty.pooledWalletCount);
       setIsPhoneVerified(empty.isPhoneVerified);
+      setIdentityHasVerifiedPhone(empty.identityHasVerifiedPhone);
+      setHasLoadedStatus(empty.hasLoadedStatus);
       setPhoneNumber(empty.phoneNumber);
       setFullName(empty.fullName);
       setTransactionSummary({ ...EMPTY_TX_SUMMARY });
       fetchGuardsRef.current = {};
       lastFetchTimeRef.current = 0;
+      // Detach any refresh still in flight for the PREVIOUS wallet. A forced refresh chains
+      // onto whatever is in flight, so leaving it attached would make this wallet's status
+      // wait on an unrelated (and untimed) fetch before it even starts. The run's own
+      // ownership check means the detached promise can't clobber this wallet's state.
+      refreshInFlightRef.current = null;
       void refreshStatus(true);
     }
   }, [walletAddress, refreshStatus]);
@@ -392,6 +453,8 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
         tier,
         pooledWalletCount,
         isPhoneVerified,
+        identityHasVerifiedPhone,
+        hasLoadedStatus,
         phoneNumber,
         fullName,
         walletAddress,

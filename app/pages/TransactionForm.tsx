@@ -129,6 +129,7 @@ export const TransactionForm = ({
     injectedAddress,
     injectedReady,
     connectInjectedWallet,
+    getInjectedToken,
   } = useInjectedWallet();
   // Privy `authenticated` is false in injected mode (extension or embed
   // bridge) — balance display and over-balance validation must treat a ready
@@ -153,6 +154,7 @@ export const TransactionForm = ({
     getKycStatusSnapshot,
     isPhoneVerified,
     tier,
+    hasLoadedStatus,
     phoneNumber,
     transactionSummary,
   } = useKYC();
@@ -702,7 +704,11 @@ export const TransactionForm = ({
         let minAmountSentValue = 0.5;
 
         if (swapMode === "onramp") {
-          maxAmountSentValue = getOnrampFiatMaxAmount(currency || "NGN");
+          const safeCurrency =
+            currency?.trim() && isOnrampFiatCurrencyCode(currency.trim())
+              ? currency.trim()
+              : "NGN";
+          maxAmountSentValue = getOnrampFiatMaxAmount(safeCurrency);
           setRateError(null);
         } else if (tokensEqual(token, "cNGN")) {
           if (cngnRate && cngnRate > 0) {
@@ -856,6 +862,7 @@ export const TransactionForm = ({
     isPhoneVerified,
     hasPriorTransactionActivity,
     kycTier: tier,
+    hasLoadedStatus,
     rate,
     isSwapped,
     networkName: selectedNetwork.chain.name,
@@ -866,17 +873,32 @@ export const TransactionForm = ({
   /** After phone OTP, KYC context may not have updated before the next handleSwap; allow one continuation. */
   const pendingContinueSwapAfterPhoneRef = useRef(false);
 
-  const handleSwap = () => {
-    const kyc = getKycStatusSnapshot();
+  const handleSwap = async () => {
+    let kyc = getKycStatusSnapshot();
+
+    // Consume the post-OTP continuation flag exactly once per call. Clearing it only inside
+    // the tier-2 branch would leave it set whenever the phone was verified below tier 2, and
+    // that stale `true` would later wave a genuinely ungated wallet past the tier-2 gate.
+    const resumingAfterPhoneVerification =
+      pendingContinueSwapAfterPhoneRef.current;
+    pendingContinueSwapAfterPhoneRef.current = false;
 
     // Tier 2+ (e.g. migrated ID KYC) still requires a stored phone — prompt before swap.
-    if (kyc.tier >= 2) {
-      const hasPhone = Boolean(kyc.phoneNumber?.trim());
-      if (!hasPhone && !pendingContinueSwapAfterPhoneRef.current) {
-        setIsTier2PhoneGateOpen(true);
-        return;
-      }
-      pendingContinueSwapAfterPhoneRef.current = false;
+    // The identity, not the wallet, satisfies this: a wallet that inherited its tier through
+    // the ID triple may hold no phone itself while a sibling wallet verified one, and
+    // re-verifying that number would be rejected as already in use — an unsatisfiable loop.
+    // Defined as a closure over `kyc` (declared with `let`) and re-checked further down after
+    // the status refresh below: an unloaded snapshot reads as tier 0 and would otherwise let
+    // this gate be skipped here, then silently satisfied once the refresh reveals a real
+    // tier-2-no-phone identity.
+    const blockedByTier2PhoneGate = () =>
+      kyc.tier >= 2 &&
+      !(Boolean(kyc.phoneNumber?.trim()) || kyc.identityHasVerifiedPhone) &&
+      !resumingAfterPhoneVerification;
+
+    if (blockedByTier2PhoneGate()) {
+      setIsTier2PhoneGateOpen(true);
+      return;
     }
 
     setOrderId("");
@@ -901,7 +923,44 @@ export const TransactionForm = ({
     });
 
     // Check transaction limits based on KYC tier
-    const limitCheck = canTransact(usdAmount);
+    let limitCheck = canTransact(usdAmount);
+
+    if (!limitCheck.allowed && !kyc.hasLoadedStatus) {
+      // The snapshot is still the reset default — "status unknown", not "unverified". Deciding
+      // on it would send an already-verified user back to phone verification whenever the
+      // status fetch failed or hasn't landed yet. Load the real status once, then re-decide.
+      await refreshStatus(true);
+      kyc = getKycStatusSnapshot();
+
+      if (!kyc.hasLoadedStatus && isInjectedWallet && injectedReady) {
+        // Background KYC fetches are non-interactive, so they cannot recover a lapsed injected
+        // session on their own — the status would stay unknown forever and every swap would ask
+        // for phone verification again. This tap is a user gesture, so prompt for the SIWE
+        // signature once, then retry. Declining just falls through to the check below.
+        const token = await getInjectedToken({ interactive: true });
+        if (token) {
+          await refreshStatus(true);
+          kyc = getKycStatusSnapshot();
+        }
+      }
+
+      if (!kyc.hasLoadedStatus) {
+        // Status genuinely could not be loaded (signature declined, or the fetch kept
+        // failing). Treating the reset defaults as "unverified" here is exactly the loop this
+        // recovery path exists to close — surface a retryable error instead of guessing.
+        toast.error("Couldn't verify your account status. Please try again.");
+        return;
+      }
+
+      limitCheck = canTransact(usdAmount);
+    }
+
+    // Re-check with whatever `kyc` now is (refreshed above, or unchanged if the limit already
+    // allowed the amount at the first read) — see the comment on blockedByTier2PhoneGate.
+    if (blockedByTier2PhoneGate()) {
+      setIsTier2PhoneGateOpen(true);
+      return;
+    }
 
     if (!limitCheck.allowed) {
       if (kyc.tier < 1 || !kyc.isPhoneVerified) {
@@ -910,6 +969,31 @@ export const TransactionForm = ({
       }
       setBlockedTransactionAmount(usdAmount);
       setIsLimitModalOpen(true);
+      return;
+    }
+
+    // A recipient must exist before anything can submit. The recipient section only mounts once
+    // the user is verified, so every unverified entry point (notably the post-OTP continuation in
+    // handlePhoneVerified) reaches here with empty recipient fields — and an empty on-ramp wallet
+    // address would otherwise pass validateWalletAddress (empty is "valid" there; the `required`
+    // rule lives on a field that was never registered). Without this guard the preview renders a
+    // blank recipient ("Account: undefined") and the order params would be built empty.
+    // Note: the recipient section additionally requires the receive destination to be explicitly
+    // selected, so the user may still need that tap before the fields appear.
+    const onrampWalletAddress = String(formData.walletAddress ?? "").trim();
+    const hasRecipient = formData.isSwapped
+      ? onrampWalletAddress.length > 0
+      : Boolean(
+          formData.recipientName &&
+            formData.accountIdentifier &&
+            formData.institution,
+        );
+    if (!hasRecipient) {
+      if (resumingAfterPhoneVerification) {
+        toast.info("Phone number verified — add the recipient details to continue.");
+      } else {
+        toast.error("Add recipient details to continue.");
+      }
       return;
     }
 
@@ -936,7 +1020,7 @@ export const TransactionForm = ({
     setIsTier2PhoneGateOpen(false);
     pendingContinueSwapAfterPhoneRef.current = true;
     await refreshStatus(true);
-    handleSwap();
+    await handleSwap();
   };
 
   // Clear recipient when it is invalid for the selected network (EVM ↔ Starknet switches)

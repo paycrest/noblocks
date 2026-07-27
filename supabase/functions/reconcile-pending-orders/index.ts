@@ -1,27 +1,34 @@
 // Supabase Edge Function: reconcile-pending-orders
 //
 // WHY THIS EXISTS
-// Offramp orders are created directly on-chain against the Gateway contract, so
-// Noblocks never registers a Paycrest sender API key / webhook URL for them. The
-// only thing that moves an offramp row from `pending` -> `completed` is the
-// client-side poll in app/pages/TransactionStatus.tsx. If the user closes the tab
-// before the aggregator settles the payout, the DB row stays `pending` forever
-// even though the fiat was paid out — which then blocks referral-campaign
+// A transaction row only moves out of `pending` via the client-side poll in
+// app/pages/TransactionStatus.tsx. If the user closes the tab before the
+// aggregator reaches a terminal state, the DB row stays `pending` forever even
+// though the fiat/crypto was delivered — which then blocks referral-campaign
 // activation (the sweep only counts `completed` on/off-ramp volume).
 //
 // This function is a server-authoritative reconciler: on a pg_cron schedule it
-// re-reads the aggregator status of still-pending offramp orders and persists the
+// re-reads the aggregator status of still-pending orders and persists the
 // terminal status. No reindex is ever performed — read-and-reconcile only.
 //
-// SCOPE: offramp only. The gateway status endpoint requires NO API key (see
-// app/api/v1/payment-orders/[id]/route.ts — the gateway branch sends empty
-// headers). Onramp reconciliation would need the sender API key and is out of
-// scope for v1.
+// SCOPE: both ramps, each against the endpoint its order id belongs to.
+//   - offramp: gateway ids (0x + 64 hex) -> /v2/orders/{chainId}/{id}, NO API key.
+//   - onramp:  sender order UUIDs        -> /v2/sender/orders/{id}, API-Key header.
+// Onramp reconciliation is skipped (offramp still runs) when
+// AGGREGATOR_SENDER_API_KEY_ID is unset, so a missing secret degrades rather than
+// failing the run.
 //
-// PARITY NOTE: mapAggregatorStatusToDbStatus, aggregatorOriginForV2, and the
-// network-name -> chainId map below are ports of:
-//   - app/api/aggregator.ts  (mapAggregatorStatusToDbStatus, aggregatorOriginForV2)
-//   - app/lib/payment-order-id.ts + app/mocks.ts  (network -> chainId)
+// ONRAMP TERMINAL SEMANTICS: only `settled` completes an onramp — `validated`
+// maps to `pending`, exactly as the app does. Unfunded onramp orders would
+// otherwise never leave the scan set, so the app's validUntil expiry inference is
+// ported too (see resolveOnrampStatus).
+//
+// PARITY NOTE: mapAggregatorStatusToDbStatus, resolveOnrampStatus,
+// aggregatorOriginForV2, isSenderPaymentOrderUuid and the network-name -> chainId
+// map below are ports of:
+//   - app/api/aggregator.ts  (mapAggregatorStatusToDbStatus,
+//     resolveOnrampOrderStatusFromV2Response, aggregatorOriginForV2)
+//   - app/lib/payment-order-id.ts + app/mocks.ts  (network -> chainId, UUID test)
 // Keep them in sync if the originals change.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -40,6 +47,10 @@ const FETCH_TIMEOUT_MS = 8_000;
 // remaining (older) rows are picked up on the next cron tick, which restarts from
 // the oldest. Kept well below the pg_net timeout in the cron migration.
 const MAX_RUN_MS = 90_000;
+// Cap on per-row entries in the response/log. Non-reconcilable rows (e.g. an onramp row whose
+// order_id isn't a sender UUID) never leave the scan set, so they would otherwise re-emit a
+// detail entry on every run and grow the payload without bound. Counters stay exact.
+const MAX_DETAILS = 200;
 
 // Non-final statuses we re-check. Final states (completed/failed/refunded/expired)
 // are intentionally excluded so they drop out of the scan.
@@ -60,9 +71,13 @@ const NETWORK_NAME_TO_CHAIN_ID: Record<string, number> = {
 
 // --- ported helpers ----------------------------------------------------------
 
-/** Port of mapAggregatorStatusToDbStatus (offramp path, onramp=false). */
-function mapAggregatorStatusToDbStatus(status: string): string {
+/** Port of mapAggregatorStatusToDbStatus. */
+function mapAggregatorStatusToDbStatus(
+  status: string,
+  opts?: { onramp?: boolean },
+): string {
   const s = String(status || "").toLowerCase();
+  const onramp = opts?.onramp === true;
   if (s === "settled") return "completed";
   if (s === "refunded") return "refunded";
   if (s === "refunding") return "refunding";
@@ -72,9 +87,35 @@ function mapAggregatorStatusToDbStatus(status: string): string {
   // through to `pending` and loop in the scan forever. The app-side twin in
   // aggregator.ts has no `failed` case — keep this divergence in mind if syncing.
   if (s === "failed") return "failed";
-  if (s === "validated") return "completed"; // offramp: validated -> completed
+  // Only `settled` completes an onramp; offramp also completes on `validated`.
+  if (s === "validated") return onramp ? "pending" : "completed";
   if (["settling", "fulfilling", "pending"].includes(s)) return "pending";
   return "pending";
+}
+
+/**
+ * Port of resolveOnrampOrderStatusFromV2Response: the aggregator may still report
+ * `pending` after the virtual-account window closed. Treat a pending order whose
+ * `validUntil` has passed as expired — without this, every unfunded onramp order
+ * stays in the scan set forever and each run re-fetches it.
+ */
+function resolveOnrampStatus(data: Record<string, any> | null): string | null {
+  if (!data || typeof data !== "object") return null;
+  const status = String(data.status ?? "");
+  if (status === "") return null;
+  if (status.toLowerCase() !== "pending") return status;
+  const validUntil = data.providerAccount?.validUntil;
+  if (!validUntil) return status;
+  const end = new Date(validUntil).getTime();
+  if (Number.isNaN(end) || Date.now() <= end) return status;
+  return "expired";
+}
+
+/** Port of isSenderPaymentOrderUuid: aggregator v2 sender payment order id. */
+const SENDER_ORDER_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function isSenderPaymentOrderUuid(id: string): boolean {
+  return SENDER_ORDER_UUID_RE.test(id.trim());
 }
 
 /** Port of aggregatorOriginForV2: strip a trailing `/v1` so v2 paths are correct. */
@@ -106,27 +147,58 @@ interface Row {
 
 interface Summary {
   scanned: number;
+  scannedOfframp: number;
+  scannedOnramp: number;
   updated: number;
   unchanged: number;
   skipped: number;
   notFound: number;
   errors: number;
-  truncated: boolean; // true if the wall-clock budget cut the run short
+  /** True only if the shared run deadline was hit — not when offramp merely used up its half. */
+  truncated: boolean;
+  /** Per-scan cut-offs, including offramp stopping at its half-budget cap. */
+  truncatedOfframp: boolean;
+  truncatedOnramp: boolean;
+  /** Set when onramp rows were not scanned at all (sender API key not configured). */
+  onrampSkippedReason?: string;
+  /** Bounded sample — see MAX_DETAILS. `detailsOmitted` counts what didn't fit. */
   details: Array<Record<string, unknown>>;
+  detailsOmitted: number;
 }
 
-async function fetchGatewayStatus(
-  origin: string,
-  chainId: number,
-  orderId: string,
-): Promise<{ kind: "status"; value: string } | { kind: "notFound" } | { kind: "error"; message: string }> {
-  const url = `${origin}/v2/orders/${chainId}/${encodeURIComponent(orderId.trim())}`;
+type StatusResult =
+  | { kind: "status"; value: string }
+  | { kind: "notFound" }
+  | { kind: "error"; message: string };
+
+/**
+ * Shared aggregator GET + envelope handling. `readStatus` pulls the order status
+ * out of the envelope's `data` (onramp additionally applies the validUntil expiry
+ * inference), so both ramps share timeout, 404 and error-envelope handling.
+ */
+async function fetchAggregatorStatus(
+  url: string,
+  headers: Record<string, string>,
+  readStatus: (data: Record<string, any> | null) => string | null,
+): Promise<StatusResult> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, { signal: ctrl.signal }); // no API key for gateway reads
-    if (res.status === 404) return { kind: "notFound" };
+    const res = await fetch(url, { signal: ctrl.signal, headers });
     const body = await res.json().catch(() => null);
+    if (res.status === 404) {
+      // The sender endpoint also answers 404 for a bad/missing API key (see the
+      // "api key not found" special case in app/api/v1/payment-orders/[id]/route.ts).
+      // Counting that as "not indexed yet" would silently no-op every onramp row
+      // forever, so surface it as an error the run summary shows.
+      const msg = body && typeof body === "object" && typeof body.message === "string"
+        ? body.message
+        : "";
+      if (/api key/i.test(msg)) {
+        return { kind: "error", message: `aggregator rejected credentials: ${msg}` };
+      }
+      return { kind: "notFound" };
+    }
     if (!res.ok) {
       const msg = body && typeof body === "object" && typeof body.message === "string"
         ? body.message
@@ -136,7 +208,7 @@ async function fetchGatewayStatus(
     if (!body || body.status === "error") {
       return { kind: "error", message: (body && body.message) || "aggregator error envelope" };
     }
-    const orderStatus = body?.data?.status;
+    const orderStatus = readStatus(body?.data ?? null);
     if (typeof orderStatus !== "string" || orderStatus === "") {
       return { kind: "error", message: "missing data.status in aggregator response" };
     }
@@ -146,6 +218,29 @@ async function fetchGatewayStatus(
   } finally {
     clearTimeout(t);
   }
+}
+
+function fetchGatewayStatus(
+  origin: string,
+  chainId: number,
+  orderId: string,
+): Promise<StatusResult> {
+  const url = `${origin}/v2/orders/${chainId}/${encodeURIComponent(orderId.trim())}`;
+  // Gateway reads need no API key (mirrors the gateway branch of
+  // app/api/v1/payment-orders/[id]/route.ts).
+  return fetchAggregatorStatus(url, {}, (data) => {
+    const s = data?.status;
+    return typeof s === "string" && s !== "" ? s : null;
+  });
+}
+
+function fetchSenderOrderStatus(
+  origin: string,
+  apiKey: string,
+  orderId: string,
+): Promise<StatusResult> {
+  const url = `${origin}/v2/sender/orders/${encodeURIComponent(orderId.trim())}`;
+  return fetchAggregatorStatus(url, { "API-Key": apiKey }, resolveOnrampStatus);
 }
 
 async function reconcile(): Promise<Summary> {
@@ -158,48 +253,92 @@ async function reconcile(): Promise<Summary> {
     auth: { persistSession: false },
   });
 
+  const senderApiKey = (Deno.env.get("AGGREGATOR_SENDER_API_KEY_ID") ?? "").trim();
+
   const deadline = Date.now() + MAX_RUN_MS;
   const maxCreatedAt = new Date(Date.now() - MIN_AGE_SECONDS * 1000).toISOString();
 
   const summary: Summary = {
     scanned: 0,
+    scannedOfframp: 0,
+    scannedOnramp: 0,
     updated: 0,
     unchanged: 0,
     skipped: 0,
     notFound: 0,
     errors: 0,
     truncated: false,
+    truncatedOfframp: false,
+    truncatedOnramp: false,
     details: [],
+    detailsOmitted: 0,
   };
+
+  /** Bounded detail sink: keeps the first MAX_DETAILS entries and counts the rest. */
+  function pushDetail(detail: Record<string, unknown>) {
+    if (summary.details.length < MAX_DETAILS) summary.details.push(detail);
+    else summary.detailsOmitted++;
+  }
+
+  /** Picks the right aggregator lookup for a row, or reports why it isn't reconcilable. */
+  function statusFetcherFor(
+    transactionType: "offramp" | "onramp",
+    row: Row,
+  ): { fetch: () => Promise<StatusResult> } | { skipReason: string } {
+    const orderId = row.order_id?.trim();
+    if (!orderId) return { skipReason: "missing order_id" };
+
+    if (transactionType === "onramp") {
+      // Onramp lookups are chain-agnostic (the UUID identifies the sender order),
+      // so unlike offramp there is no network -> chainId requirement here.
+      if (!isSenderPaymentOrderUuid(orderId)) {
+        return { skipReason: "order_id is not a sender payment order uuid" };
+      }
+      return { fetch: () => fetchSenderOrderStatus(origin, senderApiKey, orderId) };
+    }
+
+    const chainId = row.network ? resolveChainIdFromNetworkName(row.network) : null;
+    if (chainId == null) return { skipReason: "unknown network" };
+    return { fetch: () => fetchGatewayStatus(origin, chainId, orderId) };
+  }
 
   // Process one page of candidates with a bounded worker pool. Stops starting new
   // work once the wall-clock budget is spent.
-  async function processPage(rows: Row[]) {
+  async function processPage(
+    rows: Row[],
+    transactionType: "offramp" | "onramp",
+    stopAt: number,
+  ) {
     let idx = 0;
     async function worker() {
       while (idx < rows.length) {
-        if (Date.now() >= deadline) return;
+        if (Date.now() >= stopAt) return;
         const row = rows[idx++];
         summary.scanned++;
-        const chainId = row.network ? resolveChainIdFromNetworkName(row.network) : null;
-        if (!row.order_id || chainId == null) {
+        if (transactionType === "onramp") summary.scannedOnramp++;
+        else summary.scannedOfframp++;
+
+        const fetcher = statusFetcherFor(transactionType, row);
+        if ("skipReason" in fetcher) {
           summary.skipped++;
-          summary.details.push({ id: row.id, action: "skipped", reason: "missing order_id or unknown network", network: row.network });
+          pushDetail({ id: row.id, type: transactionType, action: "skipped", reason: fetcher.skipReason, network: row.network });
           continue;
         }
 
-        const result = await fetchGatewayStatus(origin, chainId, row.order_id);
+        const result = await fetcher.fetch();
         if (result.kind === "notFound") {
           summary.notFound++; // not indexed yet — a later cycle retries. No reindex.
           continue;
         }
         if (result.kind === "error") {
           summary.errors++;
-          summary.details.push({ id: row.id, action: "error", reason: result.message });
+          pushDetail({ id: row.id, type: transactionType, action: "error", reason: result.message });
           continue;
         }
 
-        const mapped = mapAggregatorStatusToDbStatus(result.value);
+        const mapped = mapAggregatorStatusToDbStatus(result.value, {
+          onramp: transactionType === "onramp",
+        });
         if (mapped === row.status) {
           summary.unchanged++;
           continue;
@@ -216,12 +355,12 @@ async function reconcile(): Promise<Summary> {
 
         if (updErr) {
           summary.errors++;
-          summary.details.push({ id: row.id, action: "update_error", reason: updErr.message });
+          pushDetail({ id: row.id, type: transactionType, action: "update_error", reason: updErr.message });
           continue;
         }
         if (updatedRows && updatedRows.length > 0) {
           summary.updated++;
-          summary.details.push({ id: row.id, action: "updated", from: row.status, to: mapped, aggregator: result.value });
+          pushDetail({ id: row.id, type: transactionType, action: "updated", from: row.status, to: mapped, aggregator: result.value });
         } else {
           summary.unchanged++; // lost the optimistic race — client already moved it
         }
@@ -234,39 +373,70 @@ async function reconcile(): Promise<Summary> {
   // drop out of SCANNABLE_STATUSES, so offset pagination would skip rows — a
   // forward created_at cursor is stable against that. `.gt` guarantees forward
   // progress; any rows sharing a page-boundary timestamp are retried next tick.
-  let cursorCreatedAt = "1970-01-01T00:00:00.000Z";
-  while (true) {
-    if (Date.now() >= deadline) {
-      summary.truncated = true;
-      break;
+  async function scanType(
+    transactionType: "offramp" | "onramp",
+    stopAt: number,
+  ) {
+    // `stopAt` may be this scan's share of the budget rather than the run deadline, so
+    // record the cut-off per scan and reserve `truncated` for a genuine run timeout.
+    const markTruncated = () => {
+      if (transactionType === "onramp") summary.truncatedOnramp = true;
+      else summary.truncatedOfframp = true;
+      if (Date.now() >= deadline) summary.truncated = true;
+    };
+
+    let cursorCreatedAt = "1970-01-01T00:00:00.000Z";
+    while (true) {
+      if (Date.now() >= stopAt) {
+        markTruncated();
+        break;
+      }
+
+      const { data, error } = await admin
+        .from("transactions")
+        .select("id, order_id, network, status, created_at")
+        .eq("transaction_type", transactionType)
+        .in("status", SCANNABLE_STATUSES)
+        .not("order_id", "is", null)
+        .gt("created_at", cursorCreatedAt) // keyset cursor (advances forward)
+        .lt("created_at", maxCreatedAt) // min-age guard: skip rows a client may still be polling
+        .order("created_at", { ascending: true })
+        .limit(BATCH_LIMIT);
+
+      if (error) {
+        throw new Error(`${transactionType} candidate query failed: ${error.message}`);
+      }
+
+      const rows = (data ?? []) as Row[];
+      if (rows.length === 0) break;
+
+      await processPage(rows, transactionType, stopAt);
+      cursorCreatedAt = rows[rows.length - 1].created_at;
+
+      // processPage may have bailed mid-page on the budget; flag it either way.
+      if (Date.now() >= stopAt) {
+        markTruncated();
+        break;
+      }
+      if (rows.length < BATCH_LIMIT) break; // drained the last page
     }
-
-    const { data, error } = await admin
-      .from("transactions")
-      .select("id, order_id, network, status, created_at")
-      .eq("transaction_type", "offramp")
-      .in("status", SCANNABLE_STATUSES)
-      .not("order_id", "is", null)
-      .gt("created_at", cursorCreatedAt) // keyset cursor (advances forward)
-      .lt("created_at", maxCreatedAt) // min-age guard: skip rows a client may still be polling
-      .order("created_at", { ascending: true })
-      .limit(BATCH_LIMIT);
-
-    if (error) throw new Error(`candidate query failed: ${error.message}`);
-
-    const rows = (data ?? []) as Row[];
-    if (rows.length === 0) break;
-
-    await processPage(rows);
-    cursorCreatedAt = rows[rows.length - 1].created_at;
-
-    // processPage may have bailed mid-page on the budget; flag it either way.
-    if (Date.now() >= deadline) {
-      summary.truncated = true;
-      break;
-    }
-    if (rows.length < BATCH_LIMIT) break; // drained the last page
   }
+
+  // Offramp runs first but is capped at half the budget, so a large offramp backlog
+  // can never starve onramp reconciliation. If offramp finishes early, onramp
+  // inherits the whole remainder.
+  await scanType("offramp", Math.min(Date.now() + MAX_RUN_MS / 2, deadline));
+
+  if (!senderApiKey) {
+    // Degrade instead of failing: offramp reconciliation above already ran.
+    summary.onrampSkippedReason = "AGGREGATOR_SENDER_API_KEY_ID is not configured";
+    console.warn(
+      "reconcile-pending-orders: skipping onramp scan — AGGREGATOR_SENDER_API_KEY_ID is not configured",
+    );
+    return summary;
+  }
+
+  await scanType("onramp", deadline);
 
   return summary;
 }

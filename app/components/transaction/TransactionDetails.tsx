@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { ImSpinner } from "react-icons/im";
 import { PiCheck } from "react-icons/pi";
 import { toast } from "sonner";
-import { usePrivy } from "@privy-io/react-auth";
+import { useApiAuth } from "../../hooks/useApiAuth";
 import { CopyAddressWarningModal } from "../CopyAddressWarningModal";
 import type {
   OnrampPaymentInstructions,
@@ -962,7 +962,7 @@ function OnrampPendingPaymentInstructions({
   clientSessionExpired: boolean;
   clientTimeRemainingLabel: string;
 }) {
-  const { getAccessToken } = usePrivy();
+  const { resolveAuth } = useApiAuth();
   const [instructions, setInstructions] = useState<OnrampPaymentInstructions | null>(
     null,
   );
@@ -984,11 +984,19 @@ function OnrampPendingPaymentInstructions({
 
     void (async () => {
       try {
-        const token = await getAccessToken();
-        if (!token) throw new Error("Sign in to load payment details");
+        // Injected/bridge wallets authenticate with a SIWE session token rather than a
+        // Privy one, so reading Privy alone reports a signed-in user as signed out.
+        // interactive: false — this runs from a mount effect and must never raise a
+        // wallet signature prompt.
+        const { accessToken, injectedToken } = await resolveAuth({
+          interactive: false,
+        });
+        if (!accessToken && !injectedToken)
+          throw new Error("Sign in to load payment details");
         const res = await fetchV2SenderPaymentOrderById(
           transaction.order_id!,
-          token,
+          accessToken,
+          injectedToken,
         );
         const data =
           unwrapV2SenderOrderEnvelope(res) ??
@@ -1030,7 +1038,7 @@ function OnrampPendingPaymentInstructions({
     transaction.status,
     transaction.from_currency,
     transaction.amount_sent,
-    getAccessToken,
+    resolveAuth,
     clientSessionExpired,
   ]);
 

@@ -33,6 +33,7 @@
 - [ ] I have added documentation and tests for new/changed functionality in this PR
 - [ ] All active GitHub checks for tests, formatting, and security are passing
 - [ ] The correct base branch is being used, if not `main`
+- [ ] If this PR adds a database migration, it follows expand/contract: the new code works against the **pre-migration** schema, the currently deployed code keeps working against the **post-migration** schema, and destructive changes (drops, renames, tightened constraints) are deferred until the old application version is no longer serving — migrations are applied around the deploy, not strictly before or after it
 
 
 By submitting a PR, I agree to Paycrest's [Contributor Code of Conduct](https://paycrest.notion.site/Contributor-Code-of-Conduct-1602482d45a2806bab75fd314b381f4c) and [Contribution Guide](https://paycrest.notion.site/Contribution-Guide-1602482d45a2809a8930e6ad565c906a).

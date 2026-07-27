@@ -23,6 +23,13 @@ interface UseSwapButtonProps {
   isPhoneVerified?: boolean;
   /** Current KYC tier (0–3); used when phone is done but swap is blocked by limits. */
   kycTier?: number;
+  /**
+   * Whether a KYC status fetch has actually succeeded for the current wallet. Until it has, the
+   * tier/phone values below are the reset defaults, which read identically to "unverified" — so
+   * a verified user whose status hasn't loaded (e.g. the injected SIWE session lapsed) would be
+   * sent back to phone verification. Defaults to true so callers without KYC keep their behavior.
+   */
+  hasLoadedStatus?: boolean;
   rate?: number | null;
   isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
   /** Selected chain name for on-ramp wallet validation (e.g. Base, Starknet). */
@@ -38,6 +45,7 @@ export function useSwapButton({
   hasPriorTransactionActivity = false,
   isPhoneVerified = false,
   kycTier = 0,
+  hasLoadedStatus = true,
   rate,
   isSwapped = false,
   networkName = "",
@@ -166,6 +174,11 @@ export function useSwapButton({
       (authenticated || isInjectedWallet) &&
       amountSent > 0
     ) {
+      // Status not loaded yet: unknown, not unverified. Naming a verification step here would
+      // greet a returning verified user as a newcomer; handleSwap resolves the real status.
+      if (!hasLoadedStatus) {
+        return "Swap";
+      }
       // Not on Tier 1 yet: start phone verification (not "Increase limit").
       if (kycTier < 1 || !isPhoneVerified) {
         // Existing wallets show "Swap" (tapping still opens phone verification);
@@ -203,6 +216,12 @@ export function useSwapButton({
       return handleFundWallet;
     }
     if (!hasInsufficientBalance && !isUserVerified && (authenticated || isInjectedWallet)) {
+      // Status unknown (never loaded for this wallet): defer to handleSwap, which refreshes —
+      // re-establishing the injected session if needed — before choosing a verification step.
+      // Opening the phone modal from here would bypass that refresh entirely.
+      if (!hasLoadedStatus) {
+        return handleSwap;
+      }
       // Tier 1 onboarding: phone modal. Active tier at cap: limit or ID/address upgrade.
       if (kycTier < 1 || !isPhoneVerified) {
         return openPhoneVerification;

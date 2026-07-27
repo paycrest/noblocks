@@ -133,6 +133,7 @@ export function TransactionStatus({
   createdAt,
   setTransactionStatus,
   setCurrentStep,
+  clearForm,
   clearTransactionStatus,
   formMethods,
   supportedInstitutions,
@@ -1132,16 +1133,33 @@ export function TransactionStatus({
 
   /**
    * Handles the back button click event.
-   * Clears the transaction status if it's refunded, otherwise clears the form and transaction status.
+   *
+   * "Retry transaction" (refunded/expired) keeps the form values so the user can resubmit.
+   * "New payment" (success) starts a clean order — it used to `window.location.reload()`, but a
+   * reload destroys the injected wallet's SIWE session (memory-only by design, see
+   * InjectedWalletContext), which signed embed users out and left KYC unable to reload, so the
+   * form then treated a verified user as unverified. Reset in-app instead: this component
+   * unmounts on the step change, so only shared state needs clearing here.
    */
   const handleBackButtonClick = () => {
     if (transactionStatus === "refunded" || transactionStatus === "expired") {
       refetchRate?.();
       clearTransactionStatus();
       setCurrentStep(STEPS.FORM);
-    } else {
-      window.location.reload();
+      return;
     }
+
+    clearForm();
+    clearTransactionStatus();
+    setOrderId("");
+    setRocketStatus("pending");
+    try {
+      // Pinned per order; a stale id must not follow the next one into status updates.
+      localStorage.removeItem("currentTransactionId");
+    } catch {
+      // Storage can be unavailable (private mode / blocked) — nothing else depends on this.
+    }
+    setCurrentStep(STEPS.FORM);
   };
 
   const handleAddToBeneficiariesChange = async (checked: boolean) => {

@@ -438,6 +438,11 @@ export function KYCProvider({ children }: { children: React.ReactNode }) {
       setTransactionSummary({ ...EMPTY_TX_SUMMARY });
       fetchGuardsRef.current = {};
       lastFetchTimeRef.current = 0;
+      // Detach any refresh still in flight for the PREVIOUS wallet. A forced refresh chains
+      // onto whatever is in flight, so leaving it attached would make this wallet's status
+      // wait on an unrelated (and untimed) fetch before it even starts. The run's own
+      // ownership check means the detached promise can't clobber this wallet's state.
+      refreshInFlightRef.current = null;
       void refreshStatus(true);
     }
   }, [walletAddress, refreshStatus]);

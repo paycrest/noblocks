@@ -47,6 +47,10 @@ const FETCH_TIMEOUT_MS = 8_000;
 // remaining (older) rows are picked up on the next cron tick, which restarts from
 // the oldest. Kept well below the pg_net timeout in the cron migration.
 const MAX_RUN_MS = 90_000;
+// Cap on per-row entries in the response/log. Non-reconcilable rows (e.g. an onramp row whose
+// order_id isn't a sender UUID) never leave the scan set, so they would otherwise re-emit a
+// detail entry on every run and grow the payload without bound. Counters stay exact.
+const MAX_DETAILS = 200;
 
 // Non-final statuses we re-check. Final states (completed/failed/refunded/expired)
 // are intentionally excluded so they drop out of the scan.
@@ -150,10 +154,16 @@ interface Summary {
   skipped: number;
   notFound: number;
   errors: number;
-  truncated: boolean; // true if the wall-clock budget cut the run short
+  /** True only if the shared run deadline was hit — not when offramp merely used up its half. */
+  truncated: boolean;
+  /** Per-scan cut-offs, including offramp stopping at its half-budget cap. */
+  truncatedOfframp: boolean;
+  truncatedOnramp: boolean;
   /** Set when onramp rows were not scanned at all (sender API key not configured). */
   onrampSkippedReason?: string;
+  /** Bounded sample — see MAX_DETAILS. `detailsOmitted` counts what didn't fit. */
   details: Array<Record<string, unknown>>;
+  detailsOmitted: number;
 }
 
 type StatusResult =
@@ -258,8 +268,17 @@ async function reconcile(): Promise<Summary> {
     notFound: 0,
     errors: 0,
     truncated: false,
+    truncatedOfframp: false,
+    truncatedOnramp: false,
     details: [],
+    detailsOmitted: 0,
   };
+
+  /** Bounded detail sink: keeps the first MAX_DETAILS entries and counts the rest. */
+  function pushDetail(detail: Record<string, unknown>) {
+    if (summary.details.length < MAX_DETAILS) summary.details.push(detail);
+    else summary.detailsOmitted++;
+  }
 
   /** Picks the right aggregator lookup for a row, or reports why it isn't reconcilable. */
   function statusFetcherFor(
@@ -302,7 +321,7 @@ async function reconcile(): Promise<Summary> {
         const fetcher = statusFetcherFor(transactionType, row);
         if ("skipReason" in fetcher) {
           summary.skipped++;
-          summary.details.push({ id: row.id, type: transactionType, action: "skipped", reason: fetcher.skipReason, network: row.network });
+          pushDetail({ id: row.id, type: transactionType, action: "skipped", reason: fetcher.skipReason, network: row.network });
           continue;
         }
 
@@ -313,7 +332,7 @@ async function reconcile(): Promise<Summary> {
         }
         if (result.kind === "error") {
           summary.errors++;
-          summary.details.push({ id: row.id, type: transactionType, action: "error", reason: result.message });
+          pushDetail({ id: row.id, type: transactionType, action: "error", reason: result.message });
           continue;
         }
 
@@ -336,12 +355,12 @@ async function reconcile(): Promise<Summary> {
 
         if (updErr) {
           summary.errors++;
-          summary.details.push({ id: row.id, type: transactionType, action: "update_error", reason: updErr.message });
+          pushDetail({ id: row.id, type: transactionType, action: "update_error", reason: updErr.message });
           continue;
         }
         if (updatedRows && updatedRows.length > 0) {
           summary.updated++;
-          summary.details.push({ id: row.id, type: transactionType, action: "updated", from: row.status, to: mapped, aggregator: result.value });
+          pushDetail({ id: row.id, type: transactionType, action: "updated", from: row.status, to: mapped, aggregator: result.value });
         } else {
           summary.unchanged++; // lost the optimistic race — client already moved it
         }
@@ -358,10 +377,18 @@ async function reconcile(): Promise<Summary> {
     transactionType: "offramp" | "onramp",
     stopAt: number,
   ) {
+    // `stopAt` may be this scan's share of the budget rather than the run deadline, so
+    // record the cut-off per scan and reserve `truncated` for a genuine run timeout.
+    const markTruncated = () => {
+      if (transactionType === "onramp") summary.truncatedOnramp = true;
+      else summary.truncatedOfframp = true;
+      if (Date.now() >= deadline) summary.truncated = true;
+    };
+
     let cursorCreatedAt = "1970-01-01T00:00:00.000Z";
     while (true) {
       if (Date.now() >= stopAt) {
-        summary.truncated = true;
+        markTruncated();
         break;
       }
 
@@ -388,7 +415,7 @@ async function reconcile(): Promise<Summary> {
 
       // processPage may have bailed mid-page on the budget; flag it either way.
       if (Date.now() >= stopAt) {
-        summary.truncated = true;
+        markTruncated();
         break;
       }
       if (rows.length < BATCH_LIMIT) break; // drained the last page

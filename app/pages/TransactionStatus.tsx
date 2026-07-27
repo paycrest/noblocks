@@ -791,13 +791,18 @@ export function TransactionStatus({
 
           // The envelope fallback can surface `"success"`/`"error"` (HTTP envelope, not an order
           // status) — never let those flow into UI state or DB persistence.
-          if (!isKnownAggregatorOrderStatus(responseData?.status)) {
+          const rawStatus = responseData?.status;
+          if (!isKnownAggregatorOrderStatus(rawStatus)) {
             console.warn(
               "[TransactionStatus] Skipping unknown order status:",
-              responseData?.status,
+              rawStatus,
             );
             return;
           }
+          // Canonicalize before anything reads it: the guard matches case-insensitively, but
+          // every comparison below (and the persisted value) is lowercase, so a mixed-case
+          // terminal status would otherwise poll forever and be stored non-canonically.
+          responseData = { ...responseData, status: rawStatus.toLowerCase() };
 
           setOrderDetails(responseData);
 

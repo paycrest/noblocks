@@ -869,6 +869,13 @@ export const TransactionForm = ({
   const handleSwap = async () => {
     let kyc = getKycStatusSnapshot();
 
+    // Consume the post-OTP continuation flag exactly once per call. Clearing it only inside
+    // the tier-2 branch would leave it set whenever the phone was verified below tier 2, and
+    // that stale `true` would later wave a genuinely ungated wallet past the tier-2 gate.
+    const resumingAfterPhoneVerification =
+      pendingContinueSwapAfterPhoneRef.current;
+    pendingContinueSwapAfterPhoneRef.current = false;
+
     // Tier 2+ (e.g. migrated ID KYC) still requires a stored phone — prompt before swap.
     // The identity, not the wallet, satisfies this: a wallet that inherited its tier through
     // the ID triple may hold no phone itself while a sibling wallet verified one, and
@@ -876,11 +883,10 @@ export const TransactionForm = ({
     if (kyc.tier >= 2) {
       const hasPhone =
         Boolean(kyc.phoneNumber?.trim()) || kyc.identityHasVerifiedPhone;
-      if (!hasPhone && !pendingContinueSwapAfterPhoneRef.current) {
+      if (!hasPhone && !resumingAfterPhoneVerification) {
         setIsTier2PhoneGateOpen(true);
         return;
       }
-      pendingContinueSwapAfterPhoneRef.current = false;
     }
 
     setOrderId("");
@@ -943,8 +949,7 @@ export const TransactionForm = ({
             formData.institution,
         );
     if (!hasRecipient) {
-      if (pendingContinueSwapAfterPhoneRef.current) {
-        pendingContinueSwapAfterPhoneRef.current = false;
+      if (resumingAfterPhoneVerification) {
         toast.info("Phone number verified — add the recipient details to continue.");
       } else {
         toast.error("Add recipient details to continue.");

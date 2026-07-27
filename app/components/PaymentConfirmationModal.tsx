@@ -2,15 +2,13 @@
 import { useState, useCallback, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Dialog, DialogPanel } from "@headlessui/react";
-import { Cancel01Icon, Loading03Icon } from "hugeicons-react";
+import { Loading03Icon } from "hugeicons-react";
 import Image from "next/image";
 import { classNames } from "../utils";
 import { primaryBtnClasses } from "./Styles";
 
 interface PaymentConfirmationModalProps {
   isOpen: boolean;
-  /** Close without action (X / backdrop). */
-  onClose: () => void;
   /** User confirmed funds received. */
   onConfirm: () => void | Promise<void>;
   /** User has not received funds — triggers reindex / status retry. */
@@ -29,7 +27,6 @@ function truncateAddress(address: string) {
 
 export const PaymentConfirmationModal = ({
   isOpen,
-  onClose,
   onConfirm,
   onDecline,
   tokenAmount,
@@ -54,7 +51,7 @@ export const PaymentConfirmationModal = ({
     try {
       await Promise.resolve(onConfirm());
     } catch {
-      // Parent shows toast; keep modal open so user can retry.
+      // Keep modal open on failure; parent handles state silently.
     } finally {
       setConfirming(false);
     }
@@ -65,8 +62,6 @@ export const PaymentConfirmationModal = ({
     setDeclining(true);
     try {
       await Promise.resolve(onDecline());
-    } catch {
-      // Parent shows toast; keep modal open so user can retry.
     } finally {
       setDeclining(false);
     }
@@ -79,9 +74,7 @@ export const PaymentConfirmationModal = ({
       {isOpen && (
         <Dialog
           open={isOpen}
-          onClose={() => {
-            if (!busy) onClose();
-          }}
+          onClose={() => {}}
           className="relative z-[70]"
         >
           <motion.div
@@ -106,20 +99,11 @@ export const PaymentConfirmationModal = ({
             >
               <DialogPanel className="relative mx-auto w-full sm:max-w-[27.3125rem]">
                 <div className="w-full space-y-5 rounded-t-[30px] border border-border-light bg-white p-6 dark:border-white/10 dark:bg-surface-overlay sm:rounded-3xl">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center">
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-neutral-100 px-3 py-1 text-xs font-normal text-amber-600 dark:bg-white/10 dark:text-[#E8C84A]">
                       <Loading03Icon className="size-3.5 animate-spin" />
                       Pending
                     </span>
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      disabled={busy}
-                      className="rounded-full p-1.5 text-text-secondary transition-colors hover:bg-gray-100 hover:text-text-body disabled:opacity-50 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white"
-                      aria-label="Close"
-                    >
-                      <Cancel01Icon className="size-5" />
-                    </button>
                   </div>
 
                   <h2 className="text-[26px] font-medium leading-7 text-text-body dark:text-white/80">
@@ -194,7 +178,7 @@ export const PaymentConfirmationModal = ({
                         "!min-h-12 !min-w-0 !flex-none !rounded-2xl border-none px-8 text-sm leading-6 shadow-none",
                       )}
                     >
-                      {declining ? "Checking…" : "No, I haven't"}
+                      No, I haven&apos;t
                     </button>
                     <button
                       type="button"

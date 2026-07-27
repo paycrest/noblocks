@@ -45,12 +45,16 @@ import {
   saveRecipient,
   deleteSavedRecipient,
 } from "../api/aggregator";
-import { reindexSingleTransaction } from "../lib/reindex";
+import {
+  reindexSingleTransaction,
+  resolveReindexTarget,
+} from "../lib/reindex";
 import {
   writeStuckPaymentSession,
   clearStuckPaymentSession,
   clearStuckFulfillingSince,
   resetStuckFulfillingSince,
+  readStuckPaymentSession,
 } from "../lib/stuckPaymentSession";
 import {
   STEPS,
@@ -182,6 +186,7 @@ export function TransactionStatus({
   const paymentConfirmationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const stuckInFulfillingSinceRef = useRef<number | null>(null);
   const lastStuckOrderIdRef = useRef<string | null>(null);
+  const lastAutoStuckReindexKeyRef = useRef<string | null>(null);
   const [hasReindexed, setHasReindexed] = useState(false);
   // Noblocks Play banner — dismissed state persists via localStorage.
   const [isFantasyBannerDismissed, setIsFantasyBannerDismissed] =
@@ -211,6 +216,7 @@ export function TransactionStatus({
     lastPersistedOrderStatusRef.current = null;
     lastFulfillPersistKeyRef.current = null;
     setProcessingStartedAt("");
+    lastAutoStuckReindexKeyRef.current = null;
   }, [orderId]);
 
   useEffect(
@@ -236,6 +242,16 @@ export function TransactionStatus({
   const institution = watch("institution") || "";
   const recipientWalletAddress = String(watch("walletAddress") || "");
   const amountReceivedCrypto = Number(watch("amountReceived")) || 0;
+
+  const getReindexTarget = useCallback(() => {
+    const sessionTxHash = readStuckPaymentSession()?.txHash;
+    return resolveReindexTarget(
+      orderDetails,
+      selectedNetwork.chain.name,
+      createdHash,
+      sessionTxHash,
+    );
+  }, [orderDetails, selectedNetwork.chain.name, createdHash]);
 
   /**
    * Leg 2: once an onramp settles into the user's Noblocks wallet, forward the funds to the user's
@@ -787,6 +803,13 @@ export function TransactionStatus({
           }
 
           if (status === "fulfilled") {
+            const hashFromOrder =
+              responseData.txHash ||
+              responseData.txReceipts?.find((r) => r.txHash)?.txHash ||
+              responseData.txReceipts?.[0]?.txHash;
+            if (hashFromOrder) {
+              setCreatedHash(hashFromOrder);
+            }
             setRocketStatus("fulfilled");
             return;
           }
@@ -890,6 +913,7 @@ export function TransactionStatus({
 
       // Persist enough context to restore this stuck order after a full page refresh.
       if (orderId) {
+        const reindexTarget = getReindexTarget();
         writeStuckPaymentSession({
           orderId,
           transactionId:
@@ -899,8 +923,8 @@ export function TransactionStatus({
           createdAt,
           transactionStatus: transactionStatus as "fulfilling" | "fulfilled",
           isOnramp,
-          network: orderDetails?.network || selectedNetwork.chain.name,
-          txHash: createdHash || orderDetails?.txHash || undefined,
+          network: reindexTarget?.network || orderDetails?.network || selectedNetwork.chain.name,
+          txHash: reindexTarget?.txHash,
           form: {
             amountSent: Number(amount) || 0,
             amountReceived: Number(amountReceivedCrypto) || 0,
@@ -967,19 +991,46 @@ export function TransactionStatus({
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [transactionStatus, orderId, createdAt, isOnramp, createdHash, orderDetails, paymentConfirmationEpoch],
+    [transactionStatus, orderId, createdAt, isOnramp, createdHash, orderDetails, paymentConfirmationEpoch, getReindexTarget],
+  );
+
+  /**
+   * Off-ramp: when the stuck-payment prompt opens (120s+ in fulfilling/fulfilled),
+   * automatically reindex once per prompt cycle so the aggregator re-checks chain/PSP state.
+   */
+  useEffect(
+    function autoReindexStuckOfframpOrder() {
+      if (!showPaymentConfirmation || isOnramp) return;
+
+      const target = getReindexTarget();
+      if (!target) return;
+
+      const attemptKey = `${paymentConfirmationEpoch}:${target.txHash}:${target.network}`;
+      if (lastAutoStuckReindexKeyRef.current === attemptKey) return;
+      lastAutoStuckReindexKeyRef.current = attemptKey;
+
+      void reindexSingleTransaction(target.txHash, target.network).catch(
+        (error) => {
+          console.error("Auto reindex for stuck off-ramp order failed:", error);
+        },
+      );
+    },
+    [
+      showPaymentConfirmation,
+      isOnramp,
+      paymentConfirmationEpoch,
+      getReindexTarget,
+    ],
   );
 
   const handlePaymentConfirmed = async () => {
     const accessToken = await getAccessToken();
     if (!accessToken || !orderId) {
-      toast.error("Unable to confirm payment. Please try again.");
       throw new Error("Missing access token or order ID");
     }
 
     const walletAddress = embeddedWallet?.address || "";
     if (!walletAddress) {
-      toast.error("Wallet not connected. Please reconnect and try again.");
       throw new Error("Missing wallet address");
     }
 
@@ -991,10 +1042,6 @@ export function TransactionStatus({
       });
 
       if (!validateResult.success) {
-        toast.error(
-          validateResult.error ||
-            "Could not validate order. Please try again or contact support.",
-        );
         throw new Error(validateResult.error || "Validation failed");
       }
 
@@ -1011,7 +1058,6 @@ export function TransactionStatus({
       });
 
       if (!updateResult?.success) {
-        toast.error("Could not update transaction status. Please try again.");
         throw new Error("Transaction update failed");
       }
 
@@ -1021,59 +1067,29 @@ export function TransactionStatus({
       clearStuckFulfillingSince(orderId);
     } catch (error) {
       console.error("Error confirming payment:", error);
-      const msg = error instanceof Error ? error.message : "";
-      const alreadyToasted =
-        msg === "Missing access token or order ID" ||
-        msg === "Missing wallet address" ||
-        msg === "Transaction not found" ||
-        msg === "Validation failed" ||
-        msg === "Transaction update failed";
-      if (!alreadyToasted) {
-        toast.error("Failed to confirm payment. Please try again.");
-      }
       throw error;
     }
   };
 
-  /** "No, I haven't" — reindex via GET /reindex/:network/:tx_hash and keep polling. */
+  /** "No, I haven't" — dismiss, restart 120s timer, reindex in background. */
   const handlePaymentNotReceived = useCallback(async () => {
-    const txHash =
-      createdHash ||
-      orderDetails?.txHash ||
-      orderDetails?.txReceipts?.find((r) => r.txHash)?.txHash ||
-      orderDetails?.txReceipts?.[0]?.txHash ||
-      "";
-    const network = orderDetails?.network || selectedNetwork.chain.name;
-
-    if (!txHash || !network) {
-      toast.error(
-        "Unable to re-check this transaction yet. Please wait a moment and try again.",
-      );
-      throw new Error("Missing tx hash or network for reindex");
+    setShowPaymentConfirmation(false);
+    stuckInFulfillingSinceRef.current = Date.now();
+    if (orderId) {
+      resetStuckFulfillingSince(orderId);
     }
+    setPaymentConfirmationEpoch((n) => n + 1);
+
+    const target = getReindexTarget();
+    if (!target) return;
 
     try {
-      await reindexSingleTransaction(txHash, network);
+      await reindexSingleTransaction(target.txHash, target.network);
       toast.success("We're re-checking your payment status.");
     } catch (error) {
       console.error("Error reindexing after payment not received:", error);
-      toast.error("Could not re-check payment status. Please try again.");
-      throw error;
-    } finally {
-      // Dismiss prompt and restart the 120s stuck timer so it can reappear if still stuck.
-      setShowPaymentConfirmation(false);
-      stuckInFulfillingSinceRef.current = Date.now();
-      if (orderId) {
-        resetStuckFulfillingSince(orderId);
-      }
-      setPaymentConfirmationEpoch((n) => n + 1);
     }
-  }, [
-    createdHash,
-    orderDetails,
-    selectedNetwork.chain.name,
-    orderId,
-  ]);
+  }, [getReindexTarget, orderId]);
 
   /**
    * Tracks transaction events for analytics
@@ -1160,35 +1176,26 @@ export function TransactionStatus({
       if (
         transactionStatus !== "pending" ||
         hasReindexed ||
-        !orderDetails ||
-        !orderDetails.network
+        !orderDetails
       ) {
         return;
       }
 
-      // Get txHash from orderDetails.txHash or from txReceipts
-      let txHash = orderDetails.txHash;
-      if (
-        !txHash &&
-        orderDetails.txReceipts &&
-        orderDetails.txReceipts.length > 0
-      ) {
-        // Try to find a pending receipt first, otherwise use the first one
-        const pendingReceipt = orderDetails.txReceipts.find(
-          (receipt) => receipt.status === "pending",
-        );
-        txHash = pendingReceipt?.txHash || orderDetails.txReceipts[0]?.txHash;
-      }
-
-      // If we still don't have a txHash, we can't reindex
-      if (!txHash) {
+      const target = resolveReindexTarget(
+        orderDetails,
+        selectedNetwork.chain.name,
+        createdHash,
+      );
+      if (!target) {
         return;
       }
+
+      const { txHash, network } = target;
 
       // Reindex transaction to sync with blockchain state
       const callReindex = async (): Promise<void> => {
         try {
-          await reindexSingleTransaction(txHash, orderDetails.network);
+          await reindexSingleTransaction(txHash, network);
           setHasReindexed(true);
         } catch (error) {
           console.error("Error reindexing transaction:", error);
@@ -1222,7 +1229,7 @@ export function TransactionStatus({
         }
       };
     },
-    [transactionStatus, hasReindexed, orderDetails, createdAt],
+    [transactionStatus, hasReindexed, orderDetails, createdAt, createdHash, selectedNetwork.chain.name],
   );
 
   /**
@@ -1724,7 +1731,6 @@ export function TransactionStatus({
 
         <PaymentConfirmationModal
           isOpen={showPaymentConfirmation}
-          onClose={() => setShowPaymentConfirmation(false)}
           onConfirm={handlePaymentConfirmed}
           onDecline={handlePaymentNotReceived}
           tokenAmount={String(amount)}

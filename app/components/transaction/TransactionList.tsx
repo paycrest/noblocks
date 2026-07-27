@@ -16,6 +16,8 @@ import { usePrivy } from "@privy-io/react-auth";
 import { PiSpinnerBold } from "react-icons/pi";
 import { useActualTheme } from "../../hooks/useActualTheme";
 import { useTransactions } from "../../context/TransactionsContext";
+import { useInjectedWallet } from "../../context/InjectedWalletContext";
+import { useApiAuth } from "../../hooks/useApiAuth";
 import {
   ArrowLeft02Icon,
   ArrowRight02Icon,
@@ -151,7 +153,14 @@ export const TransactionListItem = ({
 export default function TransactionList({
   onSelectTransaction,
 }: TransactionListProps) {
-  const { user, getAccessToken } = usePrivy();
+  const { user } = usePrivy();
+  const {
+    isInjectedWallet,
+    injectedAddress,
+    injectedReady,
+    getInjectedToken,
+  } = useInjectedWallet();
+  const { resolveAuth } = useApiAuth();
   const limit = 30;
   const isDark = useActualTheme();
 
@@ -161,7 +170,11 @@ export default function TransactionList({
       account.type === "wallet" && account.connectorType === "embedded",
   ) as { address: string } | undefined;
 
-  const walletAddress = embeddedWallet?.address;
+  // In embed mode the host/extension wallet owns the history, and its SIWE session is what
+  // authenticates the request.
+  const walletAddress = isInjectedWallet
+    ? (injectedAddress ?? undefined)
+    : embeddedWallet?.address;
 
   // Use the transactions context
   const {
@@ -185,18 +198,39 @@ export default function TransactionList({
   const isLoadingRef = useRef(isLoading);
   useEffect(() => { isLoadingRef.current = isLoading; }, [isLoading]);
 
+  // Opening the history view is an explicit user action, so establish the injected SIWE session here
+  // (one signature, cached ~1h) — same pattern as BridgeForm/KycModal. Without it an injected user
+  // who lands on history before any signing sees a permanently empty list: the fetch below reads
+  // passively and its deps never change once a session appears.
+  useEffect(() => {
+    if (isInjectedWallet && injectedReady) {
+      void getInjectedToken({ interactive: true });
+    }
+  }, [isInjectedWallet, injectedReady, getInjectedToken]);
+
   // Fetch transactions when wallet address or page changes.
   // Skips if another fetch is already in-flight.
   // Uses isLoading via ref (not reactive dep) to avoid ping-pong re-fetch cycles.
   useEffect(() => {
     if (walletAddress && !isLoadingRef.current) {
-      getAccessToken().then((accessToken) => {
-        if (accessToken) {
-          fetchTransactions(walletAddress, accessToken, currentPage, limit);
-        }
-      });
+      // Passive: opening the history list must not pop a SIWE signature request. Injected users who
+      // haven't signed yet get an empty list until a user action establishes the session.
+      void resolveAuth({ interactive: false }).then(
+        ({ accessToken, injectedToken }) => {
+          if (accessToken || injectedToken) {
+            fetchTransactions(
+              walletAddress,
+              accessToken,
+              currentPage,
+              limit,
+              false,
+              injectedToken,
+            );
+          }
+        },
+      );
     }
-  }, [walletAddress, currentPage, getAccessToken, fetchTransactions]);
+  }, [walletAddress, currentPage, resolveAuth, fetchTransactions]);
 
   // Group transactions by date
   const groupedTransactions = useMemo(() => {

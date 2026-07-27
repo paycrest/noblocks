@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 import { verifyInjectedSessionJwt } from "./app/lib/injectedSessionAuth";
+import { INJECTED_USER_ID_PREFIX } from "./app/lib/injected-identity";
 
 // Inline lightweight edge-compatible helpers to avoid pulling in heavy SDKs
 
@@ -203,7 +204,8 @@ async function authorizationMiddleware(req: NextRequest) {
         { status: 401 },
       );
     }
-    privyUserId = `injected-${walletAddress}`;
+    // API routes detect injected sessions by this prefix (see isInjectedUserId).
+    privyUserId = `${INJECTED_USER_ID_PREFIX}${walletAddress}`;
   } else if (token) {
     // Privy JWT mode: verify and resolve wallet
     try {

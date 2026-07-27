@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { Copy01Icon } from "hugeicons-react";
 import { PiCheck } from "react-icons/pi";
 import { ImSpinner } from "react-icons/im";
-import { usePrivy } from "@privy-io/react-auth";
+import { useApiAuth } from "../hooks/useApiAuth";
 import {
     classNames,
     formatNumberWithCommas,
@@ -50,7 +50,7 @@ export const MakePayment = ({
         orderId,
         onrampPaymentAccount,
     } = stateProps;
-    const { getAccessToken } = usePrivy();
+    const { resolveAuth } = useApiAuth();
     const { setCurrentStep } = useStep();
     const { amountSent, currency } = formValues;
 
@@ -95,12 +95,23 @@ export const MakePayment = ({
             }
 
             try {
-                const accessToken = await getAccessToken();
-                if (!accessToken) {
+                // Injected/bridge wallets authenticate with a SIWE session token rather
+                // than a Privy one, so reading Privy alone reports a signed-in user as
+                // signed out. interactive: false — this runs on mount and must never
+                // raise a wallet signature prompt.
+                const { accessToken, injectedToken } = await resolveAuth({
+                    interactive: false,
+                });
+                if (cancelled) return;
+                if (!accessToken && !injectedToken) {
                     setLoadError("Please sign in to load payment details.");
                     return;
                 }
-                const res = await fetchV2SenderPaymentOrderById(orderId, accessToken);
+                const res = await fetchV2SenderPaymentOrderById(
+                    orderId,
+                    accessToken,
+                    injectedToken,
+                );
                 if (cancelled) return;
                 if (res.status !== "success" || !res.data?.providerAccount) {
                     throw new Error(res.message || "Could not load payment instructions");
@@ -125,7 +136,7 @@ export const MakePayment = ({
         return () => {
             cancelled = true;
         };
-    }, [orderId, onrampPaymentAccount, amountSent, currency, getAccessToken]);
+    }, [orderId, onrampPaymentAccount, amountSent, currency, resolveAuth]);
 
     // Countdown from client session deadline (not API expiresAt)
     useEffect(() => {
@@ -183,9 +194,20 @@ export const MakePayment = ({
         const checkPaymentStatus = async () => {
             if (cancelled) return;
             try {
-                const accessToken = await getAccessToken();
-                if (!accessToken) throw new Error("No access token");
-                const res = await fetchV2SenderPaymentOrderById(orderId, accessToken);
+                const { accessToken, injectedToken } = await resolveAuth({
+                    interactive: false,
+                });
+                if (cancelled) return;
+                if (!accessToken && !injectedToken) throw new Error("No access token");
+                const res = await fetchV2SenderPaymentOrderById(
+                    orderId,
+                    accessToken,
+                    injectedToken,
+                );
+                // Re-check after every await: pollingIntervalRef is shared across
+                // effect runs, so a stale callback that reaches clearPolling() would
+                // silently kill the interval a newer effect installed.
+                if (cancelled) return;
                 const status =
                     resolveOnrampOrderStatusFromV2Response(res) ??
                     getOrderStatusFromFetchPayload(res);
@@ -197,7 +219,6 @@ export const MakePayment = ({
                     status.toLowerCase() !== "pending"
                 ) {
                     clearPolling();
-                    if (cancelled) return;
                     setTransactionStatus(
                         status as
                         | "fulfilling"
@@ -224,7 +245,7 @@ export const MakePayment = ({
             clearPolling();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- stable polling for one order load
-    }, [paymentDetails, orderId, getAccessToken, sessionExpired]);
+    }, [paymentDetails, orderId, resolveAuth, sessionExpired]);
 
     const currencySymbol = paymentDetails
         ? getCurrencySymbol(paymentDetails.currency)

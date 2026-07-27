@@ -1,0 +1,134 @@
+import { supabaseAdmin } from "@/app/lib/supabase";
+import { MAX_KYC_TIER } from "@/app/lib/kyc-tier-limits";
+
+/**
+ * Identity-scoped KYC limits.
+ *
+ * A monthly spend limit belongs to the verified *identity* (phone number and/or ID
+ * document), not to a single wallet. One person may legitimately hold several
+ * wallets — a Privy embedded wallet plus extension wallets connected through
+ * injected/bridge mode — and each must not get its own fresh allowance.
+ *
+ * Every wallet sharing an identity draws from one pool and is capped at the highest
+ * tier any of them reached, so the group's total monthly spend equals the cap of the
+ * identity's best tier no matter how many wallets it spans. This is what makes it
+ * safe to exempt injected wallets from the phone/ID uniqueness constraints (see
+ * `app/lib/injected-identity.ts`) — uniqueness is no longer what bounds spend.
+ */
+
+export interface IdentityScope {
+  /** Caller + siblings, lowercased and deduped. Always contains the caller. */
+  wallets: string[];
+  /** MAX(tier) across the group — the identity carries the tier, not the wallet. */
+  effectiveTier: number;
+  /**
+   * Sorted advisory-lock keys for the identity. Sorted so two transactions holding
+   * both a phone and an ID key can never take them in opposite orders and deadlock.
+   */
+  identityKeys: string[];
+}
+
+function clampTier(tier: unknown): number {
+  const n = Number(tier ?? 0);
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(Math.max(Math.trunc(n), 0), MAX_KYC_TIER);
+}
+
+type SiblingRow = { wallet_address: string | null; tier: number | null };
+
+/**
+ * Resolves the spend pool a wallet belongs to.
+ *
+ * Sibling matching is direct, not transitive: profiles sharing the caller's verified
+ * phone number, or its (country, type, number) ID triple. A wallet with neither
+ * scopes to itself — tier 0's cap is $0, so there is nothing to farm there.
+ *
+ * Throws on any Supabase error. Callers must not fall back to a per-wallet scope:
+ * silently narrowing the pool would let siblings' spend go uncounted and bypass the
+ * limit entirely.
+ */
+export async function resolveIdentityScope(
+  walletAddress: string,
+): Promise<IdentityScope> {
+  const caller = walletAddress.trim().toLowerCase();
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("user_kyc_profiles")
+    .select("tier, phone_number, id_country, id_type, id_number")
+    .eq("wallet_address", caller)
+    .maybeSingle();
+
+  if (profileError) {
+    throw profileError;
+  }
+
+  const ownTier = clampTier(profile?.tier);
+
+  const phone = profile?.phone_number || null;
+  const hasId = !!(profile?.id_country && profile?.id_type && profile?.id_number);
+
+  if (!profile || (!phone && !hasId)) {
+    return {
+      wallets: [caller],
+      effectiveTier: ownTier,
+      identityKeys: [`wallet:${caller}`],
+    };
+  }
+
+  const identityKeys: string[] = [];
+  const siblingQueries: PromiseLike<{
+    data: SiblingRow[] | null;
+    error: { message?: string } | null;
+  }>[] = [];
+
+  if (phone) {
+    identityKeys.push(`phone:${phone}`);
+    // phone_number only ever holds an OTP-confirmed number (unverified ones stage in
+    // pending_phone_number), so tier >= 1 is implied — asserted here for clarity.
+    siblingQueries.push(
+      supabaseAdmin
+        .from("user_kyc_profiles")
+        .select("wallet_address, tier")
+        .eq("phone_number", phone)
+        .gte("tier", 1),
+    );
+  }
+
+  if (hasId) {
+    identityKeys.push(
+      `id:${profile.id_country}:${profile.id_type}:${profile.id_number}`,
+    );
+    siblingQueries.push(
+      supabaseAdmin
+        .from("user_kyc_profiles")
+        .select("wallet_address, tier")
+        .eq("id_country", profile.id_country)
+        .eq("id_type", profile.id_type)
+        .eq("id_number", profile.id_number)
+        .gte("tier", 2),
+    );
+  }
+
+  const results = await Promise.all(siblingQueries);
+
+  const wallets = new Set<string>([caller]);
+  let effectiveTier = ownTier;
+
+  for (const { data, error } of results) {
+    if (error) {
+      throw error;
+    }
+    for (const row of data ?? []) {
+      const address = row.wallet_address?.trim().toLowerCase();
+      if (!address) continue;
+      wallets.add(address);
+      effectiveTier = Math.max(effectiveTier, clampTier(row.tier));
+    }
+  }
+
+  return {
+    wallets: [...wallets].sort(),
+    effectiveTier,
+    identityKeys: identityKeys.sort(),
+  };
+}

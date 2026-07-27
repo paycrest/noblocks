@@ -6,6 +6,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useLayoutEffect,
   useRef,
   Suspense,
 } from "react";
@@ -147,7 +148,14 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   // current address without taking it as an effect dependency (that would resubscribe the
   // provider listener on every account change).
   const injectedAddressRef = useRef<string | null>(null);
-  injectedAddressRef.current = injectedAddress;
+  // Synced in a layout effect, not during render: a render can be discarded or replayed, and
+  // mutating a ref directly in the render body would leak that discarded value into the
+  // listener. Layout effects for this commit all run before the accountsChanged subscription
+  // effect below (layout effects run before passive effects, regardless of declaration order),
+  // so the ref is always current by the time the listener could possibly fire.
+  useLayoutEffect(() => {
+    injectedAddressRef.current = injectedAddress;
+  }, [injectedAddress]);
   const [injectedProvider, setInjectedProvider] = useState<any | null>(null);
   const [injectedReady, setInjectedReady] = useState(false);
   const [injectedStatus, setInjectedStatus] =
@@ -397,7 +405,11 @@ function InjectedWalletProviderContent({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!injectedProvider?.on) return;
     const handleAccountsChanged = (accounts: unknown) => {
-      const [address] = (accounts as string[]) ?? [];
+      const [rawAddress] = (accounts as string[]) ?? [];
+      // Normalize once: resolveAccountsChangedAction treats whitespace-only as a disconnect, so
+      // every branch below must key off the same normalized value or a "disconnected"
+      // classification could still be treated as a truthy (connected) address.
+      const address = rawAddress?.trim() || null;
       // A real account switch invalidates the SIWE session — the token asserts the OLD
       // address's identity, so the next authed action re-prompts. A re-emit of the account we
       // already hold (reconnect, tab refocus, different casing) is not a switch: dropping the

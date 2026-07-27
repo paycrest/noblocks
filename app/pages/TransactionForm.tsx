@@ -887,13 +887,18 @@ export const TransactionForm = ({
     // The identity, not the wallet, satisfies this: a wallet that inherited its tier through
     // the ID triple may hold no phone itself while a sibling wallet verified one, and
     // re-verifying that number would be rejected as already in use — an unsatisfiable loop.
-    if (kyc.tier >= 2) {
-      const hasPhone =
-        Boolean(kyc.phoneNumber?.trim()) || kyc.identityHasVerifiedPhone;
-      if (!hasPhone && !resumingAfterPhoneVerification) {
-        setIsTier2PhoneGateOpen(true);
-        return;
-      }
+    // Defined as a closure over `kyc` (declared with `let`) and re-checked further down after
+    // the status refresh below: an unloaded snapshot reads as tier 0 and would otherwise let
+    // this gate be skipped here, then silently satisfied once the refresh reveals a real
+    // tier-2-no-phone identity.
+    const blockedByTier2PhoneGate = () =>
+      kyc.tier >= 2 &&
+      !(Boolean(kyc.phoneNumber?.trim()) || kyc.identityHasVerifiedPhone) &&
+      !resumingAfterPhoneVerification;
+
+    if (blockedByTier2PhoneGate()) {
+      setIsTier2PhoneGateOpen(true);
+      return;
     }
 
     setOrderId("");
@@ -931,7 +936,7 @@ export const TransactionForm = ({
         // Background KYC fetches are non-interactive, so they cannot recover a lapsed injected
         // session on their own — the status would stay unknown forever and every swap would ask
         // for phone verification again. This tap is a user gesture, so prompt for the SIWE
-        // signature once, then retry. Declining just falls through to the checks below.
+        // signature once, then retry. Declining just falls through to the check below.
         const token = await getInjectedToken({ interactive: true });
         if (token) {
           await refreshStatus(true);
@@ -939,7 +944,22 @@ export const TransactionForm = ({
         }
       }
 
+      if (!kyc.hasLoadedStatus) {
+        // Status genuinely could not be loaded (signature declined, or the fetch kept
+        // failing). Treating the reset defaults as "unverified" here is exactly the loop this
+        // recovery path exists to close — surface a retryable error instead of guessing.
+        toast.error("Couldn't verify your account status. Please try again.");
+        return;
+      }
+
       limitCheck = canTransact(usdAmount);
+    }
+
+    // Re-check with whatever `kyc` now is (refreshed above, or unchanged if the limit already
+    // allowed the amount at the first read) — see the comment on blockedByTier2PhoneGate.
+    if (blockedByTier2PhoneGate()) {
+      setIsTier2PhoneGateOpen(true);
+      return;
     }
 
     if (!limitCheck.allowed) {

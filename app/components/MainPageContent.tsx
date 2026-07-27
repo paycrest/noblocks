@@ -75,6 +75,11 @@ import {
 } from "../lib/pendingReferralCode";
 import { isReferralEnabled } from "../utils";
 import { useWalletAddress } from "../hooks/useWalletAddress";
+import { networks } from "../mocks";
+import {
+  readStuckPaymentSession,
+  clearStuckPaymentSession,
+} from "../lib/stuckPaymentSession";
 
 /**
  * PageLayout component renders the main page structure including modals,
@@ -281,6 +286,7 @@ export function MainPageContent() {
   const failedProviders = useRef<Set<string>>(new Set());
   const autoSelectedNetworkSessionRef = useRef<string | null>(null);
   const noProviderEventGuard = useRef<Set<string>>(new Set());
+  const restoredStuckSessionRef = useRef(false);
 
   const [isUserVerified, setIsUserVerified] = useState(false);
   const [rateError, setRateError] = useState<string | null>(null);
@@ -518,11 +524,73 @@ export function MainPageContent() {
   }, [walletAddress]);
 
   useEffect(function setPageLoadingState() {
-    setOrderId("");
-    setOnrampPaymentAccount(null);
-    setActiveOrderIsOnramp(false);
+    // Keep stuck-order fields intact when a session will be restored on auth ready.
+    if (!readStuckPaymentSession()) {
+      setOrderId("");
+      setOnrampPaymentAccount(null);
+      setActiveOrderIsOnramp(false);
+    }
     setIsPageLoading(false);
   }, []);
+
+  useEffect(
+    function restoreStuckPaymentSessionOnLoad() {
+      if (restoredStuckSessionRef.current) return;
+      if (!ready) return;
+      if (!authenticated && !isInjectedWallet) return;
+
+      const session = readStuckPaymentSession();
+      if (!session) return;
+
+      restoredStuckSessionRef.current = true;
+
+      const restoredForm: FormData = {
+        network: session.network || selectedNetwork.chain.name,
+        token: session.form.token,
+        currency: session.form.currency,
+        institution: session.form.institution,
+        accountIdentifier: session.form.accountIdentifier,
+        recipientName: session.form.recipientName,
+        accountType: session.form.accountType || "bank",
+        walletAddress: session.form.walletAddress || "",
+        memo: session.form.memo || "",
+        amountSent: session.form.amountSent,
+        amountReceived: session.form.amountReceived,
+        swapMode: session.form.swapMode || (session.isOnramp ? "onramp" : "offramp"),
+        isSwapped: session.isOnramp,
+        receiveDestinationExplicitlySelected: true,
+      };
+
+      formMethods.reset({
+        ...formMethods.getValues(),
+        ...restoredForm,
+      });
+      setFormValues(restoredForm);
+      setOrderId(session.orderId);
+      setCreatedAt(session.createdAt);
+      setTransactionStatus(session.transactionStatus);
+      setActiveOrderIsOnramp(session.isOnramp);
+
+      if (session.transactionId) {
+        try {
+          localStorage.setItem("currentTransactionId", session.transactionId);
+        } catch {
+          // ignore
+        }
+      }
+
+      if (session.network) {
+        const match = networks.find((n) => n.chain.name === session.network);
+        if (match) {
+          setSelectedNetwork(match);
+        }
+      }
+
+      setCurrentStep(STEPS.STATUS);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ready, authenticated, isInjectedWallet],
+  );
 
   useEffect(
     function resetOnLogout() {
@@ -532,6 +600,8 @@ export function MainPageContent() {
         setFormValues({} as FormData);
         setOnrampPaymentAccount(null);
         setActiveOrderIsOnramp(false);
+        clearStuckPaymentSession();
+        restoredStuckSessionRef.current = false;
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

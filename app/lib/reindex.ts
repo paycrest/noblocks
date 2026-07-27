@@ -1,6 +1,43 @@
 import { reindexTransaction } from "../api/aggregator";
 import { normalizeNetworkForRateFetch } from "../utils";
 import { networks } from "../mocks";
+import type { OrderDetailsData } from "../types";
+
+export type ReindexTarget = {
+  txHash: string;
+  network: string;
+};
+
+/** Resolve tx hash + network for GET /reindex/:network/:tx_hash_or_address. */
+export function resolveReindexTarget(
+  orderDetails: OrderDetailsData | undefined,
+  fallbackNetwork: string,
+  createdHash?: string,
+  sessionTxHash?: string,
+): ReindexTarget | null {
+  const network = orderDetails?.network || fallbackNetwork;
+  if (!network) return null;
+
+  let txHash = createdHash || orderDetails?.txHash || "";
+
+  if (!txHash && orderDetails?.txReceipts?.length) {
+    const pendingReceipt = orderDetails.txReceipts.find(
+      (receipt) => receipt.status === "pending" && receipt.txHash,
+    );
+    txHash =
+      pendingReceipt?.txHash ||
+      orderDetails.txReceipts.find((receipt) => receipt.txHash)?.txHash ||
+      orderDetails.txReceipts[0]?.txHash ||
+      "";
+  }
+
+  if (!txHash && sessionTxHash) {
+    txHash = sessionTxHash;
+  }
+
+  if (!txHash) return null;
+  return { txHash, network };
+}
 
 /**
  * Helper function for exponential backoff delay

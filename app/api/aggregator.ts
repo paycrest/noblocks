@@ -952,6 +952,50 @@ export async function updateTransactionStatus({
 }
 
 /**
+ * Confirms the user received funds for a stuck order (proxies to aggregator validate).
+ */
+export async function validateOrder({
+  orderId,
+  accessToken,
+  walletAddress,
+}: {
+  orderId: string;
+  accessToken: string;
+  walletAddress: string;
+}): Promise<{
+  success: boolean;
+  data?: { message?: string; validatedAt?: string };
+  error?: string;
+}> {
+  try {
+    const response = await axios.post(
+      `/api/v1/orders/${orderId}/validate`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "x-wallet-address": walletAddress.toLowerCase(),
+        },
+      },
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const message =
+        (error.response?.data as { error?: string })?.error ||
+        error.message ||
+        "Failed to validate order";
+      return { success: false, error: message };
+    }
+    console.error("Validate order error:", error);
+    return {
+      success: false,
+      error: "Failed to validate order. Please try again.",
+    };
+  }
+}
+
+/**
  * Updates the details of a transaction including status, hash, and time spent
  * @param {Object} params - The parameters object
  * @param {string} params.transactionId - The ID of the transaction to update

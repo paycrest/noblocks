@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
 import { ImSpinner } from "react-icons/im";
 import { Checkbox } from "@headlessui/react";
@@ -40,11 +40,22 @@ import {
   resolveOnrampOrderStatusFromV2Response,
   updateTransactionDetails,
   unwrapV2SenderOrderEnvelope,
+  validateOrder,
   fetchSavedRecipients,
   saveRecipient,
   deleteSavedRecipient,
 } from "../api/aggregator";
-import { reindexSingleTransaction } from "../lib/reindex";
+import {
+  reindexSingleTransaction,
+  resolveReindexTarget,
+} from "../lib/reindex";
+import {
+  writeStuckPaymentSession,
+  clearStuckPaymentSession,
+  clearStuckFulfillingSince,
+  resetStuckFulfillingSince,
+  readStuckPaymentSession,
+} from "../lib/stuckPaymentSession";
 import {
   STEPS,
   type OrderDetailsData,
@@ -75,6 +86,7 @@ import {
 import { readForwardBalanceWei } from "../lib/onrampForwarding/readForwardBalanceWei";
 import type { Token } from "../types";
 import { usePrivy } from "@privy-io/react-auth";
+import { PaymentConfirmationModal } from "../components/PaymentConfirmationModal";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
 import { BlockFestCashbackComponent } from "../components/blockfest";
@@ -170,6 +182,12 @@ export function TransactionStatus({
   const [hasShownConfetti, setHasShownConfetti] = useState(false);
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
+  const [paymentConfirmationEpoch, setPaymentConfirmationEpoch] = useState(0);
+  const paymentConfirmationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const stuckInFulfillingSinceRef = useRef<number | null>(null);
+  const lastStuckOrderIdRef = useRef<string | null>(null);
+  const lastAutoStuckReindexKeyRef = useRef<string | null>(null);
   const [hasReindexed, setHasReindexed] = useState(false);
   // Noblocks Play banner — dismissed state persists via localStorage.
   const [isFantasyBannerDismissed, setIsFantasyBannerDismissed] =
@@ -199,6 +217,7 @@ export function TransactionStatus({
     lastPersistedOrderStatusRef.current = null;
     lastFulfillPersistKeyRef.current = null;
     setProcessingStartedAt("");
+    lastAutoStuckReindexKeyRef.current = null;
   }, [orderId]);
 
   useEffect(
@@ -224,6 +243,16 @@ export function TransactionStatus({
   const institution = watch("institution") || "";
   const recipientWalletAddress = String(watch("walletAddress") || "");
   const amountReceivedCrypto = Number(watch("amountReceived")) || 0;
+
+  const getReindexTarget = useCallback(() => {
+    const sessionTxHash = readStuckPaymentSession()?.txHash;
+    return resolveReindexTarget(
+      orderDetails,
+      selectedNetwork.chain.name,
+      createdHash,
+      sessionTxHash,
+    );
+  }, [orderDetails, selectedNetwork.chain.name, createdHash]);
 
   /**
    * Leg 2: once an onramp settles into the user's Noblocks wallet, forward the funds to the user's
@@ -775,6 +804,13 @@ export function TransactionStatus({
           }
 
           if (status === "fulfilled") {
+            const hashFromOrder =
+              responseData.txHash ||
+              responseData.txReceipts?.find((r) => r.txHash)?.txHash ||
+              responseData.txReceipts?.[0]?.txHash;
+            if (hashFromOrder) {
+              setCreatedHash(hashFromOrder);
+            }
             setRocketStatus("fulfilled");
             return;
           }
@@ -840,6 +876,221 @@ export function TransactionStatus({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [orderId, transactionStatus],
   );
+
+  useEffect(
+    function showPaymentConfirmationAfterDelay() {
+      const STUCK_STORAGE_KEY_PREFIX = "stuck_fulfilling_since_";
+      const getStuckStorageKey = () =>
+        orderId ? `${STUCK_STORAGE_KEY_PREFIX}${orderId}` : null;
+
+      const isStuckState = ["fulfilling", "fulfilled"].includes(
+        transactionStatus,
+      );
+
+      if (!isStuckState) {
+        setShowPaymentConfirmation(false);
+        stuckInFulfillingSinceRef.current = null;
+        lastStuckOrderIdRef.current = null;
+        clearStuckPaymentSession();
+        const key = getStuckStorageKey();
+        if (key && typeof window !== "undefined") {
+          try {
+            localStorage.removeItem(key);
+          } catch {
+            // ignore
+          }
+        }
+        if (paymentConfirmationTimerRef.current) {
+          clearTimeout(paymentConfirmationTimerRef.current);
+          paymentConfirmationTimerRef.current = null;
+        }
+        return;
+      }
+
+      if (orderId !== lastStuckOrderIdRef.current) {
+        stuckInFulfillingSinceRef.current = null;
+        lastStuckOrderIdRef.current = orderId ?? null;
+      }
+
+      // Persist enough context to restore this stuck order after a full page refresh.
+      if (orderId) {
+        const reindexTarget = getReindexTarget();
+        writeStuckPaymentSession({
+          orderId,
+          transactionId:
+            typeof window !== "undefined"
+              ? localStorage.getItem("currentTransactionId") || undefined
+              : undefined,
+          createdAt,
+          transactionStatus: transactionStatus as "fulfilling" | "fulfilled",
+          isOnramp,
+          network: reindexTarget?.network || orderDetails?.network || selectedNetwork.chain.name,
+          txHash: reindexTarget?.txHash,
+          form: {
+            amountSent: Number(amount) || 0,
+            amountReceived: Number(amountReceivedCrypto) || 0,
+            token: String(token || ""),
+            currency: String(currency || ""),
+            institution: String(institution || ""),
+            recipientName: String(recipientName || ""),
+            accountIdentifier: String(accountIdentifier || ""),
+            accountType:
+              (formMethods.watch("accountType") as
+                | "bank"
+                | "mobile_money"
+                | undefined) || "bank",
+            walletAddress: String(recipientWalletAddress || ""),
+            memo: String(formMethods.watch("memo") || ""),
+            swapMode: isOnramp ? "onramp" : "offramp",
+          },
+        });
+      }
+
+      const now = Date.now();
+      if (stuckInFulfillingSinceRef.current === null) {
+        const key = getStuckStorageKey();
+        if (key && typeof window !== "undefined") {
+          try {
+            const stored = localStorage.getItem(key);
+            const parsed = stored ? parseInt(stored, 10) : NaN;
+            if (Number.isFinite(parsed) && parsed <= now) {
+              stuckInFulfillingSinceRef.current = parsed;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (stuckInFulfillingSinceRef.current === null) {
+          stuckInFulfillingSinceRef.current = now;
+          const keyToWrite = getStuckStorageKey();
+          if (keyToWrite && typeof window !== "undefined") {
+            try {
+              localStorage.setItem(keyToWrite, String(now));
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+      const stuckSince = stuckInFulfillingSinceRef.current;
+      const elapsed = now - stuckSince;
+      const delayMs = 120_000;
+
+      if (elapsed >= delayMs) {
+        setShowPaymentConfirmation(true);
+      } else {
+        paymentConfirmationTimerRef.current = setTimeout(() => {
+          setShowPaymentConfirmation(true);
+        }, delayMs - elapsed);
+      }
+
+      return () => {
+        if (paymentConfirmationTimerRef.current) {
+          clearTimeout(paymentConfirmationTimerRef.current);
+          paymentConfirmationTimerRef.current = null;
+        }
+      };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [transactionStatus, orderId, createdAt, isOnramp, createdHash, orderDetails, paymentConfirmationEpoch, getReindexTarget],
+  );
+
+  /**
+   * Off-ramp: when the stuck-payment prompt opens (120s+ in fulfilling/fulfilled),
+   * automatically reindex once per prompt cycle so the aggregator re-checks chain/PSP state.
+   */
+  useEffect(
+    function autoReindexStuckOfframpOrder() {
+      if (!showPaymentConfirmation || isOnramp) return;
+
+      const target = getReindexTarget();
+      if (!target) return;
+
+      const attemptKey = `${paymentConfirmationEpoch}:${target.txHash}:${target.network}`;
+      if (lastAutoStuckReindexKeyRef.current === attemptKey) return;
+      lastAutoStuckReindexKeyRef.current = attemptKey;
+
+      void reindexSingleTransaction(target.txHash, target.network).catch(
+        (error) => {
+          console.error("Auto reindex for stuck off-ramp order failed:", error);
+        },
+      );
+    },
+    [
+      showPaymentConfirmation,
+      isOnramp,
+      paymentConfirmationEpoch,
+      getReindexTarget,
+    ],
+  );
+
+  const handlePaymentConfirmed = async () => {
+    const accessToken = await getAccessToken();
+    if (!accessToken || !orderId) {
+      throw new Error("Missing access token or order ID");
+    }
+
+    const walletAddress = embeddedWallet?.address || "";
+    if (!walletAddress) {
+      throw new Error("Missing wallet address");
+    }
+
+    try {
+      const validateResult = await validateOrder({
+        orderId,
+        accessToken,
+        walletAddress,
+      });
+
+      if (!validateResult.success) {
+        throw new Error(validateResult.error || "Validation failed");
+      }
+
+      const transactionId = localStorage.getItem("currentTransactionId");
+      if (!transactionId) throw new Error("Transaction not found");
+
+      const updateResult = await updateTransactionDetails({
+        transactionId,
+        status: "settled",
+        txHash: createdHash || orderDetails?.txHash,
+        timeSpent: calculateDuration(createdAt, new Date().toISOString()),
+        accessToken,
+        walletAddress,
+      });
+
+      if (!updateResult?.success) {
+        throw new Error("Transaction update failed");
+      }
+
+      setTransactionStatus("settled");
+      setShowPaymentConfirmation(false);
+      clearStuckPaymentSession();
+      clearStuckFulfillingSince(orderId);
+    } catch (error) {
+      console.error("Error confirming payment:", error);
+      throw error;
+    }
+  };
+
+  /** "No, I haven't" — dismiss, restart 120s timer, reindex in background. */
+  const handlePaymentNotReceived = useCallback(async () => {
+    setShowPaymentConfirmation(false);
+    stuckInFulfillingSinceRef.current = Date.now();
+    if (orderId) {
+      resetStuckFulfillingSince(orderId);
+    }
+    setPaymentConfirmationEpoch((n) => n + 1);
+
+    const target = getReindexTarget();
+    if (!target) return;
+
+    try {
+      await reindexSingleTransaction(target.txHash, target.network);
+      toast.success("We're re-checking your payment status.");
+    } catch (error) {
+      console.error("Error reindexing after payment not received:", error);
+    }
+  }, [getReindexTarget, orderId]);
 
   /**
    * Tracks transaction events for analytics
@@ -926,35 +1177,26 @@ export function TransactionStatus({
       if (
         transactionStatus !== "pending" ||
         hasReindexed ||
-        !orderDetails ||
-        !orderDetails.network
+        !orderDetails
       ) {
         return;
       }
 
-      // Get txHash from orderDetails.txHash or from txReceipts
-      let txHash = orderDetails.txHash;
-      if (
-        !txHash &&
-        orderDetails.txReceipts &&
-        orderDetails.txReceipts.length > 0
-      ) {
-        // Try to find a pending receipt first, otherwise use the first one
-        const pendingReceipt = orderDetails.txReceipts.find(
-          (receipt) => receipt.status === "pending",
-        );
-        txHash = pendingReceipt?.txHash || orderDetails.txReceipts[0]?.txHash;
-      }
-
-      // If we still don't have a txHash, we can't reindex
-      if (!txHash) {
+      const target = resolveReindexTarget(
+        orderDetails,
+        selectedNetwork.chain.name,
+        createdHash,
+      );
+      if (!target) {
         return;
       }
+
+      const { txHash, network } = target;
 
       // Reindex transaction to sync with blockchain state
       const callReindex = async (): Promise<void> => {
         try {
-          await reindexSingleTransaction(txHash, orderDetails.network);
+          await reindexSingleTransaction(txHash, network);
           setHasReindexed(true);
         } catch (error) {
           console.error("Error reindexing transaction:", error);
@@ -988,7 +1230,7 @@ export function TransactionStatus({
         }
       };
     },
-    [transactionStatus, hasReindexed, orderDetails, createdAt],
+    [transactionStatus, hasReindexed, orderDetails, createdAt, createdHash, selectedNetwork.chain.name],
   );
 
   /**
@@ -1486,6 +1728,25 @@ export function TransactionStatus({
                   fails."
           showAfterMs={60000}
           className="w-full space-y-4"
+        />
+
+        <PaymentConfirmationModal
+          isOpen={showPaymentConfirmation}
+          onConfirm={handlePaymentConfirmed}
+          onDecline={handlePaymentNotReceived}
+          tokenAmount={String(amount)}
+          token={String(token)}
+          recipientAddress={
+            recipientWalletAddress || String(accountIdentifier || "")
+          }
+          explorerLink={
+            (createdHash || orderDetails?.txHash) && orderDetails?.network
+              ? getExplorerLink(
+                  orderDetails.network,
+                  (createdHash || orderDetails?.txHash) ?? "",
+                )
+              : undefined
+          }
         />
 
         <AnimatePresence>

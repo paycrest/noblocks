@@ -75,8 +75,14 @@ export function initDatadogRum(): boolean {
     process.env.NEXT_PUBLIC_DD_RUM_SAMPLE_RATE ?? "100",
   );
   const sessionReplaySampleRate = Number(
-    process.env.NEXT_PUBLIC_DD_SESSION_REPLAY_SAMPLE_RATE ?? "0",
+    process.env.NEXT_PUBLIC_DD_SESSION_REPLAY_SAMPLE_RATE ?? "100",
   );
+  const resolvedSessionReplaySampleRate =
+    Number.isFinite(sessionReplaySampleRate) &&
+    sessionReplaySampleRate >= 0 &&
+    sessionReplaySampleRate <= 100
+      ? sessionReplaySampleRate
+      : 0;
 
   try {
     datadogRum.init({
@@ -92,9 +98,7 @@ export function initDatadogRum(): boolean {
       sessionSampleRate: Number.isFinite(sessionSampleRate)
         ? sessionSampleRate
         : 100,
-      sessionReplaySampleRate: Number.isFinite(sessionReplaySampleRate)
-        ? sessionReplaySampleRate
-        : 0,
+      sessionReplaySampleRate: resolvedSessionReplaySampleRate,
       trackUserInteractions: true,
       trackResources: true,
       trackLongTasks: true,

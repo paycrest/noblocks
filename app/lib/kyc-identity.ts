@@ -47,6 +47,32 @@ type SiblingRow = { wallet_address: string | null; tier: number | null };
  * silently narrowing the pool would let siblings' spend go uncounted and bypass the
  * limit entirely.
  */
+/**
+ * Whether any wallet in the identity scope holds an OTP-verified phone number.
+ *
+ * `phone_number` is deliberately per-wallet (only OTP-confirmed numbers land there), so a wallet
+ * that inherited its tier through the ID triple can have `phone_number: null` while a sibling
+ * wallet of the same person verified one. The tier-2 phone gate must treat that identity as
+ * phone-verified — otherwise it re-prompts forever, and re-verifying the same number is rejected
+ * as already in use by the sibling.
+ */
+export async function identityScopeHasVerifiedPhone(
+  wallets: string[],
+): Promise<boolean> {
+  if (wallets.length === 0) return false;
+  const { data, error } = await supabaseAdmin
+    .from("user_kyc_profiles")
+    .select("wallet_address")
+    .in("wallet_address", wallets)
+    .not("phone_number", "is", null)
+    .gte("tier", 1)
+    .limit(1);
+  if (error) {
+    throw error;
+  }
+  return (data ?? []).length > 0;
+}
+
 export async function resolveIdentityScope(
   walletAddress: string,
 ): Promise<IdentityScope> {

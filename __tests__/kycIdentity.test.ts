@@ -1,4 +1,7 @@
-import { resolveIdentityScope } from "../app/lib/kyc-identity";
+import {
+  identityScopeHasVerifiedPhone,
+  resolveIdentityScope,
+} from "../app/lib/kyc-identity";
 import { supabaseAdmin } from "../app/lib/supabase";
 
 // Stub Supabase entirely: these tests are about which wallets end up sharing a spend
@@ -20,7 +23,7 @@ type QueryResult = { data: unknown; error: unknown };
  */
 function query(result: QueryResult) {
   const builder: Record<string, unknown> = {};
-  for (const method of ["select", "eq", "gte", "neq", "limit", "in"]) {
+  for (const method of ["select", "eq", "gte", "neq", "limit", "in", "not"]) {
     builder[method] = () => builder;
   }
   builder.maybeSingle = () => Promise.resolve(result);
@@ -207,5 +210,40 @@ describe("resolveIdentityScope", () => {
     await expect(resolveIdentityScope(CALLER)).rejects.toEqual({
       message: "sibling boom",
     });
+  });
+});
+
+describe("identityScopeHasVerifiedPhone", () => {
+  it("returns false for an empty wallet list without querying", async () => {
+    mockedFrom.mockReset();
+
+    await expect(identityScopeHasVerifiedPhone([])).resolves.toBe(false);
+    expect(mockedFrom).not.toHaveBeenCalled();
+  });
+
+  it("returns true when a wallet in scope holds a verified phone", async () => {
+    queueQueries(ok([{ wallet_address: SIBLING }]));
+
+    // The ID-pooled caller has no phone of its own, but its sibling verified one — the
+    // identity counts as phone-verified so the tier-2 gate cannot loop forever.
+    await expect(
+      identityScopeHasVerifiedPhone([CALLER, SIBLING]),
+    ).resolves.toBe(true);
+  });
+
+  it("returns false when no wallet in scope holds a verified phone", async () => {
+    queueQueries(ok([]));
+
+    await expect(
+      identityScopeHasVerifiedPhone([CALLER, SIBLING]),
+    ).resolves.toBe(false);
+  });
+
+  it("throws when the lookup fails so callers can fail-soft explicitly", async () => {
+    queueQueries({ data: null, error: { message: "phone boom" } });
+
+    await expect(
+      identityScopeHasVerifiedPhone([CALLER, SIBLING]),
+    ).rejects.toEqual({ message: "phone boom" });
   });
 });

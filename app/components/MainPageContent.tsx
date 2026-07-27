@@ -943,6 +943,9 @@ export function MainPageContent() {
               clearFormState(formMethods);
               setSelectedRecipient(null);
               setActiveOrderIsOnramp(false);
+              // Starting a new payment must not inherit the finished order's virtual
+              // account, which would otherwise resurface the "Make payment" step.
+              setOnrampPaymentAccount(null);
             }}
             clearTransactionStatus={() => {
               setTransactionStatus("idle");
@@ -972,6 +975,7 @@ export function MainPageContent() {
     setTransactionStatus,
     setCurrentStep,
     setOrderId,
+    setOnrampPaymentAccount,
     activeOrderIsOnramp,
   ]);
 

@@ -147,7 +147,11 @@ export const TransactionPreview = ({
     walletAddress,
   } = formValues;
 
-  const isOnramp = !!walletAddress;
+  // Derive the flow from the form's own mode, never from `!!walletAddress` — a Buy that somehow
+  // reaches the preview with an empty wallet address must still render (and order) as an onramp,
+  // not silently fall into the offramp layout with blank recipient fields.
+  const isOnramp =
+    formValues.swapMode === "onramp" || formValues.isSwapped === true;
   const currencySymbol = currency ? getCurrencySymbol(currency) : "";
 
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -346,7 +350,7 @@ export const TransactionPreview = ({
         .split(" ")
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" "),
-      account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions)}`,
+      account: `${accountIdentifier} • ${getInstitutionNameByCode(institution, supportedInstitutions) ?? institution ?? ""}`,
       ...(memo && { description: memo }),
       network: selectedNetwork.chain.name,
     };

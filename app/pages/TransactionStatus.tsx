@@ -44,6 +44,7 @@ import {
   saveRecipient,
   deleteSavedRecipient,
 } from "../api/aggregator";
+import { isKnownAggregatorOrderStatus } from "../lib/order-status";
 import { reindexSingleTransaction } from "../lib/reindex";
 import {
   STEPS,
@@ -75,6 +76,7 @@ import {
 import { readForwardBalanceWei } from "../lib/onrampForwarding/readForwardBalanceWei";
 import type { Token } from "../types";
 import { usePrivy } from "@privy-io/react-auth";
+import { useApiAuth } from "../hooks/useApiAuth";
 import { TransactionHelperText } from "../components/TransactionHelperText";
 import { useConfetti } from "../hooks/useConfetti";
 import { BlockFestCashbackComponent } from "../components/blockfest";
@@ -152,6 +154,7 @@ export function TransactionStatus({
   } = useBalance();
   const { isInjectedWallet, injectedAddress } = useInjectedWallet();
   const { user, getAccessToken } = usePrivy();
+  const { resolveAuth } = useApiAuth();
   const { setRocketStatus } = useRocketStatus();
 
   const embeddedWallet = user?.linkedAccounts.find(
@@ -178,6 +181,12 @@ export function TransactionStatus({
   const latestRequestIdRef = useRef<number>(0);
   const lastPersistedOrderStatusRef = useRef<string | null>(null);
   const lastFulfillPersistKeyRef = useRef<string | null>(null);
+  /**
+   * DB row id for THIS order, pinned once per order. `currentTransactionId` in localStorage is a
+   * global key that any wallet transfer (including the leg-2 forward) overwrites — status writes
+   * must keep targeting the order's own row, not whatever the key holds later.
+   */
+  const transactionDbIdRef = useRef<string | null>(null);
 
   const fireConfetti = useConfetti();
 
@@ -198,6 +207,10 @@ export function TransactionStatus({
   useEffect(() => {
     lastPersistedOrderStatusRef.current = null;
     lastFulfillPersistKeyRef.current = null;
+    transactionDbIdRef.current =
+      typeof window !== "undefined"
+        ? localStorage.getItem("currentTransactionId")
+        : null;
     setProcessingStartedAt("");
   }, [orderId]);
 
@@ -319,6 +332,14 @@ export function TransactionStatus({
 
     // Permanent unsupported / misconfig cases: fail closed to a terminal state so the settled onramp
     // resolves (funds stay safe in the Noblocks wallet) instead of spinning forever.
+    // Injected mode has no Noblocks (Privy embedded) wallet — leg 1 already paid the user's own
+    // wallet directly, so there is nothing to forward. Without this the `!noblocksWallet` wait
+    // below would never resolve and the settled onramp would show "processing" forever.
+    if (isInjectedWallet) {
+      forwardDoneRef.current = true;
+      setForwardingStatus("skipped");
+      return;
+    }
     // EVM-only for now; Starknet forwarding isn't supported by this flow.
     if (selectedNetwork.chain.name === "Starknet") {
       forwardDoneRef.current = true;
@@ -332,9 +353,13 @@ export function TransactionStatus({
       return;
     }
 
-    // Transient: embedded wallet not hydrated yet — retry on a later render/tick.
+    // Transient: embedded wallet not hydrated yet — schedule a recheck so a slow Privy hydration
+    // re-evaluates instead of stalling (a bare return would only retry if something else re-rendered).
     const noblocksWallet = embeddedWallet?.address ?? "";
-    if (!noblocksWallet) return;
+    if (!noblocksWallet) {
+      scheduleRecheck();
+      return;
+    }
 
     forwardEvalRef.current = true;
     let cancelled = false;
@@ -353,7 +378,18 @@ export function TransactionStatus({
         const tokenData = tokens.find(
           (t) => t.symbol.toUpperCase() === tokenSymbol.toUpperCase(),
         );
-        if (!tokenData || tokenData.decimals === undefined) return;
+        if (!tokenData || tokenData.decimals === undefined) {
+          if (tokens.length === 0) {
+            // Token list not loaded yet — transient; re-evaluate shortly.
+            if (!cancelled) scheduleRecheck();
+          } else {
+            // Token list is loaded but this symbol isn't supported here — permanent; resolve
+            // terminally so the settled onramp doesn't spin forever. Funds stay in the wallet.
+            forwardDoneRef.current = true;
+            setForwardingStatus("skipped");
+          }
+          return;
+        }
         const decimals = tokenData.decimals;
 
         const orderAmountWei = existing?.amountWei
@@ -431,6 +467,8 @@ export function TransactionStatus({
               return;
             }
             forwardStartedRef.current = true;
+            // Privy-only by construction: the injected-mode guard above resolves before we can
+            // get here, so the Noblocks embedded wallet (and its Privy token) always exists.
             const accessToken = await getAccessToken();
             if (cancelled) return;
             if (!accessToken) {
@@ -469,6 +507,7 @@ export function TransactionStatus({
     };
   }, [
     isOnramp,
+    isInjectedWallet,
     transactionStatus,
     orderId,
     forwardRecheckTick,
@@ -598,7 +637,10 @@ export function TransactionStatus({
     statusOverride?: string,
     txHashOverride?: string,
   ) => {
-    if (!embeddedWallet?.address) return;
+    const persistWalletAddress = isInjectedWallet
+      ? injectedAddress
+      : embeddedWallet?.address;
+    if (!persistWalletAddress) return;
 
     const effectiveAggregatorStatus = statusOverride ?? transactionStatus;
     const effectiveTxHash =
@@ -614,13 +656,18 @@ export function TransactionStatus({
     const requestId = ++latestRequestIdRef.current;
 
     try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
+      const { accessToken, injectedToken } = await resolveAuth({
+        interactive: false,
+      });
+      if (!accessToken && !injectedToken) {
         throw new Error("No access token available");
       }
 
-      // Get the stored transaction ID
-      const transactionId = localStorage.getItem("currentTransactionId");
+      // Pin the order's own DB row on first use; the localStorage key is global and may already
+      // point at a later transfer's row (e.g. the leg-2 forward).
+      transactionDbIdRef.current ??=
+        localStorage.getItem("currentTransactionId");
+      const transactionId = transactionDbIdRef.current;
       if (!transactionId) {
         console.error("No transaction ID found");
         return;
@@ -645,7 +692,8 @@ export function TransactionStatus({
         txHash: effectiveTxHash,
         timeSpent,
         accessToken,
-        walletAddress: embeddedWallet.address,
+        injectedToken,
+        walletAddress: persistWalletAddress,
         isOnramp: isOnramp === true,
       });
 
@@ -667,7 +715,17 @@ export function TransactionStatus({
    */
   useEffect(
     function pollOrderDetails() {
-      let intervalId: NodeJS.Timeout;
+      let intervalId: NodeJS.Timeout | null = null;
+      let cancelled = false;
+      let tokenlessCycles = 0;
+      let hasShownSessionToast = false;
+
+      const stopPollingLoop = () => {
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      };
 
       const persistIfStatusChanged = (s: string) => {
         if (lastPersistedOrderStatusRef.current === s) return;
@@ -686,18 +744,32 @@ export function TransactionStatus({
         "Session expired. Please refresh to continue tracking your transaction.";
 
       const getOrderDetails = async () => {
+        if (cancelled) return;
         try {
-          const accessToken = await getAccessToken();
-          if (!accessToken) {
-            toast.error(sessionExpiredMessage);
-            if (intervalId) clearInterval(intervalId);
+          const { accessToken, injectedToken } = await resolveAuth({
+            interactive: false,
+          });
+          if (cancelled) return;
+          if (!accessToken && !injectedToken) {
+            // A missing token can be a transient blip (refresh, backgrounded tab). Skip this
+            // cycle and keep polling — killing the interval here strands the status forever.
+            tokenlessCycles += 1;
+            if (tokenlessCycles >= 6 && !hasShownSessionToast) {
+              hasShownSessionToast = true;
+              toast.error(sessionExpiredMessage);
+            }
             return;
           }
+          tokenlessCycles = 0;
 
           let responseData: OrderDetailsData;
 
           if (isOnramp) {
-            const res = await fetchV2SenderPaymentOrderById(orderId, accessToken);
+            const res = await fetchV2SenderPaymentOrderById(
+              orderId,
+              accessToken,
+              injectedToken,
+            );
             const resolvedStatus = resolveOnrampOrderStatusFromV2Response(res);
             responseData =
               unwrapV2SenderOrderEnvelope(res) ??
@@ -710,10 +782,27 @@ export function TransactionStatus({
             const orderDetailsResponse = await fetchOrderDetails(
               orderId,
               accessToken,
-              { network: selectedNetwork.chain.name },
+              { network: selectedNetwork.chain.name, injectedToken },
             );
             responseData = orderDetailsResponse.data;
           }
+
+          if (cancelled) return;
+
+          // The envelope fallback can surface `"success"`/`"error"` (HTTP envelope, not an order
+          // status) — never let those flow into UI state or DB persistence.
+          const rawStatus = responseData?.status;
+          if (!isKnownAggregatorOrderStatus(rawStatus)) {
+            console.warn(
+              "[TransactionStatus] Skipping unknown order status:",
+              rawStatus,
+            );
+            return;
+          }
+          // Canonicalize before anything reads it: the guard matches case-insensitively, but
+          // every comparison below (and the persisted value) is lowercase, so a mixed-case
+          // terminal status would otherwise poll forever and be stored non-canonically.
+          responseData = { ...responseData, status: rawStatus.toLowerCase() };
 
           setOrderDetails(responseData);
 
@@ -731,7 +820,7 @@ export function TransactionStatus({
               );
             setCompletedAt(doneAt);
             setTransactionStatus("expired");
-            clearInterval(intervalId);
+            stopPollingLoop();
             persistIfStatusChanged("expired");
             return;
           }
@@ -756,7 +845,7 @@ export function TransactionStatus({
             );
             refreshBalance();
             setRocketStatus("pending");
-            clearInterval(intervalId);
+            stopPollingLoop();
             persistIfStatusChanged(status);
             return;
           }
@@ -806,7 +895,7 @@ export function TransactionStatus({
               responseData.txReceipts?.[0]?.txHash;
 
             if (stopPolling) {
-              clearInterval(intervalId);
+              stopPollingLoop();
               if (hashFromOrder) {
                 setCreatedHash(hashFromOrder);
               }
@@ -823,18 +912,14 @@ export function TransactionStatus({
         }
       };
 
-      void (async () => {
-        const accessToken = await getAccessToken();
-        if (!accessToken) {
-          toast.error(sessionExpiredMessage);
-          return;
-        }
-        await getOrderDetails();
-        intervalId = setInterval(getOrderDetails, 5000);
-      })();
+      // Create the interval synchronously so a cleanup from an effect re-run (every status
+      // change) can never race an in-flight async bootstrap and orphan it.
+      void getOrderDetails();
+      intervalId = setInterval(getOrderDetails, 5000);
 
       return () => {
-        if (intervalId) clearInterval(intervalId);
+        cancelled = true;
+        stopPollingLoop();
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

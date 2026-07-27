@@ -870,17 +870,27 @@ export const TransactionForm = ({
   /** After phone OTP, KYC context may not have updated before the next handleSwap; allow one continuation. */
   const pendingContinueSwapAfterPhoneRef = useRef(false);
 
-  const handleSwap = () => {
-    const kyc = getKycStatusSnapshot();
+  const handleSwap = async () => {
+    let kyc = getKycStatusSnapshot();
+
+    // Consume the post-OTP continuation flag exactly once per call. Clearing it only inside
+    // the tier-2 branch would leave it set whenever the phone was verified below tier 2, and
+    // that stale `true` would later wave a genuinely ungated wallet past the tier-2 gate.
+    const resumingAfterPhoneVerification =
+      pendingContinueSwapAfterPhoneRef.current;
+    pendingContinueSwapAfterPhoneRef.current = false;
 
     // Tier 2+ (e.g. migrated ID KYC) still requires a stored phone — prompt before swap.
+    // The identity, not the wallet, satisfies this: a wallet that inherited its tier through
+    // the ID triple may hold no phone itself while a sibling wallet verified one, and
+    // re-verifying that number would be rejected as already in use — an unsatisfiable loop.
     if (kyc.tier >= 2) {
-      const hasPhone = Boolean(kyc.phoneNumber?.trim());
-      if (!hasPhone && !pendingContinueSwapAfterPhoneRef.current) {
+      const hasPhone =
+        Boolean(kyc.phoneNumber?.trim()) || kyc.identityHasVerifiedPhone;
+      if (!hasPhone && !resumingAfterPhoneVerification) {
         setIsTier2PhoneGateOpen(true);
         return;
       }
-      pendingContinueSwapAfterPhoneRef.current = false;
     }
 
     setOrderId("");
@@ -905,7 +915,16 @@ export const TransactionForm = ({
     });
 
     // Check transaction limits based on KYC tier
-    const limitCheck = canTransact(usdAmount);
+    let limitCheck = canTransact(usdAmount);
+
+    if (!limitCheck.allowed && !kyc.hasLoadedStatus) {
+      // The snapshot is still the reset default — "status unknown", not "unverified". Deciding
+      // on it would send an already-verified user back to phone verification whenever the
+      // status fetch failed or hasn't landed yet. Load the real status once, then re-decide.
+      await refreshStatus(true);
+      kyc = getKycStatusSnapshot();
+      limitCheck = canTransact(usdAmount);
+    }
 
     if (!limitCheck.allowed) {
       if (kyc.tier < 1 || !kyc.isPhoneVerified) {
@@ -914,6 +933,31 @@ export const TransactionForm = ({
       }
       setBlockedTransactionAmount(usdAmount);
       setIsLimitModalOpen(true);
+      return;
+    }
+
+    // A recipient must exist before anything can submit. The recipient section only mounts once
+    // the user is verified, so every unverified entry point (notably the post-OTP continuation in
+    // handlePhoneVerified) reaches here with empty recipient fields — and an empty on-ramp wallet
+    // address would otherwise pass validateWalletAddress (empty is "valid" there; the `required`
+    // rule lives on a field that was never registered). Without this guard the preview renders a
+    // blank recipient ("Account: undefined") and the order params would be built empty.
+    // Note: the recipient section additionally requires the receive destination to be explicitly
+    // selected, so the user may still need that tap before the fields appear.
+    const onrampWalletAddress = String(formData.walletAddress ?? "").trim();
+    const hasRecipient = formData.isSwapped
+      ? onrampWalletAddress.length > 0
+      : Boolean(
+          formData.recipientName &&
+            formData.accountIdentifier &&
+            formData.institution,
+        );
+    if (!hasRecipient) {
+      if (resumingAfterPhoneVerification) {
+        toast.info("Phone number verified — add the recipient details to continue.");
+      } else {
+        toast.error("Add recipient details to continue.");
+      }
       return;
     }
 
@@ -940,7 +984,7 @@ export const TransactionForm = ({
     setIsTier2PhoneGateOpen(false);
     pendingContinueSwapAfterPhoneRef.current = true;
     await refreshStatus(true);
-    handleSwap();
+    await handleSwap();
   };
 
   // Clear recipient when it is invalid for the selected network (EVM ↔ Starknet switches)

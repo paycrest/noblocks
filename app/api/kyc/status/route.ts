@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/app/lib/supabase";
-import { resolveIdentityScope } from "@/app/lib/kyc-identity";
+import {
+  identityScopeHasVerifiedPhone,
+  resolveIdentityScope,
+} from "@/app/lib/kyc-identity";
 import {
   trackApiRequest,
   trackApiResponse,
@@ -57,12 +60,14 @@ export async function GET(request: NextRequest) {
     // enforcement will actually apply.
     let tier: 0 | 1 | 2 | 3;
     let pooledWalletCount: number;
+    let scopeWallets: string[];
     try {
       const scope = await resolveIdentityScope(walletAddress);
       tier = scope.effectiveTier as 0 | 1 | 2 | 3;
       // How many wallets share this allowance. > 1 is what makes the UI explain the
       // pool; at 1 every limit surface renders exactly as it did before pooling.
       pooledWalletCount = scope.wallets.length;
+      scopeWallets = scope.wallets;
     } catch (scopeError) {
       trackApiError(request, "/api/kyc/status", "GET", scopeError as Error, 500);
       return NextResponse.json(
@@ -77,6 +82,24 @@ export async function GET(request: NextRequest) {
     // phone as verified on a wallet that never verified one.
     const phoneVerified = tier >= 1 && !!phoneNumber;
 
+    // Identity-scoped view for gates that care about the person, not the wallet: a wallet that
+    // inherited its tier through the ID triple may hold no phone itself while a sibling wallet
+    // verified one. Without this flag the tier-2 phone gate loops forever (re-verifying the same
+    // number is rejected as already in use). Fail-soft to the per-wallet answer — the gate then
+    // behaves exactly as before.
+    let identityHasVerifiedPhone = phoneVerified;
+    if (!identityHasVerifiedPhone && scopeWallets.length > 1) {
+      try {
+        identityHasVerifiedPhone =
+          await identityScopeHasVerifiedPhone(scopeWallets);
+      } catch (phoneScopeError) {
+        console.error(
+          "[kyc/status] identity phone lookup failed:",
+          phoneScopeError,
+        );
+      }
+    }
+
     const responseTime = Date.now() - startTime;
     trackApiResponse("/api/kyc/status", "GET", 200, responseTime);
 
@@ -85,6 +108,7 @@ export async function GET(request: NextRequest) {
       tier,
       pooledWalletCount,
       isPhoneVerified: phoneVerified,
+      identityHasVerifiedPhone,
       phoneNumber,
       fullName: kycProfile?.full_name || null,
     });

@@ -85,9 +85,16 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
     onSuccess: ({ user }) => {
       toast.success(`${user.email?.address} linked successfully`);
     },
-    onError: () => {
+    onError: (error) => {
+      // Privy reports why linking failed — surface the real reason instead of
+      // blanket-claiming the email is already linked.
+      const code = String(error);
+      if (code === "exited_link_flow") return; // user closed the modal — not an error
       toast.error("Error linking account", {
-        description: "You might have this email linked already",
+        description:
+          code === "linked_to_another_user"
+            ? "This email is already linked to another account"
+            : "Couldn't link your email. Please try again.",
       });
     },
   });
@@ -348,20 +355,23 @@ export default function ProfileView({ layout, onBack, onClose }: ProfileViewProp
                   className="object-fit h-[44px] w-[44px] rounded-full"
                 />
                 <div className="flex w-full flex-col items-start">
-                  {user?.email ? (
-                    <div>
-                      <p className="text-xs text-text-body dark:text-white/90">
-                        {user.email.address}
-                      </p>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={linkEmail}
-                      className="text-sm text-lavender-600 hover:underline dark:text-lavender-400"
-                    >
-                      Connect my email
-                    </button>
-                  )}
+                  {/* Email linking is a Privy account action — injected (external) wallets have
+                      no Privy session, so linkEmail would always fail for them. */}
+                  {!isInjectedWallet &&
+                    (user?.email ? (
+                      <div>
+                        <p className="text-xs text-text-body dark:text-white/90">
+                          {user.email.address}
+                        </p>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={linkEmail}
+                        className="text-sm text-lavender-600 hover:underline dark:text-lavender-400"
+                      >
+                        Connect my email
+                      </button>
+                    ))}
 
                   {/* Wallet Address */}
                   {walletAddress ? (

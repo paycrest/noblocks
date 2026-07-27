@@ -129,6 +129,7 @@ export const TransactionForm = ({
     injectedAddress,
     injectedReady,
     connectInjectedWallet,
+    getInjectedToken,
   } = useInjectedWallet();
   // Privy `authenticated` is false in injected mode (extension or embed
   // bridge) — balance display and over-balance validation must treat a ready
@@ -153,6 +154,7 @@ export const TransactionForm = ({
     getKycStatusSnapshot,
     isPhoneVerified,
     tier,
+    hasLoadedStatus,
     phoneNumber,
     transactionSummary,
   } = useKYC();
@@ -860,6 +862,7 @@ export const TransactionForm = ({
     isPhoneVerified,
     hasPriorTransactionActivity,
     kycTier: tier,
+    hasLoadedStatus,
     rate,
     isSwapped,
     networkName: selectedNetwork.chain.name,
@@ -923,6 +926,19 @@ export const TransactionForm = ({
       // status fetch failed or hasn't landed yet. Load the real status once, then re-decide.
       await refreshStatus(true);
       kyc = getKycStatusSnapshot();
+
+      if (!kyc.hasLoadedStatus && isInjectedWallet && injectedReady) {
+        // Background KYC fetches are non-interactive, so they cannot recover a lapsed injected
+        // session on their own — the status would stay unknown forever and every swap would ask
+        // for phone verification again. This tap is a user gesture, so prompt for the SIWE
+        // signature once, then retry. Declining just falls through to the checks below.
+        const token = await getInjectedToken({ interactive: true });
+        if (token) {
+          await refreshStatus(true);
+          kyc = getKycStatusSnapshot();
+        }
+      }
+
       limitCheck = canTransact(usdAmount);
     }
 

@@ -8,6 +8,7 @@ export function clearUserSessionData(userId?: string, walletAddress?: string) {
     "currentTransactionId",
     "lastFundingAttempt",
     "fundingCallbackId",
+    "noblocks_stuck_payment_session",
   ];
 
   if (walletAddress) {
@@ -29,5 +30,21 @@ export function clearUserSessionData(userId?: string, walletAddress?: string) {
     } catch {
       // Ignore storage errors (e.g. private browsing)
     }
+  }
+
+  // Clear per-order stuck timer keys (prefix match).
+  try {
+    const toDelete: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith("stuck_fulfilling_since_")) {
+        toDelete.push(k);
+      }
+    }
+    for (const k of toDelete) {
+      localStorage.removeItem(k);
+    }
+  } catch {
+    // ignore
   }
 }

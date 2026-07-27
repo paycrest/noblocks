@@ -9,8 +9,12 @@ import { primaryBtnClasses } from "./Styles";
 
 interface PaymentConfirmationModalProps {
   isOpen: boolean;
+  /** Close without action (X / backdrop). */
   onClose: () => void;
+  /** User confirmed funds received. */
   onConfirm: () => void | Promise<void>;
+  /** User has not received funds — triggers reindex / status retry. */
+  onDecline: () => void | Promise<void>;
   tokenAmount: string | number;
   token: string;
   /** Destination wallet where funds are going. */
@@ -27,21 +31,25 @@ export const PaymentConfirmationModal = ({
   isOpen,
   onClose,
   onConfirm,
+  onDecline,
   tokenAmount,
   token,
   recipientAddress,
   explorerLink,
 }: PaymentConfirmationModalProps) => {
   const [confirming, setConfirming] = useState(false);
+  const [declining, setDeclining] = useState(false);
+  const busy = confirming || declining;
 
   useEffect(() => {
     if (!isOpen) {
       setConfirming(false);
+      setDeclining(false);
     }
   }, [isOpen]);
 
   const handleConfirm = useCallback(async () => {
-    if (confirming) return;
+    if (busy) return;
     setConfirming(true);
     try {
       await Promise.resolve(onConfirm());
@@ -50,7 +58,19 @@ export const PaymentConfirmationModal = ({
     } finally {
       setConfirming(false);
     }
-  }, [confirming, onConfirm]);
+  }, [busy, onConfirm]);
+
+  const handleDecline = useCallback(async () => {
+    if (busy) return;
+    setDeclining(true);
+    try {
+      await Promise.resolve(onDecline());
+    } catch {
+      // Parent shows toast; keep modal open so user can retry.
+    } finally {
+      setDeclining(false);
+    }
+  }, [busy, onDecline]);
 
   const tokenLogo = token?.toLowerCase() || "usdc";
 
@@ -60,7 +80,7 @@ export const PaymentConfirmationModal = ({
         <Dialog
           open={isOpen}
           onClose={() => {
-            if (!confirming) onClose();
+            if (!busy) onClose();
           }}
           className="relative z-[70]"
         >
@@ -94,7 +114,7 @@ export const PaymentConfirmationModal = ({
                     <button
                       type="button"
                       onClick={onClose}
-                      disabled={confirming}
+                      disabled={busy}
                       className="rounded-full p-1.5 text-text-secondary transition-colors hover:bg-gray-100 hover:text-text-body disabled:opacity-50 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-white"
                       aria-label="Close"
                     >
@@ -167,19 +187,19 @@ export const PaymentConfirmationModal = ({
                   <div className="flex gap-3">
                     <button
                       type="button"
-                      onClick={onClose}
-                      disabled={confirming}
+                      onClick={handleDecline}
+                      disabled={busy}
                       className={classNames(
                         primaryBtnClasses,
                         "!min-h-12 !min-w-0 !flex-none !rounded-2xl border-none px-8 text-sm leading-6 shadow-none",
                       )}
                     >
-                      No, I haven&apos;t
+                      {declining ? "Checking…" : "No, I haven't"}
                     </button>
                     <button
                       type="button"
                       onClick={handleConfirm}
-                      disabled={confirming}
+                      disabled={busy}
                       className="flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-2xl border-none bg-gray-100 px-5 text-sm font-medium leading-6 text-neutral-900 shadow-none transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-lavender-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed hover:bg-gray-200 dark:bg-white/10 dark:text-white dark:hover:bg-white/[0.14] dark:focus-visible:ring-offset-neutral-900"
                     >
                       {confirming ? "Confirming…" : "Yes, Payment Received"}

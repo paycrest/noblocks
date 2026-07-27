@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useTheme } from "next-themes";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
 import { ImSpinner } from "react-icons/im";
 import { Checkbox } from "@headlessui/react";
@@ -46,6 +46,12 @@ import {
   deleteSavedRecipient,
 } from "../api/aggregator";
 import { reindexSingleTransaction } from "../lib/reindex";
+import {
+  writeStuckPaymentSession,
+  clearStuckPaymentSession,
+  clearStuckFulfillingSince,
+  resetStuckFulfillingSince,
+} from "../lib/stuckPaymentSession";
 import {
   STEPS,
   type OrderDetailsData,
@@ -172,6 +178,7 @@ export function TransactionStatus({
   const [isSavingRecipient, setIsSavingRecipient] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
+  const [paymentConfirmationEpoch, setPaymentConfirmationEpoch] = useState(0);
   const paymentConfirmationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const stuckInFulfillingSinceRef = useRef<number | null>(null);
   const lastStuckOrderIdRef = useRef<string | null>(null);
@@ -860,6 +867,7 @@ export function TransactionStatus({
         setShowPaymentConfirmation(false);
         stuckInFulfillingSinceRef.current = null;
         lastStuckOrderIdRef.current = null;
+        clearStuckPaymentSession();
         const key = getStuckStorageKey();
         if (key && typeof window !== "undefined") {
           try {
@@ -878,6 +886,39 @@ export function TransactionStatus({
       if (orderId !== lastStuckOrderIdRef.current) {
         stuckInFulfillingSinceRef.current = null;
         lastStuckOrderIdRef.current = orderId ?? null;
+      }
+
+      // Persist enough context to restore this stuck order after a full page refresh.
+      if (orderId) {
+        writeStuckPaymentSession({
+          orderId,
+          transactionId:
+            typeof window !== "undefined"
+              ? localStorage.getItem("currentTransactionId") || undefined
+              : undefined,
+          createdAt,
+          transactionStatus: transactionStatus as "fulfilling" | "fulfilled",
+          isOnramp,
+          network: orderDetails?.network || selectedNetwork.chain.name,
+          txHash: createdHash || orderDetails?.txHash || undefined,
+          form: {
+            amountSent: Number(amount) || 0,
+            amountReceived: Number(amountReceivedCrypto) || 0,
+            token: String(token || ""),
+            currency: String(currency || ""),
+            institution: String(institution || ""),
+            recipientName: String(recipientName || ""),
+            accountIdentifier: String(accountIdentifier || ""),
+            accountType:
+              (formMethods.watch("accountType") as
+                | "bank"
+                | "mobile_money"
+                | undefined) || "bank",
+            walletAddress: String(recipientWalletAddress || ""),
+            memo: String(formMethods.watch("memo") || ""),
+            swapMode: isOnramp ? "onramp" : "offramp",
+          },
+        });
       }
 
       const now = Date.now();
@@ -925,7 +966,8 @@ export function TransactionStatus({
         }
       };
     },
-    [transactionStatus, orderId],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [transactionStatus, orderId, createdAt, isOnramp, createdHash, orderDetails, paymentConfirmationEpoch],
   );
 
   const handlePaymentConfirmed = async () => {
@@ -975,13 +1017,8 @@ export function TransactionStatus({
 
       setTransactionStatus("settled");
       setShowPaymentConfirmation(false);
-      if (orderId && typeof window !== "undefined") {
-        try {
-          localStorage.removeItem(`stuck_fulfilling_since_${orderId}`);
-        } catch {
-          // ignore
-        }
-      }
+      clearStuckPaymentSession();
+      clearStuckFulfillingSince(orderId);
     } catch (error) {
       console.error("Error confirming payment:", error);
       const msg = error instanceof Error ? error.message : "";
@@ -997,6 +1034,46 @@ export function TransactionStatus({
       throw error;
     }
   };
+
+  /** "No, I haven't" — reindex via GET /reindex/:network/:tx_hash and keep polling. */
+  const handlePaymentNotReceived = useCallback(async () => {
+    const txHash =
+      createdHash ||
+      orderDetails?.txHash ||
+      orderDetails?.txReceipts?.find((r) => r.txHash)?.txHash ||
+      orderDetails?.txReceipts?.[0]?.txHash ||
+      "";
+    const network = orderDetails?.network || selectedNetwork.chain.name;
+
+    if (!txHash || !network) {
+      toast.error(
+        "Unable to re-check this transaction yet. Please wait a moment and try again.",
+      );
+      throw new Error("Missing tx hash or network for reindex");
+    }
+
+    try {
+      await reindexSingleTransaction(txHash, network);
+      toast.success("We're re-checking your payment status.");
+    } catch (error) {
+      console.error("Error reindexing after payment not received:", error);
+      toast.error("Could not re-check payment status. Please try again.");
+      throw error;
+    } finally {
+      // Dismiss prompt and restart the 120s stuck timer so it can reappear if still stuck.
+      setShowPaymentConfirmation(false);
+      stuckInFulfillingSinceRef.current = Date.now();
+      if (orderId) {
+        resetStuckFulfillingSince(orderId);
+      }
+      setPaymentConfirmationEpoch((n) => n + 1);
+    }
+  }, [
+    createdHash,
+    orderDetails,
+    selectedNetwork.chain.name,
+    orderId,
+  ]);
 
   /**
    * Tracks transaction events for analytics
@@ -1649,6 +1726,7 @@ export function TransactionStatus({
           isOpen={showPaymentConfirmation}
           onClose={() => setShowPaymentConfirmation(false)}
           onConfirm={handlePaymentConfirmed}
+          onDecline={handlePaymentNotReceived}
           tokenAmount={String(amount)}
           token={String(token)}
           recipientAddress={

@@ -192,24 +192,24 @@ describe("useSwapButton liquidity band", () => {
   });
 
   it("blocks an off-ramp amount above what providers can fill", () => {
-    const liquidity = { min: 1, max: 500, noLiquidity: false };
+    const amountBounds = { min: 1, max: 500, noLiquidity: false };
 
-    expect(setupWithAmount({ amountSent: 400 }, { liquidity }).isEnabled).toBe(
+    expect(setupWithAmount({ amountSent: 400 }, { amountBounds }).isEnabled).toBe(
       true,
     );
-    expect(setupWithAmount({ amountSent: 600 }, { liquidity }).isEnabled).toBe(
+    expect(setupWithAmount({ amountSent: 600 }, { amountBounds }).isEnabled).toBe(
       false,
     );
   });
 
   it("raises the off-ramp floor to the market minimum", () => {
-    const liquidity = { min: 10, max: 500, noLiquidity: false };
+    const amountBounds = { min: 10, max: 500, noLiquidity: false };
 
     // 5 clears the static 0.5 floor but not the live one.
-    expect(setupWithAmount({ amountSent: 5 }, { liquidity }).isEnabled).toBe(
+    expect(setupWithAmount({ amountSent: 5 }, { amountBounds }).isEnabled).toBe(
       false,
     );
-    expect(setupWithAmount({ amountSent: 20 }, { liquidity }).isEnabled).toBe(
+    expect(setupWithAmount({ amountSent: 20 }, { amountBounds }).isEnabled).toBe(
       true,
     );
   });
@@ -223,18 +223,18 @@ describe("useSwapButton liquidity band", () => {
     const formValues = {
       walletAddress: "0x1234567890123456789012345678901234567890",
     };
-    const liquidity = { min: 1000, max: 2_000_000, noLiquidity: false };
+    const amountBounds = { min: 1000, max: 2_000_000, noLiquidity: false };
 
     expect(
       setupWithAmount(
         { ...formValues, amountSent: 1_000_000 },
-        { ...onramp, liquidity },
+        { ...onramp, amountBounds },
       ).isEnabled,
     ).toBe(true);
     expect(
       setupWithAmount(
         { ...formValues, amountSent: 3_000_000 },
-        { ...onramp, liquidity },
+        { ...onramp, amountBounds },
       ).isEnabled,
     ).toBe(false);
   });
@@ -242,25 +242,41 @@ describe("useSwapButton liquidity band", () => {
   it("disables the CTA when the corridor has no fillable offers", () => {
     const result = setupWithAmount(
       { amountSent: 100 },
-      { liquidity: { min: null, max: null, noLiquidity: true } },
+      { amountBounds: { min: 0.5, max: 10000, noLiquidity: true } },
     );
 
     expect(result.isEnabled).toBe(false);
   });
 
-  it("treats unknown bounds as no constraint", () => {
-    const result = setupWithAmount(
-      { amountSent: 5_000_000 },
-      { liquidity: { min: null, max: null, noLiquidity: false } },
-    );
+  it("enforces the static ceiling the form falls back to when liquidity is unknown", () => {
+    // The caller merges static limits into the bounds, so the CTA agrees with
+    // the field rule instead of enabling an amount the field has rejected.
+    const amountBounds = { min: 0.5, max: 10000, noLiquidity: false };
 
-    expect(result.isEnabled).toBe(true);
+    expect(
+      setupWithAmount({ amountSent: 5_000 }, { amountBounds }).isEnabled,
+    ).toBe(true);
+    expect(
+      setupWithAmount({ amountSent: 5_000_000 }, { amountBounds }).isEnabled,
+    ).toBe(false);
+  });
+
+  it("uses the cNGN floor the form computed rather than the bare 0.5 token floor", () => {
+    // 0.5 x cngnRate(1500); the divergence this prop exists to prevent.
+    const amountBounds = { min: 750, max: 50_000_000, noLiquidity: false };
+
+    expect(setupWithAmount({ amountSent: 100 }, { amountBounds }).isEnabled).toBe(
+      false,
+    );
+    expect(setupWithAmount({ amountSent: 800 }, { amountBounds }).isEnabled).toBe(
+      true,
+    );
   });
 
   it("rejects an amount falling in a hole between providers' bands", () => {
     // Inside [min, max], but one order is filled by one provider and neither
     // band covers 50.
-    const liquidity = {
+    const amountBounds = {
       min: 1,
       max: 500,
       segments: [
@@ -270,10 +286,10 @@ describe("useSwapButton liquidity band", () => {
       noLiquidity: false,
     };
 
-    expect(setupWithAmount({ amountSent: 50 }, { liquidity }).isEnabled).toBe(
+    expect(setupWithAmount({ amountSent: 50 }, { amountBounds }).isEnabled).toBe(
       false,
     );
-    expect(setupWithAmount({ amountSent: 250 }, { liquidity }).isEnabled).toBe(
+    expect(setupWithAmount({ amountSent: 250 }, { amountBounds }).isEnabled).toBe(
       true,
     );
   });
@@ -281,7 +297,7 @@ describe("useSwapButton liquidity band", () => {
   it("does not enforce segments when they are unknown", () => {
     const result = setupWithAmount(
       { amountSent: 50 },
-      { liquidity: { min: 1, max: 500, noLiquidity: false } },
+      { amountBounds: { min: 1, max: 500, noLiquidity: false } },
     );
 
     expect(result.isEnabled).toBe(true);

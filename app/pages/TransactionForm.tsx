@@ -332,6 +332,46 @@ export const TransactionForm = ({
   });
   const noLiquidity = Boolean(liquidity && !liquidity.viable);
 
+  /**
+   * The effective Send-amount bounds: static product limits, the rate-derived
+   * floors, and the live provider band merged into one pair of numbers.
+   *
+   * Computed here rather than inside the registration effect because the CTA
+   * needs the same values. `useSwapButton` enables itself on the amount alone
+   * for an unverified user — form-wide validity is deliberately bypassed so
+   * verification stays reachable — so a floor derived independently there
+   * would let the button accept an amount the field rejects.
+   */
+  const amountBounds = useMemo(() => {
+    const liquidityMin = liquidity?.viable ? liquidity.min : null;
+    const liquidityMax = liquidity?.viable ? liquidity.max : null;
+
+    let min = 0.5;
+    let max = 10000;
+
+    if (swapMode === "onramp") {
+      const safeCurrency =
+        currency?.trim() && isOnrampFiatCurrencyCode(currency.trim())
+          ? currency.trim()
+          : "NGN";
+      max = getOnrampFiatMaxAmount(safeCurrency);
+      // The fiat floor tracks the rate, and is only enforceable once a receive
+      // token and a rate exist; 0 stands for "no floor yet".
+      min = token && rate && rate > 0 ? 0.5 * rate : 0;
+    } else if (tokensEqual(token, "cNGN") && cngnRate && cngnRate > 0) {
+      max = 50000000;
+      min = 0.5 * cngnRate;
+    }
+
+    // Live capacity replaces the static ceiling and can only raise the floor.
+    // An unknown or empty book leaves both untouched, so a markets outage
+    // degrades to the previous behavior instead of blocking the form.
+    if (liquidityMax !== null) max = liquidityMax;
+    if (liquidityMin !== null) min = Math.max(min, liquidityMin);
+
+    return { min, max, liquidityMin, liquidityMax };
+  }, [swapMode, currency, token, rate, cngnRate, liquidity]);
+
   // Determine active wallet based on migration status
   // After migration: use EOA (new wallet with funds)
   // Before migration: use SCW (old wallet)
@@ -742,43 +782,28 @@ export const TransactionForm = ({
   useEffect(
     function registerFieldsWithValidation() {
       async function registerFormFields() {
-        let maxAmountSentValue = 10000;
-        let minAmountSentValue = 0.5;
-
         if (swapMode === "onramp") {
-          const safeCurrency =
-            currency?.trim() && isOnrampFiatCurrencyCode(currency.trim())
-              ? currency.trim()
-              : "NGN";
-          maxAmountSentValue = getOnrampFiatMaxAmount(safeCurrency);
           setRateError(null);
         } else if (tokensEqual(token, "cNGN")) {
-          if (cngnRate && cngnRate > 0) {
-            // Valid rate available - calculate limits and clear errors
-            maxAmountSentValue = 50000000;
-            minAmountSentValue = 0.5 * cngnRate;
-            setRateError(null);
-          } else {
-            const errorMessage = cngnRateError || "No available quote";
-            setRateError(errorMessage);
-          }
+          setRateError(
+            cngnRate && cngnRate > 0
+              ? null
+              : cngnRateError || "No available quote",
+          );
         } else {
           setRateError(null);
         }
 
-        // Live provider capacity replaces the static limits when we know it.
-        // An unknown or empty book leaves the values above untouched, so a
-        // markets outage degrades to the previous behavior instead of
-        // blocking the form.
+        // Bounds come from amountBounds so the CTA enforces the same numbers;
+        // this effect owns only the rate-error side effects and the messages.
         const side = swapMode === "onramp" ? "buy" : "sell";
         const fiat = (currency || "NGN").toUpperCase();
-        const liquidityMax = liquidity?.viable ? liquidity.max : null;
-        const liquidityMin = liquidity?.viable ? liquidity.min : null;
-
-        if (liquidityMax !== null) maxAmountSentValue = liquidityMax;
-        if (liquidityMin !== null) {
-          minAmountSentValue = Math.max(minAmountSentValue, liquidityMin);
-        }
+        const {
+          min: minAmountSentValue,
+          max: maxAmountSentValue,
+          liquidityMin,
+          liquidityMax,
+        } = amountBounds;
 
         const maxMessage =
           liquidityMax !== null
@@ -819,7 +844,7 @@ export const TransactionForm = ({
               if (!token || !rate || rate <= 0) return true;
               const n = Number(value);
               const rateFloor = 0.5 * rate;
-              const floor = Math.max(rateFloor, liquidityMin ?? 0);
+              const floor = minAmountSentValue;
               if (n >= floor) return true;
               return floor > rateFloor
                 ? liquidityMinMessage(floor, "buy", fiat, token)
@@ -915,6 +940,7 @@ export const TransactionForm = ({
       selectedNetwork,
       cngnRate,
       cngnRateError,
+      amountBounds,
       liquidity,
       isSwapped,
       swapMode,
@@ -955,9 +981,9 @@ export const TransactionForm = ({
     rate,
     isSwapped,
     networkName: selectedNetwork.chain.name,
-    liquidity: {
-      min: liquidity?.viable ? liquidity.min : null,
-      max: liquidity?.viable ? liquidity.max : null,
+    amountBounds: {
+      min: amountBounds.min,
+      max: amountBounds.max,
       segments: liquidity?.viable ? liquidity.segments : undefined,
       noLiquidity,
     },

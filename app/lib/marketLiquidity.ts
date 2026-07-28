@@ -47,15 +47,11 @@ export type LiquidityCorridor = {
 const TOKEN_DECIMALS = 4;
 
 /**
- * How far apart two bands may sit and still count as one run.
- *
- * A provider tiles its own bands with a hairline gap so they do not overlap
- * (…–2, then 2.000999–…). Treating those seams as holes would reject amounts
- * that fill perfectly well, while a real hole between providers is orders of
- * magnitude wider. A relative tolerance separates the two without hard-coding
- * the aggregator's epsilon.
+ * Distances below this are indistinguishable from equal. Amounts are held to
+ * four decimals, so no real difference is anywhere near this small — it exists
+ * only so binary rounding cannot turn a tie into a winner.
  */
-const SEGMENT_MERGE_TOLERANCE = 0.01;
+const DISTANCE_EPSILON = 1e-9;
 
 function toFiniteNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -77,7 +73,16 @@ function sameCode(a: unknown, b: string): boolean {
   return typeof a === "string" && a.trim().toLowerCase() === b.toLowerCase();
 }
 
-/** Collapses overlapping and touching bands into the runs actually fillable. */
+/**
+ * Collapses overlapping and adjacent bands into the runs actually fillable.
+ *
+ * Bands join only when they overlap or sit one representable amount apart, so
+ * the join never widens with the numbers involved — a proportional tolerance
+ * would swallow a five-figure hole between bands in the millions. Inward
+ * rounding already closes a provider's own hairline seams (…–2 then
+ * 2.000999–… both land on the same integer boundary in fiat), and anything
+ * wider than the grid is a real hole that no single provider covers.
+ */
 function mergeSegments(
   raw: LiquiditySegment[],
   decimals: number,
@@ -87,8 +92,7 @@ function mergeSegments(
 
   for (const segment of [...raw].sort((a, b) => a.min - b.min)) {
     const last = merged[merged.length - 1];
-    const reach = last ? last.max * (1 + SEGMENT_MERGE_TOLERANCE) + unit : 0;
-    if (last && segment.min <= reach) {
+    if (last && segment.min <= last.max + unit) {
       if (segment.max > last.max) last.max = segment.max;
     } else {
       merged.push({ ...segment });
@@ -258,9 +262,14 @@ export function nearestFillableAmount(
   for (const segment of envelope.segments) {
     const candidate = Math.min(Math.max(amount, segment.min), segment.max);
     const distance = Math.abs(candidate - amount);
+    // Equidistance has to be judged with a tolerance: 0.3 is mathematically
+    // as far from 0.2 as from 0.4, but not in binary, and an exact comparison
+    // would quietly hand those cases to the lower band.
     if (
-      distance < shortest ||
-      (distance === shortest && nearest !== null && candidate > nearest)
+      distance < shortest - DISTANCE_EPSILON ||
+      (Math.abs(distance - shortest) <= DISTANCE_EPSILON &&
+        nearest !== null &&
+        candidate > nearest)
     ) {
       nearest = candidate;
       shortest = distance;

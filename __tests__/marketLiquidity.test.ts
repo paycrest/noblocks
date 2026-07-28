@@ -405,6 +405,58 @@ describe("fillable segments", () => {
     expect(isAmountFillable(envelope, 50)).toBe(false);
   });
 
+  it("keeps a narrow hole between large bands intact", () => {
+    // A join that scales with the numbers would swallow this 5,000-wide hole
+    // simply because the bands are large.
+    const rows = [
+      buyBand({ providerId: "a", min: 1, max: 1_000_000, balance: 1_000_000 }),
+      buyBand({
+        providerId: "b",
+        min: 1_005_000,
+        max: 2_000_000,
+        balance: 2_000_000,
+      }),
+    ];
+
+    const envelope = computeLiquidityEnvelope(rows, BUY_NGN_BASE);
+
+    expect(envelope?.segments).toEqual([
+      { min: 1, max: 1_000_000 },
+      { min: 1_005_000, max: 2_000_000 },
+    ]);
+    expect(isAmountFillable(envelope, 1_002_500)).toBe(false);
+  });
+
+  it("prefers the larger band when a fractional amount is equidistant", () => {
+    // 0.3 is equidistant from 0.2 and 0.4 in decimal but not in binary.
+    const rows = [
+      offer(SELL_NGN_BASE, {
+        providerId: "a",
+        min: 0.1,
+        max: 0.2,
+        rate: 1000,
+        balance: 1e9,
+        balanceCurrency: "NGN",
+      }),
+      offer(SELL_NGN_BASE, {
+        providerId: "b",
+        min: 0.4,
+        max: 0.9,
+        rate: 1000,
+        balance: 1e9,
+        balanceCurrency: "NGN",
+      }),
+    ];
+
+    const envelope = computeLiquidityEnvelope(rows, SELL_NGN_BASE);
+
+    expect(envelope?.segments).toEqual([
+      { min: 0.1, max: 0.2 },
+      { min: 0.4, max: 0.9 },
+    ]);
+    expect(nearestFillableAmount(envelope, 0.3)).toBe(0.4);
+  });
+
   it("names the nearest fillable amount across a hole", () => {
     const envelope = computeLiquidityEnvelope(
       [

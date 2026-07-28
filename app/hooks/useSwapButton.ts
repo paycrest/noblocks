@@ -36,12 +36,14 @@ interface UseSwapButtonProps {
   /** Selected chain name for on-ramp wallet validation (e.g. Base, Starknet). */
   networkName?: string;
   /**
-   * Live fillable range in Send-field units (fiat on onramp, token on offramp).
-   * Null bounds mean unknown, which keeps the pre-existing limits in force.
+   * Effective Send-amount bounds from TransactionForm: static product limits,
+   * rate-derived floors and the live provider band already merged. Supplied by
+   * the caller rather than re-derived here so the CTA and the field rules can
+   * never disagree. Omitted, the legacy static floors apply.
    */
-  liquidity?: {
-    min: number | null;
-    max: number | null;
+  amountBounds?: {
+    min: number;
+    max: number;
     /** Fillable runs within [min, max]; absent means unknown, so not enforced. */
     segments?: LiquiditySegment[];
     noLiquidity: boolean;
@@ -72,7 +74,7 @@ export function useSwapButton({
   rate,
   isSwapped = false,
   networkName = "",
-  liquidity,
+  amountBounds,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet, injectedReady, injectedRequested, injectedStatus } =
@@ -100,26 +102,21 @@ export function useSwapButton({
   const isInjectedConnecting =
     injectedRequested && !injectedReady && injectedStatus === "pending";
 
-  // The amount must clear a static floor and, when live provider capacity is
-  // known, sit within what a single provider will actually fill:
-  //   - floor: 0.5 token off-ramp; 0.5×rate in fiat on-ramp, and only once a
-  //     receive token and rate exist (same condition as onrampFiatMin)
-  //   - live band: raises that floor and caps the ceiling, and rejects a hole
-  //     between two providers' bands (see LiquidityEnvelope.segments)
-  // Unknown liquidity leaves the static floor in force on its own, so the CTA
-  // agrees with the amount field rather than letting an unfillable amount past.
-  const liquidityFloor = liquidity?.min ?? 0;
-  const liquidityCeiling = liquidity?.max ?? Infinity;
-  const withinLiquidity =
-    !liquidity?.noLiquidity &&
-    Number(amountSent) <= liquidityCeiling &&
-    fitsLiquiditySegment(liquidity?.segments, Number(amountSent));
+  // The amount must sit within the effective bounds, which already fold the
+  // static limits, the rate-derived floor and live provider capacity together.
+  // Segments additionally reject a hole between two providers' bands, since one
+  // order is filled by one provider. Without bounds the legacy floors stand:
+  // 0.5 token off-ramp, 0.5×rate on-ramp once a receive token and rate exist.
+  const amountFloor = amountBounds?.min ?? (isSwapped ? 0.5 * Number(rate) : 0.5);
+  const amountCeiling = amountBounds?.max ?? Infinity;
+  const withinBounds =
+    !amountBounds?.noLiquidity &&
+    Number(amountSent) <= amountCeiling &&
+    fitsLiquiditySegment(amountBounds?.segments, Number(amountSent));
   const isAmountValid = isSwapped
     ? !token ||
-      (withinLiquidity &&
-        Number(rate) > 0 &&
-        Number(amountSent) >= Math.max(0.5 * Number(rate), liquidityFloor))
-    : withinLiquidity && Number(amountSent) >= Math.max(0.5, liquidityFloor);
+      (withinBounds && Number(rate) > 0 && Number(amountSent) >= amountFloor)
+    : withinBounds && Number(amountSent) >= amountFloor;
   const isCurrencySelected = Boolean(currency);
 
   const totalRequired = Number(amountSent) || 0;

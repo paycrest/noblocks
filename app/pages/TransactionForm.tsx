@@ -50,6 +50,12 @@ import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
 import { fetchSupportedCurrencyCodes } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
+import { useMarketLiquidity } from "../hooks/useMarketLiquidity";
+import {
+  liquidityMaxMessage,
+  liquidityMinMessage,
+  noLiquidityMessage,
+} from "../lib/marketLiquidity";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
 import { useShouldUseEOA } from "../hooks/useEIP7702Account";
 import {
@@ -306,6 +312,22 @@ export const TransactionForm = ({
     autoFetch: true, // Always fetch so it's available when needed
     dependencies: [selectedNetwork],
   });
+
+  // Live provider capacity for this corridor. Drives the amount limits so the
+  // form only accepts amounts a provider can actually fill; a null envelope
+  // means unknown and leaves the static limits in place.
+  const { envelope: liquidity } = useMarketLiquidity({
+    enabled:
+      Boolean(token) &&
+      Boolean(currency) &&
+      (swapMode !== "onramp" ||
+        (isOnrampFiatCurrencyCode(currency) && onrampSupported)),
+    side: swapMode === "onramp" ? "buy" : "sell",
+    token,
+    currency,
+    networkName: selectedNetwork.chain.name,
+  });
+  const noLiquidity = Boolean(liquidity && !liquidity.viable);
 
   // Determine active wallet based on migration status
   // After migration: use EOA (new wallet with funds)
@@ -741,6 +763,29 @@ export const TransactionForm = ({
           setRateError(null);
         }
 
+        // Live provider capacity replaces the static limits when we know it.
+        // An unknown or empty book leaves the values above untouched, so a
+        // markets outage degrades to the previous behavior instead of
+        // blocking the form.
+        const side = swapMode === "onramp" ? "buy" : "sell";
+        const fiat = (currency || "NGN").toUpperCase();
+        const liquidityMax = liquidity?.viable ? liquidity.max : null;
+        const liquidityMin = liquidity?.viable ? liquidity.min : null;
+
+        if (liquidityMax !== null) maxAmountSentValue = liquidityMax;
+        if (liquidityMin !== null) {
+          minAmountSentValue = Math.max(minAmountSentValue, liquidityMin);
+        }
+
+        const maxMessage =
+          liquidityMax !== null
+            ? liquidityMaxMessage(maxAmountSentValue, side, fiat, token)
+            : `Maximum amount is ${formatNumberWithCommas(maxAmountSentValue)}`;
+        const minMessage =
+          liquidityMin !== null && minAmountSentValue === liquidityMin
+            ? liquidityMinMessage(minAmountSentValue, side, fiat, token)
+            : `Minimum amount is ${formatNumberWithCommas(minAmountSentValue)}`;
+
         formMethods.register("amountSent", {
           required: { value: true, message: "Amount is required" },
           disabled: isSwapped ? !currency : !token,
@@ -748,13 +793,13 @@ export const TransactionForm = ({
             ? {
                 min: {
                   value: minAmountSentValue,
-                  message: `Minimum amount is ${formatNumberWithCommas(minAmountSentValue)}`,
+                  message: minMessage,
                 },
               }
             : {}),
           max: {
             value: maxAmountSentValue,
-            message: `Maximum amount is ${formatNumberWithCommas(maxAmountSentValue)}`,
+            message: maxMessage,
           },
           validate: {
             decimals: (value: number) => {
@@ -770,10 +815,12 @@ export const TransactionForm = ({
               // Min fiat depends on rate; only enforce once receive token is chosen and rate exists.
               if (!token || !rate || rate <= 0) return true;
               const n = Number(value);
-              const floor = 0.5 * rate;
+              const rateFloor = 0.5 * rate;
+              const floor = Math.max(rateFloor, liquidityMin ?? 0);
               if (n >= floor) return true;
-              const fiat = (currency || "NGN").toUpperCase();
-              return `Minimum amount is ${getCurrencySymbol(fiat)}${formatNumberWithCommas(floor)}`;
+              return floor > rateFloor
+                ? liquidityMinMessage(floor, "buy", fiat, token)
+                : `Minimum amount is ${getCurrencySymbol(fiat)}${formatNumberWithCommas(floor)}`;
             },
           },
         });
@@ -832,6 +879,12 @@ export const TransactionForm = ({
             shouldDirty: true,
           });
         }
+
+        // Re-registering only changes the rules; an amount typed before the
+        // limits moved keeps its stale verdict until the next keystroke.
+        if (Number(formMethods.getValues("amountSent")) > 0) {
+          formMethods.trigger("amountSent");
+        }
       }
 
       registerFormFields();
@@ -844,6 +897,7 @@ export const TransactionForm = ({
       selectedNetwork,
       cngnRate,
       cngnRateError,
+      liquidity,
       isSwapped,
       swapMode,
       rate,
@@ -883,6 +937,11 @@ export const TransactionForm = ({
     rate,
     isSwapped,
     networkName: selectedNetwork.chain.name,
+    liquidity: {
+      min: liquidity?.viable ? liquidity.min : null,
+      max: liquidity?.viable ? liquidity.max : null,
+      noLiquidity,
+    },
   });
 
   const [isPhoneVerificationOpen, setIsPhoneVerificationOpen] = useState(false);
@@ -1488,6 +1547,15 @@ export const TransactionForm = ({
                   (isWalletConnected && !isSwapped && totalRequired > balance
                     ? "Insufficient balance"
                     : null)}
+              </AnimatedComponent>
+            )}
+
+            {noLiquidity && (
+              <AnimatedComponent
+                variant={slideInOut}
+                className="!mt-0 text-xs text-orange-500 dark:text-orange-400"
+              >
+                {noLiquidityMessage(token, selectedNetwork.chain.name)}
               </AnimatedComponent>
             )}
 

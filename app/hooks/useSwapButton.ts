@@ -34,6 +34,15 @@ interface UseSwapButtonProps {
   isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
   /** Selected chain name for on-ramp wallet validation (e.g. Base, Starknet). */
   networkName?: string;
+  /**
+   * Live fillable range in Send-field units (fiat on onramp, token on offramp).
+   * Null bounds mean unknown, which keeps the pre-existing limits in force.
+   */
+  liquidity?: {
+    min: number | null;
+    max: number | null;
+    noLiquidity: boolean;
+  };
 }
 
 export function useSwapButton({
@@ -49,6 +58,7 @@ export function useSwapButton({
   rate,
   isSwapped = false,
   networkName = "",
+  liquidity,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet, injectedReady, injectedRequested, injectedStatus } =
@@ -77,10 +87,18 @@ export function useSwapButton({
     injectedRequested && !injectedReady && injectedStatus === "pending";
 
   // Off-ramp: min 0.5 token. On-ramp: min fiat 0.5×rate only after receive token + rate (same as onrampFiatMin).
+  // Live provider capacity tightens both bounds when known, so the CTA agrees
+  // with the amount field instead of letting an unfillable amount through.
+  const liquidityFloor = liquidity?.min ?? 0;
+  const liquidityCeiling = liquidity?.max ?? Infinity;
+  const withinLiquidity =
+    !liquidity?.noLiquidity && Number(amountSent) <= liquidityCeiling;
   const isAmountValid = isSwapped
     ? !token ||
-      (Number(rate) > 0 && Number(amountSent) >= 0.5 * Number(rate))
-    : Number(amountSent) >= 0.5;
+      (withinLiquidity &&
+        Number(rate) > 0 &&
+        Number(amountSent) >= Math.max(0.5 * Number(rate), liquidityFloor))
+    : withinLiquidity && Number(amountSent) >= Math.max(0.5, liquidityFloor);
   const isCurrencySelected = Boolean(currency);
 
   const totalRequired = Number(amountSent) || 0;

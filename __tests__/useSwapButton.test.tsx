@@ -164,3 +164,96 @@ describe("useSwapButton KYC gating", () => {
     expect(result.buttonText).toBe("Swap");
   });
 });
+
+/** Off-ramp state that clears every gate, so only the liquidity band decides `isEnabled`. */
+function setupWithAmount(
+  formOverrides: Record<string, unknown>,
+  overrides: Record<string, unknown> = {},
+) {
+  const watch = (() => ({ ...FORM_VALUES, ...formOverrides })) as never;
+  return renderHook(() =>
+    useSwapButton({
+      watch,
+      balance: 100_000_000,
+      isDirty: true,
+      isValid: true,
+      isUserVerified: true,
+      hasLoadedStatus: true,
+      rate: 1,
+      ...overrides,
+    }),
+  ).result.current;
+}
+
+describe("useSwapButton liquidity band", () => {
+  it("keeps pre-existing behavior when no band is supplied", () => {
+    expect(setupWithAmount({ amountSent: 100 }).isEnabled).toBe(true);
+    expect(setupWithAmount({ amountSent: 0.1 }).isEnabled).toBe(false);
+  });
+
+  it("blocks an off-ramp amount above what providers can fill", () => {
+    const liquidity = { min: 1, max: 500, noLiquidity: false };
+
+    expect(setupWithAmount({ amountSent: 400 }, { liquidity }).isEnabled).toBe(
+      true,
+    );
+    expect(setupWithAmount({ amountSent: 600 }, { liquidity }).isEnabled).toBe(
+      false,
+    );
+  });
+
+  it("raises the off-ramp floor to the market minimum", () => {
+    const liquidity = { min: 10, max: 500, noLiquidity: false };
+
+    // 5 clears the static 0.5 floor but not the live one.
+    expect(setupWithAmount({ amountSent: 5 }, { liquidity }).isEnabled).toBe(
+      false,
+    );
+    expect(setupWithAmount({ amountSent: 20 }, { liquidity }).isEnabled).toBe(
+      true,
+    );
+  });
+
+  it("enforces the band on on-ramp amounts too", () => {
+    const onramp = {
+      isSwapped: true,
+      networkName: "Base",
+      rate: 1500,
+    };
+    const formValues = {
+      walletAddress: "0x1234567890123456789012345678901234567890",
+    };
+    const liquidity = { min: 1000, max: 2_000_000, noLiquidity: false };
+
+    expect(
+      setupWithAmount(
+        { ...formValues, amountSent: 1_000_000 },
+        { ...onramp, liquidity },
+      ).isEnabled,
+    ).toBe(true);
+    expect(
+      setupWithAmount(
+        { ...formValues, amountSent: 3_000_000 },
+        { ...onramp, liquidity },
+      ).isEnabled,
+    ).toBe(false);
+  });
+
+  it("disables the CTA when the corridor has no fillable offers", () => {
+    const result = setupWithAmount(
+      { amountSent: 100 },
+      { liquidity: { min: null, max: null, noLiquidity: true } },
+    );
+
+    expect(result.isEnabled).toBe(false);
+  });
+
+  it("treats unknown bounds as no constraint", () => {
+    const result = setupWithAmount(
+      { amountSent: 5_000_000 },
+      { liquidity: { min: null, max: null, noLiquidity: false } },
+    );
+
+    expect(result.isEnabled).toBe(true);
+  });
+});

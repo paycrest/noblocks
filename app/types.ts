@@ -198,6 +198,32 @@ export type V2RateQuoteResponse = {
   sell?: V2RateQuoteSide;
 };
 
+/**
+ * One provider offer row from GET /v2/markets.
+ * `min`/`max` are the order band in token units (same units as the /v2/rates
+ * path amount); `balance` is the provider's float; `rate` is fiat per token.
+ * Numerics may arrive as strings, so parse defensively.
+ */
+export type V2MarketOffer = {
+  min?: number | string;
+  max?: number | string;
+  balance?: number | string;
+  rate?: number | string;
+  providerId?: string;
+  network?: string;
+  [key: string]: unknown;
+};
+
+export type MarketsPayload = {
+  side: RateSide;
+  /** Aggregator wire symbol, e.g. CNGN (see toAggregatorToken). */
+  token: string;
+  currency: string;
+  /** Normalized slug (see normalizeNetworkForRateFetch). Omit to query all networks. */
+  network?: string;
+  signal?: AbortSignal;
+};
+
 export type PubkeyResponse = {
   status: string;
   data: string;

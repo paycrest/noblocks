@@ -164,3 +164,157 @@ describe("useSwapButton KYC gating", () => {
     expect(result.buttonText).toBe("Swap");
   });
 });
+
+/** Off-ramp state that clears every gate, so only the liquidity band decides `isEnabled`. */
+function setupWithAmount(
+  formOverrides: Record<string, unknown>,
+  overrides: Record<string, unknown> = {},
+) {
+  const watch = (() => ({ ...FORM_VALUES, ...formOverrides })) as never;
+  return renderHook(() =>
+    useSwapButton({
+      watch,
+      balance: 100_000_000,
+      isDirty: true,
+      isValid: true,
+      isUserVerified: true,
+      hasLoadedStatus: true,
+      rate: 1,
+      ...overrides,
+    }),
+  ).result.current;
+}
+
+describe("useSwapButton liquidity band", () => {
+  it("keeps pre-existing behavior when no band is supplied", () => {
+    expect(setupWithAmount({ amountSent: 100 }).isEnabled).toBe(true);
+    expect(setupWithAmount({ amountSent: 0.1 }).isEnabled).toBe(false);
+  });
+
+  it("blocks an off-ramp amount above what providers can fill", () => {
+    const amountBounds = { min: 1, max: 500, noLiquidity: false };
+
+    expect(setupWithAmount({ amountSent: 400 }, { amountBounds }).isEnabled).toBe(
+      true,
+    );
+    expect(setupWithAmount({ amountSent: 600 }, { amountBounds }).isEnabled).toBe(
+      false,
+    );
+  });
+
+  it("raises the off-ramp floor to the market minimum", () => {
+    const amountBounds = { min: 10, max: 500, noLiquidity: false };
+
+    // 5 clears the static 0.5 floor but not the live one.
+    expect(setupWithAmount({ amountSent: 5 }, { amountBounds }).isEnabled).toBe(
+      false,
+    );
+    expect(setupWithAmount({ amountSent: 20 }, { amountBounds }).isEnabled).toBe(
+      true,
+    );
+  });
+
+  it("enforces the band on on-ramp amounts too", () => {
+    const onramp = {
+      isSwapped: true,
+      networkName: "Base",
+      rate: 1500,
+    };
+    const formValues = {
+      walletAddress: "0x1234567890123456789012345678901234567890",
+    };
+    const amountBounds = { min: 1000, max: 2_000_000, noLiquidity: false };
+
+    expect(
+      setupWithAmount(
+        { ...formValues, amountSent: 1_000_000 },
+        { ...onramp, amountBounds },
+      ).isEnabled,
+    ).toBe(true);
+    expect(
+      setupWithAmount(
+        { ...formValues, amountSent: 3_000_000 },
+        { ...onramp, amountBounds },
+      ).isEnabled,
+    ).toBe(false);
+  });
+
+  it("disables the CTA when the corridor has no fillable offers", () => {
+    const result = setupWithAmount(
+      { amountSent: 100 },
+      { amountBounds: { min: 0.5, max: 10000, noLiquidity: true } },
+    );
+
+    expect(result.isEnabled).toBe(false);
+  });
+
+  it("does not offer 'Fund wallet' for a corridor with no liquidity", () => {
+    // The insufficient-balance branch otherwise enables unconditionally, on
+    // the theory that funding fixes it — but no balance fills an order when
+    // no provider serves this corridor at all.
+    const result = setupWithAmount(
+      { amountSent: 100 },
+      {
+        balance: 1,
+        amountBounds: { min: 0.5, max: 10000, noLiquidity: true },
+      },
+    );
+
+    expect(result.isEnabled).toBe(false);
+  });
+
+  it("enforces the static ceiling the form falls back to when liquidity is unknown", () => {
+    // The caller merges static limits into the bounds, so the CTA agrees with
+    // the field rule instead of enabling an amount the field has rejected.
+    const amountBounds = { min: 0.5, max: 10000, noLiquidity: false };
+
+    expect(
+      setupWithAmount({ amountSent: 5_000 }, { amountBounds }).isEnabled,
+    ).toBe(true);
+    expect(
+      setupWithAmount({ amountSent: 5_000_000 }, { amountBounds }).isEnabled,
+    ).toBe(false);
+  });
+
+  it("uses the cNGN floor the form computed rather than the bare 0.5 token floor", () => {
+    // 0.5 x cngnRate(1500); the divergence this prop exists to prevent.
+    const amountBounds = { min: 750, max: 50_000_000, noLiquidity: false };
+
+    expect(setupWithAmount({ amountSent: 100 }, { amountBounds }).isEnabled).toBe(
+      false,
+    );
+    expect(setupWithAmount({ amountSent: 800 }, { amountBounds }).isEnabled).toBe(
+      true,
+    );
+  });
+
+  it("rejects an amount falling in a hole between providers' bands", () => {
+    // Inside [min, max], but one order is filled by one provider and neither
+    // band covers 50.
+    const amountBounds = {
+      min: 1,
+      max: 500,
+      segments: [
+        { min: 1, max: 2 },
+        { min: 100, max: 500 },
+      ],
+      noLiquidity: false,
+    };
+
+    expect(setupWithAmount({ amountSent: 50 }, { amountBounds }).isEnabled).toBe(
+      false,
+    );
+    expect(setupWithAmount({ amountSent: 250 }, { amountBounds }).isEnabled).toBe(
+      true,
+    );
+  });
+
+  it("does not enforce segments when they are unknown", () => {
+    const result = setupWithAmount(
+      { amountSent: 50 },
+      { amountBounds: { min: 1, max: 500, noLiquidity: false } },
+    );
+
+    expect(result.isEnabled).toBe(true);
+  });
+});

@@ -1,4 +1,7 @@
 import type { ReactNode } from "react";
+// Type-only: erased at build, so this does not create a runtime cycle with
+// marketLiquidity.ts, which imports its wire types from here.
+import type { LiquidityEnvelope } from "./lib/marketLiquidity";
 
 export type MobileSheetView =
   | "wallet"
@@ -198,6 +201,38 @@ export type V2RateQuoteResponse = {
   sell?: V2RateQuoteSide;
 };
 
+/**
+ * One provider offer row from GET /v2/markets.
+ * `min`/`max` are the order band in token units (same units as the /v2/rates
+ * path amount); `balance` is the provider's float; `rate` is fiat per token.
+ * Numerics may arrive as strings, so parse defensively.
+ */
+export type V2MarketOffer = {
+  min?: number | string;
+  max?: number | string;
+  balance?: number | string;
+  /** Denomination of `balance`: the token on buy rows, the fiat on sell rows. */
+  balanceCurrency?: string;
+  rate?: number | string;
+  rateType?: string;
+  providerId?: string;
+  side?: string;
+  token?: string;
+  fiat?: string;
+  network?: string;
+  [key: string]: unknown;
+};
+
+export type MarketsPayload = {
+  side: RateSide;
+  /** Aggregator wire symbol, e.g. CNGN (see toAggregatorToken). */
+  token: string;
+  currency: string;
+  /** Normalized slug (see normalizeNetworkForRateFetch). Omit to query all networks. */
+  network?: string;
+  signal?: AbortSignal;
+};
+
 export type PubkeyResponse = {
   status: string;
   data: string;
@@ -330,6 +365,12 @@ export type StateProps = {
   setTransactionStatus: (status: TransactionStatusType) => void;
   rateError: string | null;
   setRateError: (error: string | null) => void;
+  /**
+   * Live provider capacity for the current corridor, or `null` when unknown.
+   * Held at the page level so the form's limits and the rate request agree on
+   * one poll's worth of truth.
+   */
+  liquidity: LiquidityEnvelope | null;
   onrampPaymentAccount: V2FiatProviderAccountDTO | null;
   setOnrampPaymentAccount: (account: V2FiatProviderAccountDTO | null) => void;
   /** Locked when the current order is created; not tied to live swapMode. */

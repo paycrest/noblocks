@@ -2297,10 +2297,13 @@ export const getBlockFestTimeRemaining = (): number => {
 
 /**
  * On-chain quote-rate multiplier for Gateway createOrder `_rate`.
- * Matches aggregator RateScale target (×100000) so sub-par local corridors
- * (e.g. CNGN 0.998) encode distinctly from par 1.0.
+ * Matches aggregator RateScale (×1_000_000) so fee-adjusted local corridors
+ * (e.g. CNGN 0.999833) encode distinctly from par 1.0.
  */
-export const RATE_SCALE = 100000;
+export const RATE_SCALE = 1000000;
+
+/** Max fractional digits representable at {@link RATE_SCALE} (e.g. 6 for ×1_000_000). */
+export const RATE_DECIMALS = Math.floor(Math.log10(RATE_SCALE));
 
 /**
  * Packs a human quote rate for on-chain createOrder (`round(rate × RATE_SCALE)`).

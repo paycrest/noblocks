@@ -41,6 +41,7 @@ import {
   getOnrampFiatMaxAmount,
   isOnrampFiatCurrencyCode,
   swapModeFromSideParam,
+  RATE_DECIMALS,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -387,7 +388,7 @@ export const TransactionForm = ({
     }
   };
 
-  // Improved function to format number with commas while preserving decimal places
+  // Format with commas; keep up to RATE_DECIMALS fractional digits, drop trailing zeros.
   const formatNumberWithCommasForDisplay = (value: number | string): string => {
     if (value === undefined || value === null || value === "") return "";
 
@@ -401,10 +402,15 @@ export const TransactionForm = ({
     // Add commas to the integer part
     const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
-    // Preserve the decimal part if it exists, ensuring max 4 decimal places
     if (parts.length > 1) {
-      const decimalPart = parts[1].slice(0, 4); // Limit to 4 decimal places
-      return `${integerPart}.${decimalPart}`;
+      // Preserve trailing "." while the user is typing a decimal
+      if (parts[1] === "" && valueStr.endsWith(".")) {
+        return `${integerPart}.`;
+      }
+      const decimalPart = parts[1]
+        .slice(0, RATE_DECIMALS)
+        .replace(/0+$/, "");
+      return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
     }
 
     return integerPart;

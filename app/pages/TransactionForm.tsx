@@ -41,6 +41,8 @@ import {
   getOnrampFiatMaxAmount,
   isOnrampFiatCurrencyCode,
   swapModeFromSideParam,
+  RATE_DECIMALS,
+  formatRateForDisplay,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -387,7 +389,7 @@ export const TransactionForm = ({
     }
   };
 
-  // Improved function to format number with commas while preserving decimal places
+  // Format with commas; keep up to RATE_DECIMALS fractional digits, drop trailing zeros.
   const formatNumberWithCommasForDisplay = (value: number | string): string => {
     if (value === undefined || value === null || value === "") return "";
 
@@ -401,10 +403,15 @@ export const TransactionForm = ({
     // Add commas to the integer part
     const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
-    // Preserve the decimal part if it exists, ensuring max 4 decimal places
     if (parts.length > 1) {
-      const decimalPart = parts[1].slice(0, 4); // Limit to 4 decimal places
-      return `${integerPart}.${decimalPart}`;
+      // Preserve trailing "." while the user is typing a decimal
+      if (parts[1] === "" && valueStr.endsWith(".")) {
+        return `${integerPart}.`;
+      }
+      const decimalPart = parts[1]
+        .slice(0, RATE_DECIMALS)
+        .replace(/0+$/, "");
+      return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
     }
 
     return integerPart;
@@ -598,7 +605,15 @@ export const TransactionForm = ({
   useEffect(
     function updateFormattedAmounts() {
       if (amountSent !== undefined) {
-        setFormattedSentAmount(formatNumberWithCommasForDisplay(amountSent));
+        const cleanedSent = removeCommas(formattedSentAmount);
+        // Keep "123." while editing; form number is already 123 and must not
+        // reformat back to "123" via updateFormattedAmounts.
+        const preserveTrailingDot =
+          cleanedSent.endsWith(".") &&
+          (parseFloat(cleanedSent) || 0) === Number(amountSent);
+        if (!preserveTrailingDot) {
+          setFormattedSentAmount(formatNumberWithCommasForDisplay(amountSent));
+        }
       }
 
       if (amountReceived !== undefined) {
@@ -607,6 +622,8 @@ export const TransactionForm = ({
         );
       }
     },
+    // formattedSentAmount is read only to detect an in-progress trailing "."
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [amountSent, amountReceived],
   );
 
@@ -1727,7 +1744,7 @@ export const TransactionForm = ({
                       <>
                         {isFetchingRate
                           ? "..."
-                          : formatNumberWithCommasForDisplay(rate)}{" "}
+                          : formatRateForDisplay(rate)}{" "}
                         {currency} ~ 1 {token}
                       </>
                     ) : (
@@ -1735,7 +1752,7 @@ export const TransactionForm = ({
                         1 {token} ~{" "}
                         {isFetchingRate
                           ? "..."
-                          : formatNumberWithCommasForDisplay(rate)}{" "}
+                          : formatRateForDisplay(rate)}{" "}
                         {currency}
                       </>
                     )}

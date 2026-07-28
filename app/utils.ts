@@ -2313,6 +2313,22 @@ export function packRate(rate: number): bigint {
 }
 
 /**
+ * Formats a quote rate for UI using the same grid as {@link packRate}
+ * (`round(rate × RATE_SCALE) / RATE_SCALE`), with trailing zeros stripped.
+ */
+export function formatRateForDisplay(rate: number): string {
+  if (!Number.isFinite(rate)) return "";
+  const quantized = Math.round(rate * RATE_SCALE) / RATE_SCALE;
+  if (quantized === 0) return "0";
+
+  let fixed = quantized.toFixed(RATE_DECIMALS);
+  if (fixed.includes(".")) {
+    fixed = fixed.replace(/0+$/, "").replace(/\.$/, "");
+  }
+  return formatNumberWithCommas(fixed);
+}
+
+/**
  * Gets the avatar image path based on index, cycling through 1-4
  */
 export const getAvatarImage = (index: number): string => {

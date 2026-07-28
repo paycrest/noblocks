@@ -42,6 +42,7 @@ import {
   isOnrampFiatCurrencyCode,
   swapModeFromSideParam,
   RATE_DECIMALS,
+  formatRateForDisplay,
 } from "../utils";
 import { ArrowUpDownIcon, NoteEditIcon, Wallet01Icon } from "hugeicons-react";
 import { useSwapButton } from "../hooks/useSwapButton";
@@ -604,7 +605,15 @@ export const TransactionForm = ({
   useEffect(
     function updateFormattedAmounts() {
       if (amountSent !== undefined) {
-        setFormattedSentAmount(formatNumberWithCommasForDisplay(amountSent));
+        const cleanedSent = removeCommas(formattedSentAmount);
+        // Keep "123." while editing; form number is already 123 and must not
+        // reformat back to "123" via updateFormattedAmounts.
+        const preserveTrailingDot =
+          cleanedSent.endsWith(".") &&
+          (parseFloat(cleanedSent) || 0) === Number(amountSent);
+        if (!preserveTrailingDot) {
+          setFormattedSentAmount(formatNumberWithCommasForDisplay(amountSent));
+        }
       }
 
       if (amountReceived !== undefined) {
@@ -613,6 +622,8 @@ export const TransactionForm = ({
         );
       }
     },
+    // formattedSentAmount is read only to detect an in-progress trailing "."
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [amountSent, amountReceived],
   );
 
@@ -1733,7 +1744,7 @@ export const TransactionForm = ({
                       <>
                         {isFetchingRate
                           ? "..."
-                          : formatNumberWithCommasForDisplay(rate)}{" "}
+                          : formatRateForDisplay(rate)}{" "}
                         {currency} ~ 1 {token}
                       </>
                     ) : (
@@ -1741,7 +1752,7 @@ export const TransactionForm = ({
                         1 {token} ~{" "}
                         {isFetchingRate
                           ? "..."
-                          : formatNumberWithCommasForDisplay(rate)}{" "}
+                          : formatRateForDisplay(rate)}{" "}
                         {currency}
                       </>
                     )}

@@ -4,6 +4,8 @@ import type {
   RateResponse,
   RateSide,
   V2RateQuoteResponse,
+  V2MarketOffer,
+  MarketsPayload,
   InstitutionProps,
   PubkeyResponse,
   VerifyAccountPayload,
@@ -450,6 +452,153 @@ export const fetchRate = async ({
     console.error("Error fetching rate:", error);
     throw error;
   }
+};
+
+// The order book is refreshed by a polling hook and can be read by more than
+// one consumer per tick; share one request and result so the poll interval
+// (not the consumer count) sets the request rate. The aggregator caches the
+// full book ~10s upstream, so a matching TTL here costs no freshness.
+const MARKETS_TTL_MS = 10 * 1000;
+/**
+ * The rate quote waits on the first book for a corridor, so this request has
+ * to fail rather than hang: a stalled connection would otherwise hold back the
+ * quote indefinitely. Failing lands on the unknown-book path, which quotes
+ * against the static limits exactly as before this feature existed.
+ */
+const MARKETS_TIMEOUT_MS = 8 * 1000;
+const marketsInFlight = new Map<string, Promise<V2MarketOffer[]>>();
+const marketsResult = new Map<string, { at: number; data: V2MarketOffer[] }>();
+
+function marketsCacheKey({ side, token, currency, network }: MarketsPayload) {
+  return `${side}:${token}:${currency}:${network || "*"}`;
+}
+
+/**
+ * Pulls the offer rows out of an aggregator response without assuming the
+ * exact envelope shape. The documented form is `data.book`, but a bare array
+ * or `data` as an array also resolve. An unrecognized shape yields `[]`,
+ * which callers treat as "unknown" and fall back to their static limits
+ * rather than blocking the user.
+ */
+function extractMarketOffers(raw: unknown): V2MarketOffer[] {
+  if (Array.isArray(raw)) return raw as V2MarketOffer[];
+  if (!raw || typeof raw !== "object") return [];
+
+  const container = raw as Record<string, unknown>;
+  if (Array.isArray(container.data)) return container.data as V2MarketOffer[];
+
+  const nested =
+    container.data && typeof container.data === "object"
+      ? (container.data as Record<string, unknown>)
+      : container;
+
+  for (const key of ["book", "offers", "markets"]) {
+    if (Array.isArray(nested[key])) return nested[key] as V2MarketOffer[];
+  }
+
+  const arrayValue = Object.values(nested).find((value) =>
+    Array.isArray(value),
+  );
+  return Array.isArray(arrayValue) ? (arrayValue as V2MarketOffer[]) : [];
+}
+
+/**
+ * Fetches the live provider order book for one corridor via aggregator **v2**.
+ * Used to derive the fillable amount range shown in the swap form; an empty
+ * result means "unknown", not "no liquidity".
+ */
+export const fetchMarkets = async (
+  payload: MarketsPayload,
+): Promise<V2MarketOffer[]> => {
+  const { side, token, currency, network, signal } = payload;
+  const key = marketsCacheKey(payload);
+
+  const cached = marketsResult.get(key);
+  if (cached && Date.now() - cached.at < MARKETS_TTL_MS) {
+    return cached.data;
+  }
+  const inFlight = marketsInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const startTime = Date.now();
+  const analyticsEndpoint = "/v2/markets";
+  const endpoint = `${aggregatorOriginForV2()}/v2/markets`;
+  const params: Record<string, string> = { side, fiat: currency, token };
+  if (network) params.network = network;
+
+  const request = (async () => {
+    try {
+      trackServerEvent("External API Request", {
+        service: "aggregator",
+        endpoint: analyticsEndpoint,
+        method: "GET",
+        token,
+        currency,
+        network: network ?? null,
+        side,
+      });
+
+      const response = await axios.get(endpoint, {
+        params,
+        signal,
+        timeout: MARKETS_TIMEOUT_MS,
+      });
+      const body = response.data as {
+        status?: string;
+        message?: string;
+        data?: unknown;
+      };
+
+      if (body?.status === "error") {
+        throw new Error(body.message || "Markets request failed");
+      }
+
+      const offers = extractMarketOffers(response.data);
+      marketsResult.set(key, { at: Date.now(), data: offers });
+
+      trackApiResponse(analyticsEndpoint, "GET", 200, Date.now() - startTime, {
+        service: "aggregator",
+        token,
+        currency,
+        network: network ?? null,
+        side,
+        offer_count: offers.length,
+      });
+
+      return offers;
+    } catch (error) {
+      const axiosPayloadMessage =
+        axios.isAxiosError(error) &&
+        error.response?.data &&
+        typeof (error.response.data as { message?: unknown }).message ===
+          "string"
+          ? (error.response.data as { message: string }).message
+          : null;
+
+      const errorMessage =
+        axiosPayloadMessage ??
+        (error instanceof Error ? error.message : "Unknown error");
+
+      trackServerEvent("External API Error", {
+        service: "aggregator",
+        endpoint: analyticsEndpoint,
+        method: "GET",
+        token,
+        currency,
+        network: network ?? null,
+        side,
+        error_message: errorMessage,
+        response_time_ms: Date.now() - startTime,
+      });
+
+      throw new Error(errorMessage);
+    } finally {
+      marketsInFlight.delete(key);
+    }
+  })();
+
+  marketsInFlight.set(key, request);
+  return request;
 };
 
 /**

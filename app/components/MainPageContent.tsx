@@ -35,7 +35,10 @@ import {
   initialSwapModeForHomeForm,
   swapModeFromSideParam,
   networkSupportsOnramp,
+  isOnrampFiatCurrencyCode,
 } from "../utils";
+import { useMarketLiquidity } from "../hooks/useMarketLiquidity";
+import { fillableQuoteAmount } from "../lib/marketLiquidity";
 import { toAggregatorToken } from "../lib/token-symbol";
 import { mapReportAndAct } from "../lib/toastMappedError";
 import { reportClientError } from "../lib/sentry.client";
@@ -323,6 +326,25 @@ export function MainPageContent() {
   /** On-ramp (fiat→crypto): rates API `buy` side */
   const isOnrampRate = swapMode === "onramp";
 
+  // Live provider capacity for the current corridor. Owned here rather than in
+  // the form because the rate request below also has to know it: quoting an
+  // amount no provider can fill only earns a "no provider" error that the form
+  // already states more usefully. Passed down through `stateProps` so both
+  // read one poll.
+  const { envelope: liquidity, isLoading: isLoadingLiquidity } =
+    useMarketLiquidity({
+      enabled:
+        Boolean(token) &&
+        Boolean(currency) &&
+        (!isOnrampRate ||
+          (isOnrampFiatCurrencyCode(currency) &&
+            networkSupportsOnramp(selectedNetwork.chain))),
+      side: isOnrampRate ? "buy" : "sell",
+      token,
+      currency,
+      networkName: selectedNetwork.chain.name,
+    });
+
   const { setTransactionFormSwapMode } = useHomeTransactionFormMode();
   const { refreshStatus } = useKYC();
   const prevStepForKycRefreshRef = useRef<string | null>(null);
@@ -402,6 +424,8 @@ export function MainPageContent() {
     setIsFetchingRate,
     rateError,
     setRateError,
+
+    liquidity,
 
     institutions,
     setInstitutions,
@@ -653,6 +677,23 @@ export function MainPageContent() {
       // Only fetch rate if at least one amount is greater than 0
       if (!amountSent && !amountReceived) return;
 
+      // Nothing in this corridor is quotable. The form already says so
+      // ("No liquidity available for X on Y right now"), and a request would
+      // only add the aggregator's own no-provider error on top. An unknown
+      // book leaves this false, so an outage still quotes as before.
+      if (liquidity && !liquidity.viable) {
+        setRateError(null);
+        setIsFetchingRate(false);
+        return;
+      }
+
+      // The corridor's first book is still in flight — true only until it
+      // lands or fails, never on later polls. Quoting now would skip the
+      // clamp below and ask for whatever amount carried over from the
+      // previous corridor, which is how a tab switch used to produce a
+      // no-provider toast.
+      if (isLoadingLiquidity) return;
+
       const getRate = async (shouldUseProvider = true) => {
         setIsFetchingRate(true);
 
@@ -668,11 +709,21 @@ export function MainPageContent() {
         // Send = fiat → use computed token (amountReceived), else peg-aware probe, else 1.
         const sentN = Number(amountSent) || 0;
         const recvN = Number(amountReceived) || 0;
-        const rateQueryAmount = isOnrampRate
+        const baseQueryAmount = isOnrampRate
           ? onrampRateQueryTokenAmount(token, currency, sentN, recvN)
           : sentN > 0
             ? sentN
             : 100;
+
+        // Ask about an amount a provider will actually take: quoting one the
+        // book has already ruled out returns the aggregator's no-provider
+        // error, which toasts the same fact the field states better ("Up to X
+        // available right now"). The form still rejects what was typed.
+        const rateQueryAmount = fillableQuoteAmount(
+          liquidity,
+          sentN,
+          baseQueryAmount,
+        );
 
         const providerId =
           shouldUseProvider && lpParam && !shouldSkipProvider
@@ -783,6 +834,10 @@ export function MainPageContent() {
       isOnrampRate,
       searchParams,
       selectedNetwork,
+      // Envelope identity is stable while the numbers hold (envelopesEqual),
+      // so this re-runs when capacity actually moves, not on every poll.
+      liquidity,
+      isLoadingLiquidity,
     ],
   );
 

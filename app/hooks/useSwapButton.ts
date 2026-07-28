@@ -1,6 +1,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { UseFormWatch } from "react-hook-form";
 import { useInjectedWallet } from "../context";
+import type { LiquiditySegment } from "../lib/marketLiquidity";
 import { validateWalletAddress } from "../lib/validation";
 
 /** Primary CTA when limits require upgrading verification (opens limit / KYC flow from swap). */
@@ -34,6 +35,30 @@ interface UseSwapButtonProps {
   isSwapped?: boolean; // true when in onramp mode (fiat in Send, token in Receive)
   /** Selected chain name for on-ramp wallet validation (e.g. Base, Starknet). */
   networkName?: string;
+  /**
+   * Effective Send-amount bounds from TransactionForm: static product limits,
+   * rate-derived floors and the live provider band already merged. Supplied by
+   * the caller rather than re-derived here so the CTA and the field rules can
+   * never disagree. Omitted, the legacy static floors apply.
+   */
+  amountBounds?: {
+    min: number;
+    max: number;
+    /** Fillable runs within [min, max]; absent means unknown, so not enforced. */
+    segments?: LiquiditySegment[];
+    noLiquidity: boolean;
+  };
+}
+
+/** Unknown segments must not block, so an absent list passes. */
+function fitsLiquiditySegment(
+  segments: LiquiditySegment[] | undefined,
+  amount: number,
+): boolean {
+  if (!segments?.length) return true;
+  return segments.some(
+    (segment) => amount >= segment.min && amount <= segment.max,
+  );
 }
 
 export function useSwapButton({
@@ -49,6 +74,7 @@ export function useSwapButton({
   rate,
   isSwapped = false,
   networkName = "",
+  amountBounds,
 }: UseSwapButtonProps) {
   const { authenticated } = usePrivy();
   const { isInjectedWallet, injectedReady, injectedRequested, injectedStatus } =
@@ -76,11 +102,21 @@ export function useSwapButton({
   const isInjectedConnecting =
     injectedRequested && !injectedReady && injectedStatus === "pending";
 
-  // Off-ramp: min 0.5 token. On-ramp: min fiat 0.5×rate only after receive token + rate (same as onrampFiatMin).
+  // The amount must sit within the effective bounds, which already fold the
+  // static limits, the rate-derived floor and live provider capacity together.
+  // Segments additionally reject a hole between two providers' bands, since one
+  // order is filled by one provider. Without bounds the legacy floors stand:
+  // 0.5 token off-ramp, 0.5×rate on-ramp once a receive token and rate exist.
+  const amountFloor = amountBounds?.min ?? (isSwapped ? 0.5 * Number(rate) : 0.5);
+  const amountCeiling = amountBounds?.max ?? Infinity;
+  const withinBounds =
+    !amountBounds?.noLiquidity &&
+    Number(amountSent) <= amountCeiling &&
+    fitsLiquiditySegment(amountBounds?.segments, Number(amountSent));
   const isAmountValid = isSwapped
     ? !token ||
-      (Number(rate) > 0 && Number(amountSent) >= 0.5 * Number(rate))
-    : Number(amountSent) >= 0.5;
+      (withinBounds && Number(rate) > 0 && Number(amountSent) >= amountFloor)
+    : withinBounds && Number(amountSent) >= amountFloor;
   const isCurrencySelected = Boolean(currency);
 
   const totalRequired = Number(amountSent) || 0;
@@ -101,6 +137,13 @@ export function useSwapButton({
     // Connecting needs no amount: the CTA is live as soon as the form renders.
     if (isInjectedAwaiting) return true;
     if (isInjectedConnecting) return false;
+
+    // A corridor with no fillable offers stays disabled even when the wallet
+    // is underfunded: the `hasInsufficientBalance` branch below enables
+    // "Fund wallet" unconditionally on the theory that funding fixes
+    // whatever is wrong, but funding does nothing here — no provider exists
+    // for this corridor at any amount.
+    if (amountBounds?.noLiquidity) return false;
 
     // Phone / next-tier KYC from the main CTA must work before the user picks a
     // recipient; otherwise the verify label appears on a permanently disabled button.

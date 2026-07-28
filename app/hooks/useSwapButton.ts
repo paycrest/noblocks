@@ -138,6 +138,13 @@ export function useSwapButton({
     if (isInjectedAwaiting) return true;
     if (isInjectedConnecting) return false;
 
+    // A corridor with no fillable offers stays disabled even when the wallet
+    // is underfunded: the `hasInsufficientBalance` branch below enables
+    // "Fund wallet" unconditionally on the theory that funding fixes
+    // whatever is wrong, but funding does nothing here — no provider exists
+    // for this corridor at any amount.
+    if (amountBounds?.noLiquidity) return false;
+
     // Phone / next-tier KYC from the main CTA must work before the user picks a
     // recipient; otherwise the verify label appears on a permanently disabled button.
     const rateReady = Boolean(rate) && Number(rate) > 0;

@@ -248,6 +248,21 @@ describe("useSwapButton liquidity band", () => {
     expect(result.isEnabled).toBe(false);
   });
 
+  it("does not offer 'Fund wallet' for a corridor with no liquidity", () => {
+    // The insufficient-balance branch otherwise enables unconditionally, on
+    // the theory that funding fixes it — but no balance fills an order when
+    // no provider serves this corridor at all.
+    const result = setupWithAmount(
+      { amountSent: 100 },
+      {
+        balance: 1,
+        amountBounds: { min: 0.5, max: 10000, noLiquidity: true },
+      },
+    );
+
+    expect(result.isEnabled).toBe(false);
+  });
+
   it("enforces the static ceiling the form falls back to when liquidity is unknown", () => {
     // The caller merges static limits into the bounds, so the CTA agrees with
     // the field rule instead of enabling an amount the field has rejected.

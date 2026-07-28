@@ -459,6 +459,13 @@ export const fetchRate = async ({
 // (not the consumer count) sets the request rate. The aggregator caches the
 // full book ~10s upstream, so a matching TTL here costs no freshness.
 const MARKETS_TTL_MS = 10 * 1000;
+/**
+ * The rate quote waits on the first book for a corridor, so this request has
+ * to fail rather than hang: a stalled connection would otherwise hold back the
+ * quote indefinitely. Failing lands on the unknown-book path, which quotes
+ * against the static limits exactly as before this feature existed.
+ */
+const MARKETS_TIMEOUT_MS = 8 * 1000;
 const marketsInFlight = new Map<string, Promise<V2MarketOffer[]>>();
 const marketsResult = new Map<string, { at: number; data: V2MarketOffer[] }>();
 
@@ -531,7 +538,11 @@ export const fetchMarkets = async (
         side,
       });
 
-      const response = await axios.get(endpoint, { params, signal });
+      const response = await axios.get(endpoint, {
+        params,
+        signal,
+        timeout: MARKETS_TIMEOUT_MS,
+      });
       const body = response.data as {
         status?: string;
         message?: string;

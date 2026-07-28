@@ -4,6 +4,7 @@
 import {
   computeLiquidityEnvelope,
   envelopesEqual,
+  fillableQuoteAmount,
   filterOffersForCorridor,
   isAmountFillable,
   liquidityMaxMessage,
@@ -529,6 +530,71 @@ describe("envelopesEqual", () => {
   it("handles nulls", () => {
     expect(envelopesEqual(null, null)).toBe(true);
     expect(envelopesEqual(base, null)).toBe(false);
+  });
+});
+
+describe("fillableQuoteAmount", () => {
+  // Sell corridor: Send units and query units are both the token, so the
+  // rescaled query equals the clamped Send amount.
+  const sellEnvelope = computeLiquidityEnvelope(
+    [
+      offer(SELL_NGN_BASE, {
+        rate: 1000,
+        min: 50,
+        max: 7500,
+        balance: 100_000_000,
+        balanceCurrency: "NGN",
+      }),
+    ],
+    SELL_NGN_BASE,
+  );
+
+  it("leaves a fillable amount alone", () => {
+    expect(fillableQuoteAmount(sellEnvelope, 1000, 1000)).toBe(1000);
+  });
+
+  it("quotes the ceiling instead of an amount above it", () => {
+    expect(fillableQuoteAmount(sellEnvelope, 9000, 9000)).toBe(7500);
+  });
+
+  it("quotes the floor instead of an amount below it", () => {
+    expect(fillableQuoteAmount(sellEnvelope, 0.2, 0.2)).toBe(50);
+  });
+
+  it("keeps the quote in token units when Send is fiat", () => {
+    // Buy: Send is fiat (1 CNGN per NGN here), the query is the token amount.
+    // 5,000 fiat clamps to 500, so a 5,000-token query scales by the same 1/10.
+    const buyEnvelope = computeLiquidityEnvelope(
+      [
+        offer(BUY_NGN_BASE, {
+          rate: 1,
+          min: 1,
+          max: 500,
+          balance: 500,
+          balanceCurrency: "CNGN",
+        }),
+      ],
+      BUY_NGN_BASE,
+    );
+
+    expect(fillableQuoteAmount(buyEnvelope, 5000, 5000)).toBe(500);
+  });
+
+  it("passes the amount through when the book is unknown", () => {
+    // An outage must not reshape the quote — that is the static-limit path.
+    expect(fillableQuoteAmount(null, 9000, 9000)).toBe(9000);
+  });
+
+  it("does not rescale away to zero", () => {
+    // A tiny query against a much smaller clamp would round to 0, which the
+    // aggregator rejects outright; the original stands instead.
+    expect(fillableQuoteAmount(sellEnvelope, 1_000_000_000, 0.0001)).toBe(
+      0.0001,
+    );
+  });
+
+  it("ignores a zero or absent Send amount", () => {
+    expect(fillableQuoteAmount(sellEnvelope, 0, 100)).toBe(100);
   });
 });
 

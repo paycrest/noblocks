@@ -1,4 +1,7 @@
 import type { ReactNode } from "react";
+// Type-only: erased at build, so this does not create a runtime cycle with
+// marketLiquidity.ts, which imports its wire types from here.
+import type { LiquidityEnvelope } from "./lib/marketLiquidity";
 
 export type MobileSheetView =
   | "wallet"
@@ -362,6 +365,12 @@ export type StateProps = {
   setTransactionStatus: (status: TransactionStatusType) => void;
   rateError: string | null;
   setRateError: (error: string | null) => void;
+  /**
+   * Live provider capacity for the current corridor, or `null` when unknown.
+   * Held at the page level so the form's limits and the rate request agree on
+   * one poll's worth of truth.
+   */
+  liquidity: LiquidityEnvelope | null;
   onrampPaymentAccount: V2FiatProviderAccountDTO | null;
   setOnrampPaymentAccount: (account: V2FiatProviderAccountDTO | null) => void;
   /** Locked when the current order is created; not tied to live swapMode. */

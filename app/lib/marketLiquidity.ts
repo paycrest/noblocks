@@ -279,6 +279,40 @@ export function nearestFillableAmount(
   return nearest;
 }
 
+/**
+ * Rescales a rate-quote amount onto the nearest amount a provider will take.
+ *
+ * The rates endpoint answers per amount, so asking about an amount outside
+ * every band returns a no-provider error rather than a rate — which would put
+ * a raw backend string in front of the user for a state the form already
+ * explains, and leave both amount fields with nothing to convert by. Quoting
+ * the nearest fillable amount instead keeps a rate on screen while the form
+ * goes on rejecting what was actually typed.
+ *
+ * `sentAmount` is in Send-field units (fiat on buy, token on sell) because
+ * that is what the envelope describes, while `queryAmount` is in token units
+ * either way — so the correction applies as a ratio rather than a swap.
+ *
+ * @returns `queryAmount` unchanged when the book is unknown, when the amount
+ * is already fillable, or when rescaling would round it away to nothing.
+ */
+export function fillableQuoteAmount(
+  envelope: LiquidityEnvelope | null,
+  sentAmount: number,
+  queryAmount: number,
+): number {
+  if (!(sentAmount > 0) || !Number.isFinite(queryAmount)) return queryAmount;
+  if (isAmountFillable(envelope, sentAmount)) return queryAmount;
+
+  const nearest = nearestFillableAmount(envelope, sentAmount);
+  if (nearest === null) return queryAmount;
+
+  const rescaled = Number(
+    ((queryAmount * nearest) / sentAmount).toFixed(TOKEN_DECIMALS),
+  );
+  return rescaled > 0 ? rescaled : queryAmount;
+}
+
 /** True when two envelopes carry the same information, to avoid re-render churn. */
 export function envelopesEqual(
   a: LiquidityEnvelope | null,

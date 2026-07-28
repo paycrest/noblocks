@@ -50,7 +50,6 @@ import { useWalletAddress } from "../hooks/useWalletAddress";
 import { useLoginWithScrollPin } from "../hooks/useLoginWithScrollPin";
 import { fetchSupportedCurrencyCodes } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
-import { useMarketLiquidity } from "../hooks/useMarketLiquidity";
 import {
   isAmountFillable,
   liquidityMaxMessage,
@@ -316,20 +315,12 @@ export const TransactionForm = ({
     dependencies: [selectedNetwork],
   });
 
-  // Live provider capacity for this corridor. Drives the amount limits so the
-  // form only accepts amounts a provider can actually fill; a null envelope
-  // means unknown and leaves the static limits in place.
-  const { envelope: liquidity } = useMarketLiquidity({
-    enabled:
-      Boolean(token) &&
-      Boolean(currency) &&
-      (swapMode !== "onramp" ||
-        (isOnrampFiatCurrencyCode(currency) && onrampSupported)),
-    side: swapMode === "onramp" ? "buy" : "sell",
-    token,
-    currency,
-    networkName: selectedNetwork.chain.name,
-  });
+  // Live provider capacity for this corridor, polled once at the page level
+  // (see MainPageContent) so the limits here and the rate request there read
+  // the same book. Drives the amount limits so the form only accepts amounts a
+  // provider can actually fill; a null envelope means unknown and leaves the
+  // static limits in place.
+  const liquidity = stateProps.liquidity;
   const noLiquidity = Boolean(liquidity && !liquidity.viable);
 
   /**
@@ -703,21 +694,33 @@ export const TransactionForm = ({
         //   Formula: Receive = Send / Rate (463,284 NGN / 1400 = 330.917 USDC)
 
         if (isReceiveInputActive) {
-          // User is typing in Receive field
+          // User is typing in Receive field.
+          //
+          // `amountSent` carries the limit rules, so writing it here has to
+          // validate: without it the field keeps whatever verdict the last
+          // Send keystroke left behind — a rejected amount corrected from the
+          // Receive side keeps its error, and an amount typed only from the
+          // Receive side is never checked at all.
           if (isSwapped) {
             // Swapped: Receive = Token, so calculate Send (Currency)
             // Send = Receive * Rate (20.4 USDC * 1400 = 28,560 NGN)
             const calculatedAmount = Number(
               (Number(amountReceived) * rate).toFixed(4),
             );
-            setValue("amountSent", calculatedAmount, { shouldDirty: true });
+            setValue("amountSent", calculatedAmount, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
           } else {
             // Not swapped: Receive = Currency, so calculate Send (Token)
             // Send = Receive / Rate (1400 NGN / 1400 = 1 USDC)
             const calculatedAmount = Number(
               (Number(amountReceived) / rate).toFixed(4),
             );
-            setValue("amountSent", calculatedAmount, { shouldDirty: true });
+            setValue("amountSent", calculatedAmount, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
           }
         } else {
           // User is typing in Send field

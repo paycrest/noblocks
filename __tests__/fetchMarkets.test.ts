@@ -48,9 +48,17 @@ describe("fetchMarkets envelope parsing", () => {
     await expect(fetchMarkets(nextCorridor())).resolves.toEqual([OFFER]);
   });
 
-  it("reads the book nested under a named key", async () => {
+  it("reads the live shape, where the book sits beside metadata", async () => {
     mockedGet.mockResolvedValue({
-      data: { status: "success", data: { book: [OFFER] } },
+      data: {
+        status: "success",
+        message: "OK",
+        data: {
+          asOf: "2026-07-28T03:12:14Z",
+          aggregates: { corridors: 4, tokens: 3, networks: 8 },
+          book: [OFFER],
+        },
+      },
     } as never);
 
     await expect(fetchMarkets(nextCorridor())).resolves.toEqual([OFFER]);

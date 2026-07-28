@@ -208,8 +208,14 @@ export type V2MarketOffer = {
   min?: number | string;
   max?: number | string;
   balance?: number | string;
+  /** Denomination of `balance`: the token on buy rows, the fiat on sell rows. */
+  balanceCurrency?: string;
   rate?: number | string;
+  rateType?: string;
   providerId?: string;
+  side?: string;
+  token?: string;
+  fiat?: string;
   network?: string;
   [key: string]: unknown;
 };

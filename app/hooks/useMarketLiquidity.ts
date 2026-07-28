@@ -75,15 +75,17 @@ export function useMarketLiquidity({
     if (!hasEnvelopeRef.current) setIsLoading(true);
 
     try {
-      const offers = await fetchMarkets({
+      const corridor = {
         side,
         token: wireToken,
         currency: wireCurrency,
         network: wireNetwork,
-      });
+      };
+      const offers = await fetchMarkets(corridor);
       if (seq !== requestSeq.current) return;
 
-      const next = computeLiquidityEnvelope(offers, side);
+      // Re-applies the corridor client-side; see filterOffersForCorridor.
+      const next = computeLiquidityEnvelope(offers, corridor);
       hasEnvelopeRef.current = next !== null;
       setEnvelope((prev) => (envelopesEqual(prev, next) ? prev : next));
       setError(null);

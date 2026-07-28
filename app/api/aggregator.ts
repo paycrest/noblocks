@@ -468,10 +468,10 @@ function marketsCacheKey({ side, token, currency, network }: MarketsPayload) {
 
 /**
  * Pulls the offer rows out of an aggregator response without assuming the
- * exact envelope shape: a bare array, `data` as an array, or `data` wrapping
- * the array under a key such as `offers`/`book` all resolve. An unrecognized
- * shape yields `[]`, which callers treat as "unknown" and fall back to their
- * static limits rather than blocking the user.
+ * exact envelope shape. The documented form is `data.book`, but a bare array
+ * or `data` as an array also resolve. An unrecognized shape yields `[]`,
+ * which callers treat as "unknown" and fall back to their static limits
+ * rather than blocking the user.
  */
 function extractMarketOffers(raw: unknown): V2MarketOffer[] {
   if (Array.isArray(raw)) return raw as V2MarketOffer[];
@@ -484,6 +484,11 @@ function extractMarketOffers(raw: unknown): V2MarketOffer[] {
     container.data && typeof container.data === "object"
       ? (container.data as Record<string, unknown>)
       : container;
+
+  for (const key of ["book", "offers", "markets"]) {
+    if (Array.isArray(nested[key])) return nested[key] as V2MarketOffer[];
+  }
+
   const arrayValue = Object.values(nested).find((value) =>
     Array.isArray(value),
   );

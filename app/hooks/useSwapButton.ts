@@ -1,6 +1,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { UseFormWatch } from "react-hook-form";
 import { useInjectedWallet } from "../context";
+import type { LiquiditySegment } from "../lib/marketLiquidity";
 import { validateWalletAddress } from "../lib/validation";
 
 /** Primary CTA when limits require upgrading verification (opens limit / KYC flow from swap). */
@@ -41,8 +42,21 @@ interface UseSwapButtonProps {
   liquidity?: {
     min: number | null;
     max: number | null;
+    /** Fillable runs within [min, max]; absent means unknown, so not enforced. */
+    segments?: LiquiditySegment[];
     noLiquidity: boolean;
   };
+}
+
+/** Unknown segments must not block, so an absent list passes. */
+function fitsLiquiditySegment(
+  segments: LiquiditySegment[] | undefined,
+  amount: number,
+): boolean {
+  if (!segments?.length) return true;
+  return segments.some(
+    (segment) => amount >= segment.min && amount <= segment.max,
+  );
 }
 
 export function useSwapButton({
@@ -86,13 +100,20 @@ export function useSwapButton({
   const isInjectedConnecting =
     injectedRequested && !injectedReady && injectedStatus === "pending";
 
-  // Off-ramp: min 0.5 token. On-ramp: min fiat 0.5×rate only after receive token + rate (same as onrampFiatMin).
-  // Live provider capacity tightens both bounds when known, so the CTA agrees
-  // with the amount field instead of letting an unfillable amount through.
+  // The amount must clear a static floor and, when live provider capacity is
+  // known, sit within what a single provider will actually fill:
+  //   - floor: 0.5 token off-ramp; 0.5×rate in fiat on-ramp, and only once a
+  //     receive token and rate exist (same condition as onrampFiatMin)
+  //   - live band: raises that floor and caps the ceiling, and rejects a hole
+  //     between two providers' bands (see LiquidityEnvelope.segments)
+  // Unknown liquidity leaves the static floor in force on its own, so the CTA
+  // agrees with the amount field rather than letting an unfillable amount past.
   const liquidityFloor = liquidity?.min ?? 0;
   const liquidityCeiling = liquidity?.max ?? Infinity;
   const withinLiquidity =
-    !liquidity?.noLiquidity && Number(amountSent) <= liquidityCeiling;
+    !liquidity?.noLiquidity &&
+    Number(amountSent) <= liquidityCeiling &&
+    fitsLiquiditySegment(liquidity?.segments, Number(amountSent));
   const isAmountValid = isSwapped
     ? !token ||
       (withinLiquidity &&

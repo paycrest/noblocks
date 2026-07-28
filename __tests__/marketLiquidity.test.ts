@@ -5,8 +5,11 @@ import {
   computeLiquidityEnvelope,
   envelopesEqual,
   filterOffersForCorridor,
+  isAmountFillable,
   liquidityMaxMessage,
   liquidityMinMessage,
+  nearestFillableAmount,
+  nearestFillableMessage,
   noLiquidityMessage,
   type LiquidityCorridor,
 } from "../app/lib/marketLiquidity";
@@ -22,6 +25,27 @@ const SELL_NGN_BASE: LiquidityCorridor = {
   token: "USDC",
   currency: "NGN",
   network: "base",
+};
+
+/**
+ * Verbatim from GET /v2/markets — the corridor behind the reported
+ * "no provider available" toast for ~2,999,400 cNGN on Base.
+ */
+const CNGN_BUY_BASE = {
+  providerId: "LJByJEHF",
+  side: "buy",
+  token: "CNGN",
+  fiat: "NGN",
+  network: "base",
+  rate: "1.0002",
+  rateType: "fixed",
+  min: "900",
+  max: "10000000",
+  minFlatFee: "100",
+  maxFlatFee: "1000",
+  balance: "2995066.125456",
+  balanceCurrency: "CNGN",
+  balanceUsd: "2140.6020179506421664",
 };
 
 /** Fills in the corridor fields so a fixture only states what it is testing. */
@@ -283,25 +307,6 @@ describe("computeLiquidityEnvelope", () => {
 });
 
 describe("computeLiquidityEnvelope against live book rows", () => {
-  // Verbatim from GET /v2/markets — the corridor behind the reported
-  // "no provider available" toast for ~2,999,400 cNGN on Base.
-  const CNGN_BUY_BASE = {
-    providerId: "LJByJEHF",
-    side: "buy",
-    token: "CNGN",
-    fiat: "NGN",
-    network: "base",
-    rate: "1.0002",
-    rateType: "fixed",
-    min: "900",
-    max: "10000000",
-    minFlatFee: "100",
-    maxFlatFee: "1000",
-    balance: "2995066.125456",
-    balanceCurrency: "CNGN",
-    balanceUsd: "2140.6020179506421664",
-  };
-
   it("caps cNGN on Base at the provider's float, not the 10M order band", () => {
     const envelope = computeLiquidityEnvelope([CNGN_BUY_BASE], BUY_NGN_BASE);
 
@@ -360,6 +365,81 @@ describe("computeLiquidityEnvelope against live book rows", () => {
   });
 });
 
+describe("fillable segments", () => {
+  const buyBand = (band: Record<string, unknown>) =>
+    offer(BUY_NGN_BASE, { balanceCurrency: "CNGN", rate: 1, ...band });
+
+  it("merges a provider's own tiled bands into one run", () => {
+    // The aggregator tiles bands with a hairline gap so they do not overlap;
+    // those seams are not holes and must not be reported as such.
+    const rows = [
+      { min: 0.5, max: 2 },
+      { min: 2.000999, max: 7 },
+      { min: 7.000999, max: 20 },
+      { min: 20.000999, max: 100 },
+      { min: 100.000999, max: 500 },
+    ].map((band) => buyBand({ ...band, balance: 500 }));
+
+    const envelope = computeLiquidityEnvelope(rows, BUY_NGN_BASE);
+
+    expect(envelope?.segments).toEqual([{ min: 1, max: 500 }]);
+    [1, 2, 3, 50, 250, 500].forEach((amount) =>
+      expect(isAmountFillable(envelope, amount)).toBe(true),
+    );
+  });
+
+  it("reports a genuine hole between two providers as separate runs", () => {
+    const rows = [
+      buyBand({ providerId: "a", min: 0.5, max: 2, balance: 2 }),
+      buyBand({ providerId: "b", min: 100, max: 500, balance: 500 }),
+    ];
+
+    const envelope = computeLiquidityEnvelope(rows, BUY_NGN_BASE);
+
+    expect(envelope).toMatchObject({ viable: true, min: 1, max: 500 });
+    expect(envelope?.segments).toEqual([
+      { min: 1, max: 2 },
+      { min: 100, max: 500 },
+    ]);
+    // Inside [min, max] but no single provider covers it.
+    expect(isAmountFillable(envelope, 50)).toBe(false);
+  });
+
+  it("names the nearest fillable amount across a hole", () => {
+    const envelope = computeLiquidityEnvelope(
+      [
+        buyBand({ providerId: "a", min: 0.5, max: 2, balance: 2 }),
+        buyBand({ providerId: "b", min: 100, max: 500, balance: 500 }),
+      ],
+      BUY_NGN_BASE,
+    );
+
+    expect(nearestFillableAmount(envelope, 10)).toBe(2);
+    expect(nearestFillableAmount(envelope, 90)).toBe(100);
+    // Equidistant between 2 and 100: prefer the larger, not a downgrade.
+    expect(nearestFillableAmount(envelope, 51)).toBe(100);
+    // Already fillable amounts come back untouched.
+    expect(nearestFillableAmount(envelope, 250)).toBe(250);
+    // Beyond the ceiling it steers to the ceiling.
+    expect(nearestFillableAmount(envelope, 9000)).toBe(500);
+  });
+
+  it("does not block when liquidity is unknown or non-viable", () => {
+    expect(isAmountFillable(null, 50)).toBe(true);
+    const nonViable = computeLiquidityEnvelope(
+      [offer(SELL_NGN_BASE, { min: 250, max: 2000, rate: 1386.2 })],
+      BUY_NGN_BASE,
+    );
+    expect(isAmountFillable(nonViable, 50)).toBe(true);
+    expect(nearestFillableAmount(nonViable, 50)).toBeNull();
+  });
+
+  it("keeps one run for a healthy corridor", () => {
+    const envelope = computeLiquidityEnvelope([CNGN_BUY_BASE], BUY_NGN_BASE);
+    expect(envelope?.segments).toHaveLength(1);
+  });
+});
+
 describe("envelopesEqual", () => {
   const band = [
     offer(BUY_NGN_BASE, {
@@ -413,6 +493,9 @@ describe("copy", () => {
     );
     expect(noLiquidityMessage("cNGN", "Base")).toBe(
       "No liquidity available for cNGN on Base right now",
+    );
+    expect(nearestFillableMessage(100, "buy", "NGN", "cNGN")).toBe(
+      "Try ₦100 — the nearest amount available right now",
     );
   });
 });

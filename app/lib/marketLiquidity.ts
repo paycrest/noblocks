@@ -9,6 +9,9 @@
 import type { RateSide, V2MarketOffer } from "../types";
 import { formatNumberWithCommas, getCurrencySymbol } from "../utils";
 
+/** One continuous run of fillable amounts, in Send-field units. */
+export type LiquiditySegment = { min: number; max: number };
+
 export type LiquidityEnvelope = {
   /** False when the book has rows but none can fill an order right now. */
   viable: boolean;
@@ -16,6 +19,15 @@ export type LiquidityEnvelope = {
   /** Bounds in Send-field units: fiat on buy (onramp), token on sell (offramp). */
   min: number | null;
   max: number | null;
+  /**
+   * The fillable runs between `min` and `max`, ascending and non-overlapping.
+   *
+   * One order is filled by one provider, so sitting inside `[min, max]` is not
+   * on its own enough — that span is the union of every provider's band, and
+   * two providers whose bands do not meet leave a hole no single one can
+   * cover. Usually there is exactly one segment.
+   */
+  segments: LiquiditySegment[];
   /** Cheapest fiat-per-token among viable offers. */
   bestRate: number | null;
   offerCount: number;
@@ -33,6 +45,17 @@ export type LiquidityCorridor = {
 
 /** Send amounts accept at most 4 decimals, so token bounds round to the same. */
 const TOKEN_DECIMALS = 4;
+
+/**
+ * How far apart two bands may sit and still count as one run.
+ *
+ * A provider tiles its own bands with a hairline gap so they do not overlap
+ * (…–2, then 2.000999–…). Treating those seams as holes would reject amounts
+ * that fill perfectly well, while a real hole between providers is orders of
+ * magnitude wider. A relative tolerance separates the two without hard-coding
+ * the aggregator's epsilon.
+ */
+const SEGMENT_MERGE_TOLERANCE = 0.01;
 
 function toFiniteNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -52,6 +75,27 @@ function ceilTo(value: number, decimals: number): number {
 
 function sameCode(a: unknown, b: string): boolean {
   return typeof a === "string" && a.trim().toLowerCase() === b.toLowerCase();
+}
+
+/** Collapses overlapping and touching bands into the runs actually fillable. */
+function mergeSegments(
+  raw: LiquiditySegment[],
+  decimals: number,
+): LiquiditySegment[] {
+  const unit = 1 / 10 ** decimals;
+  const merged: LiquiditySegment[] = [];
+
+  for (const segment of [...raw].sort((a, b) => a.min - b.min)) {
+    const last = merged[merged.length - 1];
+    const reach = last ? last.max * (1 + SEGMENT_MERGE_TOLERANCE) + unit : 0;
+    if (last && segment.min <= reach) {
+      if (segment.max > last.max) last.max = segment.max;
+    } else {
+      merged.push({ ...segment });
+    }
+  }
+
+  return merged;
 }
 
 /**
@@ -127,8 +171,8 @@ export function computeLiquidityEnvelope(
   if (!Array.isArray(offers) || offers.length === 0) return null;
 
   const { side } = corridor;
-  let min: number | null = null;
-  let max: number | null = null;
+  const decimals = side === "buy" ? 0 : TOKEN_DECIMALS;
+  const bands: LiquiditySegment[] = [];
   let bestRate: number | null = null;
   let viableCount = 0;
 
@@ -147,37 +191,83 @@ export function computeLiquidityEnvelope(
     const upper = side === "buy" ? cap * rate : cap;
 
     viableCount += 1;
-    if (min === null || lower < min) min = lower;
-    if (max === null || upper > max) max = upper;
     if (bestRate === null || rate < bestRate) bestRate = rate;
+
+    // Round inward so an amount the form accepts is never rejected downstream.
+    const band = { min: ceilTo(lower, decimals), max: floorTo(upper, decimals) };
+    if (band.max > 0 && band.max >= band.min) bands.push(band);
   }
 
-  if (viableCount === 0 || min === null || max === null) {
+  const segments = mergeSegments(bands, decimals);
+
+  if (viableCount === 0) {
     return {
       viable: false,
       side,
       min: null,
       max: null,
+      segments: [],
       bestRate: null,
       offerCount: 0,
     };
   }
 
-  const decimals = side === "buy" ? 0 : TOKEN_DECIMALS;
-  // Round inward so an amount the form accepts is never rejected downstream.
-  const roundedMin = ceilTo(min, decimals);
-  const roundedMax = floorTo(max, decimals);
-
-  if (!(roundedMax > 0) || roundedMax < roundedMin) return null;
+  // Offers were viable but every band rounded away to nothing.
+  if (segments.length === 0) return null;
 
   return {
     viable: true,
     side,
-    min: roundedMin,
-    max: roundedMax,
+    min: segments[0].min,
+    max: segments[segments.length - 1].max,
+    segments,
     bestRate,
     offerCount: viableCount,
   };
+}
+
+/** True when a single provider can fill exactly `amount`. */
+export function isAmountFillable(
+  envelope: LiquidityEnvelope | null,
+  amount: number,
+): boolean {
+  if (!envelope?.viable || envelope.segments.length === 0) return true;
+  if (!Number.isFinite(amount)) return true;
+  return envelope.segments.some(
+    (segment) => amount >= segment.min && amount <= segment.max,
+  );
+}
+
+/**
+ * @returns the fillable amount closest to `amount`, or null when there is no
+ * live band to steer toward. An amount already fillable is returned unchanged.
+ *
+ * Ties go to the larger amount — someone who asked for more is better served
+ * by rounding up to the next band than down into the previous one.
+ */
+export function nearestFillableAmount(
+  envelope: LiquidityEnvelope | null,
+  amount: number,
+): number | null {
+  if (!envelope?.viable || envelope.segments.length === 0) return null;
+  if (!Number.isFinite(amount)) return null;
+
+  let nearest: number | null = null;
+  let shortest = Infinity;
+
+  for (const segment of envelope.segments) {
+    const candidate = Math.min(Math.max(amount, segment.min), segment.max);
+    const distance = Math.abs(candidate - amount);
+    if (
+      distance < shortest ||
+      (distance === shortest && nearest !== null && candidate > nearest)
+    ) {
+      nearest = candidate;
+      shortest = distance;
+    }
+  }
+
+  return nearest;
 }
 
 /** True when two envelopes carry the same information, to avoid re-render churn. */
@@ -193,8 +283,26 @@ export function envelopesEqual(
     a.min === b.min &&
     a.max === b.max &&
     a.bestRate === b.bestRate &&
-    a.offerCount === b.offerCount
+    a.offerCount === b.offerCount &&
+    a.segments.length === b.segments.length &&
+    a.segments.every(
+      (segment, index) =>
+        segment.min === b.segments[index].min &&
+        segment.max === b.segments[index].max,
+    )
   );
+}
+
+/** The Send field holds fiat on buy and the token on sell. */
+function formatSendAmount(
+  amount: number,
+  side: RateSide,
+  currency: string,
+  token: string,
+): string {
+  return side === "buy"
+    ? `${getCurrencySymbol(currency)}${formatNumberWithCommas(amount)}`
+    : `${formatNumberWithCommas(amount)} ${token}`;
 }
 
 /**
@@ -207,11 +315,7 @@ export function liquidityMaxMessage(
   currency: string,
   token: string,
 ): string {
-  const unit =
-    side === "buy"
-      ? `${getCurrencySymbol(currency)}${formatNumberWithCommas(amount)}`
-      : `${formatNumberWithCommas(amount)} ${token}`;
-  return `Up to ${unit} available right now`;
+  return `Up to ${formatSendAmount(amount, side, currency, token)} available right now`;
 }
 
 export function liquidityMinMessage(
@@ -220,11 +324,21 @@ export function liquidityMinMessage(
   currency: string,
   token: string,
 ): string {
-  const unit =
-    side === "buy"
-      ? `${getCurrencySymbol(currency)}${formatNumberWithCommas(amount)}`
-      : `${formatNumberWithCommas(amount)} ${token}`;
-  return `Minimum for available offers is ${unit}`;
+  return `Minimum for available offers is ${formatSendAmount(amount, side, currency, token)}`;
+}
+
+/**
+ * Shown when an amount sits between two providers' bands: inside the overall
+ * range, yet no single provider covers it. Names the closest amount that is,
+ * since the bare fact is not actionable on its own.
+ */
+export function nearestFillableMessage(
+  amount: number,
+  side: RateSide,
+  currency: string,
+  token: string,
+): string {
+  return `Try ${formatSendAmount(amount, side, currency, token)} — the nearest amount available right now`;
 }
 
 export function noLiquidityMessage(token: string, network: string): string {

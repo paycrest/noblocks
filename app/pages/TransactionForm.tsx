@@ -52,8 +52,11 @@ import { fetchSupportedCurrencyCodes } from "../api/aggregator";
 import { useCNGNRate } from "../hooks/useCNGNRate";
 import { useMarketLiquidity } from "../hooks/useMarketLiquidity";
 import {
+  isAmountFillable,
   liquidityMaxMessage,
   liquidityMinMessage,
+  nearestFillableAmount,
+  nearestFillableMessage,
   noLiquidityMessage,
 } from "../lib/marketLiquidity";
 import { useFundWalletHandler } from "../hooks/useFundWalletHandler";
@@ -822,6 +825,21 @@ export const TransactionForm = ({
                 ? liquidityMinMessage(floor, "buy", fiat, token)
                 : `Minimum amount is ${getCurrencySymbol(fiat)}${formatNumberWithCommas(floor)}`;
             },
+            liquidityGap: (value: number) => {
+              // An amount can clear both bounds and still fall between two
+              // providers' bands, which no single provider can fill.
+              const n = Number(value);
+              if (!Number.isFinite(n) || n <= 0) return true;
+              if (isAmountFillable(liquidity, n)) return true;
+              // Outside the overall band already reads as a min/max error.
+              if (liquidityMin !== null && n < liquidityMin) return true;
+              if (liquidityMax !== null && n > liquidityMax) return true;
+
+              const nearest = nearestFillableAmount(liquidity, n);
+              return nearest === null
+                ? true
+                : nearestFillableMessage(nearest, side, fiat, token);
+            },
           },
         });
 
@@ -940,6 +958,7 @@ export const TransactionForm = ({
     liquidity: {
       min: liquidity?.viable ? liquidity.min : null,
       max: liquidity?.viable ? liquidity.max : null,
+      segments: liquidity?.viable ? liquidity.segments : undefined,
       noLiquidity,
     },
   });

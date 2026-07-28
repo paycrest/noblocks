@@ -256,4 +256,34 @@ describe("useSwapButton liquidity band", () => {
 
     expect(result.isEnabled).toBe(true);
   });
+
+  it("rejects an amount falling in a hole between providers' bands", () => {
+    // Inside [min, max], but one order is filled by one provider and neither
+    // band covers 50.
+    const liquidity = {
+      min: 1,
+      max: 500,
+      segments: [
+        { min: 1, max: 2 },
+        { min: 100, max: 500 },
+      ],
+      noLiquidity: false,
+    };
+
+    expect(setupWithAmount({ amountSent: 50 }, { liquidity }).isEnabled).toBe(
+      false,
+    );
+    expect(setupWithAmount({ amountSent: 250 }, { liquidity }).isEnabled).toBe(
+      true,
+    );
+  });
+
+  it("does not enforce segments when they are unknown", () => {
+    const result = setupWithAmount(
+      { amountSent: 50 },
+      { liquidity: { min: 1, max: 500, noLiquidity: false } },
+    );
+
+    expect(result.isEnabled).toBe(true);
+  });
 });

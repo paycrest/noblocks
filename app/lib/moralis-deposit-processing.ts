@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { formatUnits } from "viem";
 import { triggerActivepiecesDeposit } from "@/app/lib/activepieces-deposit";
+import { shouldSkipMoralisDepositAsSwapRefund } from "@/app/lib/moralis-skip-swap-refund";
 import {
   getEmailForMonitoredAddress,
   getMoralisDepositNetworkAndExplorer,
@@ -250,6 +251,21 @@ export async function processMoralisDepositPayload(
         tx.hash,
       );
     }
+    if (
+      await shouldSkipMoralisDepositAsSwapRefund({
+        walletAddress: to,
+        txHash: tx.hash,
+        fromAddress: tx.fromAddress,
+      })
+    ) {
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          "[moralis deposit] skipping native — swap refund",
+          tx.hash,
+        );
+      }
+      continue;
+    }
     try {
       await moralisDepositNotificationOnce(
         { kind: "native", chainId: body.chainId, txHash: tx.hash, to },
@@ -331,6 +347,21 @@ export async function processMoralisDepositPayload(
         tr.tokenSymbol,
         txId,
       );
+    }
+    if (
+      await shouldSkipMoralisDepositAsSwapRefund({
+        walletAddress: to,
+        txHash: txId,
+        fromAddress: tr.from,
+      })
+    ) {
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          "[moralis deposit] skipping erc20 — swap refund",
+          txId,
+        );
+      }
+      continue;
     }
     try {
       const matchedToken = supportedTokens.find(

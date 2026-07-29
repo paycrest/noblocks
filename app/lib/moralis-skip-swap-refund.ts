@@ -31,6 +31,9 @@ async function swapOrderExists(
 /**
  * Skip Moralis deposit email + `credit` row when an inbound transfer is a failed-swap refund,
  * not a user-initiated deposit.
+ *
+ * Detection uses the refund sender (Paycrest gateway) or the refund tx hash once the swap row
+ * is updated — not wallet-level `refunding` status, which would block unrelated deposits.
  */
 export async function shouldSkipMoralisDepositAsSwapRefund(params: {
   walletAddress: string;
@@ -40,17 +43,7 @@ export async function shouldSkipMoralisDepositAsSwapRefund(params: {
   if (isPaycrestGatewayAddress(params.fromAddress)) {
     return true;
   }
-  if (
-    await swapOrderExists(params.walletAddress, {
-      tx_hash: normalizeAddress(params.txHash),
-    })
-  ) {
-    return true;
-  }
-  if (
-    await swapOrderExists(params.walletAddress, { status: "refunding" })
-  ) {
-    return true;
-  }
-  return false;
+  return swapOrderExists(params.walletAddress, {
+    tx_hash: normalizeAddress(params.txHash),
+  });
 }

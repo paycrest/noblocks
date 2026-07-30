@@ -9,7 +9,11 @@ import { erc20Abi } from "viem";
 import { supabaseAdmin } from "@/app/lib/supabase";
 import { resolveIdentityScope } from "@/app/lib/kyc-identity";
 import { fetchOrderDetails } from "@/app/api/aggregator";
-import { getSmartWalletAddressFromPrivyUserId } from "@/app/lib/privy";
+import {
+  getSmartWalletAddressFromPrivyUserId,
+  getWalletAddressFromPrivyUserId,
+  getSmartWalletAddressesForWallets,
+} from "@/app/lib/privy";
 import {
   isGatewayOrderId,
   parseEvmChainPrefixedOrderId,
@@ -224,9 +228,20 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     // Step 7.5: Resolve the identity scope that MAX_CASHBACK_PER_WALLET/MAX_CLAIMS_PER_WALLET
     // pool over. Fail closed — a lookup error must not fall back to a per-wallet
     // scope, which would silently grant a fresh allowance.
+    //
+    // resolveIdentityScope() matches siblings via user_kyc_profiles, which is keyed
+    // by the embedded/EOA wallet address — not the smart wallet address `walletAddress`
+    // holds here. It must be looked up separately, and the resulting EOA sibling set
+    // then mapped to smart wallet addresses, since that's the space
+    // blockfest_cashback_claims.wallet_address actually lives in.
     let scopeWallets: string[];
     try {
-      scopeWallets = (await resolveIdentityScope(walletAddress)).wallets;
+      const eoaWalletAddress = await getWalletAddressFromPrivyUserId(userId);
+      const identityScope = await resolveIdentityScope(eoaWalletAddress);
+      const siblingSmartWallets = await getSmartWalletAddressesForWallets(
+        identityScope.wallets,
+      );
+      scopeWallets = [...new Set([walletAddress, ...siblingSmartWallets])];
     } catch (scopeError) {
       console.error("Failed to resolve identity scope for cashback claim:", scopeError);
       return NextResponse.json(

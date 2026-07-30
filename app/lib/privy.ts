@@ -80,6 +80,37 @@ export async function getSmartWalletAddressFromPrivyUserId(
 }
 
 /**
+ * Maps a list of embedded/EOA wallet addresses (as stored in `user_kyc_profiles`)
+ * to their owners' smart wallet addresses.
+ *
+ * `resolveIdentityScope()` matches siblings by verified phone/ID, which only ever
+ * exists in EOA space — but BlockFest's tables (`blockfest_participants`,
+ * `blockfest_cashback_claims`) are keyed by smart wallet address, since that's
+ * where cashback is actually disbursed. Pooling the BlockFest caps across an
+ * identity's sibling wallets therefore requires bridging the two address
+ * spaces, one Privy lookup per sibling. A sibling with no linked smart wallet
+ * (e.g. an injected/SIWE-only wallet with no Privy account) can't hold any
+ * `blockfest_cashback_claims` rows in the first place, so it's skipped rather
+ * than treated as an error.
+ */
+export async function getSmartWalletAddressesForWallets(
+  wallets: string[],
+): Promise<string[]> {
+  const privy = getPrivyClient();
+  const resolved = await Promise.all(
+    wallets.map(async (address) => {
+      const user = await privy.getUserByWalletAddress(address);
+      if (!user) return null;
+      const smartWallet = user.linkedAccounts.find(
+        (account) => account.type === "smart_wallet",
+      )?.address;
+      return smartWallet ? smartWallet.toLowerCase() : null;
+    }),
+  );
+  return [...new Set(resolved.filter((a): a is string => !!a))];
+}
+
+/**
  * Resolves the Privy user id (JWT `sub`) for API routes.
  * Prefer `x-user-id` from middleware; if missing, verify the Bearer token.
  */

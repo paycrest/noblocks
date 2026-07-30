@@ -1805,7 +1805,8 @@ export function TransactionStatus({
                 <div className="flex items-center justify-between gap-1">
                   <p className="flex-1">Onchain receipt</p>
                   <p className="flex-1">
-                    {transactionStatus === "expired" ? (
+                    {transactionStatus === "expired" ||
+                    (isOnramp && transactionStatus === "refunded") ? (
                       <span className="text-text-secondary dark:text-white/40">
                         Not available
                       </span>

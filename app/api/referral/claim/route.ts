@@ -13,6 +13,7 @@ import { erc20Abi } from "viem";
 import { cashbackConfig } from "@/app/lib/server-config";
 import config from "@/app/lib/config";
 import { isReferralEnabled } from "@/app/utils";
+import { resolveOwnIdentityFingerprint } from "@/app/lib/kyc-identity";
 
 // Referral program configuration
 const referralRewardAmountUsd = config.referralRewardAmountUsd;
@@ -23,6 +24,18 @@ function isUniqueViolation(error: { code?: string; message?: string } | null): b
         error?.code === "23505" ||
         Boolean(error?.message?.toLowerCase().includes("duplicate")) ||
         Boolean(error?.message?.toLowerCase().includes("unique"))
+    );
+}
+
+// Distinguishes a conflict on the identity-scoped referee-reward indexes from the
+// pre-existing (referral_id, wallet_address) conflict: the former means a sibling
+// wallet already collected this identity's referee reward (terminal, no row to
+// recover), the latter means this exact claim raced itself (recoverable via lookup).
+function isIdentityConflict(error: { message?: string } | null): boolean {
+    const message = error?.message?.toLowerCase() ?? "";
+    return (
+        message.includes("referral_claims_referee_identity_phone_unique") ||
+        message.includes("referral_claims_referee_identity_id_key_unique")
     );
 }
 
@@ -398,6 +411,25 @@ async function tryClaimOne(
     }
     pendingClaimRow = retried;
   } else {
+    // Referee claims are fingerprinted so a sibling wallet on the same verified
+    // identity can't independently collect its own referee reward. Fail closed:
+    // a lookup error must not proceed as if there's no sibling.
+    let fingerprint: { phone: string | null; idKey: string | null } = {
+      phone: null,
+      idKey: null,
+    };
+    if (!isReferrerClaim) {
+      try {
+        fingerprint = await resolveOwnIdentityFingerprint(referredWallet);
+      } catch {
+        return {
+          success: false,
+          code: "IDENTITY_CHECK_FAILED",
+          message: "Unable to verify referral eligibility. Please try again later.",
+        };
+      }
+    }
+
     const { data: inserted, error: insertError } = await supabaseAdmin
       .from("referral_claims")
       .insert({
@@ -405,11 +437,19 @@ async function tryClaimOne(
         wallet_address: walletAddress,
         reward_amount: referralRewardAmountUsd,
         status: "pending",
+        identity_phone: fingerprint.phone,
+        identity_id_key: fingerprint.idKey,
       })
       .select()
       .single();
 
-    if (insertError && isUniqueViolation(insertError)) {
+    if (insertError && isIdentityConflict(insertError)) {
+      return {
+        success: false,
+        code: "ALREADY_REFERRED",
+        message: "You have already used a referral code",
+      };
+    } else if (insertError && isUniqueViolation(insertError)) {
       const { data: raced, error: raceErr } = await supabaseAdmin
         .from("referral_claims")
         .select("*")
@@ -765,7 +805,9 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             ? 503
             : result.code === "UNAUTHORIZED_REFERRAL"
               ? 403
-              : 500;
+              : result.code === "ALREADY_REFERRED"
+                ? 409
+                : 500;
 
       return NextResponse.json(
         {

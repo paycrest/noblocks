@@ -9,6 +9,7 @@ import {
     trackAuthEvent,
 } from "@/app/lib/server-analytics";
 import { getWalletAddressFromPrivyUserId } from "@/app/lib/privy";
+import { resolveOwnIdentityFingerprint } from "@/app/lib/kyc-identity";
 import config from "@/app/lib/config";
 import { isReferralEnabled } from "@/app/utils";
 
@@ -135,6 +136,13 @@ export const POST = withRateLimit(async (request: NextRequest) => {
             );
         }
 
+        // Fingerprint the referred wallet's own verified phone/ID, if already known.
+        // Usually NULL here (referral codes are submitted before KYC), but when a
+        // fingerprint is already established, this lets the DB catch a sibling
+        // wallet re-submitting under a different referrer code up front. Fail
+        // closed: a lookup error must not silently insert with null fingerprints.
+        const fingerprint = await resolveOwnIdentityFingerprint(walletAddress);
+
         // Create referral record with pending status
         const { data: referralData, error: insertError } = await supabaseAdmin
             .from("referrals")
@@ -145,6 +153,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
                 status: "pending",
                 reward_amount: referralRewardAmountUsd,
                 created_at: new Date().toISOString(),
+                identity_phone: fingerprint.phone,
+                identity_id_key: fingerprint.idKey,
             })
             .select()
             .single();

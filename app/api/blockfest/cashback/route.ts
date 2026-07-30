@@ -7,6 +7,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { erc20Abi } from "viem";
 import { supabaseAdmin } from "@/app/lib/supabase";
+import { resolveIdentityScope } from "@/app/lib/kyc-identity";
 import { fetchOrderDetails } from "@/app/api/aggregator";
 import { getSmartWalletAddressFromPrivyUserId } from "@/app/lib/privy";
 import {
@@ -220,6 +221,26 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
+    // Step 7.5: Resolve the identity scope that MAX_CASHBACK_PER_WALLET/MAX_CLAIMS_PER_WALLET
+    // pool over. Fail closed — a lookup error must not fall back to a per-wallet
+    // scope, which would silently grant a fresh allowance.
+    let scopeWallets: string[];
+    try {
+      scopeWallets = (await resolveIdentityScope(walletAddress)).wallets;
+    } catch (scopeError) {
+      console.error("Failed to resolve identity scope for cashback claim:", scopeError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to verify claim limits",
+          code: "DATABASE_ERROR",
+          message: "Unable to verify your claim eligibility. Please try again.",
+          response_time_ms: Date.now() - start,
+        },
+        { status: 500 },
+      );
+    }
+
     // Step 8: Check for existing claim (idempotency)
     const { data: existingClaim } = await supabaseAdmin
       .from("blockfest_cashback_claims")
@@ -251,12 +272,12 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     );
     const finalCashback = cappedCashback.toFixed(2);
 
-    // Step 10: Check per-wallet limits
+    // Step 10: Check limits, pooled across every wallet sharing this verified identity
     // Check total claim count
     const { count: claimCount, error: countError } = await supabaseAdmin
       .from("blockfest_cashback_claims")
       .select("*", { count: "exact", head: true })
-      .eq("wallet_address", walletAddress)
+      .in("wallet_address", scopeWallets)
       .eq("status", "completed");
 
     if (countError) {
@@ -294,7 +315,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     const { data: completedClaims, error: claimsError } = await supabaseAdmin
       .from("blockfest_cashback_claims")
       .select("amount")
-      .eq("wallet_address", walletAddress)
+      .in("wallet_address", scopeWallets)
       .eq("status", "completed");
 
     if (claimsError) {

@@ -73,6 +73,48 @@ export async function identityScopeHasVerifiedPhone(
   return (data ?? []).length > 0;
 }
 
+/**
+ * Fingerprints a single wallet's own verified phone/ID — no sibling lookup.
+ *
+ * Used to key identity-scoped uniqueness constraints (referral submission and
+ * referee-reward claims) on the same two dimensions `resolveIdentityScope`
+ * pools on, without paying for the sibling query when only the caller's own
+ * values are needed. Values are returned verbatim (no lowercasing), matching
+ * how `resolveIdentityScope`'s own sibling queries do exact `.eq()` matches.
+ *
+ * Throws on any Supabase error — callers must fail closed, same contract as
+ * `resolveIdentityScope`.
+ */
+export async function resolveOwnIdentityFingerprint(
+  walletAddress: string,
+): Promise<{ phone: string | null; idKey: string | null }> {
+  const caller = walletAddress.trim().toLowerCase();
+
+  const { data: profile, error } = await supabaseAdmin
+    .from("user_kyc_profiles")
+    .select("phone_number, id_country, id_type, id_number")
+    .eq("wallet_address", caller)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  const phone = profile?.phone_number || null;
+  const hasId = !!(
+    profile?.id_country &&
+    profile?.id_type &&
+    profile?.id_number
+  );
+
+  return {
+    phone,
+    idKey: hasId
+      ? `${profile!.id_country}:${profile!.id_type}:${profile!.id_number}`
+      : null,
+  };
+}
+
 export async function resolveIdentityScope(
   walletAddress: string,
 ): Promise<IdentityScope> {

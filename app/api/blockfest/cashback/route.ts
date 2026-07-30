@@ -225,38 +225,9 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Step 7.5: Resolve the identity scope that MAX_CASHBACK_PER_WALLET/MAX_CLAIMS_PER_WALLET
-    // pool over. Fail closed — a lookup error must not fall back to a per-wallet
-    // scope, which would silently grant a fresh allowance.
-    //
-    // resolveIdentityScope() matches siblings via user_kyc_profiles, which is keyed
-    // by the embedded/EOA wallet address — not the smart wallet address `walletAddress`
-    // holds here. It must be looked up separately, and the resulting EOA sibling set
-    // then mapped to smart wallet addresses, since that's the space
-    // blockfest_cashback_claims.wallet_address actually lives in.
-    let scopeWallets: string[];
-    try {
-      const eoaWalletAddress = await getWalletAddressFromPrivyUserId(userId);
-      const identityScope = await resolveIdentityScope(eoaWalletAddress);
-      const siblingSmartWallets = await getSmartWalletAddressesForWallets(
-        identityScope.wallets,
-      );
-      scopeWallets = [...new Set([walletAddress, ...siblingSmartWallets])];
-    } catch (scopeError) {
-      console.error("Failed to resolve identity scope for cashback claim:", scopeError);
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to verify claim limits",
-          code: "DATABASE_ERROR",
-          message: "Unable to verify your claim eligibility. Please try again.",
-          response_time_ms: Date.now() - start,
-        },
-        { status: 500 },
-      );
-    }
-
-    // Step 8: Check for existing claim (idempotency)
+    // Step 8: Check for existing claim (idempotency) — before identity resolution,
+    // so a retry on an already-processed transaction returns the stored claim
+    // without paying for (or being able to fail on) the Privy fan-out below.
     const { data: existingClaim } = await supabaseAdmin
       .from("blockfest_cashback_claims")
       .select("*")
@@ -286,6 +257,37 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       MAX_CASHBACK_PER_TRANSACTION,
     );
     const finalCashback = cappedCashback.toFixed(2);
+
+    // Step 9.5: Resolve the identity scope that MAX_CASHBACK_PER_WALLET/MAX_CLAIMS_PER_WALLET
+    // pool over. Fail closed — a lookup error must not fall back to a per-wallet
+    // scope, which would silently grant a fresh allowance.
+    //
+    // resolveIdentityScope() matches siblings via user_kyc_profiles, which is keyed
+    // by the embedded/EOA wallet address — not the smart wallet address `walletAddress`
+    // holds here. It must be looked up separately, and the resulting EOA sibling set
+    // then mapped to smart wallet addresses, since that's the space
+    // blockfest_cashback_claims.wallet_address actually lives in.
+    let scopeWallets: string[];
+    try {
+      const eoaWalletAddress = await getWalletAddressFromPrivyUserId(userId);
+      const identityScope = await resolveIdentityScope(eoaWalletAddress);
+      const siblingSmartWallets = await getSmartWalletAddressesForWallets(
+        identityScope.wallets,
+      );
+      scopeWallets = [...new Set([walletAddress, ...siblingSmartWallets])];
+    } catch (scopeError) {
+      console.error("Failed to resolve identity scope for cashback claim:", scopeError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to verify claim limits",
+          code: "DATABASE_ERROR",
+          message: "Unable to verify your claim eligibility. Please try again.",
+          response_time_ms: Date.now() - start,
+        },
+        { status: 500 },
+      );
+    }
 
     // Step 10: Check limits, pooled across every wallet sharing this verified identity
     // Check total claim count

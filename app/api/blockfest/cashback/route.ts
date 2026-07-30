@@ -268,6 +268,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     // then mapped to smart wallet addresses, since that's the space
     // blockfest_cashback_claims.wallet_address actually lives in.
     let scopeWallets: string[];
+    let identityKeys: string[];
     try {
       const eoaWalletAddress = await getWalletAddressFromPrivyUserId(userId);
       const identityScope = await resolveIdentityScope(eoaWalletAddress);
@@ -275,6 +276,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         identityScope.wallets,
       );
       scopeWallets = [...new Set([walletAddress, ...siblingSmartWallets])];
+      identityKeys = identityScope.identityKeys;
     } catch (scopeError) {
       console.error("Failed to resolve identity scope for cashback claim:", scopeError);
       return NextResponse.json(
@@ -289,29 +291,49 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Step 10: Check limits, pooled across every wallet sharing this verified identity
-    // Check total claim count
-    const { count: claimCount, error: countError } = await supabaseAdmin
-      .from("blockfest_cashback_claims")
-      .select("*", { count: "exact", head: true })
-      .in("wallet_address", scopeWallets)
-      .eq("status", "completed");
+    // Step 10: Atomically validate quota and insert pending claim using a stored
+    // procedure. Acquires advisory locks on the identity keys to prevent concurrent
+    // sibling wallets from bypassing the shared $500 limit or 10-claim cap.
+    const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc(
+      "insert_cashback_claim_if_within_quota",
+      {
+        p_transaction_id: canonicalTransactionId,
+        p_wallet_address: walletAddress,
+        p_amount: finalCashback,
+        p_token_type: orderDetails.token,
+        p_max_claims: MAX_CLAIMS_PER_WALLET,
+        p_max_total_usd: MAX_CASHBACK_PER_WALLET,
+        p_scope_wallets: scopeWallets,
+        p_identity_keys: identityKeys,
+      },
+    );
 
-    if (countError) {
-      console.error("Failed to check claim count:", countError);
+    if (rpcError) {
+      console.error("Failed to create claim record:", rpcError);
       return NextResponse.json(
         {
           success: false,
-          error: "Failed to verify claim limits",
-          code: "DATABASE_ERROR",
-          message: "Unable to verify your claim eligibility. Please try again.",
+          error: "Failed to create claim record",
+          code: "CLAIM_CREATION_FAILED",
+          message: "Unable to process your cashback claim. Please try again.",
+          details: rpcError?.message ? { dbError: rpcError.message } : undefined,
           response_time_ms: Date.now() - start,
         },
         { status: 500 },
       );
     }
 
-    if ((claimCount || 0) >= MAX_CLAIMS_PER_WALLET) {
+    const rpcData = rpcResult as {
+      id?: string;
+      adjusted_amount?: string;
+      error?: string;
+      claim_count?: number;
+      max_claims?: number;
+      total_claimed?: number;
+      max_cashback?: number;
+    };
+
+    if (rpcData.error === "max_claims_reached") {
       return NextResponse.json(
         {
           success: false,
@@ -319,8 +341,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           code: "MAX_CLAIMS_REACHED",
           message: `You have reached the maximum of ${MAX_CLAIMS_PER_WALLET} cashback claims per wallet for this campaign.`,
           details: {
-            currentClaims: claimCount,
-            maxClaims: MAX_CLAIMS_PER_WALLET,
+            currentClaims: rpcData.claim_count,
+            maxClaims: rpcData.max_claims,
           },
           response_time_ms: Date.now() - start,
         },
@@ -328,33 +350,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Check total amount claimed
-    const { data: completedClaims, error: claimsError } = await supabaseAdmin
-      .from("blockfest_cashback_claims")
-      .select("amount")
-      .in("wallet_address", scopeWallets)
-      .eq("status", "completed");
-
-    if (claimsError) {
-      console.error("Failed to check total claimed:", claimsError);
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Failed to verify claim limits",
-          code: "DATABASE_ERROR",
-          message: "Unable to verify your claim eligibility. Please try again.",
-          response_time_ms: Date.now() - start,
-        },
-        { status: 500 },
-      );
-    }
-
-    const totalClaimed = (completedClaims || []).reduce(
-      (sum, claim) => sum + (parseFloat(claim.amount) || 0),
-      0,
-    );
-
-    if (totalClaimed >= MAX_CASHBACK_PER_WALLET) {
+    if (rpcData.error === "max_cashback_reached") {
       return NextResponse.json(
         {
           success: false,
@@ -362,8 +358,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           code: "MAX_CASHBACK_REACHED",
           message: `You have reached the maximum total cashback of $${MAX_CASHBACK_PER_WALLET} per wallet for this campaign.`,
           details: {
-            totalClaimed: totalClaimed.toFixed(2),
-            maxCashback: MAX_CASHBACK_PER_WALLET,
+            totalClaimed: rpcData.total_claimed?.toFixed(2),
+            maxCashback: rpcData.max_cashback,
           },
           response_time_ms: Date.now() - start,
         },
@@ -371,48 +367,27 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
-    // Adjust cashback to fit within remaining per-wallet allowance
-    const remainingAllowance = MAX_CASHBACK_PER_WALLET - totalClaimed;
-    const adjustedCashback = Math.min(
-      parseFloat(finalCashback),
-      remainingAllowance,
-    );
-    const finalAdjustedCashback = adjustedCashback.toFixed(2);
-
-    // Step 11: Create pending claim record
-    const { data: pendingClaim, error: claimError } = await supabaseAdmin
-      .from("blockfest_cashback_claims")
-      .insert({
-        transaction_id: canonicalTransactionId,
-        wallet_address: walletAddress,
-        amount: finalAdjustedCashback,
-        token_type: orderDetails.token,
-        status: "pending",
-      })
-      .select()
-      .single();
-
-    if (claimError || !pendingClaim) {
-      console.error("Failed to create claim record:", claimError);
+    if (!rpcData.id || !rpcData.adjusted_amount) {
+      console.error("Unexpected RPC result:", rpcData);
       return NextResponse.json(
         {
           success: false,
           error: "Failed to create claim record",
           code: "CLAIM_CREATION_FAILED",
-          message:
-            claimError?.code === "23505"
-              ? "A claim for this transaction already exists. Please refresh and try again."
-              : "Unable to process your cashback claim. Please try again.",
-          details: claimError?.message
-            ? { dbError: claimError.message }
-            : undefined,
+          message: "Unable to process your cashback claim. Please try again.",
           response_time_ms: Date.now() - start,
         },
         { status: 500 },
       );
     }
 
-    // Step 12: Execute cashback transfer
+    const pendingClaim = {
+      id: rpcData.id,
+      amount: rpcData.adjusted_amount,
+    };
+    const finalAdjustedCashback = rpcData.adjusted_amount;
+
+    // Step 11: Execute cashback transfer
     try {
       // Get token contract address
       const baseTokens = FALLBACK_TOKENS["Base"];
@@ -459,7 +434,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
         args: [walletAddress as `0x${string}`, amountInWei],
       });
 
-      // Step 13: Update claim status to completed
+      // Step 12: Update claim status to completed
       const { error: updateError } = await supabaseAdmin
         .from("blockfest_cashback_claims")
         .update({

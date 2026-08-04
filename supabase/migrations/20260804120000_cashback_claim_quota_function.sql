@@ -12,9 +12,16 @@
 --     is what closes the concurrency window — an in-flight claim reserves its
 --     amount the moment its row is inserted, before the transfer settles.
 --   * 'failed' rows do not consume it: a failed transfer releases its
---     reservation, so transient transfer errors never permanently short-change
---     the identity. (Re-submitting the same transaction still surfaces the
---     stored failed claim via the route's transaction_id idempotency check.)
+--     reservation back to the identity's pool. Note this frees the *pool*, not
+--     the transaction — the route's Step 8 idempotency lookup returns any
+--     existing row for that transaction_id, so a failed claim is terminal for
+--     that particular transaction and is not retryable. (Deliberate: the
+--     transfer may have been broadcast before the error, so an automatic retry
+--     risks paying twice. Recovery is manual.)
+--
+-- A 'pending' row is only moved to 'failed' by the route's own catch block, so
+-- an invocation killed mid-flight (timeout, OOM, deploy) would strand its
+-- reservation forever. 20260804120100 sweeps those.
 --
 -- Return contract (JSONB) — app/api/blockfest/cashback/route.ts depends on this:
 --   success:   { "id": <uuid>, "adjusted_amount": <text, 2 decimals> }
@@ -25,6 +32,32 @@
 --   duplicate: { "error": "duplicate_transaction" }  -- unique violation on transaction_id,
 --                two concurrent submissions of the same transaction raced past the
 --                route's idempotency lookup; the loser lands here.
+
+-- `amount` is TEXT, and the quota query below sums it with `amount::NUMERIC`.
+-- That cast is a single point of failure for a whole identity: one unparseable
+-- row anywhere in the scope raises `invalid input syntax for type numeric` and
+-- every claim for that identity fails until someone locates it. Rather than
+-- swallow bad values in the SUM (which would understate the total and
+-- over-credit the identity), keep the strict cast and stop bad values landing.
+--
+-- NOT VALID: constrains new writes only, with no scan of existing rows, so the
+-- migration cannot fail on legacy data. Every row written by this function and
+-- its predecessor is round(…, 2)/toFixed(2) output, so a later VALIDATE
+-- CONSTRAINT is expected to pass — deliberately left for a follow-up, since
+-- validation takes a lock this migration shouldn't be holding.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'public.blockfest_cashback_claims'::regclass
+       AND conname  = 'blockfest_cashback_claims_amount_numeric'
+  ) THEN
+    ALTER TABLE public.blockfest_cashback_claims
+      ADD CONSTRAINT blockfest_cashback_claims_amount_numeric
+      CHECK (amount ~ '^[0-9]+(\.[0-9]+)?$') NOT VALID;
+  END IF;
+END
+$$;
 
 CREATE OR REPLACE FUNCTION public.insert_cashback_claim_if_within_quota(
   p_transaction_id TEXT,
@@ -41,9 +74,11 @@ CREATE OR REPLACE FUNCTION public.insert_cashback_claim_if_within_quota(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
--- Pinned as a function attribute (not body-level set_config) so pg_temp is
--- excluded too: a caller-created temp table could otherwise shadow
--- blockfest_cashback_claims in the unqualified references below.
+-- Pinned as a function attribute (not body-level set_config) so it is in force
+-- for the whole call. pg_temp is named explicitly and *last* on purpose: an
+-- unlisted pg_temp is searched FIRST for relation names, so leaving it out is
+-- what would let a caller-created temp table shadow blockfest_cashback_claims in
+-- the unqualified references below. Listing it demotes it behind public.
 SET search_path = public, pg_temp
 AS $$
 DECLARE

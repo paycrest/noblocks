@@ -13,7 +13,10 @@ import { erc20Abi } from "viem";
 import { cashbackConfig } from "@/app/lib/server-config";
 import config from "@/app/lib/config";
 import { isReferralEnabled } from "@/app/utils";
-import { resolveOwnIdentityFingerprint } from "@/app/lib/kyc-identity";
+import {
+  resolveIdentityScope,
+  resolveOwnIdentityFingerprint,
+} from "@/app/lib/kyc-identity";
 
 // Referral program configuration
 const referralRewardAmountUsd = config.referralRewardAmountUsd;
@@ -355,6 +358,42 @@ async function tryClaimOne(
       success: true,
       txHash: existingClaim.tx_hash,
       amount: existingClaim.reward_amount,
+    };
+  }
+
+  // ── Identity-level self-referral guard ──────────────────────────────────────
+  // submit/route.ts rejects self-referral by *address*, but one person can hold
+  // several wallets sharing one verified phone/ID — injected wallets are exempt
+  // from the identity uniqueness indexes (see 20260726120100), by design.
+  //
+  // The fingerprint indexes below stop a sibling wallet collecting a second
+  // *referee* reward, but nothing stops the referrer side: it stamps no
+  // fingerprint (a referrer legitimately earns on many referrals), so A referring
+  // its own siblings B, C, D still pays A once per wallet. Address equality can't
+  // see that; identity scope can.
+  //
+  // Placed after the completed-claim short-circuit so already-paid claims stay
+  // idempotent rather than being retroactively rejected, and applied to both
+  // sides — if the two parties are one person, neither reward is owed.
+  //
+  // Fail closed: a lookup error must not let the pair through unchecked.
+  let refereeScopeWallets: string[];
+  try {
+    refereeScopeWallets = (await resolveIdentityScope(referredWallet)).wallets;
+  } catch {
+    return {
+      success: false,
+      code: "IDENTITY_CHECK_FAILED",
+      message: "Unable to verify referral eligibility. Please try again later.",
+    };
+  }
+
+  if (refereeScopeWallets.includes(referrerWallet)) {
+    return {
+      success: false,
+      code: "SELF_REFERRAL",
+      message:
+        "The referring and referred wallets belong to the same verified identity. Referral rewards require two different people.",
     };
   }
 
@@ -813,7 +852,8 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           ? 400
           : result.code === "INSUFFICIENT_BALANCE" || result.code === "SERVICE_UNAVAILABLE"
             ? 503
-            : result.code === "UNAUTHORIZED_REFERRAL"
+            : result.code === "UNAUTHORIZED_REFERRAL" ||
+                result.code === "SELF_REFERRAL"
               ? 403
               : result.code === "ALREADY_REFERRED"
                 ? 409

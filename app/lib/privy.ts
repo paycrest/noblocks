@@ -98,8 +98,39 @@ export async function getSmartWalletAddressFromPrivyUserId(
 // rate limits. Only resolved addresses are cached: a null ("no smart wallet yet")
 // may become non-null minutes later, and caching it would let a claim in that
 // window escape the pooled quota.
+//
+// Bounded on both axes so a long-lived instance can't accumulate entries
+// indefinitely: expired entries are dropped when read, and once the map is full
+// the oldest insertion is evicted (Map iterates in insertion order, and entries
+// are re-inserted on refresh, so the first key is always the least recently
+// written).
 const SMART_WALLET_CACHE_TTL_MS = 5 * 60 * 1000;
+const SMART_WALLET_CACHE_MAX_ENTRIES = 5000;
 const smartWalletCache = new Map<string, { value: string; expiresAt: number }>();
+
+function readSmartWalletCache(address: string): string | null {
+  const cached = smartWalletCache.get(address);
+  if (!cached) return null;
+  if (cached.expiresAt <= Date.now()) {
+    smartWalletCache.delete(address);
+    return null;
+  }
+  return cached.value;
+}
+
+function writeSmartWalletCache(address: string, value: string): void {
+  // Delete first so a refresh moves the key to the end of the insertion order
+  // rather than keeping its original (now misleading) position.
+  smartWalletCache.delete(address);
+  if (smartWalletCache.size >= SMART_WALLET_CACHE_MAX_ENTRIES) {
+    const oldest = smartWalletCache.keys().next();
+    if (!oldest.done) smartWalletCache.delete(oldest.value);
+  }
+  smartWalletCache.set(address, {
+    value,
+    expiresAt: Date.now() + SMART_WALLET_CACHE_TTL_MS,
+  });
+}
 
 export async function getSmartWalletAddressesForWallets(
   wallets: string[],
@@ -107,9 +138,9 @@ export async function getSmartWalletAddressesForWallets(
   const privy = getPrivyClient();
   const results = await Promise.allSettled(
     wallets.map(async (address) => {
-      const cached = smartWalletCache.get(address);
-      if (cached && cached.expiresAt > Date.now()) {
-        return cached.value;
+      const cached = readSmartWalletCache(address);
+      if (cached) {
+        return cached;
       }
       // getUserByWalletAddress maps 404 → null, so a sibling with no Privy
       // account resolves (to null) rather than rejects — a rejection here is
@@ -120,10 +151,7 @@ export async function getSmartWalletAddressesForWallets(
       )?.address;
       const value = smartWallet ? smartWallet.toLowerCase() : null;
       if (value) {
-        smartWalletCache.set(address, {
-          value,
-          expiresAt: Date.now() + SMART_WALLET_CACHE_TTL_MS,
-        });
+        writeSmartWalletCache(address, value);
       }
       return value;
     }),

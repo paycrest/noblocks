@@ -55,10 +55,16 @@ DECLARE
   v_adjusted      NUMERIC;
   v_new_id        UUID;
 BEGIN
-  -- Defense in depth against a malformed amount. Postgres sorts NaN above every
-  -- numeric, so without this LEAST(NaN, remaining) below would resolve to the
-  -- identity's entire remaining allowance. (p_amount <> p_amount is the NaN test.)
-  IF p_amount IS NULL OR p_amount <> p_amount OR p_amount <= 0 THEN
+  -- Defense in depth against a malformed amount. Postgres treats NaN as EQUAL
+  -- to itself and greater than every numeric (so neither the IEEE idiom
+  -- p_amount <> p_amount nor p_amount <= 0 catches it), and LEAST(NaN, remaining)
+  -- below would resolve to the identity's entire remaining allowance. Infinity
+  -- (valid numeric input since PG 14) would do the same; -Infinity is caught by
+  -- the <= 0 branch.
+  IF p_amount IS NULL
+       OR p_amount = 'NaN'::numeric
+       OR p_amount = 'Infinity'::numeric
+       OR p_amount <= 0 THEN
     RETURN jsonb_build_object('error', 'amount_too_small');
   END IF;
 

@@ -323,15 +323,35 @@ export const POST = withRateLimit(async (request: NextRequest) => {
       );
     }
 
+    // Result contract is documented in the migration that defines the function
+    // (supabase/migrations/20260804120000_cashback_claim_quota_function.sql).
+    // Numeric fields are coerced with Number(): PostgREST serializes NUMERIC as
+    // a string to preserve precision, so `.toFixed()` directly would throw.
     const rpcData = rpcResult as {
       id?: string;
       adjusted_amount?: string;
       error?: string;
-      claim_count?: number;
-      max_claims?: number;
-      total_claimed?: number;
-      max_cashback?: number;
+      claim_count?: number | string;
+      max_claims?: number | string;
+      total_claimed?: number | string;
+      max_cashback?: number | string;
     };
+
+    if (rpcData.error === "duplicate_transaction") {
+      // The Step 8 idempotency lookup is non-atomic; when two submissions of the
+      // same transaction race, the loser lands here — a benign retry, not a failure.
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Claim already exists",
+          code: "DUPLICATE_CLAIM",
+          message:
+            "A claim for this transaction already exists. Please refresh and try again.",
+          response_time_ms: Date.now() - start,
+        },
+        { status: 409 },
+      );
+    }
 
     if (rpcData.error === "max_claims_reached") {
       return NextResponse.json(
@@ -339,10 +359,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           success: false,
           error: "Claim limit reached",
           code: "MAX_CLAIMS_REACHED",
-          message: `You have reached the maximum of ${MAX_CLAIMS_PER_WALLET} cashback claims per wallet for this campaign.`,
+          message: `You have reached the maximum of ${MAX_CLAIMS_PER_WALLET} cashback claims for this campaign across all wallets linked to your verified identity.`,
           details: {
-            currentClaims: rpcData.claim_count,
-            maxClaims: rpcData.max_claims,
+            currentClaims: Number(rpcData.claim_count ?? 0),
+            maxClaims: MAX_CLAIMS_PER_WALLET,
           },
           response_time_ms: Date.now() - start,
         },
@@ -356,10 +376,10 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           success: false,
           error: "Total cashback limit reached",
           code: "MAX_CASHBACK_REACHED",
-          message: `You have reached the maximum total cashback of $${MAX_CASHBACK_PER_WALLET} per wallet for this campaign.`,
+          message: `You have reached the maximum total cashback of $${MAX_CASHBACK_PER_WALLET} for this campaign across all wallets linked to your verified identity.`,
           details: {
-            totalClaimed: rpcData.total_claimed?.toFixed(2),
-            maxCashback: rpcData.max_cashback,
+            totalClaimed: Number(rpcData.total_claimed ?? 0).toFixed(2),
+            maxCashback: MAX_CASHBACK_PER_WALLET,
           },
           response_time_ms: Date.now() - start,
         },
@@ -369,6 +389,15 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     if (!rpcData.id || !rpcData.adjusted_amount) {
       console.error("Unexpected RPC result:", rpcData);
+      // If a row was inserted despite the malformed response, remove it — no
+      // transfer has been attempted, and leaving it as 'pending' would consume
+      // the identity's allowance forever while Step 8 blocks any retry.
+      if (rpcData.id) {
+        await supabaseAdmin
+          .from("blockfest_cashback_claims")
+          .delete()
+          .eq("id", rpcData.id);
+      }
       return NextResponse.json(
         {
           success: false,

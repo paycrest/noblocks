@@ -93,20 +93,50 @@ export async function getSmartWalletAddressFromPrivyUserId(
  * `blockfest_cashback_claims` rows in the first place, so it's skipped rather
  * than treated as an error.
  */
+// The EOA → smart-wallet mapping is effectively immutable, so a short-lived
+// cache spares one Privy call per sibling on every claim and softens rate limits.
+const SMART_WALLET_CACHE_TTL_MS = 5 * 60 * 1000;
+const smartWalletCache = new Map<
+  string,
+  { value: string | null; expiresAt: number }
+>();
+
 export async function getSmartWalletAddressesForWallets(
   wallets: string[],
 ): Promise<string[]> {
   const privy = getPrivyClient();
-  const resolved = await Promise.all(
+  const results = await Promise.allSettled(
     wallets.map(async (address) => {
+      const cached = smartWalletCache.get(address);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.value;
+      }
       const user = await privy.getUserByWalletAddress(address);
-      if (!user) return null;
-      const smartWallet = user.linkedAccounts.find(
+      const smartWallet = user?.linkedAccounts.find(
         (account) => account.type === "smart_wallet",
       )?.address;
-      return smartWallet ? smartWallet.toLowerCase() : null;
+      const value = smartWallet ? smartWallet.toLowerCase() : null;
+      smartWalletCache.set(address, {
+        value,
+        expiresAt: Date.now() + SMART_WALLET_CACHE_TTL_MS,
+      });
+      return value;
     }),
   );
+  // A sibling that fails to resolve contributes no rows (it can't hold claims
+  // without a smart wallet), so one Privy hiccup on a sibling must not fail the
+  // caller's whole claim — log it and continue with the wallets that resolved.
+  const resolved: (string | null)[] = [];
+  results.forEach((result, i) => {
+    if (result.status === "fulfilled") {
+      resolved.push(result.value);
+    } else {
+      console.error(
+        `getSmartWalletAddressesForWallets: failed to resolve sibling wallet ${wallets[i]}:`,
+        result.reason,
+      );
+    }
+  });
   return [...new Set(resolved.filter((a): a is string => !!a))];
 }
 

@@ -79,8 +79,16 @@ export async function identityScopeHasVerifiedPhone(
  * Used to key identity-scoped uniqueness constraints (referral submission and
  * referee-reward claims) on the same two dimensions `resolveIdentityScope`
  * pools on, without paying for the sibling query when only the caller's own
- * values are needed. Values are returned verbatim (no lowercasing), matching
- * how `resolveIdentityScope`'s own sibling queries do exact `.eq()` matches.
+ * values are needed.
+ *
+ * Unlike `resolveIdentityScope`'s sibling queries (which compare stored values
+ * against stored values, so verbatim `.eq()` is self-consistent), these values
+ * feed unique indexes — so they are normalized: `phone_number` is already
+ * E.164-canonical on write, but the id_* columns store raw client input, and
+ * without normalization the same document could yield distinct fingerprints
+ * ("NG:passport:A 123" vs "ng:PASSPORT:a123") and both slip past the indexes.
+ * Must stay in sync with the backfill in
+ * supabase/migrations/20260730120000_identity_scoped_referrals.sql.
  *
  * Throws on any Supabase error — callers must fail closed, same contract as
  * `resolveIdentityScope`.
@@ -100,17 +108,19 @@ export async function resolveOwnIdentityFingerprint(
     throw error;
   }
 
-  const phone = profile?.phone_number || null;
+  const phone = profile?.phone_number?.trim() || null;
   const hasId = !!(
     profile?.id_country &&
     profile?.id_type &&
     profile?.id_number
   );
 
+  const normalizePart = (value: string) => value.trim().toUpperCase();
+
   return {
     phone,
     idKey: hasId
-      ? `${profile!.id_country}:${profile!.id_type}:${profile!.id_number}`
+      ? `${normalizePart(profile!.id_country)}:${normalizePart(profile!.id_type)}:${normalizePart(profile!.id_number).replace(/\s/g, "")}`
       : null,
   };
 }

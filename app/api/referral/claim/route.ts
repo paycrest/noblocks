@@ -31,11 +31,20 @@ function isUniqueViolation(error: { code?: string; message?: string } | null): b
 // pre-existing (referral_id, wallet_address) conflict: the former means a sibling
 // wallet already collected this identity's referee reward (terminal, no row to
 // recover), the latter means this exact claim raced itself (recoverable via lookup).
-function isIdentityConflict(error: { message?: string } | null): boolean {
-    const message = error?.message?.toLowerCase() ?? "";
+// Gated on the stable SQLSTATE first; the index name is then looked for across
+// message/details/hint because PostgREST has moved constraint details between
+// those fields across versions.
+function isIdentityConflict(
+    error: { code?: string; message?: string; details?: string; hint?: string } | null,
+): boolean {
+    if (error?.code !== "23505") return false;
+    const haystack = [error.message, error.details, error.hint]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
     return (
-        message.includes("referral_claims_referee_identity_phone_unique") ||
-        message.includes("referral_claims_referee_identity_id_key_unique")
+        haystack.includes("referral_claims_referee_identity_phone_unique") ||
+        haystack.includes("referral_claims_referee_identity_id_key_unique")
     );
 }
 
@@ -447,7 +456,8 @@ async function tryClaimOne(
       return {
         success: false,
         code: "ALREADY_REFERRED",
-        message: "You have already used a referral code",
+        message:
+          "A wallet linked to your verified identity has already collected this referral reward.",
       };
     } else if (insertError && isUniqueViolation(insertError)) {
       const { data: raced, error: raceErr } = await supabaseAdmin

@@ -251,6 +251,26 @@ export const POST = withRateLimit(async (request: NextRequest) => {
 
     // Step 9: Calculate cashback amount (server-side)
     const transactionAmount = parseFloat(orderDetails.amount);
+    // Fail closed on a malformed aggregator amount: NaN would otherwise reach the
+    // quota function, where Postgres sorts NaN above all numerics and
+    // LEAST(NaN, remaining) pays out the identity's entire remaining allowance.
+    if (!Number.isFinite(transactionAmount) || transactionAmount <= 0) {
+      console.error(
+        `Invalid order amount for cashback claim ${canonicalTransactionId}:`,
+        orderDetails.amount,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid transaction amount",
+          code: "INVALID_TRANSACTION_AMOUNT",
+          message:
+            "The transaction amount could not be verified. Please try again later or contact support.",
+          response_time_ms: Date.now() - start,
+        },
+        { status: 400 },
+      );
+    }
     const cashbackAmount = transactionAmount * CASHBACK_PERCENTAGE;
     const cappedCashback = Math.min(
       cashbackAmount,
@@ -327,7 +347,7 @@ export const POST = withRateLimit(async (request: NextRequest) => {
     // (supabase/migrations/20260804120000_cashback_claim_quota_function.sql).
     // Numeric fields are coerced with Number(): PostgREST serializes NUMERIC as
     // a string to preserve precision, so `.toFixed()` directly would throw.
-    const rpcData = rpcResult as {
+    const rpcData = (rpcResult ?? {}) as {
       id?: string;
       adjusted_amount?: string;
       error?: string;
@@ -350,6 +370,20 @@ export const POST = withRateLimit(async (request: NextRequest) => {
           response_time_ms: Date.now() - start,
         },
         { status: 409 },
+      );
+    }
+
+    if (rpcData.error === "amount_too_small") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Cashback amount too small",
+          code: "AMOUNT_TOO_SMALL",
+          message:
+            "This transaction is too small to earn cashback (1% rounds to $0.00).",
+          response_time_ms: Date.now() - start,
+        },
+        { status: 400 },
       );
     }
 

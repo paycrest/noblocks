@@ -20,6 +20,8 @@
 --   success:   { "id": <uuid>, "adjusted_amount": <text, 2 decimals> }
 --   quota:     { "error": "max_claims_reached",   "claim_count": <int>,  "max_claims": <int> }
 --              { "error": "max_cashback_reached", "total_claimed": <number>, "max_cashback": <number> }
+--   too small: { "error": "amount_too_small" }  -- the claim rounds to $0.00; inserting
+--                it would burn a claim slot on a zero transfer.
 --   duplicate: { "error": "duplicate_transaction" }  -- unique violation on transaction_id,
 --                two concurrent submissions of the same transaction raced past the
 --                route's idempotency lookup; the loser lands here.
@@ -39,6 +41,10 @@ CREATE OR REPLACE FUNCTION public.insert_cashback_claim_if_within_quota(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+-- Pinned as a function attribute (not body-level set_config) so pg_temp is
+-- excluded too: a caller-created temp table could otherwise shadow
+-- blockfest_cashback_claims in the unqualified references below.
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_scope_wallets TEXT[];
@@ -49,7 +55,12 @@ DECLARE
   v_adjusted      NUMERIC;
   v_new_id        UUID;
 BEGIN
-  PERFORM set_config('search_path', 'public', true);
+  -- Defense in depth against a malformed amount. Postgres sorts NaN above every
+  -- numeric, so without this LEAST(NaN, remaining) below would resolve to the
+  -- identity's entire remaining allowance. (p_amount <> p_amount is the NaN test.)
+  IF p_amount IS NULL OR p_amount <> p_amount OR p_amount <= 0 THEN
+    RETURN jsonb_build_object('error', 'amount_too_small');
+  END IF;
 
   -- Always include the caller, and dedupe: a stale or partial scope must never
   -- leave the caller with a narrower pool than its own wallet.
@@ -95,6 +106,12 @@ BEGIN
   -- Trim the claim to whatever allowance the identity has left.
   v_adjusted := round(LEAST(p_amount, p_max_total_usd - v_total_claimed), 2);
 
+  -- 1% of a sub-$0.50 transaction rounds to 0.00 — inserting that would burn
+  -- one of the pooled claim slots on a zero transfer.
+  IF v_adjusted <= 0 THEN
+    RETURN jsonb_build_object('error', 'amount_too_small');
+  END IF;
+
   BEGIN
     INSERT INTO blockfest_cashback_claims (
       transaction_id, wallet_address, amount, token_type, status
@@ -113,4 +130,8 @@ BEGIN
 END;
 $$;
 
+-- SECURITY DEFINER functions are EXECUTE-able by PUBLIC by default, which would
+-- expose this through PostgREST to anon/authenticated with caller-chosen quota
+-- limits. Only the service role (used by supabaseAdmin) may call it.
+REVOKE ALL ON FUNCTION public.insert_cashback_claim_if_within_quota FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.insert_cashback_claim_if_within_quota TO service_role;

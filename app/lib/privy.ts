@@ -93,13 +93,13 @@ export async function getSmartWalletAddressFromPrivyUserId(
  * `blockfest_cashback_claims` rows in the first place, so it's skipped rather
  * than treated as an error.
  */
-// The EOA → smart-wallet mapping is effectively immutable, so a short-lived
-// cache spares one Privy call per sibling on every claim and softens rate limits.
+// The EOA → smart-wallet mapping is effectively immutable once set, so a
+// short-lived cache spares one Privy call per sibling on every claim and softens
+// rate limits. Only resolved addresses are cached: a null ("no smart wallet yet")
+// may become non-null minutes later, and caching it would let a claim in that
+// window escape the pooled quota.
 const SMART_WALLET_CACHE_TTL_MS = 5 * 60 * 1000;
-const smartWalletCache = new Map<
-  string,
-  { value: string | null; expiresAt: number }
->();
+const smartWalletCache = new Map<string, { value: string; expiresAt: number }>();
 
 export async function getSmartWalletAddressesForWallets(
   wallets: string[],
@@ -111,23 +111,31 @@ export async function getSmartWalletAddressesForWallets(
       if (cached && cached.expiresAt > Date.now()) {
         return cached.value;
       }
+      // getUserByWalletAddress maps 404 → null, so a sibling with no Privy
+      // account resolves (to null) rather than rejects — a rejection here is
+      // always an infrastructure error, never "wallet not found".
       const user = await privy.getUserByWalletAddress(address);
       const smartWallet = user?.linkedAccounts.find(
         (account) => account.type === "smart_wallet",
       )?.address;
       const value = smartWallet ? smartWallet.toLowerCase() : null;
-      smartWalletCache.set(address, {
-        value,
-        expiresAt: Date.now() + SMART_WALLET_CACHE_TTL_MS,
-      });
+      if (value) {
+        smartWalletCache.set(address, {
+          value,
+          expiresAt: Date.now() + SMART_WALLET_CACHE_TTL_MS,
+        });
+      }
       return value;
     }),
   );
-  // A sibling that fails to resolve contributes no rows (it can't hold claims
-  // without a smart wallet), so one Privy hiccup on a sibling must not fail the
-  // caller's whole claim — log it and continue with the wallets that resolved.
+  // A sibling with no Privy account or no smart wallet (fulfilled null) is
+  // safely skipped — it can't hold claims. An infrastructure error (rejection)
+  // is a different thing: silently dropping that sibling would narrow the quota
+  // scope and hand out a fresh allowance, so it must fail the claim closed —
+  // matching resolveIdentityScope's contract.
   const resolved: (string | null)[] = [];
-  results.forEach((result, i) => {
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
     if (result.status === "fulfilled") {
       resolved.push(result.value);
     } else {
@@ -135,8 +143,9 @@ export async function getSmartWalletAddressesForWallets(
         `getSmartWalletAddressesForWallets: failed to resolve sibling wallet ${wallets[i]}:`,
         result.reason,
       );
+      throw result.reason;
     }
-  });
+  }
   return [...new Set(resolved.filter((a): a is string => !!a))];
 }
 

@@ -732,12 +732,21 @@ export function MainPageContent() {
       // must not update state after the form becomes unfundable.
       let requestSeq = ++rateRequestSeqRef.current;
 
-      if (!currency) return;
+      if (!currency) {
+        if (requestSeq === rateRequestSeqRef.current) setIsFetchingRate(false);
+        return;
+      }
 
-      if (isOnrampRate && !token) return;
+      if (isOnrampRate && !token) {
+        if (requestSeq === rateRequestSeqRef.current) setIsFetchingRate(false);
+        return;
+      }
 
       // Only fetch rate if at least one amount is greater than 0
-      if (!amountSent && !amountReceived) return;
+      if (!amountSent && !amountReceived) {
+        if (requestSeq === rateRequestSeqRef.current) setIsFetchingRate(false);
+        return;
+      }
 
       // Off-ramp amount exceeds spendable balance: form shows insufficient funds
       // and markets are paused — skip quoting so we don't surface liquidity /
@@ -763,7 +772,10 @@ export function MainPageContent() {
       // clamp below and ask for whatever amount carried over from the
       // previous corridor, which is how a tab switch used to produce a
       // no-provider toast.
-      if (isLoadingLiquidity) return;
+      if (isLoadingLiquidity) {
+        if (requestSeq === rateRequestSeqRef.current) setIsFetchingRate(false);
+        return;
+      }
 
       const getRate = async (shouldUseProvider = true) => {
         setIsFetchingRate(true);

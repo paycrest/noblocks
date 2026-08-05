@@ -158,6 +158,17 @@ export function useSwapButton({
     // balance; market limits apply once the amount is fundable.
     if (amountBounds?.noLiquidity && !hasInsufficientBalance) return false;
 
+    // Underfunded: fund / show shortfall without requiring a live rate quote
+    // (market + rates are paused for those amounts).
+    // Check this BEFORE the KYC branch so an injected wallet with insufficient
+    // balance cannot reach handleSwap through the verification shortcut.
+    if (isInjectedWallet && hasInsufficientBalance) {
+      return false;
+    }
+    if (hasInsufficientBalance && !isInjectedWallet && authenticated) {
+      return true;
+    }
+
     // Phone / next-tier KYC from the main CTA must work before the user picks a
     // recipient; otherwise the verify label appears on a permanently disabled button.
     const rateReady = Boolean(rate) && Number(rate) > 0;
@@ -173,15 +184,6 @@ export function useSwapButton({
     }
 
     if (!receiveDestinationExplicitlySelected) return false;
-
-    // Underfunded: fund / show shortfall without requiring a live rate quote
-    // (market + rates are paused for those amounts).
-    if (isInjectedWallet && hasInsufficientBalance) {
-      return false;
-    }
-    if (hasInsufficientBalance && !isInjectedWallet && authenticated) {
-      return true;
-    }
 
     if (!rate) return false;
 

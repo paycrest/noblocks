@@ -41,8 +41,8 @@ export function isStaleLiveFlowClaim(job: PendingEarnBridgeJob): boolean {
   );
 }
 
-const USDC_DECIMALS = 6n;
-const USDC_SCALE = 10n ** USDC_DECIMALS;
+const USDC_SCALE = BigInt(1_000_000);
+const USDC_DECIMAL_PLACES = 6;
 
 /** Format 6-decimal USDC base units without lossy Number conversion. */
 export function formatUsdcBaseUnits(baseUnits: bigint): string {
@@ -50,7 +50,7 @@ export function formatUsdcBaseUnits(baseUnits: bigint): string {
   const whole = abs / USDC_SCALE;
   const frac = abs % USDC_SCALE;
   const sign = baseUnits < BigInt(0) ? "-" : "";
-  return `${sign}${whole}.${frac.toString().padStart(6, "0")}`;
+  return `${sign}${whole}.${frac.toString().padStart(USDC_DECIMAL_PLACES, "0")}`;
 }
 
 export function pendingBridgeReceiveBaseUnits(

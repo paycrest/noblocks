@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { verifyJWT } from "./jwt";
 import { DEFAULT_PRIVY_CONFIG, STARKNET_READY_ACCOUNT_CLASSHASH } from "./config";
 import { collectLinkedEvmAddressesForPrivyUserId } from "./privy";
+import { starknetAddressMatches } from "./layerswapAddressMatch";
 import { computeReadyAddress, getStarknetWallet } from "./starknet";
 
 const EVM_ADDRESS_LOWER = /^0x[a-f0-9]{40}$/;
@@ -11,6 +12,8 @@ export type LayerswapAuthContext = {
   userId: string;
   token: string;
 };
+
+export { swapBelongsToUser } from "./layerswapAddressMatch";
 
 export async function requireLayerswapAuth(
   request: NextRequest,
@@ -60,10 +63,6 @@ export async function assertEvmAddressOwnedByUser(
   return linked.includes(normalized);
 }
 
-function normalizeStarknetAddress(address: string): string {
-  return address.trim().toLowerCase();
-}
-
 export async function assertStarknetAddressOwnedByUser(
   _userId: string,
   walletId: string,
@@ -73,41 +72,8 @@ export async function assertStarknetAddressOwnedByUser(
   try {
     const { publicKey } = await getStarknetWallet(walletId);
     const computed = computeReadyAddress(publicKey, STARKNET_READY_ACCOUNT_CLASSHASH);
-    return (
-      normalizeStarknetAddress(computed) ===
-      normalizeStarknetAddress(starknetAddress)
-    );
+    return starknetAddressMatches(starknetAddress, computed);
   } catch {
     return false;
   }
-}
-
-export function swapBelongsToUser(params: {
-  linkedEvmAddresses: string[];
-  starknetAddresses: string[];
-  sourceAddress?: string | null;
-  destinationAddress?: string | null;
-}): boolean {
-  const { linkedEvmAddresses, starknetAddresses, sourceAddress, destinationAddress } =
-    params;
-
-  const evmSet = new Set(linkedEvmAddresses.map((a) => a.toLowerCase()));
-  const starkSet = new Set(starknetAddresses.map(normalizeStarknetAddress));
-
-  const source = sourceAddress?.trim().toLowerCase();
-  const destination = destinationAddress?.trim().toLowerCase();
-
-  if (source && EVM_ADDRESS_LOWER.test(source) && evmSet.has(source)) {
-    return true;
-  }
-  if (source && starkSet.has(normalizeStarknetAddress(source))) {
-    return true;
-  }
-  if (destination && EVM_ADDRESS_LOWER.test(destination) && evmSet.has(destination)) {
-    return true;
-  }
-  if (destination && starkSet.has(normalizeStarknetAddress(destination))) {
-    return true;
-  }
-  return false;
 }

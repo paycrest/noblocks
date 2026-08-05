@@ -219,7 +219,10 @@ export function useEvmEarnHandler() {
         depositActions,
       });
 
-      patchPendingEarnBridge(swapId, { claimedByLiveFlow: true });
+      patchPendingEarnBridge(swapId, {
+        claimedByLiveFlow: true,
+        claimedAt: Date.now(),
+      });
 
       const txHash = await executeBatchCalls({
         chain,

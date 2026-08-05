@@ -23,16 +23,34 @@ export interface PendingEarnBridgeJob {
   createdAt: number;
   /** When true, depositFromEvm owns Vesu deposit for this job (tracker skips). */
   claimedByLiveFlow?: boolean;
+  /** Set when claimedByLiveFlow becomes true; used for stale-claim timeout. */
+  claimedAt?: number;
 }
 
 /** Stale live-flow claims fall back to the background tracker. */
 export const LIVE_FLOW_CLAIM_STALE_MS = 5 * 60 * 1000;
 
+export function liveFlowClaimStartedAt(job: PendingEarnBridgeJob): number {
+  return job.claimedAt ?? job.createdAt;
+}
+
 export function isStaleLiveFlowClaim(job: PendingEarnBridgeJob): boolean {
   return (
     Boolean(job.claimedByLiveFlow) &&
-    Date.now() - job.createdAt > LIVE_FLOW_CLAIM_STALE_MS
+    Date.now() - liveFlowClaimStartedAt(job) > LIVE_FLOW_CLAIM_STALE_MS
   );
+}
+
+const USDC_DECIMALS = 6n;
+const USDC_SCALE = 10n ** USDC_DECIMALS;
+
+/** Format 6-decimal USDC base units without lossy Number conversion. */
+export function formatUsdcBaseUnits(baseUnits: bigint): string {
+  const abs = baseUnits < BigInt(0) ? -baseUnits : baseUnits;
+  const whole = abs / USDC_SCALE;
+  const frac = abs % USDC_SCALE;
+  const sign = baseUnits < BigInt(0) ? "-" : "";
+  return `${sign}${whole}.${frac.toString().padStart(6, "0")}`;
 }
 
 export function pendingBridgeReceiveBaseUnits(
@@ -190,7 +208,7 @@ export function addEarnSourcePosition(
       sourceChain,
       starknetAddress: existing?.starknetAddress ?? starknetAddress,
       suppliedBaseUnits: next.toString(),
-      suppliedFormatted: (Number(next) / 1e6).toFixed(6),
+      suppliedFormatted: formatUsdcBaseUnits(next),
       supplyApy: existing?.supplyApy ?? supplyApy,
     },
     token,
@@ -218,7 +236,7 @@ export function subtractEarnSourcePosition(
     {
       ...existing,
       suppliedBaseUnits: next.toString(),
-      suppliedFormatted: (Number(next) / 1e6).toFixed(6),
+      suppliedFormatted: formatUsdcBaseUnits(next),
     },
     token,
   );
